@@ -117,7 +117,7 @@ fun PublicFindScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                listOf("500", "5k", "25k", "100k").forEach {
+                listOf("100", "5k", "25k", "100k").forEach {
                     Text(it, typography = AppTheme.typography.Label.L300, color = AppTheme.colors.contentDisabled)
                 }
             }
@@ -179,10 +179,14 @@ private fun BuyInChip(amount: Int) {
     }
 }
 
-/** Map a 0..1 slider position to a buy-in figure on a 500..100k scale, rounded. */
+/** Map a 0..1 slider position to a buy-in figure on a 100..100k scale, rounded.
+ *  Starts low so small-stakes tables are reachable (matches the private-create
+ *  minimum buy-in). */
 private fun buyInFor(fraction: Float): Int {
-    val raw = 500 + fraction * (100_000 - 500)
-    val step = 500
+    val min = 100
+    val max = 100_000
+    val raw = min + fraction * (max - min)
+    val step = 100
     return ((raw / step).roundToInt() * step)
 }
 

@@ -19,6 +19,9 @@ data class RoomDto(
     val maxSeats: Int,
     val status: RoomStatusDto,
     val members: List<RoomMemberDto>,
+    val buyIn: Long = 0,
+    val smallBlind: Long = 0,
+    val bigBlind: Long = 0,
 )
 
 @Serializable
@@ -28,6 +31,9 @@ data class RoomMemberDto(
     val seatIndex: Int,
     val joinedAtEpochMs: Long,
     val isConnected: Boolean,
+    val isBot: Boolean = false,
+    val avatarEmoji: String? = null,
+    val avatarBackgroundColor: String? = null,
 )
 
 /**
@@ -45,7 +51,10 @@ enum class RoomStatusDto {
 }
 
 @Serializable
-data class CreateRoomRequestDto(val maxSeats: Int? = null)
+data class CreateRoomRequestDto(
+    val maxSeats: Int? = null,
+    val buyIn: Long? = null,
+)
 
 @Serializable
 data class CreateRoomResponseDto(
@@ -62,6 +71,18 @@ data class JoinRoomResponseDto(
 
 @Serializable
 data class GetRoomResponseDto(
+    val schemaVersion: Int = 1,
+    val room: RoomDto,
+)
+
+@Serializable
+data class AddBotRequestDto(
+    val seatIndex: Int? = null,
+    val difficulty: String? = null,
+)
+
+@Serializable
+data class AddBotResponseDto(
     val schemaVersion: Int = 1,
     val room: RoomDto,
 )
@@ -90,6 +111,9 @@ internal fun RoomDto.toDomain(): Room = Room(
     maxSeats = maxSeats,
     status = status.toDomain(),
     members = members.map { it.toDomain() },
+    buyIn = buyIn,
+    smallBlind = smallBlind,
+    bigBlind = bigBlind,
 )
 
 internal fun RoomMemberDto.toDomain(): RoomMember = RoomMember(
@@ -98,6 +122,9 @@ internal fun RoomMemberDto.toDomain(): RoomMember = RoomMember(
     seatIndex = seatIndex,
     joinedAtEpochMs = joinedAtEpochMs,
     isConnected = isConnected,
+    isBot = isBot,
+    avatarEmoji = avatarEmoji,
+    avatarBackgroundColorHex = avatarBackgroundColor,
 )
 
 internal fun RoomStatusDto.toDomain(): RoomStatus = when (this) {

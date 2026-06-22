@@ -19,6 +19,9 @@ import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.game.GameSessionRegistry
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import me.tatarka.inject.annotations.Provides
 import software.amazon.lastmile.kotlin.inject.anvil.MergeComponent
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
@@ -75,4 +78,16 @@ abstract class ServerComponent(
      */
     @Provides
     fun provideClock(): Clock = Clock.System
+
+    /**
+     * Long-lived application scope for server-owned background work (the
+     * per-session bot drivers). SupervisorJob so one failure doesn't cascade;
+     * Default dispatcher because the work is CPU-bound (bot Monte Carlo) with
+     * short suspending pauses, never blocking I/O. Singleton — the process owns
+     * exactly one and never cancels it (it dies with the process).
+     */
+    @Provides
+    @SingleIn(ServerScope::class)
+    fun provideServerCoroutineScope(): CoroutineScope =
+        CoroutineScope(SupervisorJob() + Dispatchers.Default)
 }

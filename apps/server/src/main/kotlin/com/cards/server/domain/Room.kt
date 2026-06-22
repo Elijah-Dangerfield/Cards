@@ -1,5 +1,7 @@
 package com.dangerfield.cards.server.domain
 
+import com.dangerfield.cards.libraries.bots.BotDifficulty
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
@@ -32,7 +34,16 @@ data class Room(
     val status: RoomStatus,
     /** Members in seat-index order. List is the authoritative seating chart. */
     val members: List<RoomMember>,
+    /**
+     * Host-chosen buy-in = each player's starting stack. Blinds derive from it
+     * via [RoomSettings.forBuyIn]. Used at hand-start instead of the engine
+     * default so the table actually plays at the chosen stakes.
+     */
+    val buyIn: Long = RoomSettings.DEFAULT_BUY_IN,
 ) {
+    /** Full engine settings derived from [buyIn] + [maxSeats]. */
+    val settings: RoomSettings get() = RoomSettings.forBuyIn(buyIn, maxSeats)
+
     val seatCount: Int get() = members.size
     val isFull: Boolean get() = seatCount >= maxSeats
     fun memberFor(userId: UserId): RoomMember? = members.firstOrNull { it.userId == userId }
@@ -72,7 +83,17 @@ data class RoomMember(
      */
     val avatarEmoji: String = "",
     val avatarBackgroundColor: String? = null,
-)
+    /**
+     * Non-null only for backend bot seats added to the room. Drives the server
+     * bot driver and — when [BotSeat.revealed] — the wire-level bot reveal. Null
+     * for every human member. Bots never disconnect (created connected, never
+     * reaped), so this is the sole source of truth for "is this seat a bot".
+     */
+    val bot: BotSeat? = null,
+) {
+    /** True for a backend bot seat. Prefer this over inspecting [userId]. */
+    val isBot: Boolean get() = bot != null
+}
 
 /**
  * V1 only uses [Lobby]. [Playing] / [Finished] are sketched in for the
@@ -107,6 +128,7 @@ interface RoomService {
         maxSeats: Int = MAX_SEATS,
         hostAvatarEmoji: String = "",
         hostAvatarBackgroundColor: String? = null,
+        buyIn: Long = RoomSettings.DEFAULT_BUY_IN,
     ): CreateResult
 
     /**
@@ -128,6 +150,31 @@ interface RoomService {
      * the next [find] returns null).
      */
     suspend fun leave(code: String, userId: UserId): LeaveResult
+
+    /**
+     * Seat a backend-driven bot. Host-only — only [Room.hostUserId] may add
+     * bots. The bot gets a synthetic [UserId], a personality auto-assigned to
+     * span archetypes against the bots already at the table, and is marked
+     * connected immediately (bots never disconnect, so they're never swept).
+     *
+     * [seatIndex] null fills the next free seat. [revealed] = true (the lobby
+     * default) advertises the bot on the wire; false produces a stealth bot
+     * that presents as an ordinary member — reserved for future matchmaking
+     * auto-fill, not used by the lobby.
+     */
+    suspend fun addBot(
+        code: String,
+        requestedBy: UserId,
+        difficulty: BotDifficulty,
+        seatIndex: Int? = null,
+        revealed: Boolean = true,
+    ): AddBotResult
+
+    /**
+     * Remove a previously-added bot. Host-only. The host is always a human, so
+     * this never empties the room; no host migration / GC concerns apply.
+     */
+    suspend fun removeBot(code: String, requestedBy: UserId, botUserId: UserId): RemoveBotResult
 
     /** Mark a member's socket connected / disconnected. No-op if room or
      *  member missing — callers use this from WS open / close handlers. */
@@ -255,4 +302,24 @@ sealed interface LeaveResult {
     data class Success(val roomGone: Boolean) : LeaveResult
     data object RoomNotFound : LeaveResult
     data object NotInRoom : LeaveResult
+}
+
+sealed interface AddBotResult {
+    data class Success(val room: Room) : AddBotResult
+    data object RoomNotFound : AddBotResult
+    /** Caller isn't the room host — only the host may add bots. */
+    data object NotHost : AddBotResult
+    data object Full : AddBotResult
+    /** Room exists but its current [RoomStatus] doesn't accept new seats. */
+    data class NotJoinable(val status: RoomStatus) : AddBotResult
+    /** The requested seat index is out of range or already occupied. */
+    data object SeatTaken : AddBotResult
+}
+
+sealed interface RemoveBotResult {
+    data class Success(val room: Room) : RemoveBotResult
+    data object RoomNotFound : RemoveBotResult
+    data object NotHost : RemoveBotResult
+    /** No bot with that id is seated (unknown id, or it's a human member). */
+    data object NotABot : RemoveBotResult
 }

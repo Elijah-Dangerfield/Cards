@@ -388,31 +388,49 @@ private suspend fun handleStartHand(
         return IntentResult.Rejected("only the host can start the hand")
     }
     val occupants = room.members.map { member ->
-        SeatOccupant(
-            seatIndex = member.seatIndex,
-            userId = member.userId.value.toString(),
-            displayName = member.displayName,
-            isBot = false,
-            // Resolve the player's equipped badges/titles once, here at
-            // hand-start — they ride the Seat to every opponent's client, which
-            // resolves each id to display metadata from its own catalog.
-            badgeProductIds = equipmentRepository.listEquipped(member.userId)
-                .map { it.productId }
-                .filter { it.startsWith("badge_") || it.startsWith("title_") },
-            // Avatar was snapshotted from the profile at join; ride it onto
-            // the Seat so opponents render the real avatar, not initials.
-            avatarEmoji = member.avatarEmoji.takeIf { it.isNotBlank() },
-            avatarBackgroundColor = member.avatarBackgroundColor,
-            // Resolve XP once here too — it rides the Seat so opponents derive
-            // the player's level client-side. Frozen per session (mirrors
-            // badges): preserved across hands rather than re-resolved.
-            xp = progressionRepository.find(member.userId)?.totalXp,
-        )
+        val botSeat = member.bot
+        if (botSeat != null) {
+            // Bots carry no equipment / XP and aren't looked up in any repo;
+            // their personality rides along so the server bot driver can play
+            // them. The avatar is the reserved 🤖 only for a revealed bot.
+            SeatOccupant(
+                seatIndex = member.seatIndex,
+                userId = member.userId.value.toString(),
+                displayName = member.displayName,
+                isBot = true,
+                avatarEmoji = member.avatarEmoji.takeIf { it.isNotBlank() },
+                avatarBackgroundColor = member.avatarBackgroundColor,
+                bot = botSeat,
+            )
+        } else {
+            SeatOccupant(
+                seatIndex = member.seatIndex,
+                userId = member.userId.value.toString(),
+                displayName = member.displayName,
+                isBot = false,
+                // Resolve the player's equipped badges/titles once, here at
+                // hand-start — they ride the Seat to every opponent's client, which
+                // resolves each id to display metadata from its own catalog.
+                badgeProductIds = equipmentRepository.listEquipped(member.userId)
+                    .map { it.productId }
+                    .filter { it.startsWith("badge_") || it.startsWith("title_") },
+                // Avatar was snapshotted from the profile at join; ride it onto
+                // the Seat so opponents render the real avatar, not initials.
+                avatarEmoji = member.avatarEmoji.takeIf { it.isNotBlank() },
+                avatarBackgroundColor = member.avatarBackgroundColor,
+                // Resolve XP once here too — it rides the Seat so opponents derive
+                // the player's level client-side. Frozen per session (mirrors
+                // badges): preserved across hands rather than re-resolved.
+                xp = progressionRepository.find(member.userId)?.totalXp,
+            )
+        }
     }
     if (occupants.size < 2) {
         return IntentResult.Rejected("need at least 2 players to start")
     }
-    val result = gameSessions.startHand(code, occupants, RoomSettings.Default)
+    // Play at the host-chosen stakes (buy-in → starting stack + derived blinds),
+    // not the engine default.
+    val result = gameSessions.startHand(code, occupants, room.settings)
     if (result is IntentResult.Accepted) {
         rooms.markPlaying(code)
     }

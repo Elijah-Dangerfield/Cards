@@ -13,7 +13,9 @@ import cards.libraries.resources.generated.resources.room_player_profile_style_t
 import cards.libraries.resources.generated.resources.room_player_profile_style_tight_aggressive_label
 import cards.libraries.resources.generated.resources.room_player_profile_style_tight_passive_description
 import cards.libraries.resources.generated.resources.room_player_profile_style_tight_passive_label
+import com.dangerfield.cards.libraries.bots.BotArchetype
 import com.dangerfield.cards.libraries.bots.BotPersonality
+import com.dangerfield.cards.libraries.bots.archetypeFor
 import com.dangerfield.cards.libraries.ui.components.RadarAxis
 import org.jetbrains.compose.resources.StringResource
 
@@ -33,40 +35,33 @@ internal data class BotPlayingStyle(
     val description: StringResource,
 )
 
-internal fun playingStyleFor(personality: BotPersonality): BotPlayingStyle {
-    val loose = personality.tightness < 0.50
-    val tight = personality.tightness > 0.55
-    val aggressive = personality.aggression > 0.55
-    val passive = personality.aggression < 0.45
-    val maniac = personality.bluffRate >= 0.25 && aggressive && loose
-
-    return when {
-        maniac -> BotPlayingStyle(
+internal fun playingStyleFor(personality: BotPersonality): BotPlayingStyle =
+    when (archetypeFor(personality)) {
+        BotArchetype.Maniac -> BotPlayingStyle(
             label = Res.string.room_player_profile_style_maniac_label,
             description = Res.string.room_player_profile_style_maniac_description,
         )
-        loose && aggressive -> BotPlayingStyle(
+        BotArchetype.LooseAggressive -> BotPlayingStyle(
             label = Res.string.room_player_profile_style_loose_aggressive_label,
             description = Res.string.room_player_profile_style_loose_aggressive_description,
         )
-        tight && aggressive -> BotPlayingStyle(
+        BotArchetype.TightAggressive -> BotPlayingStyle(
             label = Res.string.room_player_profile_style_tight_aggressive_label,
             description = Res.string.room_player_profile_style_tight_aggressive_description,
         )
-        tight && passive -> BotPlayingStyle(
+        BotArchetype.TightPassive -> BotPlayingStyle(
             label = Res.string.room_player_profile_style_tight_passive_label,
             description = Res.string.room_player_profile_style_tight_passive_description,
         )
-        loose && passive -> BotPlayingStyle(
+        BotArchetype.LoosePassive -> BotPlayingStyle(
             label = Res.string.room_player_profile_style_loose_passive_label,
             description = Res.string.room_player_profile_style_loose_passive_description,
         )
-        else -> BotPlayingStyle(
+        BotArchetype.Balanced -> BotPlayingStyle(
             label = Res.string.room_player_profile_style_balanced_label,
             description = Res.string.room_player_profile_style_balanced_description,
         )
     }
-}
 
 /**
  * Four axes that visually distinguish each personality on the profile-sheet

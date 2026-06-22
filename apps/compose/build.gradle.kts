@@ -45,6 +45,8 @@ kotlin {
             implementation(projects.libraries.billing.impl)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.identity.impl)
+            implementation(projects.libraries.social)
+            implementation(projects.libraries.social.impl)
             implementation(projects.libraries.rooms)
             implementation(projects.libraries.rooms.impl)
             implementation(projects.libraries.review)

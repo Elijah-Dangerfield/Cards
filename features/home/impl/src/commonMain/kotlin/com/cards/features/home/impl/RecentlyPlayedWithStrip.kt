@@ -197,7 +197,7 @@ private fun AddFriendPill(sent: Boolean, onClick: () -> Unit) {
 }
 
 @Immutable
-internal data class RecentOpponent(
+data class RecentOpponent(
     val id: String,
     val displayName: String,
     val emoji: String?,

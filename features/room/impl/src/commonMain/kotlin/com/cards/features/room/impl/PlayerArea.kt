@@ -87,6 +87,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardBack
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSlot
+import com.dangerfield.cards.libraries.ui.components.poker.TurnCountdownRing
 import com.dangerfield.cards.libraries.ui.components.poker.WinnerGlow
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -338,6 +339,11 @@ internal fun PlayerArea(
             handLabel = table.humanHandLabel,
             isWinner = isWinner,
             stackOverride = humanStackOverride,
+            // Acting human on a timer-enforced (MP) table gets the depleting
+            // countdown ring around their avatar; null on solo tables (no
+            // enforcement) suppresses it. Re-arms on the turn token.
+            countdownSeconds = table.turnTimerSeconds?.takeIf { human.isActing },
+            turnKey = table.handNumber to table.turnSequence,
             winOdds = humanWinOdds,
             winOddsFlipHintSeen = winOddsFlipHintSeen,
             onFirstFlip = onWinOddsFlipped,
@@ -474,6 +480,8 @@ private fun PlayerInfoTile(
     handLabel: String?,
     isWinner: Boolean,
     stackOverride: Long?,
+    countdownSeconds: Int?,
+    turnKey: Any,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onLastActionClick: (seatName: String, action: com.dangerfield.cards.libraries.gameplay.PlayerAction) -> Unit,
@@ -537,6 +545,13 @@ private fun PlayerInfoTile(
             contentAlignment = Alignment.Center,
             modifier = Modifier.size(56.dp),
         ) {
+            if (countdownSeconds != null) {
+                TurnCountdownRing(
+                    turnKey = turnKey,
+                    durationSeconds = countdownSeconds,
+                    modifier = Modifier.size(56.dp),
+                )
+            }
             if (isWinner) WinnerGlow(modifier = Modifier.size(56.dp))
             // The circular clip + tap target lives on the avatar itself, NOT
             // the outer box. Clipping the outer box to a circle cropped the
@@ -652,6 +667,8 @@ private fun FlippablePlayerInfoTile(
     handLabel: String?,
     isWinner: Boolean,
     stackOverride: Long?,
+    countdownSeconds: Int?,
+    turnKey: Any,
     winOdds: EquityBreakdown?,
     winOddsFlipHintSeen: Boolean,
     onFirstFlip: () -> Unit,
@@ -730,6 +747,8 @@ private fun FlippablePlayerInfoTile(
                 handLabel = handLabel,
                 isWinner = isWinner,
                 stackOverride = stackOverride,
+                countdownSeconds = countdownSeconds,
+                turnKey = turnKey,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
                 onLastActionClick = onLastActionClick,
@@ -938,6 +957,7 @@ private fun previewTable(
     communityCards: List<Card> = emptyList(),
     humanHandLabel: String? = null,
     handResult: HandResultView? = null,
+    turnTimerSeconds: Int? = null,
 ): TableUiState.Active = TableUiState.Active(
     street = street,
     communityCards = communityCards,
@@ -955,6 +975,7 @@ private fun previewTable(
     buttonSeatIndex = 0,
     smallBlindSeatIndex = null,
     bigBlindSeatIndex = null,
+    turnTimerSeconds = turnTimerSeconds,
 )
 
 @Preview
@@ -962,6 +983,22 @@ private fun previewTable(
 private fun PlayerAreaPreview_YourTurn() {
     PreviewContent {
         PlayerArea(table = previewTable(seat = previewHumanSeat(isActing = true)))
+    }
+}
+
+@Preview
+@Composable
+private fun PlayerAreaPreview_YourTurnCountdown() {
+    // MP table (turnTimerSeconds set) on the human's turn — the depleting
+    // countdown ring wraps the human avatar so an auto-action never lands
+    // without warning. Solo tables leave turnTimerSeconds null (no ring).
+    PreviewContent {
+        PlayerArea(
+            table = previewTable(
+                seat = previewHumanSeat(isActing = true),
+                turnTimerSeconds = 30,
+            ),
+        )
     }
 }
 

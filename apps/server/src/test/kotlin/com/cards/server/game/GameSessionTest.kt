@@ -39,6 +39,29 @@ class GameSessionTest {
     private fun newSession() = GameSession(random = Random(seed = 42))
 
     @Test
+    fun startHand_revealedBotOccupant_seatCarriesStyleKey_hiddenDoesNot() = runTest {
+        val session = newSession()
+        val revealed = SeatOccupant(
+            seatIndex = 1,
+            userId = "bot-r",
+            displayName = "Jane",
+            isBot = true,
+            bot = com.dangerfield.cards.server.domain.BotSeat(
+                com.dangerfield.cards.libraries.bots.BotPersonality.Jane,
+                com.dangerfield.cards.libraries.bots.BotDifficulty.Standard,
+                revealed = true,
+            ),
+        )
+        session.startHand(listOf(alice, revealed), settings)
+
+        val botSeat = session.state.value!!.seats.first { it.playerId == "bot-r" }
+        assertEquals("Jane", botSeat.botStyleKey, "a revealed bot publishes its personality name")
+        assertTrue(botSeat.isBot)
+        val human = session.state.value!!.seats.first { it.playerId == "alice" }
+        assertNull(human.botStyleKey)
+    }
+
+    @Test
     fun startHand_seedsState_andEmitsOpeningEvents() = runTest {
         val session = newSession()
 

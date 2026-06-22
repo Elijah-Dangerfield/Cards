@@ -86,8 +86,7 @@
     <string name="private_create_default_room_name">Your table</string>
     <string name="private_create_rules_label">Table rules</string>
     <string name="private_create_buyin_label">Buy-in</string>
-    <string name="private_create_buyin_value">5,000</string>
-    <string name="private_create_blinds_caption">Blinds 25 / 50</string>
+    <string name="private_create_blinds_caption">Blinds %1$d / %2$d</string>
     <string name="private_create_max_players_label">Max players</string>
     <string name="private_create_invite_note">Invite only. You'll get a code to share once it's created.</string>
     <string name="private_create_cta">Create room</string>
@@ -153,6 +152,7 @@
     <string name="lobby_error_room_was_closed">The room was closed.</string>
     <string name="lobby_error_connect_rejected">Couldn't connect - try rejoining.</string>
     <string name="lobby_error_start_coming_soon">Multiplayer gameplay launches with the next update - invite your friends and stand by.</string>
+    <string name="lobby_error_bot_action_failed">Couldn't update the bots. Try again.</string>
 
     <!-- Onboarding - inline error states surfaced by the VM (sealed OnboardingAuthError + OnboardingSaveError → resource). -->
     <string name="onboarding_auth_error_oauth_provider_not_enabled">That sign-in option isn't available yet.</string>
@@ -917,6 +917,9 @@
     <string name="room_top_bar_hand_info_a11y">Hand info and rankings</string>
     <string name="room_loading_dealing_in">Dealing in…</string>
     <string name="room_practice_tier_bots_present">Practice tier · bots present</string>
+    <string name="room_practice_tier_explainer_title">Practice tier</string>
+    <string name="room_practice_tier_explainer_a11y">What practice tier means</string>
+    <string name="room_practice_tier_explainer_body">This table has bots and not enough humans, so the hand counts as practice. You still earn XP, but only half as much, and multiplayer-only achievements stay locked. Get more humans to the table to play for full credit.</string>
 
     <!-- Tutorial - section labels (basics narration block vs. tableau hands). -->
     <string name="tutorial_section_basics">Basics</string>
@@ -1097,4 +1100,12 @@
     <string name="account_setup_banner_message">Finishing account setup - we'll keep trying. Some features are limited until then.</string>
     <string name="account_setup_banner_retry">Retry</string>
     <string name="account_setup_banner_retrying">Retrying…</string>
+
+    <!-- Generic top-of-screen offline strip shown whenever the device has no
+         connection. -->
+    <string name="app_offline_banner_message">Offline, some features unavailable.</string>
+    <!-- Combined banner shown when the device is offline AND a guest account is
+         still pending creation at first launch, replacing the two separate
+         offline + account-setup banners with one scenario-specific line. -->
+    <string name="app_offline_account_setup_banner">You can keep playing offline, and we'll finish creating your profile once you're back online.</string>
 </resources>

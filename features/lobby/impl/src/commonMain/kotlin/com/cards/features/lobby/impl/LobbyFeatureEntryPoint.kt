@@ -10,6 +10,7 @@ import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.lobby.PrivateCreateRoute
 import com.dangerfield.cards.features.lobby.PrivateJoinRoute
 import com.dangerfield.cards.features.room.PlayMultiplayerRoute
+import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
@@ -24,7 +25,8 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
 class LobbyFeatureEntryPoint(
-    private val viewModelFactory: (prefilledCode: String?, autoCreate: Boolean) -> LobbyViewModel,
+    private val viewModelFactory: (prefilledCode: String?, autoCreate: Boolean, maxSeats: Int?, buyIn: Long?) -> LobbyViewModel,
+    private val chipsRepository: ChipsRepository,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -33,12 +35,14 @@ class LobbyFeatureEntryPoint(
         // They pop themselves on the way in so the lobby sits directly on
         // Home; leaving the lobby returns Home, not back to this setup step.
         screen<PrivateCreateRoute> {
+            val chipBalance by chipsRepository.observeBalance().collectAsStateWithLifecycle(initialValue = null)
             PrivateCreateScreen(
+                chipBalance = chipBalance,
                 onBack = { router.goBack() },
-                onCreate = {
+                onCreate = { maxPlayers, buyIn ->
                     router.batch {
                         popBackTo(PrivateCreateRoute(), inclusive = true)
-                        navigate(LobbyRoute(autoCreate = true))
+                        navigate(LobbyRoute(autoCreate = true, maxSeats = maxPlayers, buyIn = buyIn))
                     }
                 },
             )
@@ -58,7 +62,7 @@ class LobbyFeatureEntryPoint(
         screen<LobbyRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<LobbyRoute>()
             val viewModel: LobbyViewModel = viewModel {
-                viewModelFactory(route.prefilledCode, route.autoCreate)
+                viewModelFactory(route.prefilledCode, route.autoCreate, route.maxSeats, route.buyIn)
             }
             val state by viewModel.stateFlow.collectAsStateWithLifecycle()
 

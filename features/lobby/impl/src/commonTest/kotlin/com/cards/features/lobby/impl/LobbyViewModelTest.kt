@@ -15,9 +15,11 @@ import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
 import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
+import com.dangerfield.cards.libraries.rooms.AddBotOutcome
 import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.GameplayFrame
+import com.dangerfield.cards.libraries.rooms.RemoveBotOutcome
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
@@ -336,6 +338,49 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun addBot_host_callsRepositoryWithSeatIndex() = runUnitTest {
+        val rooms = RecordingRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(
+                roomOf(members = listOf(member(LOCAL_USER, "You", isConnected = true))),
+            ),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
+        assertTrue(vm.state.isHost)
+
+        vm.takeAction(LobbyAction.AddBot(seatIndex = 1))
+        runCurrent()
+
+        assertEquals(listOf<Int?>(1), rooms.addBotSeatIndexes)
+    }
+
+    @Test
+    fun addBot_nonHost_isNoOp() = runUnitTest {
+        // Effective host is "peer"; the local user isn't host, so AddBot must
+        // not reach the repository.
+        val rooms = RecordingRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(
+                roomOf(
+                    members = listOf(
+                        member("peer", "Peer", isConnected = true),
+                        member(LOCAL_USER, "You", isConnected = true, seatIndex = 1),
+                    ),
+                ),
+            ),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
+        assertFalse(vm.state.isHost)
+
+        vm.takeAction(LobbyAction.AddBot(seatIndex = 2))
+        runCurrent()
+
+        assertTrue(rooms.addBotSeatIndexes.isEmpty())
+    }
+
+    @Test
     fun startGame_nonHost_isNoOp() = runUnitTest {
         // Effective host is the first connected member ("peer"), not the
         // local user, so canStart is false and Start must do nothing.
@@ -613,9 +658,13 @@ class LobbyViewModelTest : CoroutineTest() {
         identity: AuthRepository = AlwaysSignedInAuth(),
         prefilledCode: String? = null,
         autoCreate: Boolean = false,
+        maxSeats: Int? = null,
+        buyIn: Long? = null,
     ): LobbyViewModel = LobbyViewModel(
         prefilledCode = prefilledCode,
         autoCreate = autoCreate,
+        maxSeats = maxSeats,
+        buyIn = buyIn,
         rooms = rooms,
         auth = identity,
         profile = NoProfileRepository,
@@ -671,10 +720,26 @@ class LobbyViewModelTest : CoroutineTest() {
         private val createOutcome: CreateRoomOutcome,
         val handle: RecordingHandle = RecordingHandle(),
     ) : RoomRepository {
-        override suspend fun createRoom(maxSeats: Int?): CreateRoomOutcome = createOutcome
+        val addBotSeatIndexes: MutableList<Int?> = mutableListOf()
+        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = createOutcome
         override suspend fun joinRoom(code: String): JoinRoomOutcome =
             JoinRoomOutcome.NetworkError(RuntimeException("not used"))
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = LeaveRoomOutcome.Success
+        override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome {
+            addBotSeatIndexes += seatIndex
+            return AddBotOutcome.Success(
+                Room(
+                    code = code,
+                    hostUserId = "host",
+                    createdAtEpochMs = 0,
+                    maxSeats = 4,
+                    status = RoomStatus.Lobby,
+                    members = emptyList(),
+                ),
+            )
+        }
+        override suspend fun removeBot(code: String, botUserId: String): RemoveBotOutcome =
+            RemoveBotOutcome.Success
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome =
             GetActiveRoomsOutcome.Success(emptyList())
         override fun observeActiveRooms(): Flow<List<Room>> = flow { }
@@ -719,7 +784,7 @@ class LobbyViewModelTest : CoroutineTest() {
         var leaveFinished: Int = 0
             private set
 
-        override suspend fun createRoom(maxSeats: Int?): CreateRoomOutcome = createOutcome
+        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = createOutcome
         override suspend fun joinRoom(code: String): JoinRoomOutcome =
             JoinRoomOutcome.NetworkError(RuntimeException("not used"))
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome {
@@ -728,6 +793,8 @@ class LobbyViewModelTest : CoroutineTest() {
             leaveFinished += 1
             return outcome
         }
+        override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome = error("unused")
+        override suspend fun removeBot(code: String, botUserId: String): RemoveBotOutcome = error("unused")
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome =
             GetActiveRoomsOutcome.Success(emptyList())
         override fun observeActiveRooms(): Flow<List<Room>> = flow { }
@@ -743,12 +810,19 @@ class LobbyViewModelTest : CoroutineTest() {
     ) : RoomRepository {
         var joinCalls: Int = 0
             private set
-        override suspend fun createRoom(maxSeats: Int?): CreateRoomOutcome = createOutcome
+        val addBotSeatIndexes: MutableList<Int?> = mutableListOf()
+        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = createOutcome
         override suspend fun joinRoom(code: String): JoinRoomOutcome {
             joinCalls += 1
             return joinOutcome
         }
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = leaveOutcome
+        override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome {
+            addBotSeatIndexes += seatIndex
+            return AddBotOutcome.NetworkError(RuntimeException("not used"))
+        }
+        override suspend fun removeBot(code: String, botUserId: String): RemoveBotOutcome =
+            RemoveBotOutcome.Success
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome = activeRoomsOutcome
         override fun observeActiveRooms(): Flow<List<Room>> = flow { }
         override fun connect(code: String): RoomConnectionHandle = object : RoomConnectionHandle {

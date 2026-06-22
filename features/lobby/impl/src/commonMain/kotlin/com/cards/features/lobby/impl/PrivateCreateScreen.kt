@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,15 +30,16 @@ import cards.libraries.resources.generated.resources.private_create_default_room
 import cards.libraries.resources.generated.resources.private_create_invite_note
 import cards.libraries.resources.generated.resources.private_create_blinds_caption
 import cards.libraries.resources.generated.resources.private_create_buyin_label
-import cards.libraries.resources.generated.resources.private_create_buyin_value
 import cards.libraries.resources.generated.resources.private_create_max_players_label
 import cards.libraries.resources.generated.resources.private_create_room_name_label
 import cards.libraries.resources.generated.resources.private_create_rules_label
 import cards.libraries.resources.generated.resources.private_create_title
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.Slider
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.room.RoomHeader
 import com.dangerfield.cards.libraries.ui.components.room.RoomVisibility
@@ -47,6 +49,7 @@ import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
+import com.dangerfield.cards.system.color.ProvideContentColor
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -61,10 +64,21 @@ import org.jetbrains.compose.resources.stringResource
  */
 @Composable
 fun PrivateCreateScreen(
+    chipBalance: Long?,
     onBack: () -> Unit,
-    onCreate: () -> Unit,
+    onCreate: (maxPlayers: Int, buyIn: Long) -> Unit,
 ) {
     var maxPlayers by remember { mutableStateOf(6) }
+    // The buy-in tops out at what the host can actually afford (their chip
+    // balance); until the balance loads we cap at the default. The slider can
+    // never go below the engine's minimum valid buy-in.
+    val maxBuyIn = (chipBalance ?: RoomSettings.DEFAULT_BUY_IN).coerceAtLeast(RoomSettings.MIN_BUY_IN)
+    var buyIn by remember { mutableStateOf(RoomSettings.DEFAULT_BUY_IN) }
+    // Re-clamp when the affordable ceiling changes (balance arrives / shrinks).
+    LaunchedEffect(maxBuyIn) {
+        buyIn = buyIn.coerceIn(RoomSettings.MIN_BUY_IN, maxBuyIn)
+    }
+    val settings = RoomSettings.forBuyIn(buyIn, maxPlayers)
     Screen(
         topBar = {
             RoomHeader(
@@ -112,11 +126,16 @@ fun PrivateCreateScreen(
                     .border(1.dp, AppTheme.colors.border.color, Radii.R750.shape),
             ) {
                 // Buy-in is the one number the host picks; blinds scale off it
-                // automatically, so we just show the derived value as a caption.
-                RuleValueRow(
-                    label = stringResource(Res.string.private_create_buyin_label),
-                    value = stringResource(Res.string.private_create_buyin_value),
-                    caption = stringResource(Res.string.private_create_blinds_caption),
+                // automatically. The slider is capped at the host's chip balance.
+                BuyInRow(
+                    buyIn = buyIn,
+                    blindsCaption = stringResource(
+                        Res.string.private_create_blinds_caption,
+                        settings.smallBlind,
+                        settings.bigBlind,
+                    ),
+                    maxBuyIn = maxBuyIn,
+                    onBuyInChange = { buyIn = it },
                 )
                 RuleDivider()
                 MaxPlayersRow(
@@ -126,25 +145,15 @@ fun PrivateCreateScreen(
                 )
             }
 
-            Spacer(Modifier.height(Dimension.D800))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(Radii.R700.shape)
-                    .background(AppTheme.colors.accentPrimarySubtle.color)
-                    .border(1.dp, AppTheme.colors.accentPrimary.withAlpha(0.28f).color, Radii.R700.shape)
-                    .padding(Dimension.D600),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(Res.string.private_create_invite_note),
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.contentSecondary,
-                )
-            }
+            Spacer(Modifier.height(Dimension.D600))
+            Text(
+                text = stringResource(Res.string.private_create_invite_note),
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.contentSecondary,
+            )
 
             Spacer(Modifier.weight(1f))
-            ButtonPrimary(onClick = onCreate, modifier = Modifier.fillMaxWidth()) {
+            ButtonPrimary(onClick = { onCreate(maxPlayers, buyIn) }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(Res.string.private_create_cta))
             }
             Spacer(Modifier.height(Dimension.D800))
@@ -163,30 +172,65 @@ private fun Eyebrow(text: String) {
 }
 
 @Composable
-private fun RuleValueRow(label: String, value: String, caption: String? = null) {
-    Row(
+private fun BuyInRow(
+    buyIn: Long,
+    blindsCaption: String,
+    maxBuyIn: Long,
+    onBuyInChange: (Long) -> Unit,
+) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = Dimension.D600, vertical = Dimension.D500),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                typography = AppTheme.typography.Label.L500,
-                color = AppTheme.colors.content,
-            )
-            caption?.let {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = it,
+                    text = stringResource(Res.string.private_create_buyin_label),
+                    typography = AppTheme.typography.Label.L500,
+                    color = AppTheme.colors.content,
+                )
+                Text(
+                    text = blindsCaption,
                     typography = AppTheme.typography.Caption.C300,
                     color = AppTheme.colors.contentTertiary,
                 )
             }
+            ChipCoin(size = 14.dp)
+            Spacer(Modifier.size(Dimension.D200))
+            Text(
+                text = formatChips(buyIn),
+                typography = AppTheme.typography.Label.L500,
+                color = AppTheme.colors.content,
+            )
         }
-        ChipCoin(size = 14.dp)
-        Spacer(Modifier.size(Dimension.D200))
-        Text(text = value, typography = AppTheme.typography.Label.L500, color = AppTheme.colors.content)
+        Spacer(Modifier.height(Dimension.D300))
+        ProvideContentColor(AppTheme.colors.accentPrimary) {
+            Slider(
+                value = buyIn.toFloat(),
+                onValueChange = { onBuyInChange(roundBuyIn(it.toLong(), maxBuyIn)) },
+                valueRange = RoomSettings.MIN_BUY_IN.toFloat()..maxBuyIn.coerceAtLeast(RoomSettings.MIN_BUY_IN + 1).toFloat(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/** Round a raw slider value to a tidy 50-chip step, clamped to the affordable range. */
+private fun roundBuyIn(raw: Long, maxBuyIn: Long): Long {
+    val step = 50L
+    val rounded = ((raw + step / 2) / step) * step
+    return rounded.coerceIn(RoomSettings.MIN_BUY_IN, maxBuyIn.coerceAtLeast(RoomSettings.MIN_BUY_IN))
+}
+
+/** Group a non-negative chip count with thousands separators. */
+private fun formatChips(value: Long): String {
+    val s = value.toString()
+    return buildString {
+        for (i in s.indices) {
+            if (i > 0 && (s.length - i) % 3 == 0) append(',')
+            append(s[i])
+        }
     }
 }
 
@@ -254,6 +298,6 @@ private fun RuleDivider() {
 @Composable
 private fun PrivateCreateScreenPreview() {
     PreviewContent {
-        PrivateCreateScreen(onBack = {}, onCreate = {})
+        PrivateCreateScreen(chipBalance = 25_000, onBack = {}, onCreate = { _, _ -> })
     }
 }

@@ -48,6 +48,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.BustedStamp
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
 import com.dangerfield.cards.libraries.ui.components.poker.PulsingActiveRing
+import com.dangerfield.cards.libraries.ui.components.poker.TurnCountdownRing
 import com.dangerfield.cards.libraries.ui.components.poker.WinnerGlow
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.horizontalFadingEdge
@@ -67,11 +68,18 @@ internal fun OpponentsRow(
 ) {
     val opponents = table.seats.filter { !it.isHuman }
     val winners = table.handResult?.winners?.map { it.seatIndex }?.toSet().orEmpty()
+    // Turn token the countdown ring re-arms on — only the acting seat reads
+    // it, and only when the table enforces a timer (MP). Null on solo tables
+    // suppresses the ring entirely. See [TableUiState.Active.turnSequence].
+    val turnTimerSeconds = table.turnTimerSeconds
+    val turnKey = table.handNumber to table.turnSequence
     if (opponents.size > PackedOpponentLimit) {
         ScrollingOpponentsRow(
             opponents = opponents,
             winners = winners,
             actingSeatIndex = table.actingSeatIndex,
+            turnTimerSeconds = turnTimerSeconds,
+            turnKey = turnKey,
             onBlindClick = onBlindClick,
             onBetPillClick = onBetPillClick,
             onLastActionClick = onLastActionClick,
@@ -81,6 +89,8 @@ internal fun OpponentsRow(
         PackedOpponentsRow(
             opponents = opponents,
             winners = winners,
+            turnTimerSeconds = turnTimerSeconds,
+            turnKey = turnKey,
             onBlindClick = onBlindClick,
             onBetPillClick = onBetPillClick,
             onLastActionClick = onLastActionClick,
@@ -95,6 +105,8 @@ private const val PackedOpponentLimit = 4
 private fun PackedOpponentsRow(
     opponents: List<SeatView>,
     winners: Set<Int>,
+    turnTimerSeconds: Int?,
+    turnKey: Any,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
@@ -119,6 +131,8 @@ private fun PackedOpponentsRow(
                         seat = seat,
                         isWinner = seat.index in winners,
                         avatarSize = avatarSize,
+                        turnTimerSeconds = turnTimerSeconds,
+                        turnKey = turnKey,
                         onBlindClick = onBlindClick,
                         onBetPillClick = onBetPillClick,
                         onLastActionClick = onLastActionClick,
@@ -135,6 +149,8 @@ private fun ScrollingOpponentsRow(
     opponents: List<SeatView>,
     winners: Set<Int>,
     actingSeatIndex: Int?,
+    turnTimerSeconds: Int?,
+    turnKey: Any,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
@@ -208,6 +224,8 @@ private fun ScrollingOpponentsRow(
                     seat = seat,
                     isWinner = seat.index in winners,
                     avatarSize = ScrollingAvatarSize,
+                    turnTimerSeconds = turnTimerSeconds,
+                    turnKey = turnKey,
                     onBlindClick = onBlindClick,
                     onBetPillClick = onBetPillClick,
                     onLastActionClick = onLastActionClick,
@@ -234,6 +252,8 @@ private fun OpponentSeat(
     seat: SeatView,
     isWinner: Boolean,
     avatarSize: Dp,
+    turnTimerSeconds: Int?,
+    turnKey: Any,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
@@ -267,7 +287,18 @@ private fun OpponentSeat(
         ) {
             // Faded subtree — everything that's "the seat" semantically.
             Box(modifier = Modifier.size(ringSize).then(dimMod), contentAlignment = Alignment.Center) {
-                if (seat.isActing) PulsingActiveRing(modifier = Modifier.size(ringSize))
+                // Acting human opponents on a timer-enforced (MP) table get the
+                // depleting countdown ring; bots — fast server-side, never timed
+                // — and solo tables keep the plain pulsing halo.
+                val countdownSeconds = turnTimerSeconds?.takeIf { seat.isActing && !seat.isBot }
+                when {
+                    countdownSeconds != null -> TurnCountdownRing(
+                        turnKey = turnKey,
+                        durationSeconds = countdownSeconds,
+                        modifier = Modifier.size(ringSize),
+                    )
+                    seat.isActing -> PulsingActiveRing(modifier = Modifier.size(ringSize))
+                }
                 if (isWinner) WinnerGlow(modifier = Modifier.size(ringSize))
                 AvatarCircle(
                     name = seat.displayName,
@@ -408,6 +439,27 @@ private fun OpponentsRowPreview_HeadsUp() {
                     PreviewSamples.botSeat(index = 1, name = "Jane", isActing = true, isDealer = true),
                 ),
                 actingSeatIndex = 1,
+            ),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun OpponentsRowPreview_HumanOpponentCountdown() {
+    // MP table (turnTimerSeconds set) with a human opponent on the clock —
+    // their avatar shows the depleting countdown ring instead of the plain
+    // pulsing halo a bot seat would get.
+    PreviewContent {
+        OpponentsRow(
+            table = PreviewSamples.activeTable(
+                seats = listOf(
+                    PreviewSamples.humanSeat(isDealer = false),
+                    PreviewSamples.botSeat(index = 1, name = "Priya", isActing = true, isDealer = true)
+                        .copy(isBot = false, emoji = "🙂"),
+                ),
+                actingSeatIndex = 1,
+                turnTimerSeconds = 30,
             ),
         )
     }

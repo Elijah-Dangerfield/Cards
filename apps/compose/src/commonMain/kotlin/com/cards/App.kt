@@ -242,8 +242,7 @@ fun App(appComponent: AppComponent) {
                             topBar = {
                                 androidx.compose.foundation.layout.Column {
                                     AppGuardBanner(state = guardState)
-                                    OfflineBanner()
-                                    AccountSetupBanner(appComponent.guestAccountCreator)
+                                    AppStatusBanners(appComponent.guestAccountCreator)
                                 }
                             },
                             userMessageRepository = appComponent.userMessageRepository,

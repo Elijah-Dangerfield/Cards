@@ -1,10 +1,15 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.bots.BotDifficulty
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import com.dangerfield.cards.server.domain.AddBotResult
 import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.LeaveResult
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.RemoveBotResult
 import com.dangerfield.cards.server.domain.RoomService
+import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
@@ -60,6 +65,16 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository) {
                         ),
                     )
                 }
+                val buyIn = body.buyIn ?: RoomSettings.DEFAULT_BUY_IN
+                if (buyIn !in RoomSettings.MIN_BUY_IN..RoomSettings.MAX_BUY_IN) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        problemEnvelope(
+                            "invalid_buy_in",
+                            "buyIn must be between ${RoomSettings.MIN_BUY_IN} and ${RoomSettings.MAX_BUY_IN}.",
+                        ),
+                    )
+                }
                 val profile = profiles.findOrCreate(userId)
                 when (val outcome = rooms.create(
                     hostUserId = userId,
@@ -67,6 +82,7 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository) {
                     maxSeats = maxSeats,
                     hostAvatarEmoji = profile.avatarEmoji,
                     hostAvatarBackgroundColor = profile.avatarBackgroundColor,
+                    buyIn = buyIn,
                 )) {
                     is CreateResult.Success -> call.respond(
                         HttpStatusCode.OK,
@@ -149,9 +165,99 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository) {
                     )
                 }
             }
+
+            post("/{code}/bots") {
+                val code = call.parameters["code"]?.uppercase()
+                    ?: return@post call.respond(HttpStatusCode.BadRequest)
+                val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                val body = call.receive<AddBotRequest>()
+                val difficulty = parseDifficulty(body.difficulty)
+                    ?: return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        problemEnvelope(
+                            "invalid_difficulty",
+                            "difficulty must be one of Casual, Standard, Challenging.",
+                        ),
+                    )
+                when (
+                    val outcome = rooms.addBot(
+                        code = code,
+                        requestedBy = userId,
+                        difficulty = difficulty,
+                        seatIndex = body.seatIndex,
+                    )
+                ) {
+                    is AddBotResult.Success -> call.respond(
+                        HttpStatusCode.OK,
+                        AddBotResponse(room = outcome.room.toDto()),
+                    )
+                    AddBotResult.RoomNotFound -> call.respond(
+                        HttpStatusCode.NotFound,
+                        problemEnvelope("room_not_found", "No room with code $code."),
+                    )
+                    AddBotResult.NotHost -> call.respond(
+                        HttpStatusCode.Forbidden,
+                        problemEnvelope("not_host", "Only the host can add bots."),
+                    )
+                    AddBotResult.Full -> call.respond(
+                        HttpStatusCode.Conflict,
+                        problemEnvelope("room_full", "That room is full."),
+                    )
+                    is AddBotResult.NotJoinable -> call.respond(
+                        HttpStatusCode.Conflict,
+                        problemEnvelope(
+                            "room_not_joinable",
+                            "You can only add bots while the room is in the lobby (status: ${outcome.status}).",
+                        ),
+                    )
+                    AddBotResult.SeatTaken -> call.respond(
+                        HttpStatusCode.Conflict,
+                        problemEnvelope("seat_taken", "That seat isn't available."),
+                    )
+                }
+            }
+
+            delete("/{code}/bots/{botUserId}") {
+                val code = call.parameters["code"]?.uppercase()
+                    ?: return@delete call.respond(HttpStatusCode.BadRequest)
+                val userId = call.userId() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
+                val botUserId = call.parameters["botUserId"]?.let(::parseUserIdOrNull)
+                    ?: return@delete call.respond(
+                        HttpStatusCode.NotFound,
+                        problemEnvelope("bot_not_found", "No such bot in that room."),
+                    )
+                when (rooms.removeBot(code, userId, botUserId)) {
+                    is RemoveBotResult.Success -> call.respond(HttpStatusCode.NoContent)
+                    RemoveBotResult.RoomNotFound -> call.respond(
+                        HttpStatusCode.NotFound,
+                        problemEnvelope("room_not_found", "No room with code $code."),
+                    )
+                    RemoveBotResult.NotHost -> call.respond(
+                        HttpStatusCode.Forbidden,
+                        problemEnvelope("not_host", "Only the host can remove bots."),
+                    )
+                    RemoveBotResult.NotABot -> call.respond(
+                        HttpStatusCode.NotFound,
+                        problemEnvelope("bot_not_found", "No such bot in that room."),
+                    )
+                }
+            }
         }
     }
 }
+
+/** Maps the optional wire difficulty name to the enum; null body → Standard. */
+private fun parseDifficulty(raw: String?): BotDifficulty? {
+    if (raw == null) return BotDifficulty.Standard
+    return BotDifficulty.entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
+}
+
+private fun parseUserIdOrNull(raw: String): UserId? =
+    try {
+        UserId.parse(raw)
+    } catch (_: IllegalArgumentException) {
+        null
+    }
 
 private const val MIN_SEATS = 2
 private const val MAX_SEATS = 9

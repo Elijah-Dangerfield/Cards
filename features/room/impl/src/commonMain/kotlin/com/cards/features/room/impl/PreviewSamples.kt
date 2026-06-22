@@ -104,6 +104,7 @@ internal object PreviewSamples {
         buttonSeatIndex: Int = 0,
         smallBlindSeatIndex: Int? = 1,
         bigBlindSeatIndex: Int? = 2,
+        turnTimerSeconds: Int? = null,
     ): TableUiState.Active = TableUiState.Active(
         street = street,
         communityCards = communityCards,
@@ -121,6 +122,7 @@ internal object PreviewSamples {
         buttonSeatIndex = buttonSeatIndex,
         smallBlindSeatIndex = smallBlindSeatIndex,
         bigBlindSeatIndex = bigBlindSeatIndex,
+        turnTimerSeconds = turnTimerSeconds,
     )
 
     fun defaultSeats(): List<SeatView> = listOf(

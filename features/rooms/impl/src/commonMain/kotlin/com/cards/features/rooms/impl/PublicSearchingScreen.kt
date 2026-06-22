@@ -28,6 +28,7 @@ import cards.libraries.resources.generated.resources.public_searching_found
 import cards.libraries.resources.generated.resources.public_searching_heading
 import cards.libraries.resources.generated.resources.public_searching_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.isReduceMotionEnabled
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
@@ -82,10 +83,7 @@ fun PublicSearchingScreen(
         ) {
             Spacer(Modifier.weight(1f))
 
-            // reduceMotion should be sourced from the platform accessibility
-            // setting once one is exposed cross-platform; the primitive already
-            // renders a static end-state when true.
-            MatchmakingRadar(reduceMotion = false)
+            MatchmakingRadar(reduceMotion = isReduceMotionEnabled())
 
             Spacer(Modifier.height(Dimension.D900))
             Text(

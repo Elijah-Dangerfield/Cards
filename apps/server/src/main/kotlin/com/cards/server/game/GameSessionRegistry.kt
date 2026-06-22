@@ -13,6 +13,9 @@ import com.dangerfield.cards.server.domain.NoOpServerWitnessedAchievements
 import com.dangerfield.cards.server.domain.RecentOpponentsRepository
 import com.dangerfield.cards.server.domain.ServerWitnessedAchievements
 import com.dangerfield.cards.server.domain.UserId
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -138,6 +141,9 @@ class DefaultGameSessionRegistry(
     private val handsFinishedRepository: HandsFinishedRepository = NoOpHandsFinishedRepository,
     private val serverWitnessedAchievements: ServerWitnessedAchievements = NoOpServerWitnessedAchievements,
     private val recentOpponentsRepository: RecentOpponentsRepository = NoOpRecentOpponentsRepository,
+    // Scope the per-session bot drivers launch on. SupervisorJob so one bot's
+    // failure can't tear down the others. Defaulted for direct test construction.
+    private val botDriverScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : GameSessionRegistry {
     // StateFlow (not ConcurrentHashMap) so subscribers can observe the
     // moment a session for their code shows up. The mutex serializes
@@ -145,6 +151,13 @@ class DefaultGameSessionRegistry(
     // requests don't lose a session to last-writer-wins.
     private val mutex = Mutex()
     private val sessions = MutableStateFlow<Map<String, GameSession>>(emptyMap())
+    // Parallel to [sessions], keyed by code. Mutated only under [mutex] in
+    // createSession / end, so it stays consistent with the session map.
+    private val botDrivers = mutableMapOf<String, ServerBotDriver>()
+    // Parallel to [sessions], keyed by code. Enforces the per-turn time limit
+    // for human seats. Same lifecycle as [botDrivers] — spawned in createSession,
+    // cancelled in end. Mutated only under [mutex].
+    private val turnTimerDrivers = mutableMapOf<String, TurnTimerDriver>()
 
     override suspend fun startHand(
         code: String,
@@ -152,6 +165,9 @@ class DefaultGameSessionRegistry(
         settings: RoomSettings,
     ): IntentResult {
         val session = obtain(code)
+        // Seed the driver's personality roster from this hand's occupants before
+        // the hand opens, so the first bot to act already knows how to play.
+        peekDriver(code)?.updateRoster(occupants)
         return session.startHand(occupants, settings)
     }
 
@@ -196,10 +212,14 @@ class DefaultGameSessionRegistry(
     override suspend fun end(code: String) {
         mutex.withLock {
             sessions.value = sessions.value - code
+            botDrivers.remove(code)?.cancel()
+            turnTimerDrivers.remove(code)?.cancel()
         }
         Catching { snapshotStore.deleteByCode(code) }
             .onFailure { log.warn("Failed to delete snapshot for room {} during end()", code, it) }
     }
+
+    private fun peekDriver(code: String): ServerBotDriver? = botDrivers[code]
 
     private suspend fun obtain(code: String): GameSession {
         sessions.value[code]?.let { return it }
@@ -218,11 +238,21 @@ class DefaultGameSessionRegistry(
         }
     }
 
-    private fun createSession(code: String, sessionId: UUID): GameSession = GameSession(
-        id = sessionId,
-        onStateChange = { state -> persist(code = code, sessionId = sessionId, state = state) },
-        onHandFinished = { outcome -> recordHandsFinished(sessionId = sessionId, outcome = outcome) },
-    )
+    // Always called under [mutex] (obtain / findOrHydrate), so mutating
+    // [botDrivers] here is safe. Spawns and starts the session's bot driver so
+    // it's ready before the first hand opens (and re-spawns on a hydrate).
+    private fun createSession(code: String, sessionId: UUID): GameSession {
+        val session = GameSession(
+            id = sessionId,
+            onStateChange = { state -> persist(code = code, sessionId = sessionId, state = state) },
+            onHandFinished = { outcome -> recordHandsFinished(sessionId = sessionId, outcome = outcome) },
+        )
+        botDrivers.remove(code)?.cancel()
+        botDrivers[code] = ServerBotDriver(session = session, scope = botDriverScope).also { it.start() }
+        turnTimerDrivers.remove(code)?.cancel()
+        turnTimerDrivers[code] = TurnTimerDriver(session = session, scope = botDriverScope).also { it.start() }
+        return session
+    }
 
     /**
      * Witness each human's finished-hand count, then re-evaluate the

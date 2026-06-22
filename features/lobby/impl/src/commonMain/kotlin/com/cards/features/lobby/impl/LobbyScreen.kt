@@ -35,6 +35,7 @@ import cards.libraries.resources.generated.resources.lobby_connection_connected
 import cards.libraries.resources.generated.resources.lobby_connection_connecting
 import cards.libraries.resources.generated.resources.lobby_connection_disconnected
 import cards.libraries.resources.generated.resources.lobby_connection_reconnecting
+import cards.libraries.resources.generated.resources.lobby_error_bot_action_failed
 import cards.libraries.resources.generated.resources.lobby_error_connect_rejected
 import cards.libraries.resources.generated.resources.lobby_error_create_network
 import cards.libraries.resources.generated.resources.lobby_error_create_not_signed_in
@@ -50,7 +51,6 @@ import cards.libraries.resources.generated.resources.lobby_error_leave_server_no
 import cards.libraries.resources.generated.resources.lobby_error_room_was_closed
 import cards.libraries.resources.generated.resources.lobby_error_start_coming_soon
 import cards.libraries.resources.generated.resources.lobby_in_room_buyin_label
-import cards.libraries.resources.generated.resources.lobby_in_room_buyin_value
 import cards.libraries.resources.generated.resources.lobby_in_room_code_label
 import cards.libraries.resources.generated.resources.lobby_in_room_copy_button
 import cards.libraries.resources.generated.resources.lobby_in_room_deal_button
@@ -62,9 +62,7 @@ import cards.libraries.resources.generated.resources.lobby_leave_dialog_secondar
 import cards.libraries.resources.generated.resources.lobby_leave_dialog_title
 import cards.libraries.resources.generated.resources.lobby_in_room_players_count
 import cards.libraries.resources.generated.resources.lobby_in_room_ready_to_deal
-import cards.libraries.resources.generated.resources.lobby_in_room_share_button
 import cards.libraries.resources.generated.resources.lobby_in_room_stakes_label
-import cards.libraries.resources.generated.resources.lobby_in_room_stakes_value
 import cards.libraries.resources.generated.resources.lobby_in_room_code_copied
 import cards.libraries.resources.generated.resources.lobby_in_room_start_button_waiting
 import cards.libraries.resources.generated.resources.lobby_in_room_waiting_for_host
@@ -231,22 +229,15 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(Dimension.D400))
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D400)) {
-            ButtonSecondary(
-                onClick = copyCode,
-                size = ButtonSize.Small,
-                style = ButtonStyle.Outlined,
-            ) {
-                Text(stringResource(Res.string.lobby_in_room_copy_button))
-            }
-            // Share invite copies for now; a platform share sheet is a future
-            // enhancement (no cross-platform share API wired yet).
-            ButtonSecondary(
-                onClick = copyCode,
-                size = ButtonSize.Small,
-            ) {
-                Text(stringResource(Res.string.lobby_in_room_share_button))
-            }
+        // Copy-only for now. A real share sheet (with a deep link into the
+        // lobby) is tracked in docs/todo.md — until then a second "Share"
+        // button that also just copies is misleading, so it's gone.
+        ButtonSecondary(
+            onClick = copyCode,
+            size = ButtonSize.Small,
+            style = ButtonStyle.Outlined,
+        ) {
+            Text(stringResource(Res.string.lobby_in_room_copy_button))
         }
     }
 
@@ -288,8 +279,9 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     }
     Spacer(modifier = Modifier.height(Dimension.D400))
 
-    // 3-column seat grid. Members slot into their seatIndex; the rest render
-    // as neutral "Open" tiles. (No "Add a bot" this pass.)
+    // 3-column seat grid. Members slot into their seatIndex; empty seats render
+    // as "Add a bot" for the host (tap to seat a backend bot) and neutral
+    // "Open" tiles for everyone else. Tapping a seated bot (host only) removes it.
     val seats: List<RoomMember?> = (0 until room.maxSeats).map { index ->
         room.members.firstOrNull { it.seatIndex == index }
     }
@@ -299,23 +291,35 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
         horizontalSpacing = Dimension.D500,
         verticalSpacing = Dimension.D500,
         modifier = Modifier.fillMaxWidth(),
-    ) { _, member ->
-        RoomSeat(player = member?.toSeatPlayer(state))
+    ) { seatIndex, member ->
+        RoomSeat(
+            player = member?.toSeatPlayer(state),
+            addBot = member == null && state.isHost,
+            onClick = when {
+                member == null && state.isHost -> {
+                    { onAction(LobbyAction.AddBot(seatIndex)) }
+                }
+                member?.isBot == true && state.isHost -> {
+                    { onAction(LobbyAction.RemoveBot(member.userId)) }
+                }
+                else -> null
+            },
+        )
     }
 
     Spacer(modifier = Modifier.height(Dimension.D700))
 
-    // Stakes / buy-in — display-only for now (room creation owns these).
+    // Stakes / buy-in — the host's chosen values, carried on the room snapshot.
     Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D400)) {
         StakeCard(
             label = stringResource(Res.string.lobby_in_room_stakes_label),
-            value = stringResource(Res.string.lobby_in_room_stakes_value),
+            value = "${room.smallBlind} / ${room.bigBlind}",
             showCoin = true,
             modifier = Modifier.weight(1f),
         )
         StakeCard(
             label = stringResource(Res.string.lobby_in_room_buyin_label),
-            value = stringResource(Res.string.lobby_in_room_buyin_value),
+            value = formatChips(room.buyIn),
             showCoin = false,
             modifier = Modifier.weight(1f),
         )
@@ -368,16 +372,32 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
 /** Map a live [RoomMember] into the presentational [RoomSeatPlayer]. */
 private fun RoomMember.toSeatPlayer(state: LobbyState): RoomSeatPlayer {
     val isYou = userId == state.currentUserId
+    // Prefer the server-snapshotted avatar (now sent for every member, incl. the
+    // reserved 🤖 for a revealed bot). Fall back to our own local profile avatar
+    // for our seat before the first snapshot lands; otherwise initials.
+    val emoji = avatarEmoji ?: state.localAvatarEmoji.takeIf { isYou }
+    val colorHex = avatarBackgroundColorHex ?: state.localAvatarColorHex.takeIf { isYou }
     return RoomSeatPlayer(
         name = displayName,
-        // Only our own avatar is known client-side today; other members
-        // render a name initial until the room model carries avatar data.
-        emoji = if (isYou) state.localAvatarEmoji else null,
-        avatarBackgroundColorHex = if (isYou) state.localAvatarColorHex else null,
+        emoji = emoji,
+        avatarBackgroundColorHex = colorHex,
         isHost = userId == state.effectiveHostUserId,
+        isBot = isBot,
         isYou = isYou,
+        // Bots are always "connected" server-side, so they read as Seated.
         status = if (isConnected) RoomSeatStatus.Seated else RoomSeatStatus.Joining,
     )
+}
+
+/** Group a non-negative chip count with thousands separators. */
+private fun formatChips(value: Long): String {
+    val s = value.toString()
+    return buildString {
+        for (i in s.indices) {
+            if (i > 0 && (s.length - i) % 3 == 0) append(',')
+            append(s[i])
+        }
+    }
 }
 
 @Composable
@@ -676,4 +696,5 @@ private fun LobbyError.message(): String = when (this) {
     LobbyError.RoomWasClosed -> stringResource(Res.string.lobby_error_room_was_closed)
     LobbyError.ConnectRejected -> stringResource(Res.string.lobby_error_connect_rejected)
     LobbyError.StartGameComingSoon -> stringResource(Res.string.lobby_error_start_coming_soon)
+    LobbyError.BotActionFailed -> stringResource(Res.string.lobby_error_bot_action_failed)
 }

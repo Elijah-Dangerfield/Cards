@@ -20,12 +20,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## A. UX gaps observed in the build
 
-### App launch & splash
-
-- `[P2]` **Splash card-shuffle stalls on cold boot — fan-out snaps + late status text.** On a no-internet cold boot the shuffle intro played its two fan-outs, then snapped to the fully-fanned pose and held there before "Shuffling the deck" finally appeared. The fan-out should animate through smoothly (no jump-to-end), the status text should cycle while waiting, and the loading hold likely wants a longer/looping timeout so it never reads as frozen. *(found in 2026-06-20 cold-boot playtest)*
-  **Acceptance:** the fan-out completes smoothly with no snap; status text cycles during the wait; the hold never looks frozen.
-  **Hints:** the splash/shuffle intro animation + its loading-timeout gating.
-
 ### Progression & XP (server)
 
 - `[P2]` **Graduate lifetime hand + achievement-progress counters to the server.** The `progression` hand counters (handsPlayed/won/folded/lostAtShowdown/botHandsPlayed) and the achievement *progress counters* (no-bust streak, per-bot wins, …) are client-local — they zero on account switch / reinstall and aren't re-hydrated, so a switched-in account shows correct XP/level + earned badges but zeroed hand counts. Decision is to lift them (`decisions.md` 2026-06-15 — accept-reset rejected for these); carry the counters in their respective syncs. The hand counters double as the server `hands_finished` the MP-achievement floor wants. *(proposed 2026-06-14)*
@@ -84,7 +78,7 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Note on the curve math:** the server already *owns* the curve — it serves `progression.levelCurve` as app-config; the client just decodes it with `DefaultLevelCurve` as the offline fallback. The only thing missing server-side is the ~15-line interpreter (`levelProgressFor` / `xpToLevelUpFrom` in [`Level.kt`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/cards/Level.kt)). **Duplicate those into `:apps:server` with the [`LevelTest`](../libraries/cards/src/commonTest/kotlin/com/cards/libraries/cards/LevelTest.kt) vector copied alongside — do *not* extract a shared module for 15 stable lines.** Level is a pure function of (XP, curve); both sides derive from inputs they agree on after sync, so they converge by construction. See [`decisions.md`](./decisions.md) 2026-06-21.
   **Hints:** curve lives in `ProgressionConfig.levelCurve()`; client grant path is `LevelUpRewardGranter`; server grant precedents are the wallet ledger (`PostgresWalletRepository.apply`) and `LevelGrantableProducts` / `GrantsRoutes`.
 
-- `[P2]` **Level-up celebration — layout weight + more ceremony.** The reveal works but lands flat. Two things: (1) **Push Continue to the bottom** — today the content `Column` is `verticalArrangement = Arrangement.Center` so the button floats right under the rewards panel; restructure to top-anchored content + a `Spacer(Modifier.weight(1f))` so Continue sits pinned at the bottom edge (with bottom-safe padding) and the dial/level number own the upper screen. (2) **Bigger entrance ceremony** — the dial currently scale+fades in via a `MediumBouncy` spring with one `LongPress` haptic. Make it *land*: a "slam in" (overshoot scale that snaps, or a quick fall-and-settle), a punchier/sequenced haptic (impact on the slam, not just the start), and confetti on arrival. Keep it on the teal/progression identity and bake the feel into the DS component, not the host. **File:** `LevelUpCelebration.kt` in `:libraries:ui`. Confetti is a new DS primitive — check whether one exists before writing it. *(proposed 2026-06-21)*
+- `[P2]` **Level-up celebration — bigger entrance ceremony.** The reveal lands flat. The dial currently scale+fades in via a `MediumBouncy` spring with one `LongPress` haptic. Make it *land*: a "slam in" (overshoot scale that snaps, or a quick fall-and-settle), a punchier/sequenced haptic (impact on the slam, not just the start), and confetti on arrival. Keep it on the teal/progression identity and bake the feel into the DS component, not the host. **File:** `LevelUpCelebration.kt` in `:libraries:ui`. Confetti is a new DS primitive — check whether one exists before writing it. *(proposed 2026-06-21; Continue-to-bottom layout slice shipped)*
 
 ### Consumables & rewards (V1.x / monetization)
 
@@ -101,10 +95,6 @@ Buyable, level-up-giftable consumables. Product + grant-model call is in [`decis
 Home exposes three surfaces that need this system to work: the friends strip with presence, the "recently played with" shelf with add-friend, and the friend-requests inbox on profile. All currently fake or no-op.
 
 **Locked rule:** the only way to friend someone is the "recently played with" shelf — no search-by-handle, no suggestions. Empty states must say so.
-
-- `[P0]` **Recently-played-with — client wiring.** The server side shipped: every finished MP hand records both human directions into `recently_played_with`, `GET /v1/recent-opponents?limit=N` returns ids newest-first, and `GET /v1/profiles?ids=a,b,c` now resolves those bare ids → public profiles (name / emoji / avatar bg). The gap is the client — build a KMP `RecentOpponentsRepository.observeRecent(limit = 10)` that fetches the id list, resolves each via the profiles endpoint, maps to the `RecentOpponent` UI model, and wire [`RecentlyPlayedWithStrip.kt`](../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/RecentlyPlayedWithStrip.kt) to real data with add-friend end-to-end (the add-friend `POST /v1/friends/requests` also needs a KMP `FriendRepository` client — none exists yet; the same client serves the requests-inbox + friends-strip items).
-  **Acceptance:** `RecentlyPlayedWithStrip.kt` renders real data and add-friend works end-to-end.
-  **Hints:** the client has no per-id profile cache — `GET /v1/profiles` is the resolution path (don't reach for `ProfileCache`, which holds only the signed-in user). `SeatOccupant.Human` carries `userId`+`displayName`+`level` but no emoji/avatar, so the room snapshot can't substitute for the resolve call.
 
 - `[P1]` **Friend-via-play empty state on the Profile social section.** When the friend-requests inbox lands on `ProfileScreen.kt`, carry the "you can only friend people you've played with" empty-state copy there too. (Home strips already done.)
 
@@ -128,19 +118,7 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
   **Acceptance:** "Find a table" holds seats and matches at the chosen buy-in, then lands a real Lobby (open table) or NextRound (mid-hand). Searching shows live found-count and a working Cancel that releases held seats.
   **Hints:** [`RoomsFeatureEntryPoint`](../features/rooms/impl/src/commonMain/kotlin/com/cards/features/rooms/impl/RoomsFeatureEntryPoint.kt); the public screens are stateless today (no `:libraries:rooms` dep yet).
 
-- **`[P1]` Add-a-bot in the private host lobby (SPEC §3).** **Problem:** `RoomSeat` ships the `addBot` variant but it's never passed `true`; bots aren't a thing yet.
-  **Acceptance:** host taps an empty seat's "Add a bot" to seat a bot (teal BOT badge, robot avatar), with the hint line under the grid; bots count toward "Players N/max" and the "Deal hand" CTA. Host/private only.
-  **Hints:** pass `addBot = isHost && seat == null` in `LobbyScreen.InRoomContent`; add a robot avatar face.
-
-- **`[P2]` Wire MatchmakingRadar reduce-motion.** Hardcoded `false` today; source it from a platform accessibility reduce-motion signal. The primitive already renders a static end-state when `true`.
-
-- **`[P2]` Real Share-invite in the private lobby.** "Share invite" copies the code to clipboard (with a snackbar) as a placeholder; wire a cross-platform share sheet so it opens the OS share UI.
-
-- **`[P2]` Plumb private Create rules.** Stakes / starting stack / max players on the Create screen are presentational; thread the chosen values into room creation (route → `LobbyViewModel` → server), which currently ignores them.
-
-- **`[P2]` Pass avatar data into *other* MP lobby seats.** The local player's seat now renders their real avatar (threaded from `ProfileRepository`), but remote members fall back to a name initial because `RoomMember` carries no emoji/avatar color. Thread per-member avatar through the room model + socket payload.
-
-- **`[P1]` Restore the shake → Network inspector debug button.** It's not wired into the current `ShakeDialog` (only feedback + dismiss); the wiretap interceptor lib (`:libraries:networking`) is still present but there's no inspector route/screen on `develop`. Re-add the inspector destination and a button in [`ShakeDialog`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/dialog/ShakeDialog.kt) / [`ShakeDialogEntryPoint`](../apps/compose/src/commonMain/kotlin/com/cards/ShakeDialogEntryPoint.kt) (debug builds only). Check the `feat/mp-chip-economy` branch for the original.
+- **`[P2]` Deep-link + share-invite in the private lobby.** The placeholder "Share invite" button (which only copied the code, same as Copy) was removed. The real feature is a shareable **deep link into the lobby** (`PrivateJoinRoute` / `LobbyRoute(prefilledCode=…)`) opened via a cross-platform OS share sheet — so a tapped link lands the invitee straight in the join/lobby flow, not just a bare code.
 
 ---
 
@@ -165,11 +143,7 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 
 ### B3 — Gameplay items
 
-- `[P1]` **Buy-in / stack / re-buy mechanic — settle MP results to the real wallet.** Spec [§4.1](./product/product-spec.md#wallet-stack--buy-ins). Today MP table stacks are ephemeral and never touch the chip wallet, so a player who wins hands sees no change in their real balance (confirmed 2026-06-19 playtest). Buy-in debits the wallet on sit-down; cash-out credits the final stack back on leave / game-end. Mutate `room_sessions.state_jsonb` inside the per-session mutex; wallet ledger stays a separate write. Anti-smurf gate rejects sit-down if buy-in > 25% of wallet. Client: re-buy dialog at stack 0 + sit-out toggle. **Depends on:** B0.
-
-- `[P1]` **Per-turn time limit in multiplayer.** A player shouldn't be able to stall the table by sitting on their action. Give each turn a deadline; on expiry, auto-check if checking is legal, otherwise auto-fold. Surface the countdown to the table. *(proposed 2026-05-30)*
-  **Acceptance:** a seat that doesn't act within the limit is auto-checked/folded and play continues; the active seat shows a visible countdown.
-  **Hints:** `RoomSettings.turnTimerSeconds` already carries the limit (default 30) — wire enforcement, don't re-add the field. Turn resolution lives in the gameplay engine + `room_sessions.state_jsonb`; deadline is enforced server-side. **Depends on:** B0. **Out of scope:** per-player time banks / configurable clocks.
+- `[P1]` **Buy-in / stack / re-buy mechanic — settle MP results to the real wallet.** **→ Full implementation plan: [`docs/plans/mp-chip-buyin-economy.md`](./plans/mp-chip-buyin-economy.md).** Spec [§4.1](./product/product-spec.md#wallet-stack--buy-ins). Today MP table stacks are ephemeral and never touch the chip wallet, so a player who wins hands sees no change in their real balance (confirmed 2026-06-19 playtest), and the create-screen buy-in (PR #61) only sets table stakes. The decided model is the **cash-game escrow**: sit-down debits the buy-in; leaving credits the *current* stack back (settle on **every** exit path); re-buy on bust; leave framed as cash-out. **Most of this already exists** as a complete, tested-but-dormant slice on `feat/mp-chip-economy` — the plan is **merge → reconcile (with `Room.buyIn` + backend bots) → finish** (sit-down wiring, StartHand "funded players only" flip, leave-confirmation UX, exit-path settlement audit), not a rebuild. **Depends on:** B0.
 
 - `[P1]` **Orphaned-room policy — forfeit-then-spectator.** Last human leaving still kills the room. On disconnect, keep the seat warm via the existing grace; if it expires mid-hand, mark `SeatForfeited`, auto-fold the rest of the session, downgrade the WS subscription to read-only. `GET /v1/me/active-rooms` drives the Rejoin / Forfeit banner. **Depends on:** B0 + B4.
 

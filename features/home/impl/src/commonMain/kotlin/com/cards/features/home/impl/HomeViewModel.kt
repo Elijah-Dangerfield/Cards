@@ -21,6 +21,10 @@ import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
 import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomRepository
+import com.dangerfield.cards.libraries.social.FriendRepository
+import com.dangerfield.cards.libraries.social.RecentOpponentProfile
+import com.dangerfield.cards.libraries.social.RecentOpponentsRepository
+import com.dangerfield.cards.libraries.social.SendFriendRequestResult
 import com.dangerfield.cards.libraries.ui.system.DialogIntroDelay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -38,6 +42,8 @@ class HomeViewModel(
     private val chipsRepository: ChipsRepository,
     private val roomRepository: RoomRepository,
     private val profileRepository: ProfileRepository,
+    private val recentOpponentsRepository: RecentOpponentsRepository,
+    private val friendRepository: FriendRepository,
     private val progressionConfig: ProgressionConfig,
     private val appCache: AppCache,
     private val appScope: AppCoroutineScope,
@@ -46,6 +52,14 @@ class HomeViewModel(
 ) {
 
     private val homeLogger = KLog.withTag("HomeViewModel")
+
+    /**
+     * Opponents the user has fired (or had auto-completed) a friend request to
+     * this session. Drives the optimistic "Sent" flip on the recents shelf; an
+     * id is removed again only if the request comes back rejected. Mutated
+     * solely from the action loop, so it needs no synchronization.
+     */
+    private val requestedFriendIds = mutableSetOf<String>()
 
     init {
         // [recent-achievements-delay] If this fires every time you tap the
@@ -131,7 +145,17 @@ class HomeViewModel(
                 if (profile is Profile.Authenticated && profile.id != lastFetchedUserId) {
                     lastFetchedUserId = profile.id
                     launch { roomRepository.getActiveRooms() }
+                    launch { recentOpponentsRepository.refresh() }
                 }
+            }
+        }
+        viewModelScope.launch {
+            // Recently-played-with shelf. The repo resolves bare opponent ids to
+            // public profiles; we just project them into state (applying any
+            // optimistic "Sent" flips this session). Refresh is kicked once a real
+            // session lands, in the profile collector above.
+            recentOpponentsRepository.observe().collect { opponents ->
+                takeAction(HomeAction.RecentOpponentsChanged(opponents))
             }
         }
         viewModelScope.launch {
@@ -228,6 +252,18 @@ class HomeViewModel(
             is HomeAction.RecentUnlocksChanged -> action.updateState {
                 it.copy(recentAchievements = action.items)
             }
+            is HomeAction.RecentOpponentsChanged -> action.updateState {
+                it.copy(
+                    recentOpponents = action.profiles.map { profile ->
+                        profile.toRecentOpponent(requestSent = profile.id in requestedFriendIds)
+                    },
+                )
+            }
+            is HomeAction.AddFriend -> action.startAddFriend(action.opponentId)
+            is HomeAction.FriendRequestFailed -> {
+                requestedFriendIds -= action.opponentId
+                action.setRequestSent(action.opponentId, sent = false)
+            }
             is HomeAction.TutorialBannerDismissedChanged -> action.updateState {
                 it.copy(tutorialBannerDismissed = action.dismissed)
             }
@@ -312,6 +348,36 @@ class HomeViewModel(
         // which clears the banner. On failure the flow is untouched, so the
         // room correctly stays visible — no optimistic drop to undo.
         appScope.async { roomRepository.leaveRoom(code) }.await()
+    }
+
+    /**
+     * Optimistically flip the tile to "Sent" and fire the request off the
+     * action loop so a slow round-trip doesn't stall the rest of Home. The
+     * request only un-flips if the server rejects it (not played with / rate
+     * limited / network) — a successful or auto-accepted request stays "Sent".
+     */
+    private suspend fun HomeAction.startAddFriend(opponentId: String) {
+        if (opponentId in requestedFriendIds) return
+        requestedFriendIds += opponentId
+        setRequestSent(opponentId, sent = true)
+        viewModelScope.launch {
+            val stuck = when (friendRepository.sendRequest(opponentId)) {
+                is SendFriendRequestResult.Requested,
+                is SendFriendRequestResult.Accepted -> true
+                else -> false
+            }
+            if (!stuck) takeAction(HomeAction.FriendRequestFailed(opponentId))
+        }
+    }
+
+    private suspend fun HomeAction.setRequestSent(opponentId: String, sent: Boolean) {
+        updateState { state ->
+            state.copy(
+                recentOpponents = state.recentOpponents.map { opponent ->
+                    if (opponent.id == opponentId) opponent.copy(requestSent = sent) else opponent
+                },
+            )
+        }
     }
 
     /**
@@ -400,6 +466,10 @@ data class HomeState(
     /** Most-recent achievement unlocks (newest first), capped at 5. Empty
      *  for fresh users — the Home shelf auto-hides in that case. */
     val recentAchievements: List<RecentAchievement> = emptyList(),
+    /** Recently-played-with opponents (newest first) for the social shelf.
+     *  Empty until the first resolve lands; the strip renders its
+     *  friend-via-play empty state in that case. */
+    val recentOpponents: List<RecentOpponent> = emptyList(),
     /** Whether the user has dismissed the tutorial banner. Mirrors
      *  `AppData.tutorialBannerDismissed`; false means the banner shows
      *  above the home header.
@@ -458,6 +528,15 @@ private fun AchievementProgress.toRecentUnlocks(limit: Int): List<RecentAchievem
         .take(limit)
         .toList()
 
+private fun RecentOpponentProfile.toRecentOpponent(requestSent: Boolean): RecentOpponent =
+    RecentOpponent(
+        id = id,
+        displayName = displayName,
+        emoji = avatarEmoji,
+        avatarBackgroundColorHex = avatarBackgroundColorHex,
+        requestSent = requestSent,
+    )
+
 private fun Profile?.debugKind(): String = when (this) {
     null -> "null"
     is Profile.Authenticated -> if (isAnonymous) "Authenticated(anon)" else "Authenticated"
@@ -480,6 +559,9 @@ sealed interface HomeAction {
     data class ChipsChanged(val balance: Long?) : HomeAction
     data class ProfileChanged(val profile: Profile) : HomeAction
     data class RecentUnlocksChanged(val items: List<RecentAchievement>) : HomeAction
+    data class RecentOpponentsChanged(val profiles: List<RecentOpponentProfile>) : HomeAction
+    data class AddFriend(val opponentId: String) : HomeAction
+    data class FriendRequestFailed(val opponentId: String) : HomeAction
     data class TutorialBannerDismissedChanged(val dismissed: Boolean) : HomeAction
     data object DismissTutorialBanner : HomeAction
     data class EvaluateLevelUp(val gate: LevelCelebrationGate) : HomeAction

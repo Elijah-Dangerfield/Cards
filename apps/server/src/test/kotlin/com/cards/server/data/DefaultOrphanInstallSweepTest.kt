@@ -308,6 +308,7 @@ class DefaultOrphanInstallSweepTest {
             maxSeats: Int,
             hostAvatarEmoji: String,
             hostAvatarBackgroundColor: String?,
+            buyIn: Long,
         ): com.dangerfield.cards.server.domain.CreateResult = error("unused")
         override suspend fun join(
             code: String,
@@ -317,6 +318,18 @@ class DefaultOrphanInstallSweepTest {
             avatarBackgroundColor: String?,
         ): com.dangerfield.cards.server.domain.JoinResult = error("unused")
         override suspend fun leave(code: String, userId: UserId): com.dangerfield.cards.server.domain.LeaveResult = error("unused")
+        override suspend fun addBot(
+            code: String,
+            requestedBy: UserId,
+            difficulty: com.dangerfield.cards.libraries.bots.BotDifficulty,
+            seatIndex: Int?,
+            revealed: Boolean,
+        ): com.dangerfield.cards.server.domain.AddBotResult = error("unused")
+        override suspend fun removeBot(
+            code: String,
+            requestedBy: UserId,
+            botUserId: UserId,
+        ): com.dangerfield.cards.server.domain.RemoveBotResult = error("unused")
         override suspend fun markConnected(code: String, userId: UserId, connected: Boolean): com.dangerfield.cards.server.domain.Room? = null
         override suspend fun markPlaying(code: String): com.dangerfield.cards.server.domain.Room? = null
         override suspend fun markFinished(code: String): com.dangerfield.cards.server.domain.Room? = null

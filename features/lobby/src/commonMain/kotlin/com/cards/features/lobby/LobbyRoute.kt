@@ -17,9 +17,17 @@ import kotlinx.serialization.Serializable
  * room" sheet routes here with it set so the lobby spins up a fresh room
  * on entry and lands the user seated (with a code to share) instead of on
  * the idle create/join screen. Ignored when [prefilledCode] is also set.
+ *
+ * [maxSeats] carries the host's chosen table size from the create screen into
+ * the auto-create. Null falls back to the server default. Only meaningful
+ * alongside [autoCreate].
  */
 @Serializable
 data class LobbyRoute(
     val prefilledCode: String? = null,
     val autoCreate: Boolean = false,
+    val maxSeats: Int? = null,
+    /** Host-chosen buy-in carried from the create screen into the auto-create.
+     *  Null falls back to the server default. Only meaningful with [autoCreate]. */
+    val buyIn: Long? = null,
 ) : Route(authRequirement = AuthRequirement.Account)

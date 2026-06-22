@@ -5,6 +5,7 @@ package com.dangerfield.cards.features.room.impl
 // differently from the rest of the app — DS routing keeps the chrome
 // consistent and the icon set centralized.
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_connection_lost_banner
 import cards.libraries.resources.generated.resources.room_loading_dealing_in
 import cards.libraries.resources.generated.resources.room_practice_tier_bots_present
+import cards.libraries.resources.generated.resources.room_practice_tier_explainer_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_hand_info_a11y
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
@@ -104,6 +106,8 @@ fun PlayPokerScreen(
     var blindExplainerOpen by remember { mutableStateOf(false) }
     var potExplainerOpen by remember { mutableStateOf(false) }
     var stackExplainerOpen by remember { mutableStateOf(false) }
+    var practiceTierExplainerOpen by remember { mutableStateOf(false) }
+    var practiceTierExplainerAutoShown by remember { mutableStateOf(false) }
     var leaveConfirmOpen by remember { mutableStateOf(false) }
     var swipeFoldConfirmOpen by remember { mutableStateOf(false) }
     var profileSheetSeat by remember { mutableStateOf<SeatView?>(null) }
@@ -268,7 +272,7 @@ fun PlayPokerScreen(
                 )
 
                 if (active?.practiceTierBotsPresent == true) {
-                    PracticeTierLabel()
+                    PracticeTierLabel(onClick = { practiceTierExplainerOpen = true })
                 }
 
                 if (active == null) {
@@ -353,6 +357,21 @@ fun PlayPokerScreen(
 
         if (stackExplainerOpen) {
             StackExplainer(stack = humanStack, onDismiss = { stackExplainerOpen = false })
+        }
+
+        // Auto-open the practice-tier explainer once when the player first
+        // lands on a bot-stacked MP table, so they understand the halved-XP /
+        // no-MP-achievement cost before they play. Keyed off the flag's first
+        // true, not per hand — the remembered guard survives across hands.
+        if (active?.practiceTierBotsPresent == true && !practiceTierExplainerAutoShown) {
+            LaunchedEffect(Unit) {
+                practiceTierExplainerAutoShown = true
+                practiceTierExplainerOpen = true
+            }
+        }
+
+        if (practiceTierExplainerOpen) {
+            PracticeTierExplainer(onDismiss = { practiceTierExplainerOpen = false })
         }
 
         lastActionDialog?.let { (name, action) ->
@@ -585,7 +604,8 @@ private fun ConnectionBanner(connection: ConnectionState) {
  * "practice" rather than full multiplayer — never a silent downgrade.
  */
 @Composable
-private fun PracticeTierLabel() {
+private fun PracticeTierLabel(onClick: () -> Unit) {
+    val clickLabel = stringResource(Res.string.room_practice_tier_explainer_a11y)
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -598,6 +618,7 @@ private fun PracticeTierLabel() {
             color = AppTheme.colors.contentSecondary,
             modifier = Modifier
                 .clip(Radii.Callout.shape)
+                .clickable(onClickLabel = clickLabel, onClick = onClick)
                 .background(AppTheme.colors.surface.color)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
         )

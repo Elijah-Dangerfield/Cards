@@ -616,3 +616,9 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Idea:** Extract `Syncable { suspend fun sync() }` + a `SyncCoordinator` (AutoInit) that owns the trigger wiring once (foreground/connectivity/UserChanged/AccountClaimed/session-rollover, with the `isColdBoot` skip and the Authenticated gate centralized), fanning out with per-syncable error isolation + structured logs. The 5 sync repos (Chips/Progression/Achievement/Equipment/Inventory), the messages/rooms syncs, and the profile outbox become plain `Syncable`s, deleting their duplicated `AppEventListener` boilerplate.
 
 **Status:** Backlog. Pure sustainability refactor; do after Phase 6 so the profile outbox folds into it. Plan at `delegated-crunching-gem.md`.
+
+## Surface a "couldn't add friend" message when a request is rejected
+
+**Idea:** The recently-played-with shelf flips the "Add" tile to "Sent" optimistically and silently reverts it if the server rejects the request (not-played-with, rate-limited, or a network error). The revert is correct but invisible — the user just sees the tile flick back with no explanation. Once a global snackbar/toast surface exists, show a short reason ("You can only add people you've played with", "Too many requests, try later", "Couldn't reach the server") off the typed `SendFriendRequestResult` cases the repo already returns.
+
+**Status:** Backlog. The repo already distinguishes the rejection cases; this is the user-facing message on top. Do it when the app grows a shared snackbar host.

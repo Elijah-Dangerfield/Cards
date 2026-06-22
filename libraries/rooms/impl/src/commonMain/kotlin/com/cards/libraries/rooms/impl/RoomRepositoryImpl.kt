@@ -1,9 +1,11 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
+import com.dangerfield.cards.libraries.rooms.AddBotOutcome
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
+import com.dangerfield.cards.libraries.rooms.RemoveBotOutcome
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
@@ -41,8 +43,8 @@ class RoomRepositoryImpl(
 
     override fun observeActiveRooms(): Flow<List<Room>> = activeRooms.asStateFlow()
 
-    override suspend fun createRoom(maxSeats: Int?): CreateRoomOutcome = try {
-        val response = api.create(CreateRoomRequestDto(maxSeats = maxSeats))
+    override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = try {
+        val response = api.create(CreateRoomRequestDto(maxSeats = maxSeats, buyIn = buyIn))
         val body = response.body<CreateRoomResponseDto>()
         val room = body.room.toDomain()
         upsertActiveRoom(room)
@@ -126,6 +128,45 @@ class RoomRepositoryImpl(
         GetActiveRoomsOutcome.Unknown(e)
     } catch (e: Throwable) {
         GetActiveRoomsOutcome.NetworkError(e)
+    }
+
+    override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome = try {
+        val response = api.addBot(code, AddBotRequestDto(seatIndex = seatIndex))
+        val room = response.body<AddBotResponseDto>().room.toDomain()
+        upsertActiveRoom(room)
+        AddBotOutcome.Success(room)
+    } catch (e: ClientRequestException) {
+        when (e.response.status) {
+            HttpStatusCode.NotFound -> AddBotOutcome.NotFound
+            HttpStatusCode.Forbidden -> AddBotOutcome.NotHost
+            HttpStatusCode.Conflict -> when (extractCode(e)) {
+                "room_full" -> AddBotOutcome.Full
+                "room_not_joinable" -> AddBotOutcome.NotJoinable
+                else -> AddBotOutcome.Unknown(e)
+            }
+            else -> AddBotOutcome.Unknown(e)
+        }
+    } catch (e: HttpRequestTimeoutException) {
+        AddBotOutcome.NetworkError(e)
+    } catch (e: ServerResponseException) {
+        AddBotOutcome.Unknown(e)
+    } catch (e: Throwable) {
+        AddBotOutcome.NetworkError(e)
+    }
+
+    override suspend fun removeBot(code: String, botUserId: String): RemoveBotOutcome = try {
+        api.removeBot(code, botUserId)
+        RemoveBotOutcome.Success
+    } catch (e: ClientRequestException) {
+        when (e.response.status) {
+            HttpStatusCode.NotFound -> RemoveBotOutcome.NotFound
+            HttpStatusCode.Forbidden -> RemoveBotOutcome.NotHost
+            else -> RemoveBotOutcome.Unknown(e)
+        }
+    } catch (e: HttpRequestTimeoutException) {
+        RemoveBotOutcome.NetworkError(e)
+    } catch (e: Throwable) {
+        RemoveBotOutcome.NetworkError(e)
     }
 
     override fun connect(code: String): RoomConnectionHandle = socket.connect(code)
