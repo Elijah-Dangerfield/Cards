@@ -29,6 +29,15 @@ data class ClientContext(
     val preferredLocales: List<String>,
     /** ISO 3166-1 alpha-2 if the client sent it, else null. */
     val countryCode: String?,
+    /**
+     * Correlation UUID for the client's app session, or null if the client
+     * is too old to send `X-Session-Id`. Stamped onto this request's trace
+     * (Tempo) and logs (Loki) so the same id the client tags its Sentry
+     * events with pulls the matching backend telemetry.
+     */
+    val sessionId: String? = null,
+    /** Per-install UUID from `X-Install-Id`, or null. Stable across sessions. */
+    val installId: String? = null,
 ) {
     enum class Platform { Android, iOS, Other }
 
@@ -37,6 +46,8 @@ data class ClientContext(
         const val HEADER_APP_VERSION: String = "X-App-Version"
         const val HEADER_BUILD_NUMBER: String = "X-Build-Number"
         const val HEADER_COUNTRY_CODE: String = "X-Country-Code"
+        const val HEADER_SESSION_ID: String = "X-Session-Id"
+        const val HEADER_INSTALL_ID: String = "X-Install-Id"
     }
 }
 
@@ -62,5 +73,7 @@ fun ApplicationCall.clientContext(): ClientContext {
         buildNumber = request.header(ClientContext.HEADER_BUILD_NUMBER)?.toIntOrNull(),
         preferredLocales = locales,
         countryCode = country,
+        sessionId = request.header(ClientContext.HEADER_SESSION_ID)?.takeIf { it.isNotBlank() },
+        installId = request.header(ClientContext.HEADER_INSTALL_ID)?.takeIf { it.isNotBlank() },
     )
 }

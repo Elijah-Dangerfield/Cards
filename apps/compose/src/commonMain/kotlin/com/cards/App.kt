@@ -56,6 +56,7 @@ import com.dangerfield.cards.libraries.navigation.toExitTransition
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
 import com.dangerfield.cards.features.onboarding.OnboardingRoute
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
+import com.dangerfield.cards.features.profile.FeedbackRoute
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -217,7 +218,15 @@ fun App(appComponent: AppComponent) {
         LocalLevelCurve provides levelCurve,
     ) {
         AppThemeProvider {
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    // Debug-only: swipe in from the right edge to jump straight
+                    // to the feedback form. No-op in release.
+                    .debugRightEdgeSwipe(enabled = BuildInfo.isDebug) {
+                        router.navigate(FeedbackRoute())
+                    },
+            ) {
                 AppGuardGate(
                     appConfigFlow = appConfigFlow,
                     onOpenStore = {

@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.room.impl
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.cards.BotSpeed
 import com.dangerfield.cards.libraries.cards.LevelCurve
+import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.game.SeatOccupant
@@ -40,6 +41,7 @@ class RemotePokerSessionFactory @Inject constructor(
     @Assisted private val roomCode: String,
     @Assisted private val localUserId: String,
     private val roomRepository: RoomRepository,
+    private val telemetry: Telemetry,
 ) : PokerSessionFactory {
 
     override val difficultyName: String = "Multiplayer"
@@ -72,7 +74,17 @@ class RemotePokerSessionFactory @Inject constructor(
     }
 
     override suspend fun bootstrap(session: PokerSession) {
-        (session as RemotePokerSession).run()
+        // Tag the crash-reporting scope with the room for the whole time the
+        // play session is live — run() suspends until the VM scope tears down,
+        // so the finally clears it on every exit (clean leave, room closed, or
+        // VM cleared). Feedback filed mid-game then carries room_code, the
+        // pivot to this room's server traces/logs.
+        telemetry.setRoom(roomCode)
+        try {
+            (session as RemotePokerSession).run()
+        } finally {
+            telemetry.setRoom(null)
+        }
     }
 
     override fun humanSeatIndex(state: GameState): Int =

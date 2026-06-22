@@ -98,6 +98,8 @@ class GameSession internal constructor(
      */
     private val onHandFinished: suspend (outcome: HandOutcome) -> Unit = { },
 ) {
+    private val log = org.slf4j.LoggerFactory.getLogger("GameSession")
+
     private val mutex = Mutex()
 
     private val _state = MutableStateFlow<GameState?>(null)
@@ -188,6 +190,12 @@ class GameSession internal constructor(
             ?: return@withLock IntentResult.Rejected("no active hand")
         if (clientNonce in processedNonces) return@withLock IntentResult.Accepted
 
+        // Bots and turn-timeout auto-acts route through here too; their
+        // rejections are usually expected races, so log those at debug and keep
+        // human rejections at info — the ones a player would file feedback about.
+        val isBot = actorUserId.startsWith("bot-")
+        val action = intent::class.simpleName
+
         // Stamp session-scoped attributes on whatever span is current —
         // this is the outer `submit_intent` span when the caller is the
         // WS route, or no-op when the SDK isn't configured. Cheap either
@@ -216,6 +224,9 @@ class GameSession internal constructor(
             IntentValidation.Ok
         }
         if (validation is IntentValidation.Rejected) {
+            val msg = "Intent $action rejected (validation): ${validation.reason} " +
+                "— session=$id hand=${current.handNumber} actor=$actorUserId"
+            if (isBot) log.debug(msg) else log.info(msg)
             return@withLock IntentResult.Rejected(validation.reason)
         }
 
@@ -234,7 +245,12 @@ class GameSession internal constructor(
             }
         }
         when (resolved) {
-            is EngineResolution.Rejected -> return@withLock IntentResult.Rejected(resolved.reason)
+            is EngineResolution.Rejected -> {
+                val msg = "Intent $action rejected (engine): ${resolved.reason} " +
+                    "— session=$id hand=${current.handNumber} actor=$actorUserId"
+                if (isBot) log.debug(msg) else log.info(msg)
+                return@withLock IntentResult.Rejected(resolved.reason)
+            }
             is EngineResolution.Resolved -> {
                 // The state-mutate span covers the durable side-effects:
                 // emit the new state, persist via `onStateChange` (which
@@ -260,6 +276,9 @@ class GameSession internal constructor(
                     _tracedState.value = TracedState(newState, origin)
                     onStateChange(newState)
                     if (handJustFinished) {
+                        // Info: hand completion is a session milestone — bounds a
+                        // hand in Loki and confirms settlement actually ran.
+                        log.info("Hand ${current.handNumber} finished — session=$id")
                         onHandFinished(buildHandOutcome(newState, resolved.result.events))
                     }
                     resolved.result.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }

@@ -441,6 +441,7 @@ class ProductsRepositoryImplTest : CoroutineTest() {
         id = id,
         startedAtMs = NOW_MS,
         reason = SessionStartReason.ColdBoot,
+        uuid = "session-$id",
     )
 
     private class FakeDataSource(

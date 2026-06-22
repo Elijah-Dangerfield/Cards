@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.cards.Session
 import com.dangerfield.cards.libraries.cards.SessionStartReason
 import com.dangerfield.cards.libraries.cards.SessionTracker
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.networking.SessionIdProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,6 +15,8 @@ import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import kotlin.time.Clock
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
  * Session boundaries from the lifecycle bus.
@@ -45,10 +48,12 @@ import kotlin.time.Clock
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, multibinding = true, boundType = AppEventListener::class)
 @ContributesBinding(AppScope::class, boundType = SessionTracker::class)
+@ContributesBinding(AppScope::class, boundType = SessionIdProvider::class)
 @Inject
+@OptIn(ExperimentalUuidApi::class)
 class SessionTrackerImpl(
     private val clock: Clock,
-) : SessionTracker, AppEventListener {
+) : SessionTracker, SessionIdProvider, AppEventListener {
 
     private val logger = KLog.withTag("SessionTracker")
 
@@ -63,7 +68,7 @@ class SessionTrackerImpl(
      * pre-init window rather than throwing.
      */
     private val state = MutableStateFlow(
-        Session(id = 0L, startedAtMs = 0L, reason = SessionStartReason.ColdBoot),
+        Session(id = 0L, startedAtMs = 0L, reason = SessionStartReason.ColdBoot, uuid = Uuid.random().toString()),
     )
     private var lastBackgroundedAtMs: Long? = null
     private var nextSessionId: Long = 1L
@@ -71,6 +76,9 @@ class SessionTrackerImpl(
     override val current: Session get() = state.value
 
     override fun observe(): Flow<Session> = state.asStateFlow()
+
+    /** [SessionIdProvider] — the current session's correlation UUID, sent on every request. */
+    override fun current(): String = state.value.uuid
 
     override fun onColdBoot(event: AppEvent.ColdBoot) {
         startNewSession(SessionStartReason.ColdBoot)
@@ -99,8 +107,9 @@ class SessionTrackerImpl(
             id = nextSessionId++,
             startedAtMs = clock.now().toEpochMilliseconds(),
             reason = reason,
+            uuid = Uuid.random().toString(),
         )
         state.value = next
-        logger.i { "Started session ${next.id} (reason=${reason::class.simpleName})" }
+        logger.i { "Started session ${next.id} uuid=${next.uuid} (reason=${reason::class.simpleName})" }
     }
 }

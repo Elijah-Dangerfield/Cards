@@ -32,6 +32,13 @@ data class ClientHeaders(
      * [InstallIdProvider].
      */
     val installId: String?,
+    /**
+     * Correlation UUID for the current app session. Sent on every request
+     * so the backend can stamp it onto its traces/logs, giving one id that
+     * ties a session's frontend and backend telemetry together. See
+     * [SessionIdProvider].
+     */
+    val sessionId: String,
 ) {
     companion object {
         const val HEADER_PLATFORM: String = "X-Platform"
@@ -39,6 +46,7 @@ data class ClientHeaders(
         const val HEADER_BUILD_NUMBER: String = "X-Build-Number"
         const val HEADER_COUNTRY_CODE: String = "X-Country-Code"
         const val HEADER_INSTALL_ID: String = "X-Install-Id"
+        const val HEADER_SESSION_ID: String = "X-Session-Id"
         // Accept-Language is a standard header — use io.ktor.http.HttpHeaders.AcceptLanguage.
     }
 }

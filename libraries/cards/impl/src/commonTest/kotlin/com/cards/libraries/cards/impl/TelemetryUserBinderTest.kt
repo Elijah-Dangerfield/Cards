@@ -206,6 +206,12 @@ class TelemetryUserBinderTest : CoroutineTest() {
             setRouteCalls += route
         }
 
+        override fun setSession(sessionId: String) = Unit
+
+        override fun setInstallId(installId: String) = Unit
+
+        override fun setRoom(code: String?) = Unit
+
         override fun captureUserFeedback(
             message: String,
             isBugReport: Boolean,

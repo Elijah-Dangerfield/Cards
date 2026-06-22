@@ -296,14 +296,21 @@ class ReconnectingRoomSocket @Inject constructor(
                 }
 
                 attempt = 0
+                // Info: handshake succeeded — pairs with the close/drop logs to
+                // bound a connected window in a reported session's breadcrumbs.
+                logger.i { "Room socket connected (code=$code)" }
                 val terminal = runConnectedSession(session)
                 if (terminal) return@coroutineScope
 
                 // Clean drop without RoomClosed — server dropped us
                 // (deploy / restart / brief network glitch). Retry.
                 attempt += 1
+                val backoff = backoffFor(attempt)
+                // Info: a routine reconnect (vs. the warn-level handshake-retry
+                // above) — explains a mid-game stall in the user's trail.
+                logger.i { "Room socket reconnecting (code=$code, attempt=$attempt, backoff=${backoff}ms)" }
                 _connection.emit(RoomConnection.Reconnecting(attempt, null))
-                delay(backoffFor(attempt))
+                delay(backoff)
             }
         }
 

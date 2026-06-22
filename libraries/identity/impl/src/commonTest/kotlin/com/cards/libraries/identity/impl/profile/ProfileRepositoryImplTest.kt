@@ -635,6 +635,7 @@ class ProfileRepositoryImplTest : CoroutineTest() {
             id = id,
             startedAtMs = 0L,
             reason = SessionStartReason.ColdBoot,
+            uuid = "fixed-session-$id",
         )
         override fun observe(): kotlinx.coroutines.flow.Flow<Session> =
             kotlinx.coroutines.flow.flowOf(current)

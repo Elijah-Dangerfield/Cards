@@ -1,7 +1,11 @@
 *.iml
 .kotlin
 .gradle
-.claude/
+# Ignore local Claude config (settings.local.json, etc.) but track shared,
+# version-controlled skills + commands so they ship with the repo.
+.claude/*
+!.claude/skills/
+!.claude/commands/
 **/build/
 xcuserdata
 !src/**/build/

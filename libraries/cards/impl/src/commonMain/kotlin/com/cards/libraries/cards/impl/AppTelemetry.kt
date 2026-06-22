@@ -13,14 +13,16 @@ import com.dangerfield.cards.libraries.cards.impl.logging.KermitLogTree
 import com.dangerfield.cards.libraries.cards.impl.logging.SentryLogTree
 import co.touchlab.kermit.Logger as KermitLogger
 import co.touchlab.kermit.Severity as KermitSeverity
+import io.sentry.kotlin.multiplatform.Attachment
 import io.sentry.kotlin.multiplatform.Sentry
-import io.sentry.kotlin.multiplatform.protocol.SentryId
 import io.sentry.kotlin.multiplatform.protocol.User
 import io.sentry.kotlin.multiplatform.protocol.UserFeedback
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 @Inject
 @SingleIn(AppScope::class)
@@ -39,6 +41,10 @@ private class ConfiguredTelemetry(
 
     private val logger: Logger = KLog.withTag("Telemetry")
     private var initialized = false
+
+    // The planted Sentry tree, held so captureUserFeedback can dump its
+    // in-memory log buffer as an attachment. Null until Sentry initializes.
+    private var sentryLogTree: SentryLogTree? = null
 
     override fun initialize() {
         if (initialized) return
@@ -79,6 +85,19 @@ private class ConfiguredTelemetry(
                 options.enableAutoSessionTracking = config.enableAutoSessionTracking
                 config.tracesSampleRate?.let { options.tracesSampleRate = it }
                 config.profilesSampleRate?.let { options.sampleRate = it }
+                // Every feedback carrier event has an identical message
+                // ("User feedback" / "Bug report") and no stacktrace, so Sentry
+                // would group them all into one issue. Give each its own
+                // fingerprint (keyed by a per-feedback id set in
+                // captureUserFeedback) so every report is its own issue —
+                // individually triageable and resolvable. Other events fall
+                // through untouched.
+                options.beforeSend = { event ->
+                    event.getTag(FEEDBACK_EVENT_TAG)?.let { id ->
+                        event.fingerprint = mutableListOf(FEEDBACK_FINGERPRINT, id)
+                    }
+                    event
+                }
             }
         }.onFailure {
             logger.e(it) { scope ->
@@ -87,12 +106,13 @@ private class ConfiguredTelemetry(
                 scope.tag("build_type", config.buildTypeTag)
             }
         }.onSuccess {
-            KLog.plant(
-                SentryLogTree(
-                    minBreadcrumbLevel = config.logPolicy.minBreadcrumbLevel,
-                    minEventLevel = config.logPolicy.minEventLevel
-                )
+            val tree = SentryLogTree(
+                minBreadcrumbLevel = config.logPolicy.minBreadcrumbLevel,
+                minEventLevel = config.logPolicy.minEventLevel,
+                minBufferLevel = config.logPolicy.minBufferLevel,
             )
+            sentryLogTree = tree
+            KLog.plant(tree)
             Sentry.configureScope {
                 it.setExtra("platform", config.platformTag)
                 it.setExtra("build_type", config.buildTypeTag)
@@ -134,6 +154,27 @@ private class ConfiguredTelemetry(
         }
     }
 
+    override fun setSession(sessionId: String) {
+        // Best-effort, same scope-persistence reasoning as setCurrentRoute:
+        // writing the tag on the scope means a later native crash (turned into
+        // an event on next launch) still carries the session it happened in.
+        if (!Sentry.isEnabled()) return
+        Sentry.configureScope { it.setTag(SESSION_ID_KEY, sessionId) }
+    }
+
+    override fun setInstallId(installId: String) {
+        if (!Sentry.isEnabled()) return
+        Sentry.configureScope { it.setTag(INSTALL_ID_KEY, installId) }
+    }
+
+    override fun setRoom(code: String?) {
+        if (!Sentry.isEnabled()) return
+        Sentry.configureScope {
+            if (code.isNullOrBlank()) it.removeTag(ROOM_CODE_KEY) else it.setTag(ROOM_CODE_KEY, code)
+        }
+    }
+
+    @OptIn(ExperimentalUuidApi::class)
     override fun captureUserFeedback(
         message: String,
         isBugReport: Boolean,
@@ -159,12 +200,37 @@ private class ConfiguredTelemetry(
         }
 
         val typeTag = if (isBugReport) "bug_report" else "feedback"
-        val sentryId = eventId?.let { Catching { SentryId(it) }.getOrNull() } ?: SentryId.EMPTY_ID
         val sanitizedEmail = email?.trim()?.takeIf { it.isNotBlank() }
+
+        // The legacy User Feedback API only persists feedback attached to an
+        // event Sentry has already ingested — an empty or unknown event id is
+        // silently dropped on ingest, which is why feedback never surfaced.
+        // `eventId` here is our internal KLog id (or null for general feedback),
+        // never a real Sentry id, so mint a carrier event via captureMessage and
+        // attach the feedback to that. Mirrors Sentry's documented
+        // captureMessage → captureUserFeedback flow. The KLog id / error code
+        // ride along in the comment for correlation back to the logs.
+        // Mint a unique id for this report and stamp it on a LOCAL scope for
+        // just the carrier event: beforeSend reads it to fingerprint the event
+        // into its own issue (see init), and the in-memory log buffer rides
+        // along as an attachment — the fine-grained Debug/Verbose we never ship
+        // as breadcrumbs, captured only when the user actually files feedback.
+        // Local scope means none of this leaks onto later events.
+        val logDump = sentryLogTree?.snapshot()?.takeIf { it.isNotBlank() }
+        val feedbackId = Uuid.random().toString()
+        val sentryId = Sentry.captureMessage(if (isBugReport) "Bug report" else "User feedback") { scope ->
+            scope.setTag(FEEDBACK_EVENT_TAG, feedbackId)
+            if (logDump != null) {
+                scope.addAttachment(Attachment(logDump.encodeToByteArray(), "session-log.txt", "text/plain"))
+            }
+        }
+
         val feedback = UserFeedback(sentryId).apply {
             comments = buildString {
-                if (isBugReport && errorCode != null) {
-                    append("Error code: $errorCode\n\n")
+                if (isBugReport) {
+                    errorCode?.let { append("Error code: $it\n") }
+                    eventId?.let { append("Log ID: $it\n") }
+                    if (errorCode != null || eventId != null) append('\n')
                 }
                 append(payload)
             }
@@ -190,6 +256,20 @@ private class ConfiguredTelemetry(
 // Shared by the tag and the extra so they read identically in Sentry.
 private const val ROUTE_KEY = "route"
 
+// Correlation keys mirrored on the backend (OTel span attributes + log
+// fields), so the same value queries Sentry, Tempo, and Loki.
+private const val SESSION_ID_KEY = "session_id"
+private const val INSTALL_ID_KEY = "install_id"
+// Mirrors the backend gameplay span attribute `room.code` so feedback during a
+// game pivots to that room's server traces/logs.
+private const val ROOM_CODE_KEY = "room_code"
+
+// Per-feedback id stamped on the carrier event; `beforeSend` turns it into the
+// event fingerprint so each feedback report is its own Sentry issue despite the
+// shared "User feedback" / "Bug report" message.
+private const val FEEDBACK_EVENT_TAG = "feedback_event"
+private const val FEEDBACK_FINGERPRINT = "feedback"
+
 // All platforms / build types report to the single `cards` Sentry project.
 // The `environment` tag (releaseChannel-platform-buildType) and the
 // `platform` extra separate debug vs release and iOS vs Android within it,
@@ -214,7 +294,14 @@ data class SentryRuntimeConfig(
 
     data class LogPolicy(
         val minBreadcrumbLevel: LogLevel,
-        val minEventLevel: LogLevel
+        val minEventLevel: LogLevel,
+        /**
+         * Lowest level retained in the in-memory ring buffer dumped onto user
+         * feedback (null = no buffer). Set below [minBreadcrumbLevel] to keep
+         * the fine-grained detail we don't ship — debug builds buffer Verbose+,
+         * release buffers Debug+ (skips per-frame Verbose churn).
+         */
+        val minBufferLevel: LogLevel? = null,
     )
 
     companion object {
@@ -242,7 +329,8 @@ data class SentryRuntimeConfig(
                 buildTypeTag = buildTypeTag,
                 logPolicy = LogPolicy(
                     minBreadcrumbLevel = breadcrumbLevel,
-                    minEventLevel = LogLevel.Error
+                    minEventLevel = LogLevel.Error,
+                    minBufferLevel = if (buildInfo.isDebug) LogLevel.Verbose else LogLevel.Debug,
                 ),
                 enableAutoSessionTracking = true
             )

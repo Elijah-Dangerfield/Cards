@@ -10,19 +10,51 @@ import io.sentry.kotlin.multiplatform.Sentry
 import io.sentry.kotlin.multiplatform.SentryLevel
 import io.sentry.kotlin.multiplatform.Scope
 import io.sentry.kotlin.multiplatform.protocol.Breadcrumb
+import kotlin.time.Clock
 
+/**
+ * Routes [KLog] entries to Sentry: breadcrumbs at/above [minBreadcrumbLevel],
+ * events at/above [minEventLevel].
+ *
+ * It also keeps a bounded **in-memory ring buffer** of everything at/above
+ * [minBufferLevel] — typically *below* the breadcrumb threshold, so the
+ * fine-grained Debug/Verbose detail we deliberately don't ship is still
+ * retained locally. Nothing leaves the device from the buffer until
+ * [snapshot] is dumped onto a user-feedback event as an attachment (see
+ * `AppTelemetry.captureUserFeedback`). Normal sessions cost nothing extra;
+ * only sessions where the user actually reports something carry the rich log.
+ */
 class SentryLogTree(
     private val minBreadcrumbLevel: LogLevel,
-    private val minEventLevel: LogLevel
+    private val minEventLevel: LogLevel,
+    private val minBufferLevel: LogLevel? = null,
+    private val now: () -> String = { Clock.System.now().toString() },
 ) : LogTree() {
+
+    private val ringBuffer: LogRingBuffer? =
+        minBufferLevel?.let { LogRingBuffer(BUFFER_CAPACITY, MAX_LINE_CHARS) }
+
+    // Lowest level worth delivering to this tree at all: a log below every
+    // threshold (breadcrumb, event, buffer) is pure overhead, so the engine
+    // skips it via isLoggable. minBufferLevel, when set, is usually the floor —
+    // e.g. release buffers Debug+ but never formats per-frame Verbose.
+    private val loggableFloor: Int = minOf(
+        minBreadcrumbLevel.priority,
+        minEventLevel.priority,
+        minBufferLevel?.priority ?: Int.MAX_VALUE,
+    )
 
     override fun isLoggable(level: LogLevel, tag: String?): Boolean {
         if (!Sentry.isEnabled()) return false
-        return level.priority >= minBreadcrumbLevel.priority || level.priority >= minEventLevel.priority
+        return level.priority >= loggableFloor
     }
 
     override fun log(entry: LogEntry): LogId? {
         if (!Sentry.isEnabled()) return null
+
+        if (minBufferLevel != null && entry.level.priority >= minBufferLevel.priority) {
+            appendToBuffer(entry)
+        }
 
         if (entry.level.priority >= minBreadcrumbLevel.priority) {
             addBreadcrumb(entry)
@@ -33,6 +65,18 @@ class SentryLogTree(
         }
 
         return null
+    }
+
+    /**
+     * One newline-joined dump of the buffered lines, for attaching to a
+     * feedback event. Non-clearing — the ring keeps overwriting itself, so a
+     * later feedback still has recent context. Empty when buffering is off.
+     */
+    fun snapshot(): String = ringBuffer?.snapshot() ?: ""
+
+    private fun appendToBuffer(entry: LogEntry) {
+        val message = entry.message ?: entry.throwable?.message ?: DEFAULT_MESSAGE
+        ringBuffer?.add("${now()} ${entry.level.name.uppercase()} ${entry.tag ?: "-"}: $message")
     }
 
     private fun addBreadcrumb(entry: LogEntry) {
@@ -103,5 +147,11 @@ class SentryLogTree(
         private const val LOGGER_TAG_KEY = "logger_tag"
         private const val BREADCRUMB_CATEGORY = "klog"
         private const val DEFAULT_MESSAGE = "(no message)"
+
+        // Ring-buffer bounds: ~500 lines, each capped, keeps the feedback
+        // attachment small (worst case a few hundred KB) while covering the
+        // recent history that matters for a just-reported issue.
+        private const val BUFFER_CAPACITY = 500
+        private const val MAX_LINE_CHARS = 1000
     }
 }

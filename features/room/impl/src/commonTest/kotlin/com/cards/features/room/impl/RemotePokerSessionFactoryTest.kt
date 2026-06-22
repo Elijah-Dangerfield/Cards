@@ -388,7 +388,25 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
         roomCode = "ABCDEF",
         localUserId = localUserId,
         roomRepository = rooms,
+        telemetry = NoopTelemetry,
     )
+
+    /** No-op [Telemetry] — the factory only calls setRoom during bootstrap. */
+    private object NoopTelemetry : com.dangerfield.cards.libraries.cards.Telemetry {
+        override fun initialize() = Unit
+        override fun setUser(email: String?, name: String?, id: String?) = Unit
+        override fun setCurrentRoute(route: String) = Unit
+        override fun setSession(sessionId: String) = Unit
+        override fun setInstallId(installId: String) = Unit
+        override fun setRoom(code: String?) = Unit
+        override fun captureUserFeedback(
+            message: String,
+            isBugReport: Boolean,
+            eventId: String?,
+            errorCode: Int?,
+            email: String?,
+        ) = Unit
+    }
 
     private fun tableFor(
         state: com.dangerfield.cards.libraries.gameplay.GameState,

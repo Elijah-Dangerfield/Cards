@@ -110,16 +110,27 @@ fun Route.roomSocketRoutes(
                 // Not a member yet — must POST /join first. We don't
                 // implicit-join here because the seat allocator lives in
                 // join() and we want mutations to flow through one path.
+                // Info: a refused join is the backend half of "I couldn't get
+                // into the game"; carries session_id via MDC for correlation.
+                LoggerFactory.getLogger("RoomSocket")
+                    .info("Socket refused: room=$code user=$userId not a member (join first)")
                 return@webSocket close(
                     CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "not a member of this room"),
                 )
             }
 
-            val flow = rooms.observe(code) ?: return@webSocket close(
-                CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "room not found"),
-            )
+            val flow = rooms.observe(code) ?: run {
+                LoggerFactory.getLogger("RoomSocket")
+                    .info("Socket refused: room=$code not found (user=$userId)")
+                return@webSocket close(
+                    CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "room not found"),
+                )
+            }
 
             rooms.markConnected(code, userId, connected = true)
+            // Info: one line per socket open anchors "user joined room at T" in
+            // Loki — the backend bookend to the client's connection breadcrumb.
+            LoggerFactory.getLogger("RoomSocket").info("Socket connected: room=$code user=$userId")
 
             // Hydrate from the durable snapshot before the game publisher
             // subscribes. Without this, a client reconnecting after a

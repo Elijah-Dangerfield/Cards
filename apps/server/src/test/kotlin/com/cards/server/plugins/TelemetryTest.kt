@@ -6,12 +6,16 @@ import com.dangerfield.cards.server.config.ObservabilityConfig
 import com.dangerfield.cards.server.game.GameSession
 import com.dangerfield.cards.server.game.SeatOccupant
 import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.baggage.Baggage
 import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.context.Context
+import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender
 import io.opentelemetry.sdk.testing.exporter.InMemoryLogRecordExporter
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.Before
 import org.junit.BeforeClass
 import org.slf4j.LoggerFactory
@@ -121,6 +125,42 @@ class TelemetryTest {
             inner.parentSpanContext.spanId,
             "inner span should be parented to outer via the coroutine context element",
         )
+    }
+
+    @Test
+    fun baggageCorrelationIds_areCopiedOntoSpans() = runTest {
+        // Mirrors what installHttpServerTracing does per request: put the
+        // correlation ids in OTel Baggage, then create spans inside that
+        // context. The BaggageAttributeSpanProcessor must copy them onto the
+        // span — and onto a nested child span — so `{ .session_id = X }` in
+        // Tempo matches the whole trace tree, not just the HTTP root.
+        val context = Baggage.current().toBuilder()
+            .put("session_id", "sess-xyz")
+            .put("install_id", "inst-abc")
+            .build()
+            .storeInContext(Context.current())
+
+        withContext(context.asContextElement()) {
+            withSpan("baggage_outer") {
+                withSpan("baggage_inner") { }
+            }
+        }
+        flushSpans()
+
+        listOf("baggage_outer", "baggage_inner").forEach { name ->
+            val span = exporter.finishedSpanItems.single { it.name == name }
+            assertEquals("sess-xyz", span.attributes.get(AttributeKey.stringKey("session_id")), "$name session_id")
+            assertEquals("inst-abc", span.attributes.get(AttributeKey.stringKey("install_id")), "$name install_id")
+        }
+    }
+
+    @Test
+    fun spansWithoutBaggage_haveNoCorrelationAttributes() = runTest {
+        withSpan("no_baggage") { }
+        flushSpans()
+
+        val span = exporter.finishedSpanItems.single { it.name == "no_baggage" }
+        assertEquals(null, span.attributes.get(AttributeKey.stringKey("session_id")))
     }
 
     @Test
