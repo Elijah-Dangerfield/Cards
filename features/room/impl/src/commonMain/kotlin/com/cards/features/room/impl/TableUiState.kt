@@ -229,7 +229,10 @@ sealed interface TableUiState {
                 .let { if (it < 0) 0 else it }
             val ordered = sorted.drop(firstAfterIdx) + sorted.take(firstAfterIdx)
             return if (active.size == 2) {
-                ordered.firstOrNull { it.index != state.buttonSeatIndex }?.index to state.buttonSeatIndex
+                // Heads-up: the button posts the small blind, the other seat the
+                // big blind — matching GameEngine.pickBlindSeats. (Returned as
+                // (smallBlindIndex, bigBlindIndex).)
+                state.buttonSeatIndex to ordered.firstOrNull { it.index != state.buttonSeatIndex }?.index
             } else {
                 ordered.getOrNull(0)?.index to ordered.getOrNull(1)?.index
             }
