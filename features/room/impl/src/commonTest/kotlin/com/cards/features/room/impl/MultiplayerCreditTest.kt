@@ -66,6 +66,27 @@ class MultiplayerCreditTest {
         assertFalse(MultiplayerCredit.showsPracticeTierLabel(table(humans = 1, bots = 0)))
     }
 
+    @Test
+    fun isBotsOnly_loneHumanWithBots_true() {
+        // The local player is the only human — no human chips on the other
+        // side, so the explainer adds the "real chips aren't at stake" line.
+        assertTrue(MultiplayerCredit.isBotsOnly(table(humans = 1, bots = 1)))
+        assertTrue(MultiplayerCredit.isBotsOnly(table(humans = 1, bots = 5)))
+    }
+
+    @Test
+    fun isBotsOnly_botStackedWithHumanOpponent_false() {
+        // 2H + 4B still shows the practice label, but a human opponent IS at
+        // the table, so it isn't bots-only.
+        assertFalse(MultiplayerCredit.isBotsOnly(table(humans = 2, bots = 4)))
+    }
+
+    @Test
+    fun isBotsOnly_humanAlone_false() {
+        // One human, no bots seated: not bots-only — there are no bots.
+        assertFalse(MultiplayerCredit.isBotsOnly(table(humans = 1, bots = 0)))
+    }
+
     private fun table(humans: Int, bots: Int, empty: Int = 0) = stubGameState(
         seats = buildList {
             repeat(humans) { i -> add(testSeat(index = size, isBot = false, playerId = "human-$i")) }
