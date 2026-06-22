@@ -139,6 +139,7 @@ class RemotePokerSessionFactory @Inject constructor(
             humanLevel = humanLevel,
             botDifficultyLabel = difficultyName,
             practiceTierBotsPresent = MultiplayerCredit.showsPracticeTierLabel(state),
+            turnTimerEnforced = true,
             curve = curve,
         )
     }

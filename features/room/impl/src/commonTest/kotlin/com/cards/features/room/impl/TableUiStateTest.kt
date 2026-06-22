@@ -191,6 +191,57 @@ class TableUiStateTest {
     }
 
     @Test
+    fun turnTimer_defaultsOff_andCarriesSequence() {
+        val state = GameState(
+            settings = RoomSettings.Default,
+            handNumber = 1,
+            buttonSeatIndex = 0,
+            seats = listOf(seat(index = 0, stack = 1_000, participation = HandParticipation.InHand)),
+            community = emptyList(),
+            street = BettingRound.Preflop,
+            currentBetThisStreet = 0,
+            lastFullRaiseSize = 0,
+            actingSeatIndex = 0,
+            deckRemaining = emptyList(),
+            lastSequence = 7,
+        )
+        val solo = TableUiState.fromGameState(
+            gameState = state,
+            humanSeatIndex = 0,
+            personalitiesBySeat = emptyMap(),
+            lastWinners = null,
+            lastActionBySeat = emptyMap(),
+        )
+        assertEquals(null, solo.turnTimerSeconds, "solo tables don't enforce a per-turn timer")
+        assertEquals(7L, solo.turnSequence, "turn sequence rides through from the game state")
+    }
+
+    @Test
+    fun turnTimer_surfacesSettingValue_whenEnforced() {
+        val state = GameState(
+            settings = RoomSettings.Default.copy(turnTimerSeconds = 45),
+            handNumber = 1,
+            buttonSeatIndex = 0,
+            seats = listOf(seat(index = 0, stack = 1_000, participation = HandParticipation.InHand)),
+            community = emptyList(),
+            street = BettingRound.Preflop,
+            currentBetThisStreet = 0,
+            lastFullRaiseSize = 0,
+            actingSeatIndex = 0,
+            deckRemaining = emptyList(),
+        )
+        val mp = TableUiState.fromGameState(
+            gameState = state,
+            humanSeatIndex = 0,
+            personalitiesBySeat = emptyMap(),
+            lastWinners = null,
+            lastActionBySeat = emptyMap(),
+            turnTimerEnforced = true,
+        )
+        assertEquals(45, mp.turnTimerSeconds, "enforced tables surface the configured timeout")
+    }
+
+    @Test
     fun emptySeat_isNotBusted() {
         val table = activeFromSeats(
             street = BettingRound.Complete,

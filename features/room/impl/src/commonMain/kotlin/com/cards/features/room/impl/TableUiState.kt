@@ -52,6 +52,21 @@ sealed interface TableUiState {
          * label. Always false for solo bot sessions — solo is its own flow.
          */
         val practiceTierBotsPresent: Boolean = false,
+        /**
+         * Per-turn timeout (`RoomSettings.turnTimerSeconds`) when the server
+         * enforces it — MP only, where a stalling seat is auto-folded/checked
+         * by `TurnTimerDriver`. Null for solo bot sessions (no enforcement),
+         * which suppresses the on-table countdown ring so it never implies a
+         * timer that doesn't exist.
+         */
+        val turnTimerSeconds: Int? = null,
+        /**
+         * Engine sequence of the latest applied action (`GameState.lastSequence`).
+         * Resets to 0 each hand and bumps on every applied event, so
+         * `handNumber to turnSequence` is the turn token the countdown ring
+         * re-arms on — including a raise that returns action to the same seat.
+         */
+        val turnSequence: Long = 0,
     ) : TableUiState
 
     companion object {
@@ -82,6 +97,13 @@ sealed interface TableUiState {
              * (product-spec.md §5.4). Defaults false for solo sessions.
              */
             practiceTierBotsPresent: Boolean = false,
+            /**
+             * Whether the server enforces the per-turn timer for this table —
+             * MP only. When true the table surfaces `turnTimerSeconds` so the
+             * acting human seat shows a countdown ring; solo sessions leave it
+             * false so no countdown is implied where nothing is enforced.
+             */
+            turnTimerEnforced: Boolean = false,
             /**
              * The server-tunable level curve every derived level on this table
              * runs through, so remote opponents' pills match the level the
@@ -149,6 +171,8 @@ sealed interface TableUiState {
                 bigBlindSeatIndex = bbIndex,
                 botDifficultyLabel = botDifficultyLabel,
                 practiceTierBotsPresent = practiceTierBotsPresent,
+                turnTimerSeconds = gameState.settings.turnTimerSeconds.takeIf { turnTimerEnforced },
+                turnSequence = gameState.lastSequence,
             )
         }
 
