@@ -16,8 +16,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.home.HomeRoute
+import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.PlayMultiplayerRoute
+import com.dangerfield.cards.features.room.RoomKind
+import com.dangerfield.cards.features.rooms.PublicSearchingRoute
+import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
@@ -68,12 +72,25 @@ class PlayMultiplayerFeatureEntryPoint(
                 playPokerVmFactory(factory)
             }
             val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
-            // Terminal room-close pops the screen — the room is gone, so
-            // there's nothing to reconnect to. The lobby/home it lands back
-            // on re-observes and surfaces the closed-room state itself.
+            // One-shot navigation events. RoomClosed pops (the room is gone).
+            // NavigateToShop surfaces the Shop tab for the bust upsell.
+            // OpponentsLeft tears down this screen and routes by room kind —
+            // back to the lobby for a private game (where the lone player can
+            // re-invite), or to matchmaking search for a public one.
             LaunchedEffect(viewModel) {
                 viewModel.eventFlow.collect { event ->
-                    if (event is PlayPokerEvent.RoomClosed) router.goBack()
+                    when (event) {
+                        is PlayPokerEvent.RoomClosed -> router.goBack()
+                        PlayPokerEvent.NavigateToShop -> router.switchTab(ShopGraph)
+                        PlayPokerEvent.OpponentsLeft -> router.batch {
+                            goBack()
+                            when (route.kind) {
+                                RoomKind.Private -> navigate(LobbyRoute(prefilledCode = route.roomCode))
+                                RoomKind.Public -> navigate(PublicSearchingRoute())
+                            }
+                        }
+                        else -> Unit
+                    }
                 }
             }
             PlayPokerScreen(

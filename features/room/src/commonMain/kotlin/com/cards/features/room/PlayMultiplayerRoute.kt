@@ -17,4 +17,16 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class PlayMultiplayerRoute(
     val roomCode: String,
+    /**
+     * Whether this is a private (invite/code) game or a public (matchmade)
+     * one. Drives where the player is routed when every opponent leaves: back
+     * to the lobby for private, to matchmaking search for public. Defaults to
+     * [RoomKind.Private] — the only flow wired to real server rooms today; the
+     * public path is reachable once matchmaking lands.
+     */
+    val kind: RoomKind = RoomKind.Private,
 ) : Route(authRequirement = AuthRequirement.Account)
+
+/** How a multiplayer game was entered — see [PlayMultiplayerRoute.kind]. */
+@Serializable
+enum class RoomKind { Private, Public }

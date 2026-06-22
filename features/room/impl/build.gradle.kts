@@ -13,6 +13,8 @@ kotlin {
             implementation(projects.features.home)
             implementation(projects.features.progression)
             implementation(projects.features.shop)
+            implementation(projects.features.lobby)
+            implementation(projects.features.rooms)
             implementation(projects.libraries.bots)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.game)
