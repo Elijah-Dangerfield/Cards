@@ -20,7 +20,12 @@ fun BalancePillSlot(
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Top,
+        // Center against the leading element so the chip pill sits at the same
+        // vertical band as Home's header chip (which centers on the avatar row),
+        // reading as one persistent wallet affordance across the two tabs. Keep
+        // the leading slot a single line (e.g. just a title) so "center" lands
+        // where intended; stack any supporting copy below this row.
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         leading()
         Spacer(modifier = Modifier.weight(1f))

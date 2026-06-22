@@ -301,20 +301,23 @@ private fun IdeaFooter(onClick: () -> Unit) {
 
 @Composable
 private fun ShopHeader(chips: Long?) {
-    BalancePillSlot(chips = chips) {
-        Column {
+    Column {
+        // Only the title is the pill's leading element, so the chip centers on
+        // the title line and lands at the same vertical band as Home's header
+        // chip. The subtitle stacks below the whole pill row.
+        BalancePillSlot(chips = chips) {
             Text(
                 text = stringResource(Res.string.shop_header_title),
                 typography = AppTheme.typography.Heading.H1000,
                 color = AppTheme.colors.content,
             )
-            VerticalSpacerD100()
-            Text(
-                text = stringResource(Res.string.shop_header_subtitle),
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-            )
         }
+        VerticalSpacerD100()
+        Text(
+            text = stringResource(Res.string.shop_header_subtitle),
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.contentSecondary,
+        )
     }
 }
 
