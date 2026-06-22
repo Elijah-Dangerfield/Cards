@@ -109,6 +109,7 @@ fun HomeScreen(
         onAddRecentOpponent = onAddRecentOpponent,
         onSeeAllRecentOpponents = onSeeAllRecentOpponents,
         recentAchievements = state.recentAchievements,
+        recentOpponents = state.recentOpponents,
         modifier = modifier,
         scrollState = scrollState,
     )
@@ -141,13 +142,12 @@ private fun HomeScreenContent(
     onSeeAllRecentOpponents: () -> Unit,
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState(),
-    // ----- Fake-data injection points (V1) --------------------------------
-    // The friends / recently-played-with shelves take their content as
-    // parameters so previews can exercise every state. Production
-    // callers use the defaults below until real reactive sources land
-    // — see docs/todo.md. `recentAchievements` is already real-data
-    // driven from `HomeViewModel`; previews pass a list directly to
-    // exercise the shelf.
+    // ----- Shelf content --------------------------------------------------
+    // Each shelf takes its content as a parameter so previews can exercise
+    // every state. `recentAchievements` and `recentOpponents` are real-data
+    // driven from `HomeViewModel`; the friends shelf is still a fake source
+    // until the presence/graph wiring lands — see docs/todo.md. Defaults
+    // below only feed previews that don't pass a list.
     onlineFriends: List<FriendOnline> = remember { defaultOnlineFriends() },
     pendingFriendRequests: Int = 0,
     recentAchievements: List<RecentAchievement> = emptyList(),

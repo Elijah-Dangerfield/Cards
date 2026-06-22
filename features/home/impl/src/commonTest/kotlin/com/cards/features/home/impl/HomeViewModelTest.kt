@@ -35,6 +35,10 @@ import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.rooms.RoomStatus
+import com.dangerfield.cards.libraries.social.FriendRepository
+import com.dangerfield.cards.libraries.social.RecentOpponentProfile
+import com.dangerfield.cards.libraries.social.RecentOpponentsRepository
+import com.dangerfield.cards.libraries.social.SendFriendRequestResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
@@ -480,6 +484,89 @@ class HomeViewModelTest : CoroutineTest() {
         assertEquals(listOf("AAA111"), rooms.leaveCalls)
     }
 
+    @Test
+    fun recentOpponents_refreshOnAuth_resolvesIntoState() = runUnitTest {
+        // The shelf refreshes once a real session lands; the resolved profiles
+        // surface as RecentOpponent tiles (none "Sent" yet).
+        val recents = FakeRecentOpponentsRepository(
+            onRefresh = listOf(
+                recentProfile("u1", "Patrice", "🦁", "#C658E4"),
+                recentProfile("u2", "Jules", "🐙", "#58C0E4"),
+            ),
+        )
+        val profile = FakeProfileRepository(
+            initial = authenticatedProfile(displayName = "Seated", isAnonymous = true),
+        )
+        val vm = buildVm(profile = profile, recentOpponents = recents)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.recentOpponents.isEmpty()) last = awaitItem()
+            assertEquals(listOf("u1", "u2"), last.recentOpponents.map { it.id })
+            assertEquals("Patrice", last.recentOpponents.first().displayName)
+            assertTrue(last.recentOpponents.none { it.requestSent })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun addFriend_optimisticallyFlipsSent_andSendsRequest() = runUnitTest {
+        val recents = FakeRecentOpponentsRepository(onRefresh = listOf(recentProfile("u1")))
+        val friends = FakeFriendRepository(result = SendFriendRequestResult.Requested)
+        val vm = buildVm(profile = seatedProfile(), recentOpponents = recents, friends = friends)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.recentOpponents.isEmpty()) last = awaitItem()
+
+            vm.takeAction(HomeAction.AddFriend("u1"))
+            while (last.recentOpponents.none { it.requestSent }) last = awaitItem()
+            assertTrue(last.recentOpponents.single { it.id == "u1" }.requestSent)
+            assertEquals(listOf("u1"), friends.sentTo)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun addFriend_rejectedRequest_revertsSent() = runUnitTest {
+        // A 403 (not played with) comes back — the optimistic flip is undone so
+        // the tile returns to "Add".
+        val recents = FakeRecentOpponentsRepository(onRefresh = listOf(recentProfile("u1")))
+        val friends = FakeFriendRepository(result = SendFriendRequestResult.NotPlayedWith)
+        val vm = buildVm(profile = seatedProfile(), recentOpponents = recents, friends = friends)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.recentOpponents.isEmpty()) last = awaitItem()
+
+            vm.takeAction(HomeAction.AddFriend("u1"))
+            // Flips to Sent optimistically...
+            while (last.recentOpponents.none { it.requestSent }) last = awaitItem()
+            // ...then reverts once the rejection lands.
+            while (last.recentOpponents.any { it.requestSent }) last = awaitItem()
+            assertTrue(last.recentOpponents.single { it.id == "u1" }.requestSent.not())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun addFriend_sentFlagSurvivesRecentOpponentsRefresh() = runUnitTest {
+        // A re-resolve of the shelf must preserve the "Sent" state for an id the
+        // user already requested this session.
+        val recents = FakeRecentOpponentsRepository(onRefresh = listOf(recentProfile("u1")))
+        val friends = FakeFriendRepository(result = SendFriendRequestResult.Requested)
+        val vm = buildVm(profile = seatedProfile(), recentOpponents = recents, friends = friends)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.recentOpponents.isEmpty()) last = awaitItem()
+            vm.takeAction(HomeAction.AddFriend("u1"))
+            while (last.recentOpponents.none { it.requestSent }) last = awaitItem()
+
+            recents.emit(listOf(recentProfile("u1"), recentProfile("u2")))
+            while (last.recentOpponents.size != 2) last = awaitItem()
+            assertTrue(last.recentOpponents.single { it.id == "u1" }.requestSent)
+            assertTrue(last.recentOpponents.single { it.id == "u2" }.requestSent.not())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     // ---------- scaffolding ----------
 
     private fun buildVm(
@@ -488,6 +575,8 @@ class HomeViewModelTest : CoroutineTest() {
         chips: FakeChipsRepository = FakeChipsRepository(),
         rooms: FakeRoomRepository = FakeRoomRepository(),
         profile: FakeProfileRepository = FakeProfileRepository(),
+        recentOpponents: FakeRecentOpponentsRepository = FakeRecentOpponentsRepository(),
+        friends: FakeFriendRepository = FakeFriendRepository(),
         appCache: FakeAppCache = FakeAppCache(),
         progressionConfig: ProgressionConfig = FakeProgressionConfig(),
     ): HomeViewModel = HomeViewModel(
@@ -496,10 +585,48 @@ class HomeViewModelTest : CoroutineTest() {
         chipsRepository = chips,
         roomRepository = rooms,
         profileRepository = profile,
+        recentOpponentsRepository = recentOpponents,
+        friendRepository = friends,
         progressionConfig = progressionConfig,
         appCache = appCache,
         appScope = AppCoroutineScope(dispatchers),
     )
+
+    private fun recentProfile(
+        id: String,
+        displayName: String = "name-$id",
+        avatarEmoji: String = "🦊",
+        avatarBackgroundColorHex: String? = null,
+    ): RecentOpponentProfile = RecentOpponentProfile(
+        id = id,
+        displayName = displayName,
+        avatarEmoji = avatarEmoji,
+        avatarBackgroundColorHex = avatarBackgroundColorHex,
+    )
+
+    private class FakeRecentOpponentsRepository(
+        private val onRefresh: List<RecentOpponentProfile> = emptyList(),
+    ) : RecentOpponentsRepository {
+        private val recent = MutableStateFlow<List<RecentOpponentProfile>>(emptyList())
+        var refreshCalls: Int = 0
+            private set
+        fun emit(profiles: List<RecentOpponentProfile>) { recent.value = profiles }
+        override fun observe(): Flow<List<RecentOpponentProfile>> = recent
+        override suspend fun refresh(limit: Int) {
+            refreshCalls += 1
+            recent.value = onRefresh
+        }
+    }
+
+    private class FakeFriendRepository(
+        private val result: SendFriendRequestResult = SendFriendRequestResult.Requested,
+    ) : FriendRepository {
+        val sentTo: MutableList<String> = mutableListOf()
+        override suspend fun sendRequest(userId: String): SendFriendRequestResult {
+            sentTo += userId
+            return result
+        }
+    }
 
     private class FakeProgressionConfig : ProgressionConfig {
         override fun rewardsForLevel(level: Int): List<LevelReward> =

@@ -12,8 +12,6 @@ import androidx.compose.ui.backhandler.BackHandler
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.home_coming_soon_friend_requests_body
-import cards.libraries.resources.generated.resources.home_coming_soon_friend_requests_title
 import cards.libraries.resources.generated.resources.home_coming_soon_friends_body
 import cards.libraries.resources.generated.resources.home_coming_soon_friends_title
 import cards.libraries.resources.generated.resources.home_coming_soon_recently_played_body
@@ -139,8 +137,6 @@ class HomeFeatureEntryPoint(
             val tournamentBody = stringResource(Res.string.home_coming_soon_tournament_body)
             val friendsTitle = stringResource(Res.string.home_coming_soon_friends_title)
             val friendsBody = stringResource(Res.string.home_coming_soon_friends_body)
-            val friendRequestsTitle = stringResource(Res.string.home_coming_soon_friend_requests_title)
-            val friendRequestsBody = stringResource(Res.string.home_coming_soon_friend_requests_body)
             val recentlyPlayedTitle = stringResource(Res.string.home_coming_soon_recently_played_title)
             val recentlyPlayedBody = stringResource(Res.string.home_coming_soon_recently_played_body)
 
@@ -179,19 +175,12 @@ class HomeFeatureEntryPoint(
                         body = friendsBody,
                     )
                 },
-                // Recent opponents — the social cold-start lever. Once
-                // the friends graph exists this fires an outbound
-                // request and the tile flips to "Sent" (already wired
-                // in [RecentOpponent.requestSent]). For V1 it surfaces
-                // the same explainer sheet as the friends strip so the
-                // user understands the surface exists but the wiring
-                // doesn't yet.
-                onAddRecentOpponent = { _ ->
-                    comingSoon = ComingSoonContent(
-                        title = friendRequestsTitle,
-                        emoji = "🤝",
-                        body = friendRequestsBody,
-                    )
+                // Recent opponents — the social cold-start lever. Fires the
+                // outbound friend request through the VM, which flips the tile
+                // to "Sent" optimistically and reverts only if the server
+                // rejects it.
+                onAddRecentOpponent = { opponentId ->
+                    viewModel.takeAction(HomeAction.AddFriend(opponentId))
                 },
                 onSeeAllRecentOpponents = {
                     comingSoon = ComingSoonContent(

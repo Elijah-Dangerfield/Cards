@@ -24,6 +24,7 @@ kotlin {
             implementation(projects.libraries.ui)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.identity)
+            implementation(projects.libraries.social)
             implementation(projects.libraries.rooms)
             implementation(projects.libraries.resources)
 
@@ -39,6 +40,7 @@ kotlin {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.identity)
+            implementation(projects.libraries.social)
             implementation(projects.libraries.rooms)
             implementation(libs.turbine)
         }
