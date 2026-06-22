@@ -152,6 +152,13 @@ private class ConfiguredTelemetry(
         Sentry.configureScope { it.setTag(INSTALL_ID_KEY, installId) }
     }
 
+    override fun setRoom(code: String?) {
+        if (!Sentry.isEnabled()) return
+        Sentry.configureScope {
+            if (code.isNullOrBlank()) it.removeTag(ROOM_CODE_KEY) else it.setTag(ROOM_CODE_KEY, code)
+        }
+    }
+
     override fun captureUserFeedback(
         message: String,
         isBugReport: Boolean,
@@ -242,6 +249,9 @@ private const val ROUTE_KEY = "route"
 // fields), so the same value queries Sentry, Tempo, and Loki.
 private const val SESSION_ID_KEY = "session_id"
 private const val INSTALL_ID_KEY = "install_id"
+// Mirrors the backend gameplay span attribute `room.code` so feedback during a
+// game pivots to that room's server traces/logs.
+private const val ROOM_CODE_KEY = "room_code"
 
 // All platforms / build types report to the single `cards` Sentry project.
 // The `environment` tag (releaseChannel-platform-buildType) and the

@@ -210,6 +210,8 @@ class TelemetryUserBinderTest : CoroutineTest() {
 
         override fun setInstallId(installId: String) = Unit
 
+        override fun setRoom(code: String?) = Unit
+
         override fun captureUserFeedback(
             message: String,
             isBugReport: Boolean,

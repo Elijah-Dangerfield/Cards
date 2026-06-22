@@ -47,6 +47,15 @@ interface Telemetry {
      */
     fun setInstallId(installId: String)
 
+    /**
+     * Records the multiplayer room the user is currently in as a `room_code`
+     * tag, or clears it when [code] is null/blank (left the room). Mirrors the
+     * backend's `room.code` gameplay span attribute, so feedback filed during a
+     * game pivots straight to that room's server traces and logs. Best-effort;
+     * no-op when crash reporting is disabled.
+     */
+    fun setRoom(code: String?)
+
     fun captureUserFeedback(
         message: String,
         isBugReport: Boolean,
