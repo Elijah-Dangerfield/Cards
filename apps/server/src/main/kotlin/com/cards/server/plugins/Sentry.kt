@@ -5,6 +5,7 @@ import io.opentelemetry.api.trace.Span
 import io.sentry.Sentry
 import io.sentry.SentryOptions
 import org.slf4j.LoggerFactory
+import org.slf4j.MDC
 
 /**
  * Centralised Sentry setup. Called once at startup BEFORE any other plugin
@@ -77,11 +78,19 @@ fun installSentry(config: SentryConfig) {
 fun captureToSentry(throwable: Throwable, context: String? = null) {
     if (!Sentry.isEnabled()) return
     val spanContext = Span.current().spanContext
+    // CallLogging seeds session_id/install_id into MDC for the duration of the
+    // call (plugins/Observability.kt), so tag the error with the same session
+    // the client tags its own Sentry events with — backend and frontend errors
+    // for one session line up under a single id.
+    val sessionId = MDC.get("session_id")
+    val installId = MDC.get("install_id")
     Sentry.captureException(throwable) { scope ->
         if (context != null) scope.setTag("context", context)
         if (spanContext.isValid) {
             scope.setTag("trace_id", spanContext.traceId)
             scope.setTag("span_id", spanContext.spanId)
         }
+        if (sessionId != null) scope.setTag("session_id", sessionId)
+        if (installId != null) scope.setTag("install_id", installId)
     }
 }

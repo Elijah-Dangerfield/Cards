@@ -27,6 +27,13 @@
         <captureCodeAttributes>true</captureCodeAttributes>
         <captureMarkerAttribute>true</captureMarkerAttribute>
         <captureKeyValuePairAttributes>true</captureKeyValuePairAttributes>
+        <!--
+            Forward SLF4J MDC entries as log attributes. CallLogging seeds
+            session_id / install_id / call_id per request (plugins/Observability.kt),
+            so every record is filterable in Loki by the same session_id the
+            client tags its Sentry events and request spans with. `*` = all keys.
+        -->
+        <captureMdcAttributes>*</captureMdcAttributes>
     </appender>
 
     <logger name="io.netty" level="WARN"/>

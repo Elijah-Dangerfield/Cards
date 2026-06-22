@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.plugins
 
+import com.dangerfield.cards.server.http.ClientContext
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -27,6 +28,19 @@ import kotlinx.coroutines.withContext
 fun Application.installHttpServerTracing(openTelemetry: OpenTelemetry) {
     install(KtorServerTelemetry) {
         setOpenTelemetry(openTelemetry)
+        // Stamp the client's session/install ids onto every request span as it
+        // starts, straight from the headers. These are the same ids the client
+        // tags its Sentry events with, so one value (`session_id`) pivots from
+        // a feedback report to this session's full backend trace in Tempo. The
+        // log side carries the matching field via CallLogging MDC.
+        attributesExtractor {
+            onStart {
+                request.headers[ClientContext.HEADER_SESSION_ID]?.takeIf { it.isNotBlank() }
+                    ?.let { attributes.put(SpanAttrs.SessionIdCorrelation, it) }
+                request.headers[ClientContext.HEADER_INSTALL_ID]?.takeIf { it.isNotBlank() }
+                    ?.let { attributes.put(SpanAttrs.InstallIdCorrelation, it) }
+            }
+        }
     }
 }
 
@@ -55,7 +69,23 @@ internal const val SERVER_TRACER_NAME = "com.dangerfield.cards.server"
 internal object SpanAttrs {
     val RoomCode: AttributeKey<String> = AttributeKey.stringKey("room.code")
     val UserId: AttributeKey<String> = AttributeKey.stringKey("user.id")
+
+    /**
+     * Game-room session (a server-minted [com.dangerfield.cards.server.GameSession]
+     * id) — NOT the client app session. Distinct from [SessionIdCorrelation].
+     */
     val SessionId: AttributeKey<String> = AttributeKey.stringKey("session.id")
+
+    /**
+     * Client app-session correlation id from `X-Session-Id`. Underscore key,
+     * deliberately matching the Sentry tag and Loki log field exactly so the
+     * same query string works in all three systems. Set on every HTTP span via
+     * the attributes extractor in [Application.installHttpServerTracing].
+     */
+    val SessionIdCorrelation: AttributeKey<String> = AttributeKey.stringKey("session_id")
+
+    /** Per-install id from `X-Install-Id`; matches the Sentry `install_id` tag. */
+    val InstallIdCorrelation: AttributeKey<String> = AttributeKey.stringKey("install_id")
     val HandNumber: AttributeKey<Long> = AttributeKey.longKey("hand.number")
     val IntentType: AttributeKey<String> = AttributeKey.stringKey("intent.type")
     val FrameType: AttributeKey<String> = AttributeKey.stringKey("frame.type")
