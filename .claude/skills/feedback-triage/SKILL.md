@@ -90,12 +90,18 @@ For **every** feedback handled, append to `docs/agent/feedback-log.md`:
 - <date> · <event_id> · session <id> · <"todo: <title>" | "no-action: <reason>" | "backlog"> · <Sentry issue URL>
 ```
 
-Then resolve in Sentry so it leaves the unresolved queue:
+Then resolve in Sentry so it leaves the unresolved queue. Resolve the token from
+the env, falling back to the macOS Keychain (so unattended runs work without a
+plaintext token on disk):
 
-- **If `SENTRY_AUTH_TOKEN` is set in the env**, resolve via REST:
-  `curl -sS -X PUT "https://us.sentry.io/api/0/organizations/elijah-dangerfield/issues/<issueId>/" -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" -H "Content-Type: application/json" -d '{"status":"resolved"}'`
+```
+TOKEN="${SENTRY_AUTH_TOKEN:-$(security find-generic-password -s cards-sentry-auth-token -w 2>/dev/null)}"
+```
+
+- **If `$TOKEN` is non-empty**, resolve via REST (never echo the token):
+  `curl -sS -X PUT "https://us.sentry.io/api/0/organizations/elijah-dangerfield/issues/<issueId>/" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"status":"resolved"}'`
   (Optionally POST a comment to `/comments/` with the disposition.)
-- **If no token**, the ledger is the source of truth — the search in step 1 still finds the issue, but the event-id check in step 1 skips it. Note in the run summary that Sentry status wasn't flipped (set up `SENTRY_AUTH_TOKEN` to enable it).
+- **If `$TOKEN` is empty**, the ledger is the source of truth — the search in step 1 still finds the issue, but the event-id check skips it. Note in the run summary that Sentry status wasn't flipped (store the token in the keychain item `cards-sentry-auth-token` to enable it).
 
 ### 7. Run summary
 
