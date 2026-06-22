@@ -224,6 +224,38 @@ class GameSessionRegistryIntegrationTest {
     }
 
     @Test
+    fun finishedHand_botsOnlyTable_doesNotWitnessCountOrAchievements() = runTest {
+        val counter = InMemoryHandsFinishedRepository()
+        val evaluations = mutableListOf<com.dangerfield.cards.server.domain.UserId>()
+        val recording = object : com.dangerfield.cards.server.domain.ServerWitnessedAchievements {
+            override suspend fun evaluate(userId: com.dangerfield.cards.server.domain.UserId) {
+                evaluations += userId
+            }
+        }
+        val registry = DefaultGameSessionRegistry(
+            snapshotStore = NoOpSessionSnapshotStore(),
+            clock = kotlin.time.Clock.System,
+            handsFinishedRepository = counter,
+            serverWitnessedAchievements = recording,
+        )
+        val aliceId = java.util.UUID.randomUUID().toString()
+        val aliceU = com.dangerfield.cards.server.domain.UserId(java.util.UUID.fromString(aliceId))
+        val human = SeatOccupant(seatIndex = 0, userId = aliceId, displayName = "Alice", isBot = false)
+        val bot = SeatOccupant(seatIndex = 1, userId = "bot-1", displayName = "Botty", isBot = true)
+
+        registry.startHand("ROOM1", listOf(human, bot), settings)
+        val session = registry.peek("ROOM1")!!
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actor = session.state.value!!.seats.first { it.index == acting }
+        registry.applyIntent("ROOM1", actor.playerId!!, PlayerIntent.Fold(seatIndex = acting), "fold-1")
+
+        // The lone human has no human opponent, so the hand earns no MP credit:
+        // no finished-hand count, no server-witnessed achievement evaluation.
+        assertEquals(0L, counter.countForUser(aliceU))
+        assertTrue(evaluations.isEmpty())
+    }
+
+    @Test
     fun applyIntent_unknownCode_isRejected() = runTest {
         val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), kotlin.time.Clock.System)
 

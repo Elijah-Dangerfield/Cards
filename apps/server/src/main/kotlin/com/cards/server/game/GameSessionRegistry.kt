@@ -269,6 +269,13 @@ class DefaultGameSessionRegistry(
      */
     private suspend fun recordHandsFinished(sessionId: UUID, outcome: HandOutcome) {
         val handNumber = outcome.handNumber
+        // Bots-only / solo table: a lone human (or none) with the rest of the
+        // seats bots. Such a hand earns no MP credit — it isn't played against
+        // real opponents — so it doesn't tick the server-witnessed finished-hand
+        // count or its achievements ("Took a seat" and friends). Mirrors the
+        // 2-human floor [recordRecentOpponents] already applies. Bots never enter
+        // [HandOutcome.perHuman], so the human count is exactly its size.
+        if (outcome.perHuman.size < 2) return
         for ((userIdString, playerOutcome) in outcome.perHuman) {
             val userId = Catching { UserId(UUID.fromString(userIdString)) }.getOrNull() ?: continue
             Catching {
