@@ -184,6 +184,66 @@ object GameEngine {
         )
     }
 
+    /**
+     * Fold [seatIndex] out of the live hand regardless of whose turn it is —
+     * for a player who leaves or is removed mid-hand. **Idempotent**: a no-op
+     * if the seat is already out of the action (folded, not dealt, all-in, or
+     * the hand is already complete), so it's safe to call more than once (e.g.
+     * once per socket subscriber observing the leave).
+     *
+     * Behaves like a fold for action flow: if it leaves a single contender the
+     * pot is awarded; if the forfeiter was on the button-to-act and the street
+     * is now settled it advances/runs out; otherwise action stays with whoever
+     * still owes a decision. The forfeiter keeps their remaining stack and any
+     * chips already committed stay in the pot, so every invariant in
+     * `GameEnginePropertyTest` holds.
+     *
+     * An all-in seat is intentionally *not* forfeitable — they've committed
+     * their chips and are entitled to the showdown even if they disconnect.
+     */
+    fun forfeitSeat(state: GameState, seatIndex: Int): StepResult {
+        if (state.street == BettingRound.Complete) return StepResult(state, emptyList())
+        val seat = state.seats.firstOrNull { it.index == seatIndex }
+            ?: return StepResult(state, emptyList())
+        if (seat.handParticipation != HandParticipation.InHand) return StepResult(state, emptyList())
+
+        var seq = state.lastSequence
+        val foldedSeat = seat.copy(
+            handParticipation = HandParticipation.Folded,
+            hasActedThisStreet = true,
+        )
+        val seats = state.seats.map { if (it.index == seatIndex) foldedSeat else it }
+        val events = listOf<GameEvent>(
+            GameEvent.ActionTaken(
+                sequence = ++seq,
+                seatIndex = seatIndex,
+                action = PlayerAction.Fold,
+                resultingStreetContribution = foldedSeat.contributedThisStreet,
+            ),
+        )
+        val working = state.copy(seats = seats, lastSequence = seq)
+
+        val contenders = working.activeContenders
+        if (contenders.size == 1 && contenders.first().handParticipation != HandParticipation.AllIn) {
+            val (winState, winEvents, winSeq) = awardPotByFold(working, contenders.first(), seq)
+            return StepResult(winState.copy(lastSequence = winSeq), events + winEvents)
+        }
+
+        // Forfeiter was on the clock → advance action exactly like a fold.
+        if (state.actingSeatIndex == seatIndex) {
+            if (isStreetComplete(working)) {
+                val (advanced, advEvents, advSeq) = advanceStreet(working, seq)
+                return StepResult(advanced.copy(lastSequence = advSeq), events + advEvents)
+            }
+            val nextActor = nextActorAfter(working, seatIndex)
+            return StepResult(working.copy(actingSeatIndex = nextActor?.index), events)
+        }
+
+        // A seat that wasn't on the clock left: whoever was acting still owes a
+        // decision, so the street can't be complete — keep the table on them.
+        return StepResult(working, events)
+    }
+
     private fun pickBlindSeats(active: List<Seat>, buttonIndex: Int): Pair<Seat, Seat> {
         return if (active.size == 2) {
             val buttonSeat = active.firstOrNull { it.index == buttonIndex }
