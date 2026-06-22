@@ -53,6 +53,12 @@ sealed interface TableUiState {
          */
         val practiceTierBotsPresent: Boolean = false,
         /**
+         * True when this MP table is the bots-only sub-case of practice tier —
+         * the local player is the only human, the rest bots. Drives the extra
+         * "real chips aren't at stake" line in the practice-tier explainer.
+         */
+        val practiceTierBotsOnly: Boolean = false,
+        /**
          * Per-turn timeout (`RoomSettings.turnTimerSeconds`) when the server
          * enforces it — MP only, where a stalling seat is auto-folded/checked
          * by `TurnTimerDriver`. Null for solo bot sessions (no enforcement),
@@ -97,6 +103,12 @@ sealed interface TableUiState {
              * (product-spec.md §5.4). Defaults false for solo sessions.
              */
             practiceTierBotsPresent: Boolean = false,
+            /**
+             * Whether this MP table is bots-only (local human + bots) — set by
+             * [RemotePokerSessionFactory] so the explainer can add the "real
+             * chips aren't at stake" line. Defaults false for solo sessions.
+             */
+            practiceTierBotsOnly: Boolean = false,
             /**
              * Whether the server enforces the per-turn timer for this table —
              * MP only. When true the table surfaces `turnTimerSeconds` so the
@@ -171,6 +183,7 @@ sealed interface TableUiState {
                 bigBlindSeatIndex = bbIndex,
                 botDifficultyLabel = botDifficultyLabel,
                 practiceTierBotsPresent = practiceTierBotsPresent,
+                practiceTierBotsOnly = practiceTierBotsOnly,
                 turnTimerSeconds = gameState.settings.turnTimerSeconds.takeIf { turnTimerEnforced },
                 turnSequence = gameState.lastSequence,
             )

@@ -917,6 +917,7 @@
     <string name="room_practice_tier_explainer_title">Practice tier</string>
     <string name="room_practice_tier_explainer_a11y">What practice tier means</string>
     <string name="room_practice_tier_explainer_body">This table has bots and not enough humans, so the hand counts as practice. You still earn XP, but only half as much, and multiplayer-only achievements stay locked. Get more humans to the table to play for full credit.</string>
+    <string name="room_practice_tier_explainer_bots_only_body">You are the only human here, so real chips are no longer at stake - the bots play for practice only.</string>
 
     <!-- Tutorial - section labels (basics narration block vs. tableau hands). -->
     <string name="tutorial_section_basics">Basics</string>

@@ -39,4 +39,19 @@ internal object MultiplayerCredit {
         val botsPresent = state.seats.any { it.playerId != null && it.isBot }
         return botsPresent && !qualifies(state)
     }
+
+    /**
+     * Whether this table is the **bots-only** sub-case of practice tier — at
+     * most one human seated (the local player) with at least one bot. Distinct
+     * from [showsPracticeTierLabel], which also covers bot-stacked tables that
+     * still have human opponents (`2H + 4B`). Bots-only is the table where no
+     * human's chips are on the other side, so the explainer adds that real
+     * chips aren't at stake.
+     */
+    fun isBotsOnly(state: GameState): Boolean {
+        val occupied = state.seats.filter { it.playerId != null }
+        val humans = occupied.count { !it.isBot }
+        val bots = occupied.count { it.isBot }
+        return humans <= 1 && bots >= 1
+    }
 }

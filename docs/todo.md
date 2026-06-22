@@ -136,9 +136,6 @@ A batch of small UX directives the owner filed via in-app feedback in one sessio
 - `[P2]` **Back out of an in-progress MP game should go Home, not the lobby.** Swiping back from a multiplayer game returns to the lobby; it should route Home. *(feedback CARDS-12)*
   **Hints:** back handling in `PlayMultiplayerFeatureEntryPoint` / room nav. Sentry [CARDS-12](https://elijah-dangerfield.sentry.io/issues/CARDS-12).
 
-- `[P2]` **Bot-only MP explainer should say real chips aren't at stake.** When a multiplayer game is only against bots, the explainer dialog should add that real chips are no longer at stake. *(feedback CARDS-14)*
-  **Hints:** the MP explainer dialog; bot-only detection already exists. Pairs with CARDS-W. Sentry [CARDS-14](https://elijah-dangerfield.sentry.io/issues/CARDS-14).
-
 - `[P2]` **"Took a seat" shouldn't count when it's bots-only.** The take-a-seat achievement/stat fires even in bot-only games; it should only count against humans. *(feedback CARDS-W)*
   **Hints:** seat / achievement trigger; gate on bot-only room. Sentry [CARDS-W](https://elijah-dangerfield.sentry.io/issues/CARDS-W).
 
