@@ -132,11 +132,22 @@ internal class RemotePokerSession(
 
     private suspend fun collectConnection() {
         handle.connection.collect { conn ->
-            _connectionState.value = when (conn) {
+            val previous = _connectionState.value
+            val next = when (conn) {
                 RoomConnection.Connecting -> ConnectionState.Reconnecting
                 is RoomConnection.Connected -> ConnectionState.Connected
                 is RoomConnection.Reconnecting -> ConnectionState.Reconnecting
                 is RoomConnection.Closed -> ConnectionState.Disconnected
+            }
+            _connectionState.value = next
+            // Info: connection lifecycle is the backbone of reconstructing a
+            // reported MP session — it rides in release breadcrumbs and, with
+            // the close reason, explains "the game just froze/dropped."
+            if (next != previous) {
+                logger.i {
+                    "Connection $previous → $next" +
+                        (if (conn is RoomConnection.Closed) " (reason=${conn.reason})" else "")
+                }
             }
             // A terminal close (room GC'd / subscription rejected) collapses
             // to Disconnected above, which the banner can't distinguish from
@@ -160,7 +171,19 @@ internal class RemotePokerSession(
                                 "${_gameStateFlow.value.handNumber}/seq=${_gameStateFlow.value.lastSequence}"
                         }
                     } else {
+                        // Info once when the table goes from Loading to a real
+                        // hand — marks "client had enough state to play," the
+                        // readiness milestone in a session trail. Per-snapshot
+                        // applies stay silent (too noisy); the stale-drop above
+                        // is debug.
+                        val wasLoading = _gameStateFlow.value.seats.isEmpty()
                         _gameStateFlow.value = frame.state
+                        if (wasLoading && frame.state.seats.isNotEmpty()) {
+                            logger.i {
+                                "Game state ready: hand=${frame.state.handNumber}, " +
+                                    "seats=${frame.state.seats.size}, acting=${frame.state.actingSeatIndex}"
+                            }
+                        }
                     }
                 }
                 is GameplayFrame.Event -> {
@@ -203,16 +226,25 @@ internal class RemotePokerSession(
         val nonce = newNonce()
         val deferred = CompletableDeferred<GameplayFrame.IntentAck>()
         pendingAcksMutex.withLock { pendingAcks[nonce] = deferred }
+        val action = intent::class.simpleName
         try {
+            // Debug: per-action, only wanted when zooming into a specific hand.
+            logger.d { "Submitting intent $action nonce=$nonce" }
             handle.send(ClientFrame.SubmitIntent(intent, nonce))
             val ack = try {
                 withTimeout(INTENT_TIMEOUT_MS) { deferred.await() }
             } catch (e: TimeoutCancellationException) {
+                // Warn: the user's action silently didn't land — a top suspect
+                // for "I tapped fold and nothing happened."
+                logger.w { "Intent $action timed out after ${INTENT_TIMEOUT_MS}ms (nonce=$nonce)" }
                 throw IntentTimeoutException(
                     "no ack within ${INTENT_TIMEOUT_MS}ms for nonce=$nonce",
                 )
             }
             if (!ack.accepted) {
+                // Info: a server "no" is player-visible and session-meaningful
+                // (not-your-turn, illegal action, desync) — keep it in the trail.
+                logger.i { "Intent $action rejected: ${ack.error ?: "unspecified"} (nonce=$nonce)" }
                 throw IntentRejectedException(ack.error ?: "unspecified")
             }
         } finally {
