@@ -124,9 +124,6 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
 
 A batch of small UX directives the owner filed via in-app feedback in one session. Grouped here for skimmability; the maintainer can redistribute into the topic sections above. Each links its Sentry report.
 
-- `[P2]` **Raise the in-app feedback character limit.** The feedback box caps at 200 chars — too tight to describe behavior. Owner wants a much larger cap on debug builds and ~500 in production. *(feedback CARDS-8)*
-  **Hints:** `FeedbackRoute` / feedback screen in `features/profile/impl/.../feedback/`; cap is a client constant. Sentry [CARDS-8](https://elijah-dangerfield.sentry.io/issues/CARDS-8).
-
 - `[P2]` **"New here" home card — white close button on the right.** The card's close button is black and on the left; make it a white close affordance on the right side. *(feedback CARDS-A)*
   **Hints:** the "new here" welcome card on `HomeScreen`. Sentry [CARDS-A](https://elijah-dangerfield.sentry.io/issues/CARDS-A).
 
