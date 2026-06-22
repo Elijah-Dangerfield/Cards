@@ -638,3 +638,21 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Idea:** The recently-played-with shelf flips the "Add" tile to "Sent" optimistically and silently reverts it if the server rejects the request (not-played-with, rate-limited, or a network error). The revert is correct but invisible — the user just sees the tile flick back with no explanation. Once a global snackbar/toast surface exists, show a short reason ("You can only add people you've played with", "Too many requests, try later", "Couldn't reach the server") off the typed `SendFriendRequestResult` cases the repo already returns.
 
 **Status:** Backlog. The repo already distinguishes the rejection cases; this is the user-facing message on top. Do it when the app grows a shared snackbar host.
+
+---
+
+## Remove the redundant "Neon" table-theme product (pairs with Sunset removal)
+
+**Idea (owner feedback 2026-06-22, Sentry [CARDS-18](https://elijah-dangerfield.sentry.io/issues/CARDS-18)):** The owner had us remove the `table_sunset` table theme because a "table theme" and a "felt" look identical in V1 (both just recolor the felt). `table_neon` is the other surviving table theme and is redundant for the same reason. It was left alone because the owner only called out sunset by name, and unlike sunset it's already **unlock-only** (not in the `GET /v1/products` shop catalog as of V51) — so removing it is a different call than dropping a purchasable product: it's an earned reward someone could already hold. Needs an owner decision on whether to drop it too (and, if so, what happens to anyone who unlocked it).
+
+**Sketch:** Mirror the sunset removal — an append-only `DELETE FROM products WHERE id = 'table_neon'` migration, drop the `table_neon` mapping in `feltForProductId` (`:libraries:ui`), repoint any catalog/preview references, and decide whether `EquippedFelt.Neon` stays (no felt uses it today, unlike Sunset).
+
+**Status:** Backlog. Needs an owner call (earned-reward removal, not just catalog cleanup).
+
+---
+
+## Stats lifetime-grid labels should be string resources
+
+**Idea (raised 2026-06-22):** `StatsScreen.LifetimeStatsGrid` passes inline string literals for every `StatTile` label ("Hands played", "Hands won", "Win rate", "Fold rate", "Folds", "Showdown losses") — the win-rate / fold-rate tiles added this cycle matched the file's existing inline-label convention rather than introducing two lone resource entries. Per the coding guideline every user-facing string belongs in `:libraries:resources`. Convert the whole grid's labels in one pass so it's consistent rather than half-migrated.
+
+**Status:** Backlog. Pre-existing convention drift across the whole grid; do it as one sweep when next touching `StatsScreen`.
