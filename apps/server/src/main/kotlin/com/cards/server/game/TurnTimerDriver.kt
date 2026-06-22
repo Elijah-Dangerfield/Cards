@@ -28,10 +28,14 @@ import org.slf4j.LoggerFactory
  *  - **No stale fire.** `collectLatest` cancels the pending [delay] the instant a
  *    newer state arrives (the player acted, the street advanced, anyone joined),
  *    so a timer armed for a turn that's already over never submits.
- *  - **Deterministic nonce** (no clock / RNG): `timeout:<session>:<hand>:<seat>:<street>`.
- *    A re-arm of the same decision point produces the same nonce, which the
- *    session's nonce ring swallows — and [GameSession.applyIntent] independently
- *    re-checks `actingSeatIndex`, so a stale apply is a no-op even in a race.
+ *  - **Deterministic, per-decision nonce** (no clock / RNG):
+ *    `timeout:<session>:<hand>:<seat>:<street>:<sequence>`. Including the engine
+ *    `lastSequence` makes each decision point unique — a seat that acts twice in
+ *    one street (e.g. faces a re-raise) gets a fresh nonce each time. Without the
+ *    sequence the second timeout collided with the first and was swallowed by the
+ *    nonce ring, stalling the table. A re-arm of the *same* decision point still
+ *    dedupes, and [GameSession.applyIntent] independently re-checks
+ *    `actingSeatIndex`, so a stale apply is a no-op even in a race.
  *  - **Authoritative source.** Reads the unscrubbed [GameState] the session holds,
  *    so hole cards and contributions are always present (scrubbing only happens
  *    at the socket layer).
@@ -65,15 +69,29 @@ class TurnTimerDriver(
 
         val timeoutMs = state.settings.turnTimerSeconds.toLong() * 1_000L
         if (timeoutMs <= 0) return
+        val handNumber = state.handNumber
+        val armedAtSequence = state.lastSequence
         delay(timeoutMs)
+
+        // Re-read the authoritative state after the wait. `collectLatest` already
+        // cancels this block when a newer state arrives, but re-reading makes the
+        // auto-act decision provably consistent with reality and bails cleanly if
+        // the decision point moved on (the player acted, the street advanced, the
+        // hand ended) rather than acting on a stale capture.
+        val live = session.state.value ?: return
+        if (live.street == BettingRound.Complete) return
+        if (live.handNumber != handNumber || live.actingSeatIndex != acting) return
+        if (live.lastSequence != armedAtSequence) return
+        val liveSeat = live.seats.firstOrNull { it.index == acting } ?: return
+        if (liveSeat.isBot || !liveSeat.canAct) return
+        val playerId = liveSeat.playerId ?: return
 
         // Auto-check when the seat owes nothing to the current bet, else fold.
         // Mirrors the engine's own check rule (contributedThisStreet == currentBet).
-        val canCheck = seat.contributedThisStreet >= state.currentBetThisStreet
+        val canCheck = liveSeat.contributedThisStreet >= live.currentBetThisStreet
         val intent: PlayerIntent =
             if (canCheck) PlayerIntent.Check(acting) else PlayerIntent.Fold(acting)
-        val playerId = seat.playerId ?: return
-        val nonce = "timeout:${session.id}:${state.handNumber}:$acting:${state.street}"
+        val nonce = "timeout:${session.id}:$handNumber:$acting:${live.street}:$armedAtSequence"
 
         val result = session.applyIntent(playerId, intent, nonce)
         if (result is IntentResult.Rejected) {

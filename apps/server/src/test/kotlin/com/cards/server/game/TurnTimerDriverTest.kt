@@ -136,4 +136,47 @@ class TurnTimerDriverTest {
         assertEquals(BettingRound.Complete, state.street)
         assertEquals(HandParticipation.Folded, state.seats.first { it.index == 0 }.handParticipation)
     }
+
+    @Test
+    fun timer_firesAgain_forSameSeatTwiceInOneStreet() = runTest {
+        // Regression: the timeout nonce used to be hand+seat+street only, so a
+        // seat that acted twice in one street (auto-checked, then faced a bet)
+        // produced the SAME nonce the second time — the dedup ring swallowed it
+        // and the table stalled. The nonce now includes the engine sequence.
+        val session = GameSession(random = Random(seed = 21))
+        TurnTimerDriver(session = session, scope = backgroundScope).start()
+
+        session.startHand(listOf(human0, human1), settings)
+        runCurrent()
+        // Reach the flop: SB completes, BB checks.
+        session.applyIntent("human-1", PlayerIntent.Call(0), "call-0")
+        runCurrent()
+        session.applyIntent("human-2", PlayerIntent.Check(1), "check-1")
+        runCurrent()
+        assertEquals(BettingRound.Flop, session.state.value!!.street)
+        assertEquals(1, session.state.value!!.actingSeatIndex, "BB acts first postflop")
+
+        // Decision A: seat 1 stalls → auto-checks, handing action to seat 0.
+        advanceTimeBy(timeoutMs + 1)
+        runCurrent()
+        assertEquals(0, session.state.value!!.actingSeatIndex)
+
+        // Seat 0 bets, putting seat 1 back on the clock IN THE SAME STREET.
+        session.applyIntent("human-1", PlayerIntent.Bet(0, 50), "bet-flop")
+        runCurrent()
+        assertEquals(1, session.state.value!!.actingSeatIndex)
+
+        // Decision B: seat 1 stalls again. The second timeout must fire (distinct
+        // nonce) rather than being swallowed as a duplicate.
+        advanceTimeBy(timeoutMs + 1)
+        runCurrent()
+
+        val state = session.state.value!!
+        assertEquals(
+            HandParticipation.Folded,
+            state.seats.first { it.index == 1 }.handParticipation,
+            "the second same-street timeout fires and folds the stalling seat",
+        )
+        assertEquals(BettingRound.Complete, state.street, "the fold ends the heads-up hand")
+    }
 }
