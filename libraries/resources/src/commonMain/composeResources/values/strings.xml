@@ -222,13 +222,27 @@
 
     <!-- Public rooms - Searching / matchmaking (SPEC §2). -->
     <string name="public_searching_title">Finding a table</string>
-    <string name="public_searching_heading">Finding your table</string>
-    <string name="public_searching_body">Matching you with players at your buy-in. Usually a few seconds.</string>
-    <string name="public_searching_found">%1$d players found · holding %2$d more seats</string>
     <string name="public_searching_buyin_label">Your buy-in range</string>
-    <string name="public_searching_buyin_value">2,000 – 25,000</string>
-    <string name="public_searching_blinds">Blinds 25/50+</string>
     <string name="public_searching_cancel">Cancel search</string>
+    <!-- Rotating reassurance shown while we genuinely hunt for real players. -->
+    <string name="public_searching_rotate_1">Looking for real players at your buy-in…</string>
+    <string name="public_searching_rotate_2">We'd rather find you real people than fake a crowd.</string>
+    <string name="public_searching_rotate_3">Good tables are worth the wait — hang tight.</string>
+    <string name="public_searching_rotate_4">Still searching. Sharing the app helps the tables fill faster.</string>
+    <string name="public_searching_alone">No one else yet — still looking</string>
+    <string name="public_searching_joined">A player joined — dealing you in</string>
+    <!-- Honest disclosed-bot fallback after a fruitless search. -->
+    <string name="public_searching_offer_title">We couldn't find anyone right now</string>
+    <string name="public_searching_offer_body">We looked hard for real players and came up empty — that's on us. You can play against bots for real chips (you keep what you win, up to a daily limit), and they'll step aside the moment a real player joins.</string>
+    <string name="public_searching_offer_play_bots">Play bots for real chips</string>
+    <string name="public_searching_offer_keep_waiting">Keep waiting for players</string>
+    <string name="public_searching_offer_try_later">Try again later</string>
+    <string name="public_searching_joining_bots_title">Setting up your table</string>
+    <string name="public_searching_joining_bots_body">Seating your opponents and dealing you in…</string>
+    <!-- Search failed (network / rate limit / rejected). -->
+    <string name="public_searching_error_body">We couldn't reach the tables just now. Check your connection and try again.</string>
+    <string name="public_searching_error_retry">Try again</string>
+    <string name="public_searching_error_back">Back</string>
 
     <!-- Public rooms - Lobby (timer auto-deal, SPEC §3). -->
     <string name="public_lobby_title">The Felt</string>

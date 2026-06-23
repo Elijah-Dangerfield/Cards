@@ -10,8 +10,13 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(projects.features.rooms)
-            // Public shells are stateless/backend-less — no :libraries:rooms
-            // (the multiplayer socket layer) until matchmaking lands.
+            // The Searching VM hands off into PlayMultiplayerRoute (defined in
+            // :features:room) once the table deals.
+            implementation(projects.features.room)
+            // Matchmaking + room socket layer (live since Phase 5).
+            implementation(projects.libraries.rooms)
+            implementation(projects.libraries.identity)
+            implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.core)
             implementation(projects.libraries.ui)
@@ -24,6 +29,12 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
+        }
+        commonTest.dependencies {
+            implementation(projects.libraries.flowroutines.testing)
+            implementation(projects.libraries.rooms)
+            implementation(projects.libraries.identity)
+            implementation(libs.turbine)
         }
     }
 }

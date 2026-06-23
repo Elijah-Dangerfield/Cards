@@ -25,7 +25,7 @@ import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.PlayMultiplayerRoute
 import com.dangerfield.cards.features.room.RoomKind
-import com.dangerfield.cards.features.rooms.PublicSearchingRoute
+import com.dangerfield.cards.features.rooms.PublicFindRoute
 import com.dangerfield.cards.libraries.billing.IapPurchaseOutcome
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
@@ -111,7 +111,10 @@ class PlayMultiplayerFeatureEntryPoint(
                             goBack()
                             when (route.kind) {
                                 RoomKind.Private -> navigate(LobbyRoute(prefilledCode = route.roomCode))
-                                RoomKind.Public -> navigate(PublicSearchingRoute())
+                                // Public games are anonymous + stakes-flexible, so send
+                                // them back to Find to re-pick a range and search again
+                                // (the old table's buy-in range isn't carried here).
+                                RoomKind.Public -> navigate(PublicFindRoute())
                             }
                         }
                         is PlayPokerEvent.QuickBuyFinished -> showQuickBuySnackbar(event.outcome)

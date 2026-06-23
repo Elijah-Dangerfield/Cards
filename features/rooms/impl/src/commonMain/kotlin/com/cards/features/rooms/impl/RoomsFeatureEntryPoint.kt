@@ -1,6 +1,13 @@
 package com.dangerfield.cards.features.rooms.impl
 
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavGraphBuilder
+import androidx.navigation.toRoute
+import com.dangerfield.cards.features.room.PlayMultiplayerRoute
+import com.dangerfield.cards.features.room.RoomKind
 import com.dangerfield.cards.features.rooms.PublicFindRoute
 import com.dangerfield.cards.features.rooms.PublicLobbyRoute
 import com.dangerfield.cards.features.rooms.PublicNextRoundRoute
@@ -14,36 +21,53 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * Hosts the PUBLIC rooms route family (SPEC §2–4). These are visual shells —
- * there's no live matchmaking yet. The flow walks Find → Searching → Lobby; a
- * "Leave table" pops back to Find (and thus Home). NextRound is registered as
- * the mid-hand variant for review even though Searching always lands on Lobby
- * in the mock.
+ * Hosts the PUBLIC rooms route family (SPEC §2–4). Find → Searching is now live
+ * matchmaking: Find sets a buy-in range, Searching runs the real honest search
+ * (real-humans-first, with the disclosed-bot fallback) and hands straight off to
+ * the multiplayer table once a hand deals. Lobby / NextRound remain as the
+ * mid-hand-join shells.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
-class RoomsFeatureEntryPoint : FeatureEntryPoint {
+class RoomsFeatureEntryPoint(
+    private val searchingViewModelFactory: (minBuyIn: Long, maxBuyIn: Long) -> PublicSearchingViewModel,
+) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<PublicFindRoute> {
             PublicFindScreen(
                 onBack = { router.goBack() },
-                onFind = { router.navigate(PublicSearchingRoute()) },
+                onFind = { minBuyIn, maxBuyIn ->
+                    router.navigate(PublicSearchingRoute(minBuyIn = minBuyIn, maxBuyIn = maxBuyIn))
+                },
             )
         }
-        screen<PublicSearchingRoute> {
-            PublicSearchingScreen(
-                onCancel = { router.goBack() },
-                // Mock match → static Lobby. Pop Find + Searching first so the
-                // resulting stack is Home → Lobby and "Leave table" returns to
-                // Home, not back into the radar.
-                onMatched = {
-                    router.batch {
-                        popBackTo(PublicFindRoute(), inclusive = true)
-                        navigate(PublicLobbyRoute(tableId = "demo"))
+        screen<PublicSearchingRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<PublicSearchingRoute>()
+            val viewModel: PublicSearchingViewModel = viewModel {
+                searchingViewModelFactory(route.minBuyIn, route.maxBuyIn)
+            }
+            val state by viewModel.stateFlow.collectAsStateWithLifecycle()
+
+            LaunchedEffect(viewModel) {
+                viewModel.eventFlow.collect { event ->
+                    when (event) {
+                        // The table is dealing — hand off to the live game. Pop
+                        // Find + Searching so "leave table" returns Home, not back
+                        // into the radar.
+                        is PublicSearchingEvent.NavigateToTable -> router.batch {
+                            popBackTo(PublicFindRoute(), inclusive = true)
+                            navigate(PlayMultiplayerRoute(roomCode = event.roomCode, kind = RoomKind.Public))
+                        }
+                        PublicSearchingEvent.NavigateBack -> router.goBack()
                     }
-                },
+                }
+            }
+
+            PublicSearchingScreen(
+                state = state,
+                onAction = viewModel::takeAction,
             )
         }
         screen<PublicLobbyRoute> {

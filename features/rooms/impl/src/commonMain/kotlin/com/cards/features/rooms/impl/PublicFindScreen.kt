@@ -57,7 +57,7 @@ import kotlin.math.roundToInt
 @Composable
 fun PublicFindScreen(
     onBack: () -> Unit,
-    onFind: () -> Unit,
+    onFind: (minBuyIn: Long, maxBuyIn: Long) -> Unit,
 ) {
     var range by remember { mutableStateOf(0.18f..0.6f) }
     Screen(
@@ -143,7 +143,15 @@ fun PublicFindScreen(
             }
 
             Spacer(Modifier.weight(1f))
-            ButtonPrimary(onClick = onFind, modifier = Modifier.fillMaxWidth()) {
+            ButtonPrimary(
+                onClick = {
+                    onFind(
+                        buyInFor(range.start).toLong(),
+                        buyInFor(range.endInclusive).toLong(),
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 Text(stringResource(Res.string.public_find_cta))
             }
             Spacer(Modifier.height(Dimension.D300))
@@ -197,6 +205,6 @@ private fun formatThousands(value: Int): String =
 @Composable
 private fun PublicFindScreenPreview() {
     PreviewContent {
-        PublicFindScreen(onBack = {}, onFind = {})
+        PublicFindScreen(onBack = {}, onFind = { _, _ -> })
     }
 }
