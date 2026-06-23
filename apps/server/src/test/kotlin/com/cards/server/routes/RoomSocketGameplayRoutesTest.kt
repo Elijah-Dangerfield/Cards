@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
@@ -8,6 +9,7 @@ import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
 import com.dangerfield.cards.server.data.createOrFail
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.Wallet
 import kotlinx.coroutines.test.runTest
 import java.util.UUID
 import kotlin.test.Test
@@ -523,8 +525,8 @@ class RoomSocketGameplayRoutesTest {
                 )
                 assertEquals(0, wallets.balanceOf(alice), "wallet debited by exactly the buy-in")
                 assertTrue(
-                    wallets.applyCalls.any { it.delta == -buyIn && it.reason == "rebuy" },
-                    "a debit for the buy-in was applied",
+                    wallets.applyCalls.any { it.delta == -buyIn && it.reason == "mp_rebuy" },
+                    "a rebuy debit for the buy-in was applied via escrow",
                 )
             } finally {
                 hostSocket.closeQuietly()
@@ -598,7 +600,12 @@ class RoomSocketGameplayRoutesTest {
                 val ack = aliceSocket.receiveUntilAck("r1")
 
                 assertFalse(ack.accepted, "can't rebuy mid-hand")
-                assertEquals(0, wallets.applyCalls.size, "no wallet movement on a mid-hand rebuy")
+                // The deal funded both players (mp_buyin); the rejected rebuy adds
+                // no further movement — it's stopped at the pre-check before escrow.
+                assertTrue(
+                    wallets.applyCalls.none { it.reason == "mp_rebuy" },
+                    "no rebuy debit on a mid-hand rebuy",
+                )
             } finally {
                 hostSocket.closeQuietly()
                 aliceSocket.closeQuietly()
@@ -639,6 +646,71 @@ class RoomSocketGameplayRoutesTest {
                 assertFalse(aliceSocket.receiveUntilAck("r2").accepted, "already rebought → rejected")
 
                 assertEquals(500, wallets.balanceOf(alice), "charged exactly one buy-in across both attempts")
+            } finally {
+                hostSocket.closeQuietly()
+                aliceSocket.closeQuietly()
+            }
+        }
+    }
+
+    @Test
+    fun startHand_debitsEachHumanBuyIn_andNeverDebitsABot() = runTest {
+        val rooms = newRoomService()
+        val room = rooms.createOrFail(host, "Host", maxSeats = 4)
+        rooms.addBot(room.code, requestedBy = host, difficulty = BotDifficulty.Standard)
+        val wallets = InMemoryTestWalletRepository()
+
+        withRoomSocketTestApp(rooms, wallets = wallets) { client ->
+            val hostSocket = client.connect(room.code, host)
+            try {
+                hostSocket.drainSnapshot()
+                hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
+                assertTrue(hostSocket.receiveUntilAck("s").accepted, "1 human + 1 bot is enough to deal")
+
+                val buyIn = rooms.find(room.code)!!.settings.startingStack
+                assertEquals(Wallet.STARTER_GRANT - buyIn, wallets.balanceOf(host), "host's buy-in moved to the table")
+                assertEquals(1, wallets.applyCalls.count { it.reason == "mp_buyin" }, "exactly one human buy-in")
+                val botId = rooms.find(room.code)!!.members.first { it.isBot }.userId
+                assertTrue(wallets.applyCalls.none { it.userId == botId }, "a bot never touches the wallet")
+            } finally {
+                hostSocket.closeQuietly()
+            }
+        }
+    }
+
+    @Test
+    fun leavingMidGame_cashesOutTheCurrentStack_toTheWallet() = runTest {
+        val rooms = newRoomService()
+        val room = rooms.createOrFail(host, "Host", maxSeats = 4)
+        rooms.join(room.code, alice, "Alice")
+        val registry = newRegistry()
+        val wallets = InMemoryTestWalletRepository()
+
+        withRoomSocketTestApp(rooms, registry, wallets = wallets) { client ->
+            val hostSocket = client.connect(room.code, host)
+            val aliceSocket = client.connect(room.code, alice)
+            try {
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
+                hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
+                assertTrue(hostSocket.receiveUntilAck("s").accepted)
+                hostSocket.receiveUntilGameState()
+
+                val buyIn = rooms.find(room.code)!!.settings.startingStack
+                // Alice's live stack after the deal (buy-in minus any posted blind).
+                val aliceStack = registry.peek(room.code)!!.state.value!!
+                    .seats.first { it.playerId == alice.value.toString() }.stack
+
+                rooms.leave(room.code, alice) // host's publisher sees MemberLeft → cashOut(alice)
+
+                // Cash-out credits her current stack back; pot chips (a blind) are
+                // forfeit. Net = starter − buyIn + stack. Poll, since the publisher
+                // settles asynchronously.
+                val expected = Wallet.STARTER_GRANT - buyIn + aliceStack
+                kotlinx.coroutines.withTimeout(2_000) {
+                    while (wallets.balanceOf(alice) != expected) kotlinx.coroutines.delay(10)
+                }
+                assertEquals(expected, wallets.balanceOf(alice), "a leaving player cashes out her live stack")
             } finally {
                 hostSocket.closeQuietly()
                 aliceSocket.closeQuietly()

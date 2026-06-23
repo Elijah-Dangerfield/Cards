@@ -172,7 +172,11 @@ class MatchmakingRoutesTest {
                     Clock.System,
                 )
                 routing {
-                    matchmakingRoutes(rooms, friends, StubProfiles, registry, StubEquipment, StubProgression)
+                    matchmakingRoutes(
+                        rooms, friends, StubProfiles, registry,
+                        InMemoryTestTableSessionService(InMemoryTestWalletRepository()),
+                        StubEquipment, StubProgression,
+                    )
                 }
             }
             val client = createClient {

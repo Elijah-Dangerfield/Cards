@@ -48,6 +48,7 @@ class InProcessServer : AutoCloseable {
                 equipmentRepository = FakeEquipment,
                 progressionRepository = FakeProgression,
                 wallets = FakeWallets,
+                tableSessions = FakeTableSessions,
             )
         }
     }.start(wait = false)
@@ -166,6 +167,68 @@ private object FakeWallets : com.dangerfield.cards.server.domain.WalletRepositor
         balances.remove(userId)
         appliedKeys.removeAll { it.first == userId }
         Unit
+    }
+}
+
+/**
+ * In-memory escrow for the harness — moves real chips through [FakeWallets] with
+ * the same keyed semantics as the production engine, so buy-in at deal and
+ * cash-out on leave reconcile the wallet across a full game.
+ */
+private object FakeTableSessions : com.dangerfield.cards.server.domain.TableSessionService {
+    private val lock = Any()
+    private data class Active(val id: UUID, val roomCode: String, val buyIn: Long, var rebuys: Int)
+    private val active = mutableMapOf<UserId, Active>()
+
+    override suspend fun sitDown(
+        userId: UserId,
+        roomCode: String,
+        buyIn: Long,
+        enforceEntryBar: Boolean,
+    ): com.dangerfield.cards.server.domain.SitDownResult {
+        synchronized(lock) { active[userId] }?.let {
+            return com.dangerfield.cards.server.domain.SitDownResult.AlreadyAtTable(it.roomCode)
+        }
+        val balance = FakeWallets.findOrCreate(userId).balance
+        if (enforceEntryBar && balance < buyIn * 4) {
+            return com.dangerfield.cards.server.domain.SitDownResult.BelowEntryBar(balance, buyIn * 4)
+        }
+        val id = UUID.randomUUID()
+        return when (val o = FakeWallets.apply(userId, "table:$id:buyin", -buyIn, "mp_buyin")) {
+            is com.dangerfield.cards.server.domain.ApplyOutcome.InsufficientChips ->
+                com.dangerfield.cards.server.domain.SitDownResult.InsufficientChips(o.balance)
+            is com.dangerfield.cards.server.domain.ApplyOutcome.Applied -> {
+                synchronized(lock) { active[userId] = Active(id, roomCode, buyIn, 0) }
+                com.dangerfield.cards.server.domain.SitDownResult.Funded(id, buyIn, o.balance)
+            }
+        }
+    }
+
+    override suspend fun rebuy(
+        userId: UserId,
+        enforceEntryBar: Boolean,
+    ): com.dangerfield.cards.server.domain.RebuyResult {
+        val s = synchronized(lock) { active[userId] }
+            ?: return com.dangerfield.cards.server.domain.RebuyResult.NoActiveSession
+        val n = synchronized(lock) { ++s.rebuys }
+        return when (val o = FakeWallets.apply(userId, "table:${s.id}:rebuy:$n", -s.buyIn, "mp_rebuy")) {
+            is com.dangerfield.cards.server.domain.ApplyOutcome.InsufficientChips ->
+                com.dangerfield.cards.server.domain.RebuyResult.InsufficientChips(o.balance)
+            is com.dangerfield.cards.server.domain.ApplyOutcome.Applied ->
+                com.dangerfield.cards.server.domain.RebuyResult.ReboughtIn(s.buyIn, o.balance)
+        }
+    }
+
+    override suspend fun cashOut(
+        userId: UserId,
+        finalStack: Long?,
+    ): com.dangerfield.cards.server.domain.CashOutResult {
+        val s = synchronized(lock) { active.remove(userId) }
+            ?: return com.dangerfield.cards.server.domain.CashOutResult.NoActiveSession
+        val refund = (finalStack ?: s.buyIn * (1 + s.rebuys)).coerceAtLeast(0L)
+        val o = FakeWallets.apply(userId, "table:${s.id}:cashout", refund, "mp_cashout")
+            as com.dangerfield.cards.server.domain.ApplyOutcome.Applied
+        return com.dangerfield.cards.server.domain.CashOutResult.CashedOut(refund, o.balance)
     }
 }
 

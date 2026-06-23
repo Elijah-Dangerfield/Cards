@@ -153,6 +153,7 @@ fun Application.installApp(
             friends = component.friendRepository,
             profiles = component.profileRepository,
             gameSessions = component.gameSessionRegistry,
+            tableSessions = component.tableSessionService,
             equipmentRepository = component.equipmentRepository,
             progressionRepository = component.progressionRepository,
         )
@@ -162,6 +163,7 @@ fun Application.installApp(
             component.equipmentRepository,
             component.progressionRepository,
             component.walletRepository,
+            component.tableSessionService,
         )
         adminRoutes(
             config = adminConfig,

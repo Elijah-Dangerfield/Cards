@@ -65,6 +65,7 @@ fun Route.matchmakingRoutes(
     friends: FriendRepository,
     profiles: ProfileRepository,
     gameSessions: GameSessionRegistry,
+    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
     equipmentRepository: EquipmentRepository,
     progressionRepository: ProgressionRepository,
 ) {
@@ -119,7 +120,7 @@ fun Route.matchmakingRoutes(
                 )
                 val current = (filled as? com.dangerfield.cards.server.domain.AddBotResult.Success)?.room ?: room
 
-                startPublicTableIfReady(code, rooms, gameSessions, equipmentRepository, progressionRepository)
+                startPublicTableIfReady(code, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
 
                 val dealt = rooms.find(code) ?: current
                 call.respond(HttpStatusCode.OK, MatchmakingFindResponse(room = dealt.toDto(), created = false))

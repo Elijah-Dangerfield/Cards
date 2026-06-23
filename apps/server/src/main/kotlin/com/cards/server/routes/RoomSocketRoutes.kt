@@ -4,7 +4,6 @@ import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
-import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.Room
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
@@ -14,6 +13,8 @@ import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.game.IntentResult
 import com.dangerfield.cards.server.game.SeatOccupant
+import com.dangerfield.cards.server.game.stackFor
+import java.util.UUID
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.SpanAttrs
 import com.dangerfield.cards.server.plugins.userId
@@ -102,6 +103,7 @@ fun Route.roomSocketRoutes(
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
     progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
     wallets: WalletRepository,
+    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
     reaperGrace: Duration = DEFAULT_REAPER_GRACE,
 ) {
     val app = application
@@ -145,7 +147,7 @@ fun Route.roomSocketRoutes(
             // every later connect no-ops. A bot-filled fallback table is started
             // by the consent endpoint instead, not here.
             Catching {
-                startPublicTableIfReady(code, rooms, gameSessions, equipmentRepository, progressionRepository)
+                startPublicTableIfReady(code, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
             }.onFailure {
                 LoggerFactory.getLogger("RoomSocket")
                     .warn("Auto-start check failed for public room=$code", it)
@@ -200,11 +202,24 @@ fun Route.roomSocketRoutes(
                                 val deltas = diffDeltas(previous, next)
                                 deltas.forEach { sendTraced(it, code, userIdString) }
                                 // A member leaving (explicit /leave or a reaped
-                                // disconnect — both surface as MemberLeft) folds
-                                // their seat out of any live hand so the table
-                                // doesn't stall on a gone player. Idempotent, so
-                                // the per-subscriber duplicate calls are harmless.
+                                // disconnect — both surface as MemberLeft) cashes
+                                // their stack back to their wallet, then folds their
+                                // seat out of any live hand so the table doesn't
+                                // stall on a gone player. Both are keyed/idempotent,
+                                // so the per-subscriber duplicate calls are harmless
+                                // (cashOut credits at most once; a bot or never-
+                                // funded leaver is a no-op). Pot chips already
+                                // committed are forfeit — stackFor excludes them.
                                 deltas.filterIsInstance<RoomSocketEventDto.MemberLeft>().forEach { left ->
+                                    val leftUserId = runCatching { UserId(UUID.fromString(left.userId)) }.getOrNull()
+                                    if (leftUserId != null) {
+                                        val stack = gameSessions.peek(code)?.state?.value?.stackFor(leftUserId)
+                                        Catching { tableSessions.cashOut(leftUserId, stack) }
+                                            .onFailure { e ->
+                                                LoggerFactory.getLogger("RoomSocket")
+                                                    .warn("cashOut failed for room=$code user=${left.userId}", e)
+                                            }
+                                    }
                                     Catching { gameSessions.forfeitSeat(code, left.userId) }
                                         .onFailure { e ->
                                             LoggerFactory.getLogger("RoomSocket")
@@ -304,6 +319,7 @@ fun Route.roomSocketRoutes(
                         frame = clientFrame,
                         rooms = rooms,
                         gameSessions = gameSessions,
+                        tableSessions = tableSessions,
                         equipmentRepository = equipmentRepository,
                         progressionRepository = progressionRepository,
                         wallets = wallets,
@@ -376,13 +392,14 @@ private suspend fun handleClientFrame(
     frame: RoomClientFrame,
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
+    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
     progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
     wallets: WalletRepository,
 ): RoomSocketEventDto.IntentAck {
     val result: IntentResult = when (frame) {
         is RoomClientFrame.StartHand ->
-            handleStartHand(code, userId, rooms, gameSessions, equipmentRepository, progressionRepository)
+            handleStartHand(code, userId, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
         is RoomClientFrame.SubmitIntent -> withSpan(
             name = "submit_intent",
             configure = {
@@ -414,7 +431,7 @@ private suspend fun handleClientFrame(
                 setAttribute(SpanAttrs.ClientNonce, frame.clientNonce)
             },
         ) {
-            handleRebuy(code, userId, frame.clientNonce, rooms, gameSessions, wallets)
+            handleRebuy(code, userId, frame.clientNonce, rooms, gameSessions, tableSessions, wallets)
                 .also { recordIntentOutcome(it) }
         }
         is RoomClientFrame.SendEmoji -> gameSessions.broadcastEmoji(
@@ -445,22 +462,23 @@ private fun recordIntentOutcome(result: IntentResult) {
 }
 
 /**
- * Buy a busted seat back into the table.
+ * Buy a busted seat back into the table — the escrow top-up that pairs with the
+ * engine refill.
  *
  * Cross-domain orchestration lives here, not in [com.dangerfield.cards.server.game.GameSession]
- * (which stays pure-engine): we debit the wallet by the room buy-in
- * ([RoomSettings.startingStack]) and only then refill the seat.
+ * (which stays pure-engine):
  *
- *  1. Pre-check off the live session so an obviously-invalid rebuy (no
- *     completed hand, caller not seated, seat not busted) is rejected
- *     *without* churning the ledger. [com.dangerfield.cards.server.game.GameSession.rebuy]
- *     re-checks the same conditions under its lock — this is just an
- *     optimization to keep the common reject cases off the wallet.
- *  2. Debit the wallet, idempotent by `clientNonce`, so a socket retry can't
- *     double-charge. Insufficient balance → reject, no refill.
- *  3. Refill the seat. The debit and refill aren't one transaction, so if the
- *     refill rejects (state raced between the pre-check and the lock) we
- *     compensate with a refund under a distinct idempotency key.
+ *  1. Pre-check off the live session so an obviously-invalid rebuy (no completed
+ *     hand, caller not seated, seat not busted) is rejected *without* touching
+ *     the ledger. [com.dangerfield.cards.server.game.GameSession.rebuy] re-checks
+ *     under its lock — this just keeps the common rejects off the wallet.
+ *  2. [com.dangerfield.cards.server.domain.TableSessionService.rebuy] debits one
+ *     more buy-in (keyed `table:{sessionId}:rebuy:{n}`, idempotent) and bumps the
+ *     session's rebuy counter, re-applying the entry bar for public tables.
+ *  3. Refill the engine seat. The debit and refill aren't one transaction, so if
+ *     the refill loses a race against the next hand we compensate with a keyed
+ *     refund. (The rebuy counter stays bumped — the next real rebuy just uses
+ *     n+1; chips net to zero, which is what matters.)
  */
 private suspend fun handleRebuy(
     code: String,
@@ -468,6 +486,7 @@ private suspend fun handleRebuy(
     clientNonce: String,
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
+    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
     wallets: WalletRepository,
 ): IntentResult {
     val room = rooms.find(code) ?: return IntentResult.Rejected("room not found")
@@ -481,34 +500,33 @@ private suspend fun handleRebuy(
         ?: return IntentResult.Rejected("not seated in this room")
     if (seat.stack > 0) return IntentResult.Rejected("seat is not busted")
 
-    val debit = wallets.apply(
-        userId = userId,
-        idempotencyKey = "rebuy:$code:$clientNonce",
-        delta = -buyIn,
-        reason = "rebuy",
-    )
-    if (debit is ApplyOutcome.InsufficientChips) {
-        return IntentResult.Rejected("insufficient chips")
+    when (tableSessions.rebuy(userId, enforceEntryBar = room.visibility != RoomVisibility.Private)) {
+        is com.dangerfield.cards.server.domain.RebuyResult.NoActiveSession ->
+            return IntentResult.Rejected("no active table session to rebuy into")
+        is com.dangerfield.cards.server.domain.RebuyResult.BelowEntryBar ->
+            return IntentResult.Rejected("below entry bar")
+        is com.dangerfield.cards.server.domain.RebuyResult.InsufficientChips ->
+            return IntentResult.Rejected("insufficient chips")
+        is com.dangerfield.cards.server.domain.RebuyResult.ReboughtIn -> Unit
     }
 
     val result = gameSessions.rebuy(code, userId.value.toString(), clientNonce)
     if (result is IntentResult.Rejected) {
-        // Refill rejected after we already debited — give the chips back. The
-        // refund key is distinct from the debit key so it isn't deduped against it.
+        // Refill lost a race after the escrow debit — credit the buy-in back under
+        // a distinct key so it isn't deduped against the table:rebuy debit.
         wallets.apply(
             userId = userId,
-            idempotencyKey = "rebuy_refund:$code:$clientNonce",
+            idempotencyKey = "mp_rebuy_refund:$code:$clientNonce",
             delta = +buyIn,
-            reason = "rebuy_refund",
+            reason = "mp_rebuy_refund",
         )
     }
     return result
 }
 
 /**
- * Host-gated start-hand handler. Pulls the room, validates host,
- * builds occupants from the current member list, calls the registry,
- * and (on success) flips the room status to Playing so the lobby
+ * Host-gated start-hand handler. Validates host, funds + deals the hand at the
+ * room's stakes, and (on success) flips the room to Playing so the lobby
  * snapshot's `status` change cascades to all subscribers.
  */
 private suspend fun handleStartHand(
@@ -516,6 +534,7 @@ private suspend fun handleStartHand(
     userId: UserId,
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
+    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
     progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
 ): IntentResult {
@@ -524,33 +543,99 @@ private suspend fun handleStartHand(
     if (room.hostUserId != userId) {
         return IntentResult.Rejected("only the host can start the hand")
     }
-    val occupants = buildStartOccupants(room, equipmentRepository, progressionRepository)
-    if (occupants.size < 2) {
-        return IntentResult.Rejected("need at least 2 players to start")
-    }
-    // Play at the host-chosen stakes (buy-in → starting stack + derived blinds),
-    // not the engine default.
-    val result = gameSessions.startHand(code, occupants, room.settings)
-    if (result is IntentResult.Accepted) {
-        rooms.markPlaying(code)
-    }
-    return result
+    return dealFundedHand(room, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
 }
 
 /**
- * Project a room's members into engine [SeatOccupant]s for hand-start. Bots
- * carry their personality (so the server bot driver can play them) and no
- * repo-looked-up metadata; humans get their equipped badges/titles, avatar, and
- * XP resolved once here and frozen onto the Seat for the session. Shared by the
- * host-driven [handleStartHand] and the server-driven [startPublicTableIfReady].
+ * Fund every affordable human seat (move the room's buy-in wallet → table
+ * stack), then deal the hand with the funded humans + the table's bots. This is
+ * the one place a real-stakes hand begins, shared by the host-driven start and
+ * the server-driven public-table start.
+ *
+ * A human who can't cover the buy-in (or who's already escrowed at another
+ * table) is simply left out of the deal — never seated unfunded, so the engine
+ * stack always matches escrowed chips. If fewer than two funded seats remain we
+ * cash any humans this call just funded back out and refuse — never debit for a
+ * hand that doesn't happen. Bots are never funded: they have no wallet, only an
+ * engine stack.
  */
-internal suspend fun buildStartOccupants(
+private suspend fun dealFundedHand(
     room: Room,
+    rooms: RoomService,
+    gameSessions: GameSessionRegistry,
+    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
     progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
-): List<SeatOccupant> = room.members.map { member ->
+): IntentResult {
+    val funded = fundAndBuildOccupants(room, tableSessions, equipmentRepository, progressionRepository)
+    if (funded.occupants.size < 2) {
+        // Not enough players could fund — refund anyone we just debited (they sat
+        // but no hand dealt → full refund) and don't start.
+        funded.newlyFunded.forEach { Catching { tableSessions.cashOut(it, finalStack = null) } }
+        return IntentResult.Rejected("need at least 2 funded players to start")
+    }
+    val result = gameSessions.startHand(room.code, funded.occupants, room.settings)
+    if (result is IntentResult.Accepted) {
+        rooms.markPlaying(room.code)
+    }
+    // A Rejected here is only "hand already in progress" (occupant count is
+    // pre-checked) — a concurrent start already dealt, and our funded humans are
+    // seated in THAT hand, so we must NOT refund them. sitDown's double-spend
+    // guard already collapsed the racing debits to one per player.
+    return result
+}
+
+/** Occupants to deal + the userIds this call newly debited (to refund on abort). */
+private data class FundedStart(val occupants: List<SeatOccupant>, val newlyFunded: List<UserId>)
+
+private suspend fun fundAndBuildOccupants(
+    room: Room,
+    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
+    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
+    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+): FundedStart {
+    // The 25% entry bar is a public-matchmaking guard; private friend games skip it.
+    val enforceEntryBar = room.visibility != RoomVisibility.Private
+    val occupants = mutableListOf<SeatOccupant>()
+    val newlyFunded = mutableListOf<UserId>()
+    for (member in room.members) {
+        if (member.bot != null) {
+            occupants += seatOccupantFor(member, equipmentRepository, progressionRepository)
+            continue
+        }
+        when (val sit = tableSessions.sitDown(member.userId, room.code, room.buyIn, enforceEntryBar)) {
+            is com.dangerfield.cards.server.domain.SitDownResult.Funded -> {
+                newlyFunded += member.userId
+                occupants += seatOccupantFor(member, equipmentRepository, progressionRepository)
+            }
+            is com.dangerfield.cards.server.domain.SitDownResult.AlreadyAtTable ->
+                // Already escrowed here (a re-deal / concurrent start) → seat them.
+                // Escrowed at a DIFFERENT room → leave them out of this deal.
+                if (sit.roomCode == room.code) {
+                    occupants += seatOccupantFor(member, equipmentRepository, progressionRepository)
+                }
+            // Can't afford the buy-in → not dealt in (the client surfaces the
+            // insufficient-chips upsell; the table plays on without them).
+            is com.dangerfield.cards.server.domain.SitDownResult.BelowEntryBar,
+            is com.dangerfield.cards.server.domain.SitDownResult.InsufficientChips -> Unit
+        }
+    }
+    return FundedStart(occupants, newlyFunded)
+}
+
+/**
+ * Project a single room member into an engine [SeatOccupant]. Bots carry their
+ * personality (so the server bot driver can play them) and no repo-looked-up
+ * metadata; humans get their equipped badges/titles, avatar, and XP resolved
+ * once here and frozen onto the Seat for the session.
+ */
+private suspend fun seatOccupantFor(
+    member: com.dangerfield.cards.server.domain.RoomMember,
+    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
+    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+): SeatOccupant {
     val botSeat = member.bot
-    if (botSeat != null) {
+    return if (botSeat != null) {
         SeatOccupant(
             seatIndex = member.seatIndex,
             userId = member.userId.value.toString(),
@@ -598,6 +683,7 @@ internal suspend fun startPublicTableIfReady(
     code: String,
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
+    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
     progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
 ): IntentResult {
@@ -607,11 +693,7 @@ internal suspend fun startPublicTableIfReady(
     if (gameSessions.peek(code) != null) return IntentResult.Accepted // session already live
     val present = room.members.count { it.isBot || it.isConnected }
     if (present < 2) return IntentResult.Rejected("not enough present players")
-    val occupants = buildStartOccupants(room, equipmentRepository, progressionRepository)
-    if (occupants.size < 2) return IntentResult.Rejected("need at least 2 players")
-    val result = gameSessions.startHand(code, occupants, room.settings)
-    if (result is IntentResult.Accepted) rooms.markPlaying(code)
-    return result
+    return dealFundedHand(room, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
 }
 
 /**
