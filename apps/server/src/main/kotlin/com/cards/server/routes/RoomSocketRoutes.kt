@@ -320,15 +320,27 @@ fun Route.roomSocketRoutes(
                     // ghost inflating "found N players"; a live hand (Playing),
                     // public or private, keeps the full window so a mid-hand
                     // cellular blip never loses the seat.
-                    val effectiveGrace = effectiveReaperGrace(afterDisconnect, reaperGrace)
+                    val initialGrace = effectiveReaperGrace(afterDisconnect, reaperGrace)
                     app.launch {
                         try {
-                            delay(effectiveGrace)
+                            delay(initialGrace)
+                            // If we only waited the short forming window, the table may have
+                            // dealt a hand meanwhile — it's Playing now and the seat must get
+                            // the full window, never a 25s reap out from under a live hand. So
+                            // when the short grace elapses we re-read the room and wait out any
+                            // remainder the longer window now owes. A room that was already
+                            // non-forming at disconnect waited its full grace up front (and
+                            // keeps the injectable window tests rely on), so we skip this.
+                            if (initialGrace == FORMING_PUBLIC_REAPER_GRACE) {
+                                val remaining = graceRemainderAfterShortWindow(rooms.find(code), reaperGrace)
+                                if (remaining.isPositive()) delay(remaining)
+                            }
                             rooms.reapIfStillDisconnected(code, userId, droppedAt)
                         } catch (_: CancellationException) {
-                            // Server shutdown — leave the member; the
-                            // next process boot won't have them anyway
-                            // (rooms are in-memory).
+                            // Server shutdown — this in-process timer dies with it. The
+                            // member's seat (and disconnectedAt stamp) is durable now, so
+                            // the admin /sweep-rooms cron is the backstop that reclaims it
+                            // after a restart; this timer is just the fast path.
                         } catch (e: Throwable) {
                             LoggerFactory.getLogger("RoomSocket")
                                 .warn("Reaper for room=$code user=$userId failed", e)
@@ -579,6 +591,18 @@ internal fun effectiveReaperGrace(room: Room?, default: Duration): Duration {
     val forming = room != null && room.isMatchmakingEligible && room.status == RoomStatus.Lobby
     return if (forming) FORMING_PUBLIC_REAPER_GRACE else default
 }
+
+/**
+ * Grace still owed after the reaper's initial [FORMING_PUBLIC_REAPER_GRACE] wait,
+ * given the room's status *re-read at that mark*. The window a seat qualifies for
+ * can change mid-grace: a forming table that deals a hand becomes [RoomStatus.Playing]
+ * and must get the full window, never a fast reap out from under a live seat. A
+ * still-forming table is done (returns zero, reap now); a now-playing (or private)
+ * table owes the rest of [default]. Coerced non-negative so a custom [default]
+ * shorter than the forming window (tests) can't yield a negative delay.
+ */
+internal fun graceRemainderAfterShortWindow(room: Room?, default: Duration): Duration =
+    (effectiveReaperGrace(room, default) - FORMING_PUBLIC_REAPER_GRACE).coerceAtLeast(Duration.ZERO)
 
 private val JSON = Json {
     classDiscriminator = "type"
