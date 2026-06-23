@@ -1,9 +1,15 @@
 package com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomSheetDefaults.DragHandle
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -14,13 +20,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.system.AppTheme
@@ -91,11 +103,26 @@ fun BaseBottomSheet(
         }
     }
 
+    val density = LocalDensity.current
+    // Top safe-area inset M3 pads the sheet content (incl. the drag-handle
+    // bubble) by once the sheet expands under the status bar — the same inset
+    // the carve must shift down by to stay registered with the bubble.
+    val topSafeInset = WindowInsets.safeDrawing
+        .only(WindowInsetsSides.Top)
+        .asPaddingValues()
+        .calculateTopPadding()
+    // 0 while the sheet rests below the status bar; the full inset once it
+    // expands under it. Driven by where the bubble actually lands (see the
+    // Accessory drag-handle slot below), so the carve tracks M3's padding
+    // instead of staying pinned to the surface top.
+    var carveTopInset by remember { mutableStateOf(0.dp) }
+
     val sheetShape: Shape = when (dragHandle) {
         is BottomSheetDragHandle.Accessory -> NotchedSheetShape(
             cornerRadius = SheetCornerRadius,
             notchRadius = TopAccessoryNotchRadius,
             notchCornerRadius = TopAccessoryDefaults.notchCornerRadiusFor(dragHandle.accessory.style),
+            topInset = carveTopInset,
         )
         else -> RoundedTopSheetShape
     }
@@ -124,11 +151,27 @@ fun BaseBottomSheet(
                         color = contentColor.color,
                     )
                     is BottomSheetDragHandle.Custom -> dragHandle.render()
-                    is BottomSheetDragHandle.Accessory -> TopAccessoryBubble(
-                        accessory = dragHandle.accessory,
-                        fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surface),
-                        contentColor = contentColor,
-                    )
+                    is BottomSheetDragHandle.Accessory -> Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onGloballyPositioned { coords ->
+                                // If the bubble landed at (or above) the
+                                // safe-area line, M3 consumed the top inset to
+                                // clear the status bar — i.e. the surface is
+                                // under it, so the carve needs the same offset.
+                                // Otherwise the sheet sits below the bar and no
+                                // offset is needed.
+                                val topY = with(density) { coords.positionInWindow().y.toDp() }
+                                carveTopInset =
+                                    if (topY <= topSafeInset + 1.dp) topSafeInset else 0.dp
+                            },
+                    ) {
+                        TopAccessoryBubble(
+                            accessory = dragHandle.accessory,
+                            fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surface),
+                            contentColor = contentColor,
+                        )
+                    }
                 }
             },
         ) {
