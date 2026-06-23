@@ -445,6 +445,13 @@ data class LegalActions(
     }
 }
 
+/**
+ * Stable key for muting a seat's table emotes: null for the human seat (you
+ * can't mute yourself), else the seat's display name (the stable per-personality
+ * name for bots). Used by [EmoteGate] and the avatar-tap mute toggle.
+ */
+fun seatMuteKey(seat: SeatView): String? = if (seat.isHuman) null else seat.displayName
+
 data class HandResultView(
     val winners: List<HandWinner>,
     val board: List<Card>,
