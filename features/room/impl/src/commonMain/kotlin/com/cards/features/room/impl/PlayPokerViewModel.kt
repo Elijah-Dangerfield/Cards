@@ -2,7 +2,6 @@ package com.dangerfield.cards.features.room.impl
 
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
-import com.dangerfield.cards.libraries.bots.HandStrength
 import com.dangerfield.cards.libraries.cards.AchievementRarity
 import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AppCache
@@ -29,7 +28,6 @@ import com.dangerfield.cards.libraries.game.Personality
 import com.dangerfield.cards.libraries.game.PlayStyle
 import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.BettingRound
-import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
@@ -297,45 +295,23 @@ class PlayPokerViewModel @Inject constructor(
         // in-flight Monte Carlo runs the moment any input shifts (e.g.
         // a fold reduces opponent count mid-river).
         viewModelScope.launch {
-            combine(
-                session.gameStateFlow,
-                stateFlow,
-            ) { gs, vmState ->
-                if (!vmState.winOddsToolEquipped) {
-                    EquityInput.NotApplicable
-                } else {
-                    val seatIndex = sessionFactory.humanSeatIndex(gs)
-                    val human = gs.seats.firstOrNull { it.index == seatIndex }
-                        ?: return@combine EquityInput.NotApplicable
-                    if (human.holeCards.size != 2) return@combine EquityInput.NotApplicable
-                    val opponentsInHand = gs.seats.count { seat ->
-                        seat.index != seatIndex &&
-                            (seat.handParticipation == HandParticipation.InHand ||
-                                seat.handParticipation == HandParticipation.AllIn)
-                    }
-                    if (opponentsInHand == 0) return@combine EquityInput.NotApplicable
-                    EquityInput.Compute(
-                        hole = human.holeCards,
-                        community = gs.community,
-                        opponents = opponentsInHand,
-                    )
-                }
+            combine(session.gameStateFlow, stateFlow) { gs, vmState ->
+                WinOddsEngine.inputFor(
+                    state = gs,
+                    humanSeatIndex = sessionFactory.humanSeatIndex(gs),
+                    toolEquipped = vmState.winOddsToolEquipped,
+                )
             }
                 .distinctUntilChanged()
                 .onEach { input ->
-                    if (input is EquityInput.NotApplicable) {
+                    if (input is WinOddsEngine.EquityInput.NotApplicable) {
                         takeAction(PlayPokerAction.WinOddsChanged(null))
                     }
                 }
                 .mapLatest { input ->
-                    if (input is EquityInput.Compute) {
+                    if (input is WinOddsEngine.EquityInput.Compute) {
                         withContext(dispatcherProvider.default) {
-                            HandStrength.equityBreakdownVsRandom(
-                                holeCards = input.hole,
-                                community = input.community,
-                                numOpponents = input.opponents,
-                                iterations = WIN_ODDS_ITERATIONS,
-                            )
+                            WinOddsEngine.compute(input, WIN_ODDS_ITERATIONS)
                         }
                     } else null
                 }
@@ -345,15 +321,6 @@ class PlayPokerViewModel @Inject constructor(
                     }
                 }
         }
-    }
-
-    private sealed interface EquityInput {
-        data object NotApplicable : EquityInput
-        data class Compute(
-            val hole: List<Card>,
-            val community: List<Card>,
-            val opponents: Int,
-        ) : EquityInput
     }
 
     private companion object {
@@ -688,7 +655,7 @@ class PlayPokerViewModel @Inject constructor(
                 // the same animation frame all see the post-emit deadline.
                 val now = clock.now().toEpochMilliseconds()
                 val currentState = stateFlow.value
-                if (now < currentState.emojiCooldownEndsAtMs) return
+                if (!EmoteGate.canBlast(now, currentState.emojiCooldownEndsAtMs)) return
                 action.updateState {
                     it.copy(
                         // null emitter seat → the screen attributes the blast
@@ -710,10 +677,9 @@ class PlayPokerViewModel @Inject constructor(
                 val now = clock.now().toEpochMilliseconds()
                 val active = stateFlow.value.table as? TableUiState.Active
                 val seat = active?.seats?.firstOrNull { it.index == action.seatIndex }
-                // Drop our own echo (we rendered it locally on tap) and any
-                // seat the user has muted. Unknown seat → drop.
-                if (seat == null || seat.isHuman) return
-                if (seatMuteKey(seat) in stateFlow.value.mutedEmojiPlayerKeys) return
+                // Drop our own echo (rendered locally on tap), a muted seat, and
+                // an unknown seat — see EmoteGate.shouldRenderRemote.
+                if (!EmoteGate.shouldRenderRemote(seat, stateFlow.value.mutedEmojiPlayerKeys)) return
                 action.updateState {
                     it.copy(
                         emojiBlast = EmojiBlast(emoji = action.emoji, emittedAtEpochMs = now),
