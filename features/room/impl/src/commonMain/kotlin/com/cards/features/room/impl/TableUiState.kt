@@ -74,6 +74,13 @@ sealed interface TableUiState {
          */
         val practiceTierBotsOnly: Boolean = false,
         /**
+         * True when this bots-only table is the **public disclosed-bot subsidy** —
+         * real chips ARE at stake (you keep what you win against the bots, up to a
+         * daily limit), house-funded. Flips the bots-only explainer from "no real
+         * chips" to "keep what you win". Never set on a private practice bot game.
+         */
+        val subsidizedBotTable: Boolean = false,
+        /**
          * Per-turn timeout (`RoomSettings.turnTimerSeconds`) when the server
          * enforces it — MP only, where a stalling seat is auto-folded/checked
          * by `TurnTimerDriver`. Null for solo bot sessions (no enforcement),
@@ -124,6 +131,12 @@ sealed interface TableUiState {
              * chips aren't at stake" line. Defaults false for solo sessions.
              */
             practiceTierBotsOnly: Boolean = false,
+            /**
+             * Whether this bots-only table is the public disclosed-bot subsidy
+             * (real chips at stake) — set by [RemotePokerSessionFactory]. Defaults
+             * false (private practice bots / solo).
+             */
+            subsidizedBotTable: Boolean = false,
             /**
              * Whether the server enforces the per-turn timer for this table —
              * MP only. When true the table surfaces `turnTimerSeconds` so the
@@ -200,6 +213,7 @@ sealed interface TableUiState {
                 botDifficultyLabel = botDifficultyLabel,
                 practiceTierBotsPresent = practiceTierBotsPresent,
                 practiceTierBotsOnly = practiceTierBotsOnly,
+                subsidizedBotTable = subsidizedBotTable,
                 turnTimerSeconds = gameState.settings.turnTimerSeconds.takeIf { turnTimerEnforced },
                 turnSequence = gameState.lastSequence,
             )

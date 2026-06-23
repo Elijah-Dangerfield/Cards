@@ -5,6 +5,7 @@ import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_body
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_bots_only_body
+import cards.libraries.resources.generated.resources.room_practice_tier_explainer_bots_only_subsidized_body
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
@@ -23,11 +24,14 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * of leaving the pill a silent downgrade.
  *
  * When [botsOnly] (the local player is the only human at the table) it adds a
- * line that real chips aren't at stake — the bots play for practice only.
+ * chips line: normally that real chips aren't at stake (private practice bots),
+ * but when [subsidized] (a public disclosed-bot table) that you keep what you
+ * win against the bots, up to a daily limit — the house-funded subsidy.
  */
 @Composable
 internal fun PracticeTierExplainer(
     botsOnly: Boolean,
+    subsidized: Boolean,
     onDismiss: () -> Unit,
 ) {
     Dialog(
@@ -44,7 +48,13 @@ internal fun PracticeTierExplainer(
         )
         if (botsOnly) {
             Text(
-                text = stringResource(Res.string.room_practice_tier_explainer_bots_only_body),
+                text = stringResource(
+                    if (subsidized) {
+                        Res.string.room_practice_tier_explainer_bots_only_subsidized_body
+                    } else {
+                        Res.string.room_practice_tier_explainer_bots_only_body
+                    },
+                ),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
@@ -57,7 +67,7 @@ internal fun PracticeTierExplainer(
 @Composable
 private fun PracticeTierExplainerPreview() {
     PreviewContent {
-        PracticeTierExplainer(botsOnly = false, onDismiss = {})
+        PracticeTierExplainer(botsOnly = false, subsidized = false, onDismiss = {})
     }
 }
 
@@ -65,6 +75,14 @@ private fun PracticeTierExplainerPreview() {
 @Composable
 private fun PracticeTierExplainerPreview_BotsOnly() {
     PreviewContent {
-        PracticeTierExplainer(botsOnly = true, onDismiss = {})
+        PracticeTierExplainer(botsOnly = true, subsidized = false, onDismiss = {})
+    }
+}
+
+@Preview
+@Composable
+private fun PracticeTierExplainerPreview_Subsidized() {
+    PreviewContent {
+        PracticeTierExplainer(botsOnly = true, subsidized = true, onDismiss = {})
     }
 }

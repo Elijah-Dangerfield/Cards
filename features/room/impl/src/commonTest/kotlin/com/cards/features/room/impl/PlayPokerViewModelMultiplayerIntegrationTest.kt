@@ -357,6 +357,7 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
         val factory = RemotePokerSessionFactory(
             roomCode = "ABCDEF",
             localUserId = localUserId,
+            isPublicTable = false,
             roomRepository = ConnectingRoomRepository(handle),
             telemetry = NoopTelemetry,
         )

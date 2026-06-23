@@ -56,6 +56,22 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
     }
 
     @Test
+    fun botsOnlyTable_isSubsidizedOnPublic_butPracticeOnPrivate() = runUnitTest {
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, isBot = false, playerId = "local-user"), // lone human
+                testSeat(index = 1, isBot = true, playerId = "bot-1"),        // + disclosed bot
+            ),
+        )
+
+        val publicTable = assertIs<TableUiState.Active>(tableFor(state, localUserId = "local-user", isPublic = true))
+        assertTrue(publicTable.subsidizedBotTable, "public lone-human-vs-bots = disclosed-bot subsidy")
+
+        val privateTable = assertIs<TableUiState.Active>(tableFor(state, localUserId = "local-user", isPublic = false))
+        assertFalse(privateTable.subsidizedBotTable, "a private bots-only game stays practice")
+    }
+
+    @Test
     fun occupantsFor_filledSeats_derivesHumanBotEmpty() = runUnitTest {
         val state = stubGameState(
             seats = listOf(
@@ -387,9 +403,11 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
     private fun factory(
         localUserId: String = "local-user",
         rooms: RoomRepository = FactoryRoomRepository(),
+        isPublicTable: Boolean = false,
     ): RemotePokerSessionFactory = RemotePokerSessionFactory(
         roomCode = "ABCDEF",
         localUserId = localUserId,
+        isPublicTable = isPublicTable,
         roomRepository = rooms,
         telemetry = NoopTelemetry,
     )
@@ -414,9 +432,10 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
     private fun tableFor(
         state: com.dangerfield.cards.libraries.gameplay.GameState,
         localUserId: String,
+        isPublic: Boolean = false,
         curve: com.dangerfield.cards.libraries.cards.LevelCurve =
             com.dangerfield.cards.libraries.cards.DefaultLevelCurve,
-    ): TableUiState = factory(localUserId = localUserId).tableFor(
+    ): TableUiState = factory(localUserId = localUserId, isPublicTable = isPublic).tableFor(
         state = state,
         lastWinners = null,
         lastActionBySeat = emptyMap(),

@@ -64,7 +64,7 @@ import kotlin.reflect.typeOf
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
 class PlayMultiplayerFeatureEntryPoint(
-    private val remoteFactoryFactory: (roomCode: String, localUserId: String) -> RemotePokerSessionFactory,
+    private val remoteFactoryFactory: (roomCode: String, localUserId: String, isPublicTable: Boolean) -> RemotePokerSessionFactory,
     private val playPokerVmFactory: (sessionFactory: PokerSessionFactory) -> PlayPokerViewModel,
     private val authRepository: AuthRepository,
 ) : FeatureEntryPoint {
@@ -88,7 +88,11 @@ class PlayMultiplayerFeatureEntryPoint(
             val viewModel: PlayPokerViewModel = viewModel(
                 key = "play-mp-${route.roomCode}",
             ) {
-                val factory = remoteFactoryFactory(route.roomCode, localUserId)
+                val factory = remoteFactoryFactory(
+                    route.roomCode,
+                    localUserId,
+                    route.kind == RoomKind.Public,
+                )
                 playPokerVmFactory(factory)
             }
             val state = viewModel.stateFlow.collectAsStateWithLifecycle().value

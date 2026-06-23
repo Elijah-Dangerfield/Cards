@@ -59,6 +59,7 @@ class MpScenarioBuilder(
         val factory = RemotePokerSessionFactory(
             roomCode = "ABCDEF",
             localUserId = localUserId,
+            isPublicTable = false,
             roomRepository = HarnessRoomRepository(handle),
             telemetry = HarnessTelemetry,
         )

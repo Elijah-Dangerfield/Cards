@@ -44,6 +44,10 @@ import me.tatarka.inject.annotations.Inject
 class RemotePokerSessionFactory @Inject constructor(
     @Assisted private val roomCode: String,
     @Assisted private val localUserId: String,
+    // True for a public (matchmade) table. A public bots-only table is the
+    // disclosed-bot subsidy — real chips ARE at stake (you keep what you win, up
+    // to a daily limit) — so it must not show the private "practice only" copy.
+    @Assisted private val isPublicTable: Boolean,
     private val roomRepository: RoomRepository,
     private val telemetry: Telemetry,
 ) : PokerSessionFactory {
@@ -157,6 +161,9 @@ class RemotePokerSessionFactory @Inject constructor(
             botDifficultyLabel = difficultyName,
             practiceTierBotsPresent = MultiplayerCredit.showsPracticeTierLabel(state),
             practiceTierBotsOnly = MultiplayerCredit.isBotsOnly(state),
+            // A public bots-only table is the disclosed-bot subsidy: real chips at
+            // stake, house-funded. Private bots-only stays practice.
+            subsidizedBotTable = isPublicTable && MultiplayerCredit.isBotsOnly(state),
             turnTimerEnforced = true,
             curve = curve,
         )

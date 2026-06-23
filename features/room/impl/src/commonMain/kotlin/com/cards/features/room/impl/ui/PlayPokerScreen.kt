@@ -381,6 +381,7 @@ fun PlayPokerScreen(
         if (practiceTierExplainerOpen) {
             PracticeTierExplainer(
                 botsOnly = active?.practiceTierBotsOnly == true,
+                subsidized = active?.subsidizedBotTable == true,
                 onDismiss = { practiceTierExplainerOpen = false },
             )
         }
