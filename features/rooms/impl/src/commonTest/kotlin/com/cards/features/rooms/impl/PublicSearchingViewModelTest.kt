@@ -225,6 +225,132 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun playBots_roomNotFound_reFinds() = runUnitTest {
+        // The table was reclaimed before we could fill it — find a fresh one.
+        val mm = FakeMatchmakingRepository(
+            find = FindTableOutcome.Success(roomOf(), created = true),
+            playBots = PlayBotsOutcome.RoomNotFound,
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+        vm.takeAction(PublicSearchingAction.PlayBots)
+        runCurrent()
+
+        assertEquals(2, mm.findCalls, "a gone table on play-bots triggers a re-find")
+    }
+
+    @Test
+    fun playBots_networkError_returnsToOffer_withError() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            find = FindTableOutcome.Success(roomOf(), created = true),
+            playBots = PlayBotsOutcome.NetworkError(RuntimeException("boom")),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+        vm.takeAction(PublicSearchingAction.PlayBots)
+        runCurrent()
+
+        assertEquals(SearchPhase.BotFallbackOffer, vm.state.phase, "a failed play-bots returns to the offer")
+        assertEquals(SearchError.Network, vm.state.error)
+    }
+
+    @Test
+    fun tryAgainLater_leavesTheSeat_andNavigatesBack() = runUnitTest {
+        val rooms = FakeRoomRepository()
+        val vm = buildVm(rooms = rooms)
+        runCurrent()
+
+        vm.eventFlow.test {
+            vm.takeAction(PublicSearchingAction.TryAgainLater)
+            assertIs<PublicSearchingEvent.NavigateBack>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        runCurrent()
+        assertEquals(listOf("ABC123"), rooms.leftCodes, "bowing out releases the seat")
+    }
+
+    @Test
+    fun transientReconnect_isBenign_keepsSearching() = runUnitTest {
+        val conn = MutableSharedFlow<RoomConnection>(extraBufferCapacity = 8)
+        val vm = buildVm(rooms = FakeRoomRepository(connection = conn))
+        runCurrent()
+
+        conn.emit(RoomConnection.Reconnecting(attempt = 2, cause = null))
+        runCurrent()
+
+        assertEquals(SearchPhase.Searching, vm.state.phase, "a transient blip doesn't error or bail")
+        assertNull(vm.state.error)
+    }
+
+    @Test
+    fun rejectedSocket_isTerminal_doesNotReFind() = runUnitTest {
+        val conn = MutableSharedFlow<RoomConnection>(extraBufferCapacity = 8)
+        val mm = FakeMatchmakingRepository(find = FindTableOutcome.Success(roomOf(), created = true))
+        val vm = buildVm(matchmaking = mm, rooms = FakeRoomRepository(connection = conn))
+        runCurrent()
+
+        // Rejected (not a member / unknown code) is terminal — chasing it with a
+        // re-find would just loop. Surface an error instead.
+        conn.emit(RoomConnection.Closed(ClosedReason.Rejected))
+        runCurrent()
+
+        assertEquals(SearchError.Connection, vm.state.error)
+        assertEquals(1, mm.findCalls, "a rejected socket is terminal, not re-found")
+    }
+
+    @Test
+    fun searchTimedOut_whileJoiningBots_isIgnored() = runUnitTest {
+        // A stray late timer must not re-offer bots once the player already
+        // accepted them.
+        val mm = FakeMatchmakingRepository(
+            find = FindTableOutcome.Success(roomOf(), created = true),
+            playBots = PlayBotsOutcome.Success(roomOf()),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+        vm.takeAction(PublicSearchingAction.PlayBots)
+        runCurrent()
+        assertEquals(SearchPhase.JoiningBots, vm.state.phase)
+
+        vm.takeAction(PublicSearchingAction.SearchTimedOut)
+        runCurrent()
+        assertEquals(SearchPhase.JoiningBots, vm.state.phase, "the offer guard holds outside the Searching phase")
+    }
+
+    @Test
+    fun peerDisconnects_dropsTheFoundCount_backToAlone() = runUnitTest {
+        val conn = MutableSharedFlow<RoomConnection>(extraBufferCapacity = 8)
+        val vm = buildVm(rooms = FakeRoomRepository(connection = conn))
+        runCurrent()
+        conn.emit(
+            RoomConnection.Connected(
+                roomOf(
+                    members = listOf(
+                        member(LOCAL_USER, "You", isConnected = true),
+                        member("peer", "Peer", isConnected = true, seatIndex = 1),
+                    ),
+                ),
+            ),
+        )
+        runCurrent()
+        assertEquals(1, vm.state.realPlayersFound)
+
+        // The peer's socket drops — they no longer count as present.
+        conn.emit(
+            RoomConnection.Connected(
+                roomOf(
+                    members = listOf(
+                        member(LOCAL_USER, "You", isConnected = true),
+                        member("peer", "Peer", isConnected = false, seatIndex = 1),
+                    ),
+                ),
+            ),
+        )
+        runCurrent()
+        assertEquals(0, vm.state.realPlayersFound, "a disconnected peer isn't counted as a found player")
+    }
+
+    @Test
     fun cancel_leavesTheSeat_andNavigatesBack() = runUnitTest {
         val rooms = FakeRoomRepository()
         val vm = buildVm(rooms = rooms)
