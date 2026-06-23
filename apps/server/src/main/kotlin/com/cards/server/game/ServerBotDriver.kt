@@ -53,10 +53,9 @@ class ServerBotDriver(
     private val random: Random = Random.Default,
     private val equityIterations: Int = 200,
     private val thinkDelay: (BotPersonality, BotThought, Random) -> Long = ::serverThinkDelayMs,
-    private val nextHandDelayMs: Long = 1_200,
-    // Longer settle when a human is at the table so the next hand doesn't deal
-    // out from under them before they've seen the showdown / result. All-bot
-    // tables use the snappy [nextHandDelayMs] — nobody's reading the summary.
+    // Settle before the bot deals the next hand at a mixed (human + bot) table,
+    // so the next hand doesn't deal out from under the human before they've seen
+    // the showdown / result. All-bot and all-human tables aren't auto-advanced.
     private val mixedNextHandDelayMs: Long = 4_000,
 ) {
     // playerId -> bot truth. Mutated only from the single collector coroutine
@@ -130,28 +129,29 @@ class ServerBotDriver(
     }
 
     /**
-     * When a hand completes at a table that contains **any** bot, the lowest-seat
-     * bot with chips advances the next hand. A bot is always willing to continue,
-     * so a bot-occupied table never stalls waiting on a human to tap "next hand"
-     * (CARDS-16: a `1H + NB` room used to freeze at hand end because the all-bot
-     * gate skipped it and the human stopped tapping). Pure all-human tables are
-     * left untouched — those players advance at their own pace via client taps.
+     * When a hand completes at a **mixed** table (at least one human AND at least
+     * one bot, two seats still with chips), the lowest-seat bot advances the next
+     * hand — a bot is always willing, so the table never stalls waiting on the
+     * human to tap "next hand" (CARDS-16: a `1H + NB` room used to freeze at hand
+     * end). The settle delay ([mixedNextHandDelayMs]) lets the human see the
+     * result first; `collectLatest` cancels it if a human taps next-hand first,
+     * and `requestNextHand` re-checks `street == Complete` + dedupes by nonce, so
+     * a benign race is a no-op.
      *
-     * Settle delay is human-aware: a mixed table waits [mixedNextHandDelayMs] so
-     * the human sees the result first; an all-bot table uses the snappy
-     * [nextHandDelayMs]. `collectLatest` cancels this delay the instant the state
-     * moves on (e.g. a human tapped next-hand first), so the advance never
-     * double-deals — and `requestNextHand` re-checks `street == Complete` + dedupes
-     * by nonce, so a benign race is a no-op. Terminates naturally: once fewer than
-     * two seats have chips the session refuses to start another hand.
+     * Two tables are deliberately NOT advanced here:
+     *  - **All-human** — those players continue at their own pace via client taps.
+     *  - **All-bot** — a table with no human left (the lone human quit a bot
+     *    fallback table, or every human dropped from a private bot room) goes
+     *    idle instead of simulating hands forever to an empty room. The idle
+     *    session burns no CPU and its room is reclaimed by the orphan sweep.
      */
     private suspend fun maybeAdvanceBotTable(state: GameState) {
         val seated = state.seats.filter { it.playerId != null }
+        if (seated.none { !it.isBot }) return // all-bot table: idle, don't simulate to nobody
         val seatsWithChips = seated.filter { it.stack > 0 }
         if (seatsWithChips.size < 2) return
         val advancer = seatsWithChips.filter { it.isBot }.minByOrNull { it.index } ?: return
-        val anyHuman = seated.any { !it.isBot }
-        delay(if (anyHuman) mixedNextHandDelayMs else nextHandDelayMs)
+        delay(mixedNextHandDelayMs)
         session.requestNextHand(advancer.playerId!!, "bot-next:${session.id}:${state.handNumber}")
     }
 

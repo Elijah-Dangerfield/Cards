@@ -706,7 +706,7 @@ class InMemoryRoomServiceTest {
     }
 
     @Test
-    fun bot_isImmuneToSweep() = runTest {
+    fun bot_isNotIndividuallyReaped_butABotOnlyRoomIsGCd() = runTest {
         val clock = AdvanceableClock()
         val service = InMemoryRoomService(clock = clock, random = Random(0L))
         val room = when (val r = service.create(host, "Host", maxSeats = 4)) {
@@ -718,11 +718,11 @@ class InMemoryRoomServiceTest {
         clock.advance(60.minutes)
         val swept = service.sweepDisconnected(maxIdle = 5.minutes)
 
-        // The never-connected host is reaped; the bot is not (it's "connected").
-        val survivors = service.find(room.code)?.members ?: emptyList()
-        assertEquals(1, survivors.size)
-        assertTrue(survivors.single().isBot, "only the bot survives the sweep")
-        assertEquals(1, swept.membersReaped, "just the host was swept")
+        // The bot itself is never in the reaped set (it's "connected") — only the
+        // never-connected host is. But a room left with nothing but bots has no
+        // one watching, so it's GC'd rather than left running hands to nobody.
+        assertEquals(1, swept.membersReaped, "just the host was reaped; the bot is immune")
+        assertNull(service.find(room.code), "a bot-only room is torn down, not kept alive")
     }
 
     @Test

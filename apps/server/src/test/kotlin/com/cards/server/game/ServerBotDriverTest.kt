@@ -56,7 +56,7 @@ class ServerBotDriverTest {
             random = Random(seed = 7),
             equityIterations = 20,
             thinkDelay = { _, _, _ -> 0 },
-            nextHandDelayMs = 0,
+            mixedNextHandDelayMs = 0,
         )
         driver.updateRoster(listOf(human, bot))
         driver.start()
@@ -207,6 +207,43 @@ class ServerBotDriverTest {
     }
 
     /**
+     * The teardown half: an all-bot table (no human left — the lone human quit a
+     * fallback table, or every human dropped a private bot room) must NOT keep
+     * simulating hands to an empty room. It goes idle at hand end so the orphan
+     * sweep can reclaim it; no infinite equity-sim CPU burn.
+     */
+    @Test
+    fun allBotTable_goesIdle_doesNotAdvance() = runTest {
+        val session = GameSession(random = Random(seed = 11))
+        val botA = SeatOccupant(seatIndex = 0, userId = "bot-1", displayName = "Jane", isBot = true,
+            bot = BotSeat(BotPersonality.Jane, BotDifficulty.Standard, revealed = true))
+        val botB = SeatOccupant(seatIndex = 1, userId = "bot-2", displayName = "David", isBot = true,
+            bot = BotSeat(BotPersonality.David, BotDifficulty.Standard, revealed = true))
+
+        // Reach a completed hand deterministically (one bot folds preflop) BEFORE
+        // attaching the driver — so we isolate the advance decision from self-play.
+        session.startHand(listOf(botA, botB), settings)
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actorId = session.state.value!!.seats.first { it.index == acting }.playerId!!
+        session.applyIntent(actorId, PlayerIntent.Fold(acting), "fold-1")
+        assertEquals(BettingRound.Complete, session.state.value!!.street, "the fold ends hand 1")
+        val handAtComplete = session.state.value!!.handNumber
+
+        // Now attach the driver to the already-complete all-bot table.
+        val driver = unconfinedDriver(session)
+        driver.updateRoster(listOf(botA, botB))
+        driver.start()
+        advanceUntilIdle()
+
+        assertEquals(
+            handAtComplete,
+            session.state.value!!.handNumber,
+            "an all-bot table stays idle — never simulates a hand to an empty room",
+        )
+        assertEquals(BettingRound.Complete, session.state.value!!.street)
+    }
+
+    /**
      * Build a driver whose collector runs on an [UnconfinedTestDispatcher] so the
      * `collectLatest` loop actually drives state changes under `advanceUntilIdle`.
      * A `StandardTestDispatcher`-backed `backgroundScope` doesn't reliably pump the
@@ -222,7 +259,6 @@ class ServerBotDriverTest {
             random = Random(seed = 7),
             equityIterations = 20,
             thinkDelay = { _, _, _ -> 0 },
-            nextHandDelayMs = 0,
             mixedNextHandDelayMs = 0,
         )
 }

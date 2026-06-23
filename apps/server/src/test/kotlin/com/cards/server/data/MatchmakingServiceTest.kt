@@ -16,6 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -200,6 +201,23 @@ class MatchmakingServiceTest {
         )
         // forBuyIn must accept each tier without tripping its blind/stack invariants.
         BuyInTier.Canonical.forEach { RoomSettings.forBuyIn(it, maxSeats = RoomService.MAX_SEATS) }
+    }
+
+    @Test
+    fun lastHumanLeavingABotFilledTable_tearsItDown() = runTest {
+        val svc = service()
+        val me = user()
+        val code = assertIs<MatchmakingResult.Created>(svc.findOrJoinPublic(me, "Me", 5_000, 5_000, noBlocks)).room.code
+        // Disclosed bots fill the table (the consent path uses the system host).
+        repeat(3) {
+            svc.addBot(code, SYSTEM_HOST_USER_ID, BotDifficulty.Standard, revealed = true)
+        }
+        assertEquals(4, svc.find(code)!!.members.size)
+
+        // The lone human leaves → only bots remain → the table is torn down, not
+        // left running hands to nobody.
+        svc.leave(code, me)
+        assertNull(svc.find(code), "a bot-only table is GC'd when the last human leaves")
     }
 
     @Test

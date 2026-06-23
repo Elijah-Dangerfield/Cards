@@ -266,10 +266,12 @@ class InMemoryRoomService(
         if (current.memberFor(userId) == null) return@withLock LeaveResult.NotInRoom
 
         val remaining = current.members.filterNot { it.userId == userId }
-        if (remaining.isEmpty()) {
-            // Last one out kills the lights. Drop the flow so any
-            // stragglers observing get a final value through the
-            // GC sweep on the caller side.
+        if (remaining.isEmpty() || remaining.all { it.isBot }) {
+            // Last one out kills the lights — and a table left with only bots is
+            // "empty" for our purposes: nobody's watching, host-migration would
+            // otherwise promote a bot to host, and the bot driver idles it anyway.
+            // GC it (memory + durable) so an abandoned fallback table doesn't
+            // linger; the orphaned idle session is harmless and dies on restart.
             rooms.remove(code)
             forget(code)
             // Info: room lifecycle end — explains "the room disappeared."
@@ -450,8 +452,9 @@ class InMemoryRoomService(
 
             val survivors = current.members - toReap.toSet()
             membersReaped += toReap.size
-            if (survivors.isEmpty()) {
-                // Sweep emptied the room. GC same as last-out leave().
+            if (survivors.isEmpty() || survivors.all { it.isBot }) {
+                // Sweep emptied the room — or left only bots, which we treat the
+                // same (see leave()). GC it.
                 rooms.remove(code)
                 forget(code)
                 roomsReaped++
@@ -497,10 +500,10 @@ class InMemoryRoomService(
             return@withLock false
         }
         val survivors = current.members - member
-        if (survivors.isEmpty()) {
+        if (survivors.isEmpty() || survivors.all { it.isBot }) {
             rooms.remove(code)
             forget(code)
-            log.info("Room $code: reaped $userId after disconnect grace; room now empty, closed")
+            log.info("Room $code: reaped $userId after disconnect grace; only bots/none left, closed")
         } else {
             val swept = current.copy(members = survivors)
             state.update(swept)
