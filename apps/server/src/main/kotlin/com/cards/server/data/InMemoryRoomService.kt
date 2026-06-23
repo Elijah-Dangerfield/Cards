@@ -456,10 +456,21 @@ class InMemoryRoomService(
                 persist(swept)
             }
         }
+        // Durable backstop: reclaim persisted rooms with no in-memory owner.
+        // The per-disconnect reaper + the loop above only ever touch rooms
+        // loaded in `rooms`; a process death leaves persisted rooms behind with
+        // no owner and nothing else deletes them. Anything still live (in
+        // `rooms`) is excluded so a long-running game is never swept. Best-effort
+        // — a DB hiccup here must not fail the in-memory sweep that already ran.
+        val orphansReaped = Catching { store.deleteStaleRooms(cutoff, keepCodes = rooms.keys.toSet()) }
+            .onFailure { log.warn("Durable stale-room sweep failed", it) }
+            .getOrNull() ?: 0
+
         RoomSweepResult(
             membersReaped = membersReaped,
             roomsReaped = roomsReaped,
             roomsSeen = roomsSeen,
+            orphanedRoomsReaped = orphansReaped,
         )
     }
 

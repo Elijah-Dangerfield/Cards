@@ -745,12 +745,44 @@ class InMemoryRoomServiceTest {
         assertEquals(2, removed.members.size, "host + alice remain")
     }
 
+    @Test
+    fun sweepDisconnected_delegatesDurableCleanup_excludingLiveCodes() = runTest {
+        val clock = AdvanceableClock()
+        val store = RecordingRoomStore()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L), store = store)
+        // One live room (host stays connected → never reaped, stays in memory).
+        val live = service.createOrFail(host, "Host")
+        service.markConnected(live.code, host, connected = true)
+        clock.advance(10.minutes)
+
+        val result = service.sweepDisconnected(maxIdle = 5.minutes)
+
+        assertEquals(1, store.deleteStaleCalls.size, "durable orphan cleanup ran once")
+        val (olderThan, keepCodes) = store.deleteStaleCalls.single()
+        assertEquals(clock.now() - 5.minutes, olderThan, "cutoff = now - maxIdle")
+        assertTrue(live.code in keepCodes, "a still-live room is never offered up for durable deletion")
+        assertEquals(2, result.orphanedRoomsReaped, "the store's reported count flows back out")
+    }
+
     // ---------- scaffolding ----------
 
     private fun newService(seed: Long = 0L): InMemoryRoomService = InMemoryRoomService(
         clock = FixedClock(),
         random = Random(seed),
     )
+
+    /** Records [deleteStaleRooms] calls so a sweep test can assert the cutoff +
+     *  keep-set without a real database; returns a fixed orphan count. */
+    private class RecordingRoomStore : com.dangerfield.cards.server.domain.RoomStore {
+        val deleteStaleCalls = mutableListOf<Pair<Instant, Set<String>>>()
+        override suspend fun save(room: com.dangerfield.cards.server.domain.Room) = Unit
+        override suspend fun delete(code: String) = Unit
+        override suspend fun load(code: String): com.dangerfield.cards.server.domain.Room? = null
+        override suspend fun deleteStaleRooms(olderThan: Instant, keepCodes: Set<String>): Int {
+            deleteStaleCalls += olderThan to keepCodes
+            return 2
+        }
+    }
 
     private class FixedClock(private val ms: Long = 1_700_000_000_000) : Clock {
         override fun now(): Instant = Instant.fromEpochMilliseconds(ms)

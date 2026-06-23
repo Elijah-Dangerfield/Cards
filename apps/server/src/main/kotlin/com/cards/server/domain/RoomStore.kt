@@ -1,5 +1,8 @@
 package com.dangerfield.cards.server.domain
 
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
+
 /**
  * Durable backing for the room registry (todo.md §B2). [InMemoryRoomService]
  * is a write-through cache in front of this: it writes the full [Room] snapshot
@@ -20,6 +23,18 @@ interface RoomStore {
 
     /** Hydrate a single room, or null if no durable row exists for [code]. */
     suspend fun load(code: String): Room?
+
+    /**
+     * Delete persisted rooms created before [olderThan] whose code is NOT in
+     * [keepCodes], returning the count removed. [keepCodes] is the set of rooms
+     * still live in the in-memory authority — they own their own durability and
+     * must never be swept out from under a running game. This reclaims the rooms
+     * that B2 persistence would otherwise leak: a process death leaves their rows
+     * behind with no in-memory owner, and (unlike the in-flight reaper) nothing
+     * else ever deletes them. Runs from the admin sweep cron. Returns 0 for
+     * stores with no durable backing.
+     */
+    suspend fun deleteStaleRooms(olderThan: Instant, keepCodes: Set<String>): Int
 }
 
 /**
@@ -27,8 +42,10 @@ interface RoomStore {
  * loop. [load] always misses, so an [InMemoryRoomService] backed by this behaves
  * exactly like the pre-B2 in-memory-only service.
  */
+@OptIn(ExperimentalTime::class)
 object NoOpRoomStore : RoomStore {
     override suspend fun save(room: Room) = Unit
     override suspend fun delete(code: String) = Unit
     override suspend fun load(code: String): Room? = null
+    override suspend fun deleteStaleRooms(olderThan: Instant, keepCodes: Set<String>): Int = 0
 }

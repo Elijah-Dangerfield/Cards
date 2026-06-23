@@ -16,6 +16,7 @@ import com.dangerfield.cards.server.domain.RoomStore
 import com.dangerfield.cards.server.domain.RoomVisibility
 import com.dangerfield.cards.server.domain.UserId
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.less
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
@@ -24,6 +25,7 @@ import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 /**
  * Exposed-backed [RoomStore]. Each [save] is a whole-room upsert inside one
@@ -141,6 +143,27 @@ class PostgresRoomStore(
             visibility = roomRow[RoomsTable.visibility].toVisibility(),
         )
     }
+
+    override suspend fun deleteStaleRooms(olderThan: Instant, keepCodes: Set<String>): Int =
+        database.transaction {
+            // Exclude live (kept) codes in Kotlin rather than SQL — the set is
+            // tiny (rooms loaded in memory) and it sidesteps a `NOT IN (…)` bind.
+            val staleCodes = RoomsTable
+                .selectAll()
+                .where { RoomsTable.createdAt less olderThan.toJavaInstant() }
+                .map { it[RoomsTable.code] }
+                .filter { it !in keepCodes }
+            if (staleCodes.isEmpty()) return@transaction 0
+            // Mirror delete(): drop members explicitly before the room rows so a
+            // mid-cascade failure can't strand orphan seats. Loop per code (the
+            // stale set is small) — keeps the same `code eq …` predicate the rest
+            // of this store uses, no `IN (…)` overload needed.
+            for (staleCode in staleCodes) {
+                RoomMembersTable.deleteWhere { roomCode eq staleCode }
+                RoomsTable.deleteWhere { code eq staleCode }
+            }
+            staleCodes.size
+        }
 
     private fun personalityForName(name: String): BotPersonality =
         BotPersonality.Roster.firstOrNull { it.name == name } ?: BotPersonality.Roster.first()

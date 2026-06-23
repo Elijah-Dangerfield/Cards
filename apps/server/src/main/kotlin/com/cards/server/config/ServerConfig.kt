@@ -122,11 +122,21 @@ data class HttpConfig(
 data class AdminConfig(
     val apiToken: String?,
     val orphanAnonTtlDays: Int,
+    /**
+     * Idle threshold for the room sweep (`POST /v1/admin/sweep-rooms`). A
+     * disconnected seat older than this is reaped, and a persisted room with no
+     * in-memory owner older than this is deleted from the durable store. Hours,
+     * not days: rooms are ephemeral, and live rooms are excluded by the
+     * in-memory check, so the only thing this bounds is how long an abandoned
+     * (process-stranded) room lingers in Postgres before cleanup.
+     */
+    val staleRoomTtlHours: Int,
 ) {
     companion object {
         fun fromEnv(env: Env): AdminConfig = AdminConfig(
             apiToken = env["ADMIN_API_TOKEN"],
             orphanAnonTtlDays = env.int("ORPHAN_ANON_TTL_DAYS", default = 30),
+            staleRoomTtlHours = env.int("STALE_ROOM_TTL_HOURS", default = 6),
         )
     }
 }

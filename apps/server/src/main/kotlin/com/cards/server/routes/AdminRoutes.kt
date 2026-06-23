@@ -23,6 +23,7 @@ import kotlinx.serialization.Serializable
 import java.util.UUID
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.ExperimentalTime
 
 /**
@@ -102,6 +103,36 @@ fun Route.adminRoutes(
                             disconnectedCount = room.members.count { !it.isConnected },
                         )
                     },
+                ),
+            )
+        }
+
+        /**
+         * Seat + room reaper backstop. Frees seats whose socket has been gone
+         * longer than `STALE_ROOM_TTL_HOURS` and deletes persisted rooms with no
+         * in-memory owner past the same threshold (the abandoned-after-restart
+         * leak). The per-disconnect in-process reaper handles the common case in
+         * seconds; this cron catches what outlived the process that scheduled it.
+         *
+         * Intended cadence: hourly. Live rooms are excluded by the in-memory
+         * check, so the threshold only governs how long a stranded room lingers
+         * in Postgres — safe to run as often as you like.
+         */
+        post("/sweep-rooms") {
+            if (!call.authenticatedAsAdmin(config)) {
+                return@post call.respond(
+                    HttpStatusCode.Unauthorized,
+                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                )
+            }
+            val result = rooms.sweepDisconnected(maxIdle = config.staleRoomTtlHours.hours)
+            call.respond(
+                HttpStatusCode.OK,
+                RoomSweepResponse(
+                    membersReaped = result.membersReaped,
+                    roomsReaped = result.roomsReaped,
+                    roomsSeen = result.roomsSeen,
+                    orphanedRoomsReaped = result.orphanedRoomsReaped,
                 ),
             )
         }
@@ -402,6 +433,14 @@ private data class SweepResponse(
     val deleted: Int,
     val failedToDelete: Int,
     val notConfigured: Boolean,
+)
+
+@Serializable
+private data class RoomSweepResponse(
+    val membersReaped: Int,
+    val roomsReaped: Int,
+    val roomsSeen: Int,
+    val orphanedRoomsReaped: Int,
 )
 
 @Serializable

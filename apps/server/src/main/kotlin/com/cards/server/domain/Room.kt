@@ -275,9 +275,16 @@ interface RoomService {
      * [leave]'s last-out branch. The room codes never resurrect — a
      * future join attempt against a swept code returns [JoinResult.RoomNotFound].
      *
-     * Idempotent. Kept as a test utility; in production each disconnect
-     * schedules its own per-member reaper via [reapIfStillDisconnected],
-     * so the live system doesn't depend on a periodic sweep.
+     * Also reclaims persisted rooms with no in-memory owner — the rooms a
+     * process death strands in the durable store, which the per-member reaper
+     * (an in-process timer that dies with the process) can never reach. The
+     * count comes back as [RoomSweepResult.orphanedRoomsReaped].
+     *
+     * Idempotent. The happy-path seat reclaim is the per-disconnect reaper
+     * ([reapIfStillDisconnected], scheduled on each socket close); this sweep is
+     * the cron-driven backstop ([RoomService] mounts it on `POST
+     * /v1/admin/sweep-rooms`) for seats + rooms that outlive the process that
+     * scheduled their reaper.
      */
     suspend fun sweepDisconnected(maxIdle: Duration): RoomSweepResult
 
@@ -337,6 +344,12 @@ data class RoomSweepResult(
     val roomsReaped: Int,
     /** Total live rooms at the start of the sweep. Useful for sanity-checking. */
     val roomsSeen: Int,
+    /**
+     * Persisted rooms with no in-memory owner that were deleted from the durable
+     * store (the abandoned-after-restart leak). Zero for an in-memory-only
+     * service (the [NoOpRoomStore] default).
+     */
+    val orphanedRoomsReaped: Int = 0,
 )
 
 sealed interface JoinResult {

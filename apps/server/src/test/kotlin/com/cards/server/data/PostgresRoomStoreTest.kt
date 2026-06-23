@@ -18,6 +18,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -143,6 +144,31 @@ class PostgresRoomStoreTest : DatabaseTest() {
         assertEquals(host, recovered.hostUserId)
         assertEquals(RoomStatus.Playing, recovered.status)
         assertEquals(setOf(host, joiner), recovered.members.map { it.userId }.toSet())
+    }
+
+    @Test
+    fun deleteStaleRooms_removesOldOrphans_keepsLiveAndRecentRooms() = runTest {
+        val store = store()
+        val host = UserId(UUID.randomUUID())
+        fun roomAt(code: String, createdAt: Instant) = Room(
+            code = code, hostUserId = host, createdAt = createdAt, maxSeats = 6,
+            status = RoomStatus.Lobby,
+            members = listOf(RoomMember(host, "A", 0, createdAt, isConnected = false, disconnectedAt = createdAt)),
+        )
+        val old = "OLD" + UUID.randomUUID().toString().take(3).uppercase()
+        val live = "LIV" + UUID.randomUUID().toString().take(3).uppercase()
+        val recent = "REC" + UUID.randomUUID().toString().take(3).uppercase()
+        val cutoff = fixedNow
+        store.save(roomAt(old, cutoff - 1.hours))     // stranded, before the cutoff
+        store.save(roomAt(live, cutoff - 2.hours))     // before the cutoff BUT still in memory
+        store.save(roomAt(recent, cutoff + 1.hours))   // after the cutoff
+
+        val deleted = store.deleteStaleRooms(olderThan = cutoff, keepCodes = setOf(live))
+
+        assertEquals(1, deleted, "only the old, unowned room is swept")
+        assertNull(store.load(old), "stranded orphan is gone")
+        assertEquals(live, store.load(live)?.code, "a live (kept) room is never swept, even when old")
+        assertEquals(recent, store.load(recent)?.code, "a room newer than the cutoff stays")
     }
 
     @Test
