@@ -127,6 +127,7 @@ class SoloScenarioBuilder(
         val vm = PlayPokerViewModel(
             sessionFactory = factory,
             progressionRepository = progression,
+            playStyleRepository = FakePlayStyleRepository(),
             progressionConfig = FakeProgressionConfig(),
             achievementRepository = achievements,
             appCache = appCache,

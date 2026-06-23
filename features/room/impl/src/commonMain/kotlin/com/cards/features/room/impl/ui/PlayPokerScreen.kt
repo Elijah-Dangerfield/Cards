@@ -459,6 +459,13 @@ fun PlayPokerScreen(
         }
 
         profileSheetSeat?.let { seat ->
+            // Fetch the human opponent's public style on open, once, when the
+            // Opponent Style Reader is owned. Bots / empty seats never fetch.
+            if (!seat.isBot && seat.userId != null && state.ownsOpponentStyleReader) {
+                LaunchedEffect(seat.userId) {
+                    onAction(PlayPokerAction.RequestOpponentStyle(seat.userId))
+                }
+            }
             PlayerProfileSheet(
                 seat = seat,
                 isMuted = seatMuteKey(seat) in state.mutedEmojiPlayerKeys,
@@ -474,6 +481,8 @@ fun PlayPokerScreen(
                 badges = resolvePlayerBadges(seat.equippedBadgeProductIds, state.catalog),
                 onBadgeClick = { selectedBadge = it },
                 botDifficultyLabel = active?.botDifficultyLabel,
+                playStyle = seat.userId?.let { state.opponentStyles[it] },
+                ownsOpponentStyleReader = state.ownsOpponentStyleReader,
             )
         }
 
@@ -487,6 +496,7 @@ fun PlayPokerScreen(
                     onDismiss = { selfCardOpen = false },
                     badges = state.equippedBadges,
                     onBadgeClick = { selectedBadge = it },
+                    playStyle = state.ownPlayStyle,
                 )
             }
         }

@@ -7,6 +7,7 @@ import com.dangerfield.cards.features.room.impl.usecase.WinOddsEngine
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.EmojiBlast
+import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.TurnFeedback
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.game.ConnectionState
@@ -101,6 +102,19 @@ data class PlayPokerState(
     val quickBuyOpen: Boolean = false,
     /** True while a quick-buy IAP round-trip is in flight; the sheet shows a spinner. */
     val purchaseInFlight: Boolean = false,
+    /** The human's own derived play-style for their self-card; null pre-sync. */
+    val ownPlayStyle: PlayStyleAxes? = null,
+    /**
+     * True when the user owns the `tool_opponent_style` shop utility, which
+     * unlocks the play-style readout for human opponents on the seat-tap card.
+     */
+    val ownsOpponentStyleReader: Boolean = false,
+    /**
+     * Fetched play-style per opponent userId, populated on demand when their
+     * card opens (and the reader is owned). A present key with a null value
+     * means "fetched, none yet"; an absent key means "not fetched".
+     */
+    val opponentStyles: Map<String, PlayStyleAxes?> = emptyMap(),
 ) {
     /**
      * Real-chips multiplayer (MP xpMode, not bots-only practice). Gates the bust
@@ -230,6 +244,13 @@ sealed interface PlayPokerAction {
 
     /** Avatar-tap mute toggle — idempotent on the persisted AppCache set. */
     data class ToggleMutePlayer(val key: String) : PlayPokerAction
+
+    // Play-style (own self-card + gated opponent readout)
+    data class OwnPlayStyleChanged(val playStyle: PlayStyleAxes?) : PlayPokerAction
+    data class OwnsOpponentStyleReaderChanged(val owned: Boolean) : PlayPokerAction
+    /** Opening a human opponent's card; fetches their public style if the reader is owned. */
+    data class RequestOpponentStyle(val userId: String) : PlayPokerAction
+    data class OpponentStyleLoaded(val userId: String, val playStyle: PlayStyleAxes?) : PlayPokerAction
 }
 
 sealed interface PlayPokerEvent {

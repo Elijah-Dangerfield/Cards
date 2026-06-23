@@ -2,7 +2,6 @@ package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.features.room.impl.session.RemotePokerSessionFactory
 import com.dangerfield.cards.features.room.impl.session.SoloBotsPokerSessionFactory
-import com.dangerfield.cards.features.room.impl.ui.BotPlayingStyle
 import com.dangerfield.cards.features.room.impl.ui.TenureHeadline
 import com.dangerfield.cards.features.room.impl.ui.label
 import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
@@ -228,7 +227,7 @@ sealed interface TableUiState {
          *
          * Returns a sealed shape so the renderer can resolve via
          * `stringResource(...)` without re-deriving the formatting; mirrors
-         * the [BotPlayingStyle] / [TenureHeadline] pattern.
+         * the playing-style / [TenureHeadline] pattern.
          */
         internal fun badgeFor(
             seat: Seat,
@@ -272,6 +271,13 @@ sealed interface TableUiState {
 
 data class SeatView(
     val index: Int,
+    /**
+     * Stable user id of the seat's occupant (`Seat.playerId`). For a remote
+     * human this is their account id — used to fetch their public play-style
+     * for the Opponent Style Reader. Null for empty seats; for bots it's a bot
+     * id (never used for a style fetch).
+     */
+    val userId: String? = null,
     val displayName: String,
     val stack: Long,
     val contributedThisStreet: Long,
@@ -395,6 +401,7 @@ data class SeatView(
             val isBusted = !seatEmpty && seat.stack <= 0L && handResolved
             return SeatView(
                 index = seat.index,
+                userId = seat.playerId,
                 displayName = displayName,
                 stack = seat.stack,
                 contributedThisStreet = seat.contributedThisStreet,

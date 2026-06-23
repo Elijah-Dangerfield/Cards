@@ -364,6 +364,7 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
         val vm = PlayPokerViewModel(
             sessionFactory = factory,
             progressionRepository = FakeProgressionRepository(),
+            playStyleRepository = FakePlayStyleRepository(),
             progressionConfig = FakeProgressionConfig(),
             achievementRepository = FakeAchievementRepository(),
             appCache = FakeAppCache(),

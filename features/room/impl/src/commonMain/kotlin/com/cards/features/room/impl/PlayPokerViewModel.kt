@@ -6,6 +6,7 @@ import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
 import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
 import com.dangerfield.cards.features.room.impl.usecase.HandEndProgression
 import com.dangerfield.cards.features.room.impl.usecase.HandResultSummaryBuilder
+import com.dangerfield.cards.features.room.impl.usecase.PlayStyleHandSummaryBuilder
 import com.dangerfield.cards.features.room.impl.usecase.WinOddsEngine
 
 import androidx.lifecycle.viewModelScope
@@ -21,6 +22,7 @@ import com.dangerfield.cards.libraries.cards.EmojiBlast
 import com.dangerfield.cards.libraries.cards.EmotePackCatalog
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.PlayStyleRepository
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpMode
@@ -68,6 +70,7 @@ import kotlin.time.Clock
 class PlayPokerViewModel @Inject constructor(
     @Assisted private val sessionFactory: PokerSessionFactory,
     private val progressionRepository: ProgressionRepository,
+    private val playStyleRepository: PlayStyleRepository,
     private val progressionConfig: ProgressionConfig,
     private val achievementRepository: AchievementRepository,
     private val appCache: AppCache,
@@ -102,6 +105,11 @@ class PlayPokerViewModel @Inject constructor(
     // tracked from events, cleared each hand.
     private var lastWinners: GameEvent.HandEnded? = null
     private val lastActionBySeat: MutableMap<Int, PlayerAction> = mutableMapOf()
+
+    // Tallies the human's actions across each hand off the event stream so the
+    // hand's play-style contribution can be recorded at HandEnded. Driven only
+    // from the single GameEventReceived collector (ordered: actions before end).
+    private val playStyleBuilder = PlayStyleHandSummaryBuilder()
 
     // Authenticated profile for the human-seat projection (display name + avatar).
     // Null until the first Authenticated emission; fallback profiles are ignored.
@@ -197,6 +205,17 @@ class PlayPokerViewModel @Inject constructor(
                         EmotePackCatalog.availableEmojisFor(ownedIds),
                     ),
                 )
+                takeAction(
+                    PlayPokerAction.OwnsOpponentStyleReaderChanged(
+                        TOOL_OPPONENT_STYLE_PRODUCT_ID in ownedIds,
+                    ),
+                )
+            }
+        }
+        // Own derived play-style → self-card radar.
+        viewModelScope.launch {
+            playStyleRepository.observeOwnStyle().collect { style ->
+                takeAction(PlayPokerAction.OwnPlayStyleChanged(style))
             }
         }
         // Profile → re-project the table so the human seat picks up the
@@ -293,6 +312,7 @@ class PlayPokerViewModel @Inject constructor(
 
     private companion object {
         const val TOOL_WIN_ODDS_PRODUCT_ID = "tool_win_odds"
+        const val TOOL_OPPONENT_STYLE_PRODUCT_ID = "tool_opponent_style"
         /**
          * The "you can turn these off in Settings" footer rides the first few
          * celebration sheets, then never shows again — long enough for a new
@@ -309,6 +329,35 @@ class PlayPokerViewModel @Inject constructor(
          * higher makes ticks expensive (~ms scales linearly).
          */
         const val WIN_ODDS_ITERATIONS = 400
+    }
+
+    /**
+     * Feed the per-hand play-style accumulator. Resets on a new hand, tallies
+     * the human's actions, and records the hand's contribution at HandEnded.
+     * Resolves the human seat from live state (MP seats vary; solo is 0).
+     */
+    private fun accumulatePlayStyle(event: GameEvent) {
+        val humanIdx = lastGameState?.let { sessionFactory.humanSeatIndex(it) } ?: humanSeatIndex
+        when (event) {
+            is GameEvent.HandStarted -> playStyleBuilder.reset()
+            is GameEvent.BlindPosted -> playStyleBuilder.onBlindPosted(event, humanIdx)
+            is GameEvent.StreetAdvanced -> playStyleBuilder.onStreetAdvanced(event)
+            is GameEvent.ActionTaken -> playStyleBuilder.onActionTaken(event, humanIdx)
+            is GameEvent.HandEnded -> {
+                val state = lastGameState ?: return
+                val summary = playStyleBuilder.build(
+                    event = event,
+                    state = state,
+                    humanSeatIndex = humanIdx,
+                    mode = sessionFactory.xpMode,
+                ) ?: return
+                viewModelScope.launch {
+                    Catching { playStyleRepository.recordHand(summary) }
+                        .onFailure { logger.w(it) { "Recording play-style failed for hand ${summary.handId}" } }
+                }
+            }
+            else -> Unit
+        }
     }
 
     private fun handleHandEnded(
@@ -415,6 +464,9 @@ class PlayPokerViewModel @Inject constructor(
                 it.copy(occupants = action.occupants)
             }
             is PlayPokerAction.GameEventReceived -> {
+                // Tally the human's play-style off the same ordered event stream
+                // (actions always precede this hand's HandEnded here).
+                accumulatePlayStyle(action.event)
                 // Track projection transients GameState can't carry: the HandEnded
                 // winners (showdown) and the per-seat action pills.
                 val affectsProjection = when (val ev = action.event) {
@@ -712,6 +764,25 @@ class PlayPokerViewModel @Inject constructor(
                         data.copy(mutedEmojiPlayerKeys = next)
                     }
                 }
+            }
+            is PlayPokerAction.OwnPlayStyleChanged -> action.updateState {
+                it.copy(ownPlayStyle = action.playStyle)
+            }
+            is PlayPokerAction.OwnsOpponentStyleReaderChanged -> action.updateState {
+                it.copy(ownsOpponentStyleReader = action.owned)
+            }
+            is PlayPokerAction.RequestOpponentStyle -> {
+                // Fetch once per opponent per session; the cache in the repo
+                // de-dupes the network call, the state map de-dupes the request.
+                if (action.userId !in stateFlow.value.opponentStyles) {
+                    viewModelScope.launch {
+                        val style = playStyleRepository.getStyleFor(action.userId).getOrNull()
+                        takeAction(PlayPokerAction.OpponentStyleLoaded(action.userId, style))
+                    }
+                }
+            }
+            is PlayPokerAction.OpponentStyleLoaded -> action.updateState {
+                it.copy(opponentStyles = it.opponentStyles + (action.userId to action.playStyle))
             }
         }
     }

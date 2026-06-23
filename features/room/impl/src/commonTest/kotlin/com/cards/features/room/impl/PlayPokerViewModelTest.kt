@@ -1336,6 +1336,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
     private fun buildVm(
         factory: PokerSessionFactory = FakePokerSessionFactory(),
         progressionRepository: FakeProgressionRepository = FakeProgressionRepository(),
+        playStyleRepository: FakePlayStyleRepository = FakePlayStyleRepository(),
         progressionConfig: ProgressionConfig = FakeProgressionConfig(),
         achievementRepository: FakeAchievementRepository = FakeAchievementRepository(),
         appCache: FakeAppCache = FakeAppCache(),
@@ -1349,6 +1350,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
     ): PlayPokerViewModel = PlayPokerViewModel(
         sessionFactory = factory,
         progressionRepository = progressionRepository,
+        playStyleRepository = playStyleRepository,
         progressionConfig = progressionConfig,
         achievementRepository = achievementRepository,
         appCache = appCache,

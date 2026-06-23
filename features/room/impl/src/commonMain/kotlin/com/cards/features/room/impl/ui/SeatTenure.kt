@@ -44,7 +44,7 @@ import kotlin.time.Instant
  * across sessions. Remote-human tenure waits for the MP profile-of-a-
  * stranger endpoint to land.
  *
- * Authoring split mirrors the [BotPlayingStyle] / [BotDifficultyTier] pattern
+ * Authoring split mirrors the playing-style / [BotDifficultyTier] pattern
  * — [tenureSpecs] is a pure, testable function returning a sealed shape that
  * holds [StringResource] references; the [Composable] [tenureRows] resolves
  * those into the [ListSectionItem]s the sheet renders.

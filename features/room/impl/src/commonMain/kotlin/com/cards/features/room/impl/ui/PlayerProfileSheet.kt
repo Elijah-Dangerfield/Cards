@@ -19,12 +19,18 @@ import cards.libraries.resources.generated.resources.room_player_profile_mute_em
 import cards.libraries.resources.generated.resources.room_player_profile_mute_emoji_supporting_unmuted
 import cards.libraries.resources.generated.resources.room_player_profile_playing_style_heading
 import cards.libraries.resources.generated.resources.room_player_profile_settings_section_title
+import cards.libraries.resources.generated.resources.room_player_profile_style_locked_body
+import cards.libraries.resources.generated.resources.room_player_profile_style_locked_title
+import cards.libraries.resources.generated.resources.room_player_profile_style_pending_body
 import cards.libraries.resources.generated.resources.room_player_profile_tenure_section_title
 import cards.libraries.resources.generated.resources.room_seat_badge_bot_plain
 import cards.libraries.resources.generated.resources.room_seat_badge_bot_with_difficulty
 import cards.libraries.resources.generated.resources.room_seat_badge_level
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
+import com.dangerfield.cards.libraries.cards.PlayStyleAxes
+import com.dangerfield.cards.libraries.ui.components.toRadarAxes
+import com.dangerfield.cards.libraries.ui.components.toStyleCopy
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Banner
 import com.dangerfield.cards.libraries.ui.components.BannerType
@@ -65,6 +71,13 @@ internal fun PlayerProfileSheet(
     badges: List<PlayerBadge> = emptyList(),
     onBadgeClick: (PlayerBadge) -> Unit = {},
     botDifficultyLabel: String? = null,
+    /**
+     * Human play-style to render: the user's own on their self-card, or a
+     * human opponent's fetched public style. Null = none / not loaded.
+     */
+    playStyle: PlayStyleAxes? = null,
+    /** Owns `tool_opponent_style` — gates the human-opponent style readout. */
+    ownsOpponentStyleReader: Boolean = false,
 ) {
     val bubbleColor = resolveAvatarBackground(seat.avatarBackgroundColorHex)
     val handle: BottomSheetDragHandle = topAccessoryEmoji(
@@ -98,17 +111,14 @@ internal fun PlayerProfileSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
             VerticalSpacerD500()
-            // Heat-map / radar chart is bot-only today: bots ship a deterministic
-            // [BotPersonality]; humans have `personality == null` and therefore
-            // can't render one. When MP human opponents gain a derived style
-            // (raise/call/fold tendencies from public history), the render gate
-            // here must additionally require ownership of `tool_opponent_style`
-            // (the Opponent Style Reader utility in the shop). The product copy
-            // already calls out that bot heat-maps are free via seat-tap; humans
-            // are the paid path.
+            // Play-style readout. Bots ship a deterministic [BotPersonality] and
+            // render free via seat-tap. Humans get a derived style: your own is
+            // free on your self-card; a human opponent's is gated behind the
+            // Opponent Style Reader (`tool_opponent_style`) — public info, paid
+            // convenience, as the shop copy says.
             if (seat.isBot) {
                 seat.personality?.let { personality ->
-                    PlayingStyleBlock(personality = personality)
+                    BotPlayingStyleBlock(personality = personality)
                     VerticalSpacerD500()
                 }
                 Banner(
@@ -119,6 +129,12 @@ internal fun PlayerProfileSheet(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 VerticalSpacerD500()
+            } else if (!seat.seatEmpty) {
+                HumanPlayingStyleSection(
+                    playStyle = playStyle,
+                    isMePlayer = isMePlayer,
+                    ownsOpponentStyleReader = ownsOpponentStyleReader,
+                )
             }
             tenureRows(seat).takeIf { it.isNotEmpty() }?.let { rows ->
                 ListSection(
@@ -186,8 +202,77 @@ internal fun SeatBadge.label(): String = when (this) {
 }
 
 @Composable
-private fun PlayingStyleBlock(personality: BotPersonality) {
+private fun BotPlayingStyleBlock(personality: BotPersonality) {
     val style = playingStyleFor(personality)
+    PlayingStyleBlock(
+        axes = radarAxesFor(personality),
+        styleName = stringResource(style.label),
+        description = stringResource(style.description),
+    )
+}
+
+/**
+ * Human play-style: free on your own self-card, gated behind the Opponent
+ * Style Reader for a human opponent. Renders a "keep playing" / "unlock"
+ * fallback when there's nothing (yet) to show.
+ */
+@Composable
+private fun HumanPlayingStyleSection(
+    playStyle: PlayStyleAxes?,
+    isMePlayer: Boolean,
+    ownsOpponentStyleReader: Boolean,
+) {
+    val ready = playStyle?.takeIf { it.hasEnoughData }
+    when {
+        isMePlayer -> {
+            // Don't nag yourself with an upsell; just show the radar once it exists.
+            if (ready != null) {
+                HumanPlayingStyleBlock(ready)
+                VerticalSpacerD500()
+            }
+        }
+        ownsOpponentStyleReader -> {
+            if (ready != null) {
+                HumanPlayingStyleBlock(ready)
+            } else {
+                Banner(
+                    type = BannerType.Info,
+                    title = stringResource(Res.string.room_player_profile_playing_style_heading),
+                    body = stringResource(Res.string.room_player_profile_style_pending_body),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            VerticalSpacerD500()
+        }
+        else -> {
+            Banner(
+                type = BannerType.Info,
+                title = stringResource(Res.string.room_player_profile_style_locked_title),
+                body = stringResource(Res.string.room_player_profile_style_locked_body),
+                leading = { Text("🔍") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            VerticalSpacerD500()
+        }
+    }
+}
+
+@Composable
+private fun HumanPlayingStyleBlock(style: PlayStyleAxes) {
+    val copy = style.toStyleCopy()
+    PlayingStyleBlock(
+        axes = style.toRadarAxes(),
+        styleName = stringResource(copy.label),
+        description = stringResource(copy.description),
+    )
+}
+
+@Composable
+private fun PlayingStyleBlock(
+    axes: List<com.dangerfield.cards.libraries.ui.components.RadarAxis>,
+    styleName: String,
+    description: String,
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = stringResource(Res.string.room_player_profile_playing_style_heading),
@@ -196,9 +281,9 @@ private fun PlayingStyleBlock(personality: BotPersonality) {
         )
         VerticalSpacerD200()
         PlayingStyleCard(
-            axes = radarAxesFor(personality),
-            styleName = stringResource(style.label),
-            description = stringResource(style.description),
+            axes = axes,
+            styleName = styleName,
+            description = description,
         )
     }
 }
