@@ -148,10 +148,6 @@ A batch of small UX directives the owner filed via in-app feedback in one sessio
 
 A second batch of in-app feedback from a live two-device MP playtest. Hard bugs from this session are filed in their topical sections above (account-deletion soft-delete, private-join balance gate, the B7 hand-end stall, mid-game opponent-leave notice); these are the UX/copy directives.
 
-- `[P1]` **Leaving a private MP game should land on Home, not the lobby.** A tester fully left a private multiplayer game and was dropped back into the lobby instead of Home. *(feedback CARDS-1Y)*
-  **Acceptance:** an explicit leave from a private MP game routes to Home; the dead lobby isn't shown.
-  **Hints:** the MP leave/exit routing in the room feature entry point. Sentry [CARDS-1Y](https://elijah-dangerfield.sentry.io/issues/CARDS-1Y).
-
 - `[P2]` **"Room not found" needs a real UX — keep the user on the input screen.** Joining a bad/expired code currently routes somewhere clunky ("ewww"); instead surface an inline error and keep them on the code-entry screen to retry. *(feedback CARDS-28)*
   **Acceptance:** an unknown room code shows an inline error on the join input screen without navigating away.
   **Hints:** `PrivateJoinScreen` / `LobbyViewModel.SubmitJoin` outcome handling. Sentry [CARDS-28](https://elijah-dangerfield.sentry.io/issues/CARDS-28).
