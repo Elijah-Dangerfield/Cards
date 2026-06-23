@@ -235,14 +235,14 @@
     <string name="public_searching_cancel">Cancel search</string>
     <!-- Rotating reassurance shown while we genuinely hunt for real players. -->
     <string name="public_searching_rotate_1">Looking for real players at your buy-in…</string>
-    <string name="public_searching_rotate_2">We'd rather find you real people than fake a crowd.</string>
-    <string name="public_searching_rotate_3">Good tables are worth the wait, so hang tight.</string>
-    <string name="public_searching_rotate_4">Still searching. Sharing the app helps the tables fill faster.</string>
+    <string name="public_searching_rotate_2">Every seat at your table is a real person.</string>
+    <string name="public_searching_rotate_3">A good table is worth the wait. Hang tight.</string>
+    <string name="public_searching_rotate_4">Got friends who play? They make tables fill faster.</string>
     <string name="public_searching_alone">Still looking for players</string>
     <string name="public_searching_joined">A player joined. Dealing you in.</string>
     <!-- Honest disclosed-bot fallback after a fruitless search. -->
     <string name="public_searching_offer_title">We couldn't find anyone right now</string>
-    <string name="public_searching_offer_body">We looked hard and couldn't find enough real players right now. That's on us. You can still play for real chips against bots. You keep what you win, up to a daily limit, and they step aside the moment a real player joins.</string>
+    <string name="public_searching_offer_body">Play bots for real chips while you wait. You keep what you win, up to a daily limit, and they step aside the moment a real player joins.</string>
     <string name="public_searching_offer_play_bots">Play bots for real chips</string>
     <string name="public_searching_offer_keep_waiting">Keep waiting for players</string>
     <string name="public_searching_offer_try_later">Try again later</string>

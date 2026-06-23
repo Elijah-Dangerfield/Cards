@@ -294,7 +294,7 @@ private fun BuyInRangeCard(minBuyIn: Long, maxBuyIn: Long) {
 private fun formatThousands(value: Long): String =
     value.toString().reversed().chunked(3).joinToString(",").reversed()
 
-private const val ROTATE_INTERVAL_MS = 3_500L
+private const val ROTATE_INTERVAL_MS = 5_000L
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable

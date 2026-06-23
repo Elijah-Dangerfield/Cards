@@ -157,14 +157,6 @@ A second batch of in-app feedback from a live two-device MP playtest. Hard bugs 
   **Acceptance:** real-chip games (including disclosed-bot real-money) never show fake-chip join or bust copy; the play screen reflects that real chips are at stake.
   **Hints:** the join + bust dialogs in the room feature that branch on stakes/bot framing; align with the escrow being live. Sentry [CARDS-20](https://elijah-dangerfield.sentry.io/issues/CARDS-20), [CARDS-1C](https://elijah-dangerfield.sentry.io/issues/CARDS-1C).
 
-- `[P2]` **Matchmaking "searching" copy rolls over too fast and some lines are weak.** The rotating search messages flip too quickly to read and some (the fake-crowd line) feel off; slow the rotation and review the copy with the unslop skills. *(feedback CARDS-20)*
-  **Acceptance:** search messages rotate at a readable pace and the weak/fake-crowd lines are revised.
-  **Hints:** the rotating-message logic in `PublicSearchingScreen`. Sentry [CARDS-20](https://elijah-dangerfield.sentry.io/issues/CARDS-20).
-
-- `[P2]` **Tighten the disclosed-bots-for-real-money explainer copy + UI.** Owner found the bots-for-real-chips explainer too long and not great; review the layout and copy (use the unslop skills). *(feedback CARDS-20)*
-  **Acceptance:** the explainer is shorter and clearer; UI reviewed.
-  **Hints:** the bot-fallback explainer in the matchmaking flow (`SearchPhase.BotFallbackOffer`). Sentry [CARDS-20](https://elijah-dangerfield.sentry.io/issues/CARDS-20).
-
 - `[P2]` **Make the whole "Javier progress" profile banner tappable, not just part of it.** The achievement/progress banner on the profile screen should accept a tap anywhere on the banner. *(feedback CARDS-1R)*
   **Acceptance:** tapping anywhere on the banner triggers its action.
   **Hints:** the progress banner composable on `ProfileScreen`; move the click modifier to the banner container. Sentry [CARDS-1R](https://elijah-dangerfield.sentry.io/issues/CARDS-1R).
