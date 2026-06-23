@@ -121,8 +121,10 @@ enum class RoomStatus { Lobby, Playing, Finished }
  *
  *  - [Private] — joinable only by code. Every room before matchmaking is this.
  *  - [Open] — human-hosted but discoverable by the public matchmaker; the
- *    creator flipped "let anyone join". Host still controls the deal; no
- *    surprise bots unless the host opts into bot-fill.
+ *    creator flipped "let anyone join". Server-dealt like [Public] (auto-deals
+ *    once 2+ players are present) — "open to anyone" means "fill it and play",
+ *    so a matched stranger never waits on a host tapping Start. No surprise bots
+ *    unless the host opts into bot-fill.
  *  - [Public] — created by the matchmaker with a synthetic system host and
  *    dealt by the server. Eligible for the disclosed bot fallback.
  */

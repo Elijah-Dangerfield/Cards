@@ -404,11 +404,12 @@ fun Route.roomSocketRoutes(
                 val droppedAt = afterDisconnect?.memberFor(userId)?.disconnectedAt
                 if (droppedAt != null) {
                     // Grace depends on what kind of room this is. A forming
-                    // public/open table (Lobby) frees an abandoned seat fast so
-                    // a searcher who quits the Searching screen doesn't leave a
-                    // ghost inflating "found N players"; a live hand (Playing),
-                    // public or private, keeps the full window so a mid-hand
-                    // cellular blip never loses the seat.
+                    // *Public* table (Lobby) frees an abandoned seat fast so a
+                    // searcher who quits the Searching screen doesn't leave a
+                    // ghost inflating "found N players"; everything else — a live
+                    // hand (Playing), a private room, or an Open room whose lone
+                    // member is the waiting host — keeps the full window so a
+                    // brief cellular blip never loses the seat.
                     val initialGrace = effectiveReaperGrace(afterDisconnect, reaperGrace)
                     app.launch {
                         try {
@@ -600,6 +601,12 @@ private suspend fun handleStartHand(
 ): IntentResult {
     val room = rooms.find(code)
         ?: return IntentResult.Rejected("room not found")
+    // Open + Public tables deal themselves once enough players are present — a
+    // host StartHand on one would race the auto-deal. The client hides Start for
+    // these, so this is belt-and-suspenders; reject it rather than double-deal.
+    if (room.visibility != RoomVisibility.Private) {
+        return IntentResult.Rejected("server deals this table")
+    }
     if (room.hostUserId != userId) {
         return IntentResult.Rejected("only the host can start the hand")
     }
@@ -874,8 +881,8 @@ private suspend fun queueMidHandJoinerIfNeeded(
 val DEFAULT_REAPER_GRACE: Duration = 5.minutes
 
 /**
- * Grace for a *forming* public/open table (Lobby, hand not yet dealt). Much
- * shorter than [DEFAULT_REAPER_GRACE]: long enough to ride out the
+ * Grace for a *forming* matchmaker-created Public table (Lobby, hand not yet
+ * dealt). Much shorter than [DEFAULT_REAPER_GRACE]: long enough to ride out the
  * find → socket-open handshake and a brief blip, short enough that abandoning
  * the Searching screen frees the seat fast so it never lingers as a ghost in
  * another searcher's "found N players". Once the hand deals (Playing) the full
@@ -885,13 +892,22 @@ val FORMING_PUBLIC_REAPER_GRACE: Duration = 25.seconds
 
 /**
  * The grace to apply for a member who just dropped from [room]. A forming
- * public/open table (matchmaking-eligible, still in Lobby) gets the short
- * [FORMING_PUBLIC_REAPER_GRACE]; everything else — a live hand, a private room —
- * gets [default]. Extracted so the policy is unit-testable without standing up
- * a socket.
+ * *Public* table (matchmaker-created, still in Lobby) gets the short
+ * [FORMING_PUBLIC_REAPER_GRACE]; everything else — a live hand, a private room,
+ * or an *Open* room — gets [default].
+ *
+ * Open is deliberately excluded even though it's matchmaking-eligible: a Public
+ * table's lone member is a searcher whose ghost should free fast when they quit
+ * the Searching screen, but an Open table's lone member is the host who created
+ * the room and is *waiting* for players. Giving Open the 25s window would let the
+ * reaper GC a host's table on a brief background (call, network blip) — the
+ * classic "my table vanished" bug. The cost is that an abandoned stranger's seat
+ * in an Open lobby lingers up to [default] (5 min), which we accept.
+ *
+ * Extracted so the policy is unit-testable without standing up a socket.
  */
 internal fun effectiveReaperGrace(room: Room?, default: Duration): Duration {
-    val forming = room != null && room.isMatchmakingEligible && room.status == RoomStatus.Lobby
+    val forming = room != null && room.visibility == RoomVisibility.Public && room.status == RoomStatus.Lobby
     return if (forming) FORMING_PUBLIC_REAPER_GRACE else default
 }
 

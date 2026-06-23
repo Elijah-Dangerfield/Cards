@@ -11,9 +11,10 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 /**
- * The seat-reaper grace policy: a forming public/open table frees an abandoned
- * seat fast (so a quit Searching screen leaves no ghost), while a live hand or a
- * private room keeps the full window (mid-hand reconnect is sacred).
+ * The seat-reaper grace policy: a forming Public table frees an abandoned seat
+ * fast (so a quit Searching screen leaves no ghost), while a live hand, a private
+ * room, or an Open room (where the lone member is the waiting host) keeps the full
+ * window (mid-hand reconnect — and a host waiting for players — is sacred).
  */
 @OptIn(ExperimentalTime::class)
 class ReaperGracePolicyTest {
@@ -37,9 +38,12 @@ class ReaperGracePolicyTest {
     }
 
     @Test
-    fun formingOpenLobby_getsTheShortGrace() {
+    fun formingOpenLobby_getsTheFullGrace() {
+        // Open is matchmaking-eligible but the lone member is the *host* waiting for
+        // players, not a searcher — so it keeps the full window. A 25s reap here would
+        // GC a host's table on a brief background ("my table vanished").
         assertEquals(
-            FORMING_PUBLIC_REAPER_GRACE,
+            DEFAULT_REAPER_GRACE,
             effectiveReaperGrace(room(RoomVisibility.Open, RoomStatus.Lobby), DEFAULT_REAPER_GRACE),
         )
     }
