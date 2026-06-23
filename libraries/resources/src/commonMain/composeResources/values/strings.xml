@@ -88,7 +88,10 @@
     <string name="private_create_buyin_label">Buy-in</string>
     <string name="private_create_blinds_caption">Blinds %1$d / %2$d</string>
     <string name="private_create_max_players_label">Max players</string>
+    <string name="private_create_open_label">Open to anyone</string>
+    <string name="private_create_open_caption">Let strangers fill empty seats</string>
     <string name="private_create_invite_note">Invite only. You'll get a code to share once it's created.</string>
+    <string name="private_create_open_note">Anyone searching can join, and the table deals on its own once players arrive. You still get a code to share with friends.</string>
     <string name="private_create_cta">Create room</string>
 
     <!-- Private - Join-by-code screen (SPEC §7). Codes are 6-char alphanumeric. -->
@@ -116,6 +119,7 @@
     <string name="lobby_in_room_buyin_label">Buy-in</string>
     <string name="lobby_in_room_buyin_value">5,000</string>
     <string name="lobby_in_room_waiting_for_host">Waiting for the host to start the game…</string>
+    <string name="lobby_in_room_auto_deal_hint">Open to anyone. Deals automatically when players arrive.</string>
     <string name="lobby_in_room_leave_button">Leave room</string>
     <string name="lobby_in_room_leave_button_progress">Leaving…</string>
     <string name="lobby_leave_dialog_title">Leave the room?</string>

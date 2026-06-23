@@ -31,6 +31,9 @@ import cards.libraries.resources.generated.resources.private_create_invite_note
 import cards.libraries.resources.generated.resources.private_create_blinds_caption
 import cards.libraries.resources.generated.resources.private_create_buyin_label
 import cards.libraries.resources.generated.resources.private_create_max_players_label
+import cards.libraries.resources.generated.resources.private_create_open_caption
+import cards.libraries.resources.generated.resources.private_create_open_label
+import cards.libraries.resources.generated.resources.private_create_open_note
 import cards.libraries.resources.generated.resources.private_create_room_name_label
 import cards.libraries.resources.generated.resources.private_create_rules_label
 import cards.libraries.resources.generated.resources.private_create_title
@@ -40,6 +43,7 @@ import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Slider
+import com.dangerfield.cards.libraries.ui.components.Switch
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.room.RoomHeader
 import com.dangerfield.cards.libraries.ui.components.room.RoomVisibility
@@ -66,9 +70,10 @@ import org.jetbrains.compose.resources.stringResource
 fun PrivateCreateScreen(
     chipBalance: Long?,
     onBack: () -> Unit,
-    onCreate: (maxPlayers: Int, buyIn: Long) -> Unit,
+    onCreate: (maxPlayers: Int, buyIn: Long, openToAnyone: Boolean) -> Unit,
 ) {
     var maxPlayers by remember { mutableStateOf(6) }
+    var openToAnyone by remember { mutableStateOf(false) }
     // The buy-in tops out at what the host can actually afford (their chip
     // balance); until the balance loads we cap at the default. The slider can
     // never go below the engine's minimum valid buy-in.
@@ -143,17 +148,25 @@ fun PrivateCreateScreen(
                     onDecrement = { maxPlayers = (maxPlayers - 1).coerceAtLeast(2) },
                     onIncrement = { maxPlayers = (maxPlayers + 1).coerceAtMost(9) },
                 )
+                RuleDivider()
+                OpenToAnyoneRow(
+                    checked = openToAnyone,
+                    onCheckedChange = { openToAnyone = it },
+                )
             }
 
             Spacer(Modifier.height(Dimension.D600))
             Text(
-                text = stringResource(Res.string.private_create_invite_note),
+                text = stringResource(
+                    if (openToAnyone) Res.string.private_create_open_note
+                    else Res.string.private_create_invite_note,
+                ),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.contentSecondary,
             )
 
             Spacer(Modifier.weight(1f))
-            ButtonPrimary(onClick = { onCreate(maxPlayers, buyIn) }, modifier = Modifier.fillMaxWidth()) {
+            ButtonPrimary(onClick = { onCreate(maxPlayers, buyIn, openToAnyone) }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(Res.string.private_create_cta))
             }
             Spacer(Modifier.height(Dimension.D800))
@@ -235,6 +248,31 @@ private fun formatChips(value: Long): String {
 }
 
 @Composable
+private fun OpenToAnyoneRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Dimension.D600, vertical = Dimension.D400),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(Res.string.private_create_open_label),
+                typography = AppTheme.typography.Label.L500,
+                color = AppTheme.colors.content,
+            )
+            Text(
+                text = stringResource(Res.string.private_create_open_caption),
+                typography = AppTheme.typography.Caption.C300,
+                color = AppTheme.colors.contentTertiary,
+            )
+        }
+        Spacer(Modifier.size(Dimension.D400))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
 private fun MaxPlayersRow(value: Int, onDecrement: () -> Unit, onIncrement: () -> Unit) {
     Row(
         modifier = Modifier
@@ -298,6 +336,6 @@ private fun RuleDivider() {
 @Composable
 private fun PrivateCreateScreenPreview() {
     PreviewContent {
-        PrivateCreateScreen(chipBalance = 25_000, onBack = {}, onCreate = { _, _ -> })
+        PrivateCreateScreen(chipBalance = 25_000, onBack = {}, onCreate = { _, _, _ -> })
     }
 }

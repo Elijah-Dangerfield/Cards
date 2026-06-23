@@ -4,8 +4,10 @@ import com.cards.integration.helpers.IntegrationTest
 import com.cards.integration.helpers.Table
 import com.cards.integration.helpers.playPassivelyToCompletion
 import com.dangerfield.cards.libraries.gameplay.BettingRound
+import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.FindTableOutcome
 import com.dangerfield.cards.libraries.rooms.PlayBotsOutcome
+import com.dangerfield.cards.libraries.rooms.RoomVisibility
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -67,6 +69,29 @@ class MatchmakingPlayTest : IntegrationTest() {
         val dealt = game.nextSnapshot { it.actingSeatIndex != null }
         assertTrue(dealt.seats.any { it.isBot }, "playing against bots")
         assertTrue(dealt.seats.any { it.playerId == a.userId }, "the human was funded + dealt in")
+    }
+
+    @Test
+    fun anOpenTable_isDiscoverable_andServerDealsForAMatchedStranger() = integration {
+        // A host opens their room to anyone at the 1k tier.
+        val host = client()
+        val created = assertIs<CreateRoomOutcome.Success>(host.repository.createRoom(buyIn = 1_000, open = true))
+        val code = created.room.code
+        assertEquals(RoomVisibility.Open, created.room.visibility, "the room is open to anyone")
+
+        // A stranger searching that tier is matched into the host's Open table.
+        val stranger = client()
+        val found = assertIs<FindTableOutcome.Success>(stranger.matchmaking.findTable(1_000, 1_000))
+        assertFalse(found.created, "matched into the host's Open table, not a fresh one")
+        assertEquals(code, found.room.code)
+
+        // Both connect — an Open table is server-dealt, so a hand deals itself
+        // with no host Start tapped.
+        val hostGame = gameplay(host.connect(code))
+        gameplay(stranger.connect(code)).awaitConnected()
+        hostGame.awaitConnected()
+        val dealt = hostGame.nextSnapshot { it.actingSeatIndex != null }
+        assertEquals(2, dealt.seats.count { !it.isBot }, "two humans, server-dealt — nobody tapped Start")
     }
 
     @Test

@@ -65,6 +65,7 @@ import cards.libraries.resources.generated.resources.lobby_in_room_ready_to_deal
 import cards.libraries.resources.generated.resources.lobby_in_room_stakes_label
 import cards.libraries.resources.generated.resources.lobby_in_room_code_copied
 import cards.libraries.resources.generated.resources.lobby_in_room_start_button_waiting
+import cards.libraries.resources.generated.resources.lobby_in_room_auto_deal_hint
 import cards.libraries.resources.generated.resources.lobby_in_room_waiting_for_host
 import cards.libraries.resources.generated.resources.lobby_setting_up
 import cards.libraries.resources.generated.resources.lobby_topbar_title_idle
@@ -327,8 +328,18 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
 
     Spacer(modifier = Modifier.height(Dimension.D700))
 
-    // Host runs the deal; non-hosts see a "waiting for the host" hint.
-    if (state.isHost) {
+    // An Open-to-anyone table deals itself — nobody taps Start. A Private table
+    // is host-dealt: the host runs the deal, others wait on them.
+    if (state.isServerDealtTable) {
+        Text(
+            text = stringResource(Res.string.lobby_in_room_auto_deal_hint),
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(Dimension.D500))
+    } else if (state.isHost) {
         ButtonPrimary(
             onClick = { onAction(LobbyAction.StartGame) },
             enabled = state.canStart,
