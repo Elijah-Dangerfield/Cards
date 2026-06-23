@@ -76,6 +76,17 @@ class DefaultTableSessionService(
         // budget, no new bot-payout table. Checked off CLOSED sessions, so an
         // in-flight session never blocks itself; the win you're sitting on is
         // never clawed back, only the *next* bot table is gated.
+        //
+        // Known + accepted (decided 2026-06-23): because the cap is checked at
+        // sit-down, it bounds how many bot SESSIONS you start, not a single
+        // session's payout — which scales with the buy-in tier. A wealthy player
+        // could net more than the daily cap against bots in one high-stakes
+        // session before the next table is gated. Left as-is rather than tier-
+        // capping the subsidy: chips never cash out (no real-money harm), the
+        // buy-in must be affordable to even sit (a fresh account can't reach the
+        // high tiers), and the worst case is in-game chip inflation, not loss.
+        // Revisit (cap the subsidised buy-in tier) if bot-farming distorts the
+        // economy once there's real traffic.
         if (subsidized) {
             val grantedToday = tableSessions.subsidyGrantedSince(userId, clock.now() - subsidyWindow)
             if (grantedToday >= subsidyDailyCap) {
