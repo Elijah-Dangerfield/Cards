@@ -29,7 +29,12 @@ import kotlinx.coroutines.flow.Flow
  */
 interface RoomRepository {
 
-    suspend fun createRoom(maxSeats: Int? = null, buyIn: Long? = null): CreateRoomOutcome
+    /**
+     * Create a room. [open] = true makes it "open to anyone": matchmaker-
+     * discoverable and server-dealt, while still joinable by its code. Default
+     * (false) is a code-only Private room the host starts.
+     */
+    suspend fun createRoom(maxSeats: Int? = null, buyIn: Long? = null, open: Boolean = false): CreateRoomOutcome
 
     suspend fun joinRoom(code: String): JoinRoomOutcome
 

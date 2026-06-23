@@ -207,7 +207,7 @@ fun mpTable(
 private class HarnessRoomRepository(
     private val handle: RoomConnectionHandle,
 ) : RoomRepository {
-    override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = error("unused")
+    override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = error("unused")
     override suspend fun joinRoom(code: String): JoinRoomOutcome = error("unused")
     override suspend fun leaveRoom(code: String): LeaveRoomOutcome = error("unused")
     override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome = error("unused")

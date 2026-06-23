@@ -43,8 +43,14 @@ class RoomRepositoryImpl(
 
     override fun observeActiveRooms(): Flow<List<Room>> = activeRooms.asStateFlow()
 
-    override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = try {
-        val response = api.create(CreateRoomRequestDto(maxSeats = maxSeats, buyIn = buyIn))
+    override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = try {
+        val response = api.create(
+            CreateRoomRequestDto(
+                maxSeats = maxSeats,
+                buyIn = buyIn,
+                visibility = if (open) "Open" else null,
+            ),
+        )
         val body = response.body<CreateRoomResponseDto>()
         val room = body.room.toDomain()
         upsertActiveRoom(room)

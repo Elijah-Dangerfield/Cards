@@ -721,7 +721,7 @@ class LobbyViewModelTest : CoroutineTest() {
         val handle: RecordingHandle = RecordingHandle(),
     ) : RoomRepository {
         val addBotSeatIndexes: MutableList<Int?> = mutableListOf()
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = createOutcome
+        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = createOutcome
         override suspend fun joinRoom(code: String): JoinRoomOutcome =
             JoinRoomOutcome.NetworkError(RuntimeException("not used"))
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = LeaveRoomOutcome.Success
@@ -784,7 +784,7 @@ class LobbyViewModelTest : CoroutineTest() {
         var leaveFinished: Int = 0
             private set
 
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = createOutcome
+        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = createOutcome
         override suspend fun joinRoom(code: String): JoinRoomOutcome =
             JoinRoomOutcome.NetworkError(RuntimeException("not used"))
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome {
@@ -811,7 +811,7 @@ class LobbyViewModelTest : CoroutineTest() {
         var joinCalls: Int = 0
             private set
         val addBotSeatIndexes: MutableList<Int?> = mutableListOf()
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = createOutcome
+        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = createOutcome
         override suspend fun joinRoom(code: String): JoinRoomOutcome {
             joinCalls += 1
             return joinOutcome

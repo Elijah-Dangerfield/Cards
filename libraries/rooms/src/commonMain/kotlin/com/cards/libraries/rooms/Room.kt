@@ -22,11 +22,21 @@ data class Room(
     val buyIn: Long = 0,
     val smallBlind: Long = 0,
     val bigBlind: Long = 0,
+    /**
+     * Who can discover the table + how it deals. [RoomVisibility.Open] and
+     * [RoomVisibility.Public] are server-dealt (no host Start — the lobby
+     * auto-follows into the game); [RoomVisibility.Private] is host-dealt.
+     * Defaulted so pre-visibility snapshots read as Private.
+     */
+    val visibility: RoomVisibility = RoomVisibility.Private,
 ) {
     val seatCount: Int get() = members.size
     val isFull: Boolean get() = seatCount >= maxSeats
     fun isHost(userId: String): Boolean = userId == hostUserId
     fun memberFor(userId: String): RoomMember? = members.firstOrNull { it.userId == userId }
+
+    /** Server-dealt (no host Start): Open + Public. Private waits for the host. */
+    val isServerDealt: Boolean get() = visibility == RoomVisibility.Open || visibility == RoomVisibility.Public
 }
 
 data class RoomMember(
@@ -49,3 +59,5 @@ data class RoomMember(
 )
 
 enum class RoomStatus { Lobby, Playing, Finished, Unknown }
+
+enum class RoomVisibility { Private, Open, Public, Unknown }

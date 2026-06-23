@@ -67,6 +67,28 @@ class RoomRepositoryImplTest {
     }
 
     @Test
+    fun createRoom_responseWithoutVisibility_defaultsToPrivate() = runTest {
+        // The base room JSON carries no visibility field — decodes as Private.
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, ROOM_RESPONSE_JSON) })
+        val success = assertIs<CreateRoomOutcome.Success>(repo.createRoom())
+        assertEquals(
+            com.dangerfield.cards.libraries.rooms.RoomVisibility.Private,
+            success.room.visibility,
+        )
+    }
+
+    @Test
+    fun createRoom_open_decodesOpenVisibility() = runTest {
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, OPEN_ROOM_RESPONSE_JSON) })
+        val success = assertIs<CreateRoomOutcome.Success>(repo.createRoom(open = true))
+        assertEquals(
+            com.dangerfield.cards.libraries.rooms.RoomVisibility.Open,
+            success.room.visibility,
+            "an Open room from the server is mirrored on the domain model",
+        )
+    }
+
+    @Test
     fun joinRoom_200_alreadyJoinedFalse() = runTest {
         val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, JOIN_RESPONSE_JSON_FRESH) })
         val outcome = repo.joinRoom("ABC123")
@@ -265,6 +287,18 @@ class RoomRepositoryImplTest {
             }
         """.trimIndent()
         private val ROOM_RESPONSE_JSON = """{"schemaVersion":1,"room":$ROOM_JSON_HOST}"""
+        private val OPEN_ROOM_JSON_HOST = """
+            {
+              "code":"ABC123",
+              "hostUserId":"11111111-1111-1111-1111-111111111111",
+              "createdAtEpochMs":1700000000000,
+              "maxSeats":4,
+              "status":"Lobby",
+              "members":[],
+              "visibility":"Open"
+            }
+        """.trimIndent()
+        private val OPEN_ROOM_RESPONSE_JSON = """{"schemaVersion":1,"room":$OPEN_ROOM_JSON_HOST}"""
         private val JOIN_RESPONSE_JSON_FRESH =
             """{"schemaVersion":1,"alreadyJoined":false,"room":$ROOM_JSON_HOST}"""
         private val JOIN_RESPONSE_JSON_REJOIN =

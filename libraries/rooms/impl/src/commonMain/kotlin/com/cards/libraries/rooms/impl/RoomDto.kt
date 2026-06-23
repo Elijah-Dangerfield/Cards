@@ -3,6 +3,7 @@ package com.dangerfield.cards.libraries.rooms.impl
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.rooms.RoomStatus
+import com.dangerfield.cards.libraries.rooms.RoomVisibility
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -22,7 +23,18 @@ data class RoomDto(
     val buyIn: Long = 0,
     val smallBlind: Long = 0,
     val bigBlind: Long = 0,
+    val visibility: RoomVisibilityDto = RoomVisibilityDto.Private,
 )
+
+@Serializable
+enum class RoomVisibilityDto {
+    @SerialName("Private") Private,
+    @SerialName("Open") Open,
+    @SerialName("Public") Public,
+
+    /** Forward-compat: an unrecognised server value decodes here, not a crash. */
+    @SerialName("Unknown") Unknown,
+}
 
 @Serializable
 data class RoomMemberDto(
@@ -54,6 +66,8 @@ enum class RoomStatusDto {
 data class CreateRoomRequestDto(
     val maxSeats: Int? = null,
     val buyIn: Long? = null,
+    /** "Open" makes the room matchmaker-discoverable + server-dealt; null = Private. */
+    val visibility: String? = null,
 )
 
 @Serializable
@@ -129,6 +143,7 @@ internal fun RoomDto.toDomain(): Room = Room(
     buyIn = buyIn,
     smallBlind = smallBlind,
     bigBlind = bigBlind,
+    visibility = visibility.toDomain(),
 )
 
 internal fun RoomMemberDto.toDomain(): RoomMember = RoomMember(
@@ -147,4 +162,11 @@ internal fun RoomStatusDto.toDomain(): RoomStatus = when (this) {
     RoomStatusDto.Playing -> RoomStatus.Playing
     RoomStatusDto.Finished -> RoomStatus.Finished
     RoomStatusDto.Unknown -> RoomStatus.Unknown
+}
+
+internal fun RoomVisibilityDto.toDomain(): RoomVisibility = when (this) {
+    RoomVisibilityDto.Private -> RoomVisibility.Private
+    RoomVisibilityDto.Open -> RoomVisibility.Open
+    RoomVisibilityDto.Public -> RoomVisibility.Public
+    RoomVisibilityDto.Unknown -> RoomVisibility.Unknown
 }
