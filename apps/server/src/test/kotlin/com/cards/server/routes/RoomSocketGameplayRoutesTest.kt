@@ -15,6 +15,7 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -61,6 +62,7 @@ class RoomSocketGameplayRoutesTest {
 
     private val host = UserId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
     private val alice = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
+    private val carol = UserId(UUID.fromString("33333333-3333-3333-3333-333333333333"))
 
     // ===================================================================
     // StartHand
@@ -490,6 +492,42 @@ class RoomSocketGameplayRoutesTest {
             deckRemaining = emptyList(),
         )
 
+    /** A Complete heads-up state where both seats still have chips (so the next
+     *  hand keeps both and a queued joiner makes three). */
+    private fun completeBothFunded(
+        seatA: UserId,
+        seatB: UserId,
+        settings: com.dangerfield.cards.libraries.gameplay.RoomSettings,
+    ) = GameState(
+        settings = settings,
+        handNumber = 1,
+        buttonSeatIndex = 0,
+        seats = listOf(
+            Seat(
+                index = 0,
+                playerId = seatA.value.toString(),
+                displayName = "Host",
+                stack = settings.startingStack,
+                seatStatus = SeatStatus.Active,
+                handParticipation = HandParticipation.Folded,
+            ),
+            Seat(
+                index = 1,
+                playerId = seatB.value.toString(),
+                displayName = "Alice",
+                stack = settings.startingStack,
+                seatStatus = SeatStatus.Active,
+                handParticipation = HandParticipation.InHand,
+            ),
+        ),
+        community = emptyList(),
+        street = BettingRound.Complete,
+        currentBetThisStreet = 0,
+        lastFullRaiseSize = 0,
+        actingSeatIndex = null,
+        deckRemaining = emptyList(),
+    )
+
     @Test
     fun rebuy_withSufficientWallet_acceptsRefillsSeat_andDebitsBuyIn() = runTest {
         val rooms = newRoomService()
@@ -646,6 +684,61 @@ class RoomSocketGameplayRoutesTest {
                 assertFalse(aliceSocket.receiveUntilAck("r2").accepted, "already rebought → rejected")
 
                 assertEquals(500, wallets.balanceOf(alice), "charged exactly one buy-in across both attempts")
+            } finally {
+                hostSocket.closeQuietly()
+                aliceSocket.closeQuietly()
+            }
+        }
+    }
+
+    @Test
+    fun searcherJoiningAPlayingPublicTable_spectatesScrubbed_thenIsDealtInNextHand() = runTest {
+        val rooms = newRoomService()
+        val registry = newRegistry()
+        val wallets = InMemoryTestWalletRepository()
+        // Two searchers form a public table (system host, server-dealt).
+        val room = assertIs<com.dangerfield.cards.server.domain.MatchmakingResult.Created>(
+            rooms.findOrJoinPublic(host, "Host", 1_000, 1_000, emptySet()),
+        ).room
+        rooms.findOrJoinPublic(alice, "Alice", 1_000, 1_000, emptySet())
+
+        withRoomSocketTestApp(rooms, registry, wallets = wallets) { client ->
+            val hostSocket = client.connect(room.code, host)
+            val aliceSocket = client.connect(room.code, alice)
+            try {
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
+                // The server auto-deals once both are present.
+                hostSocket.receiveUntilGameState()
+
+                // Carol searches and is matched INTO the live table (mid-hand join).
+                assertIs<com.dangerfield.cards.server.domain.MatchmakingResult.Joined>(
+                    rooms.findOrJoinPublic(carol, "Carol", 1_000, 1_000, emptySet()),
+                )
+                val carolSocket = client.connect(room.code, carol)
+
+                // She spectates: her view of the live hand is fully scrubbed — no
+                // hole cards, since she holds no seat in it yet.
+                val spectated = carolSocket.receiveUntilGameState()
+                assertTrue(
+                    spectated.state.seats.none { it.holeCards.isNotEmpty() },
+                    "a mid-hand spectator sees no hole cards",
+                )
+
+                // Force the current hand Complete, then a seated player advances.
+                registry.peek(room.code)!!.hydrate(
+                    completeBothFunded(host, alice, rooms.find(room.code)!!.settings),
+                )
+                hostSocket.sendFrame(RoomClientFrame.RequestNextHand(clientNonce = "next"))
+
+                // Carol is dealt into the next hand — she now holds a seat.
+                val dealtIn = carolSocket.receiveUntilGameState { st ->
+                    st.seats.any { it.playerId == carol.value.toString() }
+                }
+                assertTrue(
+                    dealtIn.state.seats.any { it.playerId == carol.value.toString() },
+                    "the mid-hand joiner is dealt into the next hand",
+                )
             } finally {
                 hostSocket.closeQuietly()
                 aliceSocket.closeQuietly()

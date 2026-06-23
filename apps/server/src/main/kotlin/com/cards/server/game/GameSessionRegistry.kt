@@ -105,6 +105,17 @@ interface GameSessionRegistry {
     suspend fun rebuy(code: String, userId: String, clientNonce: String): IntentResult
 
     /**
+     * Queue a player who joined the room mid-hand to be dealt in at the next
+     * hand boundary (true mid-hand join). Resolves via [peek] and delegates to
+     * [GameSession.queueJoiner]; a no-op when no live session exists (the table
+     * is between games, so a normal next [startHand] from the room already seats
+     * them). [dequeueJoiner] drops one who left before being seated.
+     */
+    suspend fun queueJoiner(code: String, occupant: SeatOccupant)
+
+    suspend fun dequeueJoiner(code: String, userId: String)
+
+    /**
      * Fan a table emote out to every socket in the room. Resolves to the
      * in-memory session via [peek] (no hydrate — emotes only matter while
      * a hand is live and someone's watching the table) and delegates to
@@ -213,6 +224,14 @@ class DefaultGameSessionRegistry(
     override suspend fun rebuy(code: String, userId: String, clientNonce: String): IntentResult =
         peek(code)?.rebuy(userId, clientNonce)
             ?: IntentResult.Rejected("no game session for room $code")
+
+    override suspend fun queueJoiner(code: String, occupant: SeatOccupant) {
+        peek(code)?.queueJoiner(occupant)
+    }
+
+    override suspend fun dequeueJoiner(code: String, userId: String) {
+        peek(code)?.dequeueJoiner(userId)
+    }
 
     override fun broadcastEmoji(code: String, actorUserId: String, emoji: String): IntentResult =
         peek(code)?.emitEmoji(actorUserId, emoji)

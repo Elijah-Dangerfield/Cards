@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -43,6 +44,83 @@ class GameSessionTest {
 
     private fun GameSession.actingUserId(): String =
         state.value!!.let { s -> s.seats.first { it.index == s.actingSeatIndex }.playerId!! }
+
+    // ---------- mid-hand join (seat-at-next-hand queue) ----------
+
+    @Test
+    fun queuedJoiner_isDealtIn_atTheNextHand() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        runCurrent()
+        // Carol joins mid-hand — queued, not in the current hand's seats.
+        session.queueJoiner(carol)
+        runCurrent()
+        assertFalse(
+            session.state.value!!.seats.any { it.playerId == "carol" },
+            "a mid-hand joiner spectates the current hand, not seated yet",
+        )
+
+        // End the hand (heads-up forfeit → Complete), then deal the next.
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+        assertEquals(BettingRound.Complete, session.state.value!!.street)
+        val next = session.requestNextHand(actorUserId = "alice", clientNonce = "n1")
+        runCurrent()
+
+        assertIs<IntentResult.Accepted>(next)
+        assertEquals(
+            setOf("alice", "bob", "carol"),
+            session.state.value!!.seats.mapNotNull { it.playerId }.toSet(),
+            "the queued joiner is dealt into the next hand",
+        )
+    }
+
+    @Test
+    fun dequeuedJoiner_isNotDealtIn() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        runCurrent()
+        session.queueJoiner(carol)
+        session.dequeueJoiner("carol") // left before the next hand
+        runCurrent()
+
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+        session.requestNextHand(actorUserId = "alice", clientNonce = "n1")
+        runCurrent()
+
+        assertFalse(
+            session.state.value!!.seats.any { it.playerId == "carol" },
+            "a joiner who left before the boundary is never dealt in",
+        )
+    }
+
+    @Test
+    fun queuedJoiner_isClearedAfterBeingDealt_notReSeatedTheHandAfter() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        runCurrent()
+        session.queueJoiner(carol)
+
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+        session.requestNextHand(actorUserId = "alice", clientNonce = "n1") // carol dealt + queue cleared
+        runCurrent()
+        // Play this hand to Complete and advance again — carol shouldn't be
+        // re-added from a stale queue (she's already a real seat now).
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+        val before = session.state.value!!.seats.count { it.playerId == "carol" }
+        session.requestNextHand(actorUserId = "alice", clientNonce = "n2")
+        runCurrent()
+
+        assertEquals(1, before, "carol is one seat after being dealt")
+        assertEquals(
+            1,
+            session.state.value!!.seats.count { it.playerId == "carol" },
+            "the queue was cleared — carol isn't duplicated the hand after",
+        )
+    }
 
     // ---------- forfeitSeat (mid-hand leave) ----------
 

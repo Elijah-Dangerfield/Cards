@@ -173,6 +173,22 @@ class MatchmakingServiceTest {
     }
 
     @Test
+    fun find_seatsIntoAPlayingRoom_forMidHandJoin() = runTest {
+        val svc = service()
+        val first = assertIs<MatchmakingResult.Created>(svc.findOrJoinPublic(user(), "A", 5_000, 5_000, noBlocks)).room
+        svc.findOrJoinPublic(user(), "B", 5_000, 5_000, noBlocks) // now 2 humans
+        svc.markPlaying(first.code) // the table is mid-game
+
+        // A later searcher is matched INTO the live table (joins to be dealt in
+        // at the next hand) rather than spun off onto a fresh one.
+        val third = svc.findOrJoinPublic(user(), "C", 5_000, 5_000, noBlocks)
+
+        val joined = assertIs<MatchmakingResult.Joined>(third)
+        assertEquals(first.code, joined.room.code, "matched into the in-progress table")
+        assertEquals(3, joined.room.members.size)
+    }
+
+    @Test
     fun find_isIdempotentOnlyWithinTheRequestedRange_notAcrossTiers() = runTest {
         val svc = service()
         val me = user()

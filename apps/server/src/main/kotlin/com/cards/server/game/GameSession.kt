@@ -142,6 +142,13 @@ class GameSession internal constructor(
     // not infinite — we don't want to grow unbounded.
     private val processedNonces = ArrayDeque<String>()
 
+    // Players who joined the room mid-hand and are waiting to be dealt in.
+    // They watch the current hand as spectators (no seat in [_state]); the
+    // next [requestNextHand] folds them into the deal and clears the queue.
+    // Keyed by playerId so a re-queue (reconnect) replaces rather than
+    // duplicates, and [dequeueJoiner] can drop one who left before being seated.
+    private val pendingJoiners = LinkedHashMap<String, SeatOccupant>()
+
     /**
      * Open a new hand. Caller supplies the current room occupants
      * (humans + bots) and the room's settings. Stacks carry over from
@@ -365,7 +372,7 @@ class GameSession internal constructor(
         val isSeated = current.seats.any { it.playerId == actorUserId }
         if (!isSeated) return@withLock IntentResult.Rejected("not seated in this room")
 
-        val occupants = current.seats
+        val returning = current.seats
             .filter { it.playerId != null && it.stack > 0 }
             .map {
                 SeatOccupant(
@@ -382,6 +389,11 @@ class GameSession internal constructor(
                     xp = it.xp,
                 )
             }
+        // Fold in anyone who joined mid-hand (skip a stray collision with a
+        // returning seat), then clear the queue — they're being dealt now.
+        val returningIds = returning.mapTo(mutableSetOf()) { it.userId }
+        val occupants = returning + pendingJoiners.values.filter { it.userId !in returningIds }
+        pendingJoiners.clear()
         if (occupants.size < 2) {
             return@withLock IntentResult.Rejected("not enough players with chips for next hand")
         }
@@ -396,6 +408,22 @@ class GameSession internal constructor(
         ) {
             startHandLocked(occupants, settings)
         }
+    }
+
+    /**
+     * Queue a player who joined the room mid-hand to be dealt in at the next
+     * hand boundary. They spectate the current hand (no seat in [_state]) until
+     * the next [requestNextHand] seats them. Re-queuing the same playerId
+     * replaces the prior entry (e.g. a reconnect). No-op once they'd be a
+     * duplicate of a live seat — [requestNextHand] guards that too.
+     */
+    suspend fun queueJoiner(occupant: SeatOccupant): Unit = mutex.withLock {
+        pendingJoiners[occupant.userId] = occupant
+    }
+
+    /** Drop a queued joiner who left before being seated, so the next deal skips them. */
+    suspend fun dequeueJoiner(userId: String): Unit = mutex.withLock {
+        pendingJoiners.remove(userId)
     }
 
     /**

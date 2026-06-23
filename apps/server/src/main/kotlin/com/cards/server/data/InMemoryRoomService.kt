@@ -199,12 +199,15 @@ class InMemoryRoomService(
         }?.let { return@withLock MatchmakingResult.Joined(it.room) }
 
         // Atomic pick: eligible, joinable, in-range, no blocked member; prefer the
-        // most real humans (ties → oldest room, for stable convergence).
+        // most real humans (ties → oldest room, for stable convergence). A Playing
+        // room with a free seat is fair game — the searcher lands as a spectator
+        // and is dealt in at the next hand boundary (true mid-hand join). Only a
+        // Finished room is off-limits.
         val candidate = rooms.values
             .map { it.room }
             .filter { room ->
                 room.isMatchmakingEligible &&
-                    room.status == RoomStatus.Lobby &&
+                    room.status != RoomStatus.Finished &&
                     !room.isFull &&
                     room.buyIn in minBuyIn..maxBuyIn &&
                     room.members.none { it.userId in blockedUserIds }

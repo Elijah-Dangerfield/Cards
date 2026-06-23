@@ -153,6 +153,17 @@ fun Route.roomSocketRoutes(
                     .warn("Auto-start check failed for public room=$code", it)
             }
 
+            // True mid-hand join: a searcher matched into a table that's already
+            // playing connects here as a spectator of the live hand and is queued
+            // to be dealt in at the next boundary. No-op for the players already
+            // in the hand (reconnects) and for tables still in the lobby.
+            Catching {
+                queueMidHandJoinerIfNeeded(code, userId, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
+            }.onFailure {
+                LoggerFactory.getLogger("RoomSocket")
+                    .warn("Mid-hand join queue failed for room=$code user=$userId", it)
+            }
+
             // Hydrate from the durable snapshot before the game publisher
             // subscribes. Without this, a client reconnecting after a
             // server restart sees the lobby snapshot but no game-state
@@ -220,6 +231,10 @@ fun Route.roomSocketRoutes(
                                                     .warn("cashOut failed for room=$code user=${left.userId}", e)
                                             }
                                     }
+                                    // Drop them from the mid-hand-join queue if they
+                                    // left while still waiting to be dealt in, so the
+                                    // next hand never seats a gone player.
+                                    Catching { gameSessions.dequeueJoiner(code, left.userId) }
                                     Catching { gameSessions.forfeitSeat(code, left.userId) }
                                         .onFailure { e ->
                                             LoggerFactory.getLogger("RoomSocket")
@@ -722,6 +737,44 @@ internal suspend fun startPublicTableIfReady(
     val present = room.members.count { it.isBot || it.isConnected }
     if (present < 2) return IntentResult.Rejected("not enough present players")
     return dealFundedHand(room, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
+}
+
+/**
+ * Queue a member who connected mid-hand to be dealt in at the next hand boundary
+ * (true mid-hand join). Does nothing unless the room is mid-game with a live
+ * session and the caller isn't already holding a seat in it — so a player
+ * reconnecting to their own live hand, a bot, or anyone on a lobby table is left
+ * alone. On a real-stakes table the joiner's buy-in is escrowed now (so the seat
+ * is funded the moment it's dealt); if they can't afford it they stay a
+ * spectator and aren't queued. Should they leave before the next hand, the
+ * leave path cashes them back out and drops them from the queue.
+ */
+private suspend fun queueMidHandJoinerIfNeeded(
+    code: String,
+    userId: UserId,
+    rooms: RoomService,
+    gameSessions: GameSessionRegistry,
+    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
+    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
+    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+) {
+    val room = rooms.find(code) ?: return
+    if (room.status != RoomStatus.Playing) return
+    val session = gameSessions.peek(code) ?: return
+    val member = room.memberFor(userId) ?: return
+    if (member.bot != null) return
+    // Already in the live hand (a reconnect) → nothing to seat.
+    if (session.state.value?.seats?.any { it.playerId == userId.value.toString() } == true) return
+
+    if (isRealStakesTable(room)) {
+        when (tableSessions.sitDown(userId, code, room.buyIn, enforceEntryBar = room.visibility != RoomVisibility.Private)) {
+            is com.dangerfield.cards.server.domain.SitDownResult.BelowEntryBar,
+            is com.dangerfield.cards.server.domain.SitDownResult.InsufficientChips ->
+                return // can't afford the buy-in → spectate, don't queue a seat
+            else -> Unit // Funded, or already escrowed here → proceed
+        }
+    }
+    gameSessions.queueJoiner(code, seatOccupantFor(member, equipmentRepository, progressionRepository))
 }
 
 /**
