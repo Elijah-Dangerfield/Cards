@@ -116,6 +116,44 @@ class MatchmakingRoutesTest {
         }
     }
 
+    @Test
+    fun playBots_fillsDisclosedBots_andDealsTheTable() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            val me = UUID.randomUUID()
+            val token = jwt(me)
+            val code = client.find(token, 5_000, 5_000).body<MatchmakingFindResponse>().room.code
+
+            val resp = client.post("/v1/matchmaking/$code/play-bots") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<MatchmakingFindResponse>()
+
+            // Filled to the target with DISCLOSED bots — isBot=true on the wire,
+            // never masked as human.
+            assertEquals(4, body.room.members.size, "filled to the lively target")
+            val bots = body.room.members.filter { it.isBot }
+            assertEquals(3, bots.size, "1 human + 3 disclosed bots")
+            assertTrue(bots.all { it.isBot }, "fallback bots are disclosed, not stealth")
+            // The table dealt — server is the dealer for a public table.
+            assertEquals(RoomStatusDto.Playing, body.room.status)
+        }
+    }
+
+    @Test
+    fun playBots_onSomeoneElsesTable_returns403() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            val code = client.find(jwt(UUID.randomUUID()), 5_000, 5_000).body<MatchmakingFindResponse>().room.code
+            // A different user (not seated) can't conjure bots into that table.
+            val resp = client.post("/v1/matchmaking/$code/play-bots") {
+                header(HttpHeaders.Authorization, "Bearer ${jwt(UUID.randomUUID())}")
+            }
+            assertEquals(HttpStatusCode.Forbidden, resp.status)
+        }
+    }
+
     // --- harness ------------------------------------------------------------
 
     private suspend fun withApp(
@@ -129,7 +167,13 @@ class MatchmakingRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { matchmakingRoutes(rooms, friends, StubProfiles) }
+                val registry = com.dangerfield.cards.server.game.DefaultGameSessionRegistry(
+                    com.dangerfield.cards.server.game.NoOpSessionSnapshotStore(),
+                    Clock.System,
+                )
+                routing {
+                    matchmakingRoutes(rooms, friends, StubProfiles, registry, StubEquipment, StubProgression)
+                }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -162,6 +206,31 @@ class MatchmakingRoutesTest {
         override suspend fun listFriends(userId: UserId): List<UserId> = emptyList()
         override suspend fun listBlockedUserIds(userId: UserId): Set<UserId> = blocked
         override suspend fun listIncomingRequests(userId: UserId): List<UserId> = emptyList()
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    private object StubEquipment : com.dangerfield.cards.server.domain.EquipmentRepository {
+        override suspend fun listEquipped(userId: UserId) =
+            emptyList<com.dangerfield.cards.server.domain.EquippedItem>()
+        override suspend fun equip(userId: UserId, productId: String, newUpdatedAt: Instant) =
+            error("unused")
+        override suspend fun unequip(userId: UserId, productId: String, opUpdatedAt: Instant) = null
+    }
+
+    private object StubProgression : com.dangerfield.cards.server.domain.ProgressionRepository {
+        override suspend fun findOrCreateResult(userId: UserId) = error("unused")
+        override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.UserProgression? = null
+        override suspend fun applyXp(
+            userId: UserId,
+            idempotencyKey: String,
+            deltaXp: Long,
+            source: String,
+            mode: String,
+            handId: String?,
+            wasBoosted: Boolean,
+        ) = error("unused")
+        override suspend fun recentEvents(userId: UserId, limit: Int) =
+            emptyList<com.dangerfield.cards.server.domain.XpEvent>()
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
 

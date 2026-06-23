@@ -1,10 +1,17 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import com.dangerfield.cards.server.domain.EquipmentRepository
 import com.dangerfield.cards.server.domain.FriendRepository
 import com.dangerfield.cards.server.domain.MatchmakingResult
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.RoomService
+import com.dangerfield.cards.server.domain.RoomStatus
+import com.dangerfield.cards.server.domain.RoomVisibility
+import com.dangerfield.cards.server.domain.SYSTEM_HOST_USER_ID
+import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.plugins.MATCHMAKING_FIND_LIMIT
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
@@ -25,10 +32,14 @@ import io.ktor.server.routing.post
  *    range, else opens a fresh public table for them. Returns the room (the
  *    client opens its `/socket` next, exactly as for a private room) plus
  *    `created` for the created-vs-joined density metric.
+ *  - `POST /v1/matchmaking/{code}/play-bots` — the searcher consented to the
+ *    honest bot fallback ("we couldn't find enough players — play with bots").
+ *    Fills the caller's public table with DISCLOSED bots (🤖, bot badge — never
+ *    masked as human) up to a small target, then deals. Only the searcher's own
+ *    forming public table; idempotent once the table is playing.
  *
- * No bots are ever seated here — the disclosed bot fallback is a later,
- * consent-gated step. Cancelling a search is just the existing
- * `DELETE /v1/rooms/{code}/me`.
+ * `find` never seats a bot — the fallback is strictly opt-in via `play-bots`.
+ * Cancelling a search is just the existing `DELETE /v1/rooms/{code}/me`.
  *
  * The blocked-pair filter is computed *before* [RoomService.findOrJoinPublic]
  * (one indexed friend-graph read) and passed in, so the friend graph is never
@@ -53,9 +64,67 @@ fun Route.matchmakingRoutes(
     rooms: RoomService,
     friends: FriendRepository,
     profiles: ProfileRepository,
+    gameSessions: GameSessionRegistry,
+    equipmentRepository: EquipmentRepository,
+    progressionRepository: ProgressionRepository,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         rateLimit(RateLimitName(MATCHMAKING_FIND_LIMIT)) {
+            post("/v1/matchmaking/{code}/play-bots") {
+                val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                val code = call.parameters["code"]?.uppercase()
+                    ?: return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        matchmakingProblem("missing_code", "Room code is required."),
+                    )
+                val room = rooms.find(code)
+                    ?: return@post call.respond(
+                        HttpStatusCode.NotFound,
+                        matchmakingProblem("room_not_found", "No room with code $code."),
+                    )
+                // Only the searcher's OWN public table, and only while it's still
+                // forming — you can't conjure bots into someone else's game or a
+                // table that's already dealt.
+                if (room.visibility != RoomVisibility.Public) {
+                    return@post call.respond(
+                        HttpStatusCode.Conflict,
+                        matchmakingProblem("not_public", "Bot fallback is only for public tables."),
+                    )
+                }
+                if (room.memberFor(userId) == null) {
+                    return@post call.respond(
+                        HttpStatusCode.Forbidden,
+                        matchmakingProblem("not_a_member", "You're not seated at that table."),
+                    )
+                }
+                if (room.status != RoomStatus.Lobby) {
+                    // Already dealt — idempotent success so a double-tap is benign.
+                    return@post call.respond(
+                        HttpStatusCode.OK,
+                        MatchmakingFindResponse(room = room.toDto(), created = false),
+                    )
+                }
+
+                // Fill DISCLOSED bots up to the lively-but-fast target, then deal.
+                // requestedBy is the synthetic system host (a public table's host),
+                // so the host-only addBot gate passes.
+                var current = room
+                while (current.members.size < PUBLIC_BOT_FALLBACK_TARGET && !current.isFull) {
+                    val added = rooms.addBot(
+                        code = code,
+                        requestedBy = SYSTEM_HOST_USER_ID,
+                        difficulty = BotDifficulty.Standard,
+                        revealed = true,
+                    )
+                    current = (added as? com.dangerfield.cards.server.domain.AddBotResult.Success)?.room ?: break
+                }
+
+                startPublicTableIfReady(code, rooms, gameSessions, equipmentRepository, progressionRepository)
+
+                val dealt = rooms.find(code) ?: current
+                call.respond(HttpStatusCode.OK, MatchmakingFindResponse(room = dealt.toDto(), created = false))
+            }
+
             post("/v1/matchmaking/find") {
                 val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
                 val body = call.receive<MatchmakingFindRequest>()
@@ -106,3 +175,10 @@ fun Route.matchmakingRoutes(
 
 private fun matchmakingProblem(code: String, message: String): Map<String, Map<String, String>> =
     mapOf("error" to mapOf("code" to code, "message" to message))
+
+/**
+ * Seat target a bot-fallback public table fills to. Four is lively enough to
+ * feel like a real table and deals fast — a packed six reads as suspicious and
+ * plays slow. Real humans joining later trim the bots back down (Phase 3b).
+ */
+private const val PUBLIC_BOT_FALLBACK_TARGET = 4

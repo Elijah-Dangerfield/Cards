@@ -139,6 +139,9 @@ fun Application.installApp(
             rooms = component.roomService,
             friends = component.friendRepository,
             profiles = component.profileRepository,
+            gameSessions = component.gameSessionRegistry,
+            equipmentRepository = component.equipmentRepository,
+            progressionRepository = component.progressionRepository,
         )
         roomSocketRoutes(
             component.roomService,

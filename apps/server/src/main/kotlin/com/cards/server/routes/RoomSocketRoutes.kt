@@ -8,6 +8,7 @@ import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.Room
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
+import com.dangerfield.cards.server.domain.RoomVisibility
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.game.GameSessionRegistry
@@ -137,6 +138,18 @@ fun Route.roomSocketRoutes(
             // Info: one line per socket open anchors "user joined room at T" in
             // Loki — the backend bookend to the client's connection breadcrumb.
             LoggerFactory.getLogger("RoomSocket").info("Socket connected: room=$code user=$userId")
+
+            // Public tables have no human host to tap "Start", so the server
+            // deals once enough players are present. Idempotent — only the first
+            // connect that tips the table to playable actually starts a hand;
+            // every later connect no-ops. A bot-filled fallback table is started
+            // by the consent endpoint instead, not here.
+            Catching {
+                startPublicTableIfReady(code, rooms, gameSessions, equipmentRepository, progressionRepository)
+            }.onFailure {
+                LoggerFactory.getLogger("RoomSocket")
+                    .warn("Auto-start check failed for public room=$code", it)
+            }
 
             // Hydrate from the durable snapshot before the game publisher
             // subscribes. Without this, a client reconnecting after a
@@ -511,44 +524,7 @@ private suspend fun handleStartHand(
     if (room.hostUserId != userId) {
         return IntentResult.Rejected("only the host can start the hand")
     }
-    val occupants = room.members.map { member ->
-        val botSeat = member.bot
-        if (botSeat != null) {
-            // Bots carry no equipment / XP and aren't looked up in any repo;
-            // their personality rides along so the server bot driver can play
-            // them. The avatar is the reserved 🤖 only for a revealed bot.
-            SeatOccupant(
-                seatIndex = member.seatIndex,
-                userId = member.userId.value.toString(),
-                displayName = member.displayName,
-                isBot = true,
-                avatarEmoji = member.avatarEmoji.takeIf { it.isNotBlank() },
-                avatarBackgroundColor = member.avatarBackgroundColor,
-                bot = botSeat,
-            )
-        } else {
-            SeatOccupant(
-                seatIndex = member.seatIndex,
-                userId = member.userId.value.toString(),
-                displayName = member.displayName,
-                isBot = false,
-                // Resolve the player's equipped badges/titles once, here at
-                // hand-start — they ride the Seat to every opponent's client, which
-                // resolves each id to display metadata from its own catalog.
-                badgeProductIds = equipmentRepository.listEquipped(member.userId)
-                    .map { it.productId }
-                    .filter { it.startsWith("badge_") || it.startsWith("title_") },
-                // Avatar was snapshotted from the profile at join; ride it onto
-                // the Seat so opponents render the real avatar, not initials.
-                avatarEmoji = member.avatarEmoji.takeIf { it.isNotBlank() },
-                avatarBackgroundColor = member.avatarBackgroundColor,
-                // Resolve XP once here too — it rides the Seat so opponents derive
-                // the player's level client-side. Frozen per session (mirrors
-                // badges): preserved across hands rather than re-resolved.
-                xp = progressionRepository.find(member.userId)?.totalXp,
-            )
-        }
-    }
+    val occupants = buildStartOccupants(room, equipmentRepository, progressionRepository)
     if (occupants.size < 2) {
         return IntentResult.Rejected("need at least 2 players to start")
     }
@@ -558,6 +534,75 @@ private suspend fun handleStartHand(
     if (result is IntentResult.Accepted) {
         rooms.markPlaying(code)
     }
+    return result
+}
+
+/**
+ * Project a room's members into engine [SeatOccupant]s for hand-start. Bots
+ * carry their personality (so the server bot driver can play them) and no
+ * repo-looked-up metadata; humans get their equipped badges/titles, avatar, and
+ * XP resolved once here and frozen onto the Seat for the session. Shared by the
+ * host-driven [handleStartHand] and the server-driven [startPublicTableIfReady].
+ */
+internal suspend fun buildStartOccupants(
+    room: Room,
+    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
+    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+): List<SeatOccupant> = room.members.map { member ->
+    val botSeat = member.bot
+    if (botSeat != null) {
+        SeatOccupant(
+            seatIndex = member.seatIndex,
+            userId = member.userId.value.toString(),
+            displayName = member.displayName,
+            isBot = true,
+            avatarEmoji = member.avatarEmoji.takeIf { it.isNotBlank() },
+            avatarBackgroundColor = member.avatarBackgroundColor,
+            bot = botSeat,
+        )
+    } else {
+        SeatOccupant(
+            seatIndex = member.seatIndex,
+            userId = member.userId.value.toString(),
+            displayName = member.displayName,
+            isBot = false,
+            badgeProductIds = equipmentRepository.listEquipped(member.userId)
+                .map { it.productId }
+                .filter { it.startsWith("badge_") || it.startsWith("title_") },
+            avatarEmoji = member.avatarEmoji.takeIf { it.isNotBlank() },
+            avatarBackgroundColor = member.avatarBackgroundColor,
+            xp = progressionRepository.find(member.userId)?.totalXp,
+        )
+    }
+}
+
+/**
+ * Deal the first hand of a PUBLIC table once it's playable — the server is the
+ * dealer for public matchmaking (no human host to tap "Start"). Idempotent and
+ * safe to call on every socket connect + after a bot fallback: no-ops unless the
+ * room is a `Public` Lobby with no live session yet and at least two *present*
+ * seats (a connected human or a bot — never deals to a seat that only ever
+ * joined over HTTP and hasn't opened a socket). Open tables keep their human
+ * host's start; private rooms are never auto-dealt. Returns [IntentResult] for
+ * logging; callers ignore the benign "not ready" rejections.
+ */
+internal suspend fun startPublicTableIfReady(
+    code: String,
+    rooms: RoomService,
+    gameSessions: GameSessionRegistry,
+    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
+    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+): IntentResult {
+    val room = rooms.find(code) ?: return IntentResult.Rejected("room not found")
+    if (room.visibility != RoomVisibility.Public) return IntentResult.Rejected("not a public table")
+    if (room.status != RoomStatus.Lobby) return IntentResult.Accepted // already dealt
+    if (gameSessions.peek(code) != null) return IntentResult.Accepted // session already live
+    val present = room.members.count { it.isBot || it.isConnected }
+    if (present < 2) return IntentResult.Rejected("not enough present players")
+    val occupants = buildStartOccupants(room, equipmentRepository, progressionRepository)
+    if (occupants.size < 2) return IntentResult.Rejected("need at least 2 players")
+    val result = gameSessions.startHand(code, occupants, room.settings)
+    if (result is IntentResult.Accepted) rooms.markPlaying(code)
     return result
 }
 
