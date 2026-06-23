@@ -56,10 +56,11 @@ import io.ktor.server.routing.post
  *
  * A wallet check rejects a range whose top exceeds the caller's balance
  * (`insufficient_balance`, 400) — you can't search for a table you couldn't sit
- * at. This is the advisory affordability fence; the authoritative debit still
- * happens at the sit-down escrow (B3) once that lands.
+ * at. This is the advisory affordability fence; the authoritative debit is the
+ * sit-down escrow ([TableSessionService.sitDown], `mp_buyin`), which also applies
+ * the stricter public-table entry bar. Find is intentionally lenient (1× balance).
  *
- * Deferred to Phase 4 (escrow), tracked so they're explicit, not forgotten:
+ * Still open, tracked so it's explicit, not forgotten:
  *  - **No global public-room cap.** The per-IP rate limit + the GC-on-leave that
  *    reclaims a solo searcher's table before they can stack up another are the
  *    only ceilings on concurrent public rooms. A dedicated global cap (plan
