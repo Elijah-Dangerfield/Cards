@@ -1,6 +1,33 @@
 # MP Chip Buy-In Economy — Implementation Plan
 
-**Status:** planned · **Owner:** unassigned · **Created:** 2026-06-21
+**Status:** engine salvaged (dormant) · **Owner:** Phase 4 dev · **Created:** 2026-06-21 · **Updated:** 2026-06-23
+
+> **⚠️ READ FIRST (2026-06-23) — branch state changed; do NOT merge `feat/mp-chip-economy`.**
+> The server **escrow engine** from `feat/mp-chip-economy` has been **salvaged onto
+> `feat/public-matchmaking`** as a dormant, compiling, test-green slice (commit
+> `a8a0527b`). The original branch was stale (forked pre-room-refactor, never
+> merged, local-only until backed up to origin on 2026-06-23) and a blind merge
+> would explode on the room-module refactor + a `V60` migration collision.
+> **Build Phase 4 on the salvaged engine, not the branch.** The branch stays on
+> origin for reference only.
+>
+> **Already on `feat/public-matchmaking` (salvaged, dormant, green):**
+> `TableSessionService`/`Repository` (+Postgres), `DefaultTableSessionService`,
+> `WalletLedger`, `SeatStack`, the recovery sweep + their Testcontainers tests;
+> `table_sessions` schema as **`V67`** (renumbered from V60); `PostgresWalletRepository`
+> refactored to route balance moves through `WalletLedger`. The engine is bound
+> in DI but **unconsumed** — it ships inert until wired.
+>
+> **Still to do for Phase 4 (deliberately left out of the salvage — it collides
+> with matchmaking and is your job):**
+> - `StakeTier` on `Room` (the type already exists in `:libraries:gameplay`; carry it on the room so a seated game runs at its stakes).
+> - `SitDown` / `Rebuy` socket frames + `RoomSocketRoutes.handleSitDown()/handleRebuy()` + DI/`Application` wiring.
+> - Cash-out on leave / disconnect / room-teardown + the boot recovery sweep wiring.
+> - **Reconcile with develop's own rebuy:** develop independently shipped a rebuy UX (`85a4a455`, `9c7db005`) that overlaps the chip branch's client rebuy. Use develop's client; don't re-import the branch's.
+> - The matchmaking **disclosed-bot subsidy** (deferred from Phase 3): special-case `MultiplayerCredit` for public bot tables + capped real-coin payout + per-user daily cap + anomaly telemetry. See `MatchmakingRoutes` KDoc.
+> - Two MP correctness fixes that never reached develop and may still be live: `fix(mp): show showdown winner`, `fix(mp): late-subscriber deal drop` (on the chip branch; verify against develop's refactored client before porting).
+
+**Status:** ~~planned~~ superseded by the salvage above · **Created:** 2026-06-21
 
 ## Context & the product decision
 
@@ -16,11 +43,17 @@ Net wallet change = `stack_when_you_leave − buy_in`. You keep winnings, you ea
 
 Leave is framed as **cash-out, not penalty** (see UX below). Re-buy on bust. Settle on **every** exit path.
 
-## The key fact: most of this already exists on `feat/mp-chip-economy`
+## The key fact: the engine is already salvaged onto `feat/public-matchmaking`
 
-The `feat/mp-chip-economy` branch is a **complete, tested vertical slice** of exactly this economy. It is *dormant* (gated behind UI wiring + a "deal only funded players" enforcement flip) and sits ~16 commits behind `develop` (≈43 merge conflicts, almost all parameter-threading from the just-merged `feat/backend-bots` + `feat/configurable-buyin` PRs). **This plan is merge → reconcile → finish, not rebuild.** Reusing it beats rebuilding the atomicity + crash-recovery + test infrastructure from scratch.
+**(Superseded 2026-06-23 — see the banner at the top.)** The economy's server
+engine no longer needs a branch merge: it has been salvaged onto
+`feat/public-matchmaking` as a dormant, compiling, test-green slice. Do **not**
+merge `feat/mp-chip-economy` (stale, pre-refactor, migration-colliding). The
+sections below describe what the engine provides and what's left to wire — read
+them as "what's on your branch now (server)" + "what you still build (wiring +
+client + subsidy)", per the banner.
 
-### What the branch already provides (reuse as-is)
+### What the salvaged engine provides (already on your branch, reuse as-is)
 - **Server:** `TableSessionService.sitDown()/rebuy()/cashOut()`; `WalletLedger.applyInCurrentTransaction()` keyed `table:{sessionId}:{buyin|rebuy:n|cashout}`; `TableSessionRepository`; `DefaultTableSessionRecoverySweep` (boot-time cash-out of abandoned sessions from durable snapshots); `V60__table_sessions.sql` with a **partial unique index `(user_id) WHERE status <> 'closed'`** (double-spend guard) and a forward-only `open → closing → closed` status.
 - **Atomicity:** buy-in runs as one `database.transaction { table_sessions insert + wallet debit }`; rebuy/cash-out are safe under retry because the wallet movement is keyed.
 - **Wire:** `ClientFrame.SitDown(nonce)` / `Rebuy(nonce)`; `RoomSocketRoutes.handleSitDown()/handleRebuy()`; reuses the existing `IntentAck`/nonce routing.
