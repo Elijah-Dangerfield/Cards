@@ -154,6 +154,83 @@ class MatchmakingRoutesTest {
         }
     }
 
+    @Test
+    fun playBots_whenARealPlayerIsPresent_returns409_realPlayerPresent() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            val token = jwt(UUID.randomUUID())
+            // I open a table; a second real human finds the same tier and lands here.
+            val code = client.find(token, 5_000, 5_000).body<MatchmakingFindResponse>().room.code
+            client.find(jwt(UUID.randomUUID()), 5_000, 5_000) // 2nd human joins my table
+
+            // A real player is here now, so the bot fallback must refuse — we play
+            // the human, not bots.
+            val resp = client.post("/v1/matchmaking/$code/play-bots") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+            }
+            assertEquals(HttpStatusCode.Conflict, resp.status)
+        }
+    }
+
+    @Test
+    fun botFallbackTable_staysFindable_soALaterSearcherRescuesTheLonePlayer() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            val lonely = jwt(UUID.randomUUID())
+            val code = client.find(lonely, 5_000, 5_000).body<MatchmakingFindResponse>().room.code
+            // The lonely player gives up and plays bots — 1 human + 3 bots, dealing.
+            client.post("/v1/matchmaking/$code/play-bots") {
+                header(HttpHeaders.Authorization, "Bearer $lonely")
+            }
+
+            // A later searcher at the same tier must still land HERE (rescue), not a
+            // fresh table — a bot-fallback table stays matchmaking inventory.
+            val rescuer = client.find(jwt(UUID.randomUUID()), 5_000, 5_000).body<MatchmakingFindResponse>()
+            assertFalse(rescuer.created, "the searcher joins the bot table, not a new one")
+            assertEquals(code, rescuer.room.code)
+            assertEquals(2, rescuer.room.members.count { !it.isBot }, "two humans now share the table")
+        }
+    }
+
+    @Test
+    fun playBots_doubleTap_isIdempotent_doesNotOverfill() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            val token = jwt(UUID.randomUUID())
+            val code = client.find(token, 5_000, 5_000).body<MatchmakingFindResponse>().room.code
+            client.post("/v1/matchmaking/$code/play-bots") { header(HttpHeaders.Authorization, "Bearer $token") }
+
+            val second = client.post("/v1/matchmaking/$code/play-bots") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+            }
+            assertEquals(HttpStatusCode.OK, second.status, "a double-tap is benign")
+            assertEquals(4, second.body<MatchmakingFindResponse>().room.members.size, "never overfills past the target")
+        }
+    }
+
+    @Test
+    fun find_atADifferentTier_opensANewTable_ratherThanJoiningTheWrongStakes() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            val small = client.find(jwt(UUID.randomUUID()), 1_000, 1_000).body<MatchmakingFindResponse>()
+            val big = client.find(jwt(UUID.randomUUID()), 100_000, 100_000).body<MatchmakingFindResponse>()
+            assertTrue(big.created, "a different tier never seats you into the wrong stakes")
+            assertFalse(big.room.code == small.room.code)
+        }
+    }
+
+    @Test
+    fun reFind_sameUserSameTier_isIdempotent_returnsTheSameTable() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            val me = jwt(UUID.randomUUID())
+            val first = client.find(me, 5_000, 5_000).body<MatchmakingFindResponse>()
+            val again = client.find(me, 5_000, 5_000).body<MatchmakingFindResponse>()
+            assertEquals(first.room.code, again.room.code, "a double-tap doesn't mint a second table")
+            assertEquals(1, again.room.members.size, "still just me, not seated twice")
+        }
+    }
+
     // --- harness ------------------------------------------------------------
 
     private suspend fun withApp(
