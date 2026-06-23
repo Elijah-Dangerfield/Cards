@@ -334,7 +334,7 @@
     <string name="home_bot_setup_start_button">Start</string>
 
     <!-- Auth - shared back affordance + field labels used by every screen. -->
-    <string name="auth_back_button">← Back</string>
+    <string name="auth_back_button">Back</string>
     <string name="auth_field_email_label">Email</string>
     <string name="auth_field_password_label">Password</string>
 
