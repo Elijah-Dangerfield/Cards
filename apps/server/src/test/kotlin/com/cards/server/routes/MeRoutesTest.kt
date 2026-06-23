@@ -741,6 +741,8 @@ class MeRoutesTest {
 
         override suspend fun listFriends(userId: UserId): List<UserId> = emptyList()
 
+        override suspend fun listBlockedUserIds(userId: UserId): Set<UserId> = emptySet()
+
         override suspend fun listIncomingRequests(userId: UserId): List<UserId> = emptyList()
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit

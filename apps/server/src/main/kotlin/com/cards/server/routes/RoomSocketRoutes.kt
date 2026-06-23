@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.Room
 import com.dangerfield.cards.server.domain.RoomService
+import com.dangerfield.cards.server.domain.RoomStatus
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.game.GameSessionRegistry
@@ -42,6 +43,7 @@ import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import com.dangerfield.cards.libraries.gameplay.scrubbedFor
 
 /**
@@ -312,9 +314,16 @@ fun Route.roomSocketRoutes(
                 val afterDisconnect = rooms.markConnected(code, userId, connected = false)
                 val droppedAt = afterDisconnect?.memberFor(userId)?.disconnectedAt
                 if (droppedAt != null) {
+                    // Grace depends on what kind of room this is. A forming
+                    // public/open table (Lobby) frees an abandoned seat fast so
+                    // a searcher who quits the Searching screen doesn't leave a
+                    // ghost inflating "found N players"; a live hand (Playing),
+                    // public or private, keeps the full window so a mid-hand
+                    // cellular blip never loses the seat.
+                    val effectiveGrace = effectiveReaperGrace(afterDisconnect, reaperGrace)
                     app.launch {
                         try {
-                            delay(reaperGrace)
+                            delay(effectiveGrace)
                             rooms.reapIfStillDisconnected(code, userId, droppedAt)
                         } catch (_: CancellationException) {
                             // Server shutdown — leave the member; the
@@ -548,6 +557,28 @@ private suspend fun handleStartHand(
  * inside one hand of play.
  */
 val DEFAULT_REAPER_GRACE: Duration = 5.minutes
+
+/**
+ * Grace for a *forming* public/open table (Lobby, hand not yet dealt). Much
+ * shorter than [DEFAULT_REAPER_GRACE]: long enough to ride out the
+ * find → socket-open handshake and a brief blip, short enough that abandoning
+ * the Searching screen frees the seat fast so it never lingers as a ghost in
+ * another searcher's "found N players". Once the hand deals (Playing) the full
+ * window applies again — mid-hand reconnect is sacred.
+ */
+val FORMING_PUBLIC_REAPER_GRACE: Duration = 25.seconds
+
+/**
+ * The grace to apply for a member who just dropped from [room]. A forming
+ * public/open table (matchmaking-eligible, still in Lobby) gets the short
+ * [FORMING_PUBLIC_REAPER_GRACE]; everything else — a live hand, a private room —
+ * gets [default]. Extracted so the policy is unit-testable without standing up
+ * a socket.
+ */
+internal fun effectiveReaperGrace(room: Room?, default: Duration): Duration {
+    val forming = room != null && room.isMatchmakingEligible && room.status == RoomStatus.Lobby
+    return if (forming) FORMING_PUBLIC_REAPER_GRACE else default
+}
 
 private val JSON = Json {
     classDiscriminator = "type"

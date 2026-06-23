@@ -122,6 +122,14 @@ class PostgresFriendRepository(
             .map { it.otherMember(userId.value) }
     }
 
+    override suspend fun listBlockedUserIds(userId: UserId): Set<UserId> = database.transaction {
+        FriendRelationsTable
+            .selectAll()
+            .where { (FriendRelationsTable.state eq STATE_BLOCKED) and userIsMember(userId.value) }
+            .map { it.otherMember(userId.value) }
+            .toSet()
+    }
+
     override suspend fun listIncomingRequests(userId: UserId): List<UserId> = database.transaction {
         FriendRelationsTable
             .selectAll()

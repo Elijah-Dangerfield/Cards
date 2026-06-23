@@ -114,6 +114,31 @@ data class ActiveRoomsResponse(
     val rooms: List<RoomDto>,
 )
 
+/**
+ * POST /v1/matchmaking/find body — the buy-in RANGE the searcher set on the
+ * Find screen. The matchmaker seats them into an eligible room whose buy-in is
+ * in `[minBuyIn, maxBuyIn]`, else opens a fresh public table snapped to a
+ * canonical tier in range.
+ */
+@Serializable
+data class MatchmakingFindRequest(
+    val minBuyIn: Long,
+    val maxBuyIn: Long,
+)
+
+@Serializable
+data class MatchmakingFindResponse(
+    val schemaVersion: Int = 1,
+    val room: RoomDto,
+    /**
+     * True when the matchmaker opened a NEW table for this searcher (no
+     * eligible room existed), false when it seated them into an existing one.
+     * Drives the "is there organic density yet?" metric; the client just opens
+     * `room.code`'s socket either way.
+     */
+    val created: Boolean,
+)
+
 @OptIn(ExperimentalTime::class)
 internal fun Room.toDto(): RoomDto = RoomDto(
     code = code,

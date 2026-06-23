@@ -237,6 +237,8 @@ class FriendsRoutesTest {
 
         override suspend fun listFriends(userId: UserId): List<UserId> = friends
 
+        override suspend fun listBlockedUserIds(userId: UserId): Set<UserId> = emptySet()
+
         override suspend fun listIncomingRequests(userId: UserId): List<UserId> = incoming
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit

@@ -52,6 +52,15 @@ interface FriendRepository {
     suspend fun listFriends(userId: UserId): List<UserId>
 
     /**
+     * Every user in a `blocked` pair with [userId], in *either* direction — both
+     * the ones [userId] blocked and the ones who blocked [userId]. The public
+     * matchmaker reads this once per search and refuses to seat [userId] into a
+     * room containing any of them (a block keeps the two apart regardless of who
+     * initiated it). Returned as a set — order is irrelevant for the filter.
+     */
+    suspend fun listBlockedUserIds(userId: UserId): Set<UserId>
+
+    /**
      * The senders of pending inbound requests to [userId], most-recent-first
      * (requests [userId] can accept/decline).
      */
