@@ -209,6 +209,85 @@ class PokerScenarioMpTest : PokerScenarioTest() {
         assertFalse(s.events.events.contains(PlayPokerEvent.OpponentsLeft))
     }
 
+    @Test
+    fun opponentsLeft_firesOnceOnlyWhenTheLastHumanRemains() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+
+        // Three humans seated.
+        s.serverConnection(
+            RoomConnection.Connected(roomWith(member(MP_LOCAL_USER), member("p2"), member("p3"))),
+        )
+        // One leaves — still two humans, so no signal yet.
+        s.serverConnection(RoomConnection.Connected(roomWith(member(MP_LOCAL_USER), member("p3"))))
+        assertFalse(
+            s.events.events.contains(PlayPokerEvent.OpponentsLeft),
+            "two humans remain — not yet the last one standing",
+        )
+
+        // The second opponent leaves — now the local player is alone.
+        s.serverConnection(RoomConnection.Connected(roomWith(member(MP_LOCAL_USER))))
+
+        assertEquals(
+            1,
+            s.events.events.count { it == PlayPokerEvent.OpponentsLeft },
+            "OpponentsLeft fires exactly once on the drop to the last human",
+        )
+    }
+
+    @Test
+    fun realMpBust_opensHandResult_andStateIsRealMultiplayer() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        val board = cards("Ah Kd 7c 2s 9h")
+
+        // Showdown snapshot: the local human is busted (stack 0), peer wins.
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 0, holeCards = cards("Qs Qd")),
+                    mpSeat(1, playerId = "peer", stack = 2_000, holeCards = cards("As Ad")),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+                community = board,
+            ),
+        )
+        s.serverEvent(
+            GameEvent.HandEnded(
+                sequence = 7,
+                winners = listOf(HandWinner(seatIndex = 1, amount = 2_000, handRank = null, byFold = false)),
+                board = board,
+                revealedHoleCards = mapOf(0 to cards("Qs Qd"), 1 to cards("As Ad")),
+            ),
+        )
+
+        assertTrue(
+            s.vm.state.isRealMultiplayer,
+            "two humans, no bots-only → the screen shows the terminal MP bust dialog",
+        )
+        assertTable(s.table) {
+            handResultShowing()
+            seatBusted(seat = 0)
+        }
+    }
+
+    @Test
+    fun staleSnapshot_fromAnEarlierHand_isDropped() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        val seats = listOf(mpSeat(0, playerId = MP_LOCAL_USER), mpSeat(1, playerId = "peer"))
+
+        // Live on hand 2, the local player to act.
+        s.serverSnapshot(mpTable(seats = seats, actingSeatIndex = 0, handNumber = 2, lastSequence = 5))
+        assertTable(s.table) { handNumber(2); isHumanTurn(true) }
+
+        // A late, out-of-order hand-1 snapshot must not clobber the live table.
+        s.serverSnapshot(mpTable(seats = seats, actingSeatIndex = 1, handNumber = 1, lastSequence = 99))
+
+        assertTable(s.table) {
+            handNumber(2)
+            isHumanTurn(true)
+        }
+    }
+
     private fun member(userId: String, isBot: Boolean = false): RoomMember = RoomMember(
         userId = userId,
         displayName = userId,

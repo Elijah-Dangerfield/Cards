@@ -24,6 +24,7 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.review.ReviewTrigger
+import com.dangerfield.cards.libraries.ui.components.PlayerBadge
 import com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle
 import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import kotlinx.coroutines.launch
@@ -1139,6 +1140,66 @@ class PlayPokerViewModelTest : CoroutineTest() {
         val vm = buildVm()
         vm.takeAction(PlayPokerAction.WinOddsChanged(breakdown = null))
         assertEquals(null, vm.state.humanWinOdds)
+    }
+
+    @Test
+    fun markWinOddsFlipHintSeen_writesThroughToAppCache() = runUnitTest {
+        val cache = FakeAppCache()
+        val vm = buildVm(appCache = cache)
+        assertEquals(false, cache.get().winOddsFlipHintSeen)
+
+        vm.takeAction(PlayPokerAction.MarkWinOddsFlipHintSeen)
+
+        assertEquals(true, cache.get().winOddsFlipHintSeen)
+    }
+
+    @Test
+    fun equippedBadgesChanged_mirrorsList() = runUnitTest {
+        val badges = listOf(PlayerBadge(productId = "badge_1", emoji = "🔥", name = "Hot Streak"))
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.EquippedBadgesChanged(badges))
+        assertEquals(badges, vm.state.equippedBadges)
+    }
+
+    // ---------- Out-of-order / non-happy-path FSM ----------
+
+    @Test
+    fun remoteEmote_fromUnknownSeat_isIgnored() = runUnitTest {
+        val vm = buildVm(factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER))
+        advanceUntilIdle() // let the first snapshot project an Active table
+
+        vm.takeAction(PlayPokerAction.RemoteEmoteReceived(seatIndex = 99, emoji = "🎉"))
+
+        assertEquals(null, vm.state.emojiBlast, "an emote for a seat not at the table is dropped")
+    }
+
+    @Test
+    fun achievementsEarned_setsRecentlyEarned_andClearsAwaiting_evenWithoutPriorPending() = runUnitTest {
+        // The pending→earned ordering is the happy path; this pins that a bare
+        // AchievementsEarned (e.g. a late async resolve) still lands correctly.
+        val earned = listOf(testEarnedAchievement())
+        val vm = buildVm()
+
+        vm.takeAction(PlayPokerAction.AchievementsEarned(earned))
+
+        assertEquals(earned, vm.state.recentlyEarned)
+        assertEquals(false, vm.state.awaitingHandEndAchievements)
+    }
+
+    @Test
+    fun requestNextHand_whileAwaitingAchievements_signalsSession_andClearsHandTransients() = runUnitTest {
+        val session = FakePokerSession()
+        val vm = buildVm(factory = FakePokerSessionFactory(session = session))
+        // Mid-hand-end: achievements still computing, an XP award already landed.
+        vm.takeAction(PlayPokerAction.HandEndAchievementsPending)
+        vm.takeAction(PlayPokerAction.HandXpAwarded(amount = 42))
+        assertEquals(true, vm.state.awaitingHandEndAchievements)
+
+        vm.takeAction(PlayPokerAction.RequestNextHand)
+
+        assertEquals(1, session.requestNextHandCount, "next hand is still requested")
+        assertEquals(null, vm.state.lastHandXpAwarded, "stale hand-end XP is cleared")
+        assertTrue(vm.state.recentlyEarned.isEmpty(), "stale earned list is cleared")
     }
 
     // ---------- Helpers ----------
