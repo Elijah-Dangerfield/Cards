@@ -1,5 +1,9 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.IntentRejectedException
+import com.dangerfield.cards.features.room.impl.session.IntentTimeoutException
+import com.dangerfield.cards.features.room.impl.session.RemotePokerSession
+
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.game.ConnectionState
@@ -438,6 +442,77 @@ class RemotePokerSessionTest : CoroutineTest() {
         advanceTimeBy(RemotePokerSession.INTENT_TIMEOUT_MS + 500)
         runCurrent()
         submitJob.join()
+
+        assertIs<IntentTimeoutException>(outcome?.exceptionOrNull())
+        runJob.cancel()
+    }
+
+    // ---------------------------------------------------------------
+    // rebuy() — accept, reject, timeout (ack round-trip like submit)
+    // ---------------------------------------------------------------
+
+    @Test
+    fun rebuy_sendsRebuyFrame_andCompletes_onAccepted() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val runJob = launch { session.run() }
+        runCurrent()
+
+        var outcome: Result<Unit>? = null
+        val rebuyJob = launch { outcome = runCatching { session.rebuy() } }
+        runCurrent()
+
+        val rebuyFrame = assertIs<ClientFrame.Rebuy>(handle.sent.single())
+        handle.pushFrame(
+            GameplayFrame.IntentAck(clientNonce = rebuyFrame.clientNonce, accepted = true, error = null),
+        )
+        runCurrent()
+        rebuyJob.join()
+
+        assertTrue(outcome?.isSuccess == true, "expected accepted; got $outcome")
+        runJob.cancel()
+    }
+
+    @Test
+    fun rebuy_throwsIntentRejected_onAckRejection() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val runJob = launch { session.run() }
+        runCurrent()
+
+        var outcome: Result<Unit>? = null
+        val rebuyJob = launch { outcome = runCatching { session.rebuy() } }
+        runCurrent()
+        val rebuyFrame = handle.sent.single() as ClientFrame.Rebuy
+        handle.pushFrame(
+            GameplayFrame.IntentAck(
+                clientNonce = rebuyFrame.clientNonce,
+                accepted = false,
+                error = "insufficient chips",
+            ),
+        )
+        runCurrent()
+        rebuyJob.join()
+
+        val ex = outcome?.exceptionOrNull()
+        assertIs<IntentRejectedException>(ex)
+        assertEquals("insufficient chips", ex.reason)
+        runJob.cancel()
+    }
+
+    @Test
+    fun rebuy_throwsIntentTimeout_whenNoAckArrives() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val runJob = launch { session.run() }
+        runCurrent()
+
+        var outcome: Result<Unit>? = null
+        val rebuyJob = launch { outcome = runCatching { session.rebuy() } }
+        runCurrent()
+        advanceTimeBy(RemotePokerSession.INTENT_TIMEOUT_MS + 500)
+        runCurrent()
+        rebuyJob.join()
 
         assertIs<IntentTimeoutException>(outcome?.exceptionOrNull())
         runJob.cancel()

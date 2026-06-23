@@ -1,11 +1,7 @@
 package com.dangerfield.cards.features.shop.impl
 
-import com.dangerfield.cards.libraries.billing.BillingClient
-import com.dangerfield.cards.libraries.billing.BillingPlatform
-import com.dangerfield.cards.libraries.billing.ConnectionState
-import com.dangerfield.cards.libraries.billing.PurchaseResult
-import com.dangerfield.cards.libraries.billing.PurchaseTransaction
-import com.dangerfield.cards.libraries.billing.QueryProductsResult
+import com.dangerfield.cards.libraries.billing.IapPurchaseOutcome
+import com.dangerfield.cards.libraries.billing.PurchaseChipPackUseCase
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
@@ -21,24 +17,12 @@ import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.auth.AuthRepository
-import com.dangerfield.cards.libraries.identity.auth.AuthState
-import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
-import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
-import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
-import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
-import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
-import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
-import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
-import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
-import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.products.ProductsRepository
 import com.dangerfield.cards.libraries.products.StoreSku
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
@@ -365,126 +349,82 @@ class ShopViewModelTest : CoroutineTest() {
     }
 
     // ---------- IAP path ----------
+    //
+    // The billing round-trip (store purchase, chip credit, acknowledge,
+    // anonymous gating) now lives in PurchaseChipPackUseCase — covered by
+    // DefaultPurchaseChipPackUseCaseTest in :libraries:billing:impl. The VM's
+    // remaining job is to invoke the use case and map its outcome to the right
+    // ShopEvent. These tests pin that mapping.
 
     @Test
-    fun confirmIapPack_success_creditsChips_emitsPurchaseFinished() = runUnitTest {
+    fun confirmIapPack_invokesUseCase_andEmitsPurchaseFinished() = runUnitTest {
         val inv = FakeInventoryRepository()
-        val billing = FakeBillingClient(nextResult = PurchaseResult.Success(SAMPLE_TRANSACTION))
-        val chips = FakeChipsRepository(initialBalance = 0)
-        val vm = buildVm(inventoryRepository = inv, chipsRepository = chips, billingClient = billing)
+        val purchase = FakePurchaseChipPackUseCase(
+            nextOutcome = IapPurchaseOutcome.Success(grantedChips = 30_000),
+        )
+        val vm = buildVm(inventoryRepository = inv, purchaseChipPack = purchase)
         val received = mutableListOf<ShopEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
         val pack = SAMPLE_CATALOG.chipPacks.first()
 
         vm.takeAction(ShopAction.ConfirmPurchase(pack))
 
-        assertEquals(1, billing.purchaseCalls, "billing client should have been called once")
-        assertEquals(pack.grantsChips, chips.getBalance(), "chips should be credited locally")
-        assertEquals(1, billing.acknowledgeCalls, "purchase should be acknowledged on success")
+        assertEquals(listOf(pack), purchase.calls, "use case invoked once with the pack")
         val event = received.firstOrNull { it is ShopEvent.PurchaseFinished }
         assertNotNull(event)
         val outcome = (event as ShopEvent.PurchaseFinished).outcome
         assertTrue(outcome is IapPurchaseOutcome.Success, "got: $outcome")
-        assertEquals(pack.grantsChips, (outcome as IapPurchaseOutcome.Success).grantedChips)
         // IAP doesn't touch the inventory table — chip packs are not cosmetics.
         assertTrue(inv.redeemCalls.isEmpty())
     }
 
     @Test
-    fun confirmIapPack_cancel_doesNotCreditChips_emitsCancelledOutcome() = runUnitTest {
-        val billing = FakeBillingClient(nextResult = PurchaseResult.UserCancelled)
-        val chips = FakeChipsRepository(initialBalance = 0)
-        val vm = buildVm(chipsRepository = chips, billingClient = billing)
+    fun confirmIapPack_cancel_emitsCancelledOutcome() = runUnitTest {
+        val purchase = FakePurchaseChipPackUseCase(nextOutcome = IapPurchaseOutcome.Cancelled)
+        val vm = buildVm(purchaseChipPack = purchase)
         val received = mutableListOf<ShopEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
 
         vm.takeAction(ShopAction.ConfirmPurchase(SAMPLE_CATALOG.chipPacks.first()))
 
-        assertEquals(0L, chips.getBalance(), "no chip credit on user cancel")
-        assertEquals(0, billing.acknowledgeCalls, "nothing to acknowledge on cancel")
         val event = received.firstOrNull { it is ShopEvent.PurchaseFinished }
         assertEquals(IapPurchaseOutcome.Cancelled, (event as ShopEvent.PurchaseFinished).outcome)
     }
 
     @Test
-    fun confirmIapPack_alreadyOwned_creditsChips_andEmitsAlreadyOwned() = runUnitTest {
-        val billing = FakeBillingClient(
-            nextResult = PurchaseResult.AlreadyOwned(SAMPLE_TRANSACTION),
-        )
-        val chips = FakeChipsRepository(initialBalance = 0)
-        val vm = buildVm(chipsRepository = chips, billingClient = billing)
-        val received = mutableListOf<ShopEvent>()
-        backgroundScope.launch { vm.eventFlow.collect { received += it } }
-        val pack = SAMPLE_CATALOG.chipPacks.first()
-
-        vm.takeAction(ShopAction.ConfirmPurchase(pack))
-
-        // Treat as idempotent: re-credit so a lost-purchase client recovers.
-        assertEquals(pack.grantsChips, chips.getBalance())
-        val event = received.firstOrNull { it is ShopEvent.PurchaseFinished }
-        val outcome = (event as ShopEvent.PurchaseFinished).outcome
-        assertTrue(outcome is IapPurchaseOutcome.AlreadyOwned, "got: $outcome")
-    }
-
-    @Test
-    fun confirmIapPack_storeNotConnected_emitsStoreUnavailable_noChipChange() = runUnitTest {
-        val billing = FakeBillingClient(nextResult = PurchaseResult.NotConnected)
-        val chips = FakeChipsRepository(initialBalance = 0)
-        val vm = buildVm(chipsRepository = chips, billingClient = billing)
+    fun confirmIapPack_storeUnavailable_emitsStoreUnavailable() = runUnitTest {
+        val purchase = FakePurchaseChipPackUseCase(nextOutcome = IapPurchaseOutcome.StoreUnavailable)
+        val vm = buildVm(purchaseChipPack = purchase)
         val received = mutableListOf<ShopEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
 
         vm.takeAction(ShopAction.ConfirmPurchase(SAMPLE_CATALOG.chipPacks.first()))
 
-        assertEquals(0L, chips.getBalance())
         val event = received.firstOrNull { it is ShopEvent.PurchaseFinished }
         assertEquals(IapPurchaseOutcome.StoreUnavailable, (event as ShopEvent.PurchaseFinished).outcome)
     }
 
     @Test
-    fun confirmIapPack_noSession_emitsNotSignedIn_doesNotCallBilling() = runUnitTest {
-        // No Supabase session at all (offline cold start, anon sign-in
-        // disabled). There's no userId to forward, so the store can't be
-        // reached — surface NotSignedIn rather than crashing.
-        val billing = FakeBillingClient(nextResult = PurchaseResult.Success(SAMPLE_TRANSACTION))
-        val identity = FakeAuthRepository(initialState = AuthState.Unauthenticated())
-        val vm = buildVm(billingClient = billing, authRepository = identity)
-        val received = mutableListOf<ShopEvent>()
-        backgroundScope.launch { vm.eventFlow.collect { received += it } }
-
-        vm.takeAction(ShopAction.ConfirmPurchase(SAMPLE_CATALOG.chipPacks.first()))
-
-        assertEquals(0, billing.purchaseCalls, "should not call billing without a userId")
-        val event = received.firstOrNull { it is ShopEvent.PurchaseFinished }
-        assertEquals(IapPurchaseOutcome.NotSignedIn, (event as ShopEvent.PurchaseFinished).outcome)
-    }
-
-    @Test
-    fun confirmIapPack_anonymousUser_emitsClaimAccountRequired_doesNotCallBilling() = runUnitTest {
-        // Real-money IAP is gated behind account claim: an anonymous
-        // (un-linked) Supabase user is routed to the claim flow instead of
-        // the platform purchase sheet, killing the "paid then lost the
-        // account" risk at the source.
-        val billing = FakeBillingClient(nextResult = PurchaseResult.Success(SAMPLE_TRANSACTION))
-        val identity = FakeAuthRepository(
-            initialState = AuthState.Authenticated(
-                userId = SAMPLE_USER_ID,
-                isAnonymous = true,
-                email = null,
-            ),
+    fun confirmIapPack_anonymousUser_emitsClaimAccountRequired() = runUnitTest {
+        // The use case returns ClaimAccountRequired for an anonymous user; the
+        // VM folds that into its dedicated ShopEvent.ClaimAccountRequired (it
+        // never rides PurchaseFinished).
+        val purchase = FakePurchaseChipPackUseCase(
+            nextOutcome = IapPurchaseOutcome.ClaimAccountRequired,
         )
-        val chips = FakeChipsRepository(initialBalance = 0)
-        val vm = buildVm(billingClient = billing, authRepository = identity, chipsRepository = chips)
+        val vm = buildVm(purchaseChipPack = purchase)
         val received = mutableListOf<ShopEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
 
         vm.takeAction(ShopAction.ConfirmPurchase(SAMPLE_CATALOG.chipPacks.first()))
 
-        assertEquals(0, billing.purchaseCalls, "anonymous users must not reach billing")
-        assertEquals(0L, chips.getBalance(), "no chips credited when routed to claim")
         assertTrue(
             received.any { it is ShopEvent.ClaimAccountRequired },
             "expected ClaimAccountRequired, got: $received",
+        )
+        assertFalse(
+            received.any { it is ShopEvent.PurchaseFinished },
+            "claim signal must not also fire PurchaseFinished",
         )
     }
 
@@ -525,14 +465,7 @@ class ShopViewModelTest : CoroutineTest() {
         inventoryRepository: FakeInventoryRepository = FakeInventoryRepository(),
         chipsRepository: FakeChipsRepository = FakeChipsRepository(),
         progressionRepository: FakeProgressionRepository = FakeProgressionRepository(),
-        billingClient: FakeBillingClient = FakeBillingClient(),
-        authRepository: FakeAuthRepository = FakeAuthRepository(
-            initialState = AuthState.Authenticated(
-                userId = SAMPLE_USER_ID,
-                isAnonymous = false,
-                email = null,
-            ),
-        ),
+        purchaseChipPack: FakePurchaseChipPackUseCase = FakePurchaseChipPackUseCase(),
         equipmentRepository: FakeEquipmentRepository = FakeEquipmentRepository(),
         xpBoostRepository: FakeXpBoostRepository = FakeXpBoostRepository(),
         deepLinkBus: FakeShopDeepLinkBus = FakeShopDeepLinkBus(),
@@ -543,12 +476,21 @@ class ShopViewModelTest : CoroutineTest() {
         chipsRepository = chipsRepository,
         progressionRepository = progressionRepository,
         progressionConfig = progressionConfig,
-        billingClient = billingClient,
-        authRepository = authRepository,
+        purchaseChipPack = purchaseChipPack,
         equipmentRepository = equipmentRepository,
         xpBoostRepository = xpBoostRepository,
         deepLinkBus = deepLinkBus,
     )
+
+    private class FakePurchaseChipPackUseCase(
+        var nextOutcome: IapPurchaseOutcome = IapPurchaseOutcome.Success(grantedChips = 0),
+    ) : PurchaseChipPackUseCase {
+        val calls = mutableListOf<Product.ChipPack>()
+        override suspend fun invoke(pack: Product.ChipPack): IapPurchaseOutcome {
+            calls += pack
+            return nextOutcome
+        }
+    }
 
     private class FakeProgressionConfig(
         private val curve: LevelCurve = DefaultLevelCurve,
@@ -711,65 +653,6 @@ class ShopViewModelTest : CoroutineTest() {
         fun emit(value: Long?) { state.value = value }
     }
 
-    private class FakeBillingClient(
-        var nextResult: PurchaseResult = PurchaseResult.Success(SAMPLE_TRANSACTION),
-    ) : BillingClient {
-        var purchaseCalls: Int = 0
-            private set
-        var lastPurchaseSku: String? = null
-            private set
-        var lastPurchaseUserId: String? = null
-            private set
-        var acknowledgeCalls: Int = 0
-            private set
-
-        private val _connectionState = MutableStateFlow(ConnectionState.Connected)
-        override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
-
-        override suspend fun connect(): ConnectionState = ConnectionState.Connected
-        override suspend fun queryProducts(skus: Set<String>): QueryProductsResult =
-            QueryProductsResult.Success(products = emptyMap())
-
-        override suspend fun purchase(sku: String, userId: String): PurchaseResult {
-            purchaseCalls += 1
-            lastPurchaseSku = sku
-            lastPurchaseUserId = userId
-            return nextResult
-        }
-
-        override suspend fun acknowledge(purchaseToken: String): Boolean {
-            acknowledgeCalls += 1
-            return true
-        }
-    }
-
-    private class FakeAuthRepository(
-        initialState: AuthState = AuthState.Unauthenticated(),
-    ) : AuthRepository {
-        private val _state = MutableStateFlow(initialState)
-        override suspend fun current(): AuthState = _state.value
-        override fun observe(): Flow<AuthState> = _state.asStateFlow()
-        override suspend fun retry(): AuthState = _state.value
-
-        override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
-            error("not used in shop tests")
-        override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome =
-            error("not used in shop tests")
-        override suspend fun refreshSession(): RefreshOutcome = error("not used in shop tests")
-        override suspend fun resendVerificationEmail(email: String): ResendOutcome =
-            error("not used in shop tests")
-        override suspend fun sendPasswordResetEmail(email: String): SendResetOutcome =
-            error("not used in shop tests")
-        override suspend fun signOut() = error("not used in shop tests")
-        override suspend fun deleteAccount(): DeleteAccountOutcome = error("not used in shop tests")
-        override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =
-            error("not used in shop tests")
-        override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome =
-            error("not used in shop tests")
-        override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome =
-            error("not used in shop tests")
-    }
-
     companion object {
         private val SAMPLE_CATALOG = ProductCatalog(
             chipPacks = listOf(
@@ -841,17 +724,6 @@ class ShopViewModelTest : CoroutineTest() {
             state = PurchaseState.Pending,
             purchasedAtEpochMs = 1000L,
             costChipsAtPurchase = 2_500L,
-        )
-
-        private const val SAMPLE_USER_ID = "11111111-1111-1111-1111-111111111111"
-
-        private val SAMPLE_TRANSACTION = PurchaseTransaction(
-            sku = "chips_small",
-            orderId = "fake-order-1",
-            purchaseToken = "fake-token-1",
-            platform = BillingPlatform.Fake,
-            purchasedAtEpochMs = 0L,
-            displayPrice = "$0.99",
         )
     }
 

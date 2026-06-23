@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.game
 
 import com.dangerfield.cards.libraries.gameplay.BettingRound
+import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.domain.HandOutcome
@@ -10,6 +11,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -37,6 +39,233 @@ class GameSessionTest {
     private val bob = SeatOccupant(seatIndex = 1, userId = "bob", displayName = "Bob", isBot = false)
 
     private fun newSession() = GameSession(random = Random(seed = 42))
+
+    private val carol = SeatOccupant(seatIndex = 2, userId = "carol", displayName = "Carol", isBot = false)
+
+    private fun GameSession.actingUserId(): String =
+        state.value!!.let { s -> s.seats.first { it.index == s.actingSeatIndex }.playerId!! }
+
+    // ---------- mid-hand join (seat-at-next-hand queue) ----------
+
+    @Test
+    fun queuedJoiner_isDealtIn_atTheNextHand() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        runCurrent()
+        // Carol joins mid-hand — queued, not in the current hand's seats.
+        session.queueJoiner(carol)
+        runCurrent()
+        assertFalse(
+            session.state.value!!.seats.any { it.playerId == "carol" },
+            "a mid-hand joiner spectates the current hand, not seated yet",
+        )
+
+        // End the hand (heads-up forfeit → Complete), then deal the next.
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+        assertEquals(BettingRound.Complete, session.state.value!!.street)
+        val next = session.requestNextHand(actorUserId = "alice", clientNonce = "n1")
+        runCurrent()
+
+        assertIs<IntentResult.Accepted>(next)
+        assertEquals(
+            setOf("alice", "bob", "carol"),
+            session.state.value!!.seats.mapNotNull { it.playerId }.toSet(),
+            "the queued joiner is dealt into the next hand",
+        )
+    }
+
+    @Test
+    fun dequeuedJoiner_isNotDealtIn() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        runCurrent()
+        session.queueJoiner(carol)
+        session.dequeueJoiner("carol") // left before the next hand
+        runCurrent()
+
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+        session.requestNextHand(actorUserId = "alice", clientNonce = "n1")
+        runCurrent()
+
+        assertFalse(
+            session.state.value!!.seats.any { it.playerId == "carol" },
+            "a joiner who left before the boundary is never dealt in",
+        )
+    }
+
+    @Test
+    fun queuedJoiner_isClearedAfterBeingDealt_notReSeatedTheHandAfter() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        runCurrent()
+        session.queueJoiner(carol)
+
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+        session.requestNextHand(actorUserId = "alice", clientNonce = "n1") // carol dealt + queue cleared
+        runCurrent()
+        // Play this hand to Complete and advance again — carol shouldn't be
+        // re-added from a stale queue (she's already a real seat now).
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+        val before = session.state.value!!.seats.count { it.playerId == "carol" }
+        session.requestNextHand(actorUserId = "alice", clientNonce = "n2")
+        runCurrent()
+
+        assertEquals(1, before, "carol is one seat after being dealt")
+        assertEquals(
+            1,
+            session.state.value!!.seats.count { it.playerId == "carol" },
+            "the queue was cleared — carol isn't duplicated the hand after",
+        )
+    }
+
+    // ---------- removePlayer (ghost-seat fix + bot trimming) ----------
+
+    private val botCarol = SeatOccupant(seatIndex = 2, userId = "bot-carol", displayName = "Bot Carol", isBot = true)
+
+    @Test
+    fun removedHuman_isNotReDealt_evenWithChips() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob, carol), settings)
+        runCurrent()
+
+        // Carol leaves the room mid-hand. removePlayer governs the NEXT deal; she
+        // still holds a full stack (she didn't bust), so without this she'd be
+        // wrongly re-dealt — the long-standing "ghost seat" bug.
+        session.removePlayer("carol")
+        runCurrent()
+
+        // Drive the current hand to Complete (two folds leaves one winner).
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+        assertEquals(BettingRound.Complete, session.state.value!!.street)
+
+        val next = session.requestNextHand(actorUserId = "alice", clientNonce = "n1")
+        runCurrent()
+        assertIs<IntentResult.Accepted>(next)
+        assertEquals(
+            setOf("alice", "bob"),
+            session.state.value!!.seats.mapNotNull { it.playerId }.toSet(),
+            "a removed human is not re-dealt, even though her stack survived the hand",
+        )
+    }
+
+    @Test
+    fun removedBot_isNotReDealt_atTheNextHand() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob, botCarol), settings)
+        runCurrent()
+
+        // A bot trimmed out as a second human arrives (route-layer trim). It still
+        // sits in the just-finished state, but the next deal must drop it.
+        session.removePlayer("bot-carol")
+        runCurrent()
+
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+        assertEquals(BettingRound.Complete, session.state.value!!.street)
+
+        session.requestNextHand(actorUserId = "alice", clientNonce = "n1")
+        runCurrent()
+        assertFalse(
+            session.state.value!!.seats.any { it.playerId == "bot-carol" },
+            "the trimmed bot bows out of the next hand",
+        )
+    }
+
+    @Test
+    fun removePlayer_alsoDropsAPendingJoiner() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        runCurrent()
+        // Carol joined mid-hand (queued), then left again before the boundary.
+        session.queueJoiner(carol)
+        session.removePlayer("carol")
+        runCurrent()
+
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+        session.requestNextHand(actorUserId = "alice", clientNonce = "n1")
+        runCurrent()
+        assertFalse(
+            session.state.value!!.seats.any { it.playerId == "carol" },
+            "a removed pending joiner is never seated",
+        )
+    }
+
+    // ---------- forfeitSeat (mid-hand leave) ----------
+
+    @Test
+    fun forfeitActingSeat_threeHanded_advancesAction_andContinues() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob, carol), settings)
+        runCurrent()
+        val actingIdx = session.state.value!!.actingSeatIndex!!
+        val actingUser = session.actingUserId()
+
+        val result = session.forfeitSeat(actingUser)
+        runCurrent()
+
+        assertIs<IntentResult.Accepted>(result)
+        val state = session.state.value!!
+        assertEquals(
+            HandParticipation.Folded,
+            state.seats.first { it.index == actingIdx }.handParticipation,
+        )
+        assertTrue(state.street != BettingRound.Complete, "two contenders remain → hand continues")
+        assertTrue(
+            state.actingSeatIndex != null && state.actingSeatIndex != actingIdx,
+            "action moved off the gone seat (no stall)",
+        )
+    }
+
+    @Test
+    fun forfeitActingSeat_headsUp_endsHand() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        runCurrent()
+
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+
+        assertEquals(BettingRound.Complete, session.state.value!!.street, "one contender left → hand over")
+    }
+
+    @Test
+    fun forfeit_unknownUser_isNoOpAccepted() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        runCurrent()
+        val before = session.state.value
+
+        val result = session.forfeitSeat("ghost")
+
+        assertIs<IntentResult.Accepted>(result)
+        assertEquals(before, session.state.value, "no state change for an unseated user")
+    }
+
+    @Test
+    fun forfeit_isIdempotent_andNoOpAfterComplete() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        runCurrent()
+        val user = session.actingUserId()
+        session.forfeitSeat(user) // ends the heads-up hand
+        runCurrent()
+        val afterFirst = session.state.value
+
+        val again = session.forfeitSeat(user)
+
+        assertIs<IntentResult.Accepted>(again)
+        assertEquals(afterFirst, session.state.value, "a repeat / post-complete forfeit changes nothing")
+    }
 
     @Test
     fun startHand_revealedBotOccupant_seatCarriesStyleKey_hiddenDoesNot() = runTest {

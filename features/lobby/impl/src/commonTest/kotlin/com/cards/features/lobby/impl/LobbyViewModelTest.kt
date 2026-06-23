@@ -651,6 +651,54 @@ class LobbyViewModelTest : CoroutineTest() {
         }
     }
 
+    // ---------- "open to anyone" (server-dealt) ----------
+
+    @Test
+    fun canStart_isFalse_forAServerDealtOpenTable_evenAsHostWithTwoPlayers() = runUnitTest {
+        val state = LobbyState(
+            currentUserId = "a",
+            room = roomOf(
+                visibility = com.dangerfield.cards.libraries.rooms.RoomVisibility.Open,
+                members = listOf(
+                    member("a", "A", isConnected = true),
+                    member("b", "B", isConnected = true, seatIndex = 1),
+                ),
+            ),
+        )
+        assertTrue(state.isHost)
+        assertTrue(state.isServerDealtTable)
+        assertFalse(state.canStart, "an Open table deals itself — no host Start")
+    }
+
+    @Test
+    fun gameplaySnapshot_onAServerDealtTable_navigatesEvenTheHost() = runUnitTest {
+        // On a Private table the host navigates only when they tap Start; on an
+        // Open (server-dealt) table the host follows the first deal in like anyone.
+        val vm = buildVm()
+        vm.takeAction(
+            LobbyAction.ConnectionUpdated(
+                RoomConnection.Connected(
+                    roomOf(
+                        visibility = com.dangerfield.cards.libraries.rooms.RoomVisibility.Open,
+                        members = listOf(
+                            member(LOCAL_USER, "You", isConnected = true),
+                            member("peer", "Peer", isConnected = true, seatIndex = 1),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        runCurrent()
+        assertTrue(vm.state.isHost, "local user is the host of the Open table")
+
+        vm.eventFlow.test {
+            vm.takeAction(LobbyAction.GameplaySnapshotReceived)
+            val event = assertIs<LobbyEvent.NavigateToMultiplayer>(awaitItem())
+            assertEquals("ABC123", event.roomCode)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     // ---------- scaffolding ----------
 
     private fun buildVm(
@@ -660,11 +708,13 @@ class LobbyViewModelTest : CoroutineTest() {
         autoCreate: Boolean = false,
         maxSeats: Int? = null,
         buyIn: Long? = null,
+        open: Boolean = false,
     ): LobbyViewModel = LobbyViewModel(
         prefilledCode = prefilledCode,
         autoCreate = autoCreate,
         maxSeats = maxSeats,
         buyIn = buyIn,
+        open = open,
         rooms = rooms,
         auth = identity,
         profile = NoProfileRepository,
@@ -702,6 +752,8 @@ class LobbyViewModelTest : CoroutineTest() {
     private fun roomOf(
         code: String = "ABC123",
         members: List<RoomMember>,
+        visibility: com.dangerfield.cards.libraries.rooms.RoomVisibility =
+            com.dangerfield.cards.libraries.rooms.RoomVisibility.Private,
     ) = Room(
         code = code,
         hostUserId = members.first().userId,
@@ -709,6 +761,7 @@ class LobbyViewModelTest : CoroutineTest() {
         maxSeats = 4,
         status = RoomStatus.Lobby,
         members = members,
+        visibility = visibility,
     )
 
     /**
@@ -721,7 +774,7 @@ class LobbyViewModelTest : CoroutineTest() {
         val handle: RecordingHandle = RecordingHandle(),
     ) : RoomRepository {
         val addBotSeatIndexes: MutableList<Int?> = mutableListOf()
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = createOutcome
+        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = createOutcome
         override suspend fun joinRoom(code: String): JoinRoomOutcome =
             JoinRoomOutcome.NetworkError(RuntimeException("not used"))
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = LeaveRoomOutcome.Success
@@ -784,7 +837,7 @@ class LobbyViewModelTest : CoroutineTest() {
         var leaveFinished: Int = 0
             private set
 
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = createOutcome
+        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = createOutcome
         override suspend fun joinRoom(code: String): JoinRoomOutcome =
             JoinRoomOutcome.NetworkError(RuntimeException("not used"))
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome {
@@ -811,7 +864,7 @@ class LobbyViewModelTest : CoroutineTest() {
         var joinCalls: Int = 0
             private set
         val addBotSeatIndexes: MutableList<Int?> = mutableListOf()
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = createOutcome
+        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = createOutcome
         override suspend fun joinRoom(code: String): JoinRoomOutcome {
             joinCalls += 1
             return joinOutcome

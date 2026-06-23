@@ -1,5 +1,9 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
+import com.dangerfield.cards.features.room.impl.session.RemotePokerSessionFactory
+import com.dangerfield.cards.features.room.impl.ui.PlayPokerScreen
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -16,17 +20,32 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.home.HomeRoute
+import com.dangerfield.cards.features.lobby.LobbyRoute
+import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.PlayMultiplayerRoute
+import com.dangerfield.cards.features.room.RoomKind
+import com.dangerfield.cards.features.rooms.PublicFindRoute
+import com.dangerfield.cards.libraries.billing.IapPurchaseOutcome
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
+import com.dangerfield.cards.libraries.navigation.serializableType
+import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
+import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_quick_buy_failed
+import cards.libraries.resources.generated.resources.room_quick_buy_store_unavailable
+import cards.libraries.resources.generated.resources.room_quick_buy_success
+import org.jetbrains.compose.resources.getString
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
+import kotlin.reflect.typeOf
 
 /**
  * Sibling to [PlayPokerFeatureEntryPoint] — same VM + screen pair,
@@ -45,13 +64,18 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
 class PlayMultiplayerFeatureEntryPoint(
-    private val remoteFactoryFactory: (roomCode: String, localUserId: String) -> RemotePokerSessionFactory,
+    private val remoteFactoryFactory: (roomCode: String, localUserId: String, isPublicTable: Boolean) -> RemotePokerSessionFactory,
     private val playPokerVmFactory: (sessionFactory: PokerSessionFactory) -> PlayPokerViewModel,
     private val authRepository: AuthRepository,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
-        screen<PlayMultiplayerRoute> { backStackEntry ->
+        // RoomKind is a non-primitive (enum) route arg; iOS/Native has no
+        // reflection fallback, so it needs an explicit NavType in the typeMap
+        // or graph-build throws "could not find any NavType for argument kind".
+        screen<PlayMultiplayerRoute>(
+            typeMap = mapOf(typeOf<RoomKind>() to serializableType<RoomKind>()),
+        ) { backStackEntry ->
             val route = backStackEntry.toRoute<PlayMultiplayerRoute>()
             // Multiplayer needs a real (server) account. If the session resolves
             // Unauthenticated — e.g. a guest whose account creation is still
@@ -64,16 +88,41 @@ class PlayMultiplayerFeatureEntryPoint(
             val viewModel: PlayPokerViewModel = viewModel(
                 key = "play-mp-${route.roomCode}",
             ) {
-                val factory = remoteFactoryFactory(route.roomCode, localUserId)
+                val factory = remoteFactoryFactory(
+                    route.roomCode,
+                    localUserId,
+                    route.kind == RoomKind.Public,
+                )
                 playPokerVmFactory(factory)
             }
             val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
-            // Terminal room-close pops the screen — the room is gone, so
-            // there's nothing to reconnect to. The lobby/home it lands back
-            // on re-observes and surfaces the closed-room state itself.
+            // One-shot events. RoomClosed pops (the room is gone). OpponentsLeft
+            // tears down this screen and routes by room kind — back to the lobby
+            // for a private game (where the lone player can re-invite), or to
+            // matchmaking search for a public one. The bust-upsell events stay
+            // in-game: QuickBuyFinished toasts the result, RebuyInsufficientChips
+            // opens the quick-buy sheet, ClaimAccountRequired routes an anonymous
+            // user to the same account-claim flow the shop uses.
             LaunchedEffect(viewModel) {
                 viewModel.eventFlow.collect { event ->
-                    if (event is PlayPokerEvent.RoomClosed) router.goBack()
+                    when (event) {
+                        is PlayPokerEvent.RoomClosed -> router.goBack()
+                        PlayPokerEvent.OpponentsLeft -> router.batch {
+                            goBack()
+                            when (route.kind) {
+                                RoomKind.Private -> navigate(LobbyRoute(prefilledCode = route.roomCode))
+                                // Public games are anonymous + stakes-flexible, so send
+                                // them back to Find to re-pick a range and search again
+                                // (the old table's buy-in range isn't carried here).
+                                RoomKind.Public -> navigate(PublicFindRoute())
+                            }
+                        }
+                        is PlayPokerEvent.QuickBuyFinished -> showQuickBuySnackbar(event.outcome)
+                        PlayPokerEvent.ClaimAccountRequired -> router.navigate(ClaimAccountRoute())
+                        PlayPokerEvent.RebuyInsufficientChips ->
+                            viewModel.takeAction(PlayPokerAction.OpenQuickBuy)
+                        else -> Unit
+                    }
                 }
             }
             PlayPokerScreen(
@@ -115,5 +164,36 @@ class PlayMultiplayerFeatureEntryPoint(
 private fun LoadingPlaceholder() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         CircularProgressIndicator()
+    }
+}
+
+/**
+ * Toast the result of an in-game quick-buy, mirroring the shop's
+ * PurchaseFinished feedback. Cancellation is silent; ClaimAccountRequired is
+ * routed (not toasted) by the caller, so it's a no-op here.
+ */
+private suspend fun showQuickBuySnackbar(outcome: IapPurchaseOutcome) {
+    when (outcome) {
+        is IapPurchaseOutcome.Success -> showSnackBar(
+            message = getString(Res.string.room_quick_buy_success, formatThousands(outcome.grantedChips)),
+            emoji = "🪙",
+        )
+        is IapPurchaseOutcome.AlreadyOwned -> showSnackBar(
+            message = getString(Res.string.room_quick_buy_success, formatThousands(outcome.grantedChips)),
+            emoji = "🪙",
+        )
+        IapPurchaseOutcome.StoreUnavailable -> showSnackBar(
+            message = getString(Res.string.room_quick_buy_store_unavailable),
+            level = SnackbarLevel.Error,
+        )
+        is IapPurchaseOutcome.Failed,
+        IapPurchaseOutcome.NotSignedIn,
+        -> showSnackBar(
+            message = getString(Res.string.room_quick_buy_failed),
+            level = SnackbarLevel.Error,
+        )
+        IapPurchaseOutcome.Cancelled,
+        IapPurchaseOutcome.ClaimAccountRequired,
+        -> Unit
     }
 }

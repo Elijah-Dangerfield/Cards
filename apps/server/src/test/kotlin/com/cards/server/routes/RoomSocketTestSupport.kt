@@ -4,7 +4,12 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.server.data.InMemoryRoomService
+import com.dangerfield.cards.server.domain.ApplyOutcome
+import com.dangerfield.cards.server.domain.FindOrCreateResult
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.Wallet
+import com.dangerfield.cards.server.domain.WalletEvent
+import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
 import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.game.NoOpSessionSnapshotStore
@@ -206,6 +211,8 @@ internal suspend fun withRoomSocketTestApp(
     reaperGrace: Duration = 5.minutes,
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository = EmptyEquipmentRepository,
     progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository = EmptyProgressionRepository,
+    wallets: WalletRepository = InMemoryTestWalletRepository(),
+    tableSessions: com.dangerfield.cards.server.domain.TableSessionService = InMemoryTestTableSessionService(wallets),
     block: suspend (RoomSocketTestApp) -> Unit,
 ) {
     testApplication {
@@ -220,6 +227,8 @@ internal suspend fun withRoomSocketTestApp(
                     gameSessions = gameSessions,
                     equipmentRepository = equipmentRepository,
                     progressionRepository = progressionRepository,
+                    wallets = wallets,
+                    tableSessions = tableSessions,
                     reaperGrace = reaperGrace,
                 )
             }
@@ -234,6 +243,153 @@ internal suspend fun withRoomSocketTestApp(
         } finally {
             app.closeAll()
         }
+    }
+}
+
+/**
+ * In-memory [WalletRepository] for the socket tests. Configurable starting
+ * balance (via [setBalance]) so a rebuy test can seed a wallet that can /
+ * can't cover the buy-in, and records [applyCalls] so a test can assert a
+ * debit fired exactly once under idempotency.
+ */
+@OptIn(ExperimentalTime::class)
+internal class InMemoryTestWalletRepository(
+    private val defaultBalance: Long = Wallet.STARTER_GRANT,
+) : WalletRepository {
+    private val balances = mutableMapOf<UserId, Long>()
+    private val keys = mutableMapOf<UserId, MutableSet<String>>()
+
+    /** (userId, idempotencyKey, delta, reason) for every [apply] call. */
+    val applyCalls: MutableList<AppliedWalletCall> = mutableListOf()
+
+    fun setBalance(userId: UserId, balance: Long) { balances[userId] = balance }
+    fun balanceOf(userId: UserId): Long = balances[userId] ?: defaultBalance
+
+    override suspend fun findOrCreateResult(userId: UserId): FindOrCreateResult {
+        val isNew = userId !in balances
+        val balance = balances.getOrPut(userId) { defaultBalance }
+        return FindOrCreateResult(
+            wallet = Wallet(
+                userId = userId,
+                balance = balance,
+                createdAt = Instant.fromEpochMilliseconds(0),
+                updatedAt = Instant.fromEpochMilliseconds(0),
+            ),
+            created = isNew,
+        )
+    }
+
+    override suspend fun find(userId: UserId): Wallet? = balances[userId]?.let {
+        Wallet(
+            userId = userId,
+            balance = it,
+            createdAt = Instant.fromEpochMilliseconds(0),
+            updatedAt = Instant.fromEpochMilliseconds(0),
+        )
+    }
+
+    override suspend fun apply(
+        userId: UserId,
+        idempotencyKey: String,
+        delta: Long,
+        reason: String,
+    ): ApplyOutcome {
+        applyCalls += AppliedWalletCall(userId, idempotencyKey, delta, reason)
+        val current = balances.getOrPut(userId) { defaultBalance }
+        val seen = keys.getOrPut(userId) { mutableSetOf() }
+        if (idempotencyKey in seen) {
+            return ApplyOutcome.Applied(balance = current, wasAlreadyApplied = true)
+        }
+        val next = current + delta
+        if (next < 0) return ApplyOutcome.InsufficientChips(balance = current)
+        balances[userId] = next
+        seen += idempotencyKey
+        return ApplyOutcome.Applied(balance = next, wasAlreadyApplied = false)
+    }
+
+    override suspend fun recentEvents(userId: UserId, limit: Int): List<WalletEvent> = emptyList()
+    override suspend fun deleteAllForUser(userId: UserId) {
+        balances.remove(userId)
+        keys.remove(userId)
+    }
+}
+
+internal data class AppliedWalletCall(
+    val userId: UserId,
+    val idempotencyKey: String,
+    val delta: Long,
+    val reason: String,
+)
+
+/**
+ * In-memory [com.dangerfield.cards.server.domain.TableSessionService] for socket
+ * tests — moves real chips through [wallets] with the same keyed/idempotent
+ * semantics as the Postgres engine (which is tested separately under real
+ * Postgres), so a full buy-in → play → cash-out flow reconciles the wallet
+ * exactly. One active session per user; a closed session is forgotten so a
+ * second cash-out is a no-op.
+ */
+@OptIn(ExperimentalTime::class)
+internal class InMemoryTestTableSessionService(
+    private val wallets: WalletRepository,
+) : com.dangerfield.cards.server.domain.TableSessionService {
+    private val lock = Any()
+    private data class Active(val id: java.util.UUID, val roomCode: String, val buyIn: Long, var rebuys: Int)
+    private val active = mutableMapOf<UserId, Active>()
+
+    override suspend fun sitDown(
+        userId: UserId,
+        roomCode: String,
+        buyIn: Long,
+        enforceEntryBar: Boolean,
+        subsidized: Boolean,
+    ): com.dangerfield.cards.server.domain.SitDownResult {
+        synchronized(lock) { active[userId] }?.let {
+            return com.dangerfield.cards.server.domain.SitDownResult.AlreadyAtTable(it.roomCode)
+        }
+        val balance = wallets.findOrCreate(userId).balance
+        if (enforceEntryBar && balance < buyIn * 4) {
+            return com.dangerfield.cards.server.domain.SitDownResult.BelowEntryBar(balance, buyIn * 4)
+        }
+        val id = java.util.UUID.randomUUID()
+        return when (val o = wallets.apply(userId, "table:$id:buyin", -buyIn, "mp_buyin")) {
+            is ApplyOutcome.InsufficientChips ->
+                com.dangerfield.cards.server.domain.SitDownResult.InsufficientChips(o.balance)
+            is ApplyOutcome.Applied -> {
+                synchronized(lock) { active[userId] = Active(id, roomCode, buyIn, 0) }
+                com.dangerfield.cards.server.domain.SitDownResult.Funded(id, buyIn, o.balance)
+            }
+        }
+    }
+
+    override suspend fun rebuy(
+        userId: UserId,
+        enforceEntryBar: Boolean,
+    ): com.dangerfield.cards.server.domain.RebuyResult {
+        val s = synchronized(lock) { active[userId] }
+            ?: return com.dangerfield.cards.server.domain.RebuyResult.NoActiveSession
+        val balance = wallets.findOrCreate(userId).balance
+        if (enforceEntryBar && balance < s.buyIn * 4) {
+            return com.dangerfield.cards.server.domain.RebuyResult.BelowEntryBar(balance, s.buyIn * 4)
+        }
+        val n = synchronized(lock) { ++s.rebuys }
+        return when (val o = wallets.apply(userId, "table:${s.id}:rebuy:$n", -s.buyIn, "mp_rebuy")) {
+            is ApplyOutcome.InsufficientChips ->
+                com.dangerfield.cards.server.domain.RebuyResult.InsufficientChips(o.balance)
+            is ApplyOutcome.Applied ->
+                com.dangerfield.cards.server.domain.RebuyResult.ReboughtIn(s.buyIn, o.balance)
+        }
+    }
+
+    override suspend fun cashOut(
+        userId: UserId,
+        finalStack: Long?,
+    ): com.dangerfield.cards.server.domain.CashOutResult {
+        val s = synchronized(lock) { active.remove(userId) }
+            ?: return com.dangerfield.cards.server.domain.CashOutResult.NoActiveSession
+        val refund = (finalStack ?: s.buyIn * (1 + s.rebuys)).coerceAtLeast(0L)
+        val o = wallets.apply(userId, "table:${s.id}:cashout", refund, "mp_cashout") as ApplyOutcome.Applied
+        return com.dangerfield.cards.server.domain.CashOutResult.CashedOut(refund, o.balance)
     }
 }
 

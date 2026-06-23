@@ -1,5 +1,8 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.RemotePokerSession
+import com.dangerfield.cards.features.room.impl.session.RemotePokerSessionFactory
+
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.game.SeatOccupant
@@ -50,6 +53,22 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
     fun occupantsFor_emptyState_returnsEmptyList() = runUnitTest {
         val occupants = factory().occupantsFor(stubGameState(seats = emptyList()))
         assertEquals(emptyList(), occupants)
+    }
+
+    @Test
+    fun botsOnlyTable_isSubsidizedOnPublic_butPracticeOnPrivate() = runUnitTest {
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, isBot = false, playerId = "local-user"), // lone human
+                testSeat(index = 1, isBot = true, playerId = "bot-1"),        // + disclosed bot
+            ),
+        )
+
+        val publicTable = assertIs<TableUiState.Active>(tableFor(state, localUserId = "local-user", isPublic = true))
+        assertTrue(publicTable.subsidizedBotTable, "public lone-human-vs-bots = disclosed-bot subsidy")
+
+        val privateTable = assertIs<TableUiState.Active>(tableFor(state, localUserId = "local-user", isPublic = false))
+        assertFalse(privateTable.subsidizedBotTable, "a private bots-only game stays practice")
     }
 
     @Test
@@ -384,9 +403,11 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
     private fun factory(
         localUserId: String = "local-user",
         rooms: RoomRepository = FactoryRoomRepository(),
+        isPublicTable: Boolean = false,
     ): RemotePokerSessionFactory = RemotePokerSessionFactory(
         roomCode = "ABCDEF",
         localUserId = localUserId,
+        isPublicTable = isPublicTable,
         roomRepository = rooms,
         telemetry = NoopTelemetry,
     )
@@ -411,9 +432,10 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
     private fun tableFor(
         state: com.dangerfield.cards.libraries.gameplay.GameState,
         localUserId: String,
+        isPublic: Boolean = false,
         curve: com.dangerfield.cards.libraries.cards.LevelCurve =
             com.dangerfield.cards.libraries.cards.DefaultLevelCurve,
-    ): TableUiState = factory(localUserId = localUserId).tableFor(
+    ): TableUiState = factory(localUserId = localUserId, isPublicTable = isPublic).tableFor(
         state = state,
         lastWinners = null,
         lastActionBySeat = emptyMap(),
@@ -433,7 +455,7 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
         var connectCalls: Int = 0
             private set
 
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = error("unused")
+        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = error("unused")
         override suspend fun joinRoom(code: String): JoinRoomOutcome = error("unused")
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = error("unused")
         override suspend fun addBot(code: String, seatIndex: Int?): com.dangerfield.cards.libraries.rooms.AddBotOutcome =

@@ -86,6 +86,46 @@ interface GameSessionRegistry {
     ): IntentResult
 
     /**
+     * Fold [userId]'s seat out of the live hand because they left or were
+     * reaped from the room mid-hand. Resolves via [peek] (no hydrate — a
+     * leave only matters while a live in-memory session exists) and delegates
+     * to [GameSession.forfeitSeat]. Idempotent and a no-op (Accepted) when no
+     * session is registered for [code]. Keeps the table from stalling on a
+     * gone player and lets the hand resolve for whoever remains.
+     */
+    suspend fun forfeitSeat(code: String, userId: String): IntentResult
+
+    /**
+     * Buy [userId]'s busted seat back into the table. Resolves via [peek]
+     * (no hydrate — a rebuy only matters while a live in-memory session
+     * exists) and delegates to [GameSession.rebuy]. Rejected when no session
+     * is registered for [code]. The route owns the wallet debit; this only
+     * refills the table stack.
+     */
+    suspend fun rebuy(code: String, userId: String, clientNonce: String): IntentResult
+
+    /**
+     * Queue a player who joined the room mid-hand to be dealt in at the next
+     * hand boundary (true mid-hand join). Resolves via [peek] and delegates to
+     * [GameSession.queueJoiner]; a no-op when no live session exists (the table
+     * is between games, so a normal next [startHand] from the room already seats
+     * them). [dequeueJoiner] drops one who left before being seated.
+     */
+    suspend fun queueJoiner(code: String, occupant: SeatOccupant)
+
+    suspend fun dequeueJoiner(code: String, userId: String)
+
+    /**
+     * Permanently drop [userId] from this session's future hands. Resolves via
+     * [peek] (no hydrate — only matters while a live session exists) and
+     * delegates to [GameSession.removePlayer]. Used both for a human who left
+     * (so their seat isn't re-dealt — the ghost-seat fix) and for a bot trimmed
+     * out as real players arrive on a public table. A no-op when no session is
+     * registered for [code].
+     */
+    suspend fun removePlayer(code: String, userId: String)
+
+    /**
      * Fan a table emote out to every socket in the room. Resolves to the
      * in-memory session via [peek] (no hydrate — emotes only matter while
      * a hand is live and someone's watching the table) and delegates to
@@ -187,6 +227,25 @@ class DefaultGameSessionRegistry(
     ): IntentResult = findOrHydrate(code)
         ?.requestNextHand(actorUserId, clientNonce)
         ?: IntentResult.Rejected("no game session for room $code")
+
+    override suspend fun forfeitSeat(code: String, userId: String): IntentResult =
+        peek(code)?.forfeitSeat(userId) ?: IntentResult.Accepted
+
+    override suspend fun rebuy(code: String, userId: String, clientNonce: String): IntentResult =
+        peek(code)?.rebuy(userId, clientNonce)
+            ?: IntentResult.Rejected("no game session for room $code")
+
+    override suspend fun queueJoiner(code: String, occupant: SeatOccupant) {
+        peek(code)?.queueJoiner(occupant)
+    }
+
+    override suspend fun dequeueJoiner(code: String, userId: String) {
+        peek(code)?.dequeueJoiner(userId)
+    }
+
+    override suspend fun removePlayer(code: String, userId: String) {
+        peek(code)?.removePlayer(userId)
+    }
 
     override fun broadcastEmoji(code: String, actorUserId: String, emoji: String): IntentResult =
         peek(code)?.emitEmoji(actorUserId, emoji)

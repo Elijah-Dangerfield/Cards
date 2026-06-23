@@ -86,6 +86,35 @@ class GameSessionRegistryIntegrationTest {
     }
 
     @Test
+    fun forfeitSeat_throughRegistry_advancesHandOffTheLeavingActor() = runTest {
+        // The "stuck — nobody's turn" repro at the registry level: the player on
+        // the clock leaves; the socket route calls forfeitSeat, and the hand must
+        // move on instead of stalling on a seat that will never act.
+        val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), kotlin.time.Clock.System)
+        val carol = SeatOccupant(seatIndex = 2, userId = "carol", displayName = "Carol", isBot = false)
+        registry.startHand("ROOM1", listOf(alice, bob, carol), settings)
+        val session = registry.peek("ROOM1")!!
+        val actingIdx = session.state.value!!.actingSeatIndex!!
+        val actingUser = session.state.value!!.seats.first { it.index == actingIdx }.playerId!!
+
+        val result = registry.forfeitSeat("ROOM1", actingUser)
+
+        assertIs<IntentResult.Accepted>(result)
+        val state = session.state.value!!
+        assertTrue(state.street != BettingRound.Complete, "two contenders remain")
+        assertTrue(
+            state.actingSeatIndex != null && state.actingSeatIndex != actingIdx,
+            "the table advanced off the leaving actor",
+        )
+    }
+
+    @Test
+    fun forfeitSeat_unknownRoom_isNoOpAccepted() = runTest {
+        val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), kotlin.time.Clock.System)
+        assertIs<IntentResult.Accepted>(registry.forfeitSeat("NOPE", "ghost"))
+    }
+
+    @Test
     fun finishedHand_witnessesCountForRealUserIds_andKeysPerHand() = runTest {
         val counter = InMemoryHandsFinishedRepository()
         val registry = DefaultGameSessionRegistry(

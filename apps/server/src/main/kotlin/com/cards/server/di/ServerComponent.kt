@@ -16,6 +16,8 @@ import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.RecentOpponentsRepository
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
+import com.dangerfield.cards.server.domain.TableSessionRecoverySweep
+import com.dangerfield.cards.server.domain.TableSessionService
 import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.game.GameSessionRegistry
@@ -70,6 +72,8 @@ abstract class ServerComponent(
     abstract val userMessageRepository: UserMessageRepository
     abstract val roomService: RoomService
     abstract val gameSessionRegistry: GameSessionRegistry
+    abstract val tableSessionService: TableSessionService
+    abstract val tableSessionRecoverySweep: TableSessionRecoverySweep
 
     /**
      * Wall-clock source. Singleton so every component sees the same "now"

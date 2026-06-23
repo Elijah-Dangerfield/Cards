@@ -1,5 +1,10 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.LocalBotsSession
+import com.dangerfield.cards.features.room.impl.session.PokerSession
+import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
+import com.dangerfield.cards.features.room.impl.session.seatToOccupant
+
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.cards.BotSpeed
@@ -214,6 +219,8 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             equipmentRepository = FakeEquipmentRepository(),
             inventoryRepository = FakeInventoryRepository(),
             productsRepository = FakeProductsRepository(),
+            chipsRepository = FakeChipsRepository(),
+            purchaseChipPack = FakePurchaseChipPackUseCase(),
             profileRepository = FakeProfileRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
             dispatcherProvider = dispatchers,

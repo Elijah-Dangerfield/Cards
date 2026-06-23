@@ -5,9 +5,11 @@ import com.dangerfield.cards.server.domain.AddBotResult
 import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.LeaveResult
+import com.dangerfield.cards.server.domain.MatchmakingResult
 import com.dangerfield.cards.server.domain.RemoveBotResult
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
+import com.dangerfield.cards.server.domain.SYSTEM_HOST_USER_ID
 import com.dangerfield.cards.server.domain.UserId
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -54,6 +56,7 @@ class InMemoryRoomServiceTest {
     private val host = UserId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
     private val alice = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
     private val bob = UserId(UUID.fromString("33333333-3333-3333-3333-333333333333"))
+    private val carol = UserId(UUID.fromString("44444444-4444-4444-4444-444444444444"))
 
     @Test
     fun create_returnsRoomInLobby_withHostInSeat0() = runTest {
@@ -706,7 +709,7 @@ class InMemoryRoomServiceTest {
     }
 
     @Test
-    fun bot_isImmuneToSweep() = runTest {
+    fun bot_isNotIndividuallyReaped_butABotOnlyRoomIsGCd() = runTest {
         val clock = AdvanceableClock()
         val service = InMemoryRoomService(clock = clock, random = Random(0L))
         val room = when (val r = service.create(host, "Host", maxSeats = 4)) {
@@ -718,11 +721,11 @@ class InMemoryRoomServiceTest {
         clock.advance(60.minutes)
         val swept = service.sweepDisconnected(maxIdle = 5.minutes)
 
-        // The never-connected host is reaped; the bot is not (it's "connected").
-        val survivors = service.find(room.code)?.members ?: emptyList()
-        assertEquals(1, survivors.size)
-        assertTrue(survivors.single().isBot, "only the bot survives the sweep")
-        assertEquals(1, swept.membersReaped, "just the host was swept")
+        // The bot itself is never in the reaped set (it's "connected") — only the
+        // never-connected host is. But a room left with nothing but bots has no
+        // one watching, so it's GC'd rather than left running hands to nobody.
+        assertEquals(1, swept.membersReaped, "just the host was reaped; the bot is immune")
+        assertNull(service.find(room.code), "a bot-only room is torn down, not kept alive")
     }
 
     @Test
@@ -745,12 +748,258 @@ class InMemoryRoomServiceTest {
         assertEquals(2, removed.members.size, "host + alice remain")
     }
 
+    @Test
+    fun sweepDisconnected_delegatesDurableCleanup_excludingLiveCodes() = runTest {
+        val clock = AdvanceableClock()
+        val store = RecordingRoomStore()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L), store = store)
+        // One live room (host stays connected → never reaped, stays in memory).
+        val live = service.createOrFail(host, "Host")
+        service.markConnected(live.code, host, connected = true)
+        clock.advance(10.minutes)
+
+        val result = service.sweepDisconnected(maxIdle = 5.minutes)
+
+        assertEquals(1, store.deleteStaleCalls.size, "durable orphan cleanup ran once")
+        val (olderThan, keepCodes) = store.deleteStaleCalls.single()
+        assertEquals(clock.now() - 5.minutes, olderThan, "cutoff = now - maxIdle")
+        assertTrue(live.code in keepCodes, "a still-live room is never offered up for durable deletion")
+        assertEquals(2, result.orphanedRoomsReaped, "the store's reported count flows back out")
+    }
+
+    // ---------- room-closed listener (session teardown hook) ----------
+
+    @Test
+    fun lastHumanLeaving_firesRoomClosedListener_withTheFinalRoom() = runTest {
+        val listener = RecordingRoomClosedListener()
+        val service = InMemoryRoomService(clock = FixedClock(), random = Random(0L), roomClosedListener = listener)
+        val room = service.createOrFail(host, "Host")
+
+        service.leave(room.code, host) // last human out → GC
+
+        assertEquals(listOf(room.code), listener.closedCodes, "teardown fires the listener so the session ends")
+    }
+
+    @Test
+    fun leavingABotOnlyTable_firesRoomClosedListener() = runTest {
+        val listener = RecordingRoomClosedListener()
+        val service = InMemoryRoomService(clock = FixedClock(), random = Random(0L), roomClosedListener = listener)
+        val room = service.createOrFail(host, "Host", maxSeats = 4)
+        service.addBot(room.code, requestedBy = host, difficulty = BotDifficulty.Standard)
+
+        service.leave(room.code, host) // only bots remain → GC
+
+        assertEquals(listOf(room.code), listener.closedCodes, "a bot-only table closes its session too")
+    }
+
+    @Test
+    fun reaper_firesRoomClosedListener_whenItEmptiesTheRoom() = runTest {
+        val listener = RecordingRoomClosedListener()
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L), roomClosedListener = listener)
+        val room = service.createOrFail(host, "Host")
+        val droppedAt = service.find(room.code)!!.memberFor(host)!!.disconnectedAt!!
+
+        service.reapIfStillDisconnected(room.code, host, droppedAt) // last seat reaped → GC
+
+        assertEquals(listOf(room.code), listener.closedCodes)
+    }
+
+    @Test
+    fun sweep_firesRoomClosedListener_perClosedRoom() = runTest {
+        val listener = RecordingRoomClosedListener()
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L), roomClosedListener = listener)
+        val a = service.createOrFail(host, "A")
+        val b = service.createOrFail(alice, "B")
+        clock.advance(10.minutes) // both never connected → both sweepable
+
+        service.sweepDisconnected(maxIdle = 5.minutes)
+
+        assertEquals(setOf(a.code, b.code), listener.closedCodes.toSet(), "every swept-empty room closes its session")
+    }
+
+    @Test
+    fun normalLeave_doesNotFireListener_roomStillAlive() = runTest {
+        val listener = RecordingRoomClosedListener()
+        val service = InMemoryRoomService(clock = FixedClock(), random = Random(0L), roomClosedListener = listener)
+        val room = service.createOrFail(host, "Host", maxSeats = 4)
+        service.join(room.code, alice, "Alice")
+
+        service.leave(room.code, host) // alice still seated → room lives on
+
+        assertTrue(listener.closedCodes.isEmpty(), "the session only ends when the room actually closes")
+    }
+
+    // ---------- fillBotsUpTo (atomic disclosed-bot fallback fill) ----------
+
+    @Test
+    fun fillBotsUpTo_fillsToTarget_andIsIdempotent() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host", maxSeats = 6)
+
+        val filled = assertIs<AddBotResult.Success>(
+            service.fillBotsUpTo(room.code, host, target = 4, difficulty = BotDifficulty.Standard, revealed = true),
+        ).room
+        assertEquals(4, filled.members.size, "filled the lone human up to the target of 4")
+        assertEquals(3, filled.members.count { it.isBot }, "3 disclosed bots added")
+        assertTrue(filled.members.filter { it.isBot }.all { it.bot!!.revealed }, "bots are disclosed (revealed)")
+
+        // A second tap (double-tap / retry) is a no-op — already at target.
+        val again = assertIs<AddBotResult.Success>(
+            service.fillBotsUpTo(room.code, host, target = 4, difficulty = BotDifficulty.Standard, revealed = true),
+        ).room
+        assertEquals(4, again.members.size, "idempotent: already at target adds nothing")
+    }
+
+    @Test
+    fun fillBotsUpTo_concurrentDoubleTap_neverOverfillsPastTarget() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host", maxSeats = 6)
+
+        // Two racing taps. Each fill is one atomic critical section, so the second
+        // sees the table already at target and adds nothing — never a packed six.
+        val results = (0..1).map {
+            async { service.fillBotsUpTo(room.code, host, target = 4, difficulty = BotDifficulty.Standard, revealed = true) }
+        }.awaitAll()
+
+        results.forEach { assertIs<AddBotResult.Success>(it) }
+        assertEquals(4, service.find(room.code)!!.members.size, "concurrent fills converge on the target, not maxSeats")
+    }
+
+    // ---------- trimBotForNewHumans ("bots step aside for humans") ----------
+
+    @Test
+    fun trimBotForNewHumans_rescuedPair_trimsToACushion_notABareHeadsUp() = runTest {
+        val service = newService()
+        val code = service.openPublicBotTable() // alice + 3 disclosed bots
+
+        // A second human (bob) is matched into the lonely player's table.
+        val joined = assertIs<MatchmakingResult.Joined>(
+            service.findOrJoinPublic(bob, "Bob", 1_000, 1_000, emptySet()),
+        ).room
+        assertEquals(code, joined.code, "bob landed in alice's existing table, not a fresh one")
+        assertEquals(2, joined.members.count { !it.isBot }, "two humans now seated")
+        assertEquals(3, joined.members.count { it.isBot }, "the 3 bots are still there for now")
+
+        // Hand 1 boundary: exactly one bot steps aside, and we learn which.
+        val trimmed1 = service.trimBotForNewHumans(code, handNumber = 1)
+        assertNotNull(trimmed1, "a bot was trimmed once two humans are present")
+        val afterHand1 = service.find(code)!!
+        assertEquals(2, afterHand1.members.count { it.isBot }, "one bot gone")
+        assertTrue(afterHand1.members.none { it.userId == trimmed1 }, "the returned id is the bot that left")
+        assertEquals(2, afterHand1.members.count { !it.isBot }, "both humans stay")
+
+        // A duplicate call for the SAME hand (another socket subscriber) is a no-op.
+        assertNull(service.trimBotForNewHumans(code, handNumber = 1), "idempotent per hand — no second bot dropped")
+        assertEquals(2, service.find(code)!!.members.count { it.isBot })
+
+        // Hand 2 sheds one more, down to the cushion: two humans + one bot.
+        assertNotNull(service.trimBotForNewHumans(code, handNumber = 2))
+        assertEquals(1, service.find(code)!!.members.count { it.isBot }, "trimmed down to a one-bot cushion")
+
+        // Hand 3+: the cushion is HELD — a rescued pair isn't dropped to a bare
+        // heads-up. The last bot stays until a third human arrives (or it busts).
+        assertNull(service.trimBotForNewHumans(code, handNumber = 3), "holds the cushion bot for the pair")
+        assertNull(service.trimBotForNewHumans(code, handNumber = 4), "still held the hand after")
+        assertEquals(1, service.find(code)!!.members.count { it.isBot }, "two humans + one cushion bot, not a bare duel")
+    }
+
+    @Test
+    fun trimBotForNewHumans_thirdHumanArrives_dropsTheCushionBot_allHuman() = runTest {
+        val service = newService()
+        val code = service.openPublicBotTable() // alice + 3 bots
+        service.findOrJoinPublic(bob, "Bob", 1_000, 1_000, emptySet()) // rescued pair
+
+        // Trim down to the held cushion (2 humans + 1 bot).
+        service.trimBotForNewHumans(code, handNumber = 1)
+        service.trimBotForNewHumans(code, handNumber = 2)
+        assertNull(service.trimBotForNewHumans(code, handNumber = 3), "cushion held at the pair")
+        assertEquals(1, service.find(code)!!.members.count { it.isBot })
+
+        // A third human shows up — now the table carries itself, so the cushion goes.
+        val joined = assertIs<MatchmakingResult.Joined>(
+            service.findOrJoinPublic(carol, "Carol", 1_000, 1_000, emptySet()),
+        ).room
+        assertEquals(3, joined.members.count { !it.isBot }, "three humans now seated")
+
+        assertNotNull(service.trimBotForNewHumans(code, handNumber = 4), "with three humans the cushion drops")
+        val finalRoom = service.find(code)!!
+        assertEquals(0, finalRoom.members.count { it.isBot }, "the last bot bows out — an all-human table")
+        assertEquals(3, finalRoom.members.count { !it.isBot })
+    }
+
+    @Test
+    fun trimBotForNewHumans_lonePlayerVsBots_keepsEveryBot() = runTest {
+        val service = newService()
+        val code = service.openPublicBotTable() // alice alone + 3 bots
+
+        // Still just one human — this is the real-money practice table, so the
+        // bots stay put. We only shed bots once a real human is rescued in.
+        assertNull(service.trimBotForNewHumans(code, handNumber = 1))
+        assertEquals(3, service.find(code)!!.members.count { it.isBot }, "a lone human keeps the bots")
+    }
+
+    @Test
+    fun trimBotForNewHumans_privateTable_neverTrims() = runTest {
+        val service = newService()
+        // A human-hosted PRIVATE room with a deliberately-added bot + a 2nd human.
+        val room = service.createOrFail(host, "Host", maxSeats = 6)
+        service.join(room.code, alice, "Alice")
+        assertIs<AddBotResult.Success>(service.addBot(room.code, host, BotDifficulty.Standard))
+
+        // Two humans + a bot — but bots in a host's room are a deliberate choice,
+        // not matchmaking placeholders, so they're never auto-trimmed.
+        assertNull(service.trimBotForNewHumans(room.code, handNumber = 1))
+        assertEquals(1, service.find(room.code)!!.members.count { it.isBot }, "private tables never shed bots")
+    }
+
+    @Test
+    fun trimBotForNewHumans_unknownRoom_isNull() = runTest {
+        assertNull(newService().trimBotForNewHumans("ZZZZZZ", handNumber = 1))
+    }
+
+    /**
+     * A public matchmaker table seated with one human (alice) + 3 disclosed bots —
+     * the lonely-player "play with bots" fallback. Returns the room code.
+     */
+    private suspend fun InMemoryRoomService.openPublicBotTable(): String {
+        val created = assertIs<MatchmakingResult.Created>(
+            findOrJoinPublic(alice, "Alice", 1_000, 1_000, emptySet()),
+        ).room
+        assertIs<AddBotResult.Success>(
+            fillBotsUpTo(created.code, SYSTEM_HOST_USER_ID, target = 4, difficulty = BotDifficulty.Standard, revealed = true),
+        )
+        return created.code
+    }
+
     // ---------- scaffolding ----------
 
     private fun newService(seed: Long = 0L): InMemoryRoomService = InMemoryRoomService(
         clock = FixedClock(),
         random = Random(seed),
     )
+
+    /** Records which room codes were torn down, for the teardown-hook tests. */
+    private class RecordingRoomClosedListener : com.dangerfield.cards.server.domain.RoomClosedListener {
+        val closedCodes = mutableListOf<String>()
+        override suspend fun onRoomClosed(room: com.dangerfield.cards.server.domain.Room) {
+            closedCodes += room.code
+        }
+    }
+
+    /** Records [deleteStaleRooms] calls so a sweep test can assert the cutoff +
+     *  keep-set without a real database; returns a fixed orphan count. */
+    private class RecordingRoomStore : com.dangerfield.cards.server.domain.RoomStore {
+        val deleteStaleCalls = mutableListOf<Pair<Instant, Set<String>>>()
+        override suspend fun save(room: com.dangerfield.cards.server.domain.Room) = Unit
+        override suspend fun delete(code: String) = Unit
+        override suspend fun load(code: String): com.dangerfield.cards.server.domain.Room? = null
+        override suspend fun deleteStaleRooms(olderThan: Instant, keepCodes: Set<String>): Int {
+            deleteStaleCalls += olderThan to keepCodes
+            return 2
+        }
+    }
 
     private class FixedClock(private val ms: Long = 1_700_000_000_000) : Clock {
         override fun now(): Instant = Instant.fromEpochMilliseconds(ms)

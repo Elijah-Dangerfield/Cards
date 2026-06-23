@@ -220,6 +220,111 @@ class GameEnginePropertyTest {
         }
     }
 
+    /**
+     * Drives a random hand but, after a few steps, forfeits a random in-hand
+     * seat (a mid-hand leave). Asserts the same load-bearing invariants still
+     * hold and that the hand always reaches a clean terminal state — the
+     * regression guard for the "stuck — nobody's turn" bug, where a leaving
+     * actor used to strand `actingSeatIndex` on a gone seat.
+     */
+    @Test
+    fun forfeit_preservesInvariants_andAlwaysReachesCleanCompletion() {
+        for (seed in 0L until 300L) {
+            val trace = playRandomHandWithForfeit(seed)
+
+            for (state in trace.intermediateStates) {
+                val onTable = state.seats.sumOf { it.contributedThisHand }
+                val stacks = state.seats.sumOf { it.stack }
+                if (state.street == BettingRound.Complete) {
+                    assertEquals(trace.startingTotal, stacks, "seed=$seed: pot returned to stacks at hand end")
+                } else {
+                    assertEquals(
+                        trace.startingTotal,
+                        stacks + onTable,
+                        "seed=$seed: stacks + chips-on-table must equal starting total",
+                    )
+                }
+                val acting = state.actingSeatIndex
+                if (acting != null) {
+                    assertTrue(
+                        state.seatAt(acting).canAct,
+                        "seed=$seed: actingSeatIndex=$acting must reference a seat that canAct",
+                    )
+                }
+            }
+
+            // The hand always terminates: the driver loops until there's no
+            // actor, so a null actor must mean Complete (never a stall).
+            assertEquals(null, trace.finalState.actingSeatIndex, "seed=$seed: no stranded actor")
+            assertEquals(
+                BettingRound.Complete,
+                trace.finalState.street,
+                "seed=$seed: a hand with no acting seat must be Complete",
+            )
+
+            val contributed = trace.finalState.seats.sumOf { it.contributedThisHand }
+            val awarded = trace.allEvents.filterIsInstance<GameEvent.PotAwarded>().sumOf { it.amount }
+            assertEquals(contributed, awarded, "seed=$seed: every contributed chip must be awarded")
+        }
+    }
+
+    private fun playRandomHandWithForfeit(seed: Long): HandTrace {
+        val rng = Random(seed)
+        val numSeats = 2 + rng.nextInt(5)
+        val seats = List(numSeats) { i ->
+            Seat(
+                index = i,
+                playerId = "p$i",
+                displayName = "P$i",
+                stack = stackChoices[rng.nextInt(stackChoices.size)],
+                seatStatus = SeatStatus.Active,
+                handParticipation = HandParticipation.InHand,
+            )
+        }
+        val startingTotal = seats.sumOf { it.stack }
+        val button = rng.nextInt(numSeats)
+        val start = GameEngine.startHand(
+            settings = settings,
+            seats = seats,
+            handNumber = 1,
+            buttonSeatIndex = button,
+            deck = deterministicDeck(seed),
+        )
+        var state = start.state
+        val events = start.events.toMutableList()
+        val intermediates = mutableListOf(state)
+        val stepsBeforeForfeit = rng.nextInt(4)
+        var steps = 0
+        var forfeited = false
+        var guard = 0
+        while (state.actingSeatIndex != null && guard++ < 1_000) {
+            if (!forfeited && steps >= stepsBeforeForfeit) {
+                val candidates = state.seats.filter { it.handParticipation == HandParticipation.InHand }
+                if (candidates.isNotEmpty()) {
+                    val victim = candidates[rng.nextInt(candidates.size)]
+                    val result = GameEngine.forfeitSeat(state, victim.index)
+                    state = result.state
+                    events += result.events
+                    intermediates += state
+                    forfeited = true
+                    // Idempotency: forfeiting the same seat again must be a no-op.
+                    val again = GameEngine.forfeitSeat(state, victim.index)
+                    assertEquals(state, again.state, "seed=$seed: forfeit must be idempotent")
+                    assertTrue(again.events.isEmpty(), "seed=$seed: a repeat forfeit emits nothing")
+                    continue
+                }
+            }
+            val actingIdx = state.actingSeatIndex ?: break
+            val acting = state.seatAt(actingIdx)
+            val result = GameEngine.applyIntent(state, chooseLegalIntent(state, acting, rng))
+            state = result.state
+            events += result.events
+            intermediates += state
+            steps++
+        }
+        return HandTrace(startingTotal, state, events, intermediates)
+    }
+
     @Test
     fun scrub_neverLeaksHiddenHoleCards() {
         for (seed in 0L until 300L) {

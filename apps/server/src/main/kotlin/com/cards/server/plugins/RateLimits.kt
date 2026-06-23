@@ -33,6 +33,7 @@ const val PROGRESSION_WRITE_LIMIT = "progression-write"
 const val ACHIEVEMENTS_WRITE_LIMIT = "achievements-write"
 const val ACHIEVEMENT_GRANT_LIMIT = "achievement-grant"
 const val FRIEND_REQUEST_LIMIT = "friend-request"
+const val MATCHMAKING_FIND_LIMIT = "matchmaking-find"
 
 fun Application.installRateLimits() {
     install(RateLimit) {
@@ -93,6 +94,16 @@ fun Application.installRateLimits() {
             // scripted friend-spam impractical. Per-IP keying mirrors the
             // rest of the policy (see file header for the per-user caveat).
             rateLimiter(limit = 50, refillPeriod = 1.hours)
+            requestKey { call -> call.clientIp() }
+        }
+
+        register(RateLimitName(MATCHMAKING_FIND_LIMIT)) {
+            // POST /v1/matchmaking/find each tap mints or claims a public table.
+            // A real user taps "Find a table", maybe cancels and retries a few
+            // times; bursts are small. 60/hour/IP keeps a generous ceiling over
+            // honest retry/cancel loops while stopping a scripted client from
+            // spinning up public rooms faster than the GC reclaims them.
+            rateLimiter(limit = 60, refillPeriod = 1.hours)
             requestKey { call -> call.clientIp() }
         }
 

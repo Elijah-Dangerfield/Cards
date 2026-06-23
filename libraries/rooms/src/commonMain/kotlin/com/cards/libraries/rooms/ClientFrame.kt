@@ -14,6 +14,9 @@ import kotlinx.serialization.Serializable
  *  - [SubmitIntent] — the acting seat submits fold / check / call / bet
  *    / raise / all-in.
  *  - [RequestNextHand] — any seated player advances after a hand ends.
+ *  - [Rebuy] — a busted player buys back into the table. The server
+ *    debits their wallet by the table buy-in and refills the seat to the
+ *    starting stack; the next [RequestNextHand] re-seats them.
  *  - [SendEmoji] — a seated player blasts a table emote; the server fans
  *    it out to every socket in the room as a [GameplayFrame.EmojiBlast].
  *
@@ -39,6 +42,10 @@ sealed interface ClientFrame {
     @Serializable
     @SerialName("request_next_hand")
     data class RequestNextHand(override val clientNonce: String) : ClientFrame
+
+    @Serializable
+    @SerialName("rebuy")
+    data class Rebuy(override val clientNonce: String) : ClientFrame
 
     @Serializable
     @SerialName("send_emoji")

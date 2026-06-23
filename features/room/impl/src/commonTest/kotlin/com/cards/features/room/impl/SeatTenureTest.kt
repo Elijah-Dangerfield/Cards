@@ -1,5 +1,10 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.ui.TenureHeadline
+import com.dangerfield.cards.features.room.impl.ui.monthResource
+import com.dangerfield.cards.features.room.impl.ui.playingSinceComponents
+import com.dangerfield.cards.features.room.impl.ui.tenureSpecs
+
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.month_april
 import cards.libraries.resources.generated.resources.month_august

@@ -123,6 +123,27 @@ internal object SpanAttrs {
     val Accepted: AttributeKey<Boolean> = AttributeKey.booleanKey("intent.accepted")
     val RejectionReason: AttributeKey<String> = AttributeKey.stringKey("intent.rejection_reason")
     val OccupantsCount: AttributeKey<Long> = AttributeKey.longKey("occupants.count")
+
+    // --- public matchmaking (the highest-traffic path) ---
+
+    /** True when `find` opened a NEW table (no eligible one existed) vs joined one — the organic-density signal. */
+    val MatchmakingCreated: AttributeKey<Boolean> = AttributeKey.booleanKey("matchmaking.created")
+
+    /** The table's buy-in (canonical tier) a searcher landed at. */
+    val MatchmakingBuyIn: AttributeKey<Long> = AttributeKey.longKey("matchmaking.buy_in")
+
+    /** Real humans seated after this find / play-bots — "did we reach real-human play?" */
+    val MatchmakingHumans: AttributeKey<Long> = AttributeKey.longKey("matchmaking.humans")
+
+    /** Disclosed bots seated by a play-bots fallback. */
+    val MatchmakingBots: AttributeKey<Long> = AttributeKey.longKey("matchmaking.bots")
+
+    /** House-funded amount paid out on a subsidised bot table — the budget line to watch. */
+    val BotSubsidyAmount: AttributeKey<Long> = AttributeKey.longKey("bot_subsidy.amount")
+
+    /** The user's running 24h subsidy draw-down after this payout, against the cap. */
+    val BotSubsidyGrantedWindow: AttributeKey<Long> = AttributeKey.longKey("bot_subsidy.granted_window")
+    val BotSubsidyCap: AttributeKey<Long> = AttributeKey.longKey("bot_subsidy.cap")
 }
 
 /**

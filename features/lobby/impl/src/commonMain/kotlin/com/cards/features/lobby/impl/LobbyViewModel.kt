@@ -54,6 +54,7 @@ class LobbyViewModel(
     @Assisted private val autoCreate: Boolean,
     @Assisted private val maxSeats: Int?,
     @Assisted private val buyIn: Long?,
+    @Assisted private val open: Boolean,
     private val rooms: RoomRepository,
     private val auth: AuthRepository,
     private val profile: ProfileRepository,
@@ -113,7 +114,7 @@ class LobbyViewModel(
                 val current = state
                 if (current.isBusy) return@run
                 updateState { it.copy(creating = true, error = null) }
-                when (val outcome = rooms.createRoom(maxSeats = maxSeats, buyIn = buyIn)) {
+                when (val outcome = rooms.createRoom(maxSeats = maxSeats, buyIn = buyIn, open = open)) {
                     is CreateRoomOutcome.Success -> startConnection(outcome.room)
                     is CreateRoomOutcome.InvalidMaxSeats -> updateState {
                         it.copy(creating = false, error = LobbyError.CreateInvalidMaxSeats(outcome.message))
@@ -311,9 +312,11 @@ class LobbyViewModel(
                 val current = state
                 if (current.hasReceivedGameplaySnapshot) return@run
                 updateState { it.copy(hasReceivedGameplaySnapshot = true) }
-                // Host already navigated when they tapped Start; only
-                // non-hosts need this auto-follow.
-                if (!current.isHost) {
+                // A host who tapped Start already navigated, so normally only
+                // non-hosts auto-follow here. But a server-dealt table (Open to
+                // anyone) deals itself with no Start tap, so the host follows the
+                // first snapshot in too.
+                if (!current.isHost || current.room?.isServerDealt == true) {
                     val code = current.room?.code ?: return@run
                     sendEvent(LobbyEvent.NavigateToMultiplayer(code))
                 }
@@ -431,9 +434,17 @@ data class LobbyState(
     val isHost: Boolean
         get() = effectiveHostUserId != null && effectiveHostUserId == currentUserId
 
-    /** Host can start once at least one other player has joined. */
+    /**
+     * Host can start once at least one other player has joined — but only on a
+     * host-dealt (Private) table. A server-dealt table (Open to anyone) deals
+     * itself, so there's no Start to tap.
+     */
     val canStart: Boolean
-        get() = isHost && (room?.members?.size ?: 0) >= 2
+        get() = isHost && room?.isServerDealt != true && (room?.members?.size ?: 0) >= 2
+
+    /** True when this table deals itself (Open to anyone) rather than waiting on the host's Start. */
+    val isServerDealtTable: Boolean
+        get() = room?.isServerDealt == true
 
     companion object {
         // Server uses 6 chars exactly; allow 4..8 client-side so we

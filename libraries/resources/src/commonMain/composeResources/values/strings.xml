@@ -88,7 +88,10 @@
     <string name="private_create_buyin_label">Buy-in</string>
     <string name="private_create_blinds_caption">Blinds %1$d / %2$d</string>
     <string name="private_create_max_players_label">Max players</string>
+    <string name="private_create_open_label">Open to anyone</string>
+    <string name="private_create_open_caption">Let strangers fill empty seats</string>
     <string name="private_create_invite_note">Invite only. You'll get a code to share once it's created.</string>
+    <string name="private_create_open_note">Anyone searching can join, and the table deals on its own once players arrive. You still get a code to share with friends.</string>
     <string name="private_create_cta">Create room</string>
 
     <!-- Private - Join-by-code screen (SPEC §7). Codes are 6-char alphanumeric. -->
@@ -116,6 +119,7 @@
     <string name="lobby_in_room_buyin_label">Buy-in</string>
     <string name="lobby_in_room_buyin_value">5,000</string>
     <string name="lobby_in_room_waiting_for_host">Waiting for the host to start the game…</string>
+    <string name="lobby_in_room_auto_deal_hint">Open to anyone. Deals automatically when players arrive.</string>
     <string name="lobby_in_room_leave_button">Leave room</string>
     <string name="lobby_in_room_leave_button_progress">Leaving…</string>
     <string name="lobby_leave_dialog_title">Leave the room?</string>
@@ -222,13 +226,27 @@
 
     <!-- Public rooms - Searching / matchmaking (SPEC §2). -->
     <string name="public_searching_title">Finding a table</string>
-    <string name="public_searching_heading">Finding your table</string>
-    <string name="public_searching_body">Matching you with players at your buy-in. Usually a few seconds.</string>
-    <string name="public_searching_found">%1$d players found · holding %2$d more seats</string>
     <string name="public_searching_buyin_label">Your buy-in range</string>
-    <string name="public_searching_buyin_value">2,000 – 25,000</string>
-    <string name="public_searching_blinds">Blinds 25/50+</string>
     <string name="public_searching_cancel">Cancel search</string>
+    <!-- Rotating reassurance shown while we genuinely hunt for real players. -->
+    <string name="public_searching_rotate_1">Looking for real players at your buy-in…</string>
+    <string name="public_searching_rotate_2">We'd rather find you real people than fake a crowd.</string>
+    <string name="public_searching_rotate_3">Good tables are worth the wait, so hang tight.</string>
+    <string name="public_searching_rotate_4">Still searching. Sharing the app helps the tables fill faster.</string>
+    <string name="public_searching_alone">Still looking for players</string>
+    <string name="public_searching_joined">A player joined. Dealing you in.</string>
+    <!-- Honest disclosed-bot fallback after a fruitless search. -->
+    <string name="public_searching_offer_title">We couldn't find anyone right now</string>
+    <string name="public_searching_offer_body">We looked hard and couldn't find enough real players right now. That's on us. You can still play for real chips against bots. You keep what you win, up to a daily limit, and they step aside the moment a real player joins.</string>
+    <string name="public_searching_offer_play_bots">Play bots for real chips</string>
+    <string name="public_searching_offer_keep_waiting">Keep waiting for players</string>
+    <string name="public_searching_offer_try_later">Try again later</string>
+    <string name="public_searching_joining_bots_title">Setting up your table</string>
+    <string name="public_searching_joining_bots_body">Seating your opponents and dealing you in…</string>
+    <!-- Search failed (network / rate limit / rejected). -->
+    <string name="public_searching_error_body">We couldn't reach the tables just now. Check your connection and try again.</string>
+    <string name="public_searching_error_retry">Try again</string>
+    <string name="public_searching_error_back">Back</string>
 
     <!-- Public rooms - Lobby (timer auto-deal, SPEC §3). -->
     <string name="public_lobby_title">The Felt</string>
@@ -739,6 +757,25 @@
     <string name="room_bust_title">You went bust</string>
     <string name="room_bust_body">Practice chips refilled - chips against bots don't count for keeps. Deal yourself in and keep sharpening up.</string>
     <string name="room_bust_deal_me_in_button">Deal me in</string>
+    <!-- Room - Multiplayer bust dialog (rebuy with wallet chips, or buy more, or leave). -->
+    <string name="room_mp_bust_title">You're out of chips</string>
+    <string name="room_mp_bust_body">You've busted out of this game. Rebuy to jump back in, or leave the table.</string>
+    <string name="room_mp_bust_buy_chips_button">Buy chips</string>
+    <string name="room_mp_bust_leave_button">Leave game</string>
+    <!-- %1$s = formatted buy-in chip amount, e.g. "1,000". -->
+    <string name="room_mp_bust_rebuy_button">Rebuy (%1$s)</string>
+
+    <!-- Room - In-game quick-buy chip sheet (busted-player upsell, no nav away). -->
+    <string name="room_quick_buy_title">Buy chips</string>
+    <string name="room_quick_buy_subtitle">Top up without leaving the table.</string>
+    <!-- %1$s = formatted wallet chip balance. -->
+    <string name="room_quick_buy_balance">Balance: %1$s</string>
+    <!-- %1$s = formatted granted chip amount for a pack. -->
+    <string name="room_quick_buy_pack_chips">%1$s chips</string>
+    <!-- %1$s = formatted granted chip amount, e.g. "30,000". -->
+    <string name="room_quick_buy_success">Added %1$s chips</string>
+    <string name="room_quick_buy_failed">Couldn't complete the purchase</string>
+    <string name="room_quick_buy_store_unavailable">Store unavailable right now</string>
 
     <!-- Room - Achievement-unlocked callout (inline within hand-end dialogs in MP mode). -->
     <string name="room_achievement_callout_heading">Achievement unlocked</string>
@@ -922,6 +959,7 @@
     <string name="room_practice_tier_explainer_a11y">What practice tier means</string>
     <string name="room_practice_tier_explainer_body">This table has bots and not enough humans, so the hand counts as practice. You still earn XP, but only half as much, and multiplayer-only achievements stay locked. Get more humans to the table to play for full credit.</string>
     <string name="room_practice_tier_explainer_bots_only_body">You are the only human here, so real chips are no longer at stake - the bots play for practice only.</string>
+    <string name="room_practice_tier_explainer_bots_only_subsidized_body">You are playing our bots while we find you real opponents - and we mean it: beat them and you keep the chips you win, on the house, up to a daily limit.</string>
 
     <!-- Tutorial - section labels (basics narration block vs. tableau hands). -->
     <string name="tutorial_section_basics">Basics</string>

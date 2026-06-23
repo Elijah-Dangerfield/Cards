@@ -13,7 +13,14 @@ kotlin {
             implementation(projects.features.home)
             implementation(projects.features.progression)
             implementation(projects.features.shop)
+            implementation(projects.features.lobby)
+            implementation(projects.features.rooms)
+            // ClaimAccountRoute — the MP quick-buy routes anonymous users to the
+            // same account-claim flow the shop uses.
+            implementation(projects.features.profile)
             implementation(projects.libraries.bots)
+            // PurchaseChipPackUseCase + IapPurchaseOutcome for the in-game quick-buy.
+            implementation(projects.libraries.billing)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.game)
             implementation(projects.libraries.gameplay)
@@ -50,6 +57,7 @@ kotlin {
             // (e.g. `Cache` from libraries/storage, which `AppCache` extends) need
             // to be explicitly available on the test classpath.
             implementation(projects.libraries.bots)
+            implementation(projects.libraries.billing)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.game)
             implementation(projects.libraries.gameplay)

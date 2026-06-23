@@ -1,5 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.ui.difficultyTierFor
+
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import kotlin.test.Test
 import kotlin.test.assertEquals

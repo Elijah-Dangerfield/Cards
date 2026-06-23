@@ -175,6 +175,28 @@ class PostgresFriendRepositoryTest : DatabaseTest() {
         assertEquals(listOf(b), repo.listIncomingRequests(c))
     }
 
+    @Test
+    fun listBlockedUserIds_returnsBothDirections_andOnlyBlocks() = runTest {
+        val repo = newRepo()
+        val me = newUser()
+        val iBlocked = newUser()
+        val blockedMe = newUser()
+        val friend = newUser()
+
+        repo.block(me, iBlocked) // I blocked them
+        repo.block(blockedMe, me) // they blocked me
+        repo.sendRequest(me, friend)
+        repo.accept(friend, me) // an accepted friendship, not a block
+
+        val blocked = repo.listBlockedUserIds(me)
+
+        assertEquals(setOf(iBlocked, blockedMe), blocked, "both block directions, accepted pair excluded")
+        // The block is symmetric from the other side too.
+        assertTrue(repo.listBlockedUserIds(iBlocked).contains(me))
+        // A user with no blocks sees an empty set.
+        assertTrue(repo.listBlockedUserIds(friend).isEmpty())
+    }
+
     private fun newRepo(): PostgresFriendRepository =
         PostgresFriendRepository(database = database, clock = fixedClock)
 

@@ -7,7 +7,10 @@ import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.domain.BotSeat
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.random.Random
@@ -53,7 +56,7 @@ class ServerBotDriverTest {
             random = Random(seed = 7),
             equityIterations = 20,
             thinkDelay = { _, _, _ -> 0 },
-            nextHandDelayMs = 0,
+            mixedNextHandDelayMs = 0,
         )
         driver.updateRoster(listOf(human, bot))
         driver.start()
@@ -123,4 +126,139 @@ class ServerBotDriverTest {
         assertEquals(actorBefore, session.state.value!!.actingSeatIndex)
         assertTrue(session.state.value!!.seats.all { !it.hasActedThisStreet })
     }
+
+    /**
+     * CARDS-16 regression. A `1 human + N bots` table used to freeze at hand end:
+     * the all-bot advance gate skipped it and the lone human stopped tapping
+     * "next hand". The driver now advances any bot-occupied table, so consecutive
+     * hands deal without a single human next-hand tap.
+     */
+    @Test
+    fun mixedTable_autoAdvancesConsecutiveHands_withoutHumanNextHandTap() = runTest {
+        val session = GameSession(random = Random(seed = 7))
+        val driver = unconfinedDriver(session)
+        driver.updateRoster(listOf(human, bot))
+        driver.start()
+
+        session.startHand(listOf(human, bot), settings)
+
+        // Play the human's in-hand turns only — never call requestNextHand. The
+        // bot driver must carry the table across hand boundaries on its own.
+        val humanId = "human-1"
+        var guard = 0
+        while (guard++ < 300 && session.state.value!!.handNumber < 3) {
+            advanceUntilIdle()
+            val state = session.state.value!!
+            if (state.handNumber >= 3) break
+            if (state.street == BettingRound.Complete) continue // driver auto-advances
+            val acting = state.actingSeatIndex ?: continue
+            val seat = state.seats.first { it.index == acting }
+            if (seat.playerId != humanId) continue // bot's turn — the driver acts
+            val toCall = state.currentBetThisStreet - seat.contributedThisStreet
+            val intent = if (toCall > 0) PlayerIntent.Fold(acting) else PlayerIntent.Check(acting)
+            session.applyIntent(humanId, intent, "human-$guard")
+        }
+
+        assertTrue(
+            session.state.value!!.handNumber >= 3,
+            "a bot-occupied table advances consecutive hands with no human next-hand tap",
+        )
+    }
+
+    /**
+     * The flip side of CARDS-16: a pure all-human table must NOT auto-advance —
+     * those players continue at their own pace via client "next hand" taps. The
+     * driver only advances tables that contain a bot.
+     */
+    @Test
+    fun allHumanTable_doesNotAutoAdvance_atHandEnd() = runTest {
+        val session = GameSession(random = Random(seed = 3))
+        val driver = unconfinedDriver(session)
+        driver.start()
+
+        val human2 = SeatOccupant(seatIndex = 1, userId = "human-2", displayName = "Peer", isBot = false)
+        session.startHand(listOf(human, human2), settings)
+
+        // Play hand 1 to completion with both humans acting.
+        var guard = 0
+        while (guard++ < 100 && session.state.value!!.street != BettingRound.Complete) {
+            advanceUntilIdle()
+            val state = session.state.value!!
+            if (state.street == BettingRound.Complete) break
+            val acting = state.actingSeatIndex ?: continue
+            val seat = state.seats.first { it.index == acting }
+            val toCall = state.currentBetThisStreet - seat.contributedThisStreet
+            val intent = if (toCall > 0) PlayerIntent.Fold(acting) else PlayerIntent.Check(acting)
+            session.applyIntent(seat.playerId!!, intent, "h-$guard")
+        }
+
+        assertEquals(BettingRound.Complete, session.state.value!!.street, "hand 1 reaches completion")
+        val handAtComplete = session.state.value!!.handNumber
+
+        // Let the scheduler drain fully — with no bot at the table nothing advances.
+        advanceUntilIdle()
+
+        assertEquals(
+            handAtComplete,
+            session.state.value!!.handNumber,
+            "an all-human table never auto-advances; it waits for a client next-hand tap",
+        )
+        assertEquals(BettingRound.Complete, session.state.value!!.street)
+    }
+
+    /**
+     * The teardown half: an all-bot table (no human left — the lone human quit a
+     * fallback table, or every human dropped a private bot room) must NOT keep
+     * simulating hands to an empty room. It goes idle at hand end so the orphan
+     * sweep can reclaim it; no infinite equity-sim CPU burn.
+     */
+    @Test
+    fun allBotTable_goesIdle_doesNotAdvance() = runTest {
+        val session = GameSession(random = Random(seed = 11))
+        val botA = SeatOccupant(seatIndex = 0, userId = "bot-1", displayName = "Jane", isBot = true,
+            bot = BotSeat(BotPersonality.Jane, BotDifficulty.Standard, revealed = true))
+        val botB = SeatOccupant(seatIndex = 1, userId = "bot-2", displayName = "David", isBot = true,
+            bot = BotSeat(BotPersonality.David, BotDifficulty.Standard, revealed = true))
+
+        // Reach a completed hand deterministically (one bot folds preflop) BEFORE
+        // attaching the driver — so we isolate the advance decision from self-play.
+        session.startHand(listOf(botA, botB), settings)
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actorId = session.state.value!!.seats.first { it.index == acting }.playerId!!
+        session.applyIntent(actorId, PlayerIntent.Fold(acting), "fold-1")
+        assertEquals(BettingRound.Complete, session.state.value!!.street, "the fold ends hand 1")
+        val handAtComplete = session.state.value!!.handNumber
+
+        // Now attach the driver to the already-complete all-bot table.
+        val driver = unconfinedDriver(session)
+        driver.updateRoster(listOf(botA, botB))
+        driver.start()
+        advanceUntilIdle()
+
+        assertEquals(
+            handAtComplete,
+            session.state.value!!.handNumber,
+            "an all-bot table stays idle — never simulates a hand to an empty room",
+        )
+        assertEquals(BettingRound.Complete, session.state.value!!.street)
+    }
+
+    /**
+     * Build a driver whose collector runs on an [UnconfinedTestDispatcher] so the
+     * `collectLatest` loop actually drives state changes under `advanceUntilIdle`.
+     * A `StandardTestDispatcher`-backed `backgroundScope` doesn't reliably pump the
+     * hot-flow collector, which is fine for the snappy fold-immediately tests above
+     * but hides the cross-hand advance these tests exercise. Delays are zeroed so
+     * the table advances without burning virtual time.
+     */
+    private fun TestScope.unconfinedDriver(session: GameSession): ServerBotDriver =
+        ServerBotDriver(
+            session = session,
+            scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
+            cpuDispatcher = UnconfinedTestDispatcher(testScheduler),
+            random = Random(seed = 7),
+            equityIterations = 20,
+            thinkDelay = { _, _, _ -> 0 },
+            mixedNextHandDelayMs = 0,
+        )
 }

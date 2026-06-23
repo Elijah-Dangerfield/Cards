@@ -111,6 +111,33 @@ class RoomRoutesTest {
     }
 
     @Test
+    fun create_default_isPrivate() = runTest {
+        withRooms { client ->
+            val room = client.createRoom(asUser = host).body<CreateRoomResponse>().room
+            assertEquals(RoomVisibilityDto.Private, room.visibility, "no visibility → a code-only Private room")
+        }
+    }
+
+    @Test
+    fun create_openToAnyone_returnsAnOpenRoom() = runTest {
+        withRooms { client ->
+            val resp = client.createRoom(asUser = host, visibility = "Open")
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(RoomVisibilityDto.Open, resp.body<CreateRoomResponse>().room.visibility)
+        }
+    }
+
+    @Test
+    fun create_400_whenClientTriesToMintAPublicTable() = runTest {
+        withRooms { client ->
+            // Only the matchmaker mints Public tables; a client can't.
+            val resp = client.createRoom(asUser = host, visibility = "Public")
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertTrue(resp.bodyAsText().contains("invalid_visibility"))
+        }
+    }
+
+    @Test
     fun get_returnsRoom() = runTest {
         withRooms { client ->
             val created = client.createRoom(asUser = host).body<CreateRoomResponse>().room
@@ -341,11 +368,16 @@ class RoomRoutesTest {
         private val app: ApplicationTestBuilder,
         private val raw: io.ktor.client.HttpClient,
     ) {
-        suspend fun createRoom(maxSeats: Int? = null, buyIn: Long? = null, asUser: UserId?): HttpResponse =
+        suspend fun createRoom(
+            maxSeats: Int? = null,
+            buyIn: Long? = null,
+            visibility: String? = null,
+            asUser: UserId?,
+        ): HttpResponse =
             raw.post("/v1/rooms") {
                 contentType(ContentType.Application.Json)
                 bearer(asUser)
-                setBody(CreateRoomRequest(maxSeats = maxSeats, buyIn = buyIn))
+                setBody(CreateRoomRequest(maxSeats = maxSeats, buyIn = buyIn, visibility = visibility))
             }
 
         suspend fun getRoom(code: String, asUser: UserId?): HttpResponse =

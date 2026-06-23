@@ -5,11 +5,12 @@ import kotlinx.serialization.Serializable
 
 /**
  * The PUBLIC rooms route family — zero-friction, auto-seated, no host. The
- * player picks a buy-in range and the matchmaker seats them; a timer (not a
+ * player picks a buy-in range and the matchmaker seats them; the server (not a
  * host) deals. See `docs/design-handoff/rooms/SPEC.md`.
  *
- * Real matchmaking is not wired yet — these screens are visual shells. The
- * flow walks Find → Searching → Lobby / NextRound.
+ * Find → Searching is live matchmaking (Phase 5); Searching hands straight off
+ * to the multiplayer table once a hand deals. Lobby / NextRound remain as the
+ * mid-hand-join shells.
  *
  * All routes are `class` / `data class` (never `data object`): a serializable
  * `data object` route crashes the iOS navigator at navigate-time.
@@ -19,9 +20,16 @@ import kotlinx.serialization.Serializable
 @Serializable
 class PublicFindRoute : Route()
 
-/** Matchmaking loading state — the radar, "holding seats", a cancel hatch. */
+/**
+ * Live matchmaking — the radar, the found-count, the honest disclosed-bot offer
+ * if the search comes up empty. Carries the buy-in [minBuyIn]..[maxBuyIn] range
+ * the player set on Find so the search runs at their chosen stakes.
+ */
 @Serializable
-class PublicSearchingRoute : Route()
+data class PublicSearchingRoute(
+    val minBuyIn: Long,
+    val maxBuyIn: Long,
+) : Route()
 
 /** Matched into a table that hasn't dealt yet; a timer auto-deals. */
 @Serializable

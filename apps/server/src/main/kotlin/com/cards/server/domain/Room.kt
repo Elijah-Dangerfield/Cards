@@ -40,9 +40,23 @@ data class Room(
      * default so the table actually plays at the chosen stakes.
      */
     val buyIn: Long = RoomSettings.DEFAULT_BUY_IN,
+    /**
+     * Who can discover + join this room. [RoomVisibility.Private] (the default,
+     * matching every pre-matchmaking room) is code-only. [RoomVisibility.Open]
+     * is a human-hosted room the creator opted into matchmaking discovery for.
+     * [RoomVisibility.Public] is a matchmaker-created table with a synthetic
+     * system host, dealt by the server. Only Open + Public are matchmaking-
+     * eligible. Defaulted so existing call sites + persisted pre-V66 rows read
+     * as Private.
+     */
+    val visibility: RoomVisibility = RoomVisibility.Private,
 ) {
     /** Full engine settings derived from [buyIn] + [maxSeats]. */
     val settings: RoomSettings get() = RoomSettings.forBuyIn(buyIn, maxSeats)
+
+    /** Matchmaking can seat a stranger here (Open opt-in, or a Public table). */
+    val isMatchmakingEligible: Boolean
+        get() = visibility == RoomVisibility.Open || visibility == RoomVisibility.Public
 
     val seatCount: Int get() = members.size
     val isFull: Boolean get() = seatCount >= maxSeats
@@ -103,6 +117,20 @@ data class RoomMember(
 enum class RoomStatus { Lobby, Playing, Finished }
 
 /**
+ * Discovery + join policy for a room.
+ *
+ *  - [Private] — joinable only by code. Every room before matchmaking is this.
+ *  - [Open] — human-hosted but discoverable by the public matchmaker; the
+ *    creator flipped "let anyone join". Server-dealt like [Public] (auto-deals
+ *    once 2+ players are present) — "open to anyone" means "fill it and play",
+ *    so a matched stranger never waits on a host tapping Start. No surprise bots
+ *    unless the host opts into bot-fill.
+ *  - [Public] — created by the matchmaker with a synthetic system host and
+ *    dealt by the server. Eligible for the disclosed bot fallback.
+ */
+enum class RoomVisibility { Private, Open, Public }
+
+/**
  * High-level room operations the HTTP routes + WebSocket session
  * handlers talk to. Implementations are concurrent-safe — multiple
  * connections per room hit these methods simultaneously.
@@ -129,6 +157,9 @@ interface RoomService {
         hostAvatarEmoji: String = "",
         hostAvatarBackgroundColor: String? = null,
         buyIn: Long = RoomSettings.DEFAULT_BUY_IN,
+        // Private by default. The create-game "open to anyone" toggle passes
+        // [RoomVisibility.Open] so the matchmaker can seat strangers here.
+        visibility: RoomVisibility = RoomVisibility.Private,
     ): CreateResult
 
     /**
@@ -143,6 +174,31 @@ interface RoomService {
         avatarEmoji: String = "",
         avatarBackgroundColor: String? = null,
     ): JoinResult
+
+    /**
+     * Public matchmaking: seat [userId] into the best eligible Open/Public room
+     * whose buy-in is in `[minBuyIn, maxBuyIn]`, else open a fresh Public table
+     * for them (no bots — the disclosed bot fallback only fires later, on
+     * consent). "Best" = the most real humans already seated, so searchers
+     * cluster onto live tables instead of scattering.
+     *
+     * Runs as a single critical section so the pick-and-seat is atomic — two
+     * racing searchers can't both claim the last seat, and a room can't be
+     * GC'd / torn down between the scan and the join (the loser falls through to
+     * create). [blockedUserIds] (both block directions) must be computed by the
+     * caller *before* this call — never query the friend graph while the room
+     * mutex is held; rooms containing a blocked member are skipped. Idempotent:
+     * a searcher already seated in an eligible room gets that room back.
+     */
+    suspend fun findOrJoinPublic(
+        userId: UserId,
+        name: String,
+        minBuyIn: Long,
+        maxBuyIn: Long,
+        blockedUserIds: Set<UserId>,
+        avatarEmoji: String = "",
+        avatarBackgroundColor: String? = null,
+    ): MatchmakingResult
 
     /**
      * Explicit leave. Frees the seat. When the room empties, the
@@ -171,10 +227,53 @@ interface RoomService {
     ): AddBotResult
 
     /**
+     * Atomically seat backend bots until the room holds [target] members (or hits
+     * capacity), all in one critical section. The disclosed-bot fallback uses this
+     * instead of looping [addBot] so two racing `play-bots` taps can't each fill
+     * from the same starting count and overshoot into a packed table. Host-only
+     * (the public table's system host), Lobby-only. Idempotent: already at/over
+     * [target] is a no-op success.
+     */
+    suspend fun fillBotsUpTo(
+        code: String,
+        requestedBy: UserId,
+        target: Int,
+        difficulty: BotDifficulty,
+        revealed: Boolean = true,
+    ): AddBotResult
+
+    /**
      * Remove a previously-added bot. Host-only. The host is always a human, so
      * this never empties the room; no host migration / GC concerns apply.
      */
     suspend fun removeBot(code: String, requestedBy: UserId, botUserId: UserId): RemoveBotResult
+
+    /**
+     * "Bots step aside for humans." On a **public** table that now holds **two
+     * or more humans plus at least one bot**, drop **one** bot from the room so
+     * the table converges toward an all-human game one hand at a time. No host
+     * gate — the matchmaker's system host owns public tables, and this is server
+     * policy, not a user action.
+     *
+     * Called at each hand boundary by the socket route's trim collector.
+     * [handNumber] makes it **idempotent per hand**: the collector fires once
+     * per remaining subscriber, but only the first call for a given
+     * (code, handNumber) trims — the rest are no-ops. Returns the trimmed bot's
+     * [UserId] (so the caller can drop it from the live game session too), or
+     * null when nothing was trimmed (not public, <2 humans, no bots, the cushion
+     * is being held, or this hand was already trimmed).
+     *
+     * One-per-hand is deliberate: a table that found a second human shouldn't
+     * dump all its bots at once mid-session — it eases the humans in while the
+     * pot they're already contesting plays out, and keeps the seat count from
+     * lurching. **Gentle landing:** a freshly-rescued *pair* isn't stripped to a
+     * bare heads-up — a small disclosed-bot cushion is held until either a third
+     * human arrives or the cushion bot busts out, so the table never snaps to an
+     * empty-feeling two-person duel on the way to all-human. The lone-human case
+     * is untouched (that's still a real-money practice table); only a
+     * genuinely-rescued table sheds bots.
+     */
+    suspend fun trimBotForNewHumans(code: String, handNumber: Int): UserId?
 
     /** Mark a member's socket connected / disconnected. No-op if room or
      *  member missing — callers use this from WS open / close handlers. */
@@ -221,9 +320,16 @@ interface RoomService {
      * [leave]'s last-out branch. The room codes never resurrect — a
      * future join attempt against a swept code returns [JoinResult.RoomNotFound].
      *
-     * Idempotent. Kept as a test utility; in production each disconnect
-     * schedules its own per-member reaper via [reapIfStillDisconnected],
-     * so the live system doesn't depend on a periodic sweep.
+     * Also reclaims persisted rooms with no in-memory owner — the rooms a
+     * process death strands in the durable store, which the per-member reaper
+     * (an in-process timer that dies with the process) can never reach. The
+     * count comes back as [RoomSweepResult.orphanedRoomsReaped].
+     *
+     * Idempotent. The happy-path seat reclaim is the per-disconnect reaper
+     * ([reapIfStillDisconnected], scheduled on each socket close); this sweep is
+     * the cron-driven backstop ([RoomService] mounts it on `POST
+     * /v1/admin/sweep-rooms`) for seats + rooms that outlive the process that
+     * scheduled their reaper.
      */
     suspend fun sweepDisconnected(maxIdle: Duration): RoomSweepResult
 
@@ -283,6 +389,12 @@ data class RoomSweepResult(
     val roomsReaped: Int,
     /** Total live rooms at the start of the sweep. Useful for sanity-checking. */
     val roomsSeen: Int,
+    /**
+     * Persisted rooms with no in-memory owner that were deleted from the durable
+     * store (the abandoned-after-restart leak). Zero for an in-memory-only
+     * service (the [NoOpRoomStore] default).
+     */
+    val orphanedRoomsReaped: Int = 0,
 )
 
 sealed interface JoinResult {

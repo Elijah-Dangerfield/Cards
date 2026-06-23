@@ -1,5 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.usecase.HandResultSummaryBuilder
+
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.GameEvent

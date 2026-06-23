@@ -69,7 +69,7 @@ class FullStackRoomTest : DatabaseTest() {
                 installApp(
                     component = component,
                     verification = JwtVerification.Static(RoomSocketTestAuth.verifier),
-                    adminConfig = AdminConfig(apiToken = null, orphanAnonTtlDays = 30),
+                    adminConfig = AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6),
                 )
             }
             val client = createClient {

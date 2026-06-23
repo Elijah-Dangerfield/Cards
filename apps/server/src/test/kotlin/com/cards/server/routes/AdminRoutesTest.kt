@@ -699,6 +699,7 @@ class AdminRoutesTest {
                         config = AdminConfig(
                             apiToken = configuredToken,
                             orphanAnonTtlDays = 30,
+                            staleRoomTtlHours = 6,
                         ),
                         sweep = NoopSweep,
                         rooms = rooms,

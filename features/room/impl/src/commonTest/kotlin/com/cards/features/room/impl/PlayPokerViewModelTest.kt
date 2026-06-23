@@ -1,5 +1,9 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.LocalBotsSession
+import com.dangerfield.cards.features.room.impl.session.PokerSession
+import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
+
 import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AchievementRarity
@@ -22,9 +26,16 @@ import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.review.ReviewTrigger
+import com.dangerfield.cards.libraries.ui.components.PlayerBadge
+import com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle
+import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -1004,6 +1015,299 @@ class PlayPokerViewModelTest : CoroutineTest() {
         )
     }
 
+    // ---------- Multiplayer bust dialog + opponent-left ----------
+
+    @Test
+    fun isRealMultiplayer_trueForMultiplayerActiveTable() = runUnitTest {
+        val vm = buildVm(factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER))
+
+        assertTrue(
+            vm.state.isRealMultiplayer,
+            "a multiplayer session with a live table is real-MP (not practice/solo)",
+        )
+    }
+
+    @Test
+    fun isRealMultiplayer_falseForBotsMode() = runUnitTest {
+        val vm = buildVm(factory = FakePokerSessionFactory(xpMode = XpMode.BOTS))
+
+        assertFalse(vm.state.isRealMultiplayer, "solo bots is never real multiplayer")
+    }
+
+    @Test
+    fun openQuickBuy_fromBustDialog_opensInGameSheet_noNavigation() = runUnitTest {
+        val vm = buildVm(factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER))
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.OpenQuickBuy)
+        advanceUntilIdle()
+
+        assertTrue(vm.state.quickBuyOpen, "Buy chips opens the in-game quick-buy sheet")
+        assertTrue(events.isEmpty(), "quick-buy stays in-game — no navigation event; got $events")
+        job.cancel()
+    }
+
+    @Test
+    fun confirmQuickBuy_success_emitsQuickBuyFinished_andSyncsChips() = runUnitTest {
+        val chips = FakeChipsRepository(initialBalance = 0)
+        val purchase = FakePurchaseChipPackUseCase(
+            nextOutcome = com.dangerfield.cards.libraries.billing.IapPurchaseOutcome.Success(grantedChips = 30_000),
+        )
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER),
+            chipsRepository = chips,
+            purchaseChipPack = purchase,
+        )
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.OpenQuickBuy)
+        vm.takeAction(PlayPokerAction.ConfirmQuickBuy(SAMPLE_CHIP_PACK))
+        advanceUntilIdle()
+
+        assertEquals(listOf(SAMPLE_CHIP_PACK), purchase.calls, "use case invoked with the pack")
+        assertFalse(vm.state.quickBuyOpen, "sheet closes after a purchase settles")
+        assertFalse(vm.state.purchaseInFlight, "in-flight flag cleared")
+        assertTrue(
+            events.any {
+                it is PlayPokerEvent.QuickBuyFinished &&
+                    it.outcome is com.dangerfield.cards.libraries.billing.IapPurchaseOutcome.Success
+            },
+            "QuickBuyFinished(Success) emitted; got $events",
+        )
+        assertTrue(chips.syncCount >= 1, "chips synced so the rebuy gate sees the fresh balance")
+        job.cancel()
+    }
+
+    @Test
+    fun confirmQuickBuy_anonymous_emitsClaimAccountRequired() = runUnitTest {
+        val purchase = FakePurchaseChipPackUseCase(
+            nextOutcome = com.dangerfield.cards.libraries.billing.IapPurchaseOutcome.ClaimAccountRequired,
+        )
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER),
+            purchaseChipPack = purchase,
+        )
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.ConfirmQuickBuy(SAMPLE_CHIP_PACK))
+        advanceUntilIdle()
+
+        assertTrue(
+            events.any { it is PlayPokerEvent.ClaimAccountRequired },
+            "anonymous purchase routes to claim; got $events",
+        )
+        assertFalse(
+            events.any { it is PlayPokerEvent.QuickBuyFinished },
+            "claim signal must not also fire QuickBuyFinished",
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun rebuy_success_emitsRebuySucceeded_andCallsSession() = runUnitTest {
+        val session = FakePokerSession()
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(session = session, xpMode = XpMode.MULTIPLAYER),
+        )
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.Rebuy)
+        advanceUntilIdle()
+
+        assertEquals(1, session.rebuyCount, "rebuy reaches the session")
+        assertTrue(
+            events.contains(PlayPokerEvent.RebuySucceeded),
+            "successful rebuy emits RebuySucceeded; got $events",
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun rebuy_insufficientChips_emitsRebuyInsufficientChips() = runUnitTest {
+        val session = FakePokerSession().apply {
+            rebuyError = com.dangerfield.cards.features.room.impl.session
+                .IntentRejectedException("insufficient chips")
+        }
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(session = session, xpMode = XpMode.MULTIPLAYER),
+        )
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.Rebuy)
+        advanceUntilIdle()
+
+        assertTrue(
+            events.contains(PlayPokerEvent.RebuyInsufficientChips),
+            "a rejected-for-funds rebuy surfaces RebuyInsufficientChips; got $events",
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun leaveGameFromBust_sendsDurableLeave() = runUnitTest {
+        val session = FakePokerSession()
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(session = session, xpMode = XpMode.MULTIPLAYER),
+        )
+
+        vm.takeAction(PlayPokerAction.LeaveGameFromBust)
+
+        assertEquals(1, session.leaveCount, "Leave game from the bust dialog frees the seat")
+    }
+
+    @Test
+    fun opponentsLeft_fromSession_emitsOpponentsLeftEvent() = runUnitTest {
+        val session = FakePokerSession()
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(session = session, xpMode = XpMode.MULTIPLAYER),
+        )
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        session.emitOpponentsLeft()
+        advanceUntilIdle()
+
+        assertTrue(
+            events.contains(PlayPokerEvent.OpponentsLeft),
+            "the session's opponents-left signal surfaces as a one-shot VM event; got $events",
+        )
+        job.cancel()
+    }
+
+    // ---------- Settings / cosmetics / win-odds mirrors ----------
+
+    @Test
+    fun xpBoostChanged_mirrorsExpiry() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.XpBoostChanged(expiresAtEpochMs = 12_345L))
+        assertEquals(12_345L, vm.state.xpBoostExpiresAtEpochMs)
+    }
+
+    @Test
+    fun equippedFeltChanged_repaintsTableSurface() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.EquippedFeltChanged(EquippedFelt.Neon))
+        assertEquals(EquippedFelt.Neon, vm.state.equippedFelt)
+    }
+
+    @Test
+    fun equippedCardBackChanged_setsStyle() = runUnitTest {
+        val style = CardBackStyle.entries.first { it != CardBackStyle.Default }
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.EquippedCardBackChanged(style))
+        assertEquals(style, vm.state.equippedCardBack)
+    }
+
+    @Test
+    fun equippedBadgeChanged_setsEmoji() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.EquippedBadgeChanged("🔥"))
+        assertEquals("🔥", vm.state.equippedBadgeEmoji)
+    }
+
+    @Test
+    fun catalogChanged_mirrorsCatalog() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.CatalogChanged(ProductCatalog.Empty))
+        assertEquals(ProductCatalog.Empty, vm.state.catalog)
+    }
+
+    @Test
+    fun winOddsFlipHintSeenChanged_mirrorsFlag() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.WinOddsFlipHintSeenChanged(seen = true))
+        assertTrue(vm.state.winOddsFlipHintSeen)
+    }
+
+    @Test
+    fun winOddsToolEquipped_flippingOff_clearsBreakdown() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.WinOddsToolEquippedChanged(equipped = true))
+        assertTrue(vm.state.winOddsToolEquipped)
+
+        vm.takeAction(PlayPokerAction.WinOddsToolEquippedChanged(equipped = false))
+        assertFalse(vm.state.winOddsToolEquipped)
+        assertEquals(null, vm.state.humanWinOdds, "stale odds are cleared when the tool unequips")
+    }
+
+    @Test
+    fun winOddsChanged_null_clearsBreakdown() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.WinOddsChanged(breakdown = null))
+        assertEquals(null, vm.state.humanWinOdds)
+    }
+
+    @Test
+    fun markWinOddsFlipHintSeen_writesThroughToAppCache() = runUnitTest {
+        val cache = FakeAppCache()
+        val vm = buildVm(appCache = cache)
+        assertEquals(false, cache.get().winOddsFlipHintSeen)
+
+        vm.takeAction(PlayPokerAction.MarkWinOddsFlipHintSeen)
+
+        assertEquals(true, cache.get().winOddsFlipHintSeen)
+    }
+
+    @Test
+    fun equippedBadgesChanged_mirrorsList() = runUnitTest {
+        val badges = listOf(PlayerBadge(productId = "badge_1", emoji = "🔥", name = "Hot Streak"))
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.EquippedBadgesChanged(badges))
+        assertEquals(badges, vm.state.equippedBadges)
+    }
+
+    // ---------- Out-of-order / non-happy-path FSM ----------
+
+    @Test
+    fun remoteEmote_fromUnknownSeat_isIgnored() = runUnitTest {
+        val vm = buildVm(factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER))
+        advanceUntilIdle() // let the first snapshot project an Active table
+
+        vm.takeAction(PlayPokerAction.RemoteEmoteReceived(seatIndex = 99, emoji = "🎉"))
+
+        assertEquals(null, vm.state.emojiBlast, "an emote for a seat not at the table is dropped")
+    }
+
+    @Test
+    fun achievementsEarned_setsRecentlyEarned_andClearsAwaiting_evenWithoutPriorPending() = runUnitTest {
+        // The pending→earned ordering is the happy path; this pins that a bare
+        // AchievementsEarned (e.g. a late async resolve) still lands correctly.
+        val earned = listOf(testEarnedAchievement())
+        val vm = buildVm()
+
+        vm.takeAction(PlayPokerAction.AchievementsEarned(earned))
+
+        assertEquals(earned, vm.state.recentlyEarned)
+        assertEquals(false, vm.state.awaitingHandEndAchievements)
+    }
+
+    @Test
+    fun requestNextHand_whileAwaitingAchievements_signalsSession_andClearsHandTransients() = runUnitTest {
+        val session = FakePokerSession()
+        val vm = buildVm(factory = FakePokerSessionFactory(session = session))
+        // Mid-hand-end: achievements still computing, an XP award already landed.
+        vm.takeAction(PlayPokerAction.HandEndAchievementsPending)
+        vm.takeAction(PlayPokerAction.HandXpAwarded(amount = 42))
+        assertEquals(true, vm.state.awaitingHandEndAchievements)
+
+        vm.takeAction(PlayPokerAction.RequestNextHand)
+
+        assertEquals(1, session.requestNextHandCount, "next hand is still requested")
+        assertEquals(null, vm.state.lastHandXpAwarded, "stale hand-end XP is cleared")
+        assertTrue(vm.state.recentlyEarned.isEmpty(), "stale earned list is cleared")
+    }
+
     // ---------- Helpers ----------
 
     private fun buildVm(
@@ -1015,6 +1319,9 @@ class PlayPokerViewModelTest : CoroutineTest() {
         profileRepository: FakeProfileRepository = FakeProfileRepository(),
         reviewPromptCoordinator: FakeReviewPromptCoordinator = FakeReviewPromptCoordinator(),
         inventoryRepository: FakeInventoryRepository = FakeInventoryRepository(),
+        productsRepository: FakeProductsRepository = FakeProductsRepository(),
+        chipsRepository: FakeChipsRepository = FakeChipsRepository(),
+        purchaseChipPack: FakePurchaseChipPackUseCase = FakePurchaseChipPackUseCase(),
         clock: kotlin.time.Clock = kotlin.time.Clock.System,
     ): PlayPokerViewModel = PlayPokerViewModel(
         sessionFactory = factory,
@@ -1024,7 +1331,9 @@ class PlayPokerViewModelTest : CoroutineTest() {
         appCache = appCache,
         equipmentRepository = FakeEquipmentRepository(),
         inventoryRepository = inventoryRepository,
-        productsRepository = FakeProductsRepository(),
+        productsRepository = productsRepository,
+        chipsRepository = chipsRepository,
+        purchaseChipPack = purchaseChipPack,
         profileRepository = profileRepository,
         reviewPromptCoordinator = reviewPromptCoordinator,
         dispatcherProvider = dispatchers,
@@ -1059,3 +1368,12 @@ class PlayPokerViewModelTest : CoroutineTest() {
         earnedAtEpochMs = 0,
     )
 }
+
+private val SAMPLE_CHIP_PACK = com.dangerfield.cards.libraries.products.Product.ChipPack(
+    id = "chip_pack_medium",
+    title = "Tall Stack",
+    subtitle = "30,000 chips",
+    iconEmoji = "💰",
+    grantsChips = 30_000,
+    store = com.dangerfield.cards.libraries.products.StoreSku("chips_medium", "$4.99"),
+)

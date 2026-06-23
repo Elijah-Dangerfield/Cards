@@ -142,6 +142,19 @@ class GameSession internal constructor(
     // not infinite — we don't want to grow unbounded.
     private val processedNonces = ArrayDeque<String>()
 
+    // Players who joined the room mid-hand and are waiting to be dealt in.
+    // They watch the current hand as spectators (no seat in [_state]); the
+    // next [requestNextHand] folds them into the deal and clears the queue.
+    // Keyed by playerId so a re-queue (reconnect) replaces rather than
+    // duplicates, and [dequeueJoiner] can drop one who left before being seated.
+    private val pendingJoiners = LinkedHashMap<String, SeatOccupant>()
+
+    // Players who left the room (a departed human, or a bot trimmed out as real
+    // players arrived). Their seat may still sit in the just-finished [_state],
+    // but the next [requestNextHand] must not re-deal them. Small + bounded by
+    // the seats that ever existed; never cleared (gone stays gone).
+    private val removedPlayerIds = mutableSetOf<String>()
+
     /**
      * Open a new hand. Caller supplies the current room occupants
      * (humans + bots) and the room's settings. Stacks carry over from
@@ -365,8 +378,8 @@ class GameSession internal constructor(
         val isSeated = current.seats.any { it.playerId == actorUserId }
         if (!isSeated) return@withLock IntentResult.Rejected("not seated in this room")
 
-        val occupants = current.seats
-            .filter { it.playerId != null && it.stack > 0 }
+        val returning = current.seats
+            .filter { it.playerId != null && it.stack > 0 && it.playerId !in removedPlayerIds }
             .map {
                 SeatOccupant(
                     seatIndex = it.index,
@@ -382,6 +395,13 @@ class GameSession internal constructor(
                     xp = it.xp,
                 )
             }
+        // Fold in anyone who joined mid-hand (skip a stray collision with a
+        // returning seat, and anyone since removed), then clear the queue —
+        // they're being dealt now.
+        val returningIds = returning.mapTo(mutableSetOf()) { it.userId }
+        val occupants = returning + pendingJoiners.values
+            .filter { it.userId !in returningIds && it.userId !in removedPlayerIds }
+        pendingJoiners.clear()
         if (occupants.size < 2) {
             return@withLock IntentResult.Rejected("not enough players with chips for next hand")
         }
@@ -395,6 +415,130 @@ class GameSession internal constructor(
             },
         ) {
             startHandLocked(occupants, settings)
+        }
+    }
+
+    /**
+     * Queue a player who joined the room mid-hand to be dealt in at the next
+     * hand boundary. They spectate the current hand (no seat in [_state]) until
+     * the next [requestNextHand] seats them. Re-queuing the same playerId
+     * replaces the prior entry (e.g. a reconnect). No-op once they'd be a
+     * duplicate of a live seat — [requestNextHand] guards that too.
+     */
+    suspend fun queueJoiner(occupant: SeatOccupant): Unit = mutex.withLock {
+        pendingJoiners[occupant.userId] = occupant
+    }
+
+    /** Drop a queued joiner who left before being seated, so the next deal skips them. */
+    suspend fun dequeueJoiner(userId: String): Unit = mutex.withLock {
+        pendingJoiners.remove(userId)
+    }
+
+    /**
+     * Permanently drop a player from this session's future hands. Used for two
+     * cases: a **human who left** the room mid-hand (so their seat isn't
+     * re-dealt next hand — the long-standing "ghost seat" bug), and a **bot
+     * trimmed out** as real players arrive (one bot steps aside per hand on a
+     * public table, see the route-layer trim collector). Also drops any pending
+     * mid-hand join under the same id, so a leave-then-rejoin race can't sneak
+     * them back in. Idempotent: re-removing an already-removed id is a no-op.
+     *
+     * Does NOT fold the seat out of the *current* hand — call [forfeitSeat] for
+     * that. This only governs who gets re-dealt at the next [requestNextHand].
+     */
+    suspend fun removePlayer(playerId: String): Unit = mutex.withLock {
+        removedPlayerIds += playerId
+        pendingJoiners.remove(playerId)
+    }
+
+    /**
+     * Fold a seat out of the live hand because its player left or was reaped
+     * from the room mid-hand. The seat is resolved by [actorUserId] → matching
+     * `Seat.playerId`. **Idempotent and safe to call repeatedly** (the socket
+     * publisher fires the leave delta once per remaining subscriber): a no-op
+     * — returning [IntentResult.Accepted] — when there's no active hand, the
+     * user isn't seated, or the seat is already out of the action (folded /
+     * all-in / not dealt). When the forfeit ends the hand the usual
+     * hand-finished side-effects fire exactly once, mirroring [applyIntent].
+     *
+     * Fixes the "stuck — nobody's turn" bug: a player leaving while on the
+     * clock used to strand `actingSeatIndex` on a seat that would never act.
+     */
+    suspend fun forfeitSeat(actorUserId: String): IntentResult = mutex.withLock {
+        val current = _state.value ?: return@withLock IntentResult.Accepted
+        if (current.street == BettingRound.Complete) return@withLock IntentResult.Accepted
+        val seat = current.seats.firstOrNull { it.playerId == actorUserId }
+            ?: return@withLock IntentResult.Accepted
+        if (seat.handParticipation != HandParticipation.InHand) return@withLock IntentResult.Accepted
+
+        val step = GameEngine.forfeitSeat(current, seat.index)
+        if (step.events.isEmpty()) return@withLock IntentResult.Accepted // engine treated it as a no-op
+
+        val origin = Span.current().spanContext
+        val newState = step.state
+        val handJustFinished = current.street != BettingRound.Complete &&
+            newState.street == BettingRound.Complete
+        _state.value = newState
+        _tracedState.value = TracedState(newState, origin)
+        onStateChange(newState)
+        if (handJustFinished) {
+            log.info("Hand ${current.handNumber} finished (seat $actorUserId forfeited) — session=$id")
+            onHandFinished(buildHandOutcome(newState, step.events))
+        }
+        step.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
+        IntentResult.Accepted
+    }
+
+    /**
+     * Buy a busted seat back into the table. Resolves the seat by
+     * [actorUserId] → matching `Seat.playerId` and refills its stack to
+     * [RoomSettings.startingStack] (the buy-in). Rejected unless the current
+     * hand is `Complete` (we never mutate a live stack mid-action), the caller
+     * is seated, and the seat is actually busted (`stack == 0`).
+     *
+     * **No wallet logic here** — the engine stays pure. The route debits the
+     * wallet by the buy-in *before* calling this and refunds if this rejects.
+     *
+     * Idempotent via the nonce ring: a retried [clientNonce] returns
+     * `Accepted` without re-refilling (the refill is a `set`, not an `add`, so
+     * it's harmless anyway — the guard mainly mirrors the other mutations).
+     *
+     * Refilling to `stack > 0` is all that's needed to re-seat the player:
+     * the next [requestNextHand] no longer filters them out.
+     */
+    suspend fun rebuy(
+        actorUserId: String,
+        clientNonce: String,
+    ): IntentResult = mutex.withLock {
+        val current = _state.value
+            ?: return@withLock IntentResult.Rejected("no hand to rebuy into")
+        if (current.street != BettingRound.Complete) {
+            return@withLock IntentResult.Rejected("current hand not complete")
+        }
+        if (clientNonce in processedNonces) return@withLock IntentResult.Accepted
+        val seat = current.seats.firstOrNull { it.playerId == actorUserId }
+            ?: return@withLock IntentResult.Rejected("not seated in this room")
+        if (seat.stack > 0) return@withLock IntentResult.Rejected("seat is not busted")
+
+        recordNonce(clientNonce)
+        withSpan(
+            name = "rebuy",
+            configure = {
+                setAttribute(SpanAttrs.SessionId, id.toString())
+                setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
+            },
+        ) {
+            val refilled = current.copy(
+                seats = current.seats.map {
+                    if (it.index == seat.index) it.copy(stack = settings.startingStack) else it
+                },
+            )
+            val origin = Span.current().spanContext
+            _state.value = refilled
+            _tracedState.value = TracedState(refilled, origin)
+            onStateChange(refilled)
+            log.info("Seat $actorUserId rebought for ${settings.startingStack} — session=$id")
+            IntentResult.Accepted
         }
     }
 

@@ -1,5 +1,12 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.RemotePokerSessionFactory
+import com.dangerfield.cards.features.room.impl.session.SoloBotsPokerSessionFactory
+import com.dangerfield.cards.features.room.impl.ui.BotPlayingStyle
+import com.dangerfield.cards.features.room.impl.ui.TenureHeadline
+import com.dangerfield.cards.features.room.impl.ui.label
+import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
+
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
@@ -33,6 +40,14 @@ sealed interface TableUiState {
         val handResult: HandResultView?,
         val smallBlind: Long,
         val bigBlind: Long,
+        /**
+         * The table buy-in (`RoomSettings.startingStack`) — what a fresh seat
+         * is dealt. Drives the MP rebuy CTA: the bust dialog shows "Rebuy (N
+         * chips)" and gates it against the player's wallet balance. Defaulted
+         * for previews/tutorial samples; the real projection sets it from
+         * `gameState.settings.startingStack`.
+         */
+        val buyIn: Long = 1_000,
         val handNumber: Int,
         val buttonSeatIndex: Int,
         val smallBlindSeatIndex: Int?,
@@ -58,6 +73,13 @@ sealed interface TableUiState {
          * "real chips aren't at stake" line in the practice-tier explainer.
          */
         val practiceTierBotsOnly: Boolean = false,
+        /**
+         * True when this bots-only table is the **public disclosed-bot subsidy** —
+         * real chips ARE at stake (you keep what you win against the bots, up to a
+         * daily limit), house-funded. Flips the bots-only explainer from "no real
+         * chips" to "keep what you win". Never set on a private practice bot game.
+         */
+        val subsidizedBotTable: Boolean = false,
         /**
          * Per-turn timeout (`RoomSettings.turnTimerSeconds`) when the server
          * enforces it — MP only, where a stalling seat is auto-folded/checked
@@ -109,6 +131,12 @@ sealed interface TableUiState {
              * chips aren't at stake" line. Defaults false for solo sessions.
              */
             practiceTierBotsOnly: Boolean = false,
+            /**
+             * Whether this bots-only table is the public disclosed-bot subsidy
+             * (real chips at stake) — set by [RemotePokerSessionFactory]. Defaults
+             * false (private practice bots / solo).
+             */
+            subsidizedBotTable: Boolean = false,
             /**
              * Whether the server enforces the per-turn timer for this table —
              * MP only. When true the table surfaces `turnTimerSeconds` so the
@@ -177,6 +205,7 @@ sealed interface TableUiState {
                 handResult = result,
                 smallBlind = gameState.settings.smallBlind,
                 bigBlind = gameState.settings.bigBlind,
+                buyIn = gameState.settings.startingStack,
                 handNumber = gameState.handNumber,
                 buttonSeatIndex = gameState.buttonSeatIndex,
                 smallBlindSeatIndex = sbIndex,
@@ -184,6 +213,7 @@ sealed interface TableUiState {
                 botDifficultyLabel = botDifficultyLabel,
                 practiceTierBotsPresent = practiceTierBotsPresent,
                 practiceTierBotsOnly = practiceTierBotsOnly,
+                subsidizedBotTable = subsidizedBotTable,
                 turnTimerSeconds = gameState.settings.turnTimerSeconds.takeIf { turnTimerEnforced },
                 turnSequence = gameState.lastSequence,
             )
@@ -229,7 +259,10 @@ sealed interface TableUiState {
                 .let { if (it < 0) 0 else it }
             val ordered = sorted.drop(firstAfterIdx) + sorted.take(firstAfterIdx)
             return if (active.size == 2) {
-                ordered.firstOrNull { it.index != state.buttonSeatIndex }?.index to state.buttonSeatIndex
+                // Heads-up: the button posts the small blind, the other seat the
+                // big blind — matching GameEngine.pickBlindSeats. (Returned as
+                // (smallBlindIndex, bigBlindIndex).)
+                state.buttonSeatIndex to ordered.firstOrNull { it.index != state.buttonSeatIndex }?.index
             } else {
                 ordered.getOrNull(0)?.index to ordered.getOrNull(1)?.index
             }
@@ -441,6 +474,13 @@ data class LegalActions(
         }
     }
 }
+
+/**
+ * Stable key for muting a seat's table emotes: null for the human seat (you
+ * can't mute yourself), else the seat's display name (the stable per-personality
+ * name for bots). Used by [EmoteGate] and the avatar-tap mute toggle.
+ */
+fun seatMuteKey(seat: SeatView): String? = if (seat.isHuman) null else seat.displayName
 
 data class HandResultView(
     val winners: List<HandWinner>,

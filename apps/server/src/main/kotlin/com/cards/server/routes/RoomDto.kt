@@ -30,6 +30,13 @@ data class RoomDto(
     val buyIn: Long = RoomSettings.DEFAULT_BUY_IN,
     val smallBlind: Long = 0,
     val bigBlind: Long = 0,
+    /**
+     * Who can discover + how the table deals. The client reads this to know an
+     * Open/Public table is server-dealt (no host Start, auto-follow into the
+     * game) vs a Private table the host starts. Defaulted so pre-visibility
+     * clients/rows read as Private.
+     */
+    val visibility: RoomVisibilityDto = RoomVisibilityDto.Private,
 )
 
 @Serializable
@@ -58,6 +65,9 @@ data class RoomMemberDto(
 @Serializable
 enum class RoomStatusDto { Lobby, Playing, Finished }
 
+@Serializable
+enum class RoomVisibilityDto { Private, Open, Public }
+
 /**
  * POST /v1/rooms body. `maxSeats` defaults to the server's V1 cap
  * — accepting it in the body lets future tournament-shaped rooms
@@ -69,6 +79,12 @@ data class CreateRoomRequest(
     /** Host-chosen buy-in. Null = server default. Validated against
      *  [RoomSettings.MIN_BUY_IN]..[RoomSettings.MAX_BUY_IN]. */
     val buyIn: Long? = null,
+    /**
+     * "Open to anyone" toggle. `null`/"Private" → a code-only room; "Open" → a
+     * matchmaker-discoverable, server-dealt table the host can still share by
+     * code. "Public" is rejected — only the matchmaker mints those.
+     */
+    val visibility: String? = null,
 )
 
 @Serializable
@@ -114,6 +130,31 @@ data class ActiveRoomsResponse(
     val rooms: List<RoomDto>,
 )
 
+/**
+ * POST /v1/matchmaking/find body — the buy-in RANGE the searcher set on the
+ * Find screen. The matchmaker seats them into an eligible room whose buy-in is
+ * in `[minBuyIn, maxBuyIn]`, else opens a fresh public table snapped to a
+ * canonical tier in range.
+ */
+@Serializable
+data class MatchmakingFindRequest(
+    val minBuyIn: Long,
+    val maxBuyIn: Long,
+)
+
+@Serializable
+data class MatchmakingFindResponse(
+    val schemaVersion: Int = 1,
+    val room: RoomDto,
+    /**
+     * True when the matchmaker opened a NEW table for this searcher (no
+     * eligible room existed), false when it seated them into an existing one.
+     * Drives the "is there organic density yet?" metric; the client just opens
+     * `room.code`'s socket either way.
+     */
+    val created: Boolean,
+)
+
 @OptIn(ExperimentalTime::class)
 internal fun Room.toDto(): RoomDto = RoomDto(
     code = code,
@@ -125,6 +166,7 @@ internal fun Room.toDto(): RoomDto = RoomDto(
     buyIn = buyIn,
     smallBlind = settings.smallBlind,
     bigBlind = settings.bigBlind,
+    visibility = visibility.toDto(),
 )
 
 @OptIn(ExperimentalTime::class)
@@ -150,4 +192,10 @@ internal fun RoomStatus.toDto(): RoomStatusDto = when (this) {
     RoomStatus.Lobby -> RoomStatusDto.Lobby
     RoomStatus.Playing -> RoomStatusDto.Playing
     RoomStatus.Finished -> RoomStatusDto.Finished
+}
+
+internal fun com.dangerfield.cards.server.domain.RoomVisibility.toDto(): RoomVisibilityDto = when (this) {
+    com.dangerfield.cards.server.domain.RoomVisibility.Private -> RoomVisibilityDto.Private
+    com.dangerfield.cards.server.domain.RoomVisibility.Open -> RoomVisibilityDto.Open
+    com.dangerfield.cards.server.domain.RoomVisibility.Public -> RoomVisibilityDto.Public
 }

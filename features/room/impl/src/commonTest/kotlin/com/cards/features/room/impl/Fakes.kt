@@ -1,5 +1,11 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.PokerSession
+import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
+import com.dangerfield.cards.features.room.impl.session.RemoteEmote
+import com.dangerfield.cards.features.room.impl.session.seatToOccupant
+import com.dangerfield.cards.features.room.impl.ui.label
+
 import com.dangerfield.cards.libraries.cards.AchievementHandContext
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AchievementRepository
@@ -76,6 +82,13 @@ class FakePokerSession(
     private val _roomClosed = MutableSharedFlow<ClosedReason>(extraBufferCapacity = 1)
     override val roomClosed: SharedFlow<ClosedReason> = _roomClosed.asSharedFlow()
 
+    private val _opponentsLeft = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
+    override val opponentsLeft: SharedFlow<Unit> = _opponentsLeft.asSharedFlow()
+
+    fun emitOpponentsLeft() {
+        _opponentsLeft.tryEmit(Unit)
+    }
+
     private val _emoteBlasts = MutableSharedFlow<RemoteEmote>(extraBufferCapacity = 32)
     override val emoteBlasts: SharedFlow<RemoteEmote> = _emoteBlasts.asSharedFlow()
 
@@ -83,10 +96,15 @@ class FakePokerSession(
     val sentEmotes = mutableListOf<String>()
     var requestNextHandCount: Int = 0
     var leaveCount: Int = 0
+    var rebuyCount: Int = 0
 
     // When set, [submit] records the intent then throws it — modelling a
     // server rejection (the real session surfaces a rejected ack as a throw).
     var submitError: Throwable? = null
+
+    // When set, [rebuy] records the attempt then throws it — modelling a server
+    // rejection (e.g. IntentRejectedException("insufficient chips")).
+    var rebuyError: Throwable? = null
 
     /** Drive an inbound opponent emote the way the real session would. */
     fun emitEmote(seatIndex: Int, emoji: String) {
@@ -116,6 +134,11 @@ class FakePokerSession(
 
     override fun requestNextHand() {
         requestNextHandCount += 1
+    }
+
+    override suspend fun rebuy() {
+        rebuyCount += 1
+        rebuyError?.let { throw it }
     }
 
     override suspend fun leave() {
@@ -437,13 +460,59 @@ class FakeProfileRepository : ProfileRepository {
     override suspend fun fetchAvatarPack(): AvatarPackOutcome = error("fetchAvatarPack not used")
 }
 
-/** Empty catalog — the room VM only reads it to resolve equipped-badge display. */
-class FakeProductsRepository : com.dangerfield.cards.libraries.products.ProductsRepository {
+/**
+ * Catalog source for the room VM. Defaults to empty (badge-resolution only);
+ * pass a non-empty [catalog] to exercise the MP quick-buy chip-pack sheet.
+ */
+class FakeProductsRepository(
+    private val catalog: com.dangerfield.cards.libraries.products.ProductCatalog =
+        com.dangerfield.cards.libraries.products.ProductCatalog.Empty,
+) : com.dangerfield.cards.libraries.products.ProductsRepository {
     override fun observeCatalog(): Flow<com.dangerfield.cards.libraries.products.ProductCatalog> =
-        MutableStateFlow(com.dangerfield.cards.libraries.products.ProductCatalog.Empty)
+        MutableStateFlow(catalog)
     override suspend fun refresh(force: Boolean): Result<com.dangerfield.cards.libraries.products.ProductCatalog> =
-        Result.success(com.dangerfield.cards.libraries.products.ProductCatalog.Empty)
+        Result.success(catalog)
     override fun observeTimeAnchor(): Flow<com.dangerfield.cards.libraries.products.CatalogTimeAnchor?> =
         MutableStateFlow(null)
     override fun observeIsRefreshing(): Flow<Boolean> = MutableStateFlow(false)
+}
+
+/** In-memory wallet balance for the rebuy-gate + quick-buy tests. */
+class FakeChipsRepository(
+    initialBalance: Long? = 0L,
+) : com.dangerfield.cards.libraries.cards.ChipsRepository {
+    private val balance = MutableStateFlow(initialBalance)
+    var syncCount: Int = 0
+        private set
+
+    override val walletJustCreated: StateFlow<Boolean> = MutableStateFlow(false)
+    override fun observeBalance(): Flow<Long?> = balance
+    override suspend fun getBalance(): Long? = balance.value
+    override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {
+        balance.value = (balance.value ?: 0L) + amount
+    }
+    override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) {
+        balance.value = (balance.value ?: 0L) - amount
+    }
+    override suspend fun setBalance(authoritativeBalance: Long) { balance.value = authoritativeBalance }
+    override suspend fun deleteAll() { balance.value = null }
+    override suspend fun sync(): Result<Unit> {
+        syncCount += 1
+        return Result.success(Unit)
+    }
+    fun emit(value: Long?) { balance.value = value }
+}
+
+/** Records quick-buy calls and returns a configurable [nextOutcome]. */
+class FakePurchaseChipPackUseCase(
+    var nextOutcome: com.dangerfield.cards.libraries.billing.IapPurchaseOutcome =
+        com.dangerfield.cards.libraries.billing.IapPurchaseOutcome.Success(grantedChips = 0),
+) : com.dangerfield.cards.libraries.billing.PurchaseChipPackUseCase {
+    val calls = mutableListOf<com.dangerfield.cards.libraries.products.Product.ChipPack>()
+    override suspend fun invoke(
+        pack: com.dangerfield.cards.libraries.products.Product.ChipPack,
+    ): com.dangerfield.cards.libraries.billing.IapPurchaseOutcome {
+        calls += pack
+        return nextOutcome
+    }
 }

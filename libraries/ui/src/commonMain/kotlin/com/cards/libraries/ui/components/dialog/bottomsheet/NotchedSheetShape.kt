@@ -62,6 +62,17 @@ import androidx.compose.ui.unit.dp
  *   render the whole surface on screen, so they pass a non-zero value
  *   (typically the same as [cornerRadius]) to keep all four corners
  *   consistent.
+ * @param topInset Extra empty band above the carve, in dp. Shifts the
+ *   *entire* top construction (rounded corners + bulge) down by this much,
+ *   leaving `[0, topInset]` outside the outline (transparent). Needed when
+ *   the host surface slides under the status bar (a full-height
+ *   [androidx.compose.material3.ModalBottomSheet]): Material3 pads the
+ *   drag-handle bubble down by the top safe-area inset, but the shape is
+ *   drawn in surface space and would otherwise keep the carve pinned to
+ *   `y = 0` — the bubble then "slips out" of its notch. Feeding the same
+ *   inset here keeps the carve registered with the bubble. Defaults to 0
+ *   (no inset / surface below the status bar), preserving the original
+ *   geometry.
  */
 class NotchedSheetShape(
     private val cornerRadius: Dp = 16.dp,
@@ -69,6 +80,7 @@ class NotchedSheetShape(
     private val notchCornerRadius: Dp = notchRadius,
     private val notchCenterFraction: Float = 0.5f,
     private val bottomCornerRadius: Dp = 0.dp,
+    private val topInset: Dp = 0.dp,
 ) : Shape {
 
     override fun createOutline(
@@ -90,10 +102,17 @@ class NotchedSheetShape(
         val w = size.width
         val h = size.height
 
+        // Empty band above the carve. The whole top construction is shifted
+        // down by this, so the bulge apex sits at y = insetTop (not y = 0)
+        // and [0, insetTop] is left outside the outline. Clamp so a tiny
+        // surface can't push the top edge past the bottom.
+        val insetTop = with(density) { topInset.toPx() }
+            .coerceIn(0f, (h - 2 * notchR).coerceAtLeast(0f))
+
         // The "regular" sheet top edge sits at this y. The bulge fills the
-        // band [0, regularTopY] at the notch center; the rest of the top
-        // edge is a straight line at regularTopY.
-        val regularTopY = notchR
+        // band [insetTop, regularTopY] at the notch center; the rest of the
+        // top edge is a straight line at regularTopY.
+        val regularTopY = insetTop + notchR
 
         val path = Path().apply {
             // ── Top-left corner (rounded) ──
@@ -128,28 +147,28 @@ class NotchedSheetShape(
             //    becomes a perfect half-circle (circle-bubble case).
             // Up the left side of the carve to the start of the top-left
             // corner arc.
-            lineTo(notchCx - notchR, notchCornerR)
+            lineTo(notchCx - notchR, insetTop + notchCornerR)
             // Top-left rounded corner of the carve.
             arcTo(
                 rect = Rect(
                     left = notchCx - notchR,
-                    top = 0f,
+                    top = insetTop,
                     right = notchCx - notchR + 2 * notchCornerR,
-                    bottom = 2 * notchCornerR,
+                    bottom = insetTop + 2 * notchCornerR,
                 ),
                 startAngleDegrees = 180f,
                 sweepAngleDegrees = 90f,
                 forceMoveTo = false,
             )
             // Straight top of the carve.
-            lineTo(notchCx + notchR - notchCornerR, 0f)
+            lineTo(notchCx + notchR - notchCornerR, insetTop)
             // Top-right rounded corner of the carve.
             arcTo(
                 rect = Rect(
                     left = notchCx + notchR - 2 * notchCornerR,
-                    top = 0f,
+                    top = insetTop,
                     right = notchCx + notchR,
-                    bottom = 2 * notchCornerR,
+                    bottom = insetTop + 2 * notchCornerR,
                 ),
                 startAngleDegrees = 270f,
                 sweepAngleDegrees = 90f,

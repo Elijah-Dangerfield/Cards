@@ -1,10 +1,38 @@
 package com.dangerfield.cards.server.plugins
 
+import com.auth0.jwt.JWT
+import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.config.ObservabilityConfig
+import com.dangerfield.cards.server.data.InMemoryRoomService
+import com.dangerfield.cards.server.domain.FriendRepository
+import com.dangerfield.cards.server.domain.Profile
+import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.RespondResult
+import com.dangerfield.cards.server.domain.SendRequestResult
+import com.dangerfield.cards.server.domain.UpdateProfileOutcome
+import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
 import com.dangerfield.cards.server.game.GameSession
+import com.dangerfield.cards.server.game.NoOpSessionSnapshotStore
 import com.dangerfield.cards.server.game.SeatOccupant
+import com.dangerfield.cards.server.routes.InMemoryTestTableSessionService
+import com.dangerfield.cards.server.routes.InMemoryTestWalletRepository
+import com.dangerfield.cards.server.routes.matchmakingRoutes
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.contentType
+import io.ktor.serialization.kotlinx.json.json
+import io.ktor.server.routing.routing
+import io.ktor.server.testing.testApplication
+import kotlinx.serialization.json.Json
+import java.util.Date
+import java.util.UUID
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.baggage.Baggage
 import io.opentelemetry.api.common.AttributeKey
@@ -404,12 +432,124 @@ class TelemetryTest {
         )
     }
 
+    @Test
+    fun matchmakingFindRoute_emitsMatchmakingFindSpan_withDensityAttrs() = runTest {
+        val issuer = "https://test-project.supabase.co/auth/v1"
+        val secret = "0123456789abcdef0123456789abcdef0123456789abcdef"
+        val verifier = JWT.require(Algorithm.HMAC256(secret))
+            .withIssuer(issuer).withAudience("authenticated").build()
+        fun jwt(sub: UUID) = JWT.create()
+            .withIssuer(issuer).withAudience("authenticated").withSubject(sub.toString())
+            .withIssuedAt(Date()).withExpiresAt(Date(System.currentTimeMillis() + 60_000))
+            .sign(Algorithm.HMAC256(secret))
+
+        val clock = object : kotlin.time.Clock {
+            private var t = 1_700_000_000_000L
+            @OptIn(kotlin.time.ExperimentalTime::class)
+            override fun now(): kotlin.time.Instant =
+                kotlin.time.Instant.fromEpochMilliseconds(t).also { t += 1_000 }
+        }
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+
+        testApplication {
+            application {
+                installSerialization()
+                installRateLimits()
+                installStatusPages()
+                installAuthenticationWithVerifier(verifier)
+                val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), kotlin.time.Clock.System)
+                routing {
+                    matchmakingRoutes(
+                        rooms, NoBlocksFriends, FixedProfiles, registry,
+                        InMemoryTestTableSessionService(InMemoryTestWalletRepository()),
+                        StubEquipment, StubProgression,
+                    )
+                }
+            }
+            val client = createClient {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+            client.post("/v1/matchmaking/find") {
+                header(HttpHeaders.Authorization, "Bearer ${jwt(UUID.randomUUID())}")
+                contentType(ContentType.Application.Json)
+                setBody("""{"minBuyIn":1000,"maxBuyIn":1000}""")
+            }
+        }
+        flushSpans()
+
+        val span = exporter.finishedSpanItems.firstOrNull { it.name == "matchmaking_find" }
+        assertNotNull(span, "expected a matchmaking_find span; got ${exporter.finishedSpanItems.map { it.name }}")
+        assertEquals(true, span.attributes.get(SpanAttrs.MatchmakingCreated), "first searcher opened a table")
+        assertEquals(1L, span.attributes.get(SpanAttrs.MatchmakingHumans), "one human seated")
+        assertEquals(1_000L, span.attributes.get(SpanAttrs.MatchmakingBuyIn))
+    }
+
     private fun flushSpans() {
         sdk.sdkTracerProvider.forceFlush().join(1, TimeUnit.SECONDS)
     }
 
     private fun flushLogs() {
         sdk.sdkLoggerProvider.forceFlush().join(1, TimeUnit.SECONDS)
+    }
+
+    private object NoBlocksFriends : FriendRepository {
+        override suspend fun sendRequest(from: UserId, to: UserId): SendRequestResult = SendRequestResult.Sent
+        override suspend fun accept(me: UserId, other: UserId): RespondResult = RespondResult.Ok
+        override suspend fun decline(me: UserId, other: UserId): RespondResult = RespondResult.Ok
+        override suspend fun block(me: UserId, other: UserId) = Unit
+        override suspend fun listFriends(userId: UserId): List<UserId> = emptyList()
+        override suspend fun listBlockedUserIds(userId: UserId): Set<UserId> = emptySet()
+        override suspend fun listIncomingRequests(userId: UserId): List<UserId> = emptyList()
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    private object StubEquipment : com.dangerfield.cards.server.domain.EquipmentRepository {
+        override suspend fun listEquipped(userId: UserId) =
+            emptyList<com.dangerfield.cards.server.domain.EquippedItem>()
+        @OptIn(kotlin.time.ExperimentalTime::class)
+        override suspend fun equip(userId: UserId, productId: String, newUpdatedAt: kotlin.time.Instant) = error("unused")
+        @OptIn(kotlin.time.ExperimentalTime::class)
+        override suspend fun unequip(userId: UserId, productId: String, opUpdatedAt: kotlin.time.Instant) = null
+    }
+
+    private object StubProgression : com.dangerfield.cards.server.domain.ProgressionRepository {
+        override suspend fun findOrCreateResult(userId: UserId) = error("unused")
+        override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.UserProgression? = null
+        override suspend fun applyXp(
+            userId: UserId,
+            idempotencyKey: String,
+            deltaXp: Long,
+            source: String,
+            mode: String,
+            handId: String?,
+            wasBoosted: Boolean,
+        ) = error("unused")
+        override suspend fun recentEvents(userId: UserId, limit: Int) =
+            emptyList<com.dangerfield.cards.server.domain.XpEvent>()
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    @OptIn(kotlin.time.ExperimentalTime::class)
+    private object FixedProfiles : ProfileRepository {
+        override suspend fun findById(userId: UserId): Profile? = null
+        override suspend fun findOrCreate(userId: UserId): Profile = Profile(
+            userId = userId,
+            displayName = "P-${userId.value.toString().take(4)}",
+            avatarEmoji = "🃏",
+            avatarBackgroundColor = null,
+            createdAt = kotlin.time.Instant.fromEpochMilliseconds(0),
+            updatedAt = kotlin.time.Instant.fromEpochMilliseconds(0),
+        )
+        override suspend fun update(
+            userId: UserId,
+            displayName: String?,
+            avatarEmoji: String?,
+            avatarBackgroundColor: String?,
+            clearAvatarBackgroundColor: Boolean,
+        ): UpdateProfileOutcome = error("unused")
+        override suspend fun delete(userId: UserId) = Unit
+        override suspend fun touchInstallId(userId: UserId, installId: UUID): UUID? = null
+        override suspend fun findInstallSiblings(installId: UUID, currentUserId: UserId): List<UserId> = emptyList()
     }
 
     companion object {

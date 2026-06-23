@@ -1,5 +1,11 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.IntentRejectedException
+import com.dangerfield.cards.features.room.impl.session.IntentTimeoutException
+import com.dangerfield.cards.features.room.impl.session.LocalBotsSession
+import com.dangerfield.cards.features.room.impl.session.RemotePokerSession
+import com.dangerfield.cards.features.room.impl.session.RemotePokerSessionFactory
+
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.game.ConnectionState
@@ -351,6 +357,7 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
         val factory = RemotePokerSessionFactory(
             roomCode = "ABCDEF",
             localUserId = localUserId,
+            isPublicTable = false,
             roomRepository = ConnectingRoomRepository(handle),
             telemetry = NoopTelemetry,
         )
@@ -363,6 +370,8 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
             equipmentRepository = FakeEquipmentRepository(),
             inventoryRepository = FakeInventoryRepository(),
             productsRepository = FakeProductsRepository(),
+            chipsRepository = FakeChipsRepository(),
+            purchaseChipPack = FakePurchaseChipPackUseCase(),
             profileRepository = FakeProfileRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
             dispatcherProvider = dispatchers,
@@ -389,7 +398,7 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
     private class ConnectingRoomRepository(
         private val handle: RoomConnectionHandle,
     ) : RoomRepository {
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome = error("unused")
+        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = error("unused")
         override suspend fun joinRoom(code: String): JoinRoomOutcome = error("unused")
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = error("unused")
         override suspend fun addBot(code: String, seatIndex: Int?): com.dangerfield.cards.libraries.rooms.AddBotOutcome =

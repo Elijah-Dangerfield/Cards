@@ -67,6 +67,54 @@ class RoomRepositoryImplTest {
     }
 
     @Test
+    fun createRoom_responseWithoutVisibility_defaultsToPrivate() = runTest {
+        // The base room JSON carries no visibility field — decodes as Private.
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, ROOM_RESPONSE_JSON) })
+        val success = assertIs<CreateRoomOutcome.Success>(repo.createRoom())
+        assertEquals(
+            com.dangerfield.cards.libraries.rooms.RoomVisibility.Private,
+            success.room.visibility,
+        )
+    }
+
+    @Test
+    fun createRoom_open_decodesOpenVisibility() = runTest {
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, OPEN_ROOM_RESPONSE_JSON) })
+        val success = assertIs<CreateRoomOutcome.Success>(repo.createRoom(open = true))
+        assertEquals(
+            com.dangerfield.cards.libraries.rooms.RoomVisibility.Open,
+            success.room.visibility,
+            "an Open room from the server is mirrored on the domain model",
+        )
+    }
+
+    // Forward-compat: a future server visibility/status this client doesn't know
+    // must not crash a release decode of a room snapshot. Pins the actual kotlinx
+    // contract (release Json = coerceInputValues on, which lands an unrecognised
+    // enum on the *property default*) so the "Unknown safety valve" in RoomDto is
+    // grounded, not assumed. Both fields default such that coercion has somewhere
+    // to land — visibility → Private, status → Unknown.
+    @Test
+    fun roomDto_unknownEnums_releaseJsonCoercesInsteadOfCrashing() {
+        val releaseJson = Json {
+            ignoreUnknownKeys = true
+            coerceInputValues = true
+        }
+        val unknownVis = releaseJson.decodeFromString(RoomDto.serializer(), UNKNOWN_VIS_ROOM_JSON)
+        assertEquals(
+            RoomVisibilityDto.Private,
+            unknownVis.visibility,
+            "unknown visibility coerces to the property default (Private), not a crash",
+        )
+        val unknownStatus = releaseJson.decodeFromString(RoomDto.serializer(), UNKNOWN_STATUS_ROOM_JSON)
+        assertEquals(
+            RoomStatusDto.Unknown,
+            unknownStatus.status,
+            "unknown status coerces to the property default (Unknown), not a crash",
+        )
+    }
+
+    @Test
     fun joinRoom_200_alreadyJoinedFalse() = runTest {
         val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, JOIN_RESPONSE_JSON_FRESH) })
         val outcome = repo.joinRoom("ABC123")
@@ -265,6 +313,40 @@ class RoomRepositoryImplTest {
             }
         """.trimIndent()
         private val ROOM_RESPONSE_JSON = """{"schemaVersion":1,"room":$ROOM_JSON_HOST}"""
+        private val OPEN_ROOM_JSON_HOST = """
+            {
+              "code":"ABC123",
+              "hostUserId":"11111111-1111-1111-1111-111111111111",
+              "createdAtEpochMs":1700000000000,
+              "maxSeats":4,
+              "status":"Lobby",
+              "members":[],
+              "visibility":"Open"
+            }
+        """.trimIndent()
+        private val OPEN_ROOM_RESPONSE_JSON = """{"schemaVersion":1,"room":$OPEN_ROOM_JSON_HOST}"""
+        private val UNKNOWN_VIS_ROOM_JSON = """
+            {
+              "code":"ABC123",
+              "hostUserId":"11111111-1111-1111-1111-111111111111",
+              "createdAtEpochMs":1700000000000,
+              "maxSeats":4,
+              "status":"Lobby",
+              "members":[],
+              "visibility":"FriendsOnly"
+            }
+        """.trimIndent()
+        private val UNKNOWN_STATUS_ROOM_JSON = """
+            {
+              "code":"ABC123",
+              "hostUserId":"11111111-1111-1111-1111-111111111111",
+              "createdAtEpochMs":1700000000000,
+              "maxSeats":4,
+              "status":"Tournament",
+              "members":[],
+              "visibility":"Open"
+            }
+        """.trimIndent()
         private val JOIN_RESPONSE_JSON_FRESH =
             """{"schemaVersion":1,"alreadyJoined":false,"room":$ROOM_JSON_HOST}"""
         private val JOIN_RESPONSE_JSON_REJOIN =

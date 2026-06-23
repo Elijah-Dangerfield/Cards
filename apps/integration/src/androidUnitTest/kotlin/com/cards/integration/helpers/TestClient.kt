@@ -12,10 +12,13 @@ import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.NetworkConfig
 import com.dangerfield.cards.libraries.networking.impl.NetworkClientImpl
 import com.dangerfield.cards.libraries.networking.impl.NetworkReachabilityImpl
+import com.dangerfield.cards.libraries.rooms.MatchmakingRepository
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
+import com.dangerfield.cards.libraries.rooms.impl.HttpMatchmakingApi
 import com.dangerfield.cards.libraries.rooms.impl.HttpRoomApi
 import com.dangerfield.cards.libraries.rooms.impl.KtorRoomSocketTransport
+import com.dangerfield.cards.libraries.rooms.impl.MatchmakingRepositoryImpl
 import com.dangerfield.cards.libraries.rooms.impl.ReconnectingRoomSocket
 import com.dangerfield.cards.libraries.rooms.impl.RoomRepositoryImpl
 import kotlinx.coroutines.flow.Flow
@@ -43,16 +46,17 @@ class TestClient(
     var faults: FaultInjectingTransport? = null
         private set
 
+    private val config = object : NetworkConfig {
+        override val baseUrl: String = serverUrl
+    }
+    private val networkClient = NetworkClientImpl(
+        config,
+        TokenProvider(userId),
+        FixedHeaders,
+        NetworkReachabilityImpl(AppCoroutineScope(DefaultDispatcherProvider())),
+    )
+
     val repository: RoomRepository = run {
-        val config = object : NetworkConfig {
-            override val baseUrl: String = serverUrl
-        }
-        val networkClient = NetworkClientImpl(
-            config,
-            TokenProvider(userId),
-            FixedHeaders,
-            NetworkReachabilityImpl(AppCoroutineScope(DefaultDispatcherProvider())),
-        )
         val realTransport = KtorRoomSocketTransport(networkClient, config)
         val transport = if (faulty) {
             FaultInjectingTransport(realTransport).also { faults = it }
@@ -63,18 +67,23 @@ class TestClient(
         RoomRepositoryImpl(HttpRoomApi(networkClient), socket)
     }
 
+    /** The real matchmaking client surface — `find` / `play-bots` over HTTP. */
+    val matchmaking: MatchmakingRepository = MatchmakingRepositoryImpl(HttpMatchmakingApi(networkClient))
+
     /** Build the real lobby VM for this user. Mirrors how the entry point constructs it. */
     fun lobbyVm(
         prefilledCode: String? = null,
         autoCreate: Boolean = false,
         maxSeats: Int? = null,
         buyIn: Long? = null,
+        open: Boolean = false,
     ): LobbyViewModel =
         LobbyViewModel(
             prefilledCode = prefilledCode,
             autoCreate = autoCreate,
             maxSeats = maxSeats,
             buyIn = buyIn,
+            open = open,
             rooms = repository,
             auth = FakeAuthRepository(userId),
             profile = NoProfileRepository,

@@ -3,6 +3,7 @@ package com.dangerfield.cards.libraries.rooms.impl
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.rooms.RoomStatus
+import com.dangerfield.cards.libraries.rooms.RoomVisibility
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -17,12 +18,35 @@ data class RoomDto(
     val hostUserId: String,
     val createdAtEpochMs: Long,
     val maxSeats: Int,
-    val status: RoomStatusDto,
+    // Defaulted to [RoomStatusDto.Unknown] so a future server status this client
+    // doesn't know coerces here (release Json has coerceInputValues on) instead of
+    // throwing — coercion needs a property default to land on, and without one an
+    // unrecognised status crashes the whole room-snapshot decode. Status is always
+    // present in practice, so the default only ever fires as that safety valve.
+    val status: RoomStatusDto = RoomStatusDto.Unknown,
     val members: List<RoomMemberDto>,
     val buyIn: Long = 0,
     val smallBlind: Long = 0,
     val bigBlind: Long = 0,
+    val visibility: RoomVisibilityDto = RoomVisibilityDto.Private,
 )
+
+@Serializable
+enum class RoomVisibilityDto {
+    @SerialName("Private") Private,
+    @SerialName("Open") Open,
+    @SerialName("Public") Public,
+
+    /**
+     * Only matched when the server literally sends "Unknown". Genuine forward-
+     * compat (a future 4th visibility) doesn't land here: release Json's
+     * coerceInputValues coerces an unrecognised value to the *property default*,
+     * which for [RoomDto.visibility] is [Private] — a safe pessimistic read (treat
+     * an unknown room as code-only, never matchmaking-discoverable). Kept for
+     * parallelism with [RoomStatusDto.Unknown] and an explicit domain mapping.
+     */
+    @SerialName("Unknown") Unknown,
+}
 
 @Serializable
 data class RoomMemberDto(
@@ -37,10 +61,11 @@ data class RoomMemberDto(
 )
 
 /**
- * Includes [Unknown] as a safety valve — server schema additions
- * decode as Unknown instead of crashing the flow. The client renders
- * Unknown as "Lobby" pessimistically (treat as still-open) until a
- * follow-up snapshot arrives.
+ * [Unknown] is the real safety valve: [RoomDto.status] defaults to it, so release
+ * Json's coerceInputValues coerces a server status this client doesn't know to
+ * Unknown instead of crashing the room-snapshot decode. The client renders Unknown
+ * as "Lobby" pessimistically (treat as still-open) until a follow-up snapshot
+ * arrives. (A literal "Unknown" from the server maps here too.)
  */
 @Serializable
 enum class RoomStatusDto {
@@ -54,6 +79,8 @@ enum class RoomStatusDto {
 data class CreateRoomRequestDto(
     val maxSeats: Int? = null,
     val buyIn: Long? = null,
+    /** "Open" makes the room matchmaker-discoverable + server-dealt; null = Private. */
+    val visibility: String? = null,
 )
 
 @Serializable
@@ -93,6 +120,21 @@ data class ActiveRoomsResponseDto(
     val rooms: List<RoomDto> = emptyList(),
 )
 
+/** POST /v1/matchmaking/find body — the buy-in range the searcher set. */
+@Serializable
+data class MatchmakingFindRequestDto(
+    val minBuyIn: Long,
+    val maxBuyIn: Long,
+)
+
+/** Response for both /v1/matchmaking/find and /v1/matchmaking/{code}/play-bots. */
+@Serializable
+data class MatchmakingFindResponseDto(
+    val schemaVersion: Int = 1,
+    val room: RoomDto,
+    val created: Boolean = false,
+)
+
 @Serializable
 data class ProblemEnvelopeDto(
     val error: ProblemDto,
@@ -114,6 +156,7 @@ internal fun RoomDto.toDomain(): Room = Room(
     buyIn = buyIn,
     smallBlind = smallBlind,
     bigBlind = bigBlind,
+    visibility = visibility.toDomain(),
 )
 
 internal fun RoomMemberDto.toDomain(): RoomMember = RoomMember(
@@ -132,4 +175,11 @@ internal fun RoomStatusDto.toDomain(): RoomStatus = when (this) {
     RoomStatusDto.Playing -> RoomStatus.Playing
     RoomStatusDto.Finished -> RoomStatus.Finished
     RoomStatusDto.Unknown -> RoomStatus.Unknown
+}
+
+internal fun RoomVisibilityDto.toDomain(): RoomVisibility = when (this) {
+    RoomVisibilityDto.Private -> RoomVisibility.Private
+    RoomVisibilityDto.Open -> RoomVisibility.Open
+    RoomVisibilityDto.Public -> RoomVisibility.Public
+    RoomVisibilityDto.Unknown -> RoomVisibility.Unknown
 }

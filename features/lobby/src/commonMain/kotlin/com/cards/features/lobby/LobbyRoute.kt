@@ -30,4 +30,7 @@ data class LobbyRoute(
     /** Host-chosen buy-in carried from the create screen into the auto-create.
      *  Null falls back to the server default. Only meaningful with [autoCreate]. */
     val buyIn: Long? = null,
+    /** "Open to anyone": create the room matchmaker-discoverable + server-dealt.
+     *  Only meaningful with [autoCreate]. */
+    val open: Boolean = false,
 ) : Route(authRequirement = AuthRequirement.Account)

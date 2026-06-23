@@ -222,6 +222,70 @@ object RoomSessionsTable : Table("room_sessions") {
 }
 
 /**
+ * Durable room registry. One row per live room; GC'd (via `room_members`
+ * cascade + an explicit room delete) when the last member leaves.
+ * InMemoryRoomService write-through + hydration source of truth. See
+ * `V65__rooms_and_members.sql`.
+ */
+object RoomsTable : Table("rooms") {
+    val code = text("code")
+    val hostUserId = uuid("host_user_id")
+    val status = text("status")
+    val buyIn = long("buy_in")
+    val maxSeats = integer("max_seats")
+    val createdAt = timestamp("created_at")
+    // 'private' | 'open' | 'public' (V66). Defaulted at the DB level so pre-V66
+    // rows + Exposed inserts that omit it read as 'private'.
+    val visibility = text("visibility")
+    override val primaryKey = PrimaryKey(code)
+}
+
+/**
+ * Seats in a room. One row per (room, member); a NULL `botPersonality` marks a
+ * human, otherwise the `bot*` columns capture the backend bot seat. `(roomCode,
+ * seatIndex)` is uniquely constrained so the seating chart can't double-book.
+ * See `V65__rooms_and_members.sql`.
+ */
+object RoomMembersTable : Table("room_members") {
+    val roomCode = text("room_code").references(RoomsTable.code)
+    val userId = uuid("user_id")
+    val seatIndex = integer("seat_index")
+    val displayName = text("display_name")
+    val joinedAt = timestamp("joined_at")
+    val disconnectedAt = timestamp("disconnected_at").nullable()
+    val avatarEmoji = text("avatar_emoji")
+    val avatarBackgroundColor = text("avatar_background_color").nullable()
+    val botPersonality = text("bot_personality").nullable()
+    val botDifficulty = text("bot_difficulty").nullable()
+    val botRevealed = bool("bot_revealed").nullable()
+    override val primaryKey = PrimaryKey(roomCode, userId)
+}
+
+/**
+ * Durable interlock between an MP table seat's in-RAM stack and the chip wallet
+ * (V67, salvaged from the chip-economy branch). One row per sit-down; the actual
+ * chips move only in `wallet_events`. Brought in DORMANT — the sit-down /
+ * cash-out wiring is Phase 4. See `V67__table_sessions.sql`.
+ */
+object TableSessionsTable : Table("table_sessions") {
+    val sessionId = uuid("session_id")
+    val userId = uuid("user_id")
+    val roomCode = text("room_code")
+    val stakeTier = text("stake_tier")
+    val buyIn = long("buy_in")
+    val rebuyCount = integer("rebuy_count").default(0)
+    val status = text("status")
+    val openedAt = timestamp("opened_at")
+    val closedAt = timestamp("closed_at").nullable()
+    // Disclosed-bot subsidy (V68): `subsidized` tags a public lone-human-vs-bots
+    // session; `subsidyGranted` is the net house-funded win recorded at cash-out,
+    // summed for the per-user rolling-24h cap.
+    val subsidized = bool("subsidized").default(false)
+    val subsidyGranted = long("subsidy_granted").default(0)
+    override val primaryKey = PrimaryKey(sessionId)
+}
+
+/**
  * Friend graph. One row per *unordered pair* of users — `userA` is always the
  * lexicographically smaller UUID, `userB` the larger, so a relation is unique
  * regardless of direction. `state` is the pair lifecycle (requested / accepted

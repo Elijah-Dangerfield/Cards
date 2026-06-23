@@ -1,6 +1,27 @@
 # MP Chip Buy-In Economy — Implementation Plan
 
-**Status:** planned · **Owner:** unassigned · **Created:** 2026-06-21
+**Status:** SHIPPED — escrow live on `feat/public-matchmaking` · **Owner:** Phase 4 dev · **Created:** 2026-06-21 · **Updated:** 2026-06-23
+
+> **✅ SHIPPED (2026-06-23).** The escrow engine is no longer dormant — it's wired
+> end-to-end on `feat/public-matchmaking`. The doc below is kept as the design of
+> record; the implementation matches it.
+>
+> **Live now:** sit-down debits the buy-in via `TableSessionService.sitDown` (on
+> join / mid-hand join / funded start); the deal funds only affordable seats
+> (`dealFundedHand` / `fundAndBuildOccupants` — never seats an unfunded player);
+> every exit cashes the current stack back (`cashOut` on leave/disconnect in
+> `RoomSocketRoutes`); the `Rebuy` socket frame busts a player back in; the
+> matchmaking **disclosed-bot subsidy** ships as `V68` (capped real-coin payout +
+> per-user daily cap + telemetry). `table_sessions` is `V67`; balance moves route
+> through `WalletLedger`. (Note: there is no separate `SitDown` *frame* — sit-down
+> escrow happens server-side at the join/start points, not via a client frame.)
+>
+> **Still worth a re-verify** (the original fix branch was deleted, not salvaged —
+> confirm these hold on the refactored `room/impl/session/`, re-fix from scratch if
+> either reproduces): (a) the **showdown winner actually renders** at hand end (the
+> table used to re-project only on snapshots, not the showdown event); (b) a **late
+> socket subscriber still gets the deal** (a late-join could miss the opening deal
+> frame).
 
 ## Context & the product decision
 
@@ -16,11 +37,17 @@ Net wallet change = `stack_when_you_leave − buy_in`. You keep winnings, you ea
 
 Leave is framed as **cash-out, not penalty** (see UX below). Re-buy on bust. Settle on **every** exit path.
 
-## The key fact: most of this already exists on `feat/mp-chip-economy`
+## The key fact: the engine is already salvaged onto `feat/public-matchmaking`
 
-The `feat/mp-chip-economy` branch is a **complete, tested vertical slice** of exactly this economy. It is *dormant* (gated behind UI wiring + a "deal only funded players" enforcement flip) and sits ~16 commits behind `develop` (≈43 merge conflicts, almost all parameter-threading from the just-merged `feat/backend-bots` + `feat/configurable-buyin` PRs). **This plan is merge → reconcile → finish, not rebuild.** Reusing it beats rebuilding the atomicity + crash-recovery + test infrastructure from scratch.
+**(Superseded 2026-06-23 — see the banner at the top.)** The economy's server
+engine no longer needs a branch merge: it has been salvaged onto
+`feat/public-matchmaking` as a dormant, compiling, test-green slice. Do **not**
+merge `feat/mp-chip-economy` (stale, pre-refactor, migration-colliding). The
+sections below describe what the engine provides and what's left to wire — read
+them as "what's on your branch now (server)" + "what you still build (wiring +
+client + subsidy)", per the banner.
 
-### What the branch already provides (reuse as-is)
+### What the salvaged engine provides (already on your branch, reuse as-is)
 - **Server:** `TableSessionService.sitDown()/rebuy()/cashOut()`; `WalletLedger.applyInCurrentTransaction()` keyed `table:{sessionId}:{buyin|rebuy:n|cashout}`; `TableSessionRepository`; `DefaultTableSessionRecoverySweep` (boot-time cash-out of abandoned sessions from durable snapshots); `V60__table_sessions.sql` with a **partial unique index `(user_id) WHERE status <> 'closed'`** (double-spend guard) and a forward-only `open → closing → closed` status.
 - **Atomicity:** buy-in runs as one `database.transaction { table_sessions insert + wallet debit }`; rebuy/cash-out are safe under retry because the wallet movement is keyed.
 - **Wire:** `ClientFrame.SitDown(nonce)` / `Rebuy(nonce)`; `RoomSocketRoutes.handleSitDown()/handleRebuy()`; reuses the existing `IntentAck`/nonce routing.
