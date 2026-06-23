@@ -47,6 +47,7 @@ class InProcessServer : AutoCloseable {
                 gameSessions = registry,
                 equipmentRepository = FakeEquipment,
                 progressionRepository = FakeProgression,
+                wallets = FakeWallets,
             )
         }
     }.start(wait = false)
@@ -101,6 +102,71 @@ private object FakeEquipment : com.dangerfield.cards.server.domain.EquipmentRepo
         productId: String,
         opUpdatedAt: Instant,
     ): com.dangerfield.cards.server.domain.EquippedItem? = null
+}
+
+/**
+ * In-memory wallet source for the harness — backs the MP buy-in / rebuy escrow
+ * the room socket runs. Every user starts at [com.dangerfield.cards.server.domain.Wallet.STARTER_GRANT];
+ * [apply] is idempotent per (user, key) and rejects a debit that would drive the
+ * balance negative, mirroring the real repository's contract closely enough for
+ * full-hand play. Synchronized because sockets apply concurrently.
+ */
+private object FakeWallets : com.dangerfield.cards.server.domain.WalletRepository {
+    private val lock = Any()
+    private val balances = mutableMapOf<UserId, Long>()
+    private val appliedKeys = mutableSetOf<Pair<UserId, String>>()
+
+    // Caller holds [lock].
+    private fun balanceOf(userId: UserId): Long =
+        balances.getOrPut(userId) { com.dangerfield.cards.server.domain.Wallet.STARTER_GRANT }
+
+    private fun wallet(userId: UserId, balance: Long) = com.dangerfield.cards.server.domain.Wallet(
+        userId = userId,
+        balance = balance,
+        createdAt = Instant.fromEpochMilliseconds(0),
+        updatedAt = Instant.fromEpochMilliseconds(0),
+    )
+
+    override suspend fun findOrCreateResult(
+        userId: UserId,
+    ): com.dangerfield.cards.server.domain.FindOrCreateResult = synchronized(lock) {
+        val created = userId !in balances
+        com.dangerfield.cards.server.domain.FindOrCreateResult(wallet(userId, balanceOf(userId)), created)
+    }
+
+    override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.Wallet? =
+        synchronized(lock) { balances[userId]?.let { wallet(userId, it) } }
+
+    override suspend fun apply(
+        userId: UserId,
+        idempotencyKey: String,
+        delta: Long,
+        reason: String,
+    ): com.dangerfield.cards.server.domain.ApplyOutcome = synchronized(lock) {
+        val current = balanceOf(userId)
+        when {
+            userId to idempotencyKey in appliedKeys ->
+                com.dangerfield.cards.server.domain.ApplyOutcome.Applied(current, wasAlreadyApplied = true)
+            current + delta < 0 ->
+                com.dangerfield.cards.server.domain.ApplyOutcome.InsufficientChips(current)
+            else -> {
+                balances[userId] = current + delta
+                appliedKeys += userId to idempotencyKey
+                com.dangerfield.cards.server.domain.ApplyOutcome.Applied(current + delta, wasAlreadyApplied = false)
+            }
+        }
+    }
+
+    override suspend fun recentEvents(
+        userId: UserId,
+        limit: Int,
+    ): List<com.dangerfield.cards.server.domain.WalletEvent> = emptyList()
+
+    override suspend fun deleteAllForUser(userId: UserId) = synchronized(lock) {
+        balances.remove(userId)
+        appliedKeys.removeAll { it.first == userId }
+        Unit
+    }
 }
 
 /** No-op progression source — the integration harness doesn't seat opponent levels. */
