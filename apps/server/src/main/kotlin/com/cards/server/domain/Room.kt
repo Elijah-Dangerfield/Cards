@@ -248,24 +248,28 @@ interface RoomService {
 
     /**
      * "Bots step aside for humans." On a **public** table that now holds **two
-     * or more humans plus at least one bot**, drop exactly **one** bot from the
-     * room so the table converges toward an all-human game one hand at a time.
-     * No host gate — the matchmaker's system host owns public tables, and this
-     * is server policy, not a user action.
+     * or more humans plus at least one bot**, drop **one** bot from the room so
+     * the table converges toward an all-human game one hand at a time. No host
+     * gate — the matchmaker's system host owns public tables, and this is server
+     * policy, not a user action.
      *
      * Called at each hand boundary by the socket route's trim collector.
      * [handNumber] makes it **idempotent per hand**: the collector fires once
      * per remaining subscriber, but only the first call for a given
      * (code, handNumber) trims — the rest are no-ops. Returns the trimmed bot's
      * [UserId] (so the caller can drop it from the live game session too), or
-     * null when nothing was trimmed (not public, <2 humans, no bots, or this
-     * hand was already trimmed).
+     * null when nothing was trimmed (not public, <2 humans, no bots, the cushion
+     * is being held, or this hand was already trimmed).
      *
      * One-per-hand is deliberate: a table that found a second human shouldn't
      * dump all its bots at once mid-session — it eases the humans in while the
      * pot they're already contesting plays out, and keeps the seat count from
-     * lurching. The lone-human case is untouched (that's still a real-money
-     * practice table); only a genuinely-rescued table sheds bots.
+     * lurching. **Gentle landing:** a freshly-rescued *pair* isn't stripped to a
+     * bare heads-up — a small disclosed-bot cushion is held until either a third
+     * human arrives or the cushion bot busts out, so the table never snaps to an
+     * empty-feeling two-person duel on the way to all-human. The lone-human case
+     * is untouched (that's still a real-money practice table); only a
+     * genuinely-rescued table sheds bots.
      */
     suspend fun trimBotForNewHumans(code: String, handNumber: Int): UserId?
 

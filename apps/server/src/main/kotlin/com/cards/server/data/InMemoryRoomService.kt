@@ -442,10 +442,22 @@ class InMemoryRoomService(
 
         // "Rescued" means two or more real humans are now seated. Below that the
         // table is still a lone human vs bots (a real-money practice table) and
-        // keeps every bot. With the floor met, drop ONE bot this hand.
+        // keeps every bot.
         val humans = current.members.count { !it.isBot }
-        if (humans < 2) return@withLock null
-        val victim = current.members.firstOrNull { it.isBot } ?: return@withLock null
+        val bots = current.members.count { it.isBot }
+        if (humans < 2 || bots == 0) return@withLock null
+
+        // Gentle landing: don't strip a freshly-rescued pair down to a bare
+        // heads-up table. While the table is still short on humans, hold a small
+        // bot cushion so it keeps at least [MIN_TABLE_BODIES] players; only trim
+        // past that once enough humans ([COMFORTABLE_HUMAN_COUNT]) are seated to
+        // carry the table themselves. The held cushion bot still bows out on its
+        // own — dropped the moment a third human arrives, or when it busts (the
+        // next-hand deal already skips a zero-stack seat). So the table always
+        // converges to all-human, just without the abrupt drop.
+        val cushionNeeded = humans < COMFORTABLE_HUMAN_COUNT
+        if (cushionNeeded && humans + bots <= MIN_TABLE_BODIES) return@withLock null
+        val victim = current.members.first { it.isBot }
 
         // Stamp the hand even though we trimmed, so a duplicate collector call
         // for the same hand can't trim a second bot.
@@ -719,5 +731,19 @@ class InMemoryRoomService(
 
         /** The bot avatar emoji a human member may never carry. */
         const val RESERVED_BOT_AVATAR_EMOJI = "🤖"
+
+        /**
+         * Smallest body count a rescued public table is trimmed down to while it's
+         * still short on humans — a 3-handed table reads as a real game, where a
+         * bare heads-up (two humans, no cushion) can feel like a dead lobby. The
+         * cushion is disclosed bots that bow out as humans arrive or as they bust.
+         */
+        private const val MIN_TABLE_BODIES = 3
+
+        /**
+         * At this many real humans a public table carries itself, so the bot
+         * cushion is dropped entirely and it trims all the way to all-human.
+         */
+        private const val COMFORTABLE_HUMAN_COUNT = 3
     }
 }

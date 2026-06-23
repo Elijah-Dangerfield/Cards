@@ -56,6 +56,7 @@ class InMemoryRoomServiceTest {
     private val host = UserId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
     private val alice = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
     private val bob = UserId(UUID.fromString("33333333-3333-3333-3333-333333333333"))
+    private val carol = UserId(UUID.fromString("44444444-4444-4444-4444-444444444444"))
 
     @Test
     fun create_returnsRoomInLobby_withHostInSeat0() = runTest {
@@ -869,7 +870,7 @@ class InMemoryRoomServiceTest {
     // ---------- trimBotForNewHumans ("bots step aside for humans") ----------
 
     @Test
-    fun trimBotForNewHumans_publicRescuedTable_dropsOneBotPerHand_untilAllHuman() = runTest {
+    fun trimBotForNewHumans_rescuedPair_trimsToACushion_notABareHeadsUp() = runTest {
         val service = newService()
         val code = service.openPublicBotTable() // alice + 3 disclosed bots
 
@@ -893,15 +894,39 @@ class InMemoryRoomServiceTest {
         assertNull(service.trimBotForNewHumans(code, handNumber = 1), "idempotent per hand — no second bot dropped")
         assertEquals(2, service.find(code)!!.members.count { it.isBot })
 
-        // Each later hand sheds one more, converging on an all-human table.
+        // Hand 2 sheds one more, down to the cushion: two humans + one bot.
         assertNotNull(service.trimBotForNewHumans(code, handNumber = 2))
-        assertEquals(1, service.find(code)!!.members.count { it.isBot })
-        assertNotNull(service.trimBotForNewHumans(code, handNumber = 3))
-        assertEquals(0, service.find(code)!!.members.count { it.isBot }, "all bots have stepped aside")
+        assertEquals(1, service.find(code)!!.members.count { it.isBot }, "trimmed down to a one-bot cushion")
 
-        // Nothing left to trim — two humans play on.
-        assertNull(service.trimBotForNewHumans(code, handNumber = 4), "no bots → no-op")
-        assertEquals(2, service.find(code)!!.members.count { !it.isBot })
+        // Hand 3+: the cushion is HELD — a rescued pair isn't dropped to a bare
+        // heads-up. The last bot stays until a third human arrives (or it busts).
+        assertNull(service.trimBotForNewHumans(code, handNumber = 3), "holds the cushion bot for the pair")
+        assertNull(service.trimBotForNewHumans(code, handNumber = 4), "still held the hand after")
+        assertEquals(1, service.find(code)!!.members.count { it.isBot }, "two humans + one cushion bot, not a bare duel")
+    }
+
+    @Test
+    fun trimBotForNewHumans_thirdHumanArrives_dropsTheCushionBot_allHuman() = runTest {
+        val service = newService()
+        val code = service.openPublicBotTable() // alice + 3 bots
+        service.findOrJoinPublic(bob, "Bob", 1_000, 1_000, emptySet()) // rescued pair
+
+        // Trim down to the held cushion (2 humans + 1 bot).
+        service.trimBotForNewHumans(code, handNumber = 1)
+        service.trimBotForNewHumans(code, handNumber = 2)
+        assertNull(service.trimBotForNewHumans(code, handNumber = 3), "cushion held at the pair")
+        assertEquals(1, service.find(code)!!.members.count { it.isBot })
+
+        // A third human shows up — now the table carries itself, so the cushion goes.
+        val joined = assertIs<MatchmakingResult.Joined>(
+            service.findOrJoinPublic(carol, "Carol", 1_000, 1_000, emptySet()),
+        ).room
+        assertEquals(3, joined.members.count { !it.isBot }, "three humans now seated")
+
+        assertNotNull(service.trimBotForNewHumans(code, handNumber = 4), "with three humans the cushion drops")
+        val finalRoom = service.find(code)!!
+        assertEquals(0, finalRoom.members.count { it.isBot }, "the last bot bows out — an all-human table")
+        assertEquals(3, finalRoom.members.count { !it.isBot })
     }
 
     @Test
