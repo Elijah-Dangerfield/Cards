@@ -436,6 +436,59 @@ class GameSession internal constructor(
         IntentResult.Accepted
     }
 
+    /**
+     * Buy a busted seat back into the table. Resolves the seat by
+     * [actorUserId] → matching `Seat.playerId` and refills its stack to
+     * [RoomSettings.startingStack] (the buy-in). Rejected unless the current
+     * hand is `Complete` (we never mutate a live stack mid-action), the caller
+     * is seated, and the seat is actually busted (`stack == 0`).
+     *
+     * **No wallet logic here** — the engine stays pure. The route debits the
+     * wallet by the buy-in *before* calling this and refunds if this rejects.
+     *
+     * Idempotent via the nonce ring: a retried [clientNonce] returns
+     * `Accepted` without re-refilling (the refill is a `set`, not an `add`, so
+     * it's harmless anyway — the guard mainly mirrors the other mutations).
+     *
+     * Refilling to `stack > 0` is all that's needed to re-seat the player:
+     * the next [requestNextHand] no longer filters them out.
+     */
+    suspend fun rebuy(
+        actorUserId: String,
+        clientNonce: String,
+    ): IntentResult = mutex.withLock {
+        val current = _state.value
+            ?: return@withLock IntentResult.Rejected("no hand to rebuy into")
+        if (current.street != BettingRound.Complete) {
+            return@withLock IntentResult.Rejected("current hand not complete")
+        }
+        if (clientNonce in processedNonces) return@withLock IntentResult.Accepted
+        val seat = current.seats.firstOrNull { it.playerId == actorUserId }
+            ?: return@withLock IntentResult.Rejected("not seated in this room")
+        if (seat.stack > 0) return@withLock IntentResult.Rejected("seat is not busted")
+
+        recordNonce(clientNonce)
+        withSpan(
+            name = "rebuy",
+            configure = {
+                setAttribute(SpanAttrs.SessionId, id.toString())
+                setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
+            },
+        ) {
+            val refilled = current.copy(
+                seats = current.seats.map {
+                    if (it.index == seat.index) it.copy(stack = settings.startingStack) else it
+                },
+            )
+            val origin = Span.current().spanContext
+            _state.value = refilled
+            _tracedState.value = TracedState(refilled, origin)
+            onStateChange(refilled)
+            log.info("Seat $actorUserId rebought for ${settings.startingStack} — session=$id")
+            IntentResult.Accepted
+        }
+    }
+
     private suspend fun startHandLocked(
         occupants: List<SeatOccupant>,
         settings: RoomSettings,

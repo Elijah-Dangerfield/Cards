@@ -80,6 +80,17 @@ interface PokerSession {
     fun requestNextHand()
 
     /**
+     * Buy back into the table after busting. Remote sessions send the rebuy
+     * frame and **suspend on the server ack** (unlike [requestNextHand]) so the
+     * caller learns if the wallet couldn't cover the buy-in — a rejection
+     * throws [com.dangerfield.cards.features.room.impl.session.IntentRejectedException].
+     * On success the server refills the seat and the next state snapshot
+     * carries the restored stack. Local-bots sessions auto-rebuy silently and
+     * no-op here.
+     */
+    suspend fun rebuy()
+
+    /**
      * Leave the room for good. Remote sessions send the durable leave
      * (the HTTP DELETE) so the server frees the seat and broadcasts the
      * departure to the other players; local-bots sessions have no server

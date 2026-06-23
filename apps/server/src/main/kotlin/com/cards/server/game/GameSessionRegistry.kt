@@ -96,6 +96,15 @@ interface GameSessionRegistry {
     suspend fun forfeitSeat(code: String, userId: String): IntentResult
 
     /**
+     * Buy [userId]'s busted seat back into the table. Resolves via [peek]
+     * (no hydrate — a rebuy only matters while a live in-memory session
+     * exists) and delegates to [GameSession.rebuy]. Rejected when no session
+     * is registered for [code]. The route owns the wallet debit; this only
+     * refills the table stack.
+     */
+    suspend fun rebuy(code: String, userId: String, clientNonce: String): IntentResult
+
+    /**
      * Fan a table emote out to every socket in the room. Resolves to the
      * in-memory session via [peek] (no hydrate — emotes only matter while
      * a hand is live and someone's watching the table) and delegates to
@@ -200,6 +209,10 @@ class DefaultGameSessionRegistry(
 
     override suspend fun forfeitSeat(code: String, userId: String): IntentResult =
         peek(code)?.forfeitSeat(userId) ?: IntentResult.Accepted
+
+    override suspend fun rebuy(code: String, userId: String, clientNonce: String): IntentResult =
+        peek(code)?.rebuy(userId, clientNonce)
+            ?: IntentResult.Rejected("no game session for room $code")
 
     override fun broadcastEmoji(code: String, actorUserId: String, emoji: String): IntentResult =
         peek(code)?.emitEmoji(actorUserId, emoji)

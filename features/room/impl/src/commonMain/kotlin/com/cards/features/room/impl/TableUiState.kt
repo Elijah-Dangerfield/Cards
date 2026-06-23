@@ -40,6 +40,14 @@ sealed interface TableUiState {
         val handResult: HandResultView?,
         val smallBlind: Long,
         val bigBlind: Long,
+        /**
+         * The table buy-in (`RoomSettings.startingStack`) — what a fresh seat
+         * is dealt. Drives the MP rebuy CTA: the bust dialog shows "Rebuy (N
+         * chips)" and gates it against the player's wallet balance. Defaulted
+         * for previews/tutorial samples; the real projection sets it from
+         * `gameState.settings.startingStack`.
+         */
+        val buyIn: Long = 1_000,
         val handNumber: Int,
         val buttonSeatIndex: Int,
         val smallBlindSeatIndex: Int?,
@@ -184,6 +192,7 @@ sealed interface TableUiState {
                 handResult = result,
                 smallBlind = gameState.settings.smallBlind,
                 bigBlind = gameState.settings.bigBlind,
+                buyIn = gameState.settings.startingStack,
                 handNumber = gameState.handNumber,
                 buttonSeatIndex = gameState.buttonSeatIndex,
                 smallBlindSeatIndex = sbIndex,

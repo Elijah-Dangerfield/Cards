@@ -1,11 +1,14 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.Room
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.game.IntentResult
 import com.dangerfield.cards.server.game.SeatOccupant
@@ -95,6 +98,7 @@ fun Route.roomSocketRoutes(
     gameSessions: GameSessionRegistry,
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
     progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+    wallets: WalletRepository,
     reaperGrace: Duration = DEFAULT_REAPER_GRACE,
 ) {
     val app = application
@@ -287,6 +291,7 @@ fun Route.roomSocketRoutes(
                         gameSessions = gameSessions,
                         equipmentRepository = equipmentRepository,
                         progressionRepository = progressionRepository,
+                        wallets = wallets,
                     )
                     sendJson(ack)
                 }
@@ -339,6 +344,7 @@ private suspend fun handleClientFrame(
     gameSessions: GameSessionRegistry,
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
     progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+    wallets: WalletRepository,
 ): RoomSocketEventDto.IntentAck {
     val result: IntentResult = when (frame) {
         is RoomClientFrame.StartHand ->
@@ -365,6 +371,18 @@ private suspend fun handleClientFrame(
             actorUserId = userId.value.toString(),
             clientNonce = frame.clientNonce,
         )
+        is RoomClientFrame.Rebuy -> withSpan(
+            name = "rebuy",
+            configure = {
+                setAttribute(SpanAttrs.FrameType, "rebuy")
+                setAttribute(SpanAttrs.RoomCode, code)
+                setAttribute(SpanAttrs.UserId, userId.value.toString())
+                setAttribute(SpanAttrs.ClientNonce, frame.clientNonce)
+            },
+        ) {
+            handleRebuy(code, userId, frame.clientNonce, rooms, gameSessions, wallets)
+                .also { recordIntentOutcome(it) }
+        }
         is RoomClientFrame.SendEmoji -> gameSessions.broadcastEmoji(
             code = code,
             actorUserId = userId.value.toString(),
@@ -390,6 +408,67 @@ private fun recordIntentOutcome(result: IntentResult) {
     if (result is IntentResult.Rejected) {
         span.setAttribute(SpanAttrs.RejectionReason, result.reason)
     }
+}
+
+/**
+ * Buy a busted seat back into the table.
+ *
+ * Cross-domain orchestration lives here, not in [com.dangerfield.cards.server.game.GameSession]
+ * (which stays pure-engine): we debit the wallet by the room buy-in
+ * ([RoomSettings.startingStack]) and only then refill the seat.
+ *
+ *  1. Pre-check off the live session so an obviously-invalid rebuy (no
+ *     completed hand, caller not seated, seat not busted) is rejected
+ *     *without* churning the ledger. [com.dangerfield.cards.server.game.GameSession.rebuy]
+ *     re-checks the same conditions under its lock — this is just an
+ *     optimization to keep the common reject cases off the wallet.
+ *  2. Debit the wallet, idempotent by `clientNonce`, so a socket retry can't
+ *     double-charge. Insufficient balance → reject, no refill.
+ *  3. Refill the seat. The debit and refill aren't one transaction, so if the
+ *     refill rejects (state raced between the pre-check and the lock) we
+ *     compensate with a refund under a distinct idempotency key.
+ */
+private suspend fun handleRebuy(
+    code: String,
+    userId: UserId,
+    clientNonce: String,
+    rooms: RoomService,
+    gameSessions: GameSessionRegistry,
+    wallets: WalletRepository,
+): IntentResult {
+    val room = rooms.find(code) ?: return IntentResult.Rejected("room not found")
+    val buyIn = room.settings.startingStack
+
+    val state = gameSessions.peek(code)?.state?.value
+    if (state == null || state.street != BettingRound.Complete) {
+        return IntentResult.Rejected("no completed hand to rebuy into")
+    }
+    val seat = state.seats.firstOrNull { it.playerId == userId.value.toString() }
+        ?: return IntentResult.Rejected("not seated in this room")
+    if (seat.stack > 0) return IntentResult.Rejected("seat is not busted")
+
+    val debit = wallets.apply(
+        userId = userId,
+        idempotencyKey = "rebuy:$code:$clientNonce",
+        delta = -buyIn,
+        reason = "rebuy",
+    )
+    if (debit is ApplyOutcome.InsufficientChips) {
+        return IntentResult.Rejected("insufficient chips")
+    }
+
+    val result = gameSessions.rebuy(code, userId.value.toString(), clientNonce)
+    if (result is IntentResult.Rejected) {
+        // Refill rejected after we already debited — give the chips back. The
+        // refund key is distinct from the debit key so it isn't deduped against it.
+        wallets.apply(
+            userId = userId,
+            idempotencyKey = "rebuy_refund:$code:$clientNonce",
+            delta = +buyIn,
+            reason = "rebuy_refund",
+        )
+    }
+    return result
 }
 
 /**

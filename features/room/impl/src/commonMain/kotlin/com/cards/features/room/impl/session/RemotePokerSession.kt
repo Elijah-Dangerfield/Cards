@@ -296,6 +296,32 @@ internal class RemotePokerSession(
         nextHandSignal.trySend(Unit)
     }
 
+    @OptIn(ExperimentalUuidApi::class)
+    override suspend fun rebuy() {
+        // Ack round-trip like submit() (not fire-and-forget like
+        // requestNextHand): the caller needs to learn if the wallet couldn't
+        // cover the buy-in so it can route the player to the quick-buy sheet.
+        val nonce = newNonce()
+        val deferred = CompletableDeferred<GameplayFrame.IntentAck>()
+        pendingAcksMutex.withLock { pendingAcks[nonce] = deferred }
+        try {
+            logger.d { "Submitting rebuy nonce=$nonce" }
+            handle.send(ClientFrame.Rebuy(nonce))
+            val ack = try {
+                withTimeout(INTENT_TIMEOUT_MS) { deferred.await() }
+            } catch (e: TimeoutCancellationException) {
+                logger.w { "Rebuy timed out after ${INTENT_TIMEOUT_MS}ms (nonce=$nonce)" }
+                throw IntentTimeoutException("no ack within ${INTENT_TIMEOUT_MS}ms for nonce=$nonce")
+            }
+            if (!ack.accepted) {
+                logger.i { "Rebuy rejected: ${ack.error ?: "unspecified"} (nonce=$nonce)" }
+                throw IntentRejectedException(ack.error ?: "unspecified")
+            }
+        } finally {
+            pendingAcksMutex.withLock { pendingAcks.remove(nonce) }
+        }
+    }
+
     override suspend fun leave() {
         Catching { onLeave() }
             .onFailure { e -> logger.w(e) { "room leave send failed" } }

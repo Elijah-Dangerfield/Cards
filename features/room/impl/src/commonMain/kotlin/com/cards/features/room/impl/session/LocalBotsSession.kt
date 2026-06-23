@@ -501,6 +501,10 @@ class LocalBotsSession(
 
     override fun requestNextHand() = advanceToNextHand()
 
+    // Solo/practice already auto-rebuys busted stacks between hands, so an
+    // explicit rebuy is a no-op here (the MP bust dialog never shows for bots).
+    override suspend fun rebuy() = Unit
+
     override suspend fun leave() = Unit
 
     override suspend fun sendEmote(emoji: String) = Unit

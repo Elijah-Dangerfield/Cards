@@ -139,6 +139,7 @@ fun Application.installApp(
             component.gameSessionRegistry,
             component.equipmentRepository,
             component.progressionRepository,
+            component.walletRepository,
         )
         adminRoutes(
             config = adminConfig,

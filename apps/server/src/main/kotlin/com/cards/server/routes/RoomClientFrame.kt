@@ -51,6 +51,15 @@ sealed interface RoomClientFrame {
     @SerialName("request_next_hand")
     data class RequestNextHand(override val clientNonce: String) : RoomClientFrame
 
+    /**
+     * A busted player ([Seat.stack] == 0) buys back into the table. The
+     * server debits their wallet by the room buy-in and refills the seat to
+     * the starting stack; the next [RequestNextHand] re-seats them.
+     */
+    @Serializable
+    @SerialName("rebuy")
+    data class Rebuy(override val clientNonce: String) : RoomClientFrame
+
     @Serializable
     @SerialName("send_emoji")
     data class SendEmoji(
