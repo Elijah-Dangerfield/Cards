@@ -38,6 +38,16 @@ import io.ktor.server.routing.post
  * Status codes: 200 happy path · 400 malformed/out-of-range buy-in · 401 no JWT
  * · 429 rate-limited. Abuse fence is per-IP rate limiting ([MATCHMAKING_FIND_LIMIT])
  * plus the empty-room GC that reclaims abandoned tables.
+ *
+ * Deferred to Phase 4 (escrow), tracked so they're explicit, not forgotten:
+ *  - **No wallet check here.** The plan's fast advisory "can you afford this
+ *    tier" reject at find() isn't wired yet; the authoritative check is the
+ *    sit-down escrow debit. A searcher short on chips is seated and only bounced
+ *    at the buy-in. Harmless today (no escrow), revisit when B3 lands.
+ *  - **No global public-room cap.** The per-IP rate limit + the GC-on-leave that
+ *    reclaims a solo searcher's table before they can stack up another are the
+ *    only ceilings on concurrent public rooms. A dedicated global cap (plan
+ *    §2.5) is unbuilt; add it if public-room count ever needs a hard bound.
  */
 fun Route.matchmakingRoutes(
     rooms: RoomService,

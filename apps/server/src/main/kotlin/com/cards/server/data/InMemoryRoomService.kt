@@ -181,10 +181,17 @@ class InMemoryRoomService(
         avatarEmoji: String,
         avatarBackgroundColor: String?,
     ): MatchmakingResult = mutex.withLock {
-        // Idempotent: already seated in an eligible room → hand it back. Guards a
-        // double-tap / reconnect from minting a second table.
-        rooms.values.firstOrNull { it.room.isMatchmakingEligible && it.room.memberFor(userId) != null }
-            ?.let { return@withLock MatchmakingResult.Joined(it.room) }
+        // Idempotent: already seated in an eligible room *in this range* → hand
+        // it back, so a double-tap / reconnect doesn't mint a second table. A
+        // search at a different tier is NOT idempotent against a stale seat at
+        // another tier — it falls through to a real find/create for the range
+        // asked for (the old seat self-heals via the forming-table reaper), so
+        // the function never returns a room outside [minBuyIn, maxBuyIn].
+        rooms.values.firstOrNull {
+            it.room.isMatchmakingEligible &&
+                it.room.memberFor(userId) != null &&
+                it.room.buyIn in minBuyIn..maxBuyIn
+        }?.let { return@withLock MatchmakingResult.Joined(it.room) }
 
         // Atomic pick: eligible, joinable, in-range, no blocked member; prefer the
         // most real humans (ties → oldest room, for stable convergence).

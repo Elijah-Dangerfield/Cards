@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.libraries.bots.BotDifficulty
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.domain.BuyInTier
 import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.MatchmakingResult
@@ -168,6 +169,37 @@ class MatchmakingServiceTest {
         val created = assertIs<MatchmakingResult.Created>(result)
         assertTrue(created.room.code != low.room.code)
         assertEquals(100_000, created.room.buyIn)
+    }
+
+    @Test
+    fun find_isIdempotentOnlyWithinTheRequestedRange_notAcrossTiers() = runTest {
+        val svc = service()
+        val me = user()
+        // Seated at the 1,000 tier from a prior (abandoned-but-not-yet-reaped) search.
+        val low = assertIs<MatchmakingResult.Created>(svc.findOrJoinPublic(me, "Me", 1_000, 1_000, noBlocks))
+
+        // A fresh search at a *different* tier must not hand back the stale low table.
+        val high = svc.findOrJoinPublic(me, "Me", 100_000, 100_000, noBlocks)
+
+        val created = assertIs<MatchmakingResult.Created>(high)
+        assertTrue(created.room.code != low.room.code, "a cross-tier search never returns the stale seat")
+        assertEquals(100_000, created.room.buyIn, "the new table is in the range actually asked for")
+    }
+
+    @Test
+    fun buyInTiers_alignWithRoomSettings_bounds_andDefaultIsCanonical() {
+        // Plan §2.3: tiers must line up with RoomSettings. Every canonical tier is a
+        // legal buy-in, and the default stake (the convergence anchor) is one of them.
+        assertTrue(
+            BuyInTier.Canonical.all { it in RoomSettings.MIN_BUY_IN..RoomSettings.MAX_BUY_IN },
+            "every canonical tier is a legal buy-in",
+        )
+        assertTrue(
+            RoomSettings.DEFAULT_BUY_IN in BuyInTier.Canonical,
+            "the default stake is a canonical tier so overlapping ranges converge on it",
+        )
+        // forBuyIn must accept each tier without tripping its blind/stack invariants.
+        BuyInTier.Canonical.forEach { RoomSettings.forBuyIn(it, maxSeats = RoomService.MAX_SEATS) }
     }
 
     @Test
