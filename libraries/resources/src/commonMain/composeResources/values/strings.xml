@@ -739,11 +739,25 @@
     <string name="room_bust_title">You went bust</string>
     <string name="room_bust_body">Practice chips refilled - chips against bots don't count for keeps. Deal yourself in and keep sharpening up.</string>
     <string name="room_bust_deal_me_in_button">Deal me in</string>
-    <!-- Room - Multiplayer bust dialog (real chips, no rebuy — leave or buy chips). -->
+    <!-- Room - Multiplayer bust dialog (rebuy with wallet chips, or buy more, or leave). -->
     <string name="room_mp_bust_title">You're out of chips</string>
-    <string name="room_mp_bust_body">You've busted out of this game. Buy more chips to jump back in, or leave the table.</string>
+    <string name="room_mp_bust_body">You've busted out of this game. Rebuy to jump back in, or leave the table.</string>
     <string name="room_mp_bust_buy_chips_button">Buy chips</string>
     <string name="room_mp_bust_leave_button">Leave game</string>
+    <!-- %1$s = formatted buy-in chip amount, e.g. "1,000". -->
+    <string name="room_mp_bust_rebuy_button">Rebuy (%1$s)</string>
+
+    <!-- Room - In-game quick-buy chip sheet (busted-player upsell, no nav away). -->
+    <string name="room_quick_buy_title">Buy chips</string>
+    <string name="room_quick_buy_subtitle">Top up without leaving the table.</string>
+    <!-- %1$s = formatted wallet chip balance. -->
+    <string name="room_quick_buy_balance">Balance: %1$s</string>
+    <!-- %1$s = formatted granted chip amount for a pack. -->
+    <string name="room_quick_buy_pack_chips">%1$s chips</string>
+    <!-- %1$s = formatted granted chip amount, e.g. "30,000". -->
+    <string name="room_quick_buy_success">Added %1$s chips</string>
+    <string name="room_quick_buy_failed">Couldn't complete the purchase</string>
+    <string name="room_quick_buy_store_unavailable">Store unavailable right now</string>
 
     <!-- Room - Achievement-unlocked callout (inline within hand-end dialogs in MP mode). -->
     <string name="room_achievement_callout_heading">Achievement unlocked</string>

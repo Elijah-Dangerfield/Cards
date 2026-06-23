@@ -71,6 +71,8 @@ class MpScenarioBuilder(
             equipmentRepository = FakeEquipmentRepository(),
             inventoryRepository = FakeInventoryRepository(),
             productsRepository = FakeProductsRepository(),
+            chipsRepository = FakeChipsRepository(),
+            purchaseChipPack = FakePurchaseChipPackUseCase(),
             profileRepository = FakeProfileRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
             dispatcherProvider = dispatchers,

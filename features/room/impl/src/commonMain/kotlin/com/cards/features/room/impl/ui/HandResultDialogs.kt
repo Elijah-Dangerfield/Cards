@@ -37,6 +37,7 @@ import cards.libraries.resources.generated.resources.room_bust_title
 import cards.libraries.resources.generated.resources.room_mp_bust_body
 import cards.libraries.resources.generated.resources.room_mp_bust_buy_chips_button
 import cards.libraries.resources.generated.resources.room_mp_bust_leave_button
+import cards.libraries.resources.generated.resources.room_mp_bust_rebuy_button
 import cards.libraries.resources.generated.resources.room_mp_bust_title
 import cards.libraries.resources.generated.resources.room_showdown_board_label
 import cards.libraries.resources.generated.resources.room_showdown_next_hand_button
@@ -287,19 +288,27 @@ internal fun BustDialog(
 }
 
 /**
- * Real-multiplayer bust dialog: chips are gone for keeps (no silent rebuy), so
- * this is terminal. Two CTAs — "Buy chips" (the upsell, primary) and "Leave
- * game" (secondary). Distinct from [BustDialog], which is the solo / practice
- * "deal me in" rebuy modal; the screen picks between them on
- * [PlayPokerState.isRealMultiplayer].
+ * Real-multiplayer bust dialog. The busted player can buy back into the same
+ * table — the primary CTA adapts to their wallet:
+ *  - Can afford the [buyIn] → "Rebuy (N)" ([onRebuy]); the server debits the
+ *    buy-in and refills the seat.
+ *  - Can't afford it → "Buy chips" ([onBuyChips]) opens the in-game quick-buy
+ *    sheet to top up first.
+ * "Leave game" ([onLeaveGame]) is always the secondary. Distinct from
+ * [BustDialog], the solo / practice "deal me in" modal; the screen picks
+ * between them on [PlayPokerState.isRealMultiplayer].
  */
 @Composable
 internal fun MultiplayerBustDialog(
     xpEarned: Int?,
     earnedAchievements: List<EarnedAchievement>,
+    buyIn: Long,
+    chipBalance: Long?,
+    onRebuy: () -> Unit,
     onBuyChips: () -> Unit,
     onLeaveGame: () -> Unit,
 ) {
+    val canAffordRebuy = chipBalance != null && chipBalance >= buyIn
     Dialog(
         onDismissRequest = onLeaveGame,
         topAccessory = topAccessoryChipBubble(),
@@ -334,11 +343,25 @@ internal fun MultiplayerBustDialog(
             earnedAchievements.forEach { earned ->
                 AchievementUnlockedCallout(earned = earned)
             }
-            ButtonPrimary(
-                onClick = onBuyChips,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(text = stringResource(Res.string.room_mp_bust_buy_chips_button))
+            if (canAffordRebuy) {
+                ButtonPrimary(
+                    onClick = onRebuy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(
+                            Res.string.room_mp_bust_rebuy_button,
+                            formatThousands(buyIn),
+                        ),
+                    )
+                }
+            } else {
+                ButtonPrimary(
+                    onClick = onBuyChips,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(text = stringResource(Res.string.room_mp_bust_buy_chips_button))
+                }
             }
             ButtonSecondary(
                 onClick = onLeaveGame,

@@ -84,6 +84,16 @@ data class PlayPokerState(
      * inline row).
      */
     val xpMode: XpMode = XpMode.BOTS,
+    /**
+     * Wallet chip balance, mirrored from `ChipsRepository`. `null` until the
+     * first sync hydrates it. Drives the bust dialog's rebuy gate (afford the
+     * buy-in?) and the quick-buy sheet's balance line.
+     */
+    val chipBalance: Long? = null,
+    /** True while the in-game quick-buy chip-pack sheet is shown (MP bust upsell). */
+    val quickBuyOpen: Boolean = false,
+    /** True while a quick-buy IAP round-trip is in flight; the sheet shows a spinner. */
+    val purchaseInFlight: Boolean = false,
 ) {
     /**
      * Real-chips multiplayer (MP xpMode, not bots-only practice). Gates the bust
@@ -157,8 +167,26 @@ sealed interface PlayPokerAction {
     /** "Leave game" on the MP bust dialog — same teardown as [LeaveTable]. */
     data object LeaveGameFromBust : PlayPokerAction
 
-    /** "Buy chips" on the MP bust dialog — emits [PlayPokerEvent.NavigateToShop]. */
-    data object BuyChips : PlayPokerAction
+    /** "Buy chips" on the MP bust dialog — opens the in-game quick-buy sheet. */
+    data object OpenQuickBuy : PlayPokerAction
+
+    /** Dismiss the quick-buy sheet (scrim tap / cancel / after a purchase). */
+    data object DismissQuickBuy : PlayPokerAction
+
+    /** Confirm a chip-pack purchase from the quick-buy sheet — drives the IAP use case. */
+    data class ConfirmQuickBuy(
+        val pack: com.dangerfield.cards.libraries.products.Product.ChipPack,
+    ) : PlayPokerAction
+
+    /** Fired by the chip-balance subscription. */
+    data class ChipsChanged(val balance: Long?) : PlayPokerAction
+
+    /**
+     * "Rebuy" on the MP bust dialog — buys back into the table. Server debits
+     * the buy-in and refills the seat; emits [PlayPokerEvent.RebuySucceeded] or
+     * [PlayPokerEvent.RebuyInsufficientChips].
+     */
+    data object Rebuy : PlayPokerAction
 
     /** Fired by the AppCache mirror; flips the swipe-fold confirmation gate. */
     data class SwipeFoldAckChanged(val acknowledged: Boolean) : PlayPokerAction
@@ -201,8 +229,22 @@ sealed interface PlayPokerEvent {
     /** Last human standing (room still exists); the entry point routes by room kind. MP only. */
     data object OpponentsLeft : PlayPokerEvent
 
-    /** Buy-chips upsell tapped; the entry point switches to the Shop tab. */
-    data object NavigateToShop : PlayPokerEvent
+    /**
+     * A quick-buy IAP round-trip finished; the screen toasts the result.
+     * Mirrors the shop's `PurchaseFinished` feedback, in-game.
+     */
+    data class QuickBuyFinished(
+        val outcome: com.dangerfield.cards.libraries.billing.IapPurchaseOutcome,
+    ) : PlayPokerEvent
+
+    /** Anonymous user tapped buy; the entry point routes to the account-claim flow. */
+    data object ClaimAccountRequired : PlayPokerEvent
+
+    /** Rebuy committed — the server refilled the seat; the next snapshot restores the stack. */
+    data object RebuySucceeded : PlayPokerEvent
+
+    /** Rebuy rejected for insufficient wallet chips — the screen opens the quick-buy sheet. */
+    data object RebuyInsufficientChips : PlayPokerEvent
 }
 
 enum class HapticKind { ActionTaken, HandWon, HandLost, Bust, LevelUp }

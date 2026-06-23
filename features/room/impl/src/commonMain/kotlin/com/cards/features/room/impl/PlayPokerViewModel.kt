@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.IntentRejectedException
 import com.dangerfield.cards.features.room.impl.session.PokerSession
 import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
 import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
@@ -8,9 +9,12 @@ import com.dangerfield.cards.features.room.impl.usecase.HandResultSummaryBuilder
 import com.dangerfield.cards.features.room.impl.usecase.WinOddsEngine
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.billing.IapPurchaseOutcome
+import com.dangerfield.cards.libraries.billing.PurchaseChipPackUseCase
 import com.dangerfield.cards.libraries.cards.AchievementRarity
 import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.BotSpeed
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.EmojiBlast
@@ -70,6 +74,8 @@ class PlayPokerViewModel @Inject constructor(
     private val equipmentRepository: EquipmentRepository,
     private val inventoryRepository: InventoryRepository,
     private val productsRepository: ProductsRepository,
+    private val chipsRepository: ChipsRepository,
+    private val purchaseChipPack: PurchaseChipPackUseCase,
     private val profileRepository: ProfileRepository,
     private val reviewPromptCoordinator: ReviewPromptCoordinator,
     private val dispatcherProvider: DispatcherProvider,
@@ -234,13 +240,21 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.EquippedBadgesChanged(badges))
             }
         }
-        // Catalog in state so the screen can resolve opponents' badge ids.
+        // Catalog in state so the screen can resolve opponents' badge ids — and
+        // so the MP bust quick-buy sheet has chip packs to show.
         viewModelScope.launch {
             productsRepository.observeCatalog().collect { catalog ->
                 takeAction(PlayPokerAction.CatalogChanged(catalog))
             }
         }
         viewModelScope.launch { productsRepository.refresh() }
+        // Wallet balance mirror — drives the bust dialog's rebuy gate (can the
+        // player afford the buy-in?) and the quick-buy balance line.
+        viewModelScope.launch {
+            chipsRepository.observeBalance().collect { balance ->
+                takeAction(PlayPokerAction.ChipsChanged(balance))
+            }
+        }
         // Live win-odds (gated in WinOddsEngine). distinctUntilChanged + mapLatest
         // cancel the in-flight Monte Carlo when any equity input shifts.
         viewModelScope.launch {
@@ -552,7 +566,49 @@ class PlayPokerViewModel @Inject constructor(
                         .onFailure { e -> logger.w(e) { "room leave failed" } }
                 }
             }
-            is PlayPokerAction.BuyChips -> sendEvent(PlayPokerEvent.NavigateToShop)
+            is PlayPokerAction.OpenQuickBuy -> action.updateState { it.copy(quickBuyOpen = true) }
+            is PlayPokerAction.DismissQuickBuy -> action.updateState { it.copy(quickBuyOpen = false) }
+            is PlayPokerAction.ChipsChanged -> action.updateState { it.copy(chipBalance = action.balance) }
+            is PlayPokerAction.ConfirmQuickBuy -> {
+                action.updateState { it.copy(purchaseInFlight = true) }
+                viewModelScope.launch {
+                    val outcome = Catching { purchaseChipPack(action.pack) }
+                        .getOrElse { e ->
+                            logger.w(e) { "quick-buy purchase failed" }
+                            IapPurchaseOutcome.Failed(e.message ?: "Couldn't complete purchase")
+                        }
+                    action.updateState { it.copy(quickBuyOpen = false, purchaseInFlight = false) }
+                    when (outcome) {
+                        IapPurchaseOutcome.ClaimAccountRequired ->
+                            sendEvent(PlayPokerEvent.ClaimAccountRequired)
+                        else -> sendEvent(PlayPokerEvent.QuickBuyFinished(outcome))
+                    }
+                    // Flush the credit so the bust dialog's rebuy gate sees the
+                    // fresh balance before the player taps Rebuy.
+                    if (outcome is IapPurchaseOutcome.Success || outcome is IapPurchaseOutcome.AlreadyOwned) {
+                        Catching { chipsRepository.sync() }
+                            .onFailure { e -> logger.w(e) { "chip sync after quick-buy failed" } }
+                    }
+                }
+            }
+            is PlayPokerAction.Rebuy -> {
+                // On viewModelScope (unlike LeaveGameFromBust): the player is
+                // staying, so the rebuy round-trip must outlive the action but
+                // not the screen.
+                viewModelScope.launch {
+                    Catching { session.rebuy() }
+                        .onSuccess { sendEvent(PlayPokerEvent.RebuySucceeded) }
+                        .onFailure { e ->
+                            if (e is IntentRejectedException &&
+                                e.reason.contains("insufficient", ignoreCase = true)
+                            ) {
+                                sendEvent(PlayPokerEvent.RebuyInsufficientChips)
+                            } else {
+                                logger.w(e) { "rebuy failed" }
+                            }
+                        }
+                }
+            }
             is PlayPokerAction.SwipeFoldAckChanged -> action.updateState {
                 it.copy(swipeFoldGestureAck = action.acknowledged)
             }

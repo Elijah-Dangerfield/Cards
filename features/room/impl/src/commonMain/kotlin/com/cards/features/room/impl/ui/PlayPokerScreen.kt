@@ -535,13 +535,17 @@ fun PlayPokerScreen(
                 }
             }
             if (humanBust && state.isRealMultiplayer) {
-                // Real multiplayer: chips are gone for keeps (the server drops a
-                // busted player from the next hand — no rebuy). Terminal modal
-                // with Leave / Buy-chips, never the practice "deal me in" copy.
+                // Real multiplayer: the player can buy back into the SAME table.
+                // The dialog's primary CTA adapts to the wallet — "Rebuy (N)" when
+                // they can cover the buy-in, else "Buy chips" to top up in-game
+                // first. Never the practice "deal me in" copy.
                 MultiplayerBustDialog(
                     xpEarned = state.lastHandXpAwarded,
                     earnedAchievements = state.recentlyEarned,
-                    onBuyChips = { onAction(PlayPokerAction.BuyChips) },
+                    buyIn = active.buyIn,
+                    chipBalance = state.chipBalance,
+                    onRebuy = { onAction(PlayPokerAction.Rebuy) },
+                    onBuyChips = { onAction(PlayPokerAction.OpenQuickBuy) },
                     onLeaveGame = {
                         onAction(PlayPokerAction.LeaveGameFromBust)
                         onBack()
@@ -576,6 +580,19 @@ fun PlayPokerScreen(
                     celebrationActive = false
                     onAction(PlayPokerAction.RequestNextHand)
                 },
+            )
+        }
+
+        // In-game quick-buy upsell — overlays the bust dialog (which stays
+        // mounted beneath) so a successful top-up returns the player straight to
+        // the rebuy decision. State-driven, never a tab switch.
+        if (state.quickBuyOpen) {
+            QuickBuyChipsSheet(
+                packs = state.catalog.chipPacks,
+                chipBalance = state.chipBalance,
+                purchaseInFlight = state.purchaseInFlight,
+                onSelectPack = { onAction(PlayPokerAction.ConfirmQuickBuy(it)) },
+                onDismiss = { onAction(PlayPokerAction.DismissQuickBuy) },
             )
         }
 

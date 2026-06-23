@@ -1035,18 +1035,120 @@ class PlayPokerViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun buyChips_fromBustDialog_emitsNavigateToShop() = runUnitTest {
+    fun openQuickBuy_fromBustDialog_opensInGameSheet_noNavigation() = runUnitTest {
         val vm = buildVm(factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER))
         val events = mutableListOf<PlayPokerEvent>()
         val job = launch { vm.eventFlow.collect { events += it } }
         advanceUntilIdle()
 
-        vm.takeAction(PlayPokerAction.BuyChips)
+        vm.takeAction(PlayPokerAction.OpenQuickBuy)
+        advanceUntilIdle()
+
+        assertTrue(vm.state.quickBuyOpen, "Buy chips opens the in-game quick-buy sheet")
+        assertTrue(events.isEmpty(), "quick-buy stays in-game — no navigation event; got $events")
+        job.cancel()
+    }
+
+    @Test
+    fun confirmQuickBuy_success_emitsQuickBuyFinished_andSyncsChips() = runUnitTest {
+        val chips = FakeChipsRepository(initialBalance = 0)
+        val purchase = FakePurchaseChipPackUseCase(
+            nextOutcome = com.dangerfield.cards.libraries.billing.IapPurchaseOutcome.Success(grantedChips = 30_000),
+        )
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER),
+            chipsRepository = chips,
+            purchaseChipPack = purchase,
+        )
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.OpenQuickBuy)
+        vm.takeAction(PlayPokerAction.ConfirmQuickBuy(SAMPLE_CHIP_PACK))
+        advanceUntilIdle()
+
+        assertEquals(listOf(SAMPLE_CHIP_PACK), purchase.calls, "use case invoked with the pack")
+        assertFalse(vm.state.quickBuyOpen, "sheet closes after a purchase settles")
+        assertFalse(vm.state.purchaseInFlight, "in-flight flag cleared")
+        assertTrue(
+            events.any {
+                it is PlayPokerEvent.QuickBuyFinished &&
+                    it.outcome is com.dangerfield.cards.libraries.billing.IapPurchaseOutcome.Success
+            },
+            "QuickBuyFinished(Success) emitted; got $events",
+        )
+        assertTrue(chips.syncCount >= 1, "chips synced so the rebuy gate sees the fresh balance")
+        job.cancel()
+    }
+
+    @Test
+    fun confirmQuickBuy_anonymous_emitsClaimAccountRequired() = runUnitTest {
+        val purchase = FakePurchaseChipPackUseCase(
+            nextOutcome = com.dangerfield.cards.libraries.billing.IapPurchaseOutcome.ClaimAccountRequired,
+        )
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER),
+            purchaseChipPack = purchase,
+        )
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.ConfirmQuickBuy(SAMPLE_CHIP_PACK))
         advanceUntilIdle()
 
         assertTrue(
-            events.contains(PlayPokerEvent.NavigateToShop),
-            "Buy chips routes to the Shop tab via a one-shot event; got $events",
+            events.any { it is PlayPokerEvent.ClaimAccountRequired },
+            "anonymous purchase routes to claim; got $events",
+        )
+        assertFalse(
+            events.any { it is PlayPokerEvent.QuickBuyFinished },
+            "claim signal must not also fire QuickBuyFinished",
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun rebuy_success_emitsRebuySucceeded_andCallsSession() = runUnitTest {
+        val session = FakePokerSession()
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(session = session, xpMode = XpMode.MULTIPLAYER),
+        )
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.Rebuy)
+        advanceUntilIdle()
+
+        assertEquals(1, session.rebuyCount, "rebuy reaches the session")
+        assertTrue(
+            events.contains(PlayPokerEvent.RebuySucceeded),
+            "successful rebuy emits RebuySucceeded; got $events",
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun rebuy_insufficientChips_emitsRebuyInsufficientChips() = runUnitTest {
+        val session = FakePokerSession().apply {
+            rebuyError = com.dangerfield.cards.features.room.impl.session
+                .IntentRejectedException("insufficient chips")
+        }
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(session = session, xpMode = XpMode.MULTIPLAYER),
+        )
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.Rebuy)
+        advanceUntilIdle()
+
+        assertTrue(
+            events.contains(PlayPokerEvent.RebuyInsufficientChips),
+            "a rejected-for-funds rebuy surfaces RebuyInsufficientChips; got $events",
         )
         job.cancel()
     }
@@ -1217,6 +1319,9 @@ class PlayPokerViewModelTest : CoroutineTest() {
         profileRepository: FakeProfileRepository = FakeProfileRepository(),
         reviewPromptCoordinator: FakeReviewPromptCoordinator = FakeReviewPromptCoordinator(),
         inventoryRepository: FakeInventoryRepository = FakeInventoryRepository(),
+        productsRepository: FakeProductsRepository = FakeProductsRepository(),
+        chipsRepository: FakeChipsRepository = FakeChipsRepository(),
+        purchaseChipPack: FakePurchaseChipPackUseCase = FakePurchaseChipPackUseCase(),
         clock: kotlin.time.Clock = kotlin.time.Clock.System,
     ): PlayPokerViewModel = PlayPokerViewModel(
         sessionFactory = factory,
@@ -1226,7 +1331,9 @@ class PlayPokerViewModelTest : CoroutineTest() {
         appCache = appCache,
         equipmentRepository = FakeEquipmentRepository(),
         inventoryRepository = inventoryRepository,
-        productsRepository = FakeProductsRepository(),
+        productsRepository = productsRepository,
+        chipsRepository = chipsRepository,
+        purchaseChipPack = purchaseChipPack,
         profileRepository = profileRepository,
         reviewPromptCoordinator = reviewPromptCoordinator,
         dispatcherProvider = dispatchers,
@@ -1261,3 +1368,12 @@ class PlayPokerViewModelTest : CoroutineTest() {
         earnedAtEpochMs = 0,
     )
 }
+
+private val SAMPLE_CHIP_PACK = com.dangerfield.cards.libraries.products.Product.ChipPack(
+    id = "chip_pack_medium",
+    title = "Tall Stack",
+    subtitle = "30,000 chips",
+    iconEmoji = "💰",
+    grantsChips = 30_000,
+    store = com.dangerfield.cards.libraries.products.StoreSku("chips_medium", "$4.99"),
+)
