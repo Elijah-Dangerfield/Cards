@@ -32,6 +32,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** a rejected session shows a blocking screen with a working Retry (recovers in place, identity intact, when the token refresh succeeds) + Logout; anonymous users see the "you'll lose your progress" warning before logging out; no blind authed syncs fire behind it.
   **Hints:** seam is `SessionRejectionBus` + `SupabaseAuthRepositoryImpl.onSessionRejected` (carries `wasAnonymous`) → `AppViewModel.sessionExpired` → `App.kt` (currently the snackbar). Present like `BlockingErrorScreen` (`:libraries:navigation:impl`, routed `screen<…>`, hides the bottom bar). Retry re-runs the token refresh in `GatewayAuthTokenProvider` / session re-init.
 
+- `[P0]` **Account deletion is a soft-delete — the user can still sign in afterward.** `DELETE /v1/me` calls Supabase admin delete-user with no body, so GoTrue soft-deletes by default and leaves the `auth.users` row, so the credential still authenticates (and the `ON DELETE CASCADE` the design relies on never fires). The route returns 204 → reports success and wipes local rows while the account remains signable-in. A tester confirmed re-login after "deleting." *(feedback CARDS-1T)*
+  **Acceptance:** after account deletion the credential no longer authenticates; the `auth.users` row (and cascaded data) is actually purged.
+  **Hints:** `HttpSupabaseAdminClient.deleteUser()` ([`apps/server/.../data/HttpSupabaseAdminClient.kt`](../apps/server/src/main/kotlin/com/cards/server/data/HttpSupabaseAdminClient.kt)) must send `{"should_soft_delete": false}`; `HttpSupabaseAdminClientTest` asserts URL/headers but not the body. Sentry [CARDS-1T](https://elijah-dangerfield.sentry.io/issues/CARDS-1T).
+
 - `[P2]` **Degraded "account-creation pending" UX — remaining polish.** The pending path is functional + safe; remaining nice-to-haves: a richer dialog vs. the thin `AccountSetupBanner`; device-verify banner copy/placement; optionally mirror the Retry near `SaveProgressBanner` on Profile/Settings. *(proposed 2026-06-09)*
   **Hints:** observe `GuestAccountCreator.state`; banner lives in `apps/compose/AccountSetupBanner.kt`.
 
@@ -69,6 +73,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P2]` **Emote button glyph isn't optically centered.** The play-poker emote trigger ([`TopBarEmojiButton`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/EmojiTray.kt) → DS [`EmojiButton`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/icon/EmojiButton.kt)) centers its circular bounding box correctly, but the emoji glyph sits slightly up-and-left inside it — the text line-box midpoint ≠ the glyph's visual midpoint (the KDoc already notes the vertical half). *(proposed 2026-05-31)*
   **Acceptance:** the glyph reads optically centered in the circle at every `Size`.
   **Hints:** the `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
+
+- `[P1]` **No at-table notice when a non-last opponent leaves mid-game.** When one of several opponents leaves an in-progress MP game, the remaining player gets nothing — no toast, no "X left the table", no seat-vacated treatment; the seat silently becomes a blank slot on the next snapshot. The two existing leave signals only cover the terminal cases (`opponentsLeft` last-human-standing, `roomClosed`), so a mid-game leave with 2+ humans still present is unsurfaced. *(feedback CARDS-1E)*
+  **Acceptance:** when an opponent leaves a live table with others remaining, the player sees a clear notice (e.g. "X left the table") and/or a distinct vacated-seat state.
+  **Hints:** the leave identity is dropped at [`ReconnectingRoomSocket`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/ReconnectingRoomSocket.kt) `MemberLeft -> Unit` (~line 340) — that's the hook; surface it as a new `PlayPokerEvent`/snackbar and a `PlayerSeatUi` vacated flag. Sentry [CARDS-1E](https://elijah-dangerfield.sentry.io/issues/CARDS-1E).
 
 - `[P1]` **Home active-room banner — back the reactive flow with a server-pushed source.** `observeActiveRooms()` is a client-side projection: room changes that don't originate on this device (host closes the room elsewhere, server-side forfeit/grace expiry, a second device) don't reflect until the next `getActiveRooms()`. Hang it off the durable membership source so it's authoritative regardless of who mutated the room. *(proposed 2026-05-31)*
   **Acceptance:** the banner reflects room changes made off-device without a manual refresh.
@@ -116,6 +124,10 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
 
 - **`[P3]` Delete the orphaned `PublicLobby` / `PublicNextRound` screens.** Public matchmaking shipped, but Searching now routes **directly to the play screen**, so `PublicLobbyScreen.kt` and `PublicNextRoundScreen.kt` (+ their routes still registered in [`RoomsFeatureEntryPoint`](../features/rooms/impl/src/commonMain/kotlin/com/cards/features/rooms/impl/RoomsFeatureEntryPoint.kt)) are dead — nothing in the live flow navigates to them. Remove the screens + route registrations, *or* deliberately repurpose `PublicNextRound` if you want a mid-hand-join interstitial (the server already supports scrubbed mid-hand spectate). Confirm no other entry point references the routes before deleting.
 
+- **`[P1]` Private room join isn't gated on wallet balance.** The wallet-vs-buy-in guard added for matchmaking (`POST /v1/matchmaking/find` rejects `maxBuyIn > balance`; the Find slider caps at balance) has no equivalent on the private join-by-code path — a tester joined a room whose buy-in exceeded their chips. `LobbyViewModel.SubmitJoin` → `RoomRepositoryImpl.joinRoom` → `POST /v1/rooms/{code}/join` → `InMemoryRoomService.join()` performs no balance check at any layer; the only downstream protection is escrow silently demoting an under-funded player to spectator at sit-down. *(feedback CARDS-1G)*
+  **Acceptance:** joining a private room whose buy-in exceeds the wallet balance is rejected with an over-balance error (client + authoritative server check), mirroring the find path.
+  **Hints:** client check in `LobbyViewModel.SubmitJoin` ([`features/lobby/impl/.../LobbyViewModel.kt`](../features/lobby/impl/src/commonMain/kotlin/com/cards/features/lobby/impl/LobbyViewModel.kt)); wire `WalletRepository` into `roomRoutes` / `InMemoryRoomService.join()` for the server gate, paralleling `MatchmakingRoutes`. Sentry [CARDS-1G](https://elijah-dangerfield.sentry.io/issues/CARDS-1G).
+
 - **`[P2]` Deep-link + share-invite in the private lobby.** The placeholder "Share invite" button (which only copied the code, same as Copy) was removed. The real feature is a shareable **deep link into the lobby** (`PrivateJoinRoute` / `LobbyRoute(prefilledCode=…)`) opened via a cross-platform OS share sheet — so a tapped link lands the invitee straight in the join/lobby flow, not just a bare code. **Note:** this is the real home for the cross-platform OS share-sheet infra — the matchmaking "Share" CTA was dropped from the Open-to-anyone plan for the same missing-infra reason (see [decisions.md](./decisions.md) 2026-06-23). Build it once here and both surfaces can use it.
 
 - **`[P2]` Matchmaking should present a *list of found tables* and let the user choose which to join.** **Problem:** today the flow auto-joins the *first* server-side match — `findOrJoinPublic` returns one room (join-or-create) and `PublicSearchingScreen` seats the user silently. With range-based matching (the Find screen is a free-form range slider, `room.buyIn in minBuyIn..maxBuyIn`) several tables at different stakes can qualify, and the user has no say in which. **Owner direction (2026-06-23):** a results/chooser flow is the better model — show the matches found (each with its buy-in + seat count) and let the user pick one to join, accepting that table's buy-in explicitly.
@@ -139,6 +151,46 @@ A batch of small UX directives the owner filed via in-app feedback in one sessio
 
 - `[P2]` **Remove the "Neon" table theme too.** Owner confirmed (2026-06-22): like the Sunset table theme already removed this cycle, the `table_neon` table theme is useless — a "table theme" and a "felt" are visually identical in V1 (both just recolor the felt). Delete it. Unlike sunset, `table_neon` is unlock-only (not in the `GET /v1/products` shop catalog as of V51), so there's no purchasable product to pull — but the same client + grant plumbing applies. *(feedback CARDS-18)*
   **Hints:** mirror the sunset removal — append-only `DELETE FROM products WHERE id = 'table_neon'` migration, drop the `table_neon` arm from `feltForProductId` (`:libraries:ui`), and repoint any catalog/preview references. `EquippedFelt.Neon` can go too (no felt uses it, unlike Sunset). Update `CosmeticCategoryTest` / `EquippedFeltMappingsTest` / `PostgresProductCatalogSourceTest` the same way the sunset removal did. Sentry [CARDS-18](https://elijah-dangerfield.sentry.io/issues/CARDS-18).
+
+### From the 2026-06-23 owner playtest
+
+A second batch of in-app feedback from a live two-device MP playtest. Hard bugs from this session are filed in their topical sections above (account-deletion soft-delete, private-join balance gate, the B7 hand-end stall, mid-game opponent-leave notice); these are the UX/copy directives.
+
+- `[P1]` **Leaving a private MP game should land on Home, not the lobby.** A tester fully left a private multiplayer game and was dropped back into the lobby instead of Home. *(feedback CARDS-1Y)*
+  **Acceptance:** an explicit leave from a private MP game routes to Home; the dead lobby isn't shown.
+  **Hints:** the MP leave/exit routing in the room feature entry point. Sentry [CARDS-1Y](https://elijah-dangerfield.sentry.io/issues/CARDS-1Y).
+
+- `[P2]` **"Room not found" needs a real UX — keep the user on the input screen.** Joining a bad/expired code currently routes somewhere clunky ("ewww"); instead surface an inline error and keep them on the code-entry screen to retry. *(feedback CARDS-28)*
+  **Acceptance:** an unknown room code shows an inline error on the join input screen without navigating away.
+  **Hints:** `PrivateJoinScreen` / `LobbyViewModel.SubmitJoin` outcome handling. Sentry [CARDS-28](https://elijah-dangerfield.sentry.io/issues/CARDS-28).
+
+- `[P2]` **Tell the user they'll be dealt in at the next hand when they join a live game.** Joining an in-progress public table gives no indication you're waiting for the next hand boundary — add a "you'll be dealt in next hand" notice. *(feedback CARDS-22; pairs with the mid-game-join seat fix in B7)*
+  **Acceptance:** a mid-game joiner sees a clear "dealt in next hand" message until they're seated.
+  **Hints:** the scrubbed mid-hand-join state in the play-poker MP screen. Sentry [CARDS-22](https://elijah-dangerfield.sentry.io/issues/CARDS-22).
+
+- `[P2]` **Real-chip table should not show the "playing for fake chips" framing.** Two reports: a player who chose disclosed-bots-for-real-chips got the "you're playing for fake chips" join dialog, and a player who busted against a real opponent got the "dealt back in, chips were fake against bots" bust copy. The fake-vs-real-stakes messaging is mis-keyed for real-chip games. *(feedback CARDS-20, CARDS-1C)*
+  **Acceptance:** real-chip games (including disclosed-bot real-money) never show fake-chip join or bust copy; the play screen reflects that real chips are at stake.
+  **Hints:** the join + bust dialogs in the room feature that branch on stakes/bot framing; align with the escrow being live. Sentry [CARDS-20](https://elijah-dangerfield.sentry.io/issues/CARDS-20), [CARDS-1C](https://elijah-dangerfield.sentry.io/issues/CARDS-1C).
+
+- `[P2]` **Profile stats/style should show the "play more hands to build your style" empty state, not a fake value.** The profile currently shows a fabricated style ("Sharp and Steady") before enough hands exist; show the same "play more hands" message used elsewhere, ideally via a shared DS component. *(feedback CARDS-2A)*
+  **Acceptance:** with too few hands, profile stats/style render the play-more empty state instead of a fake label; the empty-state is a reusable component.
+  **Hints:** `ProfileScreen` stats/style section; reuse the existing play-more empty-state copy. Sentry [CARDS-2A](https://elijah-dangerfield.sentry.io/issues/CARDS-2A).
+
+- `[P2]` **Matchmaking "searching" copy rolls over too fast and some lines are weak.** The rotating search messages flip too quickly to read and some (the fake-crowd line) feel off; slow the rotation and review the copy with the unslop skills. *(feedback CARDS-20)*
+  **Acceptance:** search messages rotate at a readable pace and the weak/fake-crowd lines are revised.
+  **Hints:** the rotating-message logic in `PublicSearchingScreen`. Sentry [CARDS-20](https://elijah-dangerfield.sentry.io/issues/CARDS-20).
+
+- `[P2]` **Tighten the disclosed-bots-for-real-money explainer copy + UI.** Owner found the bots-for-real-chips explainer too long and not great; review the layout and copy (use the unslop skills). *(feedback CARDS-20)*
+  **Acceptance:** the explainer is shorter and clearer; UI reviewed.
+  **Hints:** the bot-fallback explainer in the matchmaking flow (`SearchPhase.BotFallbackOffer`). Sentry [CARDS-20](https://elijah-dangerfield.sentry.io/issues/CARDS-20).
+
+- `[P2]` **Make the whole "Javier progress" profile banner tappable, not just part of it.** The achievement/progress banner on the profile screen should accept a tap anywhere on the banner. *(feedback CARDS-1R)*
+  **Acceptance:** tapping anywhere on the banner triggers its action.
+  **Hints:** the progress banner composable on `ProfileScreen`; move the click modifier to the banner container. Sentry [CARDS-1R](https://elijah-dangerfield.sentry.io/issues/CARDS-1R).
+
+- `[P2]` **Render the level with more pageantry on the player card others see.** The level badge on the outward-facing player card reads plainly; give it more visual weight. *(feedback CARDS-1P)*
+  **Acceptance:** the level on the shared player card has a richer treatment.
+  **Hints:** the at-table Player Card surface (see the tap-an-opponent sheet item above). Sentry [CARDS-1P](https://elijah-dangerfield.sentry.io/issues/CARDS-1P).
 
 ---
 
@@ -181,6 +233,16 @@ _Multiplayer leave / last-human-left shipped._ Server frees the seat on leave (`
 
 - `[P2]` **Integration tests should play full multi-hand games, not thin slices.** Owner review: the `:apps:integration` coverage feels thin — he expected to see full hands actually played end-to-end. Strengthen Round 2 so the in-process server + clients play complete consecutive hands (deal → streets → showdown → next hand), not just connection/seat/handshake assertions. *(feedback 2026-06-22; sharpens B6 Round 2)*
   **Hints:** the two-client harness in `:apps:integration` / `testing-plan.md` Round 2; the now-fixed bot-room hand-end stall (CARDS-16) is exactly the kind of bug full-hand coverage would have caught. Sentry [CARDS-10](https://elijah-dangerfield.sentry.io/issues/CARDS-10).
+
+### B7 — Live hand-end stall in human rooms (post-CARDS-16)
+
+- `[P0]` **Multiplayer hand fails to advance after it finishes in real human rooms — next-hand button dead for all seats.** The bots-only stall (CARDS-16) was fixed, but the same end-of-hand freeze recurs in human+human tables: the room stops dealing after a hand completes and every player's "next hand" control is inert, leaving the game permanently stuck. Confirmed in backend telemetry: room `NMGSSC` logged `Hand 4 finished` then no `Hand 5` ever starts though both humans stay connected; an all-in/showdown game stalled both devices the same way. Likely tied to a mid-game human join (bots are trimmed for the new human, then the next hand never kicks off).
+  **Acceptance:** after any hand resolves in a 2+ human room — including one a human joined mid-game — the next hand auto-starts (or the next-hand control works for whoever drives it); no seat is left on a dead table. An `:apps:integration` test plays consecutive hands through a mid-game join without stalling.
+  **Hints:** server hand-advance after `Hand N finished` in [`GameSession`](../apps/server/src/main/kotlin/com/cards/server/game/GameSession.kt) / `InMemoryRoomService.trimBotForNewHumans`; the mid-join bot-trim path is the prime suspect. Confirmed sessions: `NMGSSC`/session 2f21f0e2 (2026-06-23 ~23:13Z) and room H5QCRW/session ce98ee29 (2026-06-22). Sentry [CARDS-25](https://elijah-dangerfield.sentry.io/issues/CARDS-25), [CARDS-24](https://elijah-dangerfield.sentry.io/issues/CARDS-24), [CARDS-1J](https://elijah-dangerfield.sentry.io/issues/CARDS-1J).
+
+- `[P1]` **Mid-game public joiner isn't dealt in at the next hand boundary.** A player matched into an in-progress public game stays out: they report not getting dealt the next hand while existing seats keep playing. Pairs with the stall above (same `NMGSSC` session) but is its own gap — a joiner who should sit in at the next boundary never does.
+  **Acceptance:** a human who joins a live public table is seated and dealt in at the next hand start; the table reflects the new seat.
+  **Hints:** the mid-hand-join → next-boundary deal path; `InMemoryRoomService.trimBotForNewHumans` / seat allocation on join. Sentry [CARDS-24](https://elijah-dangerfield.sentry.io/issues/CARDS-24).
 
 ### B5 — Parked
 

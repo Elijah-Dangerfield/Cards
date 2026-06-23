@@ -646,3 +646,11 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Idea (raised 2026-06-22):** `StatsScreen.LifetimeStatsGrid` passes inline string literals for every `StatTile` label ("Hands played", "Hands won", "Win rate", "Fold rate", "Folds", "Showdown losses") — the win-rate / fold-rate tiles added this cycle matched the file's existing inline-label convention rather than introducing two lone resource entries. Per the coding guideline every user-facing string belongs in `:libraries:resources`. Convert the whole grid's labels in one pass so it's consistent rather than half-migrated.
 
 **Status:** Backlog. Pre-existing convention drift across the whole grid; do it as one sweep when next touching `StatsScreen`.
+
+---
+
+## More stats-page metrics — "Best Hands" / "Biggest Pots"
+
+**Idea (feedback CARDS-1W, 2026-06-23):** Owner floated adding richer stats-page entries like "Best Hands" and "Biggest Pots" ("or something idk"). Needs a product call on which metrics are worth tracking and a per-hand result record to back them (the per-hand decision-capture / per-game result work in `docs/todo.md` is the prerequisite data source).
+
+**Status:** Backlog. Fuzzy feature idea; gate on a per-hand/per-game result store existing. Sentry [CARDS-1W](https://elijah-dangerfield.sentry.io/issues/CARDS-1W).
