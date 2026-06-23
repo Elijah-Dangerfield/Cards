@@ -1,31 +1,27 @@
 # MP Chip Buy-In Economy — Implementation Plan
 
-**Status:** engine salvaged (dormant) · **Owner:** Phase 4 dev · **Created:** 2026-06-21 · **Updated:** 2026-06-23
+**Status:** SHIPPED — escrow live on `feat/public-matchmaking` · **Owner:** Phase 4 dev · **Created:** 2026-06-21 · **Updated:** 2026-06-23
 
-> **⚠️ READ FIRST (2026-06-23) — `feat/mp-chip-economy` has been DELETED.**
-> The server **escrow engine** from that branch was **salvaged onto
-> `feat/public-matchmaking`** as a dormant, compiling, test-green slice (commit
-> `a8a0527b`); the branch itself (stale, forked pre-room-refactor, never merged,
-> with a `V60` migration collision) was then **deleted, local + remote** — it is
-> gone, not a reference. **Everything you need is on `feat/public-matchmaking`.**
+> **✅ SHIPPED (2026-06-23).** The escrow engine is no longer dormant — it's wired
+> end-to-end on `feat/public-matchmaking`. The doc below is kept as the design of
+> record; the implementation matches it.
 >
-> **Already on `feat/public-matchmaking` (salvaged, dormant, green):**
-> `TableSessionService`/`Repository` (+Postgres), `DefaultTableSessionService`,
-> `WalletLedger`, `SeatStack`, the recovery sweep + their Testcontainers tests;
-> `table_sessions` schema as **`V67`** (renumbered from V60); `PostgresWalletRepository`
-> refactored to route balance moves through `WalletLedger`. The engine is bound
-> in DI but **unconsumed** — it ships inert until wired.
+> **Live now:** sit-down debits the buy-in via `TableSessionService.sitDown` (on
+> join / mid-hand join / funded start); the deal funds only affordable seats
+> (`dealFundedHand` / `fundAndBuildOccupants` — never seats an unfunded player);
+> every exit cashes the current stack back (`cashOut` on leave/disconnect in
+> `RoomSocketRoutes`); the `Rebuy` socket frame busts a player back in; the
+> matchmaking **disclosed-bot subsidy** ships as `V68` (capped real-coin payout +
+> per-user daily cap + telemetry). `table_sessions` is `V67`; balance moves route
+> through `WalletLedger`. (Note: there is no separate `SitDown` *frame* — sit-down
+> escrow happens server-side at the join/start points, not via a client frame.)
 >
-> **Still to do for Phase 4 (deliberately left out of the salvage — it collides
-> with matchmaking and is your job):**
-> - `StakeTier` on `Room` (the type already exists in `:libraries:gameplay`; carry it on the room so a seated game runs at its stakes).
-> - `SitDown` / `Rebuy` socket frames + `RoomSocketRoutes.handleSitDown()/handleRebuy()` + DI/`Application` wiring.
-> - Cash-out on leave / disconnect / room-teardown + the boot recovery sweep wiring.
-> - **develop already has its own rebuy UX** (`85a4a455`, `9c7db005`) — use it; there's no branch to re-import from anymore.
-> - The matchmaking **disclosed-bot subsidy** (deferred from Phase 3): special-case `MultiplayerCredit` for public bot tables + capped real-coin payout + per-user daily cap + anomaly telemetry. See `MatchmakingRoutes` KDoc.
-> - **Two MP bugs to re-verify (their fix branch is deleted, NOT salvaged):** on develop's client, check (a) the **showdown winner actually renders** at hand end (the table used to only re-project on snapshots, not the showdown event), and (b) a **late socket subscriber still gets the deal** (a late-join could miss the opening deal frame). If either reproduces, re-fix from scratch against develop's refactored `room/impl/session/` — the original fixes are gone with the branch.
-
-**Status:** ~~planned~~ superseded by the salvage above · **Created:** 2026-06-21
+> **Still worth a re-verify** (the original fix branch was deleted, not salvaged —
+> confirm these hold on the refactored `room/impl/session/`, re-fix from scratch if
+> either reproduces): (a) the **showdown winner actually renders** at hand end (the
+> table used to re-project only on snapshots, not the showdown event); (b) a **late
+> socket subscriber still gets the deal** (a late-join could miss the opening deal
+> frame).
 
 ## Context & the product decision
 
