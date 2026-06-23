@@ -159,6 +159,7 @@ fun Application.installApp(
             tableSessions = component.tableSessionService,
             equipmentRepository = component.equipmentRepository,
             progressionRepository = component.progressionRepository,
+            wallets = component.walletRepository,
         )
         roomSocketRoutes(
             component.roomService,

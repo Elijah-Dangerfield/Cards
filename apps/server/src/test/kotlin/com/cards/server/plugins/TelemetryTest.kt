@@ -463,6 +463,7 @@ class TelemetryTest {
                         rooms, NoBlocksFriends, FixedProfiles, registry,
                         InMemoryTestTableSessionService(InMemoryTestWalletRepository()),
                         StubEquipment, StubProgression,
+                        InMemoryTestWalletRepository(),
                     )
                 }
             }

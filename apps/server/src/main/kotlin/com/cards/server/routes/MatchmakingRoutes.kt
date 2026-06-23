@@ -11,6 +11,7 @@ import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
 import com.dangerfield.cards.server.domain.RoomVisibility
 import com.dangerfield.cards.server.domain.SYSTEM_HOST_USER_ID
+import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.plugins.MATCHMAKING_FIND_LIMIT
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
@@ -53,11 +54,12 @@ import io.ktor.server.routing.post
  * · 429 rate-limited. Abuse fence is per-IP rate limiting ([MATCHMAKING_FIND_LIMIT])
  * plus the empty-room GC that reclaims abandoned tables.
  *
+ * A wallet check rejects a range whose top exceeds the caller's balance
+ * (`insufficient_balance`, 400) — you can't search for a table you couldn't sit
+ * at. This is the advisory affordability fence; the authoritative debit still
+ * happens at the sit-down escrow (B3) once that lands.
+ *
  * Deferred to Phase 4 (escrow), tracked so they're explicit, not forgotten:
- *  - **No wallet check here.** The plan's fast advisory "can you afford this
- *    tier" reject at find() isn't wired yet; the authoritative check is the
- *    sit-down escrow debit. A searcher short on chips is seated and only bounced
- *    at the buy-in. Harmless today (no escrow), revisit when B3 lands.
  *  - **No global public-room cap.** The per-IP rate limit + the GC-on-leave that
  *    reclaims a solo searcher's table before they can stack up another are the
  *    only ceilings on concurrent public rooms. A dedicated global cap (plan
@@ -71,6 +73,7 @@ fun Route.matchmakingRoutes(
     tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
     equipmentRepository: EquipmentRepository,
     progressionRepository: ProgressionRepository,
+    wallets: WalletRepository,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         rateLimit(RateLimitName(MATCHMAKING_FIND_LIMIT)) {
@@ -171,6 +174,21 @@ fun Route.matchmakingRoutes(
                             "invalid_buy_in",
                             "Buy-in range must be within " +
                                 "${RoomSettings.MIN_BUY_IN}..${RoomSettings.MAX_BUY_IN}.",
+                        ),
+                    )
+                }
+                // You can't search for a table you couldn't afford to sit at: the
+                // top of the range is what you're willing to buy in for, so reject
+                // it if it's more than your wallet holds. The client slider already
+                // fences this — this is the authoritative backstop for a tampered or
+                // stale request (e.g. balance dropped between screens).
+                val balance = wallets.findOrCreate(userId).balance
+                if (body.maxBuyIn > balance) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        matchmakingProblem(
+                            "insufficient_balance",
+                            "That buy-in is more than your balance of $balance chips.",
                         ),
                     )
                 }

@@ -53,6 +53,7 @@ class InProcessServer : AutoCloseable {
                 tableSessions = FakeTableSessions,
                 equipmentRepository = FakeEquipment,
                 progressionRepository = FakeProgression,
+                wallets = FakeWallets,
             )
             roomSocketRoutes(
                 rooms = rooms,

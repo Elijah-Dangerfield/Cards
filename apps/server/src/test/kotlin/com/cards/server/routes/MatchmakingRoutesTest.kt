@@ -20,6 +20,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -104,6 +105,31 @@ class MatchmakingRoutesTest {
         withApp(rooms) { client ->
             val resp = client.find(jwt(UUID.randomUUID()), min = 100_000, max = 1_000)
             assertEquals(HttpStatusCode.BadRequest, resp.status)
+        }
+    }
+
+    @Test
+    fun find_withBuyInAboveBalance_returns400_insufficientBalance() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        // Wallet holds 5k; asking to search a range topping out at 100k is more
+        // than they could sit down for, so the server fences it.
+        withApp(rooms, walletBalance = 5_000) { client ->
+            val resp = client.find(jwt(UUID.randomUUID()), min = 1_000, max = 100_000)
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertTrue(
+                resp.bodyAsText().contains("insufficient_balance"),
+                "the problem code distinguishes affordability from a malformed range",
+            )
+        }
+    }
+
+    @Test
+    fun find_withTopOfRangeEqualToBalance_returns200() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        // Spending your whole wallet is allowed — only *more* than the balance is fenced.
+        withApp(rooms, walletBalance = 5_000) { client ->
+            val resp = client.find(jwt(UUID.randomUUID()), min = 1_000, max = 5_000)
+            assertEquals(HttpStatusCode.OK, resp.status)
         }
     }
 
@@ -256,6 +282,9 @@ class MatchmakingRoutesTest {
     private suspend fun withApp(
         rooms: RoomService,
         friends: FriendRepository = BlockingFriends(emptySet()),
+        // Effectively unlimited by default so buy-in tests exercise matchmaking,
+        // not the affordability fence; the insufficient-balance test lowers it.
+        walletBalance: Long = Long.MAX_VALUE,
         block: suspend (io.ktor.client.HttpClient) -> Unit,
     ) {
         testApplication {
@@ -268,11 +297,13 @@ class MatchmakingRoutesTest {
                     com.dangerfield.cards.server.game.NoOpSessionSnapshotStore(),
                     Clock.System,
                 )
+                val wallets = InMemoryTestWalletRepository(defaultBalance = walletBalance)
                 routing {
                     matchmakingRoutes(
                         rooms, friends, StubProfiles, registry,
-                        InMemoryTestTableSessionService(InMemoryTestWalletRepository()),
+                        InMemoryTestTableSessionService(wallets),
                         StubEquipment, StubProgression,
+                        wallets,
                     )
                 }
             }
