@@ -29,6 +29,7 @@ class StatsViewModelTest : CoroutineTest() {
         // (loading) shape.
         val vm = StatsViewModel(
             progressionRepository = NeverEmittingProgressionRepository,
+            playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = NeverEmittingXpEventRepository,
             achievementRepository = NeverEmittingAchievementRepository,
             authRepository = FakeAuthRepository(),
@@ -62,6 +63,7 @@ class StatsViewModelTest : CoroutineTest() {
 
         val vm = StatsViewModel(
             progressionRepository = FakeProgressionRepository(initial = seedProgression),
+            playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = FakeXpEventRepository(initial = seedEvents),
             achievementRepository = FakeAchievementRepository(initial = seedAchievements),
             authRepository = FakeAuthRepository(),
@@ -86,6 +88,7 @@ class StatsViewModelTest : CoroutineTest() {
         )
         val vm = StatsViewModel(
             progressionRepository = progression,
+            playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(),
@@ -113,6 +116,7 @@ class StatsViewModelTest : CoroutineTest() {
         val events = FakeXpEventRepository()
         val vm = StatsViewModel(
             progressionRepository = FakeProgressionRepository(),
+            playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = events,
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(),
@@ -149,6 +153,7 @@ class StatsViewModelTest : CoroutineTest() {
         val boost = FakeXpBoostRepository()
         val vm = StatsViewModel(
             progressionRepository = FakeProgressionRepository(),
+            playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(),
@@ -168,6 +173,7 @@ class StatsViewModelTest : CoroutineTest() {
     fun anonymousAuth_setsIsAnonymous() = runUnitTest {
         val vm = StatsViewModel(
             progressionRepository = FakeProgressionRepository(),
+            playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(initial = anonymousAuthState()),
@@ -185,6 +191,7 @@ class StatsViewModelTest : CoroutineTest() {
     fun claimedAuth_keepsIsAnonymousFalse() = runUnitTest {
         val vm = StatsViewModel(
             progressionRepository = FakeProgressionRepository(),
+            playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(initial = claimedAuthState()),

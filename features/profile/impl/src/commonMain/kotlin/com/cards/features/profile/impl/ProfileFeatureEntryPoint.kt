@@ -52,6 +52,7 @@ import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.PlayStyleRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpBoostRepository
@@ -93,6 +94,7 @@ class ProfileFeatureEntryPoint(
     private val configOverrideRepository: ConfigOverrideRepository,
     private val configuredValues: Set<QaConfigValue>,
     private val progressionRepository: ProgressionRepository,
+    private val playStyleRepository: PlayStyleRepository,
     private val xpBoostRepository: XpBoostRepository,
     private val achievementRepository: AchievementRepository,
     private val feedbackViewModelFactory: () -> FeedbackViewModel,
@@ -113,6 +115,8 @@ class ProfileFeatureEntryPoint(
         screen<ProfileRoute> {
             val progression by progressionRepository.observeProgression()
                 .collectAsStateWithLifecycle(initialValue = Progression.Empty)
+            val playStyle by playStyleRepository.observeOwnStyle()
+                .collectAsStateWithLifecycle(initialValue = null)
             val achievementProgress by achievementRepository.observeProgress()
                 .collectAsStateWithLifecycle(initialValue = AchievementProgress.Empty)
             // Profile (display name + avatar + anon flag) is the canonical
@@ -193,6 +197,7 @@ class ProfileFeatureEntryPoint(
                 ownedItems = myItemsState.ownedItems,
                 buyableItems = myItemsState.buyableItems,
                 winRatePercent = winRatePercent,
+                playStyle = playStyle,
                 boostOwnedCount = xpBoostStatus.ownedCount,
                 boostExpiresAtEpochMs = xpBoostStatus.expiresAtEpochMs,
                 onActivateBoost = { scope.launch { xpBoostRepository.activate() } },

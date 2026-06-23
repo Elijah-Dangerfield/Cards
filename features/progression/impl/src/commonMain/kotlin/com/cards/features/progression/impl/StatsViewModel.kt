@@ -3,6 +3,8 @@ package com.dangerfield.cards.features.progression.impl
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AchievementRepository
+import com.dangerfield.cards.libraries.cards.PlayStyleAxes
+import com.dangerfield.cards.libraries.cards.PlayStyleRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpBoostRepository
@@ -18,6 +20,7 @@ import me.tatarka.inject.annotations.Inject
 @Inject
 class StatsViewModel(
     progressionRepository: ProgressionRepository,
+    playStyleRepository: PlayStyleRepository,
     xpEventRepository: XpEventRepository,
     achievementRepository: AchievementRepository,
     authRepository: AuthRepository,
@@ -27,6 +30,11 @@ class StatsViewModel(
 ) {
 
     init {
+        viewModelScope.launch {
+            playStyleRepository.observeOwnStyle().collect { style ->
+                takeAction(StatsAction.PlayStyleChanged(style))
+            }
+        }
         viewModelScope.launch {
             combine(
                 progressionRepository.observeProgression(),
@@ -67,6 +75,9 @@ class StatsViewModel(
             is StatsAction.BoostChanged -> action.updateState {
                 it.copy(xpBoostExpiresAtEpochMs = action.expiresAtEpochMs)
             }
+            is StatsAction.PlayStyleChanged -> action.updateState {
+                it.copy(playStyle = action.playStyle)
+            }
         }
     }
 
@@ -84,6 +95,8 @@ data class StatsState(
     /** Expiry of the active XP Boost, or `null` if none. Drives the
      *  countdown badge under the XP hero. */
     val xpBoostExpiresAtEpochMs: Long? = null,
+    /** The user's derived play-style; null until the first sync populates it. */
+    val playStyle: PlayStyleAxes? = null,
 )
 
 sealed interface StatsEvent
@@ -98,4 +111,6 @@ sealed interface StatsAction {
     data class AuthChanged(val isAnonymous: Boolean) : StatsAction
 
     data class BoostChanged(val expiresAtEpochMs: Long?) : StatsAction
+
+    data class PlayStyleChanged(val playStyle: PlayStyleAxes?) : StatsAction
 }

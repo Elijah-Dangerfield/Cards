@@ -89,6 +89,7 @@ import com.dangerfield.cards.libraries.cards.EmojiBlast
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.cards.LevelProgress
+import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
@@ -97,6 +98,8 @@ import com.dangerfield.cards.libraries.ui.system.LocalLevelCurve
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.PlayStyleRadarMark
+import com.dangerfield.cards.libraries.ui.components.toRadarAxes
+import com.dangerfield.cards.libraries.ui.components.toStyleCopy
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
@@ -171,6 +174,7 @@ fun ProfileScreen(
     achievementProgress: AchievementProgress,
     ownedItems: List<OwnedItem>,
     winRatePercent: Int?,
+    playStyle: PlayStyleAxes? = null,
     onOpenSettings: () -> Unit,
     onEditProfile: () -> Unit,
     onTapStats: () -> Unit,
@@ -252,6 +256,7 @@ fun ProfileScreen(
 
                 StatsStyleBanner(
                     winRatePercent = winRatePercent,
+                    playStyle = playStyle,
                     onClick = onTapStats,
                 )
                 VerticalSpacerD800()
@@ -462,11 +467,18 @@ private fun LevelSummary(progress: LevelProgress, modifier: Modifier = Modifier)
 @Composable
 private fun StatsStyleBanner(
     winRatePercent: Int?,
+    playStyle: PlayStyleAxes?,
     onClick: () -> Unit,
 ) {
-    val style = stringResource(Res.string.profile_play_style_example)
-    // TODO: play-style and chips-won are example values — wire real data
-    // (server Progression.chipsWon + a human play-style derivation) later.
+    // Real derived style once the user clears the sample gate; until then the
+    // teaser keeps the example name + decorative radar shape.
+    val derived = playStyle?.takeIf { it.hasEnoughData }
+    val style = if (derived != null) {
+        stringResource(derived.toStyleCopy().label)
+    } else {
+        stringResource(Res.string.profile_play_style_example)
+    }
+    // TODO: chips-won is still an example value — wire server Progression.chipsWon later.
     val exampleChipsWon = remember { formatThousands(1_284L) }
     val subtitle = if (winRatePercent != null) {
         stringResource(
@@ -505,8 +517,9 @@ private fun StatsStyleBanner(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
         ) {
-            // Fake play-style preview — the same radar mark the Stats page
-            // uses, framed in a tile so it reads as "your style at a glance".
+            // Play-style preview — the same radar mark the Stats page uses,
+            // framed in a tile. Shows the real derived shape once available,
+            // else the decorative teaser shape.
             Box(
                 modifier = Modifier
                     .size(52.dp)
@@ -514,9 +527,12 @@ private fun StatsStyleBanner(
                     .background(AppTheme.colors.surfaceRaised.color),
                 contentAlignment = Alignment.Center,
             ) {
-                PlayStyleRadarMark(
-                    modifier = Modifier.size(36.dp),
-                )
+                val markAxes = derived?.toRadarAxes()
+                if (markAxes != null) {
+                    PlayStyleRadarMark(modifier = Modifier.size(36.dp), axes = markAxes)
+                } else {
+                    PlayStyleRadarMark(modifier = Modifier.size(36.dp))
+                }
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(

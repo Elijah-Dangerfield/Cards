@@ -2299,3 +2299,25 @@ as supporting context.
 **Notable constraints:** wire DTOs declare `schemaVersion` because debug's `NetworkJson` is strict (`ignoreUnknownKeys = false`) and would otherwise throw on the server's version field. The `403` mapping conflates not-played-with with a blocked pair (the server returns 403 for both) — acceptable until the block UI exists.
 
 **Status:** Shipped on `develop` this cycle. Closes the P0 "Recently-played-with — client wiring." The inbox / presence / friends-list / block items (separate P1s) will extend `FriendRepository` + `:libraries:social`.
+
+## 2026-06-23 — Player style: server-aggregated, outbox-fed, gated opponent readout
+
+**Decision:** Built the real human play-style derivation behind the radar "blob" that was stubbed on the Profile banner, Stats page, and play-poker player card. Four axes — **Tight / Aggro / Bluff / Patient** — are computed from real gameplay using standard poker stats:
+- **Tight** = `1 − VPIP` (voluntarily-put-money-in rate, over non-blind hands).
+- **Aggro** = aggression factor `AF = aggressive ÷ calls`, squashed via `AF/(AF+2)`.
+- **Bluff** = rate of betting/raising into a showdown with a weak made hand and losing.
+- **Patient** = preflop fold-discipline (fold rate when not in a blind).
+
+**Architecture (Model 2, mirrors XP/progression):** the client tallies one compact row per hand from the event stream (`PlayStyleHandSummaryBuilder`), writes it to a local Room outbox (`play_style_events`), and flushes batches via `POST /v1/me/play-style/sync`. The **server** sums the raw counters into a per-user rolling aggregate (`user_play_style_aggregate`, V69) and computes the 0..1 axes at read time — so the count→axis formula is tunable without an app release. Reads: `GET /v1/me/play-style` (own) and `GET /v1/users/{userId}/play-style` (public, for the Opponent Style Reader). Endpoints/tables/repo are near-exact copies of the progression module.
+
+**Why server aggregation (vs. client-computed like the XP total):** the play-style formula is expected to be tuned; keeping counters server-side and deriving axes on read means re-tuning is a server change. The per-hand outbox keeps it fully offline-friendly and batched (no streaming).
+
+**Opponent readout is gated.** Your own style renders free (Profile + Stats + your self-card). A human opponent's style on the seat-tap card is gated behind the existing `tool_opponent_style` shop utility (public info, paid convenience — matches the shop copy). Bots keep their free `BotPersonality`-derived path. `SeatView` now carries `userId` (`Seat.playerId`) so the card can fetch the opponent's public axes on open (in-session cached).
+
+**Sample gate (executive call):** below **20 dealt hands** (`PlayStyleAxes.MIN_SAMPLE`) the derived shape is noise, so the screens show a "keep playing to reveal your style" state instead of a misleading blob.
+
+**Shared archetype copy:** `archetypeFor` gained a raw-`(tightness, aggression, bluffRate)` overload so a human's axes classify into the same `BotArchetype` + `room_player_profile_style_*` label/description as a bot. The mapping lives once in `:libraries:ui` (`PlayStyleCopy`); `:libraries:ui` took a new `:libraries:bots` dependency (cycle-free) and the room feature's `playingStyleFor` now delegates to it.
+
+**Note / future tune:** Patient partially correlates with Tight by construction; because axes are server-computed it can be swapped later (e.g. to fold-to-aggression) without an app release.
+
+**Status:** Implemented on `develop`. Backend, client outbox/sync, per-hand capture, and all three UI sites are wired; covered by `PlayStyleHandSummaryBuilderTest`, `PostgresPlayStyleRepositoryTest`, and the schema/route smoke tests.

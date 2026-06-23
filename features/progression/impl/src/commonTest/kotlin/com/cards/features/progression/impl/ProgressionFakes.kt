@@ -5,6 +5,9 @@ import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.PlayStyleAxes
+import com.dangerfield.cards.libraries.cards.PlayStyleHandSummary
+import com.dangerfield.cards.libraries.cards.PlayStyleRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpBoostRepository
@@ -49,6 +52,20 @@ internal class FakeProgressionRepository(
     override suspend fun debugSetTotalXp(totalXp: Long) {
         progression.value = progression.value.copy(totalXp = totalXp)
     }
+}
+
+internal class FakePlayStyleRepository(
+    initial: PlayStyleAxes? = null,
+) : PlayStyleRepository {
+    val style = MutableStateFlow(initial)
+    override fun observeOwnStyle(): Flow<PlayStyleAxes?> = style
+    override suspend fun getOwnStyle(): PlayStyleAxes? = style.value
+    override suspend fun recordHand(summary: PlayStyleHandSummary) =
+        error("recordHand not used by the progression VMs")
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
+    override suspend fun getStyleFor(userId: String): Result<PlayStyleAxes?> =
+        error("getStyleFor not used by the progression VMs")
+    override suspend fun deleteAll() { /* not used here */ }
 }
 
 internal class FakeXpEventRepository(
