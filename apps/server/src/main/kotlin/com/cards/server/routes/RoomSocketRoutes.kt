@@ -567,7 +567,21 @@ private suspend fun dealFundedHand(
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
     progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
 ): IntentResult {
-    val funded = fundAndBuildOccupants(room, tableSessions, equipmentRepository, progressionRepository)
+    // Escrow moves real chips only on a real-stakes (majority-human) table. A
+    // bot-stacked or solo-vs-bots table — including a public disclosed-bot
+    // fallback — is practice: no buy-in, no cash-out. This defers the capped
+    // real-coin bot-table subsidy (the per-user daily cap + anomaly telemetry
+    // aren't built yet) and closes the matching exploit: without it, a human
+    // could farm house-funded chips off bots and cash out unbounded. When the
+    // subsidy ships, capped escrow can be enabled for those tables here.
+    val funded = if (isRealStakesTable(room)) {
+        fundAndBuildOccupants(room, tableSessions, equipmentRepository, progressionRepository)
+    } else {
+        FundedStart(
+            occupants = room.members.map { seatOccupantFor(it, equipmentRepository, progressionRepository) },
+            newlyFunded = emptyList(),
+        )
+    }
     if (funded.occupants.size < 2) {
         // Not enough players could fund — refund anyone we just debited (they sat
         // but no hand dealt → full refund) and don't start.
@@ -583,6 +597,20 @@ private suspend fun dealFundedHand(
     // seated in THAT hand, so we must NOT refund them. sitDown's double-spend
     // guard already collapsed the racing debits to one per player.
     return result
+}
+
+/**
+ * A real-stakes table moves real chips through escrow: **≥ 2 humans AND humans
+ * at least tying the bots.** Mirrors the client's `MultiplayerCredit.qualifies`
+ * (product-spec §5.4) so the server's "do chips move" and the client's "does
+ * this count for MP credit" agree. A bot-stacked (`2H + 4B`), solo-vs-bots
+ * (`1H + Xb`), or public disclosed-bot fallback table is practice — no escrow
+ * until the capped subsidy ships.
+ */
+private fun isRealStakesTable(room: Room): Boolean {
+    val humans = room.members.count { !it.isBot }
+    val bots = room.members.count { it.isBot }
+    return humans >= 2 && humans >= bots
 }
 
 /** Occupants to deal + the userIds this call newly debited (to refund on abort). */

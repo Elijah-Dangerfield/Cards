@@ -657,7 +657,39 @@ class RoomSocketGameplayRoutesTest {
     fun startHand_debitsEachHumanBuyIn_andNeverDebitsABot() = runTest {
         val rooms = newRoomService()
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)
+        rooms.join(room.code, alice, "Alice")
+        // 2 humans + 1 bot = a real-stakes table (humans >= 2, humans >= bots),
+        // so escrow runs; a 1H+1B table would be practice (no escrow).
         rooms.addBot(room.code, requestedBy = host, difficulty = BotDifficulty.Standard)
+        val wallets = InMemoryTestWalletRepository()
+
+        withRoomSocketTestApp(rooms, wallets = wallets) { client ->
+            val hostSocket = client.connect(room.code, host)
+            val aliceSocket = client.connect(room.code, alice)
+            try {
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
+                hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
+                assertTrue(hostSocket.receiveUntilAck("s").accepted)
+
+                val buyIn = rooms.find(room.code)!!.settings.startingStack
+                assertEquals(Wallet.STARTER_GRANT - buyIn, wallets.balanceOf(host), "host's buy-in moved to the table")
+                assertEquals(Wallet.STARTER_GRANT - buyIn, wallets.balanceOf(alice), "alice's buy-in moved too")
+                assertEquals(2, wallets.applyCalls.count { it.reason == "mp_buyin" }, "exactly two human buy-ins")
+                val botId = rooms.find(room.code)!!.members.first { it.isBot }.userId
+                assertTrue(wallets.applyCalls.none { it.userId == botId }, "a bot never touches the wallet")
+            } finally {
+                hostSocket.closeQuietly()
+                aliceSocket.closeQuietly()
+            }
+        }
+    }
+
+    @Test
+    fun startHand_onASoloVsBotsTable_movesNoRealChips_practiceUntilSubsidy() = runTest {
+        val rooms = newRoomService()
+        val room = rooms.createOrFail(host, "Host", maxSeats = 4)
+        rooms.addBot(room.code, requestedBy = host, difficulty = BotDifficulty.Standard) // 1H + 1B = practice
         val wallets = InMemoryTestWalletRepository()
 
         withRoomSocketTestApp(rooms, wallets = wallets) { client ->
@@ -665,13 +697,8 @@ class RoomSocketGameplayRoutesTest {
             try {
                 hostSocket.drainSnapshot()
                 hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
-                assertTrue(hostSocket.receiveUntilAck("s").accepted, "1 human + 1 bot is enough to deal")
-
-                val buyIn = rooms.find(room.code)!!.settings.startingStack
-                assertEquals(Wallet.STARTER_GRANT - buyIn, wallets.balanceOf(host), "host's buy-in moved to the table")
-                assertEquals(1, wallets.applyCalls.count { it.reason == "mp_buyin" }, "exactly one human buy-in")
-                val botId = rooms.find(room.code)!!.members.first { it.isBot }.userId
-                assertTrue(wallets.applyCalls.none { it.userId == botId }, "a bot never touches the wallet")
+                assertTrue(hostSocket.receiveUntilAck("s").accepted, "1 human + 1 bot still deals — just as practice")
+                assertTrue(wallets.applyCalls.isEmpty(), "a solo-vs-bots table is practice — no real chips move")
             } finally {
                 hostSocket.closeQuietly()
             }
