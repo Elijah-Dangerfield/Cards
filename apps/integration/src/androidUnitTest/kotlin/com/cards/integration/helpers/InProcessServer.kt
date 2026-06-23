@@ -185,6 +185,7 @@ private object FakeTableSessions : com.dangerfield.cards.server.domain.TableSess
         roomCode: String,
         buyIn: Long,
         enforceEntryBar: Boolean,
+        subsidized: Boolean,
     ): com.dangerfield.cards.server.domain.SitDownResult {
         synchronized(lock) { active[userId] }?.let {
             return com.dangerfield.cards.server.domain.SitDownResult.AlreadyAtTable(it.roomCode)
