@@ -514,15 +514,14 @@
     <!-- Profile v2 - gear, header subtitle, stats banner, trophies, owned items. -->
     <string name="profile_settings_a11y">Settings</string>
     <string name="profile_header_joined">Joined %1$s %2$d</string>
-    <string name="profile_play_style_example">Sharp &amp; Steady</string>
     <string name="stats_play_style_section">Play style</string>
     <string name="stats_play_style_name">Tight-Aggressive</string>
     <string name="stats_play_style_blurb">You wait for strong hands, then bet them hard.</string>
     <string name="stats_play_style_empty_title">Your style is taking shape</string>
-    <string name="stats_play_style_empty_blurb">Play at least %1$d hands and we\'ll map how you play — tight or loose, aggressive or patient.</string>
+    <string name="stats_play_style_empty_blurb">Play at least %1$d hands and we will map how you play - tight or loose, aggressive or patient.</string>
     <string name="profile_stats_banner_title">Your stats &amp; style</string>
-    <string name="profile_stats_banner_subtitle">%1$s · %2$d%% win · %3$s won</string>
-    <string name="profile_stats_banner_subtitle_no_games">%1$s · Play a few hands to see your stats</string>
+    <string name="profile_stats_banner_subtitle_style_win">%1$s · %2$d%% win</string>
+    <string name="profile_stats_banner_subtitle_pending">Play more hands to build your style</string>
     <string name="profile_achievements_title">Achievements</string>
     <string name="profile_achievements_count_see_all">%1$d / %2$d · See all</string>
     <string name="profile_items_shop_link">Shop ›</string>

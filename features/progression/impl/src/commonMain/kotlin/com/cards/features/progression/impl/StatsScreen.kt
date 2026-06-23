@@ -23,8 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.stats_play_style_empty_blurb
-import cards.libraries.resources.generated.resources.stats_play_style_empty_title
 import cards.libraries.resources.generated.resources.stats_recent_xp_boosted_tag
 import cards.libraries.resources.generated.resources.stats_play_style_section
 import com.dangerfield.cards.libraries.cards.AchievementProgress
@@ -32,7 +30,6 @@ import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.ui.system.color.LevelProgressGradient
-import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpMode
@@ -42,7 +39,7 @@ import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.system.LocalLevelCurve
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
-import com.dangerfield.cards.libraries.ui.components.PlayStyleRadarMark
+import com.dangerfield.cards.libraries.ui.components.PlayStyleEmptyCard
 import com.dangerfield.cards.libraries.ui.components.PlayingStyleCard
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
 import com.dangerfield.cards.libraries.ui.components.toRadarAxes
@@ -448,41 +445,6 @@ private fun SectionTitle(text: String) {
         typography = AppTheme.typography.Heading.H600,
         color = AppTheme.colors.content,
     )
-}
-
-/**
- * Shown in the Play-style slot until the user has played [PlayStyleAxes.MIN_SAMPLE]
- * hands. Reuses the decorative [PlayStyleRadarMark] so it reads as the same
- * radar, paired with a "keep playing" nudge instead of a misleading shape.
- */
-@Composable
-private fun PlayStyleEmptyCard(modifier: Modifier = Modifier) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .clip(Radii.Card.shape)
-            .background(AppTheme.colors.surface.color)
-            .padding(Dimension.D500),
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(Res.string.stats_play_style_empty_title),
-                typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.content,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(
-                    Res.string.stats_play_style_empty_blurb,
-                    PlayStyleAxes.MIN_SAMPLE,
-                ),
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-            )
-        }
-        Spacer(modifier = Modifier.width(Dimension.D400))
-        PlayStyleRadarMark(size = 44.dp)
-    }
 }
 
 private fun sourceLabel(source: XpSource): String = when (source) {

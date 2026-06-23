@@ -70,10 +70,9 @@ import cards.libraries.resources.generated.resources.profile_items_shop_link
 import cards.libraries.resources.generated.resources.profile_items_specialty
 import cards.libraries.resources.generated.resources.profile_level_summary_level
 import cards.libraries.resources.generated.resources.profile_level_summary_xp_breakdown
-import cards.libraries.resources.generated.resources.profile_play_style_example
 import cards.libraries.resources.generated.resources.profile_settings_a11y
-import cards.libraries.resources.generated.resources.profile_stats_banner_subtitle
-import cards.libraries.resources.generated.resources.profile_stats_banner_subtitle_no_games
+import cards.libraries.resources.generated.resources.profile_stats_banner_subtitle_pending
+import cards.libraries.resources.generated.resources.profile_stats_banner_subtitle_style_win
 import cards.libraries.resources.generated.resources.profile_stats_banner_title
 import cards.libraries.resources.generated.resources.profile_achievements_count_see_all
 import cards.libraries.resources.generated.resources.profile_achievements_title
@@ -164,9 +163,9 @@ data class ProfileSettings(
  * Per the screen convention, this composable owns its [Screen] shell; the
  * EntryPoint only wires the repos → params + the navigation callbacks.
  *
- * [winRatePercent] is the only real stat wired today (from Progression);
- * the banner's play-style + chips-won are example values pending real
- * data plumbing — see the TODO in [StatsStyleBanner].
+ * The banner reads [winRatePercent] and the derived [playStyle] (both from
+ * Progression); below the play-style sample gate it shows an honest "play
+ * more hands" nudge rather than a fabricated label.
  */
 @Composable
 fun ProfileScreen(
@@ -470,25 +469,15 @@ private fun StatsStyleBanner(
     playStyle: PlayStyleAxes?,
     onClick: () -> Unit,
 ) {
-    // Real derived style once the user clears the sample gate; until then the
-    // teaser keeps the example name + decorative radar shape.
+    // Only show a style name once the user clears the sample gate — below it,
+    // the line is an honest "play more hands" nudge, not a fabricated label.
     val derived = playStyle?.takeIf { it.hasEnoughData }
-    val style = if (derived != null) {
-        stringResource(derived.toStyleCopy().label)
-    } else {
-        stringResource(Res.string.profile_play_style_example)
-    }
-    // TODO: chips-won is still an example value — wire server Progression.chipsWon later.
-    val exampleChipsWon = remember { formatThousands(1_284L) }
-    val subtitle = if (winRatePercent != null) {
-        stringResource(
-            Res.string.profile_stats_banner_subtitle,
-            style,
-            winRatePercent,
-            exampleChipsWon,
-        )
-    } else {
-        stringResource(Res.string.profile_stats_banner_subtitle_no_games, style)
+    val style = derived?.let { stringResource(it.toStyleCopy().label) }
+    val subtitle = when {
+        style != null && winRatePercent != null ->
+            stringResource(Res.string.profile_stats_banner_subtitle_style_win, style, winRatePercent)
+        style != null -> style
+        else -> stringResource(Res.string.profile_stats_banner_subtitle_pending)
     }
     // The play-style name reads in the accent (matching the radar mark); the
     // rest of the line stays muted. Span-on-substring keeps the localized
@@ -497,8 +486,8 @@ private fun StatsStyleBanner(
     val subtitleAnnotated = remember(subtitle, style, styleColor) {
         buildAnnotatedString {
             append(subtitle)
-            val start = subtitle.indexOf(style)
-            if (start >= 0) {
+            val start = style?.let { subtitle.indexOf(it) } ?: -1
+            if (style != null && start >= 0) {
                 addStyle(SpanStyle(color = styleColor), start, start + style.length)
             }
         }

@@ -157,10 +157,6 @@ A second batch of in-app feedback from a live two-device MP playtest. Hard bugs 
   **Acceptance:** real-chip games (including disclosed-bot real-money) never show fake-chip join or bust copy; the play screen reflects that real chips are at stake.
   **Hints:** the join + bust dialogs in the room feature that branch on stakes/bot framing; align with the escrow being live. Sentry [CARDS-20](https://elijah-dangerfield.sentry.io/issues/CARDS-20), [CARDS-1C](https://elijah-dangerfield.sentry.io/issues/CARDS-1C).
 
-- `[P2]` **Profile stats/style should show the "play more hands to build your style" empty state, not a fake value.** The profile currently shows a fabricated style ("Sharp and Steady") before enough hands exist; show the same "play more hands" message used elsewhere, ideally via a shared DS component. *(feedback CARDS-2A)*
-  **Acceptance:** with too few hands, profile stats/style render the play-more empty state instead of a fake label; the empty-state is a reusable component.
-  **Hints:** `ProfileScreen` stats/style section; reuse the existing play-more empty-state copy. Sentry [CARDS-2A](https://elijah-dangerfield.sentry.io/issues/CARDS-2A).
-
 - `[P2]` **Matchmaking "searching" copy rolls over too fast and some lines are weak.** The rotating search messages flip too quickly to read and some (the fake-crowd line) feel off; slow the rotation and review the copy with the unslop skills. *(feedback CARDS-20)*
   **Acceptance:** search messages rotate at a readable pace and the weak/fake-crowd lines are revised.
   **Hints:** the rotating-message logic in `PublicSearchingScreen`. Sentry [CARDS-20](https://elijah-dangerfield.sentry.io/issues/CARDS-20).
