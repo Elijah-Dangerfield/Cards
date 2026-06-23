@@ -14,6 +14,8 @@ import com.dangerfield.cards.server.domain.TableSessionService
 import com.dangerfield.cards.server.domain.TableSessionStatus
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.WalletRepository
+import com.dangerfield.cards.server.plugins.SpanAttrs
+import com.dangerfield.cards.server.plugins.withSpan
 import me.tatarka.inject.annotations.Inject
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.insert
@@ -215,8 +217,19 @@ class DefaultTableSessionService(
             if (net > 0) {
                 tableSessions.recordSubsidyGranted(session.sessionId, net)
                 // Payout telemetry — amount + the user's running draw-down, so the
-                // dashboard can watch the budget and flag farming anomalies.
+                // dashboard can watch the budget and flag farming anomalies. Emitted
+                // as both a span (Tempo, sliceable) and a log line (Loki).
                 val grantedAfter = tableSessions.subsidyGrantedSince(userId, clock.now() - subsidyWindow) + net
+                withSpan(
+                    name = "bot_subsidy_payout",
+                    configure = {
+                        setAttribute(SpanAttrs.UserId, userId.value.toString())
+                        setAttribute(SpanAttrs.SessionId, session.sessionId.toString())
+                        setAttribute(SpanAttrs.BotSubsidyAmount, net)
+                        setAttribute(SpanAttrs.BotSubsidyGrantedWindow, grantedAfter)
+                        setAttribute(SpanAttrs.BotSubsidyCap, subsidyDailyCap)
+                    },
+                ) {}
                 log.info(
                     "bot_subsidy_payout user={} session={} amount={} grantedWindow={} cap={}",
                     userId.value, session.sessionId, net, grantedAfter, subsidyDailyCap,

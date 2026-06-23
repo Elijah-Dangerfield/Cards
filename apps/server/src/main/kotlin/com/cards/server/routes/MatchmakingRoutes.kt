@@ -14,7 +14,10 @@ import com.dangerfield.cards.server.domain.SYSTEM_HOST_USER_ID
 import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.plugins.MATCHMAKING_FIND_LIMIT
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
+import com.dangerfield.cards.server.plugins.SpanAttrs
 import com.dangerfield.cards.server.plugins.userId
+import com.dangerfield.cards.server.plugins.withSpan
+import io.opentelemetry.api.trace.Span
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.plugins.ratelimit.RateLimitName
@@ -116,24 +119,39 @@ fun Route.matchmakingRoutes(
                     )
                 }
 
-                // Fill DISCLOSED bots up to the lively-but-fast target, then deal.
-                // requestedBy is the synthetic system host (a public table's host),
-                // so the host-only gate passes. fillBotsUpTo is one atomic critical
-                // section, so a double-tap can't overshoot the target into a packed
-                // table — it's idempotent once the table is at/over target.
-                val filled = rooms.fillBotsUpTo(
-                    code = code,
-                    requestedBy = SYSTEM_HOST_USER_ID,
-                    target = PUBLIC_BOT_FALLBACK_TARGET,
-                    difficulty = BotDifficulty.Standard,
-                    revealed = true,
-                )
-                val current = (filled as? com.dangerfield.cards.server.domain.AddBotResult.Success)?.room ?: room
+                // The honest disclosed-bot fallback consent — a budget-relevant
+                // event. The span carries the table it landed on + the human/bot
+                // split after the fill, so the dashboard can watch fallback rate.
+                withSpan(
+                    name = "matchmaking_play_bots",
+                    configure = {
+                        setAttribute(SpanAttrs.UserId, userId.value.toString())
+                        setAttribute(SpanAttrs.RoomCode, code)
+                    },
+                ) {
+                    // Fill DISCLOSED bots up to the lively-but-fast target, then deal.
+                    // requestedBy is the synthetic system host (a public table's host),
+                    // so the host-only gate passes. fillBotsUpTo is one atomic critical
+                    // section, so a double-tap can't overshoot the target into a packed
+                    // table — it's idempotent once the table is at/over target.
+                    val filled = rooms.fillBotsUpTo(
+                        code = code,
+                        requestedBy = SYSTEM_HOST_USER_ID,
+                        target = PUBLIC_BOT_FALLBACK_TARGET,
+                        difficulty = BotDifficulty.Standard,
+                        revealed = true,
+                    )
+                    val current = (filled as? com.dangerfield.cards.server.domain.AddBotResult.Success)?.room ?: room
 
-                startPublicTableIfReady(code, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
+                    startPublicTableIfReady(code, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
 
-                val dealt = rooms.find(code) ?: current
-                call.respond(HttpStatusCode.OK, MatchmakingFindResponse(room = dealt.toDto(), created = false))
+                    val dealt = rooms.find(code) ?: current
+                    Span.current().apply {
+                        setAttribute(SpanAttrs.MatchmakingHumans, dealt.members.count { !it.isBot }.toLong())
+                        setAttribute(SpanAttrs.MatchmakingBots, dealt.members.count { it.isBot }.toLong())
+                    }
+                    call.respond(HttpStatusCode.OK, MatchmakingFindResponse(room = dealt.toDto(), created = false))
+                }
             }
 
             post("/v1/matchmaking/find") {
@@ -162,23 +180,33 @@ fun Route.matchmakingRoutes(
                 // friend graph under the lock.
                 val blocked = friends.listBlockedUserIds(userId)
 
-                val result = rooms.findOrJoinPublic(
-                    userId = userId,
-                    name = profile.displayName,
-                    minBuyIn = body.minBuyIn,
-                    maxBuyIn = body.maxBuyIn,
-                    blockedUserIds = blocked,
-                    avatarEmoji = profile.avatarEmoji,
-                    avatarBackgroundColor = profile.avatarBackgroundColor,
-                )
-
-                call.respond(
-                    HttpStatusCode.OK,
-                    MatchmakingFindResponse(
-                        room = result.room.toDto(),
-                        created = result is MatchmakingResult.Created,
-                    ),
-                )
+                // The core "is there organic density yet?" span: tier landed at,
+                // created-vs-joined, real humans now seated, and (via the span's
+                // own duration) find→seat latency. Sliceable in Tempo by tier.
+                withSpan(
+                    name = "matchmaking_find",
+                    configure = { setAttribute(SpanAttrs.UserId, userId.value.toString()) },
+                ) {
+                    val result = rooms.findOrJoinPublic(
+                        userId = userId,
+                        name = profile.displayName,
+                        minBuyIn = body.minBuyIn,
+                        maxBuyIn = body.maxBuyIn,
+                        blockedUserIds = blocked,
+                        avatarEmoji = profile.avatarEmoji,
+                        avatarBackgroundColor = profile.avatarBackgroundColor,
+                    )
+                    val created = result is MatchmakingResult.Created
+                    Span.current().apply {
+                        setAttribute(SpanAttrs.MatchmakingCreated, created)
+                        setAttribute(SpanAttrs.MatchmakingBuyIn, result.room.buyIn)
+                        setAttribute(SpanAttrs.MatchmakingHumans, result.room.members.count { !it.isBot }.toLong())
+                    }
+                    call.respond(
+                        HttpStatusCode.OK,
+                        MatchmakingFindResponse(room = result.room.toDto(), created = created),
+                    )
+                }
             }
         }
     }
