@@ -503,6 +503,8 @@
     <string name="settings_section_account_support">Account &amp; support</string>
     <string name="settings_about_headline">About Cards</string>
     <string name="settings_legal_footer">Play money only · no real-money gambling</string>
+    <string name="settings_responsible_play_headline">Responsible play</string>
+    <string name="settings_responsible_play_supporting">Get help with problem gambling</string>
 
     <!-- Profile v2 - gear, header subtitle, stats banner, trophies, owned items. -->
     <string name="profile_settings_a11y">Settings</string>

@@ -66,6 +66,7 @@ import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
 import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.LegalUrls
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
@@ -273,8 +274,9 @@ class ProfileFeatureEntryPoint(
                 },
                 onSendFeedback = { router.navigate(FeedbackRoute()) },
                 onReportBug = { router.navigate(BugReportRoute()) },
-                onPrivacyPolicy = { router.openWebLink(PRIVACY_POLICY_URL) },
-                onTermsOfService = { router.openWebLink(TERMS_OF_SERVICE_URL) },
+                onPrivacyPolicy = { router.openWebLink(LegalUrls.PRIVACY_POLICY) },
+                onTermsOfService = { router.openWebLink(LegalUrls.TERMS_OF_SERVICE) },
+                onResponsiblePlay = { router.openWebLink(LegalUrls.RESPONSIBLE_PLAY) },
                 onDeleteAccount = { router.navigate(DeleteAccountRoute()) },
                 onSignOut = { accountActionsVm.takeAction(AccountActionsAction.ConfirmSignOut) },
                 isSigningOut = accountActionsState.isSigningOut,
@@ -424,11 +426,8 @@ class ProfileFeatureEntryPoint(
     }
 
     private companion object {
-        // GitHub Pages publishes `pages/` on push to main via `.github/workflows/pages.yml`.
-        // Swap to a custom domain (e.g. cards.dangerfield.com/...) by dropping a CNAME file
-        // into `pages/` and pointing DNS at GH Pages; these constants are the single update.
-        const val PRIVACY_POLICY_URL = "https://elijah-dangerfield.github.io/Cards/privacy.html"
-        const val TERMS_OF_SERVICE_URL = "https://elijah-dangerfield.github.io/Cards/terms.html"
+        // Legal + safety links live in `LegalUrls` (:libraries:core) so onboarding
+        // consent and these Settings rows share one source of truth.
         // Mirrors `FoundingMemberCatalog.PRODUCT_ID` server-side
         // (`apps/server/.../StarterInventory.kt`). Granted by the server at
         // profile-create time when `seq <= 1000`.

@@ -59,6 +59,8 @@ import cards.libraries.resources.generated.resources.profile_support_feedback_su
 import cards.libraries.resources.generated.resources.profile_turn_feedback_mute
 import cards.libraries.resources.generated.resources.profile_turn_feedback_sound
 import cards.libraries.resources.generated.resources.profile_turn_feedback_vibrate
+import cards.libraries.resources.generated.resources.settings_responsible_play_headline
+import cards.libraries.resources.generated.resources.settings_responsible_play_supporting
 import cards.libraries.resources.generated.resources.settings_section_account_support
 import cards.libraries.resources.generated.resources.settings_title
 import com.dangerfield.cards.features.profile.impl.ProfileSettings
@@ -109,6 +111,7 @@ fun SettingsScreen(
     onReportBug: () -> Unit,
     onPrivacyPolicy: () -> Unit,
     onTermsOfService: () -> Unit,
+    onResponsiblePlay: () -> Unit,
     onDeleteAccount: () -> Unit,
     onSignOut: () -> Unit,
     isSigningOut: Boolean = false,
@@ -189,6 +192,12 @@ fun SettingsScreen(
                         headlineText = stringResource(Res.string.profile_about_terms),
                         leadingContent = { EmojiLeading("📄") },
                         onClick = onTermsOfService,
+                    ),
+                    ListSectionItem(
+                        headlineText = stringResource(Res.string.settings_responsible_play_headline),
+                        supportingText = stringResource(Res.string.settings_responsible_play_supporting),
+                        leadingContent = { EmojiLeading("🤝") },
+                        onClick = onResponsiblePlay,
                     ),
                 ),
             )
@@ -475,6 +484,7 @@ private fun SettingsScreenPreview_Guest() {
             onReportBug = {},
             onPrivacyPolicy = {},
             onTermsOfService = {},
+            onResponsiblePlay = {},
             onDeleteAccount = {},
             onSignOut = {},
         )
