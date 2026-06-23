@@ -3,9 +3,8 @@ package com.dangerfield.cards.features.shop.impl
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.features.shop.ShopCategory
 import com.dangerfield.cards.features.shop.ShopDeepLinkBus
-import com.dangerfield.cards.libraries.billing.BillingClient
-import com.dangerfield.cards.libraries.billing.PurchaseResult
-import com.dangerfield.cards.libraries.billing.PurchaseTransaction
+import com.dangerfield.cards.libraries.billing.IapPurchaseOutcome
+import com.dangerfield.cards.libraries.billing.PurchaseChipPackUseCase
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryItem
@@ -19,8 +18,6 @@ import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
-import com.dangerfield.cards.libraries.identity.auth.AuthRepository
-import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.products.CatalogTimeAnchor
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
@@ -65,8 +62,7 @@ class ShopViewModel @Inject constructor(
     private val chipsRepository: ChipsRepository,
     private val progressionRepository: ProgressionRepository,
     private val progressionConfig: ProgressionConfig,
-    private val billingClient: BillingClient,
-    private val authRepository: AuthRepository,
+    private val purchaseChipPack: PurchaseChipPackUseCase,
     private val equipmentRepository: EquipmentRepository,
     private val xpBoostRepository: XpBoostRepository,
     private val deepLinkBus: ShopDeepLinkBus,
@@ -226,7 +222,13 @@ class ShopViewModel @Inject constructor(
                     return
                 }
                 when (product) {
-                    is Product.ChipPack -> launchIapPurchase(product)
+                    is Product.ChipPack -> when (val outcome = purchaseChipPack(product)) {
+                        // Anonymous user — fold the use case's gating signal back
+                        // into the shop's dedicated claim-account event.
+                        IapPurchaseOutcome.ClaimAccountRequired ->
+                            sendEvent(ShopEvent.ClaimAccountRequired)
+                        else -> sendEvent(ShopEvent.PurchaseFinished(outcome))
+                    }
                     is Product.ChipOffer ->
                         if (product.grantsKey == XP_BOOST_GRANTS_KEY) {
                             confirmXpBoostPurchase(product)
@@ -236,62 +238,6 @@ class ShopViewModel @Inject constructor(
                 }
             }
         }
-    }
-
-    private suspend fun launchIapPurchase(pack: Product.ChipPack) {
-        val authenticated = authRepository.current() as? AuthState.Authenticated
-        if (authenticated == null) {
-            logger.w { "IAP purchase requested with no signed-in user" }
-            sendEvent(ShopEvent.PurchaseFinished(IapPurchaseOutcome.NotSignedIn))
-            return
-        }
-        if (authenticated.isAnonymous) {
-            // Real-money IAP is gated behind account claim: an anonymous
-            // user can't buy until they've linked email/Apple, removing the
-            // "paid then lost the account" risk at the source. Route to the
-            // claim flow instead of the platform purchase sheet.
-            logger.i { "IAP purchase blocked for anonymous user — routing to account claim" }
-            sendEvent(ShopEvent.ClaimAccountRequired)
-            return
-        }
-        val userId = authenticated.userId
-        val result = billingClient.purchase(sku = pack.store.sku, userId = userId)
-        val outcome = when (result) {
-            is PurchaseResult.Success -> {
-                creditChipsFor(pack, result.transaction)
-                billingClient.acknowledge(result.transaction.purchaseToken)
-                IapPurchaseOutcome.Success(grantedChips = pack.grantsChips)
-            }
-            is PurchaseResult.AlreadyOwned -> {
-                // Treat as idempotent — re-credit so a client that lost
-                // track of a previous purchase still gets its chips. Server-
-                // side validation will dedupe by orderId once /v1/billing/redeem
-                // ships; until then we accept the double-credit risk in V1.x.
-                creditChipsFor(pack, result.transaction)
-                billingClient.acknowledge(result.transaction.purchaseToken)
-                IapPurchaseOutcome.AlreadyOwned(grantedChips = pack.grantsChips)
-            }
-            PurchaseResult.UserCancelled -> IapPurchaseOutcome.Cancelled
-            is PurchaseResult.Failed -> IapPurchaseOutcome.Failed(result.reason)
-            PurchaseResult.NotConnected -> IapPurchaseOutcome.StoreUnavailable
-        }
-        sendEvent(ShopEvent.PurchaseFinished(outcome))
-    }
-
-    private suspend fun creditChipsFor(pack: Product.ChipPack, transaction: PurchaseTransaction) {
-        // V1 simplification: credit chips locally as soon as the platform
-        // store confirms. Server-side receipt validation + chip ledger lands
-        // with the auth-gated `/v1/billing/redeem` endpoint; until then this
-        // is the source of truth. The order id
-        // doubles as the idempotency key so a duplicate purchase-confirmed
-        // signal (e.g. resume-after-restore) doesn't double-credit when
-        // the wallet sync flushes either copy of the event.
-        chipsRepository.addChips(
-            amount = pack.grantsChips,
-            reason = "iap.${pack.id}",
-            idempotencyKey = "iap.${pack.id}.${transaction.orderId}",
-        )
-        logger.i { "Granted ${pack.grantsChips} chips for IAP order ${transaction.orderId}" }
     }
 
     /**
@@ -638,32 +584,4 @@ sealed interface ShopEvent {
      * a refresh, after which the offer drops out of the catalog.
      */
     data class OfferExpired(val productId: String) : ShopEvent
-}
-
-/**
- * Result of an IAP purchase, emitted as [ShopEvent.PurchaseFinished]
- * once the billing round-trip + chip credit completes.
- *
- * The screen dispatches on this to render the right user feedback — the
- * VM doesn't decide on copy or animation. Cancellation is silent (no
- * toast); failure is a single "couldn't complete" line; success is a
- * chip-pile celebration with the granted amount.
- */
-sealed interface IapPurchaseOutcome {
-    data class Success(val grantedChips: Long) : IapPurchaseOutcome
-
-    /** Store reports already-owned. We re-credit defensively. */
-    data class AlreadyOwned(val grantedChips: Long) : IapPurchaseOutcome
-
-    /** User backed out of the store sheet. Silent. */
-    data object Cancelled : IapPurchaseOutcome
-
-    /** Platform billing connection isn't established. Surface "store unavailable". */
-    data object StoreUnavailable : IapPurchaseOutcome
-
-    /** No signed-in user. Should be impossible from the shop screen, but defend. */
-    data object NotSignedIn : IapPurchaseOutcome
-
-    /** Generic transient error. [reason] is store-provided and not localized. */
-    data class Failed(val reason: String) : IapPurchaseOutcome
 }

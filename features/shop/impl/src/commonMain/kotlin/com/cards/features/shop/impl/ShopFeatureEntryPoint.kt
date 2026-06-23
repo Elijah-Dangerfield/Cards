@@ -11,6 +11,7 @@ import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.features.shop.ShopRoute
+import com.dangerfield.cards.libraries.billing.IapPurchaseOutcome
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
@@ -252,6 +253,10 @@ private suspend fun showPurchaseSnackbar(outcome: IapPurchaseOutcome) {
             duration = SnackbarDuration.Short,
         )
         IapPurchaseOutcome.Cancelled -> Unit
+        // The shop maps this outcome to ShopEvent.ClaimAccountRequired before it
+        // reaches here (it never rides PurchaseFinished), so this branch only
+        // exists to keep the `when` exhaustive over the shared outcome type.
+        IapPurchaseOutcome.ClaimAccountRequired -> Unit
         IapPurchaseOutcome.StoreUnavailable -> showSnackBar(
             title = getString(Res.string.shop_snackbar_store_unavailable_title),
             message = getString(Res.string.shop_snackbar_store_unavailable_message),
