@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.AddBotResult
 import com.dangerfield.cards.server.domain.BotSeat
@@ -9,10 +10,12 @@ import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.LeaveResult
 import com.dangerfield.cards.server.domain.RemoveBotResult
+import com.dangerfield.cards.server.domain.NoOpRoomStore
 import com.dangerfield.cards.server.domain.Room
 import com.dangerfield.cards.server.domain.RoomMember
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
+import com.dangerfield.cards.server.domain.RoomStore
 import com.dangerfield.cards.server.domain.RoomSweepResult
 import com.dangerfield.cards.server.domain.UserId
 import java.util.UUID
@@ -61,6 +64,12 @@ import kotlin.time.Instant
 class InMemoryRoomService(
     private val clock: Clock,
     private val random: Random = Random.Default,
+    // Durable backing (B2). Write-through on every mutation, hydrate on a
+    // cache miss. Last + defaulted so the many direct test constructions stay
+    // valid; DI resolves the real Postgres binding here (same pattern as
+    // DefaultGameSessionRegistry's repos), the default only serves tests that
+    // don't want Postgres in the loop.
+    private val store: RoomStore = NoOpRoomStore,
 ) : RoomService {
 
     private val log = org.slf4j.LoggerFactory.getLogger("RoomService")
@@ -119,6 +128,7 @@ class InMemoryRoomService(
             buyIn = buyIn,
         )
         rooms[code] = RoomState(room = room)
+        persist(room)
         CreateResult.Success(room)
     }
 
@@ -152,6 +162,7 @@ class InMemoryRoomService(
         )
         val next = current.copy(members = (current.members + newMember).sortedBy { it.seatIndex })
         state.update(next)
+        persist(next)
         JoinResult.Success(next)
     }
 
@@ -166,6 +177,7 @@ class InMemoryRoomService(
             // stragglers observing get a final value through the
             // GC sweep on the caller side.
             rooms.remove(code)
+            forget(code)
             // Info: room lifecycle end — explains "the room disappeared."
             log.info("Room $code closed: last member $userId left")
             return@withLock LeaveResult.Success(roomGone = true)
@@ -188,6 +200,7 @@ class InMemoryRoomService(
             members = remaining,
         )
         state.update(next)
+        persist(next)
         // Info: member churn + host migration is session-meaningful — answers
         // "who left / who's host now" when a game's flow is reported as broken.
         if (nextHostUserId != current.hostUserId) {
@@ -238,6 +251,7 @@ class InMemoryRoomService(
         )
         val next = current.copy(members = (current.members + botMember).sortedBy { it.seatIndex })
         state.update(next)
+        persist(next)
         AddBotResult.Success(next)
     }
 
@@ -253,6 +267,7 @@ class InMemoryRoomService(
         if (target?.bot == null) return@withLock RemoveBotResult.NotABot
         val next = current.copy(members = current.members.filterNot { it.userId == botUserId })
         state.update(next)
+        persist(next)
         RemoveBotResult.Success(next)
     }
 
@@ -275,6 +290,7 @@ class InMemoryRoomService(
             },
         )
         state.update(next)
+        persist(next)
         next
     }
 
@@ -284,6 +300,7 @@ class InMemoryRoomService(
         if (current.status == RoomStatus.Playing) return@withLock current
         val next = current.copy(status = RoomStatus.Playing)
         state.update(next)
+        persist(next)
         next
     }
 
@@ -293,13 +310,16 @@ class InMemoryRoomService(
         if (current.status == RoomStatus.Lobby) return@withLock current
         val next = current.copy(status = RoomStatus.Lobby)
         state.update(next)
+        persist(next)
         next
     }
 
-    override suspend fun find(code: String): Room? = mutex.withLock { rooms[code]?.room }
+    override suspend fun find(code: String): Room? = mutex.withLock {
+        (rooms[code] ?: hydrateLocked(code))?.room
+    }
 
     override suspend fun observe(code: String): Flow<Room>? = mutex.withLock {
-        rooms[code]?.flow?.asStateFlow()
+        (rooms[code] ?: hydrateLocked(code))?.flow?.asStateFlow()
     }
 
     override suspend fun snapshot(): List<Room> = mutex.withLock {
@@ -339,11 +359,14 @@ class InMemoryRoomService(
             if (survivors.isEmpty()) {
                 // Sweep emptied the room. GC same as last-out leave().
                 rooms.remove(code)
+                forget(code)
                 roomsReaped++
                 // No flow update — the room is gone and any straggling
                 // subscribers will simply stop receiving emissions.
             } else {
-                state.update(current.copy(members = survivors))
+                val swept = current.copy(members = survivors)
+                state.update(swept)
+                persist(swept)
             }
         }
         RoomSweepResult(
@@ -371,14 +394,54 @@ class InMemoryRoomService(
         val survivors = current.members - member
         if (survivors.isEmpty()) {
             rooms.remove(code)
+            forget(code)
             log.info("Room $code: reaped $userId after disconnect grace; room now empty, closed")
         } else {
-            state.update(current.copy(members = survivors))
+            val swept = current.copy(members = survivors)
+            state.update(swept)
+            persist(swept)
             // Info: seat-freeing after a drop — explains "my opponent vanished"
             // or "I got kicked" in a reported session.
             log.info("Room $code: reaped $userId after disconnect grace, ${survivors.size} remain")
         }
         true
+    }
+
+    /**
+     * Write-through the full room snapshot. Best-effort (mirrors the B0 session
+     * persist): a DB hiccup must never break a live lobby, so a failure is
+     * logged and the in-memory state — which stays authoritative while the room
+     * is loaded — carries on. Durability is a restart backstop, not a
+     * gate on the response.
+     */
+    private suspend fun persist(room: Room) {
+        Catching { store.save(room) }
+            .onFailure { log.warn("Room ${room.code} persist failed", it) }
+    }
+
+    /** Write-through a room deletion. Best-effort, same rationale as [persist]. */
+    private suspend fun forget(code: String) {
+        Catching { store.delete(code) }
+            .onFailure { log.warn("Room $code delete-persist failed", it) }
+    }
+
+    /**
+     * Pull a room the in-memory map has no entry for from the durable store and
+     * install it as a fresh [RoomState] (so observers attach to a live flow).
+     * This is the server-restart recovery path: the first [find] / [observe] for
+     * a persisted code rehydrates it. Members come back disconnected — sockets
+     * re-establish presence, and the disconnect-grace sweep (its `disconnectedAt`
+     * stamps survived) reaps any that never return. Caller must hold [mutex].
+     */
+    private suspend fun hydrateLocked(code: String): RoomState? {
+        rooms[code]?.let { return it }
+        val loaded = Catching { store.load(code) }
+            .onFailure { log.warn("Room $code hydrate failed", it) }
+            .getOrNull() ?: return null
+        val state = RoomState(room = loaded)
+        rooms[code] = state
+        log.info("Room $code hydrated from durable store after a cache miss")
+        return state
     }
 
     private fun generateUniqueCode(): String {

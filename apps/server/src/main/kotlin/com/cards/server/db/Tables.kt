@@ -222,6 +222,43 @@ object RoomSessionsTable : Table("room_sessions") {
 }
 
 /**
+ * Durable room registry. One row per live room; GC'd (via `room_members`
+ * cascade + an explicit room delete) when the last member leaves.
+ * InMemoryRoomService write-through + hydration source of truth. See
+ * `V65__rooms_and_members.sql`.
+ */
+object RoomsTable : Table("rooms") {
+    val code = text("code")
+    val hostUserId = uuid("host_user_id")
+    val status = text("status")
+    val buyIn = long("buy_in")
+    val maxSeats = integer("max_seats")
+    val createdAt = timestamp("created_at")
+    override val primaryKey = PrimaryKey(code)
+}
+
+/**
+ * Seats in a room. One row per (room, member); a NULL `botPersonality` marks a
+ * human, otherwise the `bot*` columns capture the backend bot seat. `(roomCode,
+ * seatIndex)` is uniquely constrained so the seating chart can't double-book.
+ * See `V65__rooms_and_members.sql`.
+ */
+object RoomMembersTable : Table("room_members") {
+    val roomCode = text("room_code").references(RoomsTable.code)
+    val userId = uuid("user_id")
+    val seatIndex = integer("seat_index")
+    val displayName = text("display_name")
+    val joinedAt = timestamp("joined_at")
+    val disconnectedAt = timestamp("disconnected_at").nullable()
+    val avatarEmoji = text("avatar_emoji")
+    val avatarBackgroundColor = text("avatar_background_color").nullable()
+    val botPersonality = text("bot_personality").nullable()
+    val botDifficulty = text("bot_difficulty").nullable()
+    val botRevealed = bool("bot_revealed").nullable()
+    override val primaryKey = PrimaryKey(roomCode, userId)
+}
+
+/**
  * Friend graph. One row per *unordered pair* of users — `userA` is always the
  * lexicographically smaller UUID, `userB` the larger, so a relation is unique
  * regardless of direction. `state` is the pair lifecycle (requested / accepted
