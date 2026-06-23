@@ -143,6 +143,8 @@ data class ProfileSettings(
     val isAnonymous: Boolean,
     val botSpeed: com.dangerfield.cards.libraries.cards.BotSpeed,
     val turnFeedback: com.dangerfield.cards.libraries.cards.TurnFeedback,
+    /** Settings-only toggle: false silences in-game achievement reveals. */
+    val showAchievementPopups: Boolean = true,
     val appVersion: String,
     val unreadNotificationCount: Int = 0,
     val showQaMenu: Boolean = false,

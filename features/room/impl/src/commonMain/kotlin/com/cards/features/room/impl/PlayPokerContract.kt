@@ -40,6 +40,13 @@ data class PlayPokerState(
      */
     val awaitingHandEndAchievements: Boolean = false,
     val turnFeedback: TurnFeedback = TurnFeedback.Vibrate,
+    /**
+     * AppData-derived: show the "you can turn these off in Settings" footer on
+     * the celebration sheet. True only for the first few celebrations (capped
+     * in [PlayPokerViewModel]); the toggle that silences reveals entirely lives
+     * in Settings and is enforced at hand-end, not via this flag.
+     */
+    val showAchievementSettingsHint: Boolean = false,
     val connection: ConnectionState = ConnectionState.Connected,
     /** Equipped felt; drives the background paint via [feltSurfaceColor]. */
     val equippedFelt: EquippedFelt = EquippedFelt.Default,
@@ -128,6 +135,12 @@ sealed interface PlayPokerAction {
     data class HandXpAwarded(val amount: Int) : PlayPokerAction
     data object HandEndAchievementsPending : PlayPokerAction
     data class AchievementsEarned(val earned: List<EarnedAchievement>) : PlayPokerAction
+
+    /** Fired by the AppCache mirror; gates the celebration sheet's Settings-hint footer. */
+    data class AchievementSettingsHintVisibilityChanged(val show: Boolean) : PlayPokerAction
+
+    /** Celebration sheet showed the hint footer — writes through so it fades after a few shows. */
+    data object MarkAchievementSettingsHintShown : PlayPokerAction
 
     /** Fired by the equipment subscription; repaints the table surface. */
     data class EquippedFeltChanged(val felt: EquippedFelt) : PlayPokerAction

@@ -453,6 +453,8 @@
     <string name="profile_gameplay_bot_speed_supporting">How fast the bots think and act</string>
     <string name="profile_gameplay_turn_feedback_headline">Your turn feedback</string>
     <string name="profile_gameplay_turn_feedback_supporting">Cue when it becomes your turn</string>
+    <string name="profile_gameplay_achievement_popups_headline">Achievement pop-ups</string>
+    <string name="profile_gameplay_achievement_popups_supporting">Celebrate unlocks with a pop-up. They\'re still earned when off.</string>
     <string name="profile_bot_speed_slow">Slow</string>
     <string name="profile_bot_speed_normal">Normal</string>
     <string name="profile_bot_speed_fast">Fast</string>
@@ -798,6 +800,7 @@
     <string name="room_celebration_title_multi">%1$d achievements unlocked</string>
     <string name="room_celebration_subtitle_multi">Stacked them in one hand.</string>
     <string name="room_celebration_continue_button">Continue</string>
+    <string name="room_celebration_settings_hint">You can turn these off in Settings → Gameplay.</string>
     <string name="room_celebration_cosmetic_attribution">from the %1$s achievement</string>
     <string name="room_celebration_tap_to_reveal">Tap to reveal</string>
 

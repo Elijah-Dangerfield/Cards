@@ -259,6 +259,7 @@ class ProfileFeatureEntryPoint(
                     isAnonymous = isAnon,
                     botSpeed = appData.botSpeed,
                     turnFeedback = appData.turnFeedback,
+                    showAchievementPopups = appData.showAchievementPopups,
                     appVersion = "0.1.0",
                     unreadNotificationCount = unreadNotificationCount,
                     showQaMenu = BuildInfo.isDebug,
@@ -271,6 +272,9 @@ class ProfileFeatureEntryPoint(
                 },
                 onTurnFeedbackChange = { feedback ->
                     scope.launch { appCache.update { it.copy(turnFeedback = feedback) } }
+                },
+                onShowAchievementPopupsChange = { enabled ->
+                    scope.launch { appCache.update { it.copy(showAchievementPopups = enabled) } }
                 },
                 onSendFeedback = { router.navigate(FeedbackRoute()) },
                 onReportBug = { router.navigate(BugReportRoute()) },

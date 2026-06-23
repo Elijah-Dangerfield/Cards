@@ -577,11 +577,17 @@ fun PlayPokerScreen(
         if (celebrationActive && state.recentlyEarned.isNotEmpty()) {
             AchievementCelebrationSheet(
                 earned = state.recentlyEarned,
+                showSettingsHint = state.showAchievementSettingsHint,
                 onContinue = {
                     celebrationActive = false
                     onAction(PlayPokerAction.RequestNextHand)
                 },
             )
+            // Count this showing once the hint is actually on screen, so the
+            // footer fades after a few celebrations rather than per render.
+            if (state.showAchievementSettingsHint) {
+                LaunchedEffect(Unit) { onAction(PlayPokerAction.MarkAchievementSettingsHintShown) }
+            }
         }
 
         // In-game quick-buy upsell — overlays the bust dialog (which stays

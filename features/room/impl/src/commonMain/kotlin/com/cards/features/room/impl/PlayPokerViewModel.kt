@@ -181,6 +181,11 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.WinOddsFlipHintSeenChanged(data.winOddsFlipHintSeen))
                 takeAction(PlayPokerAction.MutedEmojiPlayersChanged(data.mutedEmojiPlayerKeys))
                 takeAction(PlayPokerAction.XpBoostChanged(data.xpBoostExpiresAtEpochMs))
+                takeAction(
+                    PlayPokerAction.AchievementSettingsHintVisibilityChanged(
+                        data.achievementPopupHintShows < ACHIEVEMENT_HINT_MAX_SHOWS,
+                    ),
+                )
             }
         }
         // Owned emote-pack IDs → blast-tray pool (empty hides the tray).
@@ -288,6 +293,12 @@ class PlayPokerViewModel @Inject constructor(
 
     private companion object {
         const val TOOL_WIN_ODDS_PRODUCT_ID = "tool_win_odds"
+        /**
+         * The "you can turn these off in Settings" footer rides the first few
+         * celebration sheets, then never shows again — long enough for a new
+         * user to learn the toggle exists without nagging a regular.
+         */
+        const val ACHIEVEMENT_HINT_MAX_SHOWS = 3
         /** Per product-spec.md §5.5 — 8 seconds between human-tapped emoji blasts. */
         const val EMOJI_COOLDOWN_MS: Long = 8_000
         /**
@@ -343,10 +354,17 @@ class PlayPokerViewModel @Inject constructor(
             }.onFailure {
                 logger.w(it) { "Achievement recording failed for hand ${summary.handId}" }
             }.getOrNull().orEmpty()
-            // Always resolve — even with no unlocks — so the awaiting flag clears
-            // and the dismiss path can advance.
-            takeAction(PlayPokerAction.AchievementsEarned(earned))
+            // Recording always runs (the unlock is banked regardless), but the
+            // user can silence the reveal in Settings. When off we surface an
+            // empty list so the celebration sheet and the inline showdown/bust
+            // rows show nothing — the unlock still appears later in their
+            // achievements list. Always resolve — even with no unlocks — so the
+            // awaiting flag clears and the dismiss path can advance.
+            val surfaced = if (appCache.get().showAchievementPopups) earned else emptyList()
+            takeAction(PlayPokerAction.AchievementsEarned(surfaced))
 
+            // The review prompt keys off the *real* unlocks, not what we showed —
+            // a silenced celebration shouldn't also suppress a review ask.
             maybeRequestReviewPrompt(priorLevel = priorLevel, earned = earned)
         }
     }
@@ -515,6 +533,16 @@ class PlayPokerViewModel @Inject constructor(
             }
             is PlayPokerAction.AchievementsEarned -> action.updateState {
                 it.copy(recentlyEarned = action.earned, awaitingHandEndAchievements = false)
+            }
+            is PlayPokerAction.AchievementSettingsHintVisibilityChanged -> action.updateState {
+                it.copy(showAchievementSettingsHint = action.show)
+            }
+            is PlayPokerAction.MarkAchievementSettingsHintShown -> {
+                viewModelScope.launch {
+                    appCache.update {
+                        it.copy(achievementPopupHintShows = it.achievementPopupHintShows + 1)
+                    }
+                }
             }
             is PlayPokerAction.EquippedFeltChanged -> action.updateState {
                 it.copy(equippedFelt = action.felt)

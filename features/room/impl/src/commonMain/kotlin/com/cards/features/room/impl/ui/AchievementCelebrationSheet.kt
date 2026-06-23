@@ -34,6 +34,7 @@ import cards.libraries.resources.generated.resources.room_achievement_reward_xp
 import cards.libraries.resources.generated.resources.room_achievement_reward_xp_plus_chips
 import cards.libraries.resources.generated.resources.room_celebration_continue_button
 import cards.libraries.resources.generated.resources.room_celebration_cosmetic_attribution
+import cards.libraries.resources.generated.resources.room_celebration_settings_hint
 import cards.libraries.resources.generated.resources.room_celebration_subtitle_multi
 import cards.libraries.resources.generated.resources.room_celebration_title_multi
 import cards.libraries.resources.generated.resources.room_celebration_title_single
@@ -80,6 +81,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 internal fun AchievementCelebrationSheet(
     earned: List<EarnedAchievement>,
     onContinue: () -> Unit,
+    showSettingsHint: Boolean = false,
 ) {
     if (earned.isEmpty()) return
 
@@ -141,6 +143,19 @@ internal fun AchievementCelebrationSheet(
                     earned = item,
                     index = index,
                     autoReveal = index == 0,
+                )
+            }
+            // Quiet discoverability line for the Settings toggle — shown only the
+            // first few celebrations (gated by the caller) so new users learn the
+            // pop-ups can be silenced without it nagging every hand thereafter.
+            if (showSettingsHint) {
+                VerticalSpacerD500()
+                Text(
+                    text = stringResource(Res.string.room_celebration_settings_hint),
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.contentSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
@@ -326,6 +341,7 @@ private fun AchievementCelebrationSheetPreview_Single() {
                 ),
             ),
             onContinue = {},
+            showSettingsHint = true,
         )
     }
 }

@@ -752,6 +752,29 @@ class PlayPokerViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun handEnded_recordsAchievement_butSuppressesReveal_whenPopupsOff() = runUnitTest {
+        val achievements = FakeAchievementRepository().apply {
+            nextEarned = listOf(testEarnedAchievement())
+        }
+        val factory = FakePokerSessionFactory()
+        val vm = buildVm(
+            appCache = FakeAppCache(AppData(showAchievementPopups = false)),
+            factory = factory,
+            achievementRepository = achievements,
+        )
+
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(sequence = 0, winners = emptyList(), board = emptyList(), revealedHoleCards = emptyMap()),
+            stubGameState(),
+            1_000L,
+        )
+
+        // The unlock is still banked — only the in-game reveal is silenced.
+        assertEquals(1, achievements.recordedHands.size)
+        assertTrue(vm.state.recentlyEarned.isEmpty())
+    }
+
+    @Test
     fun handEnded_passesOpponentBotNames_toAchievementContext() = runUnitTest {
         val achievements = FakeAchievementRepository()
         val factory = FakePokerSessionFactory(difficultyName = "Challenging")
