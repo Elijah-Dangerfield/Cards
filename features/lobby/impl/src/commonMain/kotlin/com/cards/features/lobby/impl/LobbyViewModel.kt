@@ -149,6 +149,9 @@ class LobbyViewModel(
                     JoinRoomOutcome.Full -> updateState {
                         it.copy(joining = false, error = LobbyError.JoinRoomFull)
                     }
+                    is JoinRoomOutcome.OverBalance -> updateState {
+                        it.copy(joining = false, error = LobbyError.JoinOverBalance(outcome.message))
+                    }
                     JoinRoomOutcome.NotJoinable -> updateState {
                         it.copy(joining = false, error = LobbyError.JoinRoomNotAcceptingPlayers)
                     }
@@ -475,6 +478,7 @@ sealed interface LobbyError {
     data object JoinBlankCode : LobbyError
     data class JoinRoomNotFound(val code: String) : LobbyError
     data object JoinRoomFull : LobbyError
+    data class JoinOverBalance(val message: String) : LobbyError
     data object JoinRoomNotAcceptingPlayers : LobbyError
     data object JoinNotSignedIn : LobbyError
     data object JoinNetworkError : LobbyError

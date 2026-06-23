@@ -150,7 +150,7 @@ fun Application.installApp(
         friendsRoutes(component.friendRepository, component.recentOpponentsRepository)
         recentOpponentsRoutes(component.recentOpponentsRepository)
         profilesRoutes(component.profileRepository)
-        roomRoutes(component.roomService, component.profileRepository)
+        roomRoutes(component.roomService, component.profileRepository, component.walletRepository)
         matchmakingRoutes(
             rooms = component.roomService,
             friends = component.friendRepository,

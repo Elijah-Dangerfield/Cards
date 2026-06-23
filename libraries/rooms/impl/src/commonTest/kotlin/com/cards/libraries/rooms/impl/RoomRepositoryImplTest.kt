@@ -148,6 +148,21 @@ class RoomRepositoryImplTest {
     }
 
     @Test
+    fun joinRoom_400_insufficientBalance_returnsOverBalance() = runTest {
+        val repo = newRepo(MockEngine {
+            respondJson(
+                HttpStatusCode.BadRequest,
+                """{"error":{"code":"insufficient_balance","message":"That table's buy-in is more than your balance of 5000 chips."}}""",
+            )
+        })
+        val outcome = assertIs<JoinRoomOutcome.OverBalance>(repo.joinRoom("ABC123"))
+        assertEquals(
+            "That table's buy-in is more than your balance of 5000 chips.",
+            outcome.message,
+        )
+    }
+
+    @Test
     fun joinRoom_409_notJoinable_returnsNotJoinable() = runTest {
         val repo = newRepo(MockEngine {
             respondJson(

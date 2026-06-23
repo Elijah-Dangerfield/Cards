@@ -699,6 +699,7 @@ private fun LobbyError.message(): String = when (this) {
     LobbyError.JoinBlankCode -> stringResource(Res.string.lobby_error_join_blank_code)
     is LobbyError.JoinRoomNotFound -> stringResource(Res.string.lobby_error_join_not_found, code)
     LobbyError.JoinRoomFull -> stringResource(Res.string.lobby_error_join_full)
+    is LobbyError.JoinOverBalance -> message
     LobbyError.JoinRoomNotAcceptingPlayers -> stringResource(Res.string.lobby_error_join_not_accepting)
     LobbyError.JoinNotSignedIn -> stringResource(Res.string.lobby_error_join_not_signed_in)
     LobbyError.JoinNetworkError -> stringResource(Res.string.lobby_error_join_network)

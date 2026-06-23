@@ -79,6 +79,12 @@ class RoomRepositoryImpl(
     } catch (e: ClientRequestException) {
         when (e.response.status) {
             HttpStatusCode.NotFound -> JoinRoomOutcome.NotFound
+            HttpStatusCode.BadRequest ->
+                if (extractCode(e) == "insufficient_balance") {
+                    JoinRoomOutcome.OverBalance(extractMessage(e) ?: "Not enough chips for that buy-in")
+                } else {
+                    JoinRoomOutcome.Unknown(e)
+                }
             HttpStatusCode.Conflict -> when (extractCode(e)) {
                 "room_full" -> JoinRoomOutcome.Full
                 "room_not_joinable" -> JoinRoomOutcome.NotJoinable
