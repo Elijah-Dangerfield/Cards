@@ -235,6 +235,12 @@ fun Route.roomSocketRoutes(
                                     // left while still waiting to be dealt in, so the
                                     // next hand never seats a gone player.
                                     Catching { gameSessions.dequeueJoiner(code, left.userId) }
+                                    // Permanently drop them from future hands so their
+                                    // just-vacated seat isn't re-dealt next hand (the
+                                    // long-standing "ghost seat" bug). forfeitSeat folds
+                                    // them out of the *current* hand; removePlayer keeps
+                                    // them out of the *next* one.
+                                    Catching { gameSessions.removePlayer(code, left.userId) }
                                     Catching { gameSessions.forfeitSeat(code, left.userId) }
                                         .onFailure { e ->
                                             LoggerFactory.getLogger("RoomSocket")
@@ -311,6 +317,44 @@ fun Route.roomSocketRoutes(
                 }
             }
 
+            // "Bots step aside for humans." On a public table that a searcher
+            // rescued (now ≥2 humans), trim one bot at each hand boundary so the
+            // table converges to an all-human game. Watches the session for the
+            // moment a hand goes Complete and, once per hand (keyed by hand
+            // number), asks the room to drop a bot. trimBotForNewHumans no-ops
+            // unless this is a public table with ≥2 humans + a bot, so a private
+            // game or a still-lonely bot table is never touched. The trimmed bot
+            // is also dropped from the live session so the bot driver's next-hand
+            // deal (a ~4s settle away) doesn't re-seat it. Idempotent + harmless
+            // to run from every subscriber's socket.
+            val botTrimmer = launch {
+                try {
+                    gameSessions.observeSession(code)
+                        .flatMapLatest { session ->
+                            session?.state?.filterNotNull() ?: emptyFlow()
+                        }
+                        .map { state -> state.handNumber.takeIf { state.street == BettingRound.Complete } }
+                        .distinctUntilChanged()
+                        .filterNotNull()
+                        .collect { handNumber ->
+                            val trimmed = Catching { rooms.trimBotForNewHumans(code, handNumber) }
+                                .onFailure { e ->
+                                    LoggerFactory.getLogger("RoomSocket")
+                                        .warn("bot trim failed for room=$code hand=$handNumber", e)
+                                }
+                                .getOrNull()
+                            if (trimmed != null) {
+                                Catching { gameSessions.removePlayer(code, trimmed.value.toString()) }
+                            }
+                        }
+                } catch (_: CancellationException) {
+                    // Expected on close.
+                } catch (e: Throwable) {
+                    LoggerFactory.getLogger("RoomSocket")
+                        .warn("Bot trimmer for room=$code user=$userId died", e)
+                }
+            }
+
             try {
                 // Drain incoming. We now decode client-bound game
                 // frames (StartHand / SubmitIntent / RequestNextHand)
@@ -351,6 +395,7 @@ fun Route.roomSocketRoutes(
             } finally {
                 publisher.cancel()
                 gamePublisher.cancel()
+                botTrimmer.cancel()
                 // Mark disconnected regardless of close cause. Capture
                 // the stamp the service just set so the reaper can
                 // cross-check that the user didn't reconnect (or
@@ -622,16 +667,29 @@ private suspend fun dealFundedHand(
 private fun chipsAreReal(room: Room): Boolean = isRealStakesTable(room) || isSubsidizedBotTable(room)
 
 /**
- * A real-stakes table moves real chips through escrow: **≥ 2 humans AND humans
- * at least tying the bots.** Mirrors the client's `MultiplayerCredit.qualifies`
- * (product-spec §5.4) so the server's "do chips move" and the client's "does
- * this count for MP credit" agree. A bot-stacked (`2H + 4B`) table is practice —
- * it would be a collusion farm otherwise.
+ * A real-stakes table moves real chips through escrow. The floor is always **≥ 2
+ * humans**, but the bot-tolerance differs by how the table was formed:
+ *
+ *  - **Public** (matchmaker-formed): two or more humans = real stakes, full stop,
+ *    *even with bots still seated*. A public table's humans are matched at random
+ *    — they can't deliberately co-sit to farm bots — and any bots present are
+ *    matchmaking placeholders that trim out one per hand ([RoomService.trimBotForNewHumans])
+ *    until the table is all-human. So the moment a searcher rescues a lonely
+ *    player, both play for real while the bots bow out.
+ *  - **Open / Private** (human-created): keep the stricter **humans ≥ bots**
+ *    floor. Friends *can* deliberately stack bots to co-farm here, so a
+ *    bot-stacked (`2H + 4B`) table stays practice — the collusion guard.
+ *
+ * Mirrors the client's `MultiplayerCredit.qualifies` (product-spec §5.4) so the
+ * server's "do chips move" and the client's "does this count for MP credit" agree.
  */
 private fun isRealStakesTable(room: Room): Boolean {
     val humans = room.members.count { !it.isBot }
     val bots = room.members.count { it.isBot }
-    return humans >= 2 && humans >= bots
+    return when (room.visibility) {
+        RoomVisibility.Public -> humans >= 2
+        RoomVisibility.Open, RoomVisibility.Private -> humans >= 2 && humans >= bots
+    }
 }
 
 /**

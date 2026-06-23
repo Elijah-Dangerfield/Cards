@@ -87,6 +87,15 @@ class InMemoryRoomService(
     /** All live rooms by code. Each value also owns its own flow for observers. */
     private val rooms: MutableMap<String, RoomState> = mutableMapOf()
 
+    /**
+     * Last hand number a bot was trimmed for, per room code. Makes
+     * [trimBotForNewHumans] idempotent per hand: the socket trim collector fires
+     * once per remaining subscriber at each boundary, but only the first call
+     * for a given (code, handNumber) actually trims. Guarded by [mutex] like
+     * [rooms]; the entry is dropped when the room is GC'd ([forget]).
+     */
+    private val lastBotTrimHand: MutableMap<String, Int> = mutableMapOf()
+
     private data class RoomState(
         var room: Room,
         val flow: MutableStateFlow<Room> = MutableStateFlow(room),
@@ -203,6 +212,11 @@ class InMemoryRoomService(
         // room with a free seat is fair game — the searcher lands as a spectator
         // and is dealt in at the next hand boundary (true mid-hand join). Only a
         // Finished room is off-limits.
+        //
+        // A bot-fallback table (a lone player who gave up waiting and went to
+        // bots) IS still matchmaking inventory — we want a later searcher to land
+        // there and rescue them into a real human game. Real-pairing always wins;
+        // the bots yield to the arriving human (server-side bot trimming).
         val candidate = rooms.values
             .map { it.room }
             .filter { room ->
@@ -412,6 +426,40 @@ class InMemoryRoomService(
         RemoveBotResult.Success(next)
     }
 
+    override suspend fun trimBotForNewHumans(code: String, handNumber: Int): UserId? = mutex.withLock {
+        val state = rooms[code] ?: return@withLock null
+        val current = state.room
+
+        // Only a public table sheds bots — Open/Private tables are host-run and
+        // their bots are a deliberate host choice, not a matchmaking placeholder.
+        if (current.visibility != RoomVisibility.Public) return@withLock null
+
+        // Idempotent per hand: the trim collector fires once per remaining
+        // socket subscriber, so the first call for this (code, handNumber) trims
+        // and the rest no-op. <= guards a stale/replayed lower hand number too.
+        val alreadyTrimmed = lastBotTrimHand[code]
+        if (alreadyTrimmed != null && handNumber <= alreadyTrimmed) return@withLock null
+
+        // "Rescued" means two or more real humans are now seated. Below that the
+        // table is still a lone human vs bots (a real-money practice table) and
+        // keeps every bot. With the floor met, drop ONE bot this hand.
+        val humans = current.members.count { !it.isBot }
+        if (humans < 2) return@withLock null
+        val victim = current.members.firstOrNull { it.isBot } ?: return@withLock null
+
+        // Stamp the hand even though we trimmed, so a duplicate collector call
+        // for the same hand can't trim a second bot.
+        lastBotTrimHand[code] = handNumber
+        val next = current.copy(members = current.members.filterNot { it.userId == victim.userId })
+        state.update(next)
+        persist(next)
+        log.info(
+            "Room $code: trimmed bot ${victim.userId} for new humans (hand $handNumber, " +
+                "$humans humans, ${next.members.count { it.isBot }} bots remain)",
+        )
+        victim.userId
+    }
+
     override suspend fun markConnected(code: String, userId: UserId, connected: Boolean): Room? = mutex.withLock {
         val state = rooms[code] ?: return@withLock null
         val current = state.room
@@ -586,6 +634,9 @@ class InMemoryRoomService(
 
     /** Write-through a room deletion. Best-effort, same rationale as [persist]. */
     private suspend fun forget(code: String) {
+        // Drop the per-room trim bookkeeping along with the room — a future code
+        // reuse (astronomically unlikely, but cheap to be correct) starts clean.
+        lastBotTrimHand.remove(code)
         Catching { store.delete(code) }
             .onFailure { log.warn("Room $code delete-persist failed", it) }
     }

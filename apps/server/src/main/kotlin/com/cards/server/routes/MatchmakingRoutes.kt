@@ -98,6 +98,16 @@ fun Route.matchmakingRoutes(
                         matchmakingProblem("not_a_member", "You're not seated at that table."),
                     )
                 }
+                // The bot fallback is for a LONE searcher. If a real player arrived
+                // during the search (or while the player tapped), don't bot-fill —
+                // the client should keep the real-human game. Keeps a bot table at
+                // exactly one human, so its winnings are cleanly house-funded.
+                if (room.members.count { !it.isBot } > 1) {
+                    return@post call.respond(
+                        HttpStatusCode.Conflict,
+                        matchmakingProblem("real_player_present", "A real player joined — playing them instead."),
+                    )
+                }
                 if (room.status != RoomStatus.Lobby) {
                     // Already dealt — idempotent success so a double-tap is benign.
                     return@post call.respond(

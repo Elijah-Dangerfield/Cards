@@ -149,6 +149,12 @@ class GameSession internal constructor(
     // duplicates, and [dequeueJoiner] can drop one who left before being seated.
     private val pendingJoiners = LinkedHashMap<String, SeatOccupant>()
 
+    // Players who left the room (a departed human, or a bot trimmed out as real
+    // players arrived). Their seat may still sit in the just-finished [_state],
+    // but the next [requestNextHand] must not re-deal them. Small + bounded by
+    // the seats that ever existed; never cleared (gone stays gone).
+    private val removedPlayerIds = mutableSetOf<String>()
+
     /**
      * Open a new hand. Caller supplies the current room occupants
      * (humans + bots) and the room's settings. Stacks carry over from
@@ -373,7 +379,7 @@ class GameSession internal constructor(
         if (!isSeated) return@withLock IntentResult.Rejected("not seated in this room")
 
         val returning = current.seats
-            .filter { it.playerId != null && it.stack > 0 }
+            .filter { it.playerId != null && it.stack > 0 && it.playerId !in removedPlayerIds }
             .map {
                 SeatOccupant(
                     seatIndex = it.index,
@@ -390,9 +396,11 @@ class GameSession internal constructor(
                 )
             }
         // Fold in anyone who joined mid-hand (skip a stray collision with a
-        // returning seat), then clear the queue — they're being dealt now.
+        // returning seat, and anyone since removed), then clear the queue —
+        // they're being dealt now.
         val returningIds = returning.mapTo(mutableSetOf()) { it.userId }
-        val occupants = returning + pendingJoiners.values.filter { it.userId !in returningIds }
+        val occupants = returning + pendingJoiners.values
+            .filter { it.userId !in returningIds && it.userId !in removedPlayerIds }
         pendingJoiners.clear()
         if (occupants.size < 2) {
             return@withLock IntentResult.Rejected("not enough players with chips for next hand")
@@ -424,6 +432,23 @@ class GameSession internal constructor(
     /** Drop a queued joiner who left before being seated, so the next deal skips them. */
     suspend fun dequeueJoiner(userId: String): Unit = mutex.withLock {
         pendingJoiners.remove(userId)
+    }
+
+    /**
+     * Permanently drop a player from this session's future hands. Used for two
+     * cases: a **human who left** the room mid-hand (so their seat isn't
+     * re-dealt next hand — the long-standing "ghost seat" bug), and a **bot
+     * trimmed out** as real players arrive (one bot steps aside per hand on a
+     * public table, see the route-layer trim collector). Also drops any pending
+     * mid-hand join under the same id, so a leave-then-rejoin race can't sneak
+     * them back in. Idempotent: re-removing an already-removed id is a no-op.
+     *
+     * Does NOT fold the seat out of the *current* hand — call [forfeitSeat] for
+     * that. This only governs who gets re-dealt at the next [requestNextHand].
+     */
+    suspend fun removePlayer(playerId: String): Unit = mutex.withLock {
+        removedPlayerIds += playerId
+        pendingJoiners.remove(playerId)
     }
 
     /**

@@ -116,6 +116,16 @@ interface GameSessionRegistry {
     suspend fun dequeueJoiner(code: String, userId: String)
 
     /**
+     * Permanently drop [userId] from this session's future hands. Resolves via
+     * [peek] (no hydrate — only matters while a live session exists) and
+     * delegates to [GameSession.removePlayer]. Used both for a human who left
+     * (so their seat isn't re-dealt — the ghost-seat fix) and for a bot trimmed
+     * out as real players arrive on a public table. A no-op when no session is
+     * registered for [code].
+     */
+    suspend fun removePlayer(code: String, userId: String)
+
+    /**
      * Fan a table emote out to every socket in the room. Resolves to the
      * in-memory session via [peek] (no hydrate — emotes only matter while
      * a hand is live and someone's watching the table) and delegates to
@@ -231,6 +241,10 @@ class DefaultGameSessionRegistry(
 
     override suspend fun dequeueJoiner(code: String, userId: String) {
         peek(code)?.dequeueJoiner(userId)
+    }
+
+    override suspend fun removePlayer(code: String, userId: String) {
+        peek(code)?.removePlayer(userId)
     }
 
     override fun broadcastEmoji(code: String, actorUserId: String, emoji: String): IntentResult =
