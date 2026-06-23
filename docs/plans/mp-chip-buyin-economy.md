@@ -2,14 +2,12 @@
 
 **Status:** engine salvaged (dormant) · **Owner:** Phase 4 dev · **Created:** 2026-06-21 · **Updated:** 2026-06-23
 
-> **⚠️ READ FIRST (2026-06-23) — branch state changed; do NOT merge `feat/mp-chip-economy`.**
-> The server **escrow engine** from `feat/mp-chip-economy` has been **salvaged onto
+> **⚠️ READ FIRST (2026-06-23) — `feat/mp-chip-economy` has been DELETED.**
+> The server **escrow engine** from that branch was **salvaged onto
 > `feat/public-matchmaking`** as a dormant, compiling, test-green slice (commit
-> `a8a0527b`). The original branch was stale (forked pre-room-refactor, never
-> merged, local-only until backed up to origin on 2026-06-23) and a blind merge
-> would explode on the room-module refactor + a `V60` migration collision.
-> **Build Phase 4 on the salvaged engine, not the branch.** The branch stays on
-> origin for reference only.
+> `a8a0527b`); the branch itself (stale, forked pre-room-refactor, never merged,
+> with a `V60` migration collision) was then **deleted, local + remote** — it is
+> gone, not a reference. **Everything you need is on `feat/public-matchmaking`.**
 >
 > **Already on `feat/public-matchmaking` (salvaged, dormant, green):**
 > `TableSessionService`/`Repository` (+Postgres), `DefaultTableSessionService`,
@@ -23,9 +21,9 @@
 > - `StakeTier` on `Room` (the type already exists in `:libraries:gameplay`; carry it on the room so a seated game runs at its stakes).
 > - `SitDown` / `Rebuy` socket frames + `RoomSocketRoutes.handleSitDown()/handleRebuy()` + DI/`Application` wiring.
 > - Cash-out on leave / disconnect / room-teardown + the boot recovery sweep wiring.
-> - **Reconcile with develop's own rebuy:** develop independently shipped a rebuy UX (`85a4a455`, `9c7db005`) that overlaps the chip branch's client rebuy. Use develop's client; don't re-import the branch's.
+> - **develop already has its own rebuy UX** (`85a4a455`, `9c7db005`) — use it; there's no branch to re-import from anymore.
 > - The matchmaking **disclosed-bot subsidy** (deferred from Phase 3): special-case `MultiplayerCredit` for public bot tables + capped real-coin payout + per-user daily cap + anomaly telemetry. See `MatchmakingRoutes` KDoc.
-> - Two MP correctness fixes that never reached develop and may still be live: `fix(mp): show showdown winner`, `fix(mp): late-subscriber deal drop` (on the chip branch; verify against develop's refactored client before porting).
+> - **Two MP bugs to re-verify (their fix branch is deleted, NOT salvaged):** on develop's client, check (a) the **showdown winner actually renders** at hand end (the table used to only re-project on snapshots, not the showdown event), and (b) a **late socket subscriber still gets the deal** (a late-join could miss the opening deal frame). If either reproduces, re-fix from scratch against develop's refactored `room/impl/session/` — the original fixes are gone with the branch.
 
 **Status:** ~~planned~~ superseded by the salvage above · **Created:** 2026-06-21
 
