@@ -1,0 +1,74 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Seat + orphaned-room sweep (dev).
+#
+# Calls POST /v1/admin/sweep-rooms. The endpoint frees seats whose socket has
+# been gone longer than STALE_ROOM_TTL_HOURS (default 6) and deletes persisted
+# rooms with no in-memory owner past the same threshold — the rooms a process
+# death strands in Postgres, which the in-process per-disconnect reaper (a timer
+# that dies with the process) can never reach. See InMemoryRoomService.sweep-
+# Disconnected + apps/server/DEPLOY.md.
+#
+# The per-disconnect reaper handles the common case in seconds; this cron is the
+# durable backstop for seats + rooms that outlived the process that scheduled
+# their reaper. Live rooms are excluded by the in-memory check, so the threshold
+# only governs how long a stranded room lingers before cleanup — safe to run
+# often. A non-zero `orphanedRoomsReaped` after a clean run is worth a glance:
+# it counts rooms the in-process reaper never got to.
+#
+# Cadence: hourly at an odd minute (dodges the top-of-hour cron stampede).
+#
+# Auth: shares ADMIN_API_TOKEN with the other admin endpoints.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Sweep rooms (dev)
+
+on:
+  schedule:
+    - cron: '41 * * * *'   # hourly at :41
+  workflow_dispatch:
+
+concurrency:
+  group: sweep-rooms-dev
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: Sweep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call admin sweep endpoint
+        env:
+          ADMIN_TOKEN: ${{ secrets.CARDS_ADMIN_API_TOKEN_DEV }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$ADMIN_TOKEN" ]; then
+            echo "::error::CARDS_ADMIN_API_TOKEN_DEV secret is not set"
+            exit 1
+          fi
+
+          response_file="$(mktemp)"
+          status=$(curl --silent --show-error --max-time 30 \
+            -o "$response_file" -w "%{http_code}" \
+            -X POST \
+            -H "X-Admin-Token: $ADMIN_TOKEN" \
+            https://cards-server-dev.fly.dev/v1/admin/sweep-rooms)
+
+          echo "HTTP $status"
+          cat "$response_file"
+          echo
+
+          {
+            echo "### Sweep result"
+            echo
+            echo "- **HTTP:** $status"
+            echo
+            echo '```json'
+            jq . < "$response_file" 2>/dev/null || cat "$response_file"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$status" != "200" ]; then
+            echo "::error::Endpoint returned HTTP $status"
+            exit 1
+          fi

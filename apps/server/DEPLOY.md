@@ -106,20 +106,55 @@ in Sentry.
 
 Per-room WebSocket disconnect holds the member's seat in case the client
 reconnects (mobile networks bounce all the time). The server schedules
-a per-member reaper on every disconnect — `delay(5min)` then drop the
+a per-member reaper on every disconnect — `delay(grace)` then drop the
 seat iff the member is still disconnected with the same stamp. A
 reconnect (or a fresh disconnect) cancels the original reaper out
-naturally because the stamp on the member no longer matches.
+naturally because the stamp on the member no longer matches. The grace
+is status-aware: a forming public/open lobby frees an abandoned seat in
+~25s, a live hand keeps the full `DEFAULT_REAPER_GRACE` (5min); both
+constants live in
+[`RoomSocketRoutes.kt`](src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt).
 
-No cron, no admin token, no external scheduler. Rooms live in memory
-on the same Fly instance as the socket, so an in-process timer is the
-right tool — there's nothing for a separate process to coordinate.
+This in-process timer is the fast path, but it is **not** sufficient on
+its own. Rooms are now persisted (the `rooms` + `room_members` registry,
+B2) so codes + membership survive a restart. A process death takes its
+in-flight reaper timers down with it, leaving the persisted seats — and
+whole abandoned rooms — with no owner to reap them. The cron sweep below
+is the durable backstop that reclaims them; wire it up before inviting
+real users.
 
-If we ever move rooms to durable storage with a shared backplane, this
-becomes "schedule a delayed task on the backplane" instead of an
-in-process `launch { delay(...) }`. The grace constant lives in
-[`RoomSocketRoutes.kt`](src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt)
-as `DEFAULT_REAPER_GRACE`.
+## Seat + orphaned-room sweep (required for durable cleanup)
+
+`POST /v1/admin/sweep-rooms` (same `ADMIN_API_TOKEN` as the other admin
+endpoints) does two things in one pass:
+
+- Frees seats whose socket has been gone longer than the threshold —
+  the seats a process death stranded past their in-process reaper.
+- Deletes persisted rooms with no in-memory owner past the same
+  threshold (the abandoned-after-restart leak). Live rooms are excluded
+  by the in-memory check, so a long-running game is never swept out from
+  under itself.
+
+The threshold is `STALE_ROOM_TTL_HOURS` (default 6). Because live rooms
+are protected regardless, this only governs how long a stranded room
+lingers in Postgres before cleanup — it's safe to run as often as you
+like:
+
+```
+fly secrets set \
+  ADMIN_API_TOKEN="$(openssl rand -hex 32)" \
+  STALE_ROOM_TTL_HOURS=6 \
+  -a cards-server-dev
+```
+
+Trigger on a cron. The GitHub Actions workflow
+[`.github/workflows/sweep-rooms.yml`](../../.github/workflows/sweep-rooms.yml)
+calls it hourly at :41 (odd minute to dodge the top-of-hour stampede)
+and surfaces the result in the run summary. The response carries
+`membersReaped / roomsReaped / roomsSeen / orphanedRoomsReaped`; a
+non-zero `orphanedRoomsReaped` after a clean run counts rooms the
+in-process reaper never got to — expected after a deploy/restart, worth
+a glance if it's persistently high.
 
 ## Inspecting live rooms (ops dashboard)
 
@@ -293,8 +328,9 @@ sessions on cold-stop. Acceptable for dev; production fly.toml should
 pin `min_machines_running = 1` (already noted in DEPLOY footer below).
 
 **Seat sweep cadence matters.** Disconnects are common on mobile;
-without the sweep above wired up, abandoned seats block joiners. Make
-sure the disconnect-sweep cron is scheduled before inviting real
+the in-process reaper handles the live case, but the `sweep-rooms` cron
+above is the backstop for seats + rooms stranded by a restart. Make sure
+it's scheduled (and `STALE_ROOM_TTL_HOURS` set) before inviting real
 users.
 
 ## Server build slimming (`cards.serverOnly`)
