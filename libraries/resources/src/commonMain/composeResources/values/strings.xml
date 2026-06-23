@@ -226,6 +226,8 @@
     <string name="public_find_blinds_value">Scale with buy-in · 25/50 – 100/200</string>
     <string name="public_find_cta">Find a table</string>
     <string name="public_find_cta_hint">Usually seated in a few seconds</string>
+    <string name="public_find_balance_cap">Capped at your balance</string>
+    <string name="public_find_insufficient_hint">You don't have enough chips to find a table yet.</string>
 
     <!-- Public rooms - Searching / matchmaking (SPEC §2). -->
     <string name="public_searching_title">Finding a table</string>
@@ -248,6 +250,7 @@
     <string name="public_searching_joining_bots_body">Seating your opponents and dealing you in…</string>
     <!-- Search failed (network / rate limit / rejected). -->
     <string name="public_searching_error_body">We couldn't reach the tables just now. Check your connection and try again.</string>
+    <string name="public_searching_error_insufficient">That buy-in is more than your balance. Go back and lower your range.</string>
     <string name="public_searching_error_retry">Try again</string>
     <string name="public_searching_error_back">Back</string>
 

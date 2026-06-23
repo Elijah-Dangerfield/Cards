@@ -209,6 +209,8 @@ class PublicSearchingViewModel(
                 }
                 is FindTableOutcome.InvalidRange ->
                     takeAction(PublicSearchingAction.FindFailed(SearchError.InvalidRange))
+                is FindTableOutcome.InsufficientBalance ->
+                    takeAction(PublicSearchingAction.FindFailed(SearchError.InsufficientBalance))
                 is FindTableOutcome.NotSignedIn ->
                     takeAction(PublicSearchingAction.FindFailed(SearchError.NotSignedIn))
                 is FindTableOutcome.RateLimited ->
@@ -286,6 +288,9 @@ sealed interface SearchPhase {
 
 sealed interface SearchError {
     data object InvalidRange : SearchError
+
+    /** The buy-in ceiling exceeded the wallet — surfaced as a "lower your range" prompt. */
+    data object InsufficientBalance : SearchError
     data object NotSignedIn : SearchError
     data object RateLimited : SearchError
     data object Network : SearchError

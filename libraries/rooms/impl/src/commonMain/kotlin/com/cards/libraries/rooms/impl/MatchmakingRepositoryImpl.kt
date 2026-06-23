@@ -32,7 +32,12 @@ class MatchmakingRepositoryImpl(
         FindTableOutcome.Success(room = body.room.toDomain(), created = body.created)
     } catch (e: ClientRequestException) {
         when (e.response.status) {
-            HttpStatusCode.BadRequest -> FindTableOutcome.InvalidRange(extractMessage(e) ?: "Invalid buy-in range")
+            HttpStatusCode.BadRequest ->
+                if (extractCode(e) == "insufficient_balance") {
+                    FindTableOutcome.InsufficientBalance(extractMessage(e) ?: "Not enough chips for that buy-in")
+                } else {
+                    FindTableOutcome.InvalidRange(extractMessage(e) ?: "Invalid buy-in range")
+                }
             HttpStatusCode.Unauthorized -> FindTableOutcome.NotSignedIn(e)
             HttpStatusCode.TooManyRequests -> FindTableOutcome.RateLimited(e)
             else -> FindTableOutcome.Unknown(e)

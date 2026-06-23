@@ -12,6 +12,7 @@ import com.dangerfield.cards.features.rooms.PublicFindRoute
 import com.dangerfield.cards.features.rooms.PublicLobbyRoute
 import com.dangerfield.cards.features.rooms.PublicNextRoundRoute
 import com.dangerfield.cards.features.rooms.PublicSearchingRoute
+import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
@@ -32,15 +33,19 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class RoomsFeatureEntryPoint(
     private val searchingViewModelFactory: (minBuyIn: Long, maxBuyIn: Long) -> PublicSearchingViewModel,
+    private val chipsRepository: ChipsRepository,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<PublicFindRoute> {
+            val chipBalance by chipsRepository.observeBalance()
+                .collectAsStateWithLifecycle(initialValue = null)
             PublicFindScreen(
                 onBack = { router.goBack() },
                 onFind = { minBuyIn, maxBuyIn ->
                     router.navigate(PublicSearchingRoute(minBuyIn = minBuyIn, maxBuyIn = maxBuyIn))
                 },
+                chipBalance = chipBalance,
             )
         }
         screen<PublicSearchingRoute> { backStackEntry ->

@@ -43,6 +43,9 @@ sealed interface FindTableOutcome {
 
     /** The buy-in range was malformed or outside the allowed band (400). */
     data class InvalidRange(val message: String) : FindTableOutcome
+
+    /** The top of the requested range is more than the user's wallet holds (400). */
+    data class InsufficientBalance(val message: String) : FindTableOutcome
     data class NotSignedIn(val cause: Throwable? = null) : FindTableOutcome
 
     /** Searched too often too fast (429) — back off and retry. */

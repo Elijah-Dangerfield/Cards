@@ -30,6 +30,7 @@ import cards.libraries.resources.generated.resources.public_searching_buyin_labe
 import cards.libraries.resources.generated.resources.public_searching_cancel
 import cards.libraries.resources.generated.resources.public_searching_error_body
 import cards.libraries.resources.generated.resources.public_searching_error_back
+import cards.libraries.resources.generated.resources.public_searching_error_insufficient
 import cards.libraries.resources.generated.resources.public_searching_error_retry
 import cards.libraries.resources.generated.resources.public_searching_joined
 import cards.libraries.resources.generated.resources.public_searching_joining_bots_body
@@ -99,7 +100,7 @@ fun PublicSearchingScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             when {
-                state.error != null -> ErrorContent(onAction)
+                state.error != null -> ErrorContent(state.error, onAction)
                 state.phase == SearchPhase.BotFallbackOffer -> BotFallbackContent(onAction)
                 state.phase == SearchPhase.JoiningBots -> JoiningBotsContent()
                 else -> SearchingContent(state, onAction)
@@ -230,23 +231,32 @@ private fun ColumnScope.JoiningBotsContent() {
 }
 
 @Composable
-private fun ColumnScope.ErrorContent(onAction: (PublicSearchingAction) -> Unit) {
+private fun ColumnScope.ErrorContent(
+    error: SearchError,
+    onAction: (PublicSearchingAction) -> Unit,
+) {
+    // Insufficient balance is the one error a retry can't fix — the fix is to go
+    // back and lower the range, so we drop the "Try again" button for it.
+    val insufficient = error == SearchError.InsufficientBalance
     Spacer(Modifier.weight(1f))
     Text(
-        text = stringResource(Res.string.public_searching_error_body),
+        text = if (insufficient) stringResource(Res.string.public_searching_error_insufficient)
+        else stringResource(Res.string.public_searching_error_body),
         typography = AppTheme.typography.Body.B500,
         color = AppTheme.colors.contentSecondary,
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.weight(1f))
-    ButtonPrimary(
-        onClick = { onAction(PublicSearchingAction.Retry) },
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(stringResource(Res.string.public_searching_error_retry))
+    if (!insufficient) {
+        ButtonPrimary(
+            onClick = { onAction(PublicSearchingAction.Retry) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(Res.string.public_searching_error_retry))
+        }
+        Spacer(Modifier.height(Dimension.D400))
     }
-    Spacer(Modifier.height(Dimension.D400))
     ButtonSecondary(
         onClick = { onAction(PublicSearchingAction.Cancel) },
         style = ButtonStyle.Outlined,
