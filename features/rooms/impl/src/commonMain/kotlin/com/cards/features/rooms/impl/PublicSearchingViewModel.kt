@@ -72,6 +72,13 @@ class PublicSearchingViewModel(
     /** Guards the one-shot hand-off so a re-emitted Playing snapshot can't double-navigate. */
     private var hasNavigated = false
 
+    /**
+     * Consecutive auto re-finds (table vanished under us) with no healthy
+     * connection in between. Capped so a server flapping mid-search can't spin us
+     * into a tight re-find loop on the app's busiest screen.
+     */
+    private var reFindAttempts = 0
+
     init {
         takeAction(PublicSearchingAction.Start)
     }
@@ -81,6 +88,7 @@ class PublicSearchingViewModel(
             PublicSearchingAction.Start,
             PublicSearchingAction.Retry,
                 -> action.run {
+                reFindAttempts = 0
                 updateState {
                     it.copy(phase = SearchPhase.Searching, error = null, realPlayersFound = 0)
                 }
@@ -91,6 +99,8 @@ class PublicSearchingViewModel(
                 when (val conn = action.connection) {
                     RoomConnection.Connecting -> Unit
                     is RoomConnection.Connected -> {
+                        // A healthy snapshot means the re-find loop converged.
+                        reFindAttempts = 0
                         val others = countOtherHumans(conn.room)
                         updateState { it.copy(realPlayersFound = others) }
                         // The server deals a public table itself the moment two
@@ -104,8 +114,17 @@ class PublicSearchingViewModel(
                     is RoomConnection.Reconnecting -> Unit // transient blip — keep searching
                     is RoomConnection.Closed -> when (conn.reason) {
                         // Table vanished under us (GC / server restart). The code is
-                        // dead, so re-find a fresh table rather than chase a ghost.
-                        ClosedReason.RoomDeleted -> beginSearch()
+                        // dead, so re-find a fresh table rather than chase a ghost —
+                        // capped + backed off so a flapping server can't spin a tight
+                        // re-find loop on the app's busiest screen.
+                        ClosedReason.RoomDeleted ->
+                            if (reFindAttempts >= MAX_REFINDS) {
+                                updateState { it.copy(error = SearchError.Network) }
+                            } else {
+                                reFindAttempts++
+                                updateState { it.copy(phase = SearchPhase.Searching, error = null) }
+                                beginSearch(backoff = true)
+                            }
                         ClosedReason.Rejected ->
                             updateState { it.copy(error = SearchError.Connection) }
                         ClosedReason.Cancelled -> Unit // we tore it down ourselves
@@ -168,11 +187,12 @@ class PublicSearchingViewModel(
     }
 
     /** Cancel any in-flight search, then find a fresh table and watch it. */
-    private fun beginSearch() {
+    private fun beginSearch(backoff: Boolean = false) {
         searchJob?.cancel()
         timeoutJob?.cancel()
         hasNavigated = false
         searchJob = viewModelScope.launch {
+            if (backoff) delay(REFIND_BACKOFF)
             if (localUserId == null) {
                 (auth.current() as? AuthState.Authenticated)?.let { localUserId = it.userId }
             }
@@ -233,6 +253,12 @@ class PublicSearchingViewModel(
          * we'd rather wait than fall back early. Tunable launch knob.
          */
         val SEARCH_WINDOW = 60.seconds
+
+        /** Backoff before an auto re-find when the table vanished, so a flapping server can't spin a tight loop. */
+        val REFIND_BACKOFF = 2.seconds
+
+        /** Cap on consecutive auto re-finds before we stop and show a retry instead of looping forever. */
+        const val MAX_REFINDS = 3
     }
 }
 

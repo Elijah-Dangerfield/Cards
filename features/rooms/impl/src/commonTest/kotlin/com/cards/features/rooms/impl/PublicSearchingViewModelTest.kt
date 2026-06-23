@@ -196,8 +196,32 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         // The table is GC'd (e.g. a server restart) — the code is dead.
         conn.emit(RoomConnection.Closed(ClosedReason.RoomDeleted))
         runCurrent()
+        // The re-find is backed off so a flapping server can't spin a tight loop.
+        testScheduler.advanceTimeBy(3.seconds)
+        testScheduler.runCurrent()
 
         assertEquals(2, mm.findCalls, "a vanished table triggers a fresh find, not a dead reconnect")
+    }
+
+    @Test
+    fun repeatedlyVanishingTable_stopsReFinding_andShowsAnError() = runUnitTest {
+        // A server that keeps handing back dead tables must not loop forever.
+        val conn = MutableSharedFlow<RoomConnection>(extraBufferCapacity = 8)
+        val mm = FakeMatchmakingRepository(find = FindTableOutcome.Success(roomOf(), created = true))
+        val vm = buildVm(matchmaking = mm, rooms = FakeRoomRepository(connection = conn))
+        runCurrent()
+
+        // Each Closed triggers one backed-off re-find, up to the cap.
+        repeat(5) {
+            conn.emit(RoomConnection.Closed(ClosedReason.RoomDeleted))
+            runCurrent()
+            testScheduler.advanceTimeBy(3.seconds)
+            testScheduler.runCurrent()
+        }
+
+        // 1 initial find + the 3-attempt re-find cap = 4, then it gives up.
+        assertEquals(4, mm.findCalls, "re-finding is capped, not infinite")
+        assertEquals(SearchError.Network, vm.state.error)
     }
 
     @Test
