@@ -1,5 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.LocalBotsSession
+
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import kotlin.test.Test
 

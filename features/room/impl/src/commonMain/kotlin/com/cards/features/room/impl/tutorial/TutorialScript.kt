@@ -1,5 +1,7 @@
 package com.dangerfield.cards.features.room.impl.tutorial
 
+import com.dangerfield.cards.features.room.impl.ui.PlayPokerScreen
+
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.tutorial_basics_actions_body
 import cards.libraries.resources.generated.resources.tutorial_basics_actions_cta

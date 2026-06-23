@@ -1,5 +1,11 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.IntentRejectedException
+import com.dangerfield.cards.features.room.impl.session.IntentTimeoutException
+import com.dangerfield.cards.features.room.impl.session.LocalBotsSession
+import com.dangerfield.cards.features.room.impl.session.RemotePokerSession
+import com.dangerfield.cards.features.room.impl.session.RemotePokerSessionFactory
+
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.game.ConnectionState

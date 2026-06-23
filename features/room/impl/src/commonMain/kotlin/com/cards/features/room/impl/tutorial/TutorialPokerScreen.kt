@@ -1,4 +1,9 @@
 package com.dangerfield.cards.features.room.impl.tutorial
+import com.dangerfield.cards.features.room.impl.ui.PlayPokerScreen
+
+
+import com.dangerfield.cards.features.room.impl.TableUiState
+import com.dangerfield.cards.features.room.impl.ui.label
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -43,7 +48,6 @@ import kotlin.math.roundToInt
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.tutorial_step_counter
 import com.dangerfield.cards.features.room.impl.PlayPokerAction
-import com.dangerfield.cards.features.room.impl.PlayPokerScreen
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.header.TopBar

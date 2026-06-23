@@ -1,5 +1,7 @@
 package com.dangerfield.cards.features.room.impl.tutorial
 
+import com.dangerfield.cards.features.room.impl.ui.label
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseInOutSine
 import androidx.compose.animation.core.RepeatMode

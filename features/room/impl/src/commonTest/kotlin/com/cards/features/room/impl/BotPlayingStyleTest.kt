@@ -1,5 +1,8 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.ui.playingStyleFor
+import com.dangerfield.cards.features.room.impl.ui.radarAxesFor
+
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_player_profile_style_balanced_label
 import cards.libraries.resources.generated.resources.room_player_profile_style_loose_aggressive_label

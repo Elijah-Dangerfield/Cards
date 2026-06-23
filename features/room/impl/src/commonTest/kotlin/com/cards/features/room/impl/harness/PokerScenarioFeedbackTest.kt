@@ -1,5 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.LocalBotsSession
+
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertFalse

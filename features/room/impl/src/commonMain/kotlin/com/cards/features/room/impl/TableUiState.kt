@@ -1,5 +1,12 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.RemotePokerSessionFactory
+import com.dangerfield.cards.features.room.impl.session.SoloBotsPokerSessionFactory
+import com.dangerfield.cards.features.room.impl.ui.BotPlayingStyle
+import com.dangerfield.cards.features.room.impl.ui.TenureHeadline
+import com.dangerfield.cards.features.room.impl.ui.label
+import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
+
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card

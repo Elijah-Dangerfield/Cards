@@ -1,5 +1,8 @@
 package com.dangerfield.cards.features.room.impl.tutorial
 
+import com.dangerfield.cards.features.room.impl.ui.PlayPokerScreen
+import com.dangerfield.cards.features.room.impl.ui.label
+
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.tutorial_section_at_the_table
 import cards.libraries.resources.generated.resources.tutorial_section_basics

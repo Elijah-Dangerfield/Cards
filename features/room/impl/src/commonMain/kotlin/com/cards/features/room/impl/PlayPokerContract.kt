@@ -1,5 +1,9 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
+import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
+import com.dangerfield.cards.features.room.impl.usecase.WinOddsEngine
+
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.EmojiBlast
