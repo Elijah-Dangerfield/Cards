@@ -17,5 +17,5 @@ package com.dangerfield.cards.libraries.core
 object LegalUrls {
     const val PRIVACY_POLICY: String = "https://elijah-dangerfield.github.io/Cards/privacy.html"
     const val TERMS_OF_SERVICE: String = "https://elijah-dangerfield.github.io/Cards/terms.html"
-    const val RESPONSIBLE_PLAY: String = "https://www.ncpg.org/"
+    const val RESPONSIBLE_PLAY: String = "https://www.ncpgambling.org/"
 }
