@@ -35,8 +35,10 @@ import com.dangerfield.cards.server.routes.matchmakingRoutes
 import com.dangerfield.cards.server.routes.roomRoutes
 import com.dangerfield.cards.server.routes.roomSocketRoutes
 import com.dangerfield.cards.server.routes.walletRoutes
+import com.dangerfield.cards.libraries.core.Catching
 import io.ktor.server.application.Application
 import io.ktor.server.routing.routing
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 
 /**
@@ -70,6 +72,17 @@ fun Application.module(config: ServerConfig) {
         verification = JwtVerification.Jwks(config.supabase.jwksUrl, config.supabase.expectedIssuer),
         adminConfig = config.admin,
     )
+
+    // Boot recovery: after a restart every in-memory room is gone, so any
+    // table session left `open` by the previous process is abandoned and its
+    // player's escrowed chips must be cashed back out. The sweep is keyed +
+    // forward-only status-gated, so re-running it (or racing a live cash-out)
+    // never double-credits. Launched off the boot path so a slow sweep can't
+    // delay readiness; no-op when there's nothing to recover.
+    launch {
+        Catching { component.tableSessionRecoverySweep.sweepAbandonedSessions() }
+            .onFailure { logger.warn("Table-session recovery sweep failed at boot", it) }
+    }
 }
 
 /**

@@ -51,26 +51,24 @@ class DefaultTableSessionService(
     private val clock: Clock,
 ) : TableSessionService {
 
-    override suspend fun sitDown(userId: UserId, roomCode: String, tier: StakeTier): SitDownResult {
-        val buyIn = tier.buyIn
-
-        // Practice is free-play, like bots: the seat gets practice chips, the
-        // wallet never moves, and there's no durable session to reconcile.
-        if (tier == StakeTier.Practice) {
-            return SitDownResult.FreePlay(startingStack = buyIn)
-        }
-
+    override suspend fun sitDown(
+        userId: UserId,
+        roomCode: String,
+        buyIn: Long,
+        enforceEntryBar: Boolean,
+    ): SitDownResult {
         // Clean result for the common "already seated" / double-tap case; the
         // partial unique index below is the actual guarantee.
         tableSessions.findActiveForUser(userId)?.let {
             return SitDownResult.AlreadyAtTable(roomCode = it.roomCode)
         }
 
-        // Anti-smurf entry bar: the buy-in must be ≤ 25% of the wallet, i.e.
-        // the wallet must cover at least four buy-ins at this tier.
+        // Anti-bankroll-dump entry bar (public tables only): the buy-in must be
+        // ≤ 25% of the wallet, i.e. the wallet covers at least four buy-ins.
+        // Private friend games skip it — the table picks its own stakes.
         val balance = wallets.findOrCreate(userId).balance
         val minBalance = buyIn * MIN_BALANCE_BUYIN_MULTIPLE
-        if (balance < minBalance) {
+        if (enforceEntryBar && balance < minBalance) {
             return SitDownResult.BelowEntryBar(balance = balance, minBalance = minBalance)
         }
 
@@ -83,7 +81,7 @@ class DefaultTableSessionService(
                         it[TableSessionsTable.sessionId] = sessionId
                         it[TableSessionsTable.userId] = userId.value
                         it[TableSessionsTable.roomCode] = roomCode
-                        it[TableSessionsTable.stakeTier] = tier.name
+                        it[TableSessionsTable.stakeTier] = stakeLabel(buyIn)
                         it[TableSessionsTable.buyIn] = buyIn
                         it[TableSessionsTable.rebuyCount] = 0
                         it[TableSessionsTable.status] = TableSessionStatus.Open.dbValue
@@ -122,15 +120,15 @@ class DefaultTableSessionService(
         }
     }
 
-    override suspend fun rebuy(userId: UserId): RebuyResult {
+    override suspend fun rebuy(userId: UserId, enforceEntryBar: Boolean): RebuyResult {
         val session = tableSessions.findActiveForUser(userId) ?: return RebuyResult.NoActiveSession
         val buyIn = session.buyIn
 
-        // Re-apply the entry bar so a rebuy can't dump the bankroll into one
-        // tier — same 25% rule as sit-down.
+        // Re-apply the entry bar (public tables only) so a rebuy can't dump the
+        // bankroll into one table — same 25% rule as sit-down.
         val balance = wallets.findOrCreate(userId).balance
         val minBalance = buyIn * MIN_BALANCE_BUYIN_MULTIPLE
-        if (balance < minBalance) {
+        if (enforceEntryBar && balance < minBalance) {
             return RebuyResult.BelowEntryBar(balance = balance, minBalance = minBalance)
         }
 
@@ -201,6 +199,14 @@ class DefaultTableSessionService(
         fun buyInKey(sessionId: UUID): String = "table:$sessionId:buyin"
         fun rebuyKey(sessionId: UUID, n: Int): String = "table:$sessionId:rebuy:$n"
         fun cashOutKey(sessionId: UUID): String = "table:$sessionId:cashout"
+
+        /**
+         * Audit/display label for the `stake_tier` column. The buy-in itself is
+         * the authoritative debited amount ([buyIn]); this is just a readable
+         * tag — a named [StakeTier] whose buy-in matches, else `custom:N`.
+         */
+        fun stakeLabel(buyIn: Long): String =
+            StakeTier.entries.firstOrNull { it.buyIn == buyIn }?.name ?: "custom:$buyIn"
 
         private const val POSTGRES_UNIQUE_VIOLATION_SQLSTATE = "23505"
     }

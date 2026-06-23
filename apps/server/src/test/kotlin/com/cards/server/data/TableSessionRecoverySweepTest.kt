@@ -1,6 +1,5 @@
 package com.dangerfield.cards.server.data
 
-import com.dangerfield.cards.libraries.gameplay.StakeTier
 import com.dangerfield.cards.server.db.DatabaseTest
 import com.dangerfield.cards.server.db.TableSessionsTable
 import com.dangerfield.cards.server.db.WalletEventsTable
@@ -39,7 +38,7 @@ class TableSessionRecoverySweepTest : DatabaseTest() {
     @Test
     fun sweep_refundsAbandonedSession_andClosesIt() = runTest {
         val user = newUser()
-        newService().sitDown(user, ROOM, StakeTier.Casual) // −1000, balance 9000, session open
+        newService().sitDown(user, ROOM, CASUAL_BUY_IN) // −1000, balance 9000, session open
 
         val settled = newSweep().sweepAbandonedSessions()
 
@@ -52,7 +51,7 @@ class TableSessionRecoverySweepTest : DatabaseTest() {
     @Test
     fun sweep_isIdempotent_secondRunSettlesNothing() = runTest {
         val user = newUser()
-        newService().sitDown(user, ROOM, StakeTier.Casual)
+        newService().sitDown(user, ROOM, CASUAL_BUY_IN)
         newSweep().sweepAbandonedSessions()
 
         val secondRun = newSweep().sweepAbandonedSessions()
@@ -86,5 +85,6 @@ class TableSessionRecoverySweepTest : DatabaseTest() {
 
     private companion object {
         const val ROOM = "SWP234"
+        const val CASUAL_BUY_IN = 1_000L
     }
 }

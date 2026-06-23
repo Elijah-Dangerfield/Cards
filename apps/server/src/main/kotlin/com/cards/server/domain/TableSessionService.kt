@@ -1,6 +1,5 @@
 package com.dangerfield.cards.server.domain
 
-import com.dangerfield.cards.libraries.gameplay.StakeTier
 import java.util.UUID
 
 /**
@@ -14,18 +13,33 @@ import java.util.UUID
  * IAP and never cashed out (see the plan). "Buy-in" / "cash-out" move
  * chips between the player's [Wallet] and their in-RAM table stack — not
  * between the player and money.
+ *
+ * The buy-in is the room's own [Room.buyIn] (develop shipped a free-form
+ * per-room buy-in; there is no fixed stake-tier on the room). [enforceEntryBar]
+ * is the anti-bankroll-dump guard (wallet must cover ≥ 4 buy-ins) — applied to
+ * public matchmaking tables and skipped for private friend games, the caller
+ * decides from the room's visibility.
  */
 interface TableSessionService {
 
     /**
-     * Reserve a seat at [tier] in [roomCode] for [userId], moving the tier
-     * buy-in from wallet → table stack. [StakeTier.Practice] is free-play
-     * (no wallet movement, no durable row), mirroring bot games.
+     * Reserve a seat in [roomCode] for [userId], moving [buyIn] from wallet →
+     * table stack. Bots never call this — they have no wallet, only an engine
+     * stack. When [enforceEntryBar] the wallet must hold ≥ 4 × [buyIn] to sit.
      */
-    suspend fun sitDown(userId: UserId, roomCode: String, tier: StakeTier): SitDownResult
+    suspend fun sitDown(
+        userId: UserId,
+        roomCode: String,
+        buyIn: Long,
+        enforceEntryBar: Boolean = true,
+    ): SitDownResult
 
-    /** Top the player's stack back up to one buy-in after a bust, debiting the wallet. */
-    suspend fun rebuy(userId: UserId): RebuyResult
+    /**
+     * Top the player's stack back up to one buy-in after a bust, debiting the
+     * wallet by the session's frozen buy-in. [enforceEntryBar] re-applies the
+     * same 4× guard as sit-down (the caller passes the room's policy).
+     */
+    suspend fun rebuy(userId: UserId, enforceEntryBar: Boolean = true): RebuyResult
 
     /**
      * Settle the player's active session: credit their stack back to the
@@ -47,9 +61,6 @@ interface TableSessionService {
 sealed interface SitDownResult {
     /** Real-stakes seat funded: [startingStack] moved wallet → table; [balanceAfter] is the post-debit wallet. */
     data class Funded(val sessionId: UUID, val startingStack: Long, val balanceAfter: Long) : SitDownResult
-
-    /** Practice tier — free play. The seat gets [startingStack] practice chips; the wallet never moves. */
-    data class FreePlay(val startingStack: Long) : SitDownResult
 
     /** Double-spend guard tripped — the player already holds an active session in [roomCode]. */
     data class AlreadyAtTable(val roomCode: String) : SitDownResult
