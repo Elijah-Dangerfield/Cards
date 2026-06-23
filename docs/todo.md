@@ -32,10 +32,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** a rejected session shows a blocking screen with a working Retry (recovers in place, identity intact, when the token refresh succeeds) + Logout; anonymous users see the "you'll lose your progress" warning before logging out; no blind authed syncs fire behind it.
   **Hints:** seam is `SessionRejectionBus` + `SupabaseAuthRepositoryImpl.onSessionRejected` (carries `wasAnonymous`) → `AppViewModel.sessionExpired` → `App.kt` (currently the snackbar). Present like `BlockingErrorScreen` (`:libraries:navigation:impl`, routed `screen<…>`, hides the bottom bar). Retry re-runs the token refresh in `GatewayAuthTokenProvider` / session re-init.
 
-- `[P0]` **Account deletion is a soft-delete — the user can still sign in afterward.** `DELETE /v1/me` calls Supabase admin delete-user with no body, so GoTrue soft-deletes by default and leaves the `auth.users` row, so the credential still authenticates (and the `ON DELETE CASCADE` the design relies on never fires). The route returns 204 → reports success and wipes local rows while the account remains signable-in. A tester confirmed re-login after "deleting." *(feedback CARDS-1T)*
-  **Acceptance:** after account deletion the credential no longer authenticates; the `auth.users` row (and cascaded data) is actually purged.
-  **Hints:** `HttpSupabaseAdminClient.deleteUser()` ([`apps/server/.../data/HttpSupabaseAdminClient.kt`](../apps/server/src/main/kotlin/com/cards/server/data/HttpSupabaseAdminClient.kt)) must send `{"should_soft_delete": false}`; `HttpSupabaseAdminClientTest` asserts URL/headers but not the body. Sentry [CARDS-1T](https://elijah-dangerfield.sentry.io/issues/CARDS-1T).
-
 - `[P2]` **Degraded "account-creation pending" UX — remaining polish.** The pending path is functional + safe; remaining nice-to-haves: a richer dialog vs. the thin `AccountSetupBanner`; device-verify banner copy/placement; optionally mirror the Retry near `SaveProgressBanner` on Profile/Settings. *(proposed 2026-06-09)*
   **Hints:** observe `GuestAccountCreator.state`; banner lives in `apps/compose/AccountSetupBanner.kt`.
 

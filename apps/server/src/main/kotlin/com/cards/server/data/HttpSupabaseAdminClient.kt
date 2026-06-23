@@ -15,7 +15,10 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -77,6 +80,11 @@ class HttpSupabaseAdminClient(
                 // header on admin calls; they validate the apikey against
                 // their project list before unpacking the bearer.
                 header("apikey", key)
+                // GoTrue soft-deletes by default, leaving the auth.users row
+                // signable-in and never firing the ON DELETE CASCADE; the body
+                // forces a hard delete so the credential and cascaded data go.
+                contentType(ContentType.Application.Json)
+                setBody(DeleteUserRequest(shouldSoftDelete = false))
             }
             when (response.status.value) {
                 in 200..299 -> DeleteUserResult.Success
@@ -139,6 +147,11 @@ class HttpSupabaseAdminClient(
         }
         return matching
     }
+
+    @Serializable
+    private data class DeleteUserRequest(
+        @SerialName("should_soft_delete") val shouldSoftDelete: Boolean,
+    )
 
     @Serializable
     private data class AdminUsersListResponse(val users: List<AdminUser>? = null)
