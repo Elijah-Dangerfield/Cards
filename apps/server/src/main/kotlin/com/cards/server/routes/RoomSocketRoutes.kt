@@ -580,11 +580,19 @@ internal suspend fun buildStartOccupants(
  * Deal the first hand of a PUBLIC table once it's playable — the server is the
  * dealer for public matchmaking (no human host to tap "Start"). Idempotent and
  * safe to call on every socket connect + after a bot fallback: no-ops unless the
- * room is a `Public` Lobby with no live session yet and at least two *present*
- * seats (a connected human or a bot — never deals to a seat that only ever
- * joined over HTTP and hasn't opened a socket). Open tables keep their human
- * host's start; private rooms are never auto-dealt. Returns [IntentResult] for
- * logging; callers ignore the benign "not ready" rejections.
+ * room is a `Public` Lobby with no live session yet.
+ *
+ * The readiness gate is **at least two *present* seats** — a connected human or a
+ * bot — so we never deal a table where everyone only joined over HTTP and no
+ * socket is open yet (that would deal to nobody). Once the gate is met the deal
+ * seats *all* current members: a member who reserved a seat via `find` but whose
+ * socket isn't open yet is dealt in and holds their seat, auto-folded by the turn
+ * timer until they (re)connect — the same treatment as any mid-game disconnect,
+ * and correct since the seat is genuinely theirs.
+ *
+ * Open tables keep their human host's start; private rooms are never auto-dealt.
+ * Returns [IntentResult] for logging; callers ignore the benign "not ready"
+ * rejections.
  */
 internal suspend fun startPublicTableIfReady(
     code: String,

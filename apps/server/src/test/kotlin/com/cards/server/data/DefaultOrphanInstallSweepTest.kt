@@ -335,6 +335,13 @@ class DefaultOrphanInstallSweepTest {
             seatIndex: Int?,
             revealed: Boolean,
         ): com.dangerfield.cards.server.domain.AddBotResult = error("unused")
+        override suspend fun fillBotsUpTo(
+            code: String,
+            requestedBy: UserId,
+            target: Int,
+            difficulty: com.dangerfield.cards.libraries.bots.BotDifficulty,
+            revealed: Boolean,
+        ): com.dangerfield.cards.server.domain.AddBotResult = error("unused")
         override suspend fun removeBot(
             code: String,
             requestedBy: UserId,

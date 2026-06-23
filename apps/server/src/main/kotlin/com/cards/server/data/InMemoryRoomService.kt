@@ -14,6 +14,7 @@ import com.dangerfield.cards.server.domain.MatchmakingResult
 import com.dangerfield.cards.server.domain.RemoveBotResult
 import com.dangerfield.cards.server.domain.NoOpRoomStore
 import com.dangerfield.cards.server.domain.Room
+import com.dangerfield.cards.server.domain.RoomClosedListener
 import com.dangerfield.cards.server.domain.RoomMember
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
@@ -74,6 +75,10 @@ class InMemoryRoomService(
     // DefaultGameSessionRegistry's repos), the default only serves tests that
     // don't want Postgres in the loop.
     private val store: RoomStore = NoOpRoomStore,
+    // Fired (outside the mutex) whenever a room is GC'd, so its game session +
+    // escrow die with it. Defaulted to no-op for tests that don't care; DI binds
+    // the real teardown coordinator.
+    private val roomClosedListener: RoomClosedListener = RoomClosedListener.NoOp,
 ) : RoomService {
 
     private val log = org.slf4j.LoggerFactory.getLogger("RoomService")
@@ -260,51 +265,57 @@ class InMemoryRoomService(
         MatchmakingResult.Created(room)
     }
 
-    override suspend fun leave(code: String, userId: UserId): LeaveResult = mutex.withLock {
-        val state = rooms[code] ?: return@withLock LeaveResult.RoomNotFound
-        val current = state.room
-        if (current.memberFor(userId) == null) return@withLock LeaveResult.NotInRoom
+    override suspend fun leave(code: String, userId: UserId): LeaveResult {
+        var closedRoom: Room? = null
+        val result = mutex.withLock {
+            val state = rooms[code] ?: return@withLock LeaveResult.RoomNotFound
+            val current = state.room
+            if (current.memberFor(userId) == null) return@withLock LeaveResult.NotInRoom
 
-        val remaining = current.members.filterNot { it.userId == userId }
-        if (remaining.isEmpty() || remaining.all { it.isBot }) {
-            // Last one out kills the lights — and a table left with only bots is
-            // "empty" for our purposes: nobody's watching, host-migration would
-            // otherwise promote a bot to host, and the bot driver idles it anyway.
-            // GC it (memory + durable) so an abandoned fallback table doesn't
-            // linger; the orphaned idle session is harmless and dies on restart.
-            rooms.remove(code)
-            forget(code)
-            // Info: room lifecycle end — explains "the room disappeared."
-            log.info("Room $code closed: last member $userId left")
-            return@withLock LeaveResult.Success(roomGone = true)
-        }
+            val remaining = current.members.filterNot { it.userId == userId }
+            if (remaining.isEmpty() || remaining.all { it.isBot }) {
+                // Last one out kills the lights — and a table left with only bots is
+                // "empty" for our purposes: nobody's watching, host-migration would
+                // otherwise promote a bot to host, and the bot driver idles it anyway.
+                // GC it (memory + durable) so an abandoned fallback table doesn't
+                // linger; the room-closed listener ends its session so nothing leaks.
+                rooms.remove(code)
+                forget(code)
+                closedRoom = current
+                // Info: room lifecycle end — explains "the room disappeared."
+                log.info("Room $code closed: last member $userId left")
+                return@withLock LeaveResult.Success(roomGone = true)
+            }
 
-        // Host migration: if the host is the one leaving, promote the
-        // longest-tenured remaining member (oldest `joinedAt`, ties
-        // broken by lowest seat). Without this the room would keep a
-        // stale `hostUserId` pointing at someone who's no longer a
-        // member — start-game permissions break, the UI shows a ghost
-        // host, the next leave loops.
-        val nextHostUserId = if (current.hostUserId == userId) {
-            remaining.minWith(compareBy({ it.joinedAt }, { it.seatIndex })).userId
-        } else {
-            current.hostUserId
-        }
+            // Host migration: if the host is the one leaving, promote the
+            // longest-tenured remaining member (oldest `joinedAt`, ties
+            // broken by lowest seat). Without this the room would keep a
+            // stale `hostUserId` pointing at someone who's no longer a
+            // member — start-game permissions break, the UI shows a ghost
+            // host, the next leave loops.
+            val nextHostUserId = if (current.hostUserId == userId) {
+                remaining.minWith(compareBy({ it.joinedAt }, { it.seatIndex })).userId
+            } else {
+                current.hostUserId
+            }
 
-        val next = current.copy(
-            hostUserId = nextHostUserId,
-            members = remaining,
-        )
-        state.update(next)
-        persist(next)
-        // Info: member churn + host migration is session-meaningful — answers
-        // "who left / who's host now" when a game's flow is reported as broken.
-        if (nextHostUserId != current.hostUserId) {
-            log.info("Room $code: $userId left (was host); host migrated to $nextHostUserId, ${remaining.size} remain")
-        } else {
-            log.info("Room $code: $userId left, ${remaining.size} remain")
+            val next = current.copy(
+                hostUserId = nextHostUserId,
+                members = remaining,
+            )
+            state.update(next)
+            persist(next)
+            // Info: member churn + host migration is session-meaningful — answers
+            // "who left / who's host now" when a game's flow is reported as broken.
+            if (nextHostUserId != current.hostUserId) {
+                log.info("Room $code: $userId left (was host); host migrated to $nextHostUserId, ${remaining.size} remain")
+            } else {
+                log.info("Room $code: $userId left, ${remaining.size} remain")
+            }
+            LeaveResult.Success(roomGone = false)
         }
-        LeaveResult.Success(roomGone = false)
+        closedRoom?.let { roomClosedListener.onRoomClosed(it) }
+        return result
     }
 
     override suspend fun addBot(
@@ -324,16 +335,51 @@ class InMemoryRoomService(
         if (seat !in 0 until current.maxSeats) return@withLock AddBotResult.SeatTaken
         if (current.members.any { it.seatIndex == seat }) return@withLock AddBotResult.SeatTaken
 
-        val personality = pickBotPersonality(current, difficulty)
-        val now = clock.now()
-        val botMember = RoomMember(
+        val next = current.copy(
+            members = (current.members + newBotMember(current, difficulty, revealed, seat)).sortedBy { it.seatIndex },
+        )
+        state.update(next)
+        persist(next)
+        AddBotResult.Success(next)
+    }
+
+    override suspend fun fillBotsUpTo(
+        code: String,
+        requestedBy: UserId,
+        target: Int,
+        difficulty: BotDifficulty,
+        revealed: Boolean,
+    ): AddBotResult = mutex.withLock {
+        val state = rooms[code] ?: return@withLock AddBotResult.RoomNotFound
+        var current = state.room
+        if (current.hostUserId != requestedBy) return@withLock AddBotResult.NotHost
+        if (current.status != RoomStatus.Lobby) return@withLock AddBotResult.NotJoinable(current.status)
+
+        // Add bots up to [target] (or capacity) in ONE critical section, so a
+        // concurrent double-tap can't each fill from the same starting size and
+        // overshoot past the target into a packed table. Already at/over target →
+        // no-op success (idempotent).
+        while (current.members.size < target && !current.isFull) {
+            val seat = nextFreeSeat(current)
+            current = current.copy(
+                members = (current.members + newBotMember(current, difficulty, revealed, seat)).sortedBy { it.seatIndex },
+            )
+        }
+        state.update(current)
+        persist(current)
+        AddBotResult.Success(current)
+    }
+
+    private fun newBotMember(room: Room, difficulty: BotDifficulty, revealed: Boolean, seat: Int): RoomMember {
+        val personality = pickBotPersonality(room, difficulty)
+        return RoomMember(
             userId = UserId(UUID.randomUUID()),
             // Revealed bots wear their personality name (Jane/David/…), matching
             // the solo-game roster. A hidden bot would draw a human-style name
             // from a pool instead; not needed until matchmaking auto-fill ships.
             displayName = personality.name,
             seatIndex = seat,
-            joinedAt = now,
+            joinedAt = clock.now(),
             // Bots are always present: connected + no disconnect stamp means the
             // reaper (which requires !isConnected) can never free their seat.
             isConnected = true,
@@ -345,10 +391,6 @@ class InMemoryRoomService(
             avatarBackgroundColor = null,
             bot = BotSeat(personality = personality, difficulty = difficulty, revealed = revealed),
         )
-        val next = current.copy(members = (current.members + botMember).sortedBy { it.seatIndex })
-        state.update(next)
-        persist(next)
-        AddBotResult.Success(next)
     }
 
     override suspend fun removeBot(
@@ -426,93 +468,105 @@ class InMemoryRoomService(
             .sortedWith(compareBy({ it.createdAt }, { it.code }))
     }
 
-    override suspend fun sweepDisconnected(maxIdle: Duration): RoomSweepResult = mutex.withLock {
-        val cutoff = clock.now() - maxIdle
-        val roomsSeen = rooms.size
-        var membersReaped = 0
-        var roomsReaped = 0
+    override suspend fun sweepDisconnected(maxIdle: Duration): RoomSweepResult {
+        val closedRooms = mutableListOf<Room>()
+        val result = mutex.withLock {
+            val cutoff = clock.now() - maxIdle
+            val roomsSeen = rooms.size
+            var membersReaped = 0
+            var roomsReaped = 0
 
-        // Iterate via a snapshot of entries — we may remove entries mid-loop.
-        val codes = rooms.keys.toList()
-        for (code in codes) {
-            val state = rooms[code] ?: continue
-            val current = state.room
-            // A member is sweepable iff they're currently disconnected
-            // AND the stamp on the disconnect is older than the cutoff.
-            // Note: create() and join() both stamp disconnectedAt = now,
-            // so "joined-but-never-opened-a-socket" is treated the same
-            // as a clean drop — both age into sweep eligibility at the
-            // same rate. The null-check is belt-and-braces; markConnected
-            // is the only path that clears the field.
-            val toReap = current.members.filter { member ->
-                val droppedAt = member.disconnectedAt
-                !member.isConnected && droppedAt != null && droppedAt <= cutoff
-            }
-            if (toReap.isEmpty()) continue
+            // Iterate via a snapshot of entries — we may remove entries mid-loop.
+            val codes = rooms.keys.toList()
+            for (code in codes) {
+                val state = rooms[code] ?: continue
+                val current = state.room
+                // A member is sweepable iff they're currently disconnected
+                // AND the stamp on the disconnect is older than the cutoff.
+                // Note: create() and join() both stamp disconnectedAt = now,
+                // so "joined-but-never-opened-a-socket" is treated the same
+                // as a clean drop — both age into sweep eligibility at the
+                // same rate. The null-check is belt-and-braces; markConnected
+                // is the only path that clears the field.
+                val toReap = current.members.filter { member ->
+                    val droppedAt = member.disconnectedAt
+                    !member.isConnected && droppedAt != null && droppedAt <= cutoff
+                }
+                if (toReap.isEmpty()) continue
 
-            val survivors = current.members - toReap.toSet()
-            membersReaped += toReap.size
-            if (survivors.isEmpty() || survivors.all { it.isBot }) {
-                // Sweep emptied the room — or left only bots, which we treat the
-                // same (see leave()). GC it.
-                rooms.remove(code)
-                forget(code)
-                roomsReaped++
-                // No flow update — the room is gone and any straggling
-                // subscribers will simply stop receiving emissions.
-            } else {
-                val swept = current.copy(members = survivors)
-                state.update(swept)
-                persist(swept)
+                val survivors = current.members - toReap.toSet()
+                membersReaped += toReap.size
+                if (survivors.isEmpty() || survivors.all { it.isBot }) {
+                    // Sweep emptied the room — or left only bots, which we treat the
+                    // same (see leave()). GC it + close its session after the lock.
+                    rooms.remove(code)
+                    forget(code)
+                    closedRooms += current
+                    roomsReaped++
+                    // No flow update — the room is gone and any straggling
+                    // subscribers will simply stop receiving emissions.
+                } else {
+                    val swept = current.copy(members = survivors)
+                    state.update(swept)
+                    persist(swept)
+                }
             }
+            // Durable backstop: reclaim persisted rooms with no in-memory owner.
+            // The per-disconnect reaper + the loop above only ever touch rooms
+            // loaded in `rooms`; a process death leaves persisted rooms behind with
+            // no owner and nothing else deletes them. Anything still live (in
+            // `rooms`) is excluded so a long-running game is never swept. Best-effort
+            // — a DB hiccup here must not fail the in-memory sweep that already ran.
+            val orphansReaped = Catching { store.deleteStaleRooms(cutoff, keepCodes = rooms.keys.toSet()) }
+                .onFailure { log.warn("Durable stale-room sweep failed", it) }
+                .getOrNull() ?: 0
+
+            RoomSweepResult(
+                membersReaped = membersReaped,
+                roomsReaped = roomsReaped,
+                roomsSeen = roomsSeen,
+                orphanedRoomsReaped = orphansReaped,
+            )
         }
-        // Durable backstop: reclaim persisted rooms with no in-memory owner.
-        // The per-disconnect reaper + the loop above only ever touch rooms
-        // loaded in `rooms`; a process death leaves persisted rooms behind with
-        // no owner and nothing else deletes them. Anything still live (in
-        // `rooms`) is excluded so a long-running game is never swept. Best-effort
-        // — a DB hiccup here must not fail the in-memory sweep that already ran.
-        val orphansReaped = Catching { store.deleteStaleRooms(cutoff, keepCodes = rooms.keys.toSet()) }
-            .onFailure { log.warn("Durable stale-room sweep failed", it) }
-            .getOrNull() ?: 0
-
-        RoomSweepResult(
-            membersReaped = membersReaped,
-            roomsReaped = roomsReaped,
-            roomsSeen = roomsSeen,
-            orphanedRoomsReaped = orphansReaped,
-        )
+        closedRooms.forEach { roomClosedListener.onRoomClosed(it) }
+        return result
     }
 
     override suspend fun reapIfStillDisconnected(
         code: String,
         userId: UserId,
         expectedDisconnectedAt: Instant,
-    ): Boolean = mutex.withLock {
-        val state = rooms[code] ?: return@withLock false
-        val current = state.room
-        val member = current.memberFor(userId) ?: return@withLock false
-        // Only reap when the disconnect we're scheduled for is the one
-        // still in place. A reconnect (disconnectedAt == null) or a
-        // re-disconnect (different stamp) means a fresh timer was
-        // scheduled and this call must no-op.
-        if (member.isConnected || member.disconnectedAt != expectedDisconnectedAt) {
-            return@withLock false
+    ): Boolean {
+        var closedRoom: Room? = null
+        val reaped = mutex.withLock {
+            val state = rooms[code] ?: return@withLock false
+            val current = state.room
+            val member = current.memberFor(userId) ?: return@withLock false
+            // Only reap when the disconnect we're scheduled for is the one
+            // still in place. A reconnect (disconnectedAt == null) or a
+            // re-disconnect (different stamp) means a fresh timer was
+            // scheduled and this call must no-op.
+            if (member.isConnected || member.disconnectedAt != expectedDisconnectedAt) {
+                return@withLock false
+            }
+            val survivors = current.members - member
+            if (survivors.isEmpty() || survivors.all { it.isBot }) {
+                rooms.remove(code)
+                forget(code)
+                closedRoom = current
+                log.info("Room $code: reaped $userId after disconnect grace; only bots/none left, closed")
+            } else {
+                val swept = current.copy(members = survivors)
+                state.update(swept)
+                persist(swept)
+                // Info: seat-freeing after a drop — explains "my opponent vanished"
+                // or "I got kicked" in a reported session.
+                log.info("Room $code: reaped $userId after disconnect grace, ${survivors.size} remain")
+            }
+            true
         }
-        val survivors = current.members - member
-        if (survivors.isEmpty() || survivors.all { it.isBot }) {
-            rooms.remove(code)
-            forget(code)
-            log.info("Room $code: reaped $userId after disconnect grace; only bots/none left, closed")
-        } else {
-            val swept = current.copy(members = survivors)
-            state.update(swept)
-            persist(swept)
-            // Info: seat-freeing after a drop — explains "my opponent vanished"
-            // or "I got kicked" in a reported session.
-            log.info("Room $code: reaped $userId after disconnect grace, ${survivors.size} remain")
-        }
-        true
+        closedRoom?.let { roomClosedListener.onRoomClosed(it) }
+        return reaped
     }
 
     /**

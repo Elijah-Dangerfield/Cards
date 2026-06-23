@@ -225,6 +225,22 @@ interface RoomService {
     ): AddBotResult
 
     /**
+     * Atomically seat backend bots until the room holds [target] members (or hits
+     * capacity), all in one critical section. The disclosed-bot fallback uses this
+     * instead of looping [addBot] so two racing `play-bots` taps can't each fill
+     * from the same starting count and overshoot into a packed table. Host-only
+     * (the public table's system host), Lobby-only. Idempotent: already at/over
+     * [target] is a no-op success.
+     */
+    suspend fun fillBotsUpTo(
+        code: String,
+        requestedBy: UserId,
+        target: Int,
+        difficulty: BotDifficulty,
+        revealed: Boolean = true,
+    ): AddBotResult
+
+    /**
      * Remove a previously-added bot. Host-only. The host is always a human, so
      * this never empties the room; no host migration / GC concerns apply.
      */

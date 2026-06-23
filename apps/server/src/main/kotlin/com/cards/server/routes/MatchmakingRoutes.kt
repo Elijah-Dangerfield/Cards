@@ -107,17 +107,17 @@ fun Route.matchmakingRoutes(
 
                 // Fill DISCLOSED bots up to the lively-but-fast target, then deal.
                 // requestedBy is the synthetic system host (a public table's host),
-                // so the host-only addBot gate passes.
-                var current = room
-                while (current.members.size < PUBLIC_BOT_FALLBACK_TARGET && !current.isFull) {
-                    val added = rooms.addBot(
-                        code = code,
-                        requestedBy = SYSTEM_HOST_USER_ID,
-                        difficulty = BotDifficulty.Standard,
-                        revealed = true,
-                    )
-                    current = (added as? com.dangerfield.cards.server.domain.AddBotResult.Success)?.room ?: break
-                }
+                // so the host-only gate passes. fillBotsUpTo is one atomic critical
+                // section, so a double-tap can't overshoot the target into a packed
+                // table — it's idempotent once the table is at/over target.
+                val filled = rooms.fillBotsUpTo(
+                    code = code,
+                    requestedBy = SYSTEM_HOST_USER_ID,
+                    target = PUBLIC_BOT_FALLBACK_TARGET,
+                    difficulty = BotDifficulty.Standard,
+                    revealed = true,
+                )
+                val current = (filled as? com.dangerfield.cards.server.domain.AddBotResult.Success)?.room ?: room
 
                 startPublicTableIfReady(code, rooms, gameSessions, equipmentRepository, progressionRepository)
 
