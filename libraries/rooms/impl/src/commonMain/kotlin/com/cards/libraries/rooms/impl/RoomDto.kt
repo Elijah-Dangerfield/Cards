@@ -93,6 +93,21 @@ data class ActiveRoomsResponseDto(
     val rooms: List<RoomDto> = emptyList(),
 )
 
+/** POST /v1/matchmaking/find body — the buy-in range the searcher set. */
+@Serializable
+data class MatchmakingFindRequestDto(
+    val minBuyIn: Long,
+    val maxBuyIn: Long,
+)
+
+/** Response for both /v1/matchmaking/find and /v1/matchmaking/{code}/play-bots. */
+@Serializable
+data class MatchmakingFindResponseDto(
+    val schemaVersion: Int = 1,
+    val room: RoomDto,
+    val created: Boolean = false,
+)
+
 @Serializable
 data class ProblemEnvelopeDto(
     val error: ProblemDto,
