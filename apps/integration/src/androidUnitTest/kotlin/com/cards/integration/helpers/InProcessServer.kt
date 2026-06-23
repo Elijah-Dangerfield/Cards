@@ -11,8 +11,10 @@ import com.dangerfield.cards.server.plugins.installAuthentication
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import com.dangerfield.cards.server.plugins.installWebSockets
+import com.dangerfield.cards.server.routes.matchmakingRoutes
 import com.dangerfield.cards.server.routes.roomRoutes
 import com.dangerfield.cards.server.routes.roomSocketRoutes
+import com.dangerfield.cards.server.plugins.installRateLimits
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.routing.routing
@@ -38,10 +40,20 @@ class InProcessServer : AutoCloseable {
     private val server = embeddedServer(Netty, port = 0) {
         installSerialization()
         installStatusPages()
+        installRateLimits()
         installWebSockets()
         installAuthentication(IntegrationAuth.verification)
         routing {
             roomRoutes(rooms, FakeProfiles)
+            matchmakingRoutes(
+                rooms = rooms,
+                friends = FakeFriends,
+                profiles = FakeProfiles,
+                gameSessions = registry,
+                tableSessions = FakeTableSessions,
+                equipmentRepository = FakeEquipment,
+                progressionRepository = FakeProgression,
+            )
             roomSocketRoutes(
                 rooms = rooms,
                 gameSessions = registry,
@@ -87,6 +99,21 @@ private object FakeProfiles : ProfileRepository {
     override suspend fun touchInstallId(userId: UserId, installId: UUID): UUID? = null
     override suspend fun findInstallSiblings(installId: UUID, currentUserId: UserId): List<UserId> =
         emptyList()
+}
+
+/** Friend graph with no blocks — matchmaking seats anyone with anyone. */
+private object FakeFriends : com.dangerfield.cards.server.domain.FriendRepository {
+    override suspend fun sendRequest(from: UserId, to: UserId) =
+        com.dangerfield.cards.server.domain.SendRequestResult.Sent
+    override suspend fun accept(me: UserId, other: UserId) =
+        com.dangerfield.cards.server.domain.RespondResult.Ok
+    override suspend fun decline(me: UserId, other: UserId) =
+        com.dangerfield.cards.server.domain.RespondResult.Ok
+    override suspend fun block(me: UserId, other: UserId) = Unit
+    override suspend fun listFriends(userId: UserId): List<UserId> = emptyList()
+    override suspend fun listBlockedUserIds(userId: UserId): Set<UserId> = emptySet()
+    override suspend fun listIncomingRequests(userId: UserId): List<UserId> = emptyList()
+    override suspend fun deleteAllForUser(userId: UserId) = Unit
 }
 
 /** No-op equipment source — the integration harness doesn't seat badges. */
