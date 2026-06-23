@@ -141,9 +141,6 @@ A batch of small UX directives the owner filed via in-app feedback in one sessio
 - `[P2]` **Debug feedback swipe is unreliable inside scroll views.** The right-edge swipe to open the feedback screen often takes a few tries, mostly when the user is already in a scroll view (gesture conflict). *(feedback CARDS-Y; debug-only feature from `fd5aeec8`)*
   **Hints:** the right-edge swipe detector competing with scroll containers. Sentry [CARDS-Y](https://elijah-dangerfield.sentry.io/issues/CARDS-Y).
 
-- `[P2]` **Remove the "Neon" table theme too.** Owner confirmed (2026-06-22): like the Sunset table theme already removed this cycle, the `table_neon` table theme is useless — a "table theme" and a "felt" are visually identical in V1 (both just recolor the felt). Delete it. Unlike sunset, `table_neon` is unlock-only (not in the `GET /v1/products` shop catalog as of V51), so there's no purchasable product to pull — but the same client + grant plumbing applies. *(feedback CARDS-18)*
-  **Hints:** mirror the sunset removal — append-only `DELETE FROM products WHERE id = 'table_neon'` migration, drop the `table_neon` arm from `feltForProductId` (`:libraries:ui`), and repoint any catalog/preview references. `EquippedFelt.Neon` can go too (no felt uses it, unlike Sunset). Update `CosmeticCategoryTest` / `EquippedFeltMappingsTest` / `PostgresProductCatalogSourceTest` the same way the sunset removal did. Sentry [CARDS-18](https://elijah-dangerfield.sentry.io/issues/CARDS-18).
-
 ### From the 2026-06-23 owner playtest
 
 A second batch of in-app feedback from a live two-device MP playtest. Hard bugs from this session are filed in their topical sections above (account-deletion soft-delete, private-join balance gate, the B7 hand-end stall, mid-game opponent-leave notice); these are the UX/copy directives.

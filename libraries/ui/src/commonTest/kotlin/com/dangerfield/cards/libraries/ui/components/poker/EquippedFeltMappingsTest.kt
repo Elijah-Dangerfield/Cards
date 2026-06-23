@@ -36,16 +36,16 @@ class EquippedFeltMappingsTest {
         assertEquals(EquippedFelt.Charcoal, feltForProductId("felt_charcoal"))
         assertEquals(EquippedFelt.PineGreen, feltForProductId("felt_pine_green"))
         assertEquals(EquippedFelt.Sunset, feltForProductId("felt_sunset_weekend"))
-        assertEquals(EquippedFelt.Neon, feltForProductId("table_neon"))
     }
 
     @Test
-    fun feltForProductId_removedSunsetTableThemeFallsToDefault() {
-        // The legacy `table_sunset` table-theme product was removed (it was
-        // visually redundant with the `felt_sunset_weekend` felt, which stays).
-        // Its id is no longer mapped, so it falls through to the default felt.
-        assertEquals(EquippedFelt.Sunset, feltForProductId("felt_sunset_weekend"))
+    fun feltForProductId_removedTableThemesFallToDefault() {
+        // The legacy `table_sunset` (V64) and `table_neon` (V70) table-theme
+        // products were removed — they were visually redundant with plain felts
+        // in V1. Their ids are no longer mapped, so they fall through to the
+        // default felt.
         assertEquals(EquippedFelt.Default, feltForProductId("table_sunset"))
+        assertEquals(EquippedFelt.Default, feltForProductId("table_neon"))
     }
 
     @Test

@@ -107,14 +107,14 @@ class InventoryRoutesTest {
               "purchases": [
                 {"productId":"emote_dance","purchasedAtEpochMs":1000,"costChipsAtPurchase":2500},
                 {"productId":"emote_tilt","purchasedAtEpochMs":2000,"costChipsAtPurchase":2500},
-                {"productId":"table_neon","purchasedAtEpochMs":3000,"costChipsAtPurchase":12000}
+                {"productId":"felt_charcoal","purchasedAtEpochMs":3000,"costChipsAtPurchase":12000}
               ]
             }
             """.trimIndent(),
         ) { resp ->
             val body = resp.body<InventorySyncResponse>()
             assertEquals(
-                listOf("emote_dance", "emote_tilt", "table_neon"),
+                listOf("emote_dance", "emote_tilt", "felt_charcoal"),
                 body.results.map { it.productId },
                 "result order must match request order",
             )
@@ -164,14 +164,14 @@ class InventoryRoutesTest {
             {
               "purchases": [
                 {"productId":"emote_dance","purchasedAtEpochMs":1000,"costChipsAtPurchase":2500},
-                {"productId":"table_neon","purchasedAtEpochMs":3000,"costChipsAtPurchase":12000}
+                {"productId":"felt_charcoal","purchasedAtEpochMs":3000,"costChipsAtPurchase":12000}
               ]
             }
             """.trimIndent(),
         ) { resp ->
             val body = resp.body<InventorySyncResponse>()
             assertEquals(
-                setOf("emote_dance", "table_neon"),
+                setOf("emote_dance", "felt_charcoal"),
                 body.owned.map { it.productId }.toSet(),
             )
             val dance = body.owned.first { it.productId == "emote_dance" }

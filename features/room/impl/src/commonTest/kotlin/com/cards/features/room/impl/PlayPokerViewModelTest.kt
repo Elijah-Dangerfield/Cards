@@ -1220,8 +1220,8 @@ class PlayPokerViewModelTest : CoroutineTest() {
     @Test
     fun equippedFeltChanged_repaintsTableSurface() = runUnitTest {
         val vm = buildVm()
-        vm.takeAction(PlayPokerAction.EquippedFeltChanged(EquippedFelt.Neon))
-        assertEquals(EquippedFelt.Neon, vm.state.equippedFelt)
+        vm.takeAction(PlayPokerAction.EquippedFeltChanged(EquippedFelt.Charcoal))
+        assertEquals(EquippedFelt.Charcoal, vm.state.equippedFelt)
     }
 
     @Test

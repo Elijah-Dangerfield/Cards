@@ -1265,17 +1265,6 @@ private fun previewFullCatalog(): ProductCatalog = ProductCatalog(
             unlockLevel = 10,
         ),
         Product.ChipOffer(
-            id = "table_neon",
-            title = "Neon Table",
-            subtitle = "Table theme",
-            iconEmoji = "🎰",
-            featured = true,
-            badge = "NEW",
-            costChips = 8_000,
-            grantsKey = "table.neon",
-            unlockLevel = 8,
-        ),
-        Product.ChipOffer(
             id = "title_high_roller",
             title = "High Roller",
             subtitle = "Player title",

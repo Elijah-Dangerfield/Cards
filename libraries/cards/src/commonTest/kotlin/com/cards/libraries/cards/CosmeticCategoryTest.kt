@@ -24,7 +24,10 @@ class CosmeticCategoryTest {
 
     @Test
     fun cosmeticSlotFor_tablePrefix_isFelt() {
-        assertEquals(CosmeticSlot.Felt, cosmeticSlotFor("table_neon"))
+        // No `table_*` products ship today (the Sunset + Neon table themes were
+        // pulled), but the `table_` prefix is still a Felt slot so a future one
+        // categorizes correctly.
+        assertEquals(CosmeticSlot.Felt, cosmeticSlotFor("table_classic"))
     }
 
     @Test
@@ -82,7 +85,7 @@ class CosmeticCategoryTest {
     @Test
     fun isPersonalCosmetic_felt_isPrivate() {
         assertEquals(true, isPersonalCosmetic("felt_royal_red"))
-        assertEquals(true, isPersonalCosmetic("table_neon"))
+        assertEquals(true, isPersonalCosmetic("table_classic"))
     }
 
     @Test

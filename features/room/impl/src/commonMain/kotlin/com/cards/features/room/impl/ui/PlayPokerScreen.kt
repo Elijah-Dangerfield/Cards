@@ -1474,8 +1474,3 @@ private fun PlayPokerScreenPreview_Felt_Charcoal() =
 @Composable
 private fun PlayPokerScreenPreview_Felt_Sunset() =
     PlayPokerScreenFeltPreview(EquippedFelt.Sunset)
-
-@Preview
-@Composable
-private fun PlayPokerScreenPreview_Felt_Neon() =
-    PlayPokerScreenFeltPreview(EquippedFelt.Neon)

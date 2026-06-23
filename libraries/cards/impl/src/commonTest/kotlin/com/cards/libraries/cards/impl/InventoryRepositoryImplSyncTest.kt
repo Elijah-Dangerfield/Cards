@@ -128,7 +128,7 @@ class InventoryRepositoryImplSyncTest : CoroutineTest() {
     fun allConfirmed_flipsPendingToConfirmed_doesNotMoveChips() = runUnitTest {
         val invDao = FakeInventoryDao().apply {
             seed(pendingItem("emote_dance", cost = 2_500))
-            seed(pendingItem("table_neon", cost = 12_000))
+            seed(pendingItem("felt_charcoal", cost = 12_000))
         }
         val chips = FakeChipsRepository()
         val repo = buildRepo(invDao, chips) {
@@ -138,11 +138,11 @@ class InventoryRepositoryImplSyncTest : CoroutineTest() {
                   "schemaVersion": 1,
                   "results": [
                     {"productId":"emote_dance","outcome":"Confirmed"},
-                    {"productId":"table_neon","outcome":"Confirmed"}
+                    {"productId":"felt_charcoal","outcome":"Confirmed"}
                   ],
                   "owned": [
                     {"productId":"emote_dance","costChipsAtPurchase":2500,"purchasedAtEpochMs":1000},
-                    {"productId":"table_neon","costChipsAtPurchase":12000,"purchasedAtEpochMs":1000}
+                    {"productId":"felt_charcoal","costChipsAtPurchase":12000,"purchasedAtEpochMs":1000}
                   ]
                 }
                 """.trimIndent()
@@ -154,13 +154,13 @@ class InventoryRepositoryImplSyncTest : CoroutineTest() {
         assertTrue(result.isSuccess)
         val states = invDao.getAll().associate { it.productId to it.syncState }
         assertEquals(PurchaseState.Confirmed.name, states["emote_dance"])
-        assertEquals(PurchaseState.Confirmed.name, states["table_neon"])
+        assertEquals(PurchaseState.Confirmed.name, states["felt_charcoal"])
         assertTrue(chips.deltas.isEmpty(), "no chip movement for Confirmed outcomes")
     }
 
     @Test
     fun revertedOutcome_refundsChips_andDeletesRow() = runUnitTest {
-        val invDao = FakeInventoryDao().apply { seed(pendingItem("table_neon", cost = 12_000)) }
+        val invDao = FakeInventoryDao().apply { seed(pendingItem("felt_charcoal", cost = 12_000)) }
         val chips = FakeChipsRepository()
         val repo = buildRepo(invDao, chips) {
             respondJson(
@@ -168,7 +168,7 @@ class InventoryRepositoryImplSyncTest : CoroutineTest() {
                 {
                   "schemaVersion": 1,
                   "results": [
-                    {"productId":"table_neon","outcome":"Reverted","chipsToRefund":12000,"message":"insufficient funds at sync time"}
+                    {"productId":"felt_charcoal","outcome":"Reverted","chipsToRefund":12000,"message":"insufficient funds at sync time"}
                   ]
                 }
                 """.trimIndent()
@@ -180,21 +180,21 @@ class InventoryRepositoryImplSyncTest : CoroutineTest() {
         assertTrue(result.isSuccess)
         assertEquals(listOf(12_000L), chips.deltas, "refund applied as positive delta")
         assertTrue(
-            invDao.getAll().none { it.productId == "table_neon" },
+            invDao.getAll().none { it.productId == "felt_charcoal" },
             "Reverted row is deleted",
         )
     }
 
     @Test
     fun revertedWithNoChipsToRefund_deletesRowWithoutChipMovement() = runUnitTest {
-        val invDao = FakeInventoryDao().apply { seed(pendingItem("table_neon", cost = 12_000)) }
+        val invDao = FakeInventoryDao().apply { seed(pendingItem("felt_charcoal", cost = 12_000)) }
         val chips = FakeChipsRepository()
         val repo = buildRepo(invDao, chips) {
             respondJson(
                 """
                 {
                   "schemaVersion": 1,
-                  "results": [{"productId":"table_neon","outcome":"Reverted"}]
+                  "results": [{"productId":"felt_charcoal","outcome":"Reverted"}]
                 }
                 """.trimIndent()
             )
@@ -203,7 +203,7 @@ class InventoryRepositoryImplSyncTest : CoroutineTest() {
         repo.sync()
 
         assertTrue(chips.deltas.isEmpty(), "no refund → no chip movement")
-        assertTrue(invDao.getAll().none { it.productId == "table_neon" })
+        assertTrue(invDao.getAll().none { it.productId == "felt_charcoal" })
     }
 
     @Test
