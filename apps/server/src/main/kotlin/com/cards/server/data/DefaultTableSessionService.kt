@@ -21,6 +21,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import java.util.UUID
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.ExperimentalTime
 
 /**
@@ -49,13 +50,21 @@ class DefaultTableSessionService(
     private val tableSessions: TableSessionRepository,
     private val wallets: WalletRepository,
     private val clock: Clock,
+    // Disclosed-bot subsidy budget: the house funds at most this many chips of
+    // net winnings per player per rolling window. Defaulted (tunable later via
+    // config) — a launch promotion knob, not a load-bearing invariant.
+    private val subsidyDailyCap: Long = DEFAULT_SUBSIDY_DAILY_CAP,
+    private val subsidyWindow: kotlin.time.Duration = DEFAULT_SUBSIDY_WINDOW,
 ) : TableSessionService {
+
+    private val log = org.slf4j.LoggerFactory.getLogger(DefaultTableSessionService::class.java)
 
     override suspend fun sitDown(
         userId: UserId,
         roomCode: String,
         buyIn: Long,
         enforceEntryBar: Boolean,
+        subsidized: Boolean,
     ): SitDownResult {
         // Clean result for the common "already seated" / double-tap case; the
         // partial unique index below is the actual guarantee.
@@ -63,9 +72,21 @@ class DefaultTableSessionService(
             return SitDownResult.AlreadyAtTable(roomCode = it.roomCode)
         }
 
-        // Anti-bankroll-dump entry bar (public tables only): the buy-in must be
-        // ≤ 25% of the wallet, i.e. the wallet covers at least four buy-ins.
-        // Private friend games skip it — the table picks its own stakes.
+        // Disclosed-bot subsidy cap: once today's house-funded winnings hit the
+        // budget, no new bot-payout table. Checked off CLOSED sessions, so an
+        // in-flight session never blocks itself; the win you're sitting on is
+        // never clawed back, only the *next* bot table is gated.
+        if (subsidized) {
+            val grantedToday = tableSessions.subsidyGrantedSince(userId, clock.now() - subsidyWindow)
+            if (grantedToday >= subsidyDailyCap) {
+                return SitDownResult.SubsidyCapReached(grantedToday = grantedToday, cap = subsidyDailyCap)
+            }
+        }
+
+        // Anti-bankroll-dump entry bar (public human tables only): the buy-in must
+        // be ≤ 25% of the wallet, i.e. the wallet covers at least four buy-ins.
+        // Private friend games + subsidised bot tables skip it — the daily cap is
+        // the bot-table guard, and a new player should be able to afford the bots.
         val balance = wallets.findOrCreate(userId).balance
         val minBalance = buyIn * MIN_BALANCE_BUYIN_MULTIPLE
         if (enforceEntryBar && balance < minBalance) {
@@ -86,6 +107,7 @@ class DefaultTableSessionService(
                         it[TableSessionsTable.rebuyCount] = 0
                         it[TableSessionsTable.status] = TableSessionStatus.Open.dbValue
                         it[TableSessionsTable.openedAt] = now.toJavaInstant()
+                        it[TableSessionsTable.subsidized] = subsidized
                     }
                 } catch (e: ExposedSQLException) {
                     // PK collision (fresh UUID — won't happen) or the partial
@@ -170,6 +192,27 @@ class DefaultTableSessionService(
             delta = refund,
             reason = REASON_CASHOUT,
         )
+
+        // Disclosed-bot subsidy: record the net house-funded win (final stack over
+        // everything the player put in) so it counts against their daily cap. Set,
+        // not added — deterministic from the row, so a crash-resumed cash-out
+        // records the same value. Only a positive net is house-funded; a losing
+        // session granted nothing.
+        if (session.subsidized) {
+            val funded = session.buyIn * (1 + session.rebuyCount)
+            val net = (refund - funded).coerceAtLeast(0L)
+            if (net > 0) {
+                tableSessions.recordSubsidyGranted(session.sessionId, net)
+                // Payout telemetry — amount + the user's running draw-down, so the
+                // dashboard can watch the budget and flag farming anomalies.
+                val grantedAfter = tableSessions.subsidyGrantedSince(userId, clock.now() - subsidyWindow) + net
+                log.info(
+                    "bot_subsidy_payout user={} session={} amount={} grantedWindow={} cap={}",
+                    userId.value, session.sessionId, net, grantedAfter, subsidyDailyCap,
+                )
+            }
+        }
+
         tableSessions.markClosed(session.sessionId)
         return CashOutResult.CashedOut(refunded = refund, balanceAfter = outcome.balance)
     }
@@ -191,6 +234,12 @@ class DefaultTableSessionService(
     companion object {
         /** Wallet must cover ≥ this many buy-ins to enter (or rebuy at) a tier — the 25% rule. */
         const val MIN_BALANCE_BUYIN_MULTIPLE = 4L
+
+        /** Default house-funded bot-subsidy budget per player per window (launch knob). */
+        const val DEFAULT_SUBSIDY_DAILY_CAP = 25_000L
+
+        /** Rolling window the subsidy cap sums over (a "day" without midnight gaming). */
+        val DEFAULT_SUBSIDY_WINDOW: kotlin.time.Duration = 24.hours
 
         const val REASON_BUYIN = "mp_buyin"
         const val REASON_REBUY = "mp_rebuy"

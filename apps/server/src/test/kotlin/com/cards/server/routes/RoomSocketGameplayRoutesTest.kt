@@ -779,6 +779,39 @@ class RoomSocketGameplayRoutesTest {
     }
 
     @Test
+    fun publicLoneHumanVsBots_isSubsidized_humanIsFunded() = runTest {
+        val rooms = newRoomService()
+        val wallets = InMemoryTestWalletRepository()
+        // A public table where one searcher plays disclosed bots = the subsidy case.
+        val room = assertIs<com.dangerfield.cards.server.domain.MatchmakingResult.Created>(
+            rooms.findOrJoinPublic(host, "Host", 1_000, 1_000, emptySet()),
+        ).room
+        rooms.fillBotsUpTo(
+            room.code,
+            requestedBy = com.dangerfield.cards.server.domain.SYSTEM_HOST_USER_ID,
+            target = 4,
+            difficulty = BotDifficulty.Standard,
+            revealed = true,
+        )
+
+        withRoomSocketTestApp(rooms, wallets = wallets) { client ->
+            val sock = client.connect(room.code, host)
+            try {
+                sock.drainSnapshot()
+                sock.receiveUntilGameState() // server auto-deals the public table
+                val buyIn = rooms.find(room.code)!!.settings.startingStack
+                assertEquals(
+                    Wallet.STARTER_GRANT - buyIn,
+                    wallets.balanceOf(host),
+                    "a public lone-human-vs-bots table is subsidised — the human's buy-in is escrowed",
+                )
+            } finally {
+                sock.closeQuietly()
+            }
+        }
+    }
+
+    @Test
     fun startHand_onASoloVsBotsTable_movesNoRealChips_practiceUntilSubsidy() = runTest {
         val rooms = newRoomService()
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)

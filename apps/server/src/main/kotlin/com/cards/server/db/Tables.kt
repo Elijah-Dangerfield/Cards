@@ -277,6 +277,11 @@ object TableSessionsTable : Table("table_sessions") {
     val status = text("status")
     val openedAt = timestamp("opened_at")
     val closedAt = timestamp("closed_at").nullable()
+    // Disclosed-bot subsidy (V68): `subsidized` tags a public lone-human-vs-bots
+    // session; `subsidyGranted` is the net house-funded win recorded at cash-out,
+    // summed for the per-user rolling-24h cap.
+    val subsidized = bool("subsidized").default(false)
+    val subsidyGranted = long("subsidy_granted").default(0)
     override val primaryKey = PrimaryKey(sessionId)
 }
 

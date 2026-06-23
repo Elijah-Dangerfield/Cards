@@ -26,12 +26,18 @@ interface TableSessionService {
      * Reserve a seat in [roomCode] for [userId], moving [buyIn] from wallet →
      * table stack. Bots never call this — they have no wallet, only an engine
      * stack. When [enforceEntryBar] the wallet must hold ≥ 4 × [buyIn] to sit.
+     *
+     * [subsidized] marks a disclosed-bot table (public, lone human vs bots),
+     * where a win is house-funded. Sitting at one is gated by the per-user daily
+     * subsidy cap: once today's drawn-down subsidy hits the cap the sit is
+     * refused with [SitDownResult.SubsidyCapReached].
      */
     suspend fun sitDown(
         userId: UserId,
         roomCode: String,
         buyIn: Long,
         enforceEntryBar: Boolean = true,
+        subsidized: Boolean = false,
     ): SitDownResult
 
     /**
@@ -67,6 +73,13 @@ sealed interface SitDownResult {
 
     /** Anti-smurf entry bar: the buy-in would exceed 25% of the wallet. [minBalance] is what's required. */
     data class BelowEntryBar(val balance: Long, val minBalance: Long) : SitDownResult
+
+    /**
+     * Disclosed-bot table refused: the player has drawn down today's
+     * house-funded subsidy budget ([cap]; [grantedToday] already taken). They
+     * can still play real-human tables — only new bot-payout tables are gated.
+     */
+    data class SubsidyCapReached(val grantedToday: Long, val cap: Long) : SitDownResult
 
     /** Balance dropped below the buy-in between the entry-bar read and the atomic debit. */
     data class InsufficientChips(val balance: Long) : SitDownResult

@@ -35,6 +35,10 @@ data class TableSession(
     val status: TableSessionStatus,
     val openedAt: Instant,
     val closedAt: Instant?,
+    /** This session ran on a disclosed-bot subsidy table (public, lone human vs bots). */
+    val subsidized: Boolean = false,
+    /** Net house-funded chips granted on cash-out — the input to the per-user daily cap. */
+    val subsidyGranted: Long = 0,
 )
 
 /**
@@ -84,6 +88,16 @@ interface TableSessionRepository {
 
     /** Bump `rebuy_count`, returning the new count (used in the rebuy ledger key). */
     suspend fun incrementRebuy(sessionId: UUID): Int
+
+    /** Record the net house-funded win on a subsidised session at cash-out (the daily-cap input). */
+    suspend fun recordSubsidyGranted(sessionId: UUID, amount: Long)
+
+    /**
+     * Sum of subsidy granted to [userId] across sessions closed at or after
+     * [since] — the rolling-window draw-down the sit-down cap reads. Only closed
+     * sessions count, so an in-flight subsidised session never blocks itself.
+     */
+    suspend fun subsidyGrantedSince(userId: UserId, since: Instant): Long
 
     /** Every non-closed session across all rooms — the boot sweep cashes these out. */
     suspend fun listActive(): List<TableSession>

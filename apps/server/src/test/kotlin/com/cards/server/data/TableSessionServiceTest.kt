@@ -219,13 +219,78 @@ class TableSessionServiceTest : DatabaseTest() {
         assertEquals(Wallet.STARTER_GRANT, result.balanceAfter)
     }
 
-    private fun newService(clock: Clock = Clock.System): DefaultTableSessionService =
+    private fun newService(
+        clock: Clock = Clock.System,
+        subsidyDailyCap: Long = DefaultTableSessionService.DEFAULT_SUBSIDY_DAILY_CAP,
+    ): DefaultTableSessionService =
         DefaultTableSessionService(
             database = database,
             tableSessions = PostgresTableSessionRepository(database, clock),
             wallets = PostgresWalletRepository(database, clock),
             clock = clock,
+            subsidyDailyCap = subsidyDailyCap,
         )
+
+    // ---------- disclosed-bot subsidy ----------
+
+    @Test
+    fun subsidizedSitDown_skipsEntryBar_andFunds() = runTest {
+        val service = newService()
+        val user = newUser()
+
+        // A 5k buy-in fails the public entry bar (needs 20k) — but a subsidised
+        // bot table skips the bar, so a new player can sit.
+        val result = service.sitDown(user, ROOM, STANDARD_BUY_IN, enforceEntryBar = false, subsidized = true)
+
+        assertTrue(result is SitDownResult.Funded, "subsidised sit funds despite the entry bar, was $result")
+        assertTrue(newTableSessions().findActiveForUser(user)!!.subsidized, "the session is tagged subsidised")
+    }
+
+    @Test
+    fun subsidizedCashOut_recordsTheNetHouseFundedWin() = runTest {
+        val service = newService()
+        val tableSessions = newTableSessions()
+        val user = newUser()
+        val funded = service.sitDown(user, ROOM, CASUAL_BUY_IN, subsidized = true) as SitDownResult.Funded
+
+        // Win 2,500 over the 1,000 buy-in.
+        service.cashOut(user, finalStack = CASUAL_BUY_IN + 2_500)
+
+        assertEquals(2_500, tableSessions.find(funded.sessionId)!!.subsidyGranted, "net win is recorded for the cap")
+        // A real win still pays out in full.
+        assertEquals(Wallet.STARTER_GRANT + 2_500, newWallets().findOrCreate(user).balance)
+    }
+
+    @Test
+    fun subsidizedCashOut_aLosingSession_grantsNothing() = runTest {
+        val service = newService()
+        val tableSessions = newTableSessions()
+        val user = newUser()
+        val funded = service.sitDown(user, ROOM, CASUAL_BUY_IN, subsidized = true) as SitDownResult.Funded
+
+        service.cashOut(user, finalStack = 200) // walked away down
+
+        assertEquals(0, tableSessions.find(funded.sessionId)!!.subsidyGranted, "a loss is no house subsidy")
+    }
+
+    @Test
+    fun subsidyCap_blocksANewBotTable_afterTheDailyLimit_butNotRealTables() = runTest {
+        val service = newService(subsidyDailyCap = 2_000)
+        val user = newUser()
+
+        // Win 2,500 on a subsidised table → over the 2,000 cap.
+        service.sitDown(user, ROOM, CASUAL_BUY_IN, subsidized = true)
+        service.cashOut(user, finalStack = CASUAL_BUY_IN + 2_500)
+
+        // A new SUBSIDISED bot table is refused…
+        val capped = service.sitDown(user, "ROOM2", CASUAL_BUY_IN, subsidized = true)
+        assertTrue(capped is SitDownResult.SubsidyCapReached, "over-cap → no new bot table, was $capped")
+        assertEquals(2_500, capped.grantedToday)
+
+        // …but a normal (non-subsidised) table still funds — only the subsidy is gated.
+        val realTable = service.sitDown(user, "ROOM3", CASUAL_BUY_IN, subsidized = false)
+        assertTrue(realTable is SitDownResult.Funded, "the cap gates only bot tables, was $realTable")
+    }
 
     private fun newWallets(clock: Clock = Clock.System) = PostgresWalletRepository(database, clock)
     private fun newTableSessions(clock: Clock = Clock.System) = PostgresTableSessionRepository(database, clock)

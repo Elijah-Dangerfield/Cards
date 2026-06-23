@@ -582,20 +582,24 @@ private suspend fun dealFundedHand(
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
     progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
 ): IntentResult {
-    // Escrow moves real chips only on a real-stakes (majority-human) table. A
-    // bot-stacked or solo-vs-bots table — including a public disclosed-bot
-    // fallback — is practice: no buy-in, no cash-out. This defers the capped
-    // real-coin bot-table subsidy (the per-user daily cap + anomaly telemetry
-    // aren't built yet) and closes the matching exploit: without it, a human
-    // could farm house-funded chips off bots and cash out unbounded. When the
-    // subsidy ships, capped escrow can be enabled for those tables here.
-    val funded = if (isRealStakesTable(room)) {
+    // Escrow moves real chips on a real-stakes (majority-human) table OR a public
+    // disclosed-bot table (a lone human vs labelled bots — the house funds the
+    // win, capped per day). Everything else — bot-stacked (`2H + 4B`) or a private
+    // practice bot game — is practice: no buy-in, no cash-out. The bot-stacked
+    // exclusion closes the collusion farm; the daily cap fences the subsidy.
+    val funded = if (chipsAreReal(room)) {
         fundAndBuildOccupants(room, tableSessions, equipmentRepository, progressionRepository)
     } else {
         FundedStart(
             occupants = room.members.map { seatOccupantFor(it, equipmentRepository, progressionRepository) },
             newlyFunded = emptyList(),
         )
+    }
+    // Never deal a hand with no human — e.g. the lone human on a subsidised bot
+    // table hit their daily cap (or couldn't be funded), leaving only bots.
+    if (funded.occupants.none { !it.isBot }) {
+        funded.newlyFunded.forEach { Catching { tableSessions.cashOut(it, finalStack = null) } }
+        return IntentResult.Rejected("no funded human to deal in")
     }
     if (funded.occupants.size < 2) {
         // Not enough players could fund — refund anyone we just debited (they sat
@@ -614,18 +618,34 @@ private suspend fun dealFundedHand(
     return result
 }
 
+/** True when this table moves real chips: a real-stakes human table or the disclosed-bot subsidy. */
+private fun chipsAreReal(room: Room): Boolean = isRealStakesTable(room) || isSubsidizedBotTable(room)
+
 /**
  * A real-stakes table moves real chips through escrow: **≥ 2 humans AND humans
  * at least tying the bots.** Mirrors the client's `MultiplayerCredit.qualifies`
  * (product-spec §5.4) so the server's "do chips move" and the client's "does
- * this count for MP credit" agree. A bot-stacked (`2H + 4B`), solo-vs-bots
- * (`1H + Xb`), or public disclosed-bot fallback table is practice — no escrow
- * until the capped subsidy ships.
+ * this count for MP credit" agree. A bot-stacked (`2H + 4B`) table is practice —
+ * it would be a collusion farm otherwise.
  */
 private fun isRealStakesTable(room: Room): Boolean {
     val humans = room.members.count { !it.isBot }
     val bots = room.members.count { it.isBot }
     return humans >= 2 && humans >= bots
+}
+
+/**
+ * A disclosed-bot subsidy table: a **public** matchmaker table with exactly one
+ * human playing labelled bots (the "play with bots" fallback). The house funds
+ * the win here, capped per player per day. Restricted to one human so two players
+ * can't co-farm bots under the subsidy (that path is [isRealStakesTable]'s
+ * bot-stacked exclusion → practice).
+ */
+private fun isSubsidizedBotTable(room: Room): Boolean {
+    if (room.visibility != RoomVisibility.Public) return false
+    val humans = room.members.count { !it.isBot }
+    val bots = room.members.count { it.isBot }
+    return humans == 1 && bots >= 1
 }
 
 /** Occupants to deal + the userIds this call newly debited (to refund on abort). */
@@ -637,8 +657,11 @@ private suspend fun fundAndBuildOccupants(
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
     progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
 ): FundedStart {
-    // The 25% entry bar is a public-matchmaking guard; private friend games skip it.
-    val enforceEntryBar = room.visibility != RoomVisibility.Private
+    val subsidized = isSubsidizedBotTable(room)
+    // The 25% entry bar is a public-matchmaking guard; private friend games AND
+    // subsidised bot tables skip it (the daily cap is the bot-table guard, and a
+    // new player should be able to afford the bots).
+    val enforceEntryBar = room.visibility != RoomVisibility.Private && !subsidized
     val occupants = mutableListOf<SeatOccupant>()
     val newlyFunded = mutableListOf<UserId>()
     for (member in room.members) {
@@ -646,7 +669,7 @@ private suspend fun fundAndBuildOccupants(
             occupants += seatOccupantFor(member, equipmentRepository, progressionRepository)
             continue
         }
-        when (val sit = tableSessions.sitDown(member.userId, room.code, room.buyIn, enforceEntryBar)) {
+        when (val sit = tableSessions.sitDown(member.userId, room.code, room.buyIn, enforceEntryBar, subsidized)) {
             is com.dangerfield.cards.server.domain.SitDownResult.Funded -> {
                 newlyFunded += member.userId
                 occupants += seatOccupantFor(member, equipmentRepository, progressionRepository)
@@ -657,9 +680,10 @@ private suspend fun fundAndBuildOccupants(
                 if (sit.roomCode == room.code) {
                     occupants += seatOccupantFor(member, equipmentRepository, progressionRepository)
                 }
-            // Can't afford the buy-in → not dealt in (the client surfaces the
-            // insufficient-chips upsell; the table plays on without them).
+            // Can't afford the buy-in, or hit today's bot-subsidy cap → not dealt
+            // in (the client surfaces the right upsell / "come back tomorrow").
             is com.dangerfield.cards.server.domain.SitDownResult.BelowEntryBar,
+            is com.dangerfield.cards.server.domain.SitDownResult.SubsidyCapReached,
             is com.dangerfield.cards.server.domain.SitDownResult.InsufficientChips -> Unit
         }
     }

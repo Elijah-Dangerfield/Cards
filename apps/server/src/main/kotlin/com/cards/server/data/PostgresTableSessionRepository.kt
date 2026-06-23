@@ -12,6 +12,7 @@ import com.dangerfield.cards.server.domain.UserId
 import me.tatarka.inject.annotations.Inject
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
@@ -22,6 +23,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import java.util.UUID
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 /**
  * Exposed-backed [TableSessionRepository] — pure row persistence for the
@@ -103,6 +105,24 @@ class PostgresTableSessionRepository(
             .map { it.toDomain() }
     }
 
+    override suspend fun recordSubsidyGranted(sessionId: UUID, amount: Long) {
+        database.transaction {
+            TableSessionsTable.update({ TableSessionsTable.sessionId eq sessionId }) {
+                it[TableSessionsTable.subsidyGranted] = amount
+            }
+        }
+    }
+
+    override suspend fun subsidyGrantedSince(userId: UserId, since: Instant): Long = database.transaction {
+        TableSessionsTable
+            .selectAll()
+            .where {
+                (TableSessionsTable.userId eq userId.value) and
+                    (TableSessionsTable.closedAt greaterEq since.toJavaInstant())
+            }
+            .sumOf { it[TableSessionsTable.subsidyGranted] }
+    }
+
     override suspend fun deleteAllForUser(userId: UserId) {
         database.transaction {
             TableSessionsTable.deleteWhere { TableSessionsTable.userId eq userId.value }
@@ -125,6 +145,8 @@ class PostgresTableSessionRepository(
         status = TableSessionStatus.fromDb(this[TableSessionsTable.status]),
         openedAt = this[TableSessionsTable.openedAt].toKotlinInstant(),
         closedAt = this[TableSessionsTable.closedAt]?.toKotlinInstant(),
+        subsidized = this[TableSessionsTable.subsidized],
+        subsidyGranted = this[TableSessionsTable.subsidyGranted],
     )
 
     private companion object {
