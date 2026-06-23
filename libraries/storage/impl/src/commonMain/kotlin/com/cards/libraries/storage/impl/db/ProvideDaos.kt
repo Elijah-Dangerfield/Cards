@@ -5,6 +5,8 @@ import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
 import com.dangerfield.cards.libraries.cards.storage.db.ClearableDao
 import com.dangerfield.cards.libraries.cards.storage.db.EquipmentDao
 import com.dangerfield.cards.libraries.cards.storage.db.InventoryDao
+import com.dangerfield.cards.libraries.cards.storage.db.PlayStyleDao
+import com.dangerfield.cards.libraries.cards.storage.db.PlayStyleEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.UserMessageDao
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventDao
@@ -27,6 +29,20 @@ class ProvideProgressionDao @Inject constructor(
 class ProvideXpEventDao @Inject constructor(
     provider: AppDatabaseProvider
 ) : XpEventDao by provider.database.xpEventDao()
+
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = PlayStyleDao::class)
+@ContributesBinding(AppScope::class, multibinding = true, boundType = ClearableDao::class)
+class ProvidePlayStyleDao @Inject constructor(
+    provider: AppDatabaseProvider
+) : PlayStyleDao by provider.database.playStyleDao()
+
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = PlayStyleEventDao::class)
+@ContributesBinding(AppScope::class, multibinding = true, boundType = ClearableDao::class)
+class ProvidePlayStyleEventDao @Inject constructor(
+    provider: AppDatabaseProvider
+) : PlayStyleEventDao by provider.database.playStyleEventDao()
 
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = ChipsDao::class)
