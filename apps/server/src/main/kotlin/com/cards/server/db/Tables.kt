@@ -234,6 +234,9 @@ object RoomsTable : Table("rooms") {
     val buyIn = long("buy_in")
     val maxSeats = integer("max_seats")
     val createdAt = timestamp("created_at")
+    // 'private' | 'open' | 'public' (V66). Defaulted at the DB level so pre-V66
+    // rows + Exposed inserts that omit it read as 'private'.
+    val visibility = text("visibility")
     override val primaryKey = PrimaryKey(code)
 }
 

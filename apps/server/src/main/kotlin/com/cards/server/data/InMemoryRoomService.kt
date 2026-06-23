@@ -6,9 +6,11 @@ import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.AddBotResult
 import com.dangerfield.cards.server.domain.BotSeat
+import com.dangerfield.cards.server.domain.BuyInTier
 import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.LeaveResult
+import com.dangerfield.cards.server.domain.MatchmakingResult
 import com.dangerfield.cards.server.domain.RemoveBotResult
 import com.dangerfield.cards.server.domain.NoOpRoomStore
 import com.dangerfield.cards.server.domain.Room
@@ -17,6 +19,8 @@ import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
 import com.dangerfield.cards.server.domain.RoomStore
 import com.dangerfield.cards.server.domain.RoomSweepResult
+import com.dangerfield.cards.server.domain.RoomVisibility
+import com.dangerfield.cards.server.domain.SYSTEM_HOST_USER_ID
 import com.dangerfield.cards.server.domain.UserId
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -95,6 +99,7 @@ class InMemoryRoomService(
         hostAvatarEmoji: String,
         hostAvatarBackgroundColor: String?,
         buyIn: Long,
+        visibility: RoomVisibility,
     ): CreateResult = mutex.withLock {
         val activeHosted = rooms.values.count { it.room.hostUserId == hostUserId }
         if (activeHosted >= RoomService.MAX_ROOMS_PER_HOST) {
@@ -126,6 +131,7 @@ class InMemoryRoomService(
             status = RoomStatus.Lobby,
             members = listOf(host),
             buyIn = buyIn,
+            visibility = visibility,
         )
         rooms[code] = RoomState(room = room)
         persist(room)
@@ -164,6 +170,87 @@ class InMemoryRoomService(
         state.update(next)
         persist(next)
         JoinResult.Success(next)
+    }
+
+    override suspend fun findOrJoinPublic(
+        userId: UserId,
+        name: String,
+        minBuyIn: Long,
+        maxBuyIn: Long,
+        blockedUserIds: Set<UserId>,
+        avatarEmoji: String,
+        avatarBackgroundColor: String?,
+    ): MatchmakingResult = mutex.withLock {
+        // Idempotent: already seated in an eligible room → hand it back. Guards a
+        // double-tap / reconnect from minting a second table.
+        rooms.values.firstOrNull { it.room.isMatchmakingEligible && it.room.memberFor(userId) != null }
+            ?.let { return@withLock MatchmakingResult.Joined(it.room) }
+
+        // Atomic pick: eligible, joinable, in-range, no blocked member; prefer the
+        // most real humans (ties → oldest room, for stable convergence).
+        val candidate = rooms.values
+            .map { it.room }
+            .filter { room ->
+                room.isMatchmakingEligible &&
+                    room.status == RoomStatus.Lobby &&
+                    !room.isFull &&
+                    room.buyIn in minBuyIn..maxBuyIn &&
+                    room.members.none { it.userId in blockedUserIds }
+            }
+            .sortedWith(
+                compareByDescending<Room> { room -> room.members.count { !it.isBot } }
+                    .thenBy { it.createdAt },
+            )
+            .firstOrNull()
+
+        val now = clock.now()
+        if (candidate != null) {
+            val state = rooms.getValue(candidate.code)
+            val newMember = RoomMember(
+                userId = userId,
+                displayName = name,
+                seatIndex = nextFreeSeat(candidate),
+                joinedAt = now,
+                isConnected = false,
+                disconnectedAt = now,
+                avatarEmoji = sanitizeMemberAvatar(avatarEmoji),
+                avatarBackgroundColor = avatarBackgroundColor,
+            )
+            val next = candidate.copy(members = (candidate.members + newMember).sortedBy { it.seatIndex })
+            state.update(next)
+            persist(next)
+            return@withLock MatchmakingResult.Joined(next)
+        }
+
+        // No eligible room — open a fresh Public table seated with just this
+        // player. No bots: the disclosed fallback only fires later, on consent.
+        // Synthetic system host (no per-host cap, no host-migration), buy-in
+        // snapped to a canonical tier so overlapping ranges converge.
+        val code = generateUniqueCode()
+        val founder = RoomMember(
+            userId = userId,
+            displayName = name,
+            seatIndex = 0,
+            joinedAt = now,
+            isConnected = false,
+            disconnectedAt = now,
+            avatarEmoji = sanitizeMemberAvatar(avatarEmoji),
+            avatarBackgroundColor = avatarBackgroundColor,
+        )
+        val room = Room(
+            code = code,
+            hostUserId = SYSTEM_HOST_USER_ID,
+            createdAt = now,
+            maxSeats = RoomService.MAX_SEATS,
+            status = RoomStatus.Lobby,
+            members = listOf(founder),
+            buyIn = BuyInTier.within(minBuyIn, maxBuyIn),
+            visibility = RoomVisibility.Public,
+        )
+        rooms[code] = RoomState(room = room)
+        persist(room)
+        log.info("Matchmaking opened public room $code at buy-in ${room.buyIn} for $userId")
+        MatchmakingResult.Created(room)
     }
 
     override suspend fun leave(code: String, userId: UserId): LeaveResult = mutex.withLock {

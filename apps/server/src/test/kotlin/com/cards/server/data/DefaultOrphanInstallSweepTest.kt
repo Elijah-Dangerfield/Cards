@@ -309,7 +309,17 @@ class DefaultOrphanInstallSweepTest {
             hostAvatarEmoji: String,
             hostAvatarBackgroundColor: String?,
             buyIn: Long,
+            visibility: com.dangerfield.cards.server.domain.RoomVisibility,
         ): com.dangerfield.cards.server.domain.CreateResult = error("unused")
+        override suspend fun findOrJoinPublic(
+            userId: UserId,
+            name: String,
+            minBuyIn: Long,
+            maxBuyIn: Long,
+            blockedUserIds: Set<UserId>,
+            avatarEmoji: String,
+            avatarBackgroundColor: String?,
+        ): com.dangerfield.cards.server.domain.MatchmakingResult = error("unused")
         override suspend fun join(
             code: String,
             userId: UserId,

@@ -40,9 +40,23 @@ data class Room(
      * default so the table actually plays at the chosen stakes.
      */
     val buyIn: Long = RoomSettings.DEFAULT_BUY_IN,
+    /**
+     * Who can discover + join this room. [RoomVisibility.Private] (the default,
+     * matching every pre-matchmaking room) is code-only. [RoomVisibility.Open]
+     * is a human-hosted room the creator opted into matchmaking discovery for.
+     * [RoomVisibility.Public] is a matchmaker-created table with a synthetic
+     * system host, dealt by the server. Only Open + Public are matchmaking-
+     * eligible. Defaulted so existing call sites + persisted pre-V66 rows read
+     * as Private.
+     */
+    val visibility: RoomVisibility = RoomVisibility.Private,
 ) {
     /** Full engine settings derived from [buyIn] + [maxSeats]. */
     val settings: RoomSettings get() = RoomSettings.forBuyIn(buyIn, maxSeats)
+
+    /** Matchmaking can seat a stranger here (Open opt-in, or a Public table). */
+    val isMatchmakingEligible: Boolean
+        get() = visibility == RoomVisibility.Open || visibility == RoomVisibility.Public
 
     val seatCount: Int get() = members.size
     val isFull: Boolean get() = seatCount >= maxSeats
@@ -103,6 +117,18 @@ data class RoomMember(
 enum class RoomStatus { Lobby, Playing, Finished }
 
 /**
+ * Discovery + join policy for a room.
+ *
+ *  - [Private] — joinable only by code. Every room before matchmaking is this.
+ *  - [Open] — human-hosted but discoverable by the public matchmaker; the
+ *    creator flipped "let anyone join". Host still controls the deal; no
+ *    surprise bots unless the host opts into bot-fill.
+ *  - [Public] — created by the matchmaker with a synthetic system host and
+ *    dealt by the server. Eligible for the disclosed bot fallback.
+ */
+enum class RoomVisibility { Private, Open, Public }
+
+/**
  * High-level room operations the HTTP routes + WebSocket session
  * handlers talk to. Implementations are concurrent-safe — multiple
  * connections per room hit these methods simultaneously.
@@ -129,6 +155,9 @@ interface RoomService {
         hostAvatarEmoji: String = "",
         hostAvatarBackgroundColor: String? = null,
         buyIn: Long = RoomSettings.DEFAULT_BUY_IN,
+        // Private by default. The create-game "open to anyone" toggle passes
+        // [RoomVisibility.Open] so the matchmaker can seat strangers here.
+        visibility: RoomVisibility = RoomVisibility.Private,
     ): CreateResult
 
     /**
@@ -143,6 +172,31 @@ interface RoomService {
         avatarEmoji: String = "",
         avatarBackgroundColor: String? = null,
     ): JoinResult
+
+    /**
+     * Public matchmaking: seat [userId] into the best eligible Open/Public room
+     * whose buy-in is in `[minBuyIn, maxBuyIn]`, else open a fresh Public table
+     * for them (no bots — the disclosed bot fallback only fires later, on
+     * consent). "Best" = the most real humans already seated, so searchers
+     * cluster onto live tables instead of scattering.
+     *
+     * Runs as a single critical section so the pick-and-seat is atomic — two
+     * racing searchers can't both claim the last seat, and a room can't be
+     * GC'd / torn down between the scan and the join (the loser falls through to
+     * create). [blockedUserIds] (both block directions) must be computed by the
+     * caller *before* this call — never query the friend graph while the room
+     * mutex is held; rooms containing a blocked member are skipped. Idempotent:
+     * a searcher already seated in an eligible room gets that room back.
+     */
+    suspend fun findOrJoinPublic(
+        userId: UserId,
+        name: String,
+        minBuyIn: Long,
+        maxBuyIn: Long,
+        blockedUserIds: Set<UserId>,
+        avatarEmoji: String = "",
+        avatarBackgroundColor: String? = null,
+    ): MatchmakingResult
 
     /**
      * Explicit leave. Frees the seat. When the room empties, the

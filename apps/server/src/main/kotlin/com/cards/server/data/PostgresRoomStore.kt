@@ -13,6 +13,7 @@ import com.dangerfield.cards.server.domain.Room
 import com.dangerfield.cards.server.domain.RoomMember
 import com.dangerfield.cards.server.domain.RoomStatus
 import com.dangerfield.cards.server.domain.RoomStore
+import com.dangerfield.cards.server.domain.RoomVisibility
 import com.dangerfield.cards.server.domain.UserId
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteWhere
@@ -53,6 +54,7 @@ class PostgresRoomStore(
                 it[buyIn] = room.buyIn
                 it[maxSeats] = room.maxSeats
                 it[createdAt] = room.createdAt.toJavaInstant()
+                it[visibility] = room.visibility.toDb()
             }
             if (rowsUpdated == 0) {
                 RoomsTable.insert {
@@ -62,6 +64,7 @@ class PostgresRoomStore(
                     it[buyIn] = room.buyIn
                     it[maxSeats] = room.maxSeats
                     it[createdAt] = room.createdAt.toJavaInstant()
+                    it[visibility] = room.visibility.toDb()
                 }
             }
             // Replace the member set wholesale — snapshot semantics.
@@ -135,6 +138,7 @@ class PostgresRoomStore(
             status = roomRow[RoomsTable.status].toRoomStatus(),
             members = members,
             buyIn = roomRow[RoomsTable.buyIn],
+            visibility = roomRow[RoomsTable.visibility].toVisibility(),
         )
     }
 
@@ -152,5 +156,18 @@ class PostgresRoomStore(
         "playing" -> RoomStatus.Playing
         "finished" -> RoomStatus.Finished
         else -> RoomStatus.Lobby
+    }
+
+    private fun RoomVisibility.toDb(): String = when (this) {
+        RoomVisibility.Private -> "private"
+        RoomVisibility.Open -> "open"
+        RoomVisibility.Public -> "public"
+    }
+
+    private fun String.toVisibility(): RoomVisibility = when (this) {
+        "private" -> RoomVisibility.Private
+        "open" -> RoomVisibility.Open
+        "public" -> RoomVisibility.Public
+        else -> RoomVisibility.Private
     }
 }
