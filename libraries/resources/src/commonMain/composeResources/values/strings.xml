@@ -515,6 +515,8 @@
     <string name="stats_play_style_section">Play style</string>
     <string name="stats_play_style_name">Tight-Aggressive</string>
     <string name="stats_play_style_blurb">You wait for strong hands, then bet them hard.</string>
+    <string name="stats_play_style_empty_title">Your style is taking shape</string>
+    <string name="stats_play_style_empty_blurb">Play at least %1$d hands and we\'ll map how you play — tight or loose, aggressive or patient.</string>
     <string name="profile_stats_banner_title">Your stats &amp; style</string>
     <string name="profile_stats_banner_subtitle">%1$s · %2$d%% win · %3$s won</string>
     <string name="profile_stats_banner_subtitle_no_games">%1$s · Play a few hands to see your stats</string>
@@ -854,6 +856,9 @@
 
     <!-- Room - Tap-an-opponent profile sheet (per-seat playing style + difficulty + settings). -->
     <string name="room_player_profile_playing_style_heading">Playing style</string>
+    <string name="room_player_profile_style_locked_title">Read their style</string>
+    <string name="room_player_profile_style_locked_body">Unlock the Opponent Style Reader in the shop to see how this player plays — tight or loose, aggressive or patient.</string>
+    <string name="room_player_profile_style_pending_body">Not enough hands yet to read this player\'s style.</string>
     <string name="room_player_profile_tenure_section_title">At this table</string>
     <string name="room_player_profile_difficulty_section_title">Difficulty</string>
     <string name="room_player_profile_settings_section_title">Settings</string>

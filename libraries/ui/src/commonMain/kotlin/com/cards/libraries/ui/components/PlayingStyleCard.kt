@@ -72,18 +72,20 @@ fun PlayingStyleCard(
 }
 
 /**
- * Compact, label-less [RadarChart] with a fixed example shape — a decorative
- * "your style at a glance" mark (e.g. the profile stats banner) that reads as
- * the same radar as [PlayingStyleCard] without needing real data or labels.
+ * Compact, label-less [RadarChart] — a "your style at a glance" mark (e.g. the
+ * profile stats banner) that reads as the same radar as [PlayingStyleCard]
+ * without labels. Defaults to a decorative [ExampleStyleAxes] shape for the
+ * empty/teaser state; pass real [axes] once the user has a derived style.
  */
 @Composable
 fun PlayStyleRadarMark(
     modifier: Modifier = Modifier,
     size: Dp = 36.dp,
+    axes: List<RadarAxis> = ExampleStyleAxes,
     color: ColorResource = AppTheme.colors.poker.progressionCyan,
 ) {
     RadarChart(
-        axes = ExampleStyleAxes,
+        axes = axes,
         modifier = modifier,
         chartSize = size,
         foregroundColor = color.color,
@@ -91,7 +93,7 @@ fun PlayStyleRadarMark(
     )
 }
 
-private val ExampleStyleAxes = listOf(
+val ExampleStyleAxes = listOf(
     RadarAxis(label = "Tight", value = 0.74f),
     RadarAxis(label = "Aggro", value = 0.78f),
     RadarAxis(label = "Bluff", value = 0.45f),

@@ -36,6 +36,9 @@ kotlin {
             // are pure data classes — no engine, no Compose — so they're safe
             // to pull into the DS.
             api(projects.libraries.gameplay)
+            // Play-style archetype classification (archetypeFor) — shared so a
+            // human's derived style maps to the same label/description as a bot.
+            implementation(projects.libraries.bots)
 
             api(compose.ui)
             api(compose.uiUtil)
