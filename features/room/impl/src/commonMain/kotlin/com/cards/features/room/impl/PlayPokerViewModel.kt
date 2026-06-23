@@ -111,6 +111,11 @@ class PlayPokerViewModel @Inject constructor(
     // from the single GameEventReceived collector (ordered: actions before end).
     private val playStyleBuilder = PlayStyleHandSummaryBuilder()
 
+    // Hand number of the last play-style row we recorded — guards against a
+    // re-delivered HandEnded recording the same hand twice (the outbox feeds a
+    // server aggregate, so a double-count silently skews the user's style).
+    private var lastRecordedPlayStyleHand: Int? = null
+
     // Authenticated profile for the human-seat projection (display name + avatar).
     // Null until the first Authenticated emission; fallback profiles are ignored.
     private var latestHumanProfile: Profile.Authenticated? = null
@@ -345,12 +350,15 @@ class PlayPokerViewModel @Inject constructor(
             is GameEvent.ActionTaken -> playStyleBuilder.onActionTaken(event, humanIdx)
             is GameEvent.HandEnded -> {
                 val state = lastGameState ?: return
+                // Record each hand at most once, even if HandEnded is re-delivered.
+                if (state.handNumber == lastRecordedPlayStyleHand) return
                 val summary = playStyleBuilder.build(
                     event = event,
                     state = state,
                     humanSeatIndex = humanIdx,
                     mode = sessionFactory.xpMode,
                 ) ?: return
+                lastRecordedPlayStyleHand = state.handNumber
                 viewModelScope.launch {
                     Catching { playStyleRepository.recordHand(summary) }
                         .onFailure { logger.w(it) { "Recording play-style failed for hand ${summary.handId}" } }
@@ -772,12 +780,20 @@ class PlayPokerViewModel @Inject constructor(
                 it.copy(ownsOpponentStyleReader = action.owned)
             }
             is PlayPokerAction.RequestOpponentStyle -> {
-                // Fetch once per opponent per session; the cache in the repo
-                // de-dupes the network call, the state map de-dupes the request.
+                // Fetch once per opponent per session. Only a *successful* fetch
+                // is cached — a transient network failure leaves the key absent
+                // so reopening the card retries instead of permanently showing
+                // "no style". A genuine empty (sampleSize 0) is a success and is
+                // cached, so a sparse opponent isn't refetched on every open.
                 if (action.userId !in stateFlow.value.opponentStyles) {
                     viewModelScope.launch {
-                        val style = playStyleRepository.getStyleFor(action.userId).getOrNull()
-                        takeAction(PlayPokerAction.OpponentStyleLoaded(action.userId, style))
+                        playStyleRepository.getStyleFor(action.userId)
+                            .onSuccess {
+                                takeAction(PlayPokerAction.OpponentStyleLoaded(action.userId, it))
+                            }
+                            .onFailure {
+                                logger.w(it) { "Opponent style fetch failed for ${action.userId}" }
+                            }
                     }
                 }
             }

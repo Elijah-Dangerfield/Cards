@@ -153,10 +153,14 @@ class PlayStyleRepositoryImpl(
 
     override fun onUserChanged(event: AppEvent.UserChanged) {
         // A user just became active. On an account switch the prior user's
-        // cached axes were just wiped, so re-hydrate the new user's now.
+        // cached axes were just wiped, so drop the opponent cache (under its
+        // lock — it's a plain map shared with in-flight getStyleFor) and
+        // re-hydrate the new user's own style now.
         if (event.current == null) return
-        opponentCache.clear()
-        appScope.launch { sync() }
+        appScope.launch {
+            opponentCacheMutex.withLock { opponentCache.clear() }
+            sync()
+        }
     }
 
     override fun onAccountClaimed(event: AppEvent.AccountClaimed) {
