@@ -5,9 +5,11 @@ import com.dangerfield.cards.server.domain.AddBotResult
 import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.LeaveResult
+import com.dangerfield.cards.server.domain.MatchmakingResult
 import com.dangerfield.cards.server.domain.RemoveBotResult
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
+import com.dangerfield.cards.server.domain.SYSTEM_HOST_USER_ID
 import com.dangerfield.cards.server.domain.UserId
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -862,6 +864,88 @@ class InMemoryRoomServiceTest {
 
         results.forEach { assertIs<AddBotResult.Success>(it) }
         assertEquals(4, service.find(room.code)!!.members.size, "concurrent fills converge on the target, not maxSeats")
+    }
+
+    // ---------- trimBotForNewHumans ("bots step aside for humans") ----------
+
+    @Test
+    fun trimBotForNewHumans_publicRescuedTable_dropsOneBotPerHand_untilAllHuman() = runTest {
+        val service = newService()
+        val code = service.openPublicBotTable() // alice + 3 disclosed bots
+
+        // A second human (bob) is matched into the lonely player's table.
+        val joined = assertIs<MatchmakingResult.Joined>(
+            service.findOrJoinPublic(bob, "Bob", 1_000, 1_000, emptySet()),
+        ).room
+        assertEquals(code, joined.code, "bob landed in alice's existing table, not a fresh one")
+        assertEquals(2, joined.members.count { !it.isBot }, "two humans now seated")
+        assertEquals(3, joined.members.count { it.isBot }, "the 3 bots are still there for now")
+
+        // Hand 1 boundary: exactly one bot steps aside, and we learn which.
+        val trimmed1 = service.trimBotForNewHumans(code, handNumber = 1)
+        assertNotNull(trimmed1, "a bot was trimmed once two humans are present")
+        val afterHand1 = service.find(code)!!
+        assertEquals(2, afterHand1.members.count { it.isBot }, "one bot gone")
+        assertTrue(afterHand1.members.none { it.userId == trimmed1 }, "the returned id is the bot that left")
+        assertEquals(2, afterHand1.members.count { !it.isBot }, "both humans stay")
+
+        // A duplicate call for the SAME hand (another socket subscriber) is a no-op.
+        assertNull(service.trimBotForNewHumans(code, handNumber = 1), "idempotent per hand — no second bot dropped")
+        assertEquals(2, service.find(code)!!.members.count { it.isBot })
+
+        // Each later hand sheds one more, converging on an all-human table.
+        assertNotNull(service.trimBotForNewHumans(code, handNumber = 2))
+        assertEquals(1, service.find(code)!!.members.count { it.isBot })
+        assertNotNull(service.trimBotForNewHumans(code, handNumber = 3))
+        assertEquals(0, service.find(code)!!.members.count { it.isBot }, "all bots have stepped aside")
+
+        // Nothing left to trim — two humans play on.
+        assertNull(service.trimBotForNewHumans(code, handNumber = 4), "no bots → no-op")
+        assertEquals(2, service.find(code)!!.members.count { !it.isBot })
+    }
+
+    @Test
+    fun trimBotForNewHumans_lonePlayerVsBots_keepsEveryBot() = runTest {
+        val service = newService()
+        val code = service.openPublicBotTable() // alice alone + 3 bots
+
+        // Still just one human — this is the real-money practice table, so the
+        // bots stay put. We only shed bots once a real human is rescued in.
+        assertNull(service.trimBotForNewHumans(code, handNumber = 1))
+        assertEquals(3, service.find(code)!!.members.count { it.isBot }, "a lone human keeps the bots")
+    }
+
+    @Test
+    fun trimBotForNewHumans_privateTable_neverTrims() = runTest {
+        val service = newService()
+        // A human-hosted PRIVATE room with a deliberately-added bot + a 2nd human.
+        val room = service.createOrFail(host, "Host", maxSeats = 6)
+        service.join(room.code, alice, "Alice")
+        assertIs<AddBotResult.Success>(service.addBot(room.code, host, BotDifficulty.Standard))
+
+        // Two humans + a bot — but bots in a host's room are a deliberate choice,
+        // not matchmaking placeholders, so they're never auto-trimmed.
+        assertNull(service.trimBotForNewHumans(room.code, handNumber = 1))
+        assertEquals(1, service.find(room.code)!!.members.count { it.isBot }, "private tables never shed bots")
+    }
+
+    @Test
+    fun trimBotForNewHumans_unknownRoom_isNull() = runTest {
+        assertNull(newService().trimBotForNewHumans("ZZZZZZ", handNumber = 1))
+    }
+
+    /**
+     * A public matchmaker table seated with one human (alice) + 3 disclosed bots —
+     * the lonely-player "play with bots" fallback. Returns the room code.
+     */
+    private suspend fun InMemoryRoomService.openPublicBotTable(): String {
+        val created = assertIs<MatchmakingResult.Created>(
+            findOrJoinPublic(alice, "Alice", 1_000, 1_000, emptySet()),
+        ).room
+        assertIs<AddBotResult.Success>(
+            fillBotsUpTo(created.code, SYSTEM_HOST_USER_ID, target = 4, difficulty = BotDifficulty.Standard, revealed = true),
+        )
+        return created.code
     }
 
     // ---------- scaffolding ----------

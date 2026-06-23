@@ -274,6 +274,25 @@ class TableSessionServiceTest : DatabaseTest() {
     }
 
     @Test
+    fun subsidizedWin_overTheDailyCap_paysOutInFull_nothingClawedBack() = runTest {
+        // The cap is 2,000 but the player wins 10,000 against the bots (some of it
+        // possibly after a human joined). We never rob them: the cash-out credits
+        // every chip. The cap only gates STARTING the next bot table, never the
+        // payout — so "I don't want to rob people of their money" holds.
+        val service = newService(subsidyDailyCap = 2_000)
+        val tableSessions = newTableSessions()
+        val user = newUser()
+        val funded = service.sitDown(user, ROOM, CASUAL_BUY_IN, subsidized = true) as SitDownResult.Funded
+
+        val cashed = service.cashOut(user, finalStack = CASUAL_BUY_IN + 10_000)
+
+        assertTrue(cashed is CashOutResult.CashedOut)
+        assertEquals(CASUAL_BUY_IN + 10_000, cashed.refunded, "the whole stack is paid out, cap or not")
+        assertEquals(Wallet.STARTER_GRANT + 10_000, newWallets().findOrCreate(user).balance, "wallet keeps every chip")
+        assertEquals(10_000, tableSessions.find(funded.sessionId)!!.subsidyGranted, "the full win counts toward the cap")
+    }
+
+    @Test
     fun subsidyCap_blocksANewBotTable_afterTheDailyLimit_butNotRealTables() = runTest {
         val service = newService(subsidyDailyCap = 2_000)
         val user = newUser()
