@@ -58,21 +58,12 @@ import me.tatarka.inject.annotations.Inject
 import kotlin.time.Clock
 
 /**
- * The bot/human-agnostic ViewModel that backs the play-poker screen.
- *
- * Consumes [PokerSession] (UI-decoupled engine state + events) via a
- * [PokerSessionFactory] injected by the [PlayPokerFeatureEntryPoint]. For
- * solo mode the factory is [SoloBotsPokerSessionFactory]; for MP (Phase 4)
- * it will be a `RemotePokerSessionFactory` satisfying the same interface
- * with no VM changes required.
- *
- * Design notes:
- * - Takes a session FACTORY (not a session) so the hand-end lambda below
- *   can close over `viewModelScope` correctly — the session is constructed
- *   in the init block.
- * - [PlayPokerState.table] is projected from raw [GameState] via the
- *   factory's `tableFor`; per-hand transients (winners, last-action pills)
- *   come from engine events the VM observes.
+ * Session-agnostic ViewModel behind the play-poker screen. Consumes a
+ * [PokerSession] via an injected [PokerSessionFactory] (solo bots or remote MP).
+ * Takes the factory, not the session, so the hand-end lambda can close over
+ * `viewModelScope`; the session is built in `init`. [PlayPokerState.table] is
+ * projected from [GameState] by the factory, with per-hand transients (winners,
+ * action pills) tracked from engine events.
  */
 @OptIn(ExperimentalCoroutinesApi::class) // mapLatest — needed for cancel-in-flight equity math
 class PlayPokerViewModel @Inject constructor(
@@ -95,49 +86,33 @@ class PlayPokerViewModel @Inject constructor(
 
     private val logger = KLog.withTag("PlayPokerViewModel")
 
-    // The server-tunable level curve every derived level on this screen runs
-    // through. Read live off config (a cheap map lookup) so a mid-session
-    // retune of `progression.levelCurve` reflects on the next projection,
-    // matching how the level the server granted is computed.
+    // Server-tunable level curve; read live so a mid-session retune reflects on
+    // the next projection.
     private val levelCurve: LevelCurve get() = progressionConfig.levelCurve()
 
-    // Construction-time hint for the session factory only. Solo seats the
-    // human here; MP ignores it and allocates a seat server-side. Anything
-    // that attributes a finished hand resolves the real seat via
-    // [PokerSessionFactory.humanSeatIndex] against the live state instead.
+    // Construction-time hint only. Real per-hand attribution resolves the seat
+    // via [PokerSessionFactory.humanSeatIndex] against live state (MP seats vary).
     private val humanSeatIndex: Int = 0
 
-    // Cached bot-speed mirror — the session reads this via a non-suspending
-    // provider on every bot turn so a settings toggle mid-hand takes effect
-    // on the next bot decision.
+    // Mirror read by the session each bot turn so a mid-hand speed toggle applies next.
     private var latestBotSpeed: BotSpeed = BotSpeed.Normal
 
-    // Per-hand transient state that feeds into TableUiState projection but
-    // ISN'T part of [GameState]. We track them from engine events and pass
-    // into the factory's projection on every state emission. Cleared at the
-    // start of each hand.
+    // Per-hand transients fed into the table projection (not part of GameState);
+    // tracked from events, cleared each hand.
     private var lastWinners: GameEvent.HandEnded? = null
     private val lastActionBySeat: MutableMap<Int, PlayerAction> = mutableMapOf()
 
-    // Latest known authenticated profile. Captured here so the [tableFor]
-    // projection can render the human seat with the user's chosen display
-    // name + avatar emoji instead of the engine-side "You" / null
-    // placeholders. Null until the first Authenticated emission lands;
-    // re-projects when it does. Fallback profiles aren't useful here —
-    // they have no display name to render.
+    // Authenticated profile for the human-seat projection (display name + avatar).
+    // Null until the first Authenticated emission; fallback profiles are ignored.
     private var latestHumanProfile: Profile.Authenticated? = null
     private var lastGameState: GameState? = null
 
-    // Dedupes intent submission within a single decision point. Keyed on the
-    // live state's (handNumber, lastSequence) — two taps before the resulting
-    // snapshot lands read the same token and the second is dropped, so a slow
-    // ack / double-tap can't fire the same action twice. Cleared on a rejected
-    // submit so a corrected resubmit (e.g. an illegal raise) on the same turn
-    // still goes through; an accepted action advances lastSequence, so the next
-    // genuine decision carries a fresh token regardless.
+    // Dedupes a submit within one decision point, keyed on (handNumber,
+    // lastSequence): a double-tap before the next snapshot is dropped. Cleared on
+    // rejection so a corrected resubmit still goes through.
     private var submittedTurnToken: Pair<Int, Long>? = null
 
-    // Session created lazily so the hand-end lambda below can reference `viewModelScope`.
+    // Created here so the hand-end lambda can reference `viewModelScope`.
     private val session: PokerSession = sessionFactory.create(
         humanSeatIndex = humanSeatIndex,
         botSpeedProvider = { latestBotSpeed },
@@ -160,9 +135,7 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.GameEventReceived(ev))
             }
         }
-        // Inbound table emotes from opponents (MP only — solo never emits).
-        // The handler attributes each to its seat, drops the local player's
-        // own echo, and respects the per-seat mute set.
+        // Inbound opponent emotes (MP only); the handler drops own-echo + muted.
         viewModelScope.launch {
             session.emoteBlasts.collect { emote ->
                 takeAction(PlayPokerAction.RemoteEmoteReceived(emote.seatIndex, emote.emoji))
@@ -172,28 +145,21 @@ class PlayPokerViewModel @Inject constructor(
         viewModelScope.launch {
             sessionFactory.bootstrap(session)
         }
-        // Connection health → state. Local sessions stay pinned to
-        // [ConnectionState.Connected]; remote sessions transition as the
-        // socket lifecycle dictates. The screen renders a banner whenever
-        // this isn't [Connected].
+        // Connection health → state; the screen banners anything but Connected.
         viewModelScope.launch {
             session.connectionState.collect { conn ->
                 takeAction(PlayPokerAction.ConnectionChanged(conn))
             }
         }
-        // Terminal room-close → one-shot exit event. A closed/rejected room
-        // collapses to [ConnectionState.Disconnected] above, which the banner
-        // can't tell apart from a transient drop; this is the signal that
-        // there's nothing to reconnect to, so the entry point pops the screen.
+        // Terminal room-close → one-shot exit (Disconnected alone can't be told
+        // from a transient drop); the entry point pops the screen.
         viewModelScope.launch {
             session.roomClosed.collect { reason ->
                 sendEvent(PlayPokerEvent.RoomClosed(reason))
             }
         }
-        // Last human standing — every other human left. The room isn't gone, so
-        // this is distinct from roomClosed: the entry point surfaces a notice and
-        // routes (back to the lobby for a private game, to matchmaking for a
-        // public one). Never fires for solo bots.
+        // Last human standing — distinct from roomClosed (the room still exists);
+        // the entry point routes by room kind. Never fires for solo bots.
         viewModelScope.launch {
             session.opponentsLeft.collect {
                 sendEvent(PlayPokerEvent.OpponentsLeft)
@@ -216,9 +182,7 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.XpBoostChanged(data.xpBoostExpiresAtEpochMs))
             }
         }
-        // Inventory mirror — folds owned emote-pack product IDs into the
-        // blast tray's available pool. Empty when the user owns no packs;
-        // the screen hides the tray UI entirely in that case.
+        // Owned emote-pack IDs → blast-tray pool (empty hides the tray).
         viewModelScope.launch {
             inventoryRepository.observeInventory().collect { items ->
                 val ownedIds = items.map { it.productId }.toSet()
@@ -238,12 +202,8 @@ class PlayPokerViewModel @Inject constructor(
                 lastGameState?.let { takeAction(PlayPokerAction.GameStateUpdated(it)) }
             }
         }
-        // Equipped felt + card back — observed so mid-session toggles
-        // from the My Items screen repaint without re-entry. Single
-        // subscription, two derived values: the flow yields newest-equip-
-        // first, so we pick the first non-Default per slot. Also surfaces
-        // the boolean for the win-odds tool — the live-equity feature
-        // gates on it.
+        // Equipped cosmetics → mid-session repaint. The flow is newest-first, so
+        // pick the first non-Default per slot; also surfaces the win-odds tool flag.
         viewModelScope.launch {
             equipmentRepository.observeEquipped().collect { entries ->
                 val felt = entries
@@ -262,9 +222,8 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.EquippedBadgeChanged(badgeEmoji))
             }
         }
-        // Catalog-driven badges + titles (unified) for the tappable chips on the
-        // player-profile sheet — name/emoji/description come from the product
-        // catalog (incl. the prestige bucket), earned date from inventory.
+        // Equipped badges/titles resolved from catalog + inventory for the
+        // profile-sheet chips.
         viewModelScope.launch {
             combine(
                 equipmentRepository.observeEquipped(),
@@ -280,20 +239,15 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.EquippedBadgesChanged(badges))
             }
         }
-        // Catalog snapshot in state so the screen can resolve an opponent's
-        // badge ids (off their Seat) to display metadata when their sheet opens.
+        // Catalog in state so the screen can resolve opponents' badge ids.
         viewModelScope.launch {
             productsRepository.observeCatalog().collect { catalog ->
                 takeAction(PlayPokerAction.CatalogChanged(catalog))
             }
         }
         viewModelScope.launch { productsRepository.refresh() }
-        // Live win-odds — only computes when the user owns + equips the
-        // tool, only on inputs that actually matter for equity (their
-        // hole cards, the visible board, the count of opponents still
-        // in the hand). distinctUntilChanged + mapLatest means we cancel
-        // in-flight Monte Carlo runs the moment any input shifts (e.g.
-        // a fold reduces opponent count mid-river).
+        // Live win-odds (gated in WinOddsEngine). distinctUntilChanged + mapLatest
+        // cancel the in-flight Monte Carlo when any equity input shifts.
         viewModelScope.launch {
             combine(session.gameStateFlow, stateFlow) { gs, vmState ->
                 WinOddsEngine.inputFor(
@@ -342,10 +296,8 @@ class PlayPokerViewModel @Inject constructor(
         state: GameState,
         humanStartingStack: Long,
     ) {
-        // Resolve the local human's seat from the finished-hand state rather
-        // than the construction-time hint: in MP the human can sit at any
-        // seat, and attributing the hand to seat 0 would credit a different
-        // player's fold/showdown outcome.
+        // Resolve the human's seat from live state (MP seats vary) so the hand
+        // is attributed to the right player.
         val humanSeatIndex = sessionFactory.humanSeatIndex(state)
         val summary = HandResultSummaryBuilder.build(
             event = event,
@@ -363,9 +315,8 @@ class PlayPokerViewModel @Inject constructor(
             humanStartingStack = humanStartingStack,
             difficultyName = sessionFactory.difficultyName,
         )
-        // Mark achievement computation in flight *before* the launch so the
-        // dialog's dismiss path knows to wait rather than skip a reveal that
-        // hasn't been computed yet (recordHand is async — see the flag's doc).
+        // Mark in-flight before the async launch so the dismiss path waits for
+        // the reveal instead of skipping it.
         takeAction(PlayPokerAction.HandEndAchievementsPending)
         viewModelScope.launch {
             val priorLevel = Catching {
@@ -437,10 +388,8 @@ class PlayPokerViewModel @Inject constructor(
                 it.copy(occupants = action.occupants)
             }
             is PlayPokerAction.GameEventReceived -> {
-                // Track transients that the TableUiState projection needs but
-                // GameState alone can't carry — most notably the HandEnded
-                // event (used for showdown rendering) and the most recent
-                // action per seat (rendered as a "Folded" / "Called X" pill).
+                // Track projection transients GameState can't carry: the HandEnded
+                // winners (showdown) and the per-seat action pills.
                 val affectsProjection = when (val ev = action.event) {
                     is GameEvent.HandStarted -> {
                         lastWinners = null
@@ -462,15 +411,9 @@ class PlayPokerViewModel @Inject constructor(
                     is GameEvent.HandEnded -> { lastWinners = ev; true }
                     else -> false
                 }
-                // The table projection renders these transients but is
-                // otherwise only recomputed on a GameState snapshot. The
-                // server emits the Complete snapshot and the HandEnded event
-                // on two independent flows with no ordering guarantee — so if
-                // the snapshot is projected before HandEnded arrives, the
-                // winner (or a final action pill) would never show. Re-project
-                // here so a transient change is reflected regardless of
-                // event/snapshot ordering. (Bot sessions happened to emit the
-                // event before the final state, which masked this in solo play.)
+                // Snapshot and event ride independent flows with no ordering
+                // guarantee, so re-project here — otherwise a Complete snapshot
+                // projected before HandEnded would never show the winner/pill.
                 if (affectsProjection) {
                     lastGameState?.let { gs ->
                         action.updateState {
@@ -496,10 +439,7 @@ class PlayPokerViewModel @Inject constructor(
                 } else {
                     submittedTurnToken = turnToken
                     logger.d { "VM received Submit ${action.intent}" }
-                    // Immediate tactile + audible confirmation that the tap
-                    // registered. Every action gets the haptic; the chip sound
-                    // only fires when chips actually move (call/bet/raise/all-in)
-                    // — a check or fold is silent.
+                    // Haptic on every action; chip sound only when chips move.
                     sendEvent(PlayPokerEvent.PlayHaptic(HapticKind.ActionTaken))
                     val movesChips = action.intent is PlayerIntent.Call ||
                         action.intent is PlayerIntent.Bet ||
@@ -532,10 +472,8 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.XpChanged -> action.updateState { state ->
                 val newLevel = levelProgressFor(action.totalXp, levelCurve).level
                 val nextState = state.copy(xp = action.totalXp, humanLevel = newLevel)
-                // Re-project the table so the human seat picks up the
-                // refreshed level pill — only when the level actually
-                // changed (XP ticks every hand; level changes maybe
-                // once a session).
+                // Re-project for the level pill only when the level actually
+                // changed (XP ticks every hand; level rarely).
                 if (newLevel != state.humanLevel) {
                     lastGameState?.let { gs ->
                         nextState.copy(
@@ -576,8 +514,7 @@ class PlayPokerViewModel @Inject constructor(
                 it.copy(equippedCardBack = action.style)
             }
             is PlayPokerAction.WinOddsToolEquippedChanged -> action.updateState {
-                // Clear any stale breakdown when the tool flips off — UI
-                // hides the flip affordance on the next compose pass.
+                // Clear a stale breakdown when the tool flips off.
                 it.copy(
                     winOddsToolEquipped = action.equipped,
                     humanWinOdds = if (action.equipped) it.humanWinOdds else null,
@@ -604,19 +541,17 @@ class PlayPokerViewModel @Inject constructor(
                         reviewPromptCoordinator.requestPrompt(ReviewTrigger.SessionEnd)
                     }.onFailure { logger.w(it) { "SessionEnd review prompt request failed" } }
                 }
-                // Send the durable leave so the server frees our seat and the
-                // other players see us go. Parented to the app scope, not
-                // viewModelScope: the screen pops this VM the instant it fires
-                // LeaveTable, and the leave must still reach the server. No-op
-                // for local-bots sessions (no server room).
+                // On appScope, not viewModelScope: the screen pops this VM the
+                // instant it fires LeaveTable, but the leave must still reach the
+                // server. No-op for solo.
                 appScope.launch {
                     Catching { session.leave() }
                         .onFailure { e -> logger.w(e) { "room leave failed" } }
                 }
             }
             is PlayPokerAction.LeaveGameFromBust -> {
-                // Same teardown as LeaveTable — the durable leave on the app
-                // scope so it lands even as the screen routes away.
+                // Same teardown as LeaveTable, on appScope so it lands as the
+                // screen routes away.
                 appScope.launch {
                     Catching { session.leave() }
                         .onFailure { e -> logger.w(e) { "room leave failed" } }
@@ -635,10 +570,7 @@ class PlayPokerViewModel @Inject constructor(
                 it.copy(winOddsFlipHintSeen = action.seen)
             }
             is PlayPokerAction.MarkWinOddsFlipHintSeen -> {
-                // Fire-and-forget — the state mirror above flips on the
-                // next cache emit. Writes are idempotent so repeated
-                // flips (the user keeps toggling the tile) are no-ops
-                // after the first.
+                // Write-through; the state mirror flips on the next cache emit.
                 viewModelScope.launch {
                     appCache.update { it.copy(winOddsFlipHintSeen = true) }
                 }
@@ -650,24 +582,19 @@ class PlayPokerViewModel @Inject constructor(
                 it.copy(mutedEmojiPlayerKeys = action.keys)
             }
             is PlayPokerAction.BlastEmoji -> {
-                // Local cooldown gate. We trust state.emojiCooldownEndsAtMs
-                // as the single source of truth so concurrent taps during
-                // the same animation frame all see the post-emit deadline.
                 val now = clock.now().toEpochMilliseconds()
                 val currentState = stateFlow.value
                 if (!EmoteGate.canBlast(now, currentState.emojiCooldownEndsAtMs)) return
                 action.updateState {
                     it.copy(
-                        // null emitter seat → the screen attributes the blast
-                        // to the human seat (this is our own outbound emote).
+                        // null emitter seat → the screen attributes it to the human.
                         emojiBlast = EmojiBlast(emoji = action.emoji, emittedAtEpochMs = now),
                         emojiBlastEmitterSeatIndex = null,
                         emojiCooldownEndsAtMs = now + EMOJI_COOLDOWN_MS,
                     )
                 }
-                // Carry it to opponents over the wire (no-op for solo bots).
-                // Fire-and-forget: the local blast already rendered above, so
-                // a send failure costs nobody their own animation.
+                // Carry to opponents (no-op for solo); fire-and-forget — we
+                // already rendered locally.
                 viewModelScope.launch {
                     Catching { session.sendEmote(action.emoji) }
                         .onFailure { e -> logger.w(e) { "emote send failed" } }
@@ -723,164 +650,72 @@ fun seatMuteKey(seat: SeatView): String? = if (seat.isHuman) null else seat.disp
 // ---------- MVI types ----------
 
 data class PlayPokerState(
-    /**
-     * UI-projected table state — what the screen actually renders. Derived
-     * from the raw engine state via [PokerSessionFactory.tableFor], so the
-     * projection logic stays out of the VM and can vary between solo (knows
-     * bot personalities locally) and MP (gets occupant metadata from server).
-     */
+    /** UI-projected table the screen renders, produced by [PokerSessionFactory.tableFor]. */
     val table: TableUiState = TableUiState.Loading,
     val occupants: List<SeatOccupant> = emptyList(),
     val cheatSheetOpen: Boolean = false,
     val xp: Long = 0,
-    /**
-     * Expiry of the active XP boost window (epoch-ms), or null if none. Drives
-     * the inline countdown grafted onto the level pill while a boost burns.
-     */
+    /** Active XP-boost expiry (epoch-ms), or null — drives the level-pill countdown. */
     val xpBoostExpiresAtEpochMs: Long? = null,
-    /**
-     * Local user's derived level from [xp]. Mirrored into [TableUiState]
-     * via the session factory so the human seat shows a "Lvl N" pill
-     * below the avatar. Null until the first progression emission lands.
-     */
+    /** Human's derived level from [xp], shown as the seat pill; null pre-load. */
     val humanLevel: Int? = null,
     val lastHandXpAwarded: Int? = null,
     val recentlyEarned: List<EarnedAchievement> = emptyList(),
     /**
-     * True from hand-end until [recordHand][AchievementRepository.recordHand]
-     * resolves. Achievement computation is async (a string of DB writes), so a
-     * fast "next hand" tap could otherwise advance past a reveal that hadn't
-     * been computed yet. The bot-mode dismiss path waits on this flag so a
-     * freshly-earned achievement can't be skipped.
+     * True from hand-end until achievement recording resolves (async). The
+     * bot-mode dismiss path waits on this so a fast "next hand" can't skip a reveal.
      */
     val awaitingHandEndAchievements: Boolean = false,
     val turnFeedback: TurnFeedback = TurnFeedback.Vibrate,
     val connection: ConnectionState = ConnectionState.Connected,
-    /**
-     * Which felt / table-theme the player has currently equipped. Drives
-     * the screen's background paint via [feltSurfaceColor]. Default = the
-     * stock app background (i.e. nothing equipped).
-     */
+    /** Equipped felt; drives the background paint via [feltSurfaceColor]. */
     val equippedFelt: EquippedFelt = EquippedFelt.Default,
-    /**
-     * Which card-back style the player has equipped. Pushed into the
-     * composition via `LocalCardBackStyle` so every face-down card on
-     * the screen (opponent hole cards, deck stack, dealt-but-not-revealed
-     * community cards) picks it up without prop-drilling.
-     */
+    /** Equipped card-back; pushed into the composition via `LocalCardBackStyle`. */
     val equippedCardBack: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle =
         com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default,
-    /**
-     * True when the player owns + has equipped the "Win Odds Display"
-     * utility tool. Gates [humanWinOdds] computation — when false
-     * the VM never runs the Monte Carlo so the cost is zero for
-     * non-owners.
-     */
+    /** Whether the Win-Odds tool is equipped — gates [humanWinOdds] so non-owners pay nothing. */
     val winOddsToolEquipped: Boolean = false,
     /**
-     * Live win/tie/lose breakdown for the human in the current hand,
-     * computed by 400-iteration Monte Carlo over random opponent hands
-     * + remaining board. Null when the tool isn't equipped, when
-     * there's no active hand, or before the first computation lands.
-     * UI hides the flip affordance whenever this is null.
-     *
-     * Recomputed only on input changes (hole cards / community /
-     * opponents-still-in-hand count), not every state tick.
+     * Live win/tie/lose breakdown for the human, or null when not computed
+     * (tool unequipped / no hand / pre-first-run). Recomputed only on input
+     * changes — see [WinOddsEngine].
      */
     val humanWinOdds: EquityBreakdown? = null,
-    /**
-     * Emoji of the equipped permanent seat badge (founding-member,
-     * league rewards, etc.) rendered in the slot mirrored opposite the
-     * SB/BB chip on the human seat. Null = empty slot.
-     */
+    /** Equipped permanent seat-badge emoji, or null for an empty slot. */
     val equippedBadgeEmoji: String? = null,
-    /**
-     * The human's equipped badges + titles (unified), resolved from the catalog,
-     * shown as tappable chips on the player-profile sheet (tap → read about it).
-     */
+    /** Equipped badges + titles (catalog-resolved) for the profile-sheet chips. */
     val equippedBadges: List<PlayerBadge> = emptyList(),
-    /**
-     * The product catalog (incl. the prestige badge/title bucket). Used to
-     * resolve an *opponent's* equipped badge ids (which ride the engine Seat)
-     * into display metadata when their profile sheet opens.
-     */
+    /** Product catalog — resolves an opponent's equipped badge ids for their sheet. */
     val catalog: com.dangerfield.cards.libraries.products.ProductCatalog =
         com.dangerfield.cards.libraries.products.ProductCatalog.Empty,
-    /**
-     * Mirrors `AppData.swipeFoldGestureAck`. False = swipe-up-to-fold on
-     * the human's hole cards opens a confirmation dialog; true = it folds
-     * silently. Flips the moment the user ticks "Don't show this again"
-     * inside that dialog.
-     */
+    /** AppData mirror: true = swipe-to-fold skips the confirmation dialog. */
     val swipeFoldGestureAck: Boolean = false,
-
-    /**
-     * Mirrors `AppData.winOddsFlipHintSeen`. False = the player info
-     * tile plays a one-shot discoverability wiggle once per session
-     * when the win-odds tool is owned. Flips to true the first time
-     * the user actually taps to flip the tile — after which the wiggle
-     * never plays again.
-     */
+    /** AppData mirror: true once the user has flipped the win-odds tile (suppresses the wiggle hint). */
     val winOddsFlipHintSeen: Boolean = false,
-
-    /**
-     * Emojis the user can blast from the in-game tray. Sourced entirely
-     * from owned `emotes_*` packs — users with no pack get an empty list
-     * and the tray UI hides. Order is stable across reorderings of
-     * inventory.
-     */
+    /** Blast-tray emojis from owned `emotes_*` packs; empty hides the tray. */
     val availableEmojis: List<String> = emptyList(),
-
     /**
-     * Per-seat mute set, mirrored from `AppData.mutedEmojiPlayerKeys`.
-     * Keys come from [seatMuteKey]. Read by the avatar-tap surface to
-     * show the toggle's current state. Today no inbound emoji exists
-     * (single-player vs bots is one-way), so this set drives no
-     * filtering yet — it's forward-infrastructure for MP / V1.x
-     * reactive-bot blasts (product-spec.md §5.5).
+     * Per-seat mute set (keys from [seatMuteKey]), mirrored from AppData. Drives
+     * the avatar-tap toggle state and filters inbound MP emotes via [EmoteGate].
      */
     val mutedEmojiPlayerKeys: Set<String> = emptySet(),
-
-    /**
-     * The current blast animation the screen should render full-screen.
-     * Set the moment the VM accepts a [PlayPokerAction.BlastEmoji];
-     * cleared when the screen reports the animation finished via
-     * [PlayPokerAction.EmojiBlastConsumed].
-     */
+    /** Active full-screen blast; cleared on [PlayPokerAction.EmojiBlastConsumed]. */
     val emojiBlast: EmojiBlast? = null,
-
-    /**
-     * Seat the active [emojiBlast] was thrown from, or null when it's the
-     * local human's own outbound blast. The screen resolves this to the
-     * emitter's avatar so an opponent's emote reads as "Bob threw this";
-     * null falls back to the human seat (preserving solo behavior).
-     */
+    /** Seat the [emojiBlast] came from; null = the local human's own blast. */
     val emojiBlastEmitterSeatIndex: Int? = null,
-
-    /**
-     * Epoch-ms after which the user can blast again. 0 = no cooldown
-     * active. Compared against `clock.now()` server-side (VM owns the
-     * clock) to gate `BlastEmoji`; the screen reads this to dim the
-     * tray and show a countdown.
-     */
+    /** Epoch-ms the user can blast again (0 = none); gates [PlayPokerAction.BlastEmoji]. */
     val emojiCooldownEndsAtMs: Long = 0L,
-
     /**
-     * Whether this session counts as bot or multiplayer play. Constant for
-     * the lifetime of the screen — set from `PokerSessionFactory.xpMode` at
-     * VM construction. Drives the achievement-unlock celebration split:
-     * bots get a full-bleed [AchievementCelebrationSheet] sequenced after
-     * the showdown / bust dialog dismisses; multiplayer keeps the inline
-     * row on the dialog itself.
+     * Bot vs multiplayer play; constant for the screen's life. Drives the
+     * achievement-celebration split (bots get the full-bleed sheet; MP keeps the
+     * inline row).
      */
     val xpMode: XpMode = XpMode.BOTS,
 ) {
     /**
-     * True for a real-chips multiplayer game — multiplayer xpMode and the table
-     * is not the bots-only practice sub-case. Drives the bust dialog split: real
-     * MP shows the terminal "you're out" (Leave / Buy chips) dialog, while solo
-     * and practice/bots-only MP keep the "deal me in" rebuy dialog. Falls back
-     * to false until the first table projection lands.
+     * Real-chips multiplayer (MP xpMode, not bots-only practice). Gates the bust
+     * dialog: real MP shows the terminal Leave/Buy-chips dialog; solo and
+     * practice keep the "deal me in" rebuy. False until the table projects.
      */
     val isRealMultiplayer: Boolean
         get() = xpMode == XpMode.MULTIPLAYER &&
@@ -941,46 +776,27 @@ sealed interface PlayPokerAction {
     data class ConnectionChanged(val connection: ConnectionState) : PlayPokerAction
 
     /**
-     * Fired by the play screen the moment the user opts into a clean
-     * exit (back-handler, top-bar back, confirmed leave dialog). The VM
-     * uses this to fire [ReviewTrigger.SessionEnd] — a "they finished
-     * intentionally" signal that the OS may decide to act on. No state
-     * update; navigation itself is the screen's job.
+     * User-initiated clean exit (back / confirmed leave). Fires
+     * [ReviewTrigger.SessionEnd] in bot mode; navigation is the screen's job.
      */
     data object LeaveTable : PlayPokerAction
 
-    /**
-     * Fired by the "Leave game" button on the real-multiplayer bust dialog.
-     * Tears down the session the same way [LeaveTable] does (sends the durable
-     * leave on the app scope); the screen routes out afterward.
-     */
+    /** "Leave game" on the MP bust dialog — same teardown as [LeaveTable]. */
     data object LeaveGameFromBust : PlayPokerAction
 
-    /**
-     * Fired by the "Buy chips" button on the real-multiplayer bust dialog —
-     * the upsell. The VM only emits [PlayPokerEvent.NavigateToShop]; the entry
-     * point owns the actual navigation to the Shop tab.
-     */
+    /** "Buy chips" on the MP bust dialog — emits [PlayPokerEvent.NavigateToShop]. */
     data object BuyChips : PlayPokerAction
 
     /** Fired by the AppCache mirror; flips the swipe-fold confirmation gate. */
     data class SwipeFoldAckChanged(val acknowledged: Boolean) : PlayPokerAction
 
-    /**
-     * Fired by the swipe-fold confirmation dialog when the user ticks
-     * "Don't show this again". Writes through to AppCache so the gate
-     * stays flipped across sessions.
-     */
+    /** "Don't show again" on the swipe-fold dialog — writes through to AppCache. */
     data object AcknowledgeSwipeFoldGesture : PlayPokerAction
 
     /** Fired by the AppCache mirror; gates the win-odds flip-tile wiggle hint. */
     data class WinOddsFlipHintSeenChanged(val seen: Boolean) : PlayPokerAction
 
-    /**
-     * Fired by the player info tile the first time the user actually
-     * flips it during a session. Writes through to AppCache so the
-     * wiggle hint never re-plays on this account.
-     */
+    /** First flip of the win-odds tile — writes through so the wiggle never replays. */
     data object MarkWinOddsFlipHintSeen : PlayPokerAction
 
     /** Fired by the inventory subscription. */
@@ -989,31 +805,16 @@ sealed interface PlayPokerAction {
     /** Fired by the AppCache mirror. */
     data class MutedEmojiPlayersChanged(val keys: Set<String>) : PlayPokerAction
 
-    /**
-     * Fired when the user taps an emoji in the in-game tray. VM gates on
-     * the current cooldown deadline; ignored if still cooling. On accept,
-     * sets [PlayPokerState.emojiBlast] for the screen to animate.
-     */
+    /** Tray emoji tap; gated on the cooldown, then sets [PlayPokerState.emojiBlast]. */
     data class BlastEmoji(val emoji: String) : PlayPokerAction
 
-    /**
-     * Fired by the session's emote subscription when an opponent blasts a
-     * table emote (MP only). The VM attributes it to [seatIndex], drops
-     * the local human's own echo and muted seats, then renders it through
-     * the same blast overlay as an outbound emote.
-     */
+    /** Inbound opponent emote (MP); dropped for own-echo/muted/unknown seats. */
     data class RemoteEmoteReceived(val seatIndex: Int, val emoji: String) : PlayPokerAction
 
-    /**
-     * Fired by the screen when the 1.5s blast animation finishes. The
-     * emit timestamp guards against clearing a freshly-replaced blast.
-     */
+    /** Blast animation finished; the timestamp guards against clearing a newer blast. */
     data class EmojiBlastConsumed(val emittedAtEpochMs: Long) : PlayPokerAction
 
-    /**
-     * Fired by the avatar-tap mute sheet. Idempotent toggle on the
-     * persisted set in AppCache.
-     */
+    /** Avatar-tap mute toggle — idempotent on the persisted AppCache set. */
     data class ToggleMutePlayer(val key: String) : PlayPokerAction
 }
 
@@ -1021,27 +822,13 @@ sealed interface PlayPokerEvent {
     data class PlayHaptic(val kind: HapticKind) : PlayPokerEvent
     data class PlaySound(val kind: SoundKind) : PlayPokerEvent
 
-    /**
-     * The room was closed out from under us mid-session — the server GC'd
-     * it or refused the subscription. Terminal: the entry point pops the
-     * play screen so the user isn't stranded on a spinning "reconnecting"
-     * banner. Only ever fires for multiplayer; local-bots rooms can't close.
-     */
+    /** Room closed by the server (GC'd / rejected) — terminal; the entry point pops. MP only. */
     data class RoomClosed(val reason: ClosedReason) : PlayPokerEvent
 
-    /**
-     * Every other human left the table (the local player is the last one
-     * standing). The entry point surfaces a notice and routes by room kind —
-     * back to the lobby for a private game, to matchmaking search for a public
-     * one. The room itself isn't gone, which is why this is distinct from
-     * [RoomClosed]. Multiplayer only.
-     */
+    /** Last human standing (room still exists); the entry point routes by room kind. MP only. */
     data object OpponentsLeft : PlayPokerEvent
 
-    /**
-     * The player tapped "Buy chips" on the multiplayer bust dialog. The entry
-     * point switches to the Shop tab; the VM holds no purchase logic.
-     */
+    /** Buy-chips upsell tapped; the entry point switches to the Shop tab. */
     data object NavigateToShop : PlayPokerEvent
 }
 
@@ -1090,14 +877,10 @@ interface PokerSessionFactory {
     fun occupantsFor(state: GameState, curve: LevelCurve = DefaultLevelCurve): List<SeatOccupant>
 
     /**
-     * The local human's seat index within [state]. Solo sessions seat the
-     * human at a fixed index; MP seats them at whatever index the server
-     * allocated, so this matches the local user id against each seat. Per-
-     * hand attribution (XP, achievements, win-odds) keys off this — using a
-     * hard-coded seat would credit the wrong player whenever the local human
-     * isn't at seat 0. Returns `-1` when the local human isn't seated in
-     * [state] (pre-first-snapshot, or a spectator) so attribution degrades to
-     * "no credit" rather than crediting another seat's outcome.
+     * The local human's seat index in [state] (MP seats vary, so this matches
+     * the local user id per seat). Per-hand attribution keys off it. Returns
+     * `-1` when the human isn't seated (pre-snapshot / spectator) so attribution
+     * degrades to "no credit" rather than crediting another seat.
      */
     fun humanSeatIndex(state: GameState): Int
 
