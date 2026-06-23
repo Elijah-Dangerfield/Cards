@@ -84,6 +84,7 @@ import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonKind
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.PasswordTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -126,7 +127,11 @@ private fun AuthShell(
                     .padding(horizontal = Dimension.D800),
             ) {
                 Spacer(modifier = Modifier.height(Dimension.D200))
-                Button(onClick = onBack, style = ButtonStyle.Text) {
+                Button(
+                    onClick = onBack,
+                    style = ButtonStyle.Text,
+                    icon = Icons.ChevronLeft(null),
+                ) {
                     Text(stringResource(Res.string.auth_back_button))
                 }
                 Spacer(modifier = Modifier.height(Dimension.D700))

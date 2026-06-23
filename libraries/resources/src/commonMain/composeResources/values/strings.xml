@@ -334,7 +334,7 @@
     <string name="home_bot_setup_start_button">Start</string>
 
     <!-- Auth - shared back affordance + field labels used by every screen. -->
-    <string name="auth_back_button">← Back</string>
+    <string name="auth_back_button">Back</string>
     <string name="auth_field_email_label">Email</string>
     <string name="auth_field_password_label">Password</string>
 
@@ -585,7 +585,7 @@
     <string name="profile_delete_error_unknown">Something went wrong. Please try again.</string>
 
     <!-- Profile - Send feedback form. -->
-    <string name="profile_feedback_title">Share Your Feedback</string>
+    <string name="profile_feedback_title">Send feedback</string>
     <string name="profile_feedback_hero">We'd love to hear from you</string>
     <string name="profile_feedback_field_message_label">Message</string>
     <string name="profile_feedback_field_message_placeholder">Describe what happened…</string>
@@ -598,11 +598,11 @@
     <string name="profile_feedback_snackbar_thanks">Got it. Thank you!</string>
 
     <!-- Profile - Report a bug form. -->
-    <string name="profile_bug_title">Report a Bug</string>
+    <string name="profile_bug_title">Report a bug</string>
     <string name="profile_bug_context_section_title">Captured details</string>
     <string name="profile_bug_context_error_code_label">Error code</string>
     <string name="profile_bug_context_report_id_label">Report id</string>
-    <string name="profile_bug_hero">Help us understand what went wrong. We would love to fix it!</string>
+    <string name="profile_bug_hero">Tell us what went wrong and we'll fix it.</string>
     <string name="profile_bug_field_message_label">Message</string>
     <string name="profile_bug_field_message_placeholder">Describe what happened…</string>
     <string name="profile_bug_field_email_label">Email (so we can follow up)</string>
@@ -627,7 +627,7 @@
     <string name="onboarding_how_card_chips_title">Chips fund the table</string>
     <string name="onboarding_how_card_chips_subtitle">Earn at play. Spend in the shop.</string>
     <string name="onboarding_how_card_league_title">Earn XP and complete challenges</string>
-    <string name="onboarding_how_card_league_subtitle">The more you play, the more fun you have.</string>
+    <string name="onboarding_how_card_league_subtitle">Level up and unlock rewards.</string>
     <string name="onboarding_how_continue_button">Continue</string>
 
     <!-- Onboarding - StarterGrant step (final celebratory chip-grant reveal). -->
@@ -952,7 +952,7 @@
 
     <!-- Tutorial - Hand 1: pocket aces, raise prompt. -->
     <string name="tutorial_hand1_orient_title">Let's play a hand</string>
-    <string name="tutorial_hand1_orient_body">Meet Ada, Ben, and Cleo. They're bots. Tap anything on this screen if you're curious; most things will tell you what they are. Tapping your cards show your their card backs.</string>
+    <string name="tutorial_hand1_orient_body">Meet Ada, Ben, and Cleo. They're bots. Tap anything on this screen if you're curious; most things will tell you what they are. Tap your cards and they flip to show their backs.</string>
     <string name="tutorial_hand1_orient_cta">Got it</string>
     <string name="tutorial_hand1_blinds_title">Blinds are in</string>
     <string name="tutorial_hand1_blinds_body">Ada has the small blind (10), Ben the big blind (20). Two forced bets that start every hand and seed the pot. They rotate left each hand so everyone takes turns posting.</string>
