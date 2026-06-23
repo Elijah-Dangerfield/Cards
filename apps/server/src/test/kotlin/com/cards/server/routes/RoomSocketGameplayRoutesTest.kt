@@ -1,13 +1,18 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.libraries.gameplay.BettingRound
+import com.dangerfield.cards.libraries.gameplay.GameState
+import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import com.dangerfield.cards.libraries.gameplay.Seat
+import com.dangerfield.cards.libraries.gameplay.SeatStatus
 import com.dangerfield.cards.server.data.createOrFail
 import com.dangerfield.cards.server.domain.UserId
 import kotlinx.coroutines.test.runTest
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -436,6 +441,204 @@ class RoomSocketGameplayRoutesTest {
                     "the surviving socket's intent must still be processed",
                 )
                 assertEquals(BettingRound.Complete, registry.peek(room.code)!!.state.value!!.street)
+            } finally {
+                hostSocket.closeQuietly()
+                aliceSocket.closeQuietly()
+            }
+        }
+    }
+
+    // ===================================================================
+    // Rebuy
+    // ===================================================================
+
+    /**
+     * Inject a hand-Complete state where [bustedUser] has 0 chips and the host
+     * still has chips — the window a rebuy acts in. Hydrated over the live
+     * session after a real StartHand (which seeds the engine's settings).
+     */
+    private fun bustedCompleteState(bustedUser: UserId, otherUser: UserId, settings: com.dangerfield.cards.libraries.gameplay.RoomSettings) =
+        GameState(
+            settings = settings,
+            handNumber = 2,
+            buttonSeatIndex = 0,
+            seats = listOf(
+                Seat(
+                    index = 0,
+                    playerId = otherUser.value.toString(),
+                    displayName = "Host",
+                    stack = settings.startingStack * 2,
+                    seatStatus = SeatStatus.Active,
+                    handParticipation = HandParticipation.InHand,
+                ),
+                Seat(
+                    index = 1,
+                    playerId = bustedUser.value.toString(),
+                    displayName = "Alice",
+                    stack = 0,
+                    seatStatus = SeatStatus.Active,
+                    handParticipation = HandParticipation.Folded,
+                ),
+            ),
+            community = emptyList(),
+            street = BettingRound.Complete,
+            currentBetThisStreet = 0,
+            lastFullRaiseSize = 0,
+            actingSeatIndex = null,
+            deckRemaining = emptyList(),
+        )
+
+    @Test
+    fun rebuy_withSufficientWallet_acceptsRefillsSeat_andDebitsBuyIn() = runTest {
+        val rooms = newRoomService()
+        val room = rooms.createOrFail(host, "Host", maxSeats = 4)
+        rooms.join(room.code, alice, "Alice")
+        val registry = newRegistry()
+        val wallets = InMemoryTestWalletRepository()
+
+        withRoomSocketTestApp(rooms, registry, wallets = wallets) { client ->
+            val hostSocket = client.connect(room.code, host)
+            val aliceSocket = client.connect(room.code, alice)
+            try {
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
+                hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
+                assertTrue(hostSocket.receiveUntilAck("s").accepted)
+                hostSocket.receiveUntilGameState()
+
+                val buyIn = rooms.find(room.code)!!.settings.startingStack
+                registry.peek(room.code)!!.hydrate(
+                    bustedCompleteState(alice, host, rooms.find(room.code)!!.settings),
+                )
+                wallets.setBalance(alice, buyIn)
+
+                aliceSocket.sendFrame(RoomClientFrame.Rebuy(clientNonce = "r1"))
+                val ack = aliceSocket.receiveUntilAck("r1")
+
+                assertTrue(ack.accepted, "rebuy with enough chips should be accepted; error=${ack.error}")
+                assertEquals(
+                    buyIn,
+                    registry.peek(room.code)!!.state.value!!.seats.first { it.playerId == alice.value.toString() }.stack,
+                    "seat refilled to the buy-in",
+                )
+                assertEquals(0, wallets.balanceOf(alice), "wallet debited by exactly the buy-in")
+                assertTrue(
+                    wallets.applyCalls.any { it.delta == -buyIn && it.reason == "rebuy" },
+                    "a debit for the buy-in was applied",
+                )
+            } finally {
+                hostSocket.closeQuietly()
+                aliceSocket.closeQuietly()
+            }
+        }
+    }
+
+    @Test
+    fun rebuy_withInsufficientWallet_isRejected_noStackChange_noNetDebit() = runTest {
+        val rooms = newRoomService()
+        val room = rooms.createOrFail(host, "Host", maxSeats = 4)
+        rooms.join(room.code, alice, "Alice")
+        val registry = newRegistry()
+        val wallets = InMemoryTestWalletRepository()
+
+        withRoomSocketTestApp(rooms, registry, wallets = wallets) { client ->
+            val hostSocket = client.connect(room.code, host)
+            val aliceSocket = client.connect(room.code, alice)
+            try {
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
+                hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
+                assertTrue(hostSocket.receiveUntilAck("s").accepted)
+                hostSocket.receiveUntilGameState()
+
+                val buyIn = rooms.find(room.code)!!.settings.startingStack
+                registry.peek(room.code)!!.hydrate(
+                    bustedCompleteState(alice, host, rooms.find(room.code)!!.settings),
+                )
+                wallets.setBalance(alice, buyIn - 1)
+
+                aliceSocket.sendFrame(RoomClientFrame.Rebuy(clientNonce = "r1"))
+                val ack = aliceSocket.receiveUntilAck("r1")
+
+                assertFalse(ack.accepted, "rebuy must be rejected when the wallet can't cover the buy-in")
+                assertTrue(ack.error?.contains("insufficient", ignoreCase = true) == true, "error: ${ack.error}")
+                assertEquals(
+                    0,
+                    registry.peek(room.code)!!.state.value!!.seats.first { it.playerId == alice.value.toString() }.stack,
+                    "seat stays busted",
+                )
+                assertEquals(buyIn - 1, wallets.balanceOf(alice), "balance unchanged — no debit committed")
+            } finally {
+                hostSocket.closeQuietly()
+                aliceSocket.closeQuietly()
+            }
+        }
+    }
+
+    @Test
+    fun rebuy_whenHandInProgress_isRejected() = runTest {
+        val rooms = newRoomService()
+        val room = rooms.createOrFail(host, "Host", maxSeats = 4)
+        rooms.join(room.code, alice, "Alice")
+        val registry = newRegistry()
+        val wallets = InMemoryTestWalletRepository()
+
+        withRoomSocketTestApp(rooms, registry, wallets = wallets) { client ->
+            val hostSocket = client.connect(room.code, host)
+            val aliceSocket = client.connect(room.code, alice)
+            try {
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
+                hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
+                assertTrue(hostSocket.receiveUntilAck("s").accepted)
+                hostSocket.receiveUntilGameState() // hand is live (not Complete)
+
+                wallets.setBalance(alice, rooms.find(room.code)!!.settings.startingStack)
+                aliceSocket.sendFrame(RoomClientFrame.Rebuy(clientNonce = "r1"))
+                val ack = aliceSocket.receiveUntilAck("r1")
+
+                assertFalse(ack.accepted, "can't rebuy mid-hand")
+                assertEquals(0, wallets.applyCalls.size, "no wallet movement on a mid-hand rebuy")
+            } finally {
+                hostSocket.closeQuietly()
+                aliceSocket.closeQuietly()
+            }
+        }
+    }
+
+    @Test
+    fun rebuy_retryAfterSuccess_doesNotDoubleDebit() = runTest {
+        // Once rebought the seat is no longer busted, so a redundant retry is
+        // rejected by the pre-check before any wallet movement — the buy-in is
+        // never charged twice.
+        val rooms = newRoomService()
+        val room = rooms.createOrFail(host, "Host", maxSeats = 4)
+        rooms.join(room.code, alice, "Alice")
+        val registry = newRegistry()
+        val wallets = InMemoryTestWalletRepository()
+
+        withRoomSocketTestApp(rooms, registry, wallets = wallets) { client ->
+            val hostSocket = client.connect(room.code, host)
+            val aliceSocket = client.connect(room.code, alice)
+            try {
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
+                hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
+                assertTrue(hostSocket.receiveUntilAck("s").accepted)
+                hostSocket.receiveUntilGameState()
+
+                val buyIn = rooms.find(room.code)!!.settings.startingStack
+                registry.peek(room.code)!!.hydrate(
+                    bustedCompleteState(alice, host, rooms.find(room.code)!!.settings),
+                )
+                wallets.setBalance(alice, buyIn + 500)
+
+                aliceSocket.sendFrame(RoomClientFrame.Rebuy(clientNonce = "r1"))
+                assertTrue(aliceSocket.receiveUntilAck("r1").accepted)
+                aliceSocket.sendFrame(RoomClientFrame.Rebuy(clientNonce = "r2"))
+                assertFalse(aliceSocket.receiveUntilAck("r2").accepted, "already rebought → rejected")
+
+                assertEquals(500, wallets.balanceOf(alice), "charged exactly one buy-in across both attempts")
             } finally {
                 hostSocket.closeQuietly()
                 aliceSocket.closeQuietly()

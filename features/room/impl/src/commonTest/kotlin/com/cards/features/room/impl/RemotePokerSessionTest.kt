@@ -447,6 +447,77 @@ class RemotePokerSessionTest : CoroutineTest() {
         runJob.cancel()
     }
 
+    // ---------------------------------------------------------------
+    // rebuy() — accept, reject, timeout (ack round-trip like submit)
+    // ---------------------------------------------------------------
+
+    @Test
+    fun rebuy_sendsRebuyFrame_andCompletes_onAccepted() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val runJob = launch { session.run() }
+        runCurrent()
+
+        var outcome: Result<Unit>? = null
+        val rebuyJob = launch { outcome = runCatching { session.rebuy() } }
+        runCurrent()
+
+        val rebuyFrame = assertIs<ClientFrame.Rebuy>(handle.sent.single())
+        handle.pushFrame(
+            GameplayFrame.IntentAck(clientNonce = rebuyFrame.clientNonce, accepted = true, error = null),
+        )
+        runCurrent()
+        rebuyJob.join()
+
+        assertTrue(outcome?.isSuccess == true, "expected accepted; got $outcome")
+        runJob.cancel()
+    }
+
+    @Test
+    fun rebuy_throwsIntentRejected_onAckRejection() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val runJob = launch { session.run() }
+        runCurrent()
+
+        var outcome: Result<Unit>? = null
+        val rebuyJob = launch { outcome = runCatching { session.rebuy() } }
+        runCurrent()
+        val rebuyFrame = handle.sent.single() as ClientFrame.Rebuy
+        handle.pushFrame(
+            GameplayFrame.IntentAck(
+                clientNonce = rebuyFrame.clientNonce,
+                accepted = false,
+                error = "insufficient chips",
+            ),
+        )
+        runCurrent()
+        rebuyJob.join()
+
+        val ex = outcome?.exceptionOrNull()
+        assertIs<IntentRejectedException>(ex)
+        assertEquals("insufficient chips", ex.reason)
+        runJob.cancel()
+    }
+
+    @Test
+    fun rebuy_throwsIntentTimeout_whenNoAckArrives() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val runJob = launch { session.run() }
+        runCurrent()
+
+        var outcome: Result<Unit>? = null
+        val rebuyJob = launch { outcome = runCatching { session.rebuy() } }
+        runCurrent()
+        advanceTimeBy(RemotePokerSession.INTENT_TIMEOUT_MS + 500)
+        runCurrent()
+        rebuyJob.join()
+
+        assertIs<IntentTimeoutException>(outcome?.exceptionOrNull())
+        runJob.cancel()
+    }
+
     @Test
     fun submit_correctsNonceCorrelation_whenIntermediateAckHasDifferentNonce() = runUnitTest {
         // Two concurrent submits race; the session must resolve each
