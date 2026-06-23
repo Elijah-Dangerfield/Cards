@@ -47,6 +47,7 @@ class OnboardingFeatureEntryPoint(
             OnboardingScreen(
                 state = state,
                 onAction = viewModel::takeAction,
+                onOpenUrl = router::openWebLink,
             )
         }
 

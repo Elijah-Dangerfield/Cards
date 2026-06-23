@@ -180,6 +180,9 @@
     <string name="onboarding_welcome_oauth_in_flight">One moment…</string>
     <string name="onboarding_welcome_footer">No account required to play.\nSign in later if you want to save your progress.</string>
     <string name="onboarding_welcome_sign_in">Sign in with email</string>
+    <!-- Passive consent shown under the Welcome buttons. "Terms of Service" and "Privacy Policy"
+         must appear verbatim so buildClickableText can make each a tappable link. -->
+    <string name="onboarding_welcome_consent">By continuing, you agree to our Terms of Service and Privacy Policy.</string>
     <string name="onboarding_step_progress">Step %1$d of %2$d</string>
 
     <!-- Onboarding - PickIdentity step (name + starter-pack avatar picker). -->

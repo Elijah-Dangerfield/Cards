@@ -51,6 +51,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.LegalUrls
 import com.dangerfield.cards.libraries.core.isiOS
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.profile.DisplayNameRules
@@ -74,6 +75,8 @@ import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
+import com.dangerfield.cards.libraries.ui.buildClickableText
+import com.dangerfield.cards.libraries.ui.components.text.ClickableText
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
@@ -121,6 +124,7 @@ import cards.libraries.resources.generated.resources.onboarding_identity_section
 import cards.libraries.resources.generated.resources.onboarding_identity_section_pack
 import cards.libraries.resources.generated.resources.onboarding_identity_subtitle
 import cards.libraries.resources.generated.resources.onboarding_identity_title
+import cards.libraries.resources.generated.resources.onboarding_welcome_consent
 import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest
 import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest_progress
 import cards.libraries.resources.generated.resources.onboarding_welcome_footer
@@ -148,6 +152,7 @@ import org.jetbrains.compose.resources.stringResource
 fun OnboardingScreen(
     state: OnboardingState,
     onAction: (OnboardingAction) -> Unit,
+    onOpenUrl: (String) -> Unit = {},
 ) {
     // System back (Android hardware/gesture, iOS swipe) mirrors the in-UI
     // Back button: it steps back through the flow. Disabled on the entry step
@@ -197,7 +202,7 @@ fun OnboardingScreen(
                 label = "OnboardingStep",
             ) { step ->
                 when (step) {
-                    OnboardingStep.Welcome -> WelcomeStep(state, onAction)
+                    OnboardingStep.Welcome -> WelcomeStep(state, onAction, onOpenUrl)
                     OnboardingStep.PickIdentity -> PickIdentityStep(state, onAction)
                     OnboardingStep.HowItWorks -> HowItWorksStep(state, onAction)
                     OnboardingStep.StarterGrant -> StarterGrantStep(state, onAction)
@@ -261,6 +266,7 @@ private val CountedOnboardingSteps: List<OnboardingStep> = listOf(
 private fun WelcomeStep(
     state: OnboardingState,
     onAction: (OnboardingAction) -> Unit,
+    onOpenUrl: (String) -> Unit = {},
 ) {
     // iOS hands off from the splash with cards already fanned, so the fan
     // animation would visually snap-and-replay. Android has no compose
@@ -417,6 +423,20 @@ private fun WelcomeStep(
             ) {
                 Text(stringResource(Res.string.onboarding_welcome_sign_in))
             }
+
+            Spacer(modifier = Modifier.height(Dimension.D500))
+            // Passive consent — every sign-in path (guest / Apple / Google /
+            // email) funnels through this step, so one line covers all of them.
+            // The two phrases are tappable links to the hosted documents.
+            ClickableText(
+                text = buildClickableText(stringResource(Res.string.onboarding_welcome_consent)) {
+                    link("Terms of Service") { onOpenUrl(LegalUrls.TERMS_OF_SERVICE) }
+                    link("Privacy Policy") { onOpenUrl(LegalUrls.PRIVACY_POLICY) }
+                },
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.contentSecondary,
+                textAlign = TextAlign.Center,
+            )
             Spacer(modifier = Modifier.height(Dimension.D700))
         }
     }
