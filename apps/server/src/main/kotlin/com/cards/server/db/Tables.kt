@@ -262,6 +262,25 @@ object RoomMembersTable : Table("room_members") {
 }
 
 /**
+ * Durable interlock between an MP table seat's in-RAM stack and the chip wallet
+ * (V67, salvaged from the chip-economy branch). One row per sit-down; the actual
+ * chips move only in `wallet_events`. Brought in DORMANT — the sit-down /
+ * cash-out wiring is Phase 4. See `V67__table_sessions.sql`.
+ */
+object TableSessionsTable : Table("table_sessions") {
+    val sessionId = uuid("session_id")
+    val userId = uuid("user_id")
+    val roomCode = text("room_code")
+    val stakeTier = text("stake_tier")
+    val buyIn = long("buy_in")
+    val rebuyCount = integer("rebuy_count").default(0)
+    val status = text("status")
+    val openedAt = timestamp("opened_at")
+    val closedAt = timestamp("closed_at").nullable()
+    override val primaryKey = PrimaryKey(sessionId)
+}
+
+/**
  * Friend graph. One row per *unordered pair* of users — `userA` is always the
  * lexicographically smaller UUID, `userB` the larger, so a relation is unique
  * regardless of direction. `state` is the pair lifecycle (requested / accepted
