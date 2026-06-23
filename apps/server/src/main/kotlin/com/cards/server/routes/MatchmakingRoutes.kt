@@ -143,7 +143,7 @@ fun Route.matchmakingRoutes(
                     )
                     val current = (filled as? com.dangerfield.cards.server.domain.AddBotResult.Success)?.room ?: room
 
-                    startPublicTableIfReady(code, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
+                    startServerDealtTableIfReady(code, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
 
                     val dealt = rooms.find(code) ?: current
                     Span.current().apply {

@@ -30,6 +30,13 @@ data class RoomDto(
     val buyIn: Long = RoomSettings.DEFAULT_BUY_IN,
     val smallBlind: Long = 0,
     val bigBlind: Long = 0,
+    /**
+     * Who can discover + how the table deals. The client reads this to know an
+     * Open/Public table is server-dealt (no host Start, auto-follow into the
+     * game) vs a Private table the host starts. Defaulted so pre-visibility
+     * clients/rows read as Private.
+     */
+    val visibility: RoomVisibilityDto = RoomVisibilityDto.Private,
 )
 
 @Serializable
@@ -58,6 +65,9 @@ data class RoomMemberDto(
 @Serializable
 enum class RoomStatusDto { Lobby, Playing, Finished }
 
+@Serializable
+enum class RoomVisibilityDto { Private, Open, Public }
+
 /**
  * POST /v1/rooms body. `maxSeats` defaults to the server's V1 cap
  * — accepting it in the body lets future tournament-shaped rooms
@@ -69,6 +79,12 @@ data class CreateRoomRequest(
     /** Host-chosen buy-in. Null = server default. Validated against
      *  [RoomSettings.MIN_BUY_IN]..[RoomSettings.MAX_BUY_IN]. */
     val buyIn: Long? = null,
+    /**
+     * "Open to anyone" toggle. `null`/"Private" → a code-only room; "Open" → a
+     * matchmaker-discoverable, server-dealt table the host can still share by
+     * code. "Public" is rejected — only the matchmaker mints those.
+     */
+    val visibility: String? = null,
 )
 
 @Serializable
@@ -150,6 +166,7 @@ internal fun Room.toDto(): RoomDto = RoomDto(
     buyIn = buyIn,
     smallBlind = settings.smallBlind,
     bigBlind = settings.bigBlind,
+    visibility = visibility.toDto(),
 )
 
 @OptIn(ExperimentalTime::class)
@@ -175,4 +192,10 @@ internal fun RoomStatus.toDto(): RoomStatusDto = when (this) {
     RoomStatus.Lobby -> RoomStatusDto.Lobby
     RoomStatus.Playing -> RoomStatusDto.Playing
     RoomStatus.Finished -> RoomStatusDto.Finished
+}
+
+internal fun com.dangerfield.cards.server.domain.RoomVisibility.toDto(): RoomVisibilityDto = when (this) {
+    com.dangerfield.cards.server.domain.RoomVisibility.Private -> RoomVisibilityDto.Private
+    com.dangerfield.cards.server.domain.RoomVisibility.Open -> RoomVisibilityDto.Open
+    com.dangerfield.cards.server.domain.RoomVisibility.Public -> RoomVisibilityDto.Public
 }

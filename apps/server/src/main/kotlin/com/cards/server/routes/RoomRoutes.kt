@@ -9,6 +9,7 @@ import com.dangerfield.cards.server.domain.LeaveResult
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.RemoveBotResult
 import com.dangerfield.cards.server.domain.RoomService
+import com.dangerfield.cards.server.domain.RoomVisibility
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
@@ -75,6 +76,20 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository) {
                         ),
                     )
                 }
+                // A client may open a room to matchmaking (Open) or keep it
+                // code-only (Private, the default). It may NOT mint a Public table
+                // — those come only from the matchmaker's find-or-create.
+                val visibility = when (body.visibility) {
+                    null, "Private" -> RoomVisibility.Private
+                    "Open" -> RoomVisibility.Open
+                    else -> return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        problemEnvelope(
+                            "invalid_visibility",
+                            "visibility must be \"Private\" or \"Open\".",
+                        ),
+                    )
+                }
                 val profile = profiles.findOrCreate(userId)
                 when (val outcome = rooms.create(
                     hostUserId = userId,
@@ -83,6 +98,7 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository) {
                     hostAvatarEmoji = profile.avatarEmoji,
                     hostAvatarBackgroundColor = profile.avatarBackgroundColor,
                     buyIn = buyIn,
+                    visibility = visibility,
                 )) {
                     is CreateResult.Success -> call.respond(
                         HttpStatusCode.OK,

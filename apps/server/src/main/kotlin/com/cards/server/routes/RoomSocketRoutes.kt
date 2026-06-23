@@ -147,7 +147,7 @@ fun Route.roomSocketRoutes(
             // every later connect no-ops. A bot-filled fallback table is started
             // by the consent endpoint instead, not here.
             Catching {
-                startPublicTableIfReady(code, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
+                startServerDealtTableIfReady(code, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
             }.onFailure {
                 LoggerFactory.getLogger("RoomSocket")
                     .warn("Auto-start check failed for public room=$code", it)
@@ -787,10 +787,15 @@ private suspend fun seatOccupantFor(
 }
 
 /**
- * Deal the first hand of a PUBLIC table once it's playable — the server is the
- * dealer for public matchmaking (no human host to tap "Start"). Idempotent and
- * safe to call on every socket connect + after a bot fallback: no-ops unless the
- * room is a `Public` Lobby with no live session yet.
+ * Deal the first hand of a **server-dealt** table once it's playable — any
+ * matchmaking-discoverable table (`Public` *or* `Open`) deals itself, since a
+ * searcher matched into one shouldn't wait on a human to tap "Start". Idempotent
+ * and safe to call on every socket connect + after a bot fallback: no-ops unless
+ * the room is an Open/Public Lobby with no live session yet.
+ *
+ * `Open` is server-dealt too (owner decision 2026-06-23): "open to anyone" means
+ * "fill it and play", so it reuses the exact same auto-deal + auto-advance path
+ * as a public table. Only `Private` (code-only friend games) waits for the host.
  *
  * The readiness gate is **at least two *present* seats** — a connected human or a
  * bot — so we never deal a table where everyone only joined over HTTP and no
@@ -800,11 +805,10 @@ private suspend fun seatOccupantFor(
  * timer until they (re)connect — the same treatment as any mid-game disconnect,
  * and correct since the seat is genuinely theirs.
  *
- * Open tables keep their human host's start; private rooms are never auto-dealt.
  * Returns [IntentResult] for logging; callers ignore the benign "not ready"
  * rejections.
  */
-internal suspend fun startPublicTableIfReady(
+internal suspend fun startServerDealtTableIfReady(
     code: String,
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
@@ -813,7 +817,8 @@ internal suspend fun startPublicTableIfReady(
     progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
 ): IntentResult {
     val room = rooms.find(code) ?: return IntentResult.Rejected("room not found")
-    if (room.visibility != RoomVisibility.Public) return IntentResult.Rejected("not a public table")
+    // Private rooms wait for the host; Open + Public are server-dealt.
+    if (room.visibility == RoomVisibility.Private) return IntentResult.Rejected("private table is host-dealt")
     if (room.status != RoomStatus.Lobby) return IntentResult.Accepted // already dealt
     if (gameSessions.peek(code) != null) return IntentResult.Accepted // session already live
     val present = room.members.count { it.isBot || it.isConnected }

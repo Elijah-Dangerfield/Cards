@@ -231,6 +231,26 @@ class MatchmakingRoutesTest {
         }
     }
 
+    @Test
+    fun find_seatsASearcherIntoAHumanHostedOpenRoom() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        // A human opens their room to anyone at the 5k tier.
+        val open = (
+            rooms.create(
+                hostUserId = UserId(UUID.randomUUID()),
+                hostName = "Host",
+                buyIn = 5_000,
+                visibility = com.dangerfield.cards.server.domain.RoomVisibility.Open,
+            ) as com.dangerfield.cards.server.domain.CreateResult.Success
+            ).room
+
+        withApp(rooms) { client ->
+            val found = client.find(jwt(UUID.randomUUID()), 5_000, 5_000).body<MatchmakingFindResponse>()
+            assertFalse(found.created, "the searcher is seated into the existing Open room, not a fresh table")
+            assertEquals(open.code, found.room.code)
+        }
+    }
+
     // --- harness ------------------------------------------------------------
 
     private suspend fun withApp(
