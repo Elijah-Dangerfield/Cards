@@ -568,53 +568,63 @@ private fun AchievementsSection(
     val earnedCount = progress.earned.size
     val total = AllAchievements.size
 
-    SectionHeader(
-        title = stringResource(Res.string.profile_achievements_title),
-        trailingLabel = stringResource(Res.string.profile_achievements_count_see_all, earnedCount, total),
-        onClick = onSeeAll,
-    )
-    VerticalSpacerD200()
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
-        verticalArrangement = Arrangement.spacedBy(Dimension.D500),
-        maxItemsInEachRow = 4,
+    // The whole section is one tap target into "See all" — the owner found the
+    // header-only hit area too narrow (CARDS-1R). The header keeps its "See all"
+    // label as the affordance; the click lives on the wrapping column so a tap on
+    // the medal grid navigates too. Individual medals open their own detail sheet
+    // (their tap wins inside the grid); the section click is the surrounding area.
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onSeeAll),
     ) {
-        display.forEach { achievement ->
-            val isEarned = progress.isEarned(achievement.id)
-            val isMystery = achievement.isMystery && !isEarned
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                AchievementMedalWithDetail(
-                    achievement = achievement,
-                    earnedAtEpochMs = progress.earned[achievement.id],
-                    progress = achievement.currentProgress(progress),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                VerticalSpacerD100()
-                Text(
-                    text = if (isMystery) {
-                        stringResource(Res.string.ui_achievement_medallion_locked_label)
-                    } else {
-                        achievement.name
-                    },
-                    typography = AppTheme.typography.Label.L300,
-                    color = if (isEarned) {
-                        AppTheme.colors.content
-                    } else {
-                        AppTheme.colors.contentTertiary
-                    },
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                )
+        SectionHeader(
+            title = stringResource(Res.string.profile_achievements_title),
+            trailingLabel = stringResource(Res.string.profile_achievements_count_see_all, earnedCount, total),
+        )
+        VerticalSpacerD200()
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
+            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
+            maxItemsInEachRow = 4,
+        ) {
+            display.forEach { achievement ->
+                val isEarned = progress.isEarned(achievement.id)
+                val isMystery = achievement.isMystery && !isEarned
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    AchievementMedalWithDetail(
+                        achievement = achievement,
+                        earnedAtEpochMs = progress.earned[achievement.id],
+                        progress = achievement.currentProgress(progress),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    VerticalSpacerD100()
+                    Text(
+                        text = if (isMystery) {
+                            stringResource(Res.string.ui_achievement_medallion_locked_label)
+                        } else {
+                            achievement.name
+                        },
+                        typography = AppTheme.typography.Label.L300,
+                        color = if (isEarned) {
+                            AppTheme.colors.content
+                        } else {
+                            AppTheme.colors.contentTertiary
+                        },
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                    )
+                }
             }
-        }
-        // Pad the final row so medals stay left-aligned in their columns.
-        val remainder = display.size % 4
-        if (remainder != 0) {
-            repeat(4 - remainder) { Box(modifier = Modifier.weight(1f)) }
+            // Pad the final row so medals stay left-aligned in their columns.
+            val remainder = display.size % 4
+            if (remainder != 0) {
+                repeat(4 - remainder) { Box(modifier = Modifier.weight(1f)) }
+            }
         }
     }
     VerticalSpacerD800()
