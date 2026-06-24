@@ -230,6 +230,24 @@ data class AppData(
      * they survive retries even within a watermark window.
      */
     val highestLevelRewarded: Int = 0,
+
+    /**
+     * The `LegalUrls.LEGAL_VERSION` the user last accepted by proceeding past
+     * the onboarding Welcome step (the passive "by continuing, you agree to
+     * Terms + Privacy" consent). `0` means no acceptance has been recorded.
+     * Re-recorded on every onboarding pass, so an account switch that walks
+     * Welcome again refreshes it; comparing it against the live
+     * `LegalUrls.LEGAL_VERSION` is the seam a future "Terms changed,
+     * re-accept" gate keys off.
+     */
+    val acceptedLegalVersion: Int = 0,
+
+    /**
+     * Epoch-ms when [acceptedLegalVersion] was recorded, or `null` if no
+     * acceptance has been recorded. The timestamp half of the consent audit
+     * record (accepted version + when).
+     */
+    val legalConsentAcceptedAt: Long? = null,
 )
 
 /**

@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.LegalUrls
 import com.dangerfield.cards.libraries.core.isiOS
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import me.tatarka.inject.annotations.Inject
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -66,6 +68,7 @@ class OnboardingViewModel(
     private val guestAccountCreator: GuestAccountCreator,
     private val appleSignInCoordinator: AppleSignInCoordinator,
     private val onboardingStarterGrant: OnboardingStarterGrant,
+    private val clock: Clock,
     onboardingSuggestedName: OnboardingSuggestedName,
     googleSignInEnabled: GoogleSignInEnabled,
     appleSignInEnabled: AppleSignInEnabled,
@@ -138,13 +141,32 @@ class OnboardingViewModel(
         // No auth here anymore — the guest account is created later, when the
         // user commits their identity (PickIdentity → Continue). Tapping
         // "Continue as guest" just enters the identity step.
+        recordLegalConsent()
         updateState { it.copy(authError = null, step = OnboardingStep.PickIdentity) }
+    }
+
+    /**
+     * Persist that the user accepted the passive "by continuing, you agree to
+     * Terms + Privacy" consent shown on the Welcome step, by stamping the live
+     * [LegalUrls.LEGAL_VERSION] + an acceptance timestamp into [AppCache]. Run
+     * from every forward path off Welcome (guest / OAuth / Apple) — proceeding
+     * is the acceptance. Idempotent: re-stamping the same version just refreshes
+     * the timestamp.
+     */
+    private suspend fun recordLegalConsent() {
+        appCache.update {
+            it.copy(
+                acceptedLegalVersion = LegalUrls.LEGAL_VERSION,
+                legalConsentAcceptedAt = clock.now().toEpochMilliseconds(),
+            )
+        }
     }
 
     private suspend fun OnboardingAction.handleOAuth(provider: OAuthProvider) {
         updateState { it.copy(oauthInFlight = provider, authError = null) }
         when (val outcome = authRepository.signInWithOAuth(provider)) {
             is SignInOutcome.Success -> {
+                recordLegalConsent()
                 appCache.update { it.copy(hasUserOnboarded = true) }
                 updateState { it.copy(oauthInFlight = null) }
                 sendEvent(OnboardingEvent.NavigateToHome)
@@ -206,7 +228,8 @@ class OnboardingViewModel(
             (authRepository.current() as? AuthState.Authenticated)?.isAnonymous == true
         if (isAnonymousGuest) {
             when (authRepository.linkAppleIdentity(credential)) {
-                LinkIdentityOutcome.Success ->
+                LinkIdentityOutcome.Success -> {
+                    recordLegalConsent()
                     updateState {
                         it.copy(
                             oauthInFlight = null,
@@ -214,6 +237,7 @@ class OnboardingViewModel(
                             identityClaimed = true,
                         )
                     }
+                }
                 LinkIdentityOutcome.AlreadyOnAnotherAccount -> enterExistingAppleAccount(credential)
                 else -> failAppleSignIn()
             }
@@ -228,6 +252,7 @@ class OnboardingViewModel(
             // Switched to a pre-existing account. No grant suppression needed
             // anymore — the Home gate keys on the live walletJustCreated signal,
             // which is false for an account whose wallet already existed.
+            recordLegalConsent()
             appCache.update { it.copy(hasUserOnboarded = true) }
             updateState { it.copy(oauthInFlight = null) }
             sendEvent(OnboardingEvent.NavigateToHome)

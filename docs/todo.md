@@ -42,8 +42,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P2]` **Route new OAuth/email sign-ups through onboarding.** Deferred creation sends *guests* through onboarding, but a brand-new Apple/Google/email sign-up still goes straight to Home (returning sign-ins correctly skip). Routing new sign-ups through PickIdentity/grant needs a reliable new-vs-returning signal (`walletCreated` on first wallet sync, or a server "profile just created" flag). *(proposed 2026-06-09)*
   **Hints:** OAuth/Apple paths in `OnboardingViewModel` (`handleOAuth` / `finishAppleSignIn`) set `hasUserOnboarded=true` → Home.
 
-- `[P2]` **Record ToS/Privacy consent acceptance.** Onboarding now shows a passive "by continuing, you agree to Terms + Privacy" line on the Welcome step (links via `LegalUrls`), and Settings links both docs — display requirement met. Remaining: persist an acceptance record (accepted version + timestamp) for a real audit trail if/when legal wants one. *(proposed 2026-06-15)*
-
 - `[P2]` **Responsible-play nudge after risky patterns (blocked on an economy-event hook).** The Settings row and the real-money purchase-sheet link both ship. Remaining: a gentle, dismissible nudge after risky patterns (repeated chip buys after going bust, rapid repeat purchases) — needs an economy-event hook, which doesn't exist yet (`AppEventBus` is lifecycle-level only). *(proposed 2026-06-23)*
 
 - `[P2]` **Verify network-required surfaces honor the `Profile.Fallback` gating rule.** Walk Home / Shop / Profile / Edit Profile / Claim / Inventory / Multiplayer / Settings and confirm each matches the rule — most already do; a verification pass, not a redesign. *(proposed 2026-06-09)*
