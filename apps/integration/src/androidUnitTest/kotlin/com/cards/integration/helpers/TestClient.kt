@@ -64,7 +64,7 @@ class TestClient(
             realTransport
         }
         val socket = ReconnectingRoomSocket(transport, AppCoroutineScope(DefaultDispatcherProvider()))
-        RoomRepositoryImpl(HttpRoomApi(networkClient), socket)
+        RoomRepositoryImpl(HttpRoomApi(networkClient), socket, AppCoroutineScope(DefaultDispatcherProvider()))
     }
 
     /** The real matchmaking client surface — `find` / `play-bots` over HTTP. */
