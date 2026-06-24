@@ -66,12 +66,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** The `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
 
-- `[P2]` **GAME-4 — Split the practice-tier dialog copy on `forRealChips`.** Owner directive: the practice-tier dialog still shows copy that conflicts for bots-for-chips MP games (where you *do* play bots for real chips). Branch the dialog on `forRealChips` — one variant for true practice (no chips at stake), one for bots-for-chips — rather than one message that contradicts itself.
-
-  **Acceptance:** A bots-for-chips table shows chips-at-stake copy; a pure-practice table shows no-stakes copy. No single dialog reads both ways.
-
-  **Hints:** The practice-tier / bots explainer dialog in `:features:room:impl`; condition on the existing `forRealChips` flag. Sentry CARDS-2K. Pairs with the existing real-chip-framing / bots-explainer todo (CARDS-20).
-
 ---
 
 ## B. Multiplayer hardening
