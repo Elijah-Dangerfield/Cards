@@ -140,9 +140,6 @@ _Server slice shipped._ A non-member may attach to a matchmaking-discoverable (O
   **Acceptance:** every round checkbox in `testing-plan.md` is ticked. Don't pick this up as a single sprint — interleave each round with other feature work; the doc IS the running history.
   **Hints:** [`docs/testing-plan.md`](./testing-plan.md) tracks per-round status — the doc IS the running history. Rounds 1/3/4 shipped; Round 2 (`:apps:integration`, in-process Ktor + two-client hands) heavily used — public matchmaking now has front + back + integration coverage plus telemetry spans; Round 5 chaos partly covered; Round 6 (Compose UI for `PlayPokerScreen`) unstarted. **Out of scope:** emulator-based UI tests.
 
-- `[P2]` **Integration tests should play full multi-hand games, not thin slices.** Owner review: the `:apps:integration` coverage feels thin — he expected to see full hands actually played end-to-end. Strengthen Round 2 so the in-process server + clients play complete consecutive hands (deal → streets → showdown → next hand), not just connection/seat/handshake assertions. *(feedback 2026-06-22; sharpens B6 Round 2)*
-  **Hints:** the two-client harness in `:apps:integration` / `testing-plan.md` Round 2; the now-fixed bot-room hand-end stall (CARDS-16) is exactly the kind of bug full-hand coverage would have caught. Sentry [CARDS-10](https://elijah-dangerfield.sentry.io/issues/CARDS-10).
-
 ### B5 — Parked
 
 - Rolling event tail for smoother reconnect animations — resurrect only if users complain post-launch.
