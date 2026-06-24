@@ -102,7 +102,7 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Acceptance:** Adding `Text("Hello")` to a feature `:impl` fails both `./gradlew check` and the pre-push hook; `stringResource(...)` passes; a documented suppress annotation clears a flagged line; adding a second rule is a localized change (new rule class + config entry), no framework rework.
 
-  **Hints:** Convention plugins live in `build-logic/`; existing `.githooks/` has `commit-msg`. **Out of scope:** migrating the existing string violations — separate cleanup once the gate exists.
+  **Hints:** Convention plugins live in `build-logic/`; existing `.githooks/` has `commit-msg`. **Out of scope:** migrating the existing string violations — separate cleanup once the gate exists. **Version blocker (needs a human call before this is worker-pickable):** the repo is on Kotlin 2.3.21, but detekt 1.23.x bundles the 2.0.0 compiler and chokes on 2.3 metadata (detekt#8865) — only `dev.detekt` 2.0.0-alpha supports Kotlin 2.3, and gating CI + pre-push on an alpha risks reddening every build. Either pin a deliberate detekt-2-alpha version (then the framework + `verifyStrings` rule can land behind a baseline) or hold until detekt 2 stabilises.
 
 ### Billing
 
