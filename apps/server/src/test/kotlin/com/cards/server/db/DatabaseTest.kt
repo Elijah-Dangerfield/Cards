@@ -5,6 +5,7 @@ import com.dangerfield.cards.server.domain.UserId
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.insertIgnore
+import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.update
 import org.junit.AfterClass
 import org.junit.Assume
@@ -69,6 +70,27 @@ abstract class DatabaseTest {
             }
         }
         return UserId(id)
+    }
+
+    /**
+     * Set `auth.users.banned_until` for [userId] to [until] (null clears the
+     * ban). Mirrors a dashboard ban; PostgresModerationRepository reads this
+     * column. The row must already exist (seed it first via [seedAuthUser]).
+     *
+     * Raw SQL rather than an Exposed column mapping so the test doesn't have
+     * to pin a TIMESTAMPTZ column type — the JDBC driver coerces the bound
+     * timestamp into the real `auth.users.banned_until` column directly.
+     */
+    protected fun setBannedUntil(userId: UserId, until: java.time.Instant?) {
+        database.blockingTransaction {
+            TransactionManager.current().exec(
+                stmt = "UPDATE auth.users SET banned_until = ? WHERE id = ?",
+                args = listOf(
+                    org.jetbrains.exposed.sql.javatime.JavaInstantColumnType() to until,
+                    org.jetbrains.exposed.sql.UUIDColumnType() to userId.value,
+                ),
+            )
+        }
     }
 
     /** Exposed mapping for the minimal `auth.users` stub. */

@@ -252,6 +252,23 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun prefilledJoin_notFound_emitsJoinCodeRejected_notInlineError() = runUnitTest {
+        // The PrivateJoin → Lobby funnel: a bad prefilled code must bounce back
+        // to the input screen (event) rather than strand the user on a dead
+        // lobby spinner with an inline error (CARDS-28).
+        val rooms = FakeRoomRepository(joinOutcome = JoinRoomOutcome.NotFound)
+        val vm = buildVm(rooms = rooms, prefilledCode = "WXYZ12")
+
+        vm.eventFlow.test {
+            val event = awaitItem()
+            val rejected = assertIs<LobbyEvent.JoinCodeRejected>(event)
+            assertEquals("WXYZ12", rejected.code)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(null, vm.state.error)
+    }
+
+    @Test
     fun leave_serverCallSurvivesViewModelTeardown() = runUnitTest {
         // Fire-and-forget contract: the server-side `leaveRoom` POST must
         // complete even if the user pops the lobby screen mid-call.
@@ -307,6 +324,39 @@ class LobbyViewModelTest : CoroutineTest() {
             assertEquals(ConnectionStatus.Disconnected, last.connectionStatus)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun createError_isExposed_whenACreateCallFailsOutsideARoom() = runUnitTest {
+        // CARDS-2E: a failed create call should drive the full-screen retry
+        // state, not strand the user on the "Setting up…" spinner.
+        val rooms = FakeRoomRepository(
+            createOutcome = CreateRoomOutcome.NetworkError(RuntimeException("boom")),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertEquals(LobbyError.CreateNetworkError, last.createError)
+            assertFalse(last.creating, "the spinner is gone once the create error lands")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun createError_isNull_forJoinErrors() = runUnitTest {
+        // A join failure keeps the inline-error treatment, not the full-screen one.
+        val state = LobbyState(error = LobbyError.JoinRoomFull)
+        assertNull(state.createError)
+    }
+
+    @Test
+    fun createError_isNull_whileCreating() = runUnitTest {
+        // Mid-retry the spinner shows again, not the error screen.
+        val state = LobbyState(creating = true, error = LobbyError.CreateNetworkError)
+        assertNull(state.createError)
     }
 
     // ---------- new MP paths (B6 Round 1) ----------

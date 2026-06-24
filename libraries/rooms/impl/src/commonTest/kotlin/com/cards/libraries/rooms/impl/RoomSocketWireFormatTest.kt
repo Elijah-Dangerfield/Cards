@@ -15,6 +15,7 @@ import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
 import com.dangerfield.cards.libraries.gameplay.Suit
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -163,6 +164,43 @@ class RoomSocketWireFormatTest {
                 "${action::class.simpleName} must survive the wire byte-for-byte",
             )
         }
+    }
+
+    @Test
+    fun snapshot_withUnknownEnumValue_coercesToDefault_inReleaseConfig() {
+        // Tests run in debug, where RoomSocketJson stays strict, so we mirror the
+        // release config (coerceInputValues on) here to pin the forward-compat
+        // contract: a server status/visibility value this client doesn't know
+        // coerces to the property default instead of dropping the whole frame.
+        val releaseJson = Json {
+            classDiscriminator = "type"
+            ignoreUnknownKeys = true
+            coerceInputValues = true
+        }
+        val frame = """
+            {
+              "type": "snapshot",
+              "room": {
+                "code": "ABCDEF",
+                "hostUserId": "11111111-1111-1111-1111-111111111111",
+                "createdAtEpochMs": 1700000000000,
+                "maxSeats": 6,
+                "status": "Brand_New_Status",
+                "members": [],
+                "visibility": "Brand_New_Visibility"
+              }
+            }
+        """.trimIndent()
+
+        val decoded = releaseJson.decodeFromString(RoomSocketEventDto.serializer(), frame)
+
+        val room = (decoded as RoomSocketEventDto.Snapshot).room
+        assertEquals(RoomStatusDto.Unknown, room.status, "an unknown status coerces to the default")
+        assertEquals(
+            RoomVisibilityDto.Private,
+            room.visibility,
+            "an unknown visibility coerces to the pessimistic default",
+        )
     }
 
     private fun roundTrip(original: RoomSocketEventDto): RoomSocketEventDto {

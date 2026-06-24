@@ -132,7 +132,7 @@ sealed interface Product {
          * Longer-form explanation of what the user actually gets. The
          * tile-level [subtitleByLocale] is a category label ("Emote",
          * "Card back") — this is the sentence-or-two that tells a new
-         * player what "Victory Dance" or "Neon Table" actually does in a
+         * player what "Victory Dance" or "Royal Red Felt" actually does in a
          * hand. Surfaced in the purchase confirmation sheet.
          *
          * Optional — items without one fall back to the subtitle in UI.

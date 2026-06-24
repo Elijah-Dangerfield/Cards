@@ -3,6 +3,7 @@ package com.dangerfield.cards
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -19,6 +20,13 @@ import kotlin.math.abs
  * never consumes pointer events: it only *observes*, arming only when the touch
  * starts within [EDGE_ZONE_DP] of the right edge and then travels predominantly
  * leftward past [TRIGGER_DISTANCE_DP]. Normal taps/scrolls are unaffected.
+ *
+ * Watches in the **Initial** pass so a vertical scroll container nested under it
+ * can't swallow the gesture before this detector sees it (CARDS-Y: the swipe was
+ * unreliable inside scroll views because the scroller won the Main-pass deltas
+ * first). We still never *consume*, so a vertical drag in the edge zone keeps
+ * scrolling — the `abs(dx) > abs(dy)` gate means only a predominantly-leftward
+ * travel fires the trigger.
  */
 fun Modifier.debugRightEdgeSwipe(
     enabled: Boolean,
@@ -27,13 +35,13 @@ fun Modifier.debugRightEdgeSwipe(
     val edgeZonePx = EDGE_ZONE_DP.dp.toPx()
     val triggerPx = TRIGGER_DISTANCE_DP.dp.toPx()
     awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false)
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
         // Arm only for gestures that begin in the right-edge strip.
         if (down.position.x < size.width - edgeZonePx) return@awaitEachGesture
         var dx = 0f
         var dy = 0f
         while (true) {
-            val event = awaitPointerEvent()
+            val event = awaitPointerEvent(pass = PointerEventPass.Initial)
             val change = event.changes.firstOrNull { it.id == down.id } ?: break
             if (change.changedToUp()) break
             val delta = change.positionChange()

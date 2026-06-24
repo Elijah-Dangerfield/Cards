@@ -143,11 +143,26 @@ class LobbyViewModel(
                 updateState { it.copy(joining = true, error = null) }
                 when (val outcome = rooms.joinRoom(code)) {
                     is JoinRoomOutcome.Success -> startConnection(outcome.room)
-                    JoinRoomOutcome.NotFound -> updateState {
-                        it.copy(joining = false, error = LobbyError.JoinRoomNotFound(code))
+                    JoinRoomOutcome.NotFound -> {
+                        // A prefilled-code join is the PrivateJoin → Lobby funnel:
+                        // the input screen already popped, so showing the error here
+                        // strands the user on a dead spinner. Route them back to the
+                        // code-entry screen to fix and retry (CARDS-28). A non-prefill
+                        // join (no input screen behind us) keeps the inline error.
+                        if (!prefilledCode.isNullOrBlank()) {
+                            updateState { it.copy(joining = false) }
+                            sendEvent(LobbyEvent.JoinCodeRejected(code))
+                        } else {
+                            updateState {
+                                it.copy(joining = false, error = LobbyError.JoinRoomNotFound(code))
+                            }
+                        }
                     }
                     JoinRoomOutcome.Full -> updateState {
                         it.copy(joining = false, error = LobbyError.JoinRoomFull)
+                    }
+                    is JoinRoomOutcome.OverBalance -> updateState {
+                        it.copy(joining = false, error = LobbyError.JoinOverBalance(outcome.message))
                     }
                     JoinRoomOutcome.NotJoinable -> updateState {
                         it.copy(joining = false, error = LobbyError.JoinRoomNotAcceptingPlayers)
@@ -415,6 +430,24 @@ data class LobbyState(
 ) {
     val isBusy: Boolean get() = creating || joining || leaving
     val isInRoom: Boolean get() = room != null
+
+    /**
+     * A create-room call failed and we're not in a room. The lobby is
+     * only ever entered to create or join, so a Create* error with no
+     * room means the "Setting up…" path dead-ended — show the full-screen
+     * retry state instead of a stranded spinner (CARDS-2E).
+     */
+    val createError: LobbyError?
+        get() = if (!isInRoom && !creating) {
+            error?.takeIf {
+                it is LobbyError.CreateNetworkError ||
+                    it is LobbyError.CreateUnknownError ||
+                    it is LobbyError.CreateNotSignedIn ||
+                    it is LobbyError.CreateInvalidMaxSeats
+            }
+        } else {
+            null
+        }
     val canSubmitJoin: Boolean
         get() = !isBusy && !isInRoom && codeInput.trim().length in MIN_CODE_LENGTH..MAX_CODE_LENGTH
     val canCreate: Boolean
@@ -475,6 +508,7 @@ sealed interface LobbyError {
     data object JoinBlankCode : LobbyError
     data class JoinRoomNotFound(val code: String) : LobbyError
     data object JoinRoomFull : LobbyError
+    data class JoinOverBalance(val message: String) : LobbyError
     data object JoinRoomNotAcceptingPlayers : LobbyError
     data object JoinNotSignedIn : LobbyError
     data object JoinNetworkError : LobbyError
@@ -499,6 +533,11 @@ sealed interface LobbyEvent {
         val newHostDisplayName: String,
         val isLocalUser: Boolean,
     ) : LobbyEvent
+
+    /** A deep-link / prefilled-code join hit an unknown room. Routes the user
+     *  back to the code-entry screen with the bad code so they can fix and
+     *  retry, rather than stranding them on a dead lobby spinner (CARDS-28). */
+    data class JoinCodeRejected(val code: String) : LobbyEvent
 }
 
 sealed interface LobbyAction {

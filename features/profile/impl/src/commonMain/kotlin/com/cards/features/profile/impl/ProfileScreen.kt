@@ -70,10 +70,9 @@ import cards.libraries.resources.generated.resources.profile_items_shop_link
 import cards.libraries.resources.generated.resources.profile_items_specialty
 import cards.libraries.resources.generated.resources.profile_level_summary_level
 import cards.libraries.resources.generated.resources.profile_level_summary_xp_breakdown
-import cards.libraries.resources.generated.resources.profile_play_style_example
 import cards.libraries.resources.generated.resources.profile_settings_a11y
-import cards.libraries.resources.generated.resources.profile_stats_banner_subtitle
-import cards.libraries.resources.generated.resources.profile_stats_banner_subtitle_no_games
+import cards.libraries.resources.generated.resources.profile_stats_banner_subtitle_pending
+import cards.libraries.resources.generated.resources.profile_stats_banner_subtitle_style_win
 import cards.libraries.resources.generated.resources.profile_stats_banner_title
 import cards.libraries.resources.generated.resources.profile_achievements_count_see_all
 import cards.libraries.resources.generated.resources.profile_achievements_title
@@ -89,6 +88,7 @@ import com.dangerfield.cards.libraries.cards.EmojiBlast
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.cards.LevelProgress
+import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
@@ -97,6 +97,8 @@ import com.dangerfield.cards.libraries.ui.system.LocalLevelCurve
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.PlayStyleRadarMark
+import com.dangerfield.cards.libraries.ui.components.toRadarAxes
+import com.dangerfield.cards.libraries.ui.components.toStyleCopy
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
@@ -143,6 +145,8 @@ data class ProfileSettings(
     val isAnonymous: Boolean,
     val botSpeed: com.dangerfield.cards.libraries.cards.BotSpeed,
     val turnFeedback: com.dangerfield.cards.libraries.cards.TurnFeedback,
+    /** Settings-only toggle: false silences in-game achievement reveals. */
+    val showAchievementPopups: Boolean = true,
     val appVersion: String,
     val unreadNotificationCount: Int = 0,
     val showQaMenu: Boolean = false,
@@ -159,9 +163,9 @@ data class ProfileSettings(
  * Per the screen convention, this composable owns its [Screen] shell; the
  * EntryPoint only wires the repos → params + the navigation callbacks.
  *
- * [winRatePercent] is the only real stat wired today (from Progression);
- * the banner's play-style + chips-won are example values pending real
- * data plumbing — see the TODO in [StatsStyleBanner].
+ * The banner reads [winRatePercent] and the derived [playStyle] (both from
+ * Progression); below the play-style sample gate it shows an honest "play
+ * more hands" nudge rather than a fabricated label.
  */
 @Composable
 fun ProfileScreen(
@@ -169,6 +173,7 @@ fun ProfileScreen(
     achievementProgress: AchievementProgress,
     ownedItems: List<OwnedItem>,
     winRatePercent: Int?,
+    playStyle: PlayStyleAxes? = null,
     onOpenSettings: () -> Unit,
     onEditProfile: () -> Unit,
     onTapStats: () -> Unit,
@@ -177,6 +182,9 @@ fun ProfileScreen(
     onOpenShop: () -> Unit,
     onSignIn: () -> Unit,
     modifier: Modifier = Modifier,
+    friendRequests: List<FriendRequestRow> = emptyList(),
+    onAcceptFriendRequest: (String) -> Unit = {},
+    onDeclineFriendRequest: (String) -> Unit = {},
     boostOwnedCount: Int = 0,
     boostExpiresAtEpochMs: Long? = null,
     onActivateBoost: () -> Unit = {},
@@ -250,6 +258,7 @@ fun ProfileScreen(
 
                 StatsStyleBanner(
                     winRatePercent = winRatePercent,
+                    playStyle = playStyle,
                     onClick = onTapStats,
                 )
                 VerticalSpacerD800()
@@ -258,6 +267,18 @@ fun ProfileScreen(
                     progress = achievementProgress,
                     onSeeAll = onSeeAllAchievements,
                 )
+
+                // Friend-requests inbox. Account-bound — a guest has no friend
+                // graph, so the section (and its play-to-friend empty state)
+                // only shows once the user has claimed an account.
+                if (!settings.isAnonymous) {
+                    FriendRequestsSection(
+                        requests = friendRequests,
+                        onAccept = onAcceptFriendRequest,
+                        onDecline = onDeclineFriendRequest,
+                    )
+                    VerticalSpacerD800()
+                }
 
                 OwnedItemsSections(
                     ownedItems = ownedItems,
@@ -460,21 +481,18 @@ private fun LevelSummary(progress: LevelProgress, modifier: Modifier = Modifier)
 @Composable
 private fun StatsStyleBanner(
     winRatePercent: Int?,
+    playStyle: PlayStyleAxes?,
     onClick: () -> Unit,
 ) {
-    val style = stringResource(Res.string.profile_play_style_example)
-    // TODO: play-style and chips-won are example values — wire real data
-    // (server Progression.chipsWon + a human play-style derivation) later.
-    val exampleChipsWon = remember { formatThousands(1_284L) }
-    val subtitle = if (winRatePercent != null) {
-        stringResource(
-            Res.string.profile_stats_banner_subtitle,
-            style,
-            winRatePercent,
-            exampleChipsWon,
-        )
-    } else {
-        stringResource(Res.string.profile_stats_banner_subtitle_no_games, style)
+    // Only show a style name once the user clears the sample gate — below it,
+    // the line is an honest "play more hands" nudge, not a fabricated label.
+    val derived = playStyle?.takeIf { it.hasEnoughData }
+    val style = derived?.let { stringResource(it.toStyleCopy().label) }
+    val subtitle = when {
+        style != null && winRatePercent != null ->
+            stringResource(Res.string.profile_stats_banner_subtitle_style_win, style, winRatePercent)
+        style != null -> style
+        else -> stringResource(Res.string.profile_stats_banner_subtitle_pending)
     }
     // The play-style name reads in the accent (matching the radar mark); the
     // rest of the line stays muted. Span-on-substring keeps the localized
@@ -483,8 +501,8 @@ private fun StatsStyleBanner(
     val subtitleAnnotated = remember(subtitle, style, styleColor) {
         buildAnnotatedString {
             append(subtitle)
-            val start = subtitle.indexOf(style)
-            if (start >= 0) {
+            val start = style?.let { subtitle.indexOf(it) } ?: -1
+            if (style != null && start >= 0) {
                 addStyle(SpanStyle(color = styleColor), start, start + style.length)
             }
         }
@@ -503,8 +521,9 @@ private fun StatsStyleBanner(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
         ) {
-            // Fake play-style preview — the same radar mark the Stats page
-            // uses, framed in a tile so it reads as "your style at a glance".
+            // Play-style preview — the same radar mark the Stats page uses,
+            // framed in a tile. Shows the real derived shape once available,
+            // else the decorative teaser shape.
             Box(
                 modifier = Modifier
                     .size(52.dp)
@@ -512,9 +531,12 @@ private fun StatsStyleBanner(
                     .background(AppTheme.colors.surfaceRaised.color),
                 contentAlignment = Alignment.Center,
             ) {
-                PlayStyleRadarMark(
-                    modifier = Modifier.size(36.dp),
-                )
+                val markAxes = derived?.toRadarAxes()
+                if (markAxes != null) {
+                    PlayStyleRadarMark(modifier = Modifier.size(36.dp), axes = markAxes)
+                } else {
+                    PlayStyleRadarMark(modifier = Modifier.size(36.dp))
+                }
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -561,53 +583,63 @@ private fun AchievementsSection(
     val earnedCount = progress.earned.size
     val total = AllAchievements.size
 
-    SectionHeader(
-        title = stringResource(Res.string.profile_achievements_title),
-        trailingLabel = stringResource(Res.string.profile_achievements_count_see_all, earnedCount, total),
-        onClick = onSeeAll,
-    )
-    VerticalSpacerD200()
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
-        verticalArrangement = Arrangement.spacedBy(Dimension.D500),
-        maxItemsInEachRow = 4,
+    // The whole section is one tap target into "See all" — the owner found the
+    // header-only hit area too narrow (CARDS-1R). The header keeps its "See all"
+    // label as the affordance; the click lives on the wrapping column so a tap on
+    // the medal grid navigates too. Individual medals open their own detail sheet
+    // (their tap wins inside the grid); the section click is the surrounding area.
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onSeeAll),
     ) {
-        display.forEach { achievement ->
-            val isEarned = progress.isEarned(achievement.id)
-            val isMystery = achievement.isMystery && !isEarned
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                AchievementMedalWithDetail(
-                    achievement = achievement,
-                    earnedAtEpochMs = progress.earned[achievement.id],
-                    progress = achievement.currentProgress(progress),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                VerticalSpacerD100()
-                Text(
-                    text = if (isMystery) {
-                        stringResource(Res.string.ui_achievement_medallion_locked_label)
-                    } else {
-                        achievement.name
-                    },
-                    typography = AppTheme.typography.Label.L300,
-                    color = if (isEarned) {
-                        AppTheme.colors.content
-                    } else {
-                        AppTheme.colors.contentTertiary
-                    },
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                )
+        SectionHeader(
+            title = stringResource(Res.string.profile_achievements_title),
+            trailingLabel = stringResource(Res.string.profile_achievements_count_see_all, earnedCount, total),
+        )
+        VerticalSpacerD200()
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
+            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
+            maxItemsInEachRow = 4,
+        ) {
+            display.forEach { achievement ->
+                val isEarned = progress.isEarned(achievement.id)
+                val isMystery = achievement.isMystery && !isEarned
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    AchievementMedalWithDetail(
+                        achievement = achievement,
+                        earnedAtEpochMs = progress.earned[achievement.id],
+                        progress = achievement.currentProgress(progress),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    VerticalSpacerD100()
+                    Text(
+                        text = if (isMystery) {
+                            stringResource(Res.string.ui_achievement_medallion_locked_label)
+                        } else {
+                            achievement.name
+                        },
+                        typography = AppTheme.typography.Label.L300,
+                        color = if (isEarned) {
+                            AppTheme.colors.content
+                        } else {
+                            AppTheme.colors.contentTertiary
+                        },
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                    )
+                }
             }
-        }
-        // Pad the final row so medals stay left-aligned in their columns.
-        val remainder = display.size % 4
-        if (remainder != 0) {
-            repeat(4 - remainder) { Box(modifier = Modifier.weight(1f)) }
+            // Pad the final row so medals stay left-aligned in their columns.
+            val remainder = display.size % 4
+            if (remainder != 0) {
+                repeat(4 - remainder) { Box(modifier = Modifier.weight(1f)) }
+            }
         }
     }
     VerticalSpacerD800()
@@ -1072,6 +1104,10 @@ private fun ProfileScreenPreview() {
                 ),
             ),
             winRatePercent = 58,
+            friendRequests = listOf(
+                FriendRequestRow("u1", "Jordan", "🦊", "#E48A58"),
+                FriendRequestRow("u2", "Priya", "💀", "#9E9E9E"),
+            ),
             onOpenSettings = {},
             onEditProfile = {},
             onTapStats = {},

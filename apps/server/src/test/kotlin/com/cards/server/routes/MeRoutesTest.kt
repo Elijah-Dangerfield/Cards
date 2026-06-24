@@ -350,7 +350,7 @@ class MeRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing {
-                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends, recent)
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyPlayStyle, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends, recent)
                 }
             }
             val client = createClient {
@@ -376,7 +376,7 @@ class MeRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing {
-                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, rooms, NoOpInstallSweep, EmptyFriends, NoOpRecentOpponentsRepository)
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyPlayStyle, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, rooms, NoOpInstallSweep, EmptyFriends, NoOpRecentOpponentsRepository)
                 }
             }
             val client = createClient {
@@ -426,7 +426,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, installSweep, EmptyFriends, NoOpRecentOpponentsRepository) }
+                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyProgression, EmptyPlayStyle, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, installSweep, EmptyFriends, NoOpRecentOpponentsRepository) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -451,7 +451,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends, NoOpRecentOpponentsRepository) }
+                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyProgression, EmptyPlayStyle, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends, NoOpRecentOpponentsRepository) }
             }
             val response = createClient { }.delete("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
@@ -473,7 +473,7 @@ class MeRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing {
-                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends, NoOpRecentOpponentsRepository)
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyPlayStyle, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends, NoOpRecentOpponentsRepository)
                 }
             }
             val client = createClient {
@@ -707,6 +707,17 @@ class MeRoutesTest {
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
 
+    private object EmptyPlayStyle : com.dangerfield.cards.server.domain.PlayStyleRepository {
+        override suspend fun findOrCreateAggregate(userId: UserId) = error("unused")
+        override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.UserPlayStyleAggregate? = null
+        override suspend fun applyHand(
+            userId: UserId,
+            hand: com.dangerfield.cards.server.domain.PlayStyleHand,
+        ) = error("unused")
+
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
     private object EmptyAchievements : com.dangerfield.cards.server.domain.AchievementRepository {
         override suspend fun recordEarned(
             userId: UserId,
@@ -767,6 +778,12 @@ class MeRoutesTest {
             avatarEmoji: String,
             avatarBackgroundColor: String?,
         ): com.dangerfield.cards.server.domain.MatchmakingResult = error("unused")
+        override suspend fun findPublicCandidates(
+            userId: UserId,
+            minBuyIn: Long,
+            maxBuyIn: Long,
+            blockedUserIds: Set<UserId>,
+        ): List<com.dangerfield.cards.server.domain.Room> = error("unused")
         override suspend fun join(
             code: String,
             userId: UserId,

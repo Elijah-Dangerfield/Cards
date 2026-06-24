@@ -35,6 +35,9 @@ import cards.libraries.resources.generated.resources.lobby_connection_connected
 import cards.libraries.resources.generated.resources.lobby_connection_connecting
 import cards.libraries.resources.generated.resources.lobby_connection_disconnected
 import cards.libraries.resources.generated.resources.lobby_connection_reconnecting
+import cards.libraries.resources.generated.resources.lobby_create_error_back
+import cards.libraries.resources.generated.resources.lobby_create_error_retry
+import cards.libraries.resources.generated.resources.lobby_create_error_title
 import cards.libraries.resources.generated.resources.lobby_error_bot_action_failed
 import cards.libraries.resources.generated.resources.lobby_error_connect_rejected
 import cards.libraries.resources.generated.resources.lobby_error_create_network
@@ -135,6 +138,19 @@ fun LobbyScreen(
             )
         },
     ) { padding ->
+        val createError = state.createError
+        if (createError != null) {
+            // A create call dead-ended with no room to fall back on. Instead of
+            // stranding the user on a "Setting up…" spinner with a small red
+            // line, give them a clear message + an in-place Retry (CARDS-2E).
+            CreateErrorContent(
+                error = createError,
+                padding = padding,
+                onRetry = { onAction(LobbyAction.CreateRoom) },
+                onBack = onBack,
+            )
+            return@Screen
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -197,6 +213,53 @@ private fun LoadingContent() {
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.contentSecondary,
         )
+    }
+}
+
+@Composable
+private fun CreateErrorContent(
+    error: LobbyError,
+    padding: androidx.compose.foundation.layout.PaddingValues,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .screenContentPadding(paddingValues = padding)
+            .padding(horizontal = Dimension.D500),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = stringResource(Res.string.lobby_create_error_title),
+            typography = AppTheme.typography.Heading.H800,
+            color = AppTheme.colors.content,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(Dimension.D400))
+        Text(
+            text = error.message(),
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.weight(2f))
+        ButtonPrimary(
+            onClick = onRetry,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(Res.string.lobby_create_error_retry))
+        }
+        Spacer(modifier = Modifier.height(Dimension.D400))
+        ButtonSecondary(
+            onClick = onBack,
+            style = ButtonStyle.Outlined,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(Res.string.lobby_create_error_back))
+        }
+        Spacer(modifier = Modifier.height(Dimension.D900))
     }
 }
 
@@ -665,6 +728,18 @@ private fun LobbyScreenPreview_Idle_Error() {
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
+private fun LobbyScreenPreview_CreateError() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        LobbyScreen(
+            state = LobbyState(error = LobbyError.CreateNetworkError),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
 private fun LobbyScreenPreview_InRoom_Leaving() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
         LobbyScreen(
@@ -699,6 +774,7 @@ private fun LobbyError.message(): String = when (this) {
     LobbyError.JoinBlankCode -> stringResource(Res.string.lobby_error_join_blank_code)
     is LobbyError.JoinRoomNotFound -> stringResource(Res.string.lobby_error_join_not_found, code)
     LobbyError.JoinRoomFull -> stringResource(Res.string.lobby_error_join_full)
+    is LobbyError.JoinOverBalance -> message
     LobbyError.JoinRoomNotAcceptingPlayers -> stringResource(Res.string.lobby_error_join_not_accepting)
     LobbyError.JoinNotSignedIn -> stringResource(Res.string.lobby_error_join_not_signed_in)
     LobbyError.JoinNetworkError -> stringResource(Res.string.lobby_error_join_network)

@@ -36,6 +36,8 @@ import cards.libraries.resources.generated.resources.profile_bot_speed_slow
 import cards.libraries.resources.generated.resources.profile_debug_qa_headline
 import cards.libraries.resources.generated.resources.profile_debug_qa_supporting
 import cards.libraries.resources.generated.resources.profile_delete_account_button
+import cards.libraries.resources.generated.resources.profile_gameplay_achievement_popups_headline
+import cards.libraries.resources.generated.resources.profile_gameplay_achievement_popups_supporting
 import cards.libraries.resources.generated.resources.profile_gameplay_bot_speed_headline
 import cards.libraries.resources.generated.resources.profile_gameplay_bot_speed_supporting
 import cards.libraries.resources.generated.resources.profile_gameplay_turn_feedback_headline
@@ -59,6 +61,8 @@ import cards.libraries.resources.generated.resources.profile_support_feedback_su
 import cards.libraries.resources.generated.resources.profile_turn_feedback_mute
 import cards.libraries.resources.generated.resources.profile_turn_feedback_sound
 import cards.libraries.resources.generated.resources.profile_turn_feedback_vibrate
+import cards.libraries.resources.generated.resources.settings_responsible_play_headline
+import cards.libraries.resources.generated.resources.settings_responsible_play_supporting
 import cards.libraries.resources.generated.resources.settings_section_account_support
 import cards.libraries.resources.generated.resources.settings_title
 import com.dangerfield.cards.features.profile.impl.ProfileSettings
@@ -105,10 +109,12 @@ fun SettingsScreen(
     onOpenNotifications: () -> Unit,
     onBotSpeedChange: (com.dangerfield.cards.libraries.cards.BotSpeed) -> Unit,
     onTurnFeedbackChange: (com.dangerfield.cards.libraries.cards.TurnFeedback) -> Unit,
+    onShowAchievementPopupsChange: (Boolean) -> Unit,
     onSendFeedback: () -> Unit,
     onReportBug: () -> Unit,
     onPrivacyPolicy: () -> Unit,
     onTermsOfService: () -> Unit,
+    onResponsiblePlay: () -> Unit,
     onDeleteAccount: () -> Unit,
     onSignOut: () -> Unit,
     isSigningOut: Boolean = false,
@@ -143,8 +149,10 @@ fun SettingsScreen(
             GameplaySection(
                 botSpeed = settings.botSpeed,
                 turnFeedback = settings.turnFeedback,
+                showAchievementPopups = settings.showAchievementPopups,
                 onBotSpeedChange = onBotSpeedChange,
                 onTurnFeedbackChange = onTurnFeedbackChange,
+                onShowAchievementPopupsChange = onShowAchievementPopupsChange,
                 onOpenTutorial = onOpenTutorial,
             )
 
@@ -189,6 +197,12 @@ fun SettingsScreen(
                         headlineText = stringResource(Res.string.profile_about_terms),
                         leadingContent = { EmojiLeading("📄") },
                         onClick = onTermsOfService,
+                    ),
+                    ListSectionItem(
+                        headlineText = stringResource(Res.string.settings_responsible_play_headline),
+                        supportingText = stringResource(Res.string.settings_responsible_play_supporting),
+                        leadingContent = { EmojiLeading("🤝") },
+                        onClick = onResponsiblePlay,
                     ),
                 ),
             )
@@ -348,8 +362,10 @@ private fun com.dangerfield.cards.libraries.cards.TurnFeedback.pickerDisplayValu
 private fun GameplaySection(
     botSpeed: com.dangerfield.cards.libraries.cards.BotSpeed,
     turnFeedback: com.dangerfield.cards.libraries.cards.TurnFeedback,
+    showAchievementPopups: Boolean,
     onBotSpeedChange: (com.dangerfield.cards.libraries.cards.BotSpeed) -> Unit,
     onTurnFeedbackChange: (com.dangerfield.cards.libraries.cards.TurnFeedback) -> Unit,
+    onShowAchievementPopupsChange: (Boolean) -> Unit,
     onOpenTutorial: () -> Unit = {},
 ) {
     var botSpeedExpanded by remember { mutableStateOf(false) }
@@ -402,6 +418,17 @@ private fun GameplaySection(
                     )
                 },
                 onClick = { turnFeedbackExpanded = true },
+            ),
+            ListSectionItem(
+                headlineText = stringResource(Res.string.profile_gameplay_achievement_popups_headline),
+                supportingText = stringResource(Res.string.profile_gameplay_achievement_popups_supporting),
+                leadingContent = { EmojiLeading("🏆") },
+                accessory = ListItemAccessory.Switch(
+                    checked = showAchievementPopups,
+                    onCheckedChange = onShowAchievementPopupsChange,
+                ),
+                // Row tap mirrors the switch so the whole row is the affordance.
+                onClick = { onShowAchievementPopupsChange(!showAchievementPopups) },
             ),
         ),
     )
@@ -471,10 +498,12 @@ private fun SettingsScreenPreview_Guest() {
             onOpenNotifications = {},
             onBotSpeedChange = {},
             onTurnFeedbackChange = {},
+            onShowAchievementPopupsChange = {},
             onSendFeedback = {},
             onReportBug = {},
             onPrivacyPolicy = {},
             onTermsOfService = {},
+            onResponsiblePlay = {},
             onDeleteAccount = {},
             onSignOut = {},
         )

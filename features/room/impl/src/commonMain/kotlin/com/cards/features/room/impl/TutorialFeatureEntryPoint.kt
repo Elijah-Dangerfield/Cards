@@ -12,6 +12,7 @@ import com.dangerfield.cards.features.room.impl.tutorial.AchievementUnlockedDial
 import com.dangerfield.cards.features.room.impl.tutorial.TutorialPokerScreen
 import com.dangerfield.cards.features.room.impl.tutorial.TutorialViewModel
 import com.dangerfield.cards.libraries.cards.AchievementId
+import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
@@ -46,6 +47,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class TutorialFeatureEntryPoint(
     private val tutorialViewModelFactory: () -> TutorialViewModel,
     private val appScope: AppCoroutineScope,
+    private val appCache: AppCache,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -74,6 +76,10 @@ class TutorialFeatureEntryPoint(
                 onAchievementUnlocked = {
                     router.popBackTo(TutorialRoute(), inclusive = true)
                     appScope.launch {
+                        // Respect the Settings "achievement pop-ups" toggle — when
+                        // off, completing the tutorial still banks the achievement,
+                        // we just skip the celebration dialog.
+                        if (!appCache.get().showAchievementPopups) return@launch
                         delay(DialogIntroDelay)
                         router.navigate(
                             AchievementUnlockedRoute(

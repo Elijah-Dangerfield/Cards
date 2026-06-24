@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
+import com.dangerfield.cards.libraries.rooms.CandidatesOutcome
 import com.dangerfield.cards.libraries.rooms.FindTableOutcome
 import com.dangerfield.cards.libraries.rooms.MatchmakingRepository
 import com.dangerfield.cards.libraries.rooms.PlayBotsOutcome
@@ -32,7 +33,12 @@ class MatchmakingRepositoryImpl(
         FindTableOutcome.Success(room = body.room.toDomain(), created = body.created)
     } catch (e: ClientRequestException) {
         when (e.response.status) {
-            HttpStatusCode.BadRequest -> FindTableOutcome.InvalidRange(extractMessage(e) ?: "Invalid buy-in range")
+            HttpStatusCode.BadRequest ->
+                if (extractCode(e) == "insufficient_balance") {
+                    FindTableOutcome.InsufficientBalance(extractMessage(e) ?: "Not enough chips for that buy-in")
+                } else {
+                    FindTableOutcome.InvalidRange(extractMessage(e) ?: "Invalid buy-in range")
+                }
             HttpStatusCode.Unauthorized -> FindTableOutcome.NotSignedIn(e)
             HttpStatusCode.TooManyRequests -> FindTableOutcome.RateLimited(e)
             else -> FindTableOutcome.Unknown(e)
@@ -43,6 +49,30 @@ class MatchmakingRepositoryImpl(
         FindTableOutcome.Unknown(e)
     } catch (e: Throwable) {
         FindTableOutcome.NetworkError(e)
+    }
+
+    override suspend fun findCandidates(minBuyIn: Long, maxBuyIn: Long): CandidatesOutcome = try {
+        val response = api.candidates(minBuyIn = minBuyIn, maxBuyIn = maxBuyIn)
+        val body = response.body<MatchmakingCandidatesResponseDto>()
+        CandidatesOutcome.Success(rooms = body.rooms.map { it.toDomain() })
+    } catch (e: ClientRequestException) {
+        when (e.response.status) {
+            HttpStatusCode.BadRequest ->
+                if (extractCode(e) == "insufficient_balance") {
+                    CandidatesOutcome.InsufficientBalance(extractMessage(e) ?: "Not enough chips for that buy-in")
+                } else {
+                    CandidatesOutcome.InvalidRange(extractMessage(e) ?: "Invalid buy-in range")
+                }
+            HttpStatusCode.Unauthorized -> CandidatesOutcome.NotSignedIn(e)
+            HttpStatusCode.TooManyRequests -> CandidatesOutcome.RateLimited(e)
+            else -> CandidatesOutcome.Unknown(e)
+        }
+    } catch (e: HttpRequestTimeoutException) {
+        CandidatesOutcome.NetworkError(e)
+    } catch (e: ServerResponseException) {
+        CandidatesOutcome.Unknown(e)
+    } catch (e: Throwable) {
+        CandidatesOutcome.NetworkError(e)
     }
 
     override suspend fun playBots(code: String): PlayBotsOutcome = try {

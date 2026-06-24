@@ -51,6 +51,25 @@ data class AppData(
     /** Cue played when it becomes the user's turn during a hand. */
     val turnFeedback: TurnFeedback = TurnFeedback.Vibrate,
 
+    /**
+     * Whether in-game achievement-unlock celebrations surface to the user
+     * (the bot-mode celebration sheet, the inline showdown/bust rows, and
+     * the tutorial-complete dialog). Default on; the user silences them in
+     * Settings → Gameplay. Achievements are still **recorded and earned**
+     * when off — only the reveal UI is suppressed, so the unlock still shows
+     * up later in the achievements list.
+     */
+    val showAchievementPopups: Boolean = true,
+
+    /**
+     * How many times the "you can turn these off in Settings" footer has been
+     * shown on the celebration sheet. The hint rides the first few
+     * celebrations (capped in `PlayPokerViewModel`) so a new user learns the
+     * toggle exists, then never shows again. Device-scoped — a discoverability
+     * counter, not account state.
+     */
+    val achievementPopupHintShows: Int = 0,
+
     /** Epoch-ms — first observed by the review coordinator. 0 = uncaptured. */
     val reviewInstallAt: Long = 0L,
 
@@ -211,6 +230,24 @@ data class AppData(
      * they survive retries even within a watermark window.
      */
     val highestLevelRewarded: Int = 0,
+
+    /**
+     * The `LegalUrls.LEGAL_VERSION` the user last accepted by proceeding past
+     * the onboarding Welcome step (the passive "by continuing, you agree to
+     * Terms + Privacy" consent). `0` means no acceptance has been recorded.
+     * Re-recorded on every onboarding pass, so an account switch that walks
+     * Welcome again refreshes it; comparing it against the live
+     * `LegalUrls.LEGAL_VERSION` is the seam a future "Terms changed,
+     * re-accept" gate keys off.
+     */
+    val acceptedLegalVersion: Int = 0,
+
+    /**
+     * Epoch-ms when [acceptedLegalVersion] was recorded, or `null` if no
+     * acceptance has been recorded. The timestamp half of the consent audit
+     * record (accepted version + when).
+     */
+    val legalConsentAcceptedAt: Long? = null,
 )
 
 /**

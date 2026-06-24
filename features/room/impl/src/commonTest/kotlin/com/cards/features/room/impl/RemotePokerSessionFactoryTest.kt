@@ -293,6 +293,22 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
         assertTrue(table.seats.none { it.isHuman })
         assertFalse(table.isHumanTurn)
         assertEquals(null, table.humanLegalActions)
+        assertTrue(table.waitingToBeDealtIn, "a seatless local member is waiting to be dealt in")
+    }
+
+    @Test
+    fun tableFor_localUserSeated_isNotWaitingToBeDealtIn() = runUnitTest {
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, playerId = "local-user"),
+                testSeat(index = 1, playerId = "peer"),
+            ),
+            actingSeatIndex = 0,
+        )
+
+        val table = assertIs<TableUiState.Active>(tableFor(state, localUserId = "local-user"))
+
+        assertFalse(table.waitingToBeDealtIn)
     }
 
     @Test

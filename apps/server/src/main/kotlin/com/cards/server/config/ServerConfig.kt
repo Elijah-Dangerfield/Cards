@@ -13,6 +13,7 @@ data class ServerConfig(
     val http: HttpConfig,
     val sentry: SentryConfig,
     val admin: AdminConfig,
+    val accessControl: AccessControlConfig,
     val observability: ObservabilityConfig,
 ) {
     companion object {
@@ -22,7 +23,28 @@ data class ServerConfig(
             http = HttpConfig.fromEnv(env),
             sentry = SentryConfig.fromEnv(env),
             admin = AdminConfig.fromEnv(env),
+            accessControl = AccessControlConfig.fromEnv(env),
             observability = ObservabilityConfig.fromEnv(env),
+        )
+    }
+}
+
+/**
+ * Settings for the account-access gate that blocks banned users on every
+ * authenticated route.
+ *
+ * [appealUrl] is handed to a blocked client verbatim in the `403` body so the
+ * app can offer an "appeal this" link. Null when unset — the client then shows
+ * the block without an appeal affordance, which is fine for V1 (the gate still
+ * works, the user just has no in-app appeal path). Set `APPEAL_URL` once a
+ * support/appeal page exists.
+ */
+data class AccessControlConfig(
+    val appealUrl: String?,
+) {
+    companion object {
+        fun fromEnv(env: Env): AccessControlConfig = AccessControlConfig(
+            appealUrl = env["APPEAL_URL"]?.takeIf { it.isNotBlank() },
         )
     }
 }

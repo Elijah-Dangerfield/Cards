@@ -11,6 +11,7 @@ import com.dangerfield.cards.server.domain.RemoveBotResult
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomVisibility
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
@@ -50,7 +51,7 @@ import io.ktor.server.routing.route
  *  - 400 — malformed body (e.g. maxSeats out of range)
  *  - 401 — missing / invalid JWT (the auth plugin handles this for us)
  */
-fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository) {
+fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository, wallets: WalletRepository) {
     authenticate(SUPABASE_JWT_AUTH) {
         route("/v1/rooms") {
             post {
@@ -129,6 +130,26 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository) {
                 val code = call.parameters["code"]?.uppercase()
                     ?: return@post call.respond(HttpStatusCode.BadRequest)
                 val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                // Mirror the matchmaking affordability fence: you can't join a
+                // table whose buy-in is more than your wallet holds. The private
+                // join-by-code path had no such gate, so a tester joined a room
+                // they couldn't sit at and was silently demoted to spectator by
+                // escrow. Re-joins by an existing member skip the check — they
+                // already sat down. An unknown code falls through to join()'s 404.
+                val existing = rooms.find(code)
+                if (existing != null && existing.memberFor(userId) == null) {
+                    val balance = wallets.findOrCreate(userId).balance
+                    if (existing.buyIn > balance) {
+                        return@post call.respond(
+                            HttpStatusCode.BadRequest,
+                            problemEnvelope(
+                                "insufficient_balance",
+                                "That table's buy-in of ${existing.buyIn} is more than your " +
+                                    "balance of $balance chips.",
+                            ),
+                        )
+                    }
+                }
                 val profile = profiles.findOrCreate(userId)
                 when (
                     val outcome = rooms.join(

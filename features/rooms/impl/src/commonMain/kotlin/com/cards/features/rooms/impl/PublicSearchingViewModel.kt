@@ -7,8 +7,10 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.rooms.CandidatesOutcome
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.FindTableOutcome
+import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.MatchmakingRepository
 import com.dangerfield.cards.libraries.rooms.PlayBotsOutcome
 import com.dangerfield.cards.libraries.rooms.Room
@@ -26,14 +28,22 @@ import kotlin.time.Duration.Companion.seconds
  * Drives the public "Find a table" search — honesty-first matchmaking.
  *
  * Lifecycle:
- *  1. On [PublicSearchingAction.Start] it asks the matchmaker to seat the user
- *     (real humans only — never a bot). The server either drops them into a
- *     table that already has players, or opens a fresh one and we genuinely wait.
- *  2. It opens the room socket and watches who's seated. [PublicSearchingState.realPlayersFound]
+ *  1. On [PublicSearchingAction.Start] it browses the matchmaker's read-only
+ *     candidates endpoint. If qualifying tables exist, it shows them in a chooser
+ *     ([SearchPhase.Choosing]) and lets the user pick which to join, re-polling so
+ *     newly-appeared tables surface. If none exist, it falls straight into the
+ *     genuine waiting search below — the empty-chooser and empty-search paths
+ *     converge so the honest bot fallback is reached identically either way.
+ *  2. Picking a candidate ([PublicSearchingAction.JoinCandidate]) joins that table
+ *     by code and opens its socket — the user explicitly accepts that table's
+ *     buy-in (the sit-down escrow is the authoritative debit). When no candidate
+ *     is picked, [beginSearch] asks the matchmaker to seat the user into a fresh
+ *     table (real humans only — never a bot) and we genuinely wait.
+ *  3. It opens the room socket and watches who's seated. [PublicSearchingState.realPlayersFound]
  *     counts *other connected humans*, so the screen can honestly say "still
  *     looking" vs "someone joined". The instant the server deals the first hand
  *     (room flips to Playing) we hand off to the live table.
- *  3. If the long search window ([SEARCH_WINDOW]) elapses with nobody else here,
+ *  4. If the long search window ([SEARCH_WINDOW]) elapses with nobody else here,
  *     we surface the honest disclosed-bot offer rather than force it: "we
  *     couldn't find anyone — play bots for real, and they'll step aside the
  *     moment a real player shows up."
@@ -63,6 +73,9 @@ class PublicSearchingViewModel(
     /** The countdown to the bot-fallback offer. Re-armed on "keep waiting". */
     private var timeoutJob: Job? = null
 
+    /** Re-polls the candidates list while the chooser is showing. Cancelled on pick / leave / fall-through. */
+    private var candidatesPollJob: Job? = null
+
     /** Set once auth resolves so we can exclude ourselves from the found-count. */
     private var localUserId: String? = null
 
@@ -90,9 +103,69 @@ class PublicSearchingViewModel(
                 -> action.run {
                 reFindAttempts = 0
                 updateState {
-                    it.copy(phase = SearchPhase.Searching, error = null, realPlayersFound = 0)
+                    it.copy(phase = SearchPhase.Searching, error = null, realPlayersFound = 0, candidates = emptyList())
                 }
-                beginSearch()
+                browseCandidates()
+            }
+
+            is PublicSearchingAction.CandidatesLoaded -> action.run {
+                when (val outcome = action.outcome) {
+                    is CandidatesOutcome.Success ->
+                        if (outcome.rooms.isEmpty()) {
+                            // Nothing to choose — converge on the genuine waiting
+                            // search so the honest bot fallback is reached identically.
+                            updateState { it.copy(phase = SearchPhase.Searching, error = null, candidates = emptyList()) }
+                            fallThroughToSearch()
+                        } else {
+                            candidatesPollJob?.cancel()
+                            updateState {
+                                it.copy(phase = SearchPhase.Choosing, candidates = outcome.rooms.map(::toCandidate))
+                            }
+                            armCandidatesPoll()
+                        }
+                    is CandidatesOutcome.InvalidRange ->
+                        updateState { it.copy(error = SearchError.InvalidRange) }
+                    is CandidatesOutcome.InsufficientBalance ->
+                        updateState { it.copy(error = SearchError.InsufficientBalance) }
+                    is CandidatesOutcome.NotSignedIn ->
+                        updateState { it.copy(error = SearchError.NotSignedIn) }
+                    is CandidatesOutcome.RateLimited ->
+                        updateState { it.copy(error = SearchError.RateLimited) }
+                    is CandidatesOutcome.NetworkError ->
+                        updateState { it.copy(error = SearchError.Network) }
+                    is CandidatesOutcome.Unknown -> {
+                        logger.w(outcome.cause) { "candidates browse failed" }
+                        updateState { it.copy(error = SearchError.Unknown) }
+                    }
+                }
+            }
+
+            is PublicSearchingAction.CandidatesRefreshed -> action.run {
+                // A background re-poll only updates the visible list; a transient
+                // failure leaves the existing list in place rather than yanking the
+                // chooser out from under the user.
+                val rooms = (action.outcome as? CandidatesOutcome.Success)?.rooms ?: return@run
+                if (state.phase != SearchPhase.Choosing) return@run
+                if (rooms.isEmpty()) {
+                    // Every table emptied out while deciding — fall through to the
+                    // genuine wait + bot fallback rather than show a dead chooser.
+                    updateState { it.copy(phase = SearchPhase.Searching, error = null, candidates = emptyList()) }
+                    fallThroughToSearch()
+                } else {
+                    updateState { it.copy(candidates = rooms.map(::toCandidate)) }
+                }
+            }
+
+            is PublicSearchingAction.JoinCandidate -> action.run {
+                candidatesPollJob?.cancel()
+                updateState { it.copy(phase = SearchPhase.Searching, error = null) }
+                joinAndWatch(action.code)
+            }
+
+            PublicSearchingAction.StartFreshTable -> action.run {
+                reFindAttempts = 0
+                updateState { it.copy(phase = SearchPhase.Searching, error = null, candidates = emptyList()) }
+                fallThroughToSearch()
             }
 
             is PublicSearchingAction.ConnectionUpdated -> action.run {
@@ -186,6 +259,73 @@ class PublicSearchingViewModel(
         }
     }
 
+    /** Browse the read-only candidates list; non-empty → chooser, empty → genuine wait. */
+    private fun browseCandidates() {
+        searchJob?.cancel()
+        timeoutJob?.cancel()
+        candidatesPollJob?.cancel()
+        hasNavigated = false
+        viewModelScope.launch {
+            ensureLocalUserId()
+            takeAction(PublicSearchingAction.CandidatesLoaded(matchmaking.findCandidates(minBuyIn, maxBuyIn)))
+        }
+    }
+
+    /**
+     * The chooser came up empty (or emptied out) — converge on the genuine waiting
+     * search. The caller has already set the phase from its action context; this
+     * just cancels the poll and launches the find-and-wait job.
+     */
+    private fun fallThroughToSearch() {
+        candidatesPollJob?.cancel()
+        beginSearch()
+    }
+
+    /** Re-poll candidates on an interval so newly-formed tables surface in the chooser. */
+    private fun armCandidatesPoll() {
+        candidatesPollJob?.cancel()
+        candidatesPollJob = viewModelScope.launch {
+            while (true) {
+                delay(CANDIDATES_POLL_INTERVAL)
+                takeAction(PublicSearchingAction.CandidatesRefreshed(matchmaking.findCandidates(minBuyIn, maxBuyIn)))
+            }
+        }
+    }
+
+    /** Join the table the user picked from the chooser, then watch its socket. */
+    private fun joinAndWatch(code: String) {
+        searchJob?.cancel()
+        timeoutJob?.cancel()
+        hasNavigated = false
+        searchJob = viewModelScope.launch {
+            ensureLocalUserId()
+            when (val outcome = rooms.joinRoom(code)) {
+                is JoinRoomOutcome.Success -> {
+                    currentRoomCode = outcome.room.code
+                    armTimeout()
+                    watchRoom(outcome.room.code)
+                }
+                // The picked table filled, vanished, or stopped accepting joins
+                // between the poll and the tap — re-browse so the user sees the
+                // current set rather than a dead-end error.
+                is JoinRoomOutcome.Full,
+                is JoinRoomOutcome.NotFound,
+                is JoinRoomOutcome.NotJoinable,
+                    -> browseCandidates()
+                is JoinRoomOutcome.OverBalance ->
+                    takeAction(PublicSearchingAction.FindFailed(SearchError.InsufficientBalance))
+                is JoinRoomOutcome.NotSignedIn ->
+                    takeAction(PublicSearchingAction.FindFailed(SearchError.NotSignedIn))
+                is JoinRoomOutcome.NetworkError ->
+                    takeAction(PublicSearchingAction.FindFailed(SearchError.Network))
+                is JoinRoomOutcome.Unknown -> {
+                    logger.w(outcome.cause) { "join candidate failed" }
+                    takeAction(PublicSearchingAction.FindFailed(SearchError.Unknown))
+                }
+            }
+        }
+    }
+
     /** Cancel any in-flight search, then find a fresh table and watch it. */
     private fun beginSearch(backoff: Boolean = false) {
         searchJob?.cancel()
@@ -193,22 +333,17 @@ class PublicSearchingViewModel(
         hasNavigated = false
         searchJob = viewModelScope.launch {
             if (backoff) delay(REFIND_BACKOFF)
-            if (localUserId == null) {
-                (auth.current() as? AuthState.Authenticated)?.let { localUserId = it.userId }
-            }
+            ensureLocalUserId()
             when (val outcome = matchmaking.findTable(minBuyIn, maxBuyIn)) {
                 is FindTableOutcome.Success -> {
                     currentRoomCode = outcome.room.code
                     armTimeout()
-                    // Collect forever (until this job is cancelled). Each snapshot
-                    // routes back through an action so all state mutation stays in
-                    // the unidirectional loop.
-                    rooms.connect(outcome.room.code).connection.collect {
-                        takeAction(PublicSearchingAction.ConnectionUpdated(it))
-                    }
+                    watchRoom(outcome.room.code)
                 }
                 is FindTableOutcome.InvalidRange ->
                     takeAction(PublicSearchingAction.FindFailed(SearchError.InvalidRange))
+                is FindTableOutcome.InsufficientBalance ->
+                    takeAction(PublicSearchingAction.FindFailed(SearchError.InsufficientBalance))
                 is FindTableOutcome.NotSignedIn ->
                     takeAction(PublicSearchingAction.FindFailed(SearchError.NotSignedIn))
                 is FindTableOutcome.RateLimited ->
@@ -220,6 +355,24 @@ class PublicSearchingViewModel(
                     takeAction(PublicSearchingAction.FindFailed(SearchError.Unknown))
                 }
             }
+        }
+    }
+
+    /**
+     * Collect the room socket forever (until [searchJob] is cancelled). Each
+     * snapshot routes back through an action so all state mutation stays in the
+     * unidirectional loop. Shared by the find-and-wait, join-from-chooser, and
+     * re-find paths.
+     */
+    private suspend fun watchRoom(code: String) {
+        rooms.connect(code).connection.collect {
+            takeAction(PublicSearchingAction.ConnectionUpdated(it))
+        }
+    }
+
+    private suspend fun ensureLocalUserId() {
+        if (localUserId == null) {
+            (auth.current() as? AuthState.Authenticated)?.let { localUserId = it.userId }
         }
     }
 
@@ -235,8 +388,11 @@ class PublicSearchingViewModel(
         val code = currentRoomCode
         searchJob?.cancel()
         timeoutJob?.cancel()
+        candidatesPollJob?.cancel()
         // Fire-and-forget on the app scope so the leave reaches the server even
-        // though we navigate away immediately and tear this VM down.
+        // though we navigate away immediately and tear this VM down. While the
+        // chooser is up the user hasn't joined anything yet, so there's no seat
+        // to release.
         if (code != null) {
             appScope.launch { Catching { rooms.leaveRoom(code) } }
         }
@@ -245,6 +401,14 @@ class PublicSearchingViewModel(
 
     private fun countOtherHumans(room: Room): Int =
         room.members.count { !it.isBot && it.isConnected && it.userId != localUserId }
+
+    private fun toCandidate(room: Room): TableCandidate = TableCandidate(
+        code = room.code,
+        buyIn = room.buyIn,
+        seatsTaken = room.seatCount,
+        maxSeats = room.maxSeats,
+        humans = room.members.count { !it.isBot },
+    )
 
     private companion object {
         /**
@@ -257,6 +421,9 @@ class PublicSearchingViewModel(
         /** Backoff before an auto re-find when the table vanished, so a flapping server can't spin a tight loop. */
         val REFIND_BACKOFF = 2.seconds
 
+        /** How often the chooser re-polls candidates so newly-formed tables appear without a manual refresh. */
+        val CANDIDATES_POLL_INTERVAL = 5.seconds
+
         /** Cap on consecutive auto re-finds before we stop and show a retry instead of looping forever. */
         const val MAX_REFINDS = 3
     }
@@ -268,12 +435,27 @@ data class PublicSearchingState(
     val phase: SearchPhase = SearchPhase.Searching,
     /** Other *connected humans* at the table — 0 while we're still alone. */
     val realPlayersFound: Int = 0,
+    /** The qualifying tables shown in the chooser ([SearchPhase.Choosing]). */
+    val candidates: List<TableCandidate> = emptyList(),
     val minBuyIn: Long,
     val maxBuyIn: Long,
     val error: SearchError? = null,
 )
 
+/** A single joinable table shown in the chooser. */
+data class TableCandidate(
+    val code: String,
+    val buyIn: Long,
+    val seatsTaken: Int,
+    val maxSeats: Int,
+    /** Real humans seated (excludes disclosed bots) — drives the most-humans ordering. */
+    val humans: Int,
+)
+
 sealed interface SearchPhase {
+    /** Qualifying tables exist — the user picks which one to join. */
+    data object Choosing : SearchPhase
+
     /** Hunting for real players (or waiting in a fresh table). */
     data object Searching : SearchPhase
 
@@ -286,6 +468,9 @@ sealed interface SearchPhase {
 
 sealed interface SearchError {
     data object InvalidRange : SearchError
+
+    /** The buy-in ceiling exceeded the wallet — surfaced as a "lower your range" prompt. */
+    data object InsufficientBalance : SearchError
     data object NotSignedIn : SearchError
     data object RateLimited : SearchError
     data object Network : SearchError
@@ -307,6 +492,12 @@ sealed interface PublicSearchingAction {
     data object Retry : PublicSearchingAction
     data object Cancel : PublicSearchingAction
 
+    /** Pick a table from the chooser and join it. */
+    data class JoinCandidate(val code: String) : PublicSearchingAction
+
+    /** Skip the chooser — open a fresh table and genuinely wait for humans. */
+    data object StartFreshTable : PublicSearchingAction
+
     /** Accept the disclosed-bot fallback. */
     data object PlayBots : PublicSearchingAction
 
@@ -321,4 +512,10 @@ sealed interface PublicSearchingAction {
     data class FindFailed(val error: SearchError) : PublicSearchingAction
     data object SearchTimedOut : PublicSearchingAction
     data class PlayBotsResult(val outcome: PlayBotsOutcome) : PublicSearchingAction
+
+    /** Result of the initial candidates browse — drives chooser vs. fall-through. */
+    data class CandidatesLoaded(val outcome: CandidatesOutcome) : PublicSearchingAction
+
+    /** Result of a background candidates re-poll while the chooser is showing. */
+    data class CandidatesRefreshed(val outcome: CandidatesOutcome) : PublicSearchingAction
 }

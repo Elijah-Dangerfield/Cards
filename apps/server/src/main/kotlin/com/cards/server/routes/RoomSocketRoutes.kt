@@ -115,14 +115,26 @@ fun Route.roomSocketRoutes(
                 ?: return@webSocket close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "unauthorized"))
 
             val current = rooms.find(code)
-            if (current == null || current.memberFor(userId) == null) {
-                // Not a member yet — must POST /join first. We don't
-                // implicit-join here because the seat allocator lives in
-                // join() and we want mutations to flow through one path.
+            if (current == null) {
+                LoggerFactory.getLogger("RoomSocket")
+                    .info("Socket refused: room=$code not found (user=$userId)")
+                return@webSocket close(
+                    CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "room not found"),
+                )
+            }
+            // A non-member may attach as a **read-only spectator** to a
+            // matchmaking-discoverable table (Open/Public) — they get the
+            // scrubbed-for-everyone view and the server rejects any gameplay
+            // intent from them (see [handleClientFrame]). A Private (code-only)
+            // friend room stays closed: only its members may watch. A member
+            // joins through POST /join first (the seat allocator lives there);
+            // we never implicit-join here.
+            val isSpectator = current.memberFor(userId) == null
+            if (isSpectator && current.visibility == RoomVisibility.Private) {
                 // Info: a refused join is the backend half of "I couldn't get
                 // into the game"; carries session_id via MDC for correlation.
                 LoggerFactory.getLogger("RoomSocket")
-                    .info("Socket refused: room=$code user=$userId not a member (join first)")
+                    .info("Socket refused: room=$code user=$userId not a member (private room)")
                 return@webSocket close(
                     CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "not a member of this room"),
                 )
@@ -136,10 +148,14 @@ fun Route.roomSocketRoutes(
                 )
             }
 
-            rooms.markConnected(code, userId, connected = true)
+            // A spectator holds no seat, so presence/grace bookkeeping doesn't
+            // apply to them — markConnected would no-op on a non-member anyway,
+            // but skipping it keeps the intent explicit.
+            if (!isSpectator) rooms.markConnected(code, userId, connected = true)
             // Info: one line per socket open anchors "user joined room at T" in
             // Loki — the backend bookend to the client's connection breadcrumb.
-            LoggerFactory.getLogger("RoomSocket").info("Socket connected: room=$code user=$userId")
+            LoggerFactory.getLogger("RoomSocket")
+                .info("Socket connected: room=$code user=$userId spectator=$isSpectator")
 
             // Public tables have no human host to tap "Start", so the server
             // deals once enough players are present. Idempotent — only the first
@@ -154,14 +170,18 @@ fun Route.roomSocketRoutes(
             }
 
             // True mid-hand join: a searcher matched into a table that's already
-            // playing connects here as a spectator of the live hand and is queued
-            // to be dealt in at the next boundary. No-op for the players already
-            // in the hand (reconnects) and for tables still in the lobby.
-            Catching {
-                queueMidHandJoinerIfNeeded(code, userId, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
-            }.onFailure {
-                LoggerFactory.getLogger("RoomSocket")
-                    .warn("Mid-hand join queue failed for room=$code user=$userId", it)
+            // playing connects here as a member-spectator of the live hand and is
+            // queued to be dealt in at the next boundary. No-op for the players
+            // already in the hand (reconnects) and for tables still in the lobby.
+            // A pure non-member spectator is never dealt in — they only watch — so
+            // we skip the queue entirely for them.
+            if (!isSpectator) {
+                Catching {
+                    queueMidHandJoinerIfNeeded(code, userId, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
+                }.onFailure {
+                    LoggerFactory.getLogger("RoomSocket")
+                        .warn("Mid-hand join queue failed for room=$code user=$userId", it)
+                }
             }
 
             // Hydrate from the durable snapshot before the game publisher
@@ -372,17 +392,31 @@ fun Route.roomSocketRoutes(
                             .warn("Bad client frame from room=$code user=$userId: ${e.message}")
                         continue
                     }
-                    val ack = handleClientFrame(
-                        code = code,
-                        userId = userId,
-                        frame = clientFrame,
-                        rooms = rooms,
-                        gameSessions = gameSessions,
-                        tableSessions = tableSessions,
-                        equipmentRepository = equipmentRepository,
-                        progressionRepository = progressionRepository,
-                        wallets = wallets,
-                    )
+                    val ack = if (isSpectator) {
+                        // Read-only: a non-member spectator may watch but never
+                        // act. Reject every gameplay frame with an ack keyed to
+                        // their nonce so a buggy/hostile client can't drive the
+                        // table. (The session methods would reject it anyway —
+                        // they resolve the actor by seat — but bouncing it here
+                        // keeps escrow / start-hand orchestration off the path.)
+                        RoomSocketEventDto.IntentAck(
+                            clientNonce = clientFrame.clientNonce,
+                            accepted = false,
+                            error = "spectators cannot act",
+                        )
+                    } else {
+                        handleClientFrame(
+                            code = code,
+                            userId = userId,
+                            frame = clientFrame,
+                            rooms = rooms,
+                            gameSessions = gameSessions,
+                            tableSessions = tableSessions,
+                            equipmentRepository = equipmentRepository,
+                            progressionRepository = progressionRepository,
+                            wallets = wallets,
+                        )
+                    }
                     sendJson(ack)
                 }
             } catch (_: ClosedReceiveChannelException) {
@@ -396,11 +430,20 @@ fun Route.roomSocketRoutes(
                 publisher.cancel()
                 gamePublisher.cancel()
                 botTrimmer.cancel()
-                // Mark disconnected regardless of close cause. Capture
-                // the stamp the service just set so the reaper can
-                // cross-check that the user didn't reconnect (or
-                // re-drop) during the grace window.
-                val afterDisconnect = rooms.markConnected(code, userId, connected = false)
+                // A spectator holds no seat — there's nothing to mark
+                // disconnected and nothing to reap, so their socket simply
+                // closes with no presence/grace bookkeeping.
+                val afterDisconnect = if (isSpectator) {
+                    LoggerFactory.getLogger("RoomSocket")
+                        .info("Spectator socket closed: room=$code user=$userId")
+                    null
+                } else {
+                    // Mark disconnected regardless of close cause. Capture
+                    // the stamp the service just set so the reaper can
+                    // cross-check that the user didn't reconnect (or
+                    // re-drop) during the grace window.
+                    rooms.markConnected(code, userId, connected = false)
+                }
                 val droppedAt = afterDisconnect?.memberFor(userId)?.disconnectedAt
                 if (droppedAt != null) {
                     // Grace depends on what kind of room this is. A forming
@@ -659,7 +702,12 @@ private suspend fun dealFundedHand(
         funded.newlyFunded.forEach { Catching { tableSessions.cashOut(it, finalStack = null) } }
         return IntentResult.Rejected("need at least 2 funded players to start")
     }
-    val result = gameSessions.startHand(room.code, funded.occupants, room.settings)
+    val result = gameSessions.startHand(
+        room.code,
+        funded.occupants,
+        room.settings,
+        serverDealt = room.visibility != RoomVisibility.Private,
+    )
     if (result is IntentResult.Accepted) {
         rooms.markPlaying(room.code)
     }

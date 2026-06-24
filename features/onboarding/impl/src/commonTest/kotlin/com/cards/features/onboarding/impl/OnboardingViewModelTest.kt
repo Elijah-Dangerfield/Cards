@@ -2,6 +2,7 @@ package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.core.LegalUrls
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
 import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
@@ -380,6 +381,43 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun continueAsGuest_recordsLegalConsent_versionAndTimestamp() = runUnitTest {
+        val cache = FakeAppCache()
+        val vm = newVm(cache = cache)
+
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+
+        assertEquals(LegalUrls.LEGAL_VERSION, cache.get().acceptedLegalVersion)
+        assertEquals(FixedClock.instant.toEpochMilliseconds(), cache.get().legalConsentAcceptedAt)
+    }
+
+    @Test
+    fun signInWithOAuth_success_recordsLegalConsent() = runUnitTest {
+        val cache = FakeAppCache()
+        val auth = FakeAuthRepository(oauthSignInOutcome = SignInOutcome.Success)
+        val vm = newVm(cache = cache, auth = auth)
+
+        vm.takeAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google))
+        runCurrent()
+
+        assertEquals(LegalUrls.LEGAL_VERSION, cache.get().acceptedLegalVersion)
+        assertEquals(FixedClock.instant.toEpochMilliseconds(), cache.get().legalConsentAcceptedAt)
+    }
+
+    @Test
+    fun signIn_returningUser_doesNotRecordConsent() = runUnitTest {
+        val cache = FakeAppCache()
+        val vm = newVm(cache = cache)
+
+        vm.takeAction(OnboardingAction.SignIn)
+        runCurrent()
+
+        assertEquals(0, cache.get().acceptedLegalVersion)
+        assertNull(cache.get().legalConsentAcceptedAt)
+    }
+
+    @Test
     fun signInWithOAuth_cancelled_silentlyClearsInFlightFlag() = runUnitTest {
         val cache = FakeAppCache()
         val auth = FakeAuthRepository(oauthSignInOutcome = SignInOutcome.Cancelled)
@@ -428,6 +466,7 @@ class OnboardingViewModelTest : CoroutineTest() {
         profile: FakeProfileRepository = FakeProfileRepository(),
         chips: FakeChipsRepository = FakeChipsRepository(),
         creator: FakeGuestAccountCreator = FakeGuestAccountCreator(),
+        clock: kotlin.time.Clock = FixedClock,
     ): OnboardingViewModel {
         val config = EmptyAppConfigMap()
         return OnboardingViewModel(
@@ -438,10 +477,16 @@ class OnboardingViewModelTest : CoroutineTest() {
             guestAccountCreator = creator,
             appleSignInCoordinator = NoopAppleSignInCoordinator,
             onboardingStarterGrant = OnboardingStarterGrant(config),
+            clock = clock,
             onboardingSuggestedName = OnboardingSuggestedName(config),
             googleSignInEnabled = GoogleSignInEnabled(config),
             appleSignInEnabled = AppleSignInEnabled(config),
         )
+    }
+
+    private object FixedClock : kotlin.time.Clock {
+        val instant = kotlin.time.Instant.fromEpochMilliseconds(1_700_000_000_000L)
+        override fun now() = instant
     }
 
     /** No test here exercises the iOS-only Apple flow; the coordinator is a no-op. */

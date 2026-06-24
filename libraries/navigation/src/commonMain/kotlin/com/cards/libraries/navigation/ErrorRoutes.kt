@@ -16,6 +16,15 @@ data class BlockingErrorRoute(
 ), NavigableWhileBlocked
 
 @Serializable
+data class SessionExpiredRoute(
+    val wasAnonymous: Boolean = false,
+) : Route(
+    enter = AnimationType.FadeIn,
+    exit = AnimationType.FadeOut,
+    popExit = AnimationType.FadeOut,
+), NavigableWhileBlocked
+
+@Serializable
 data class ErrorDialogRoute(
     val title: String,
     val subtitle: String,

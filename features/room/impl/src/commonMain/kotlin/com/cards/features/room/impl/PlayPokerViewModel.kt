@@ -6,6 +6,7 @@ import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
 import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
 import com.dangerfield.cards.features.room.impl.usecase.HandEndProgression
 import com.dangerfield.cards.features.room.impl.usecase.HandResultSummaryBuilder
+import com.dangerfield.cards.features.room.impl.usecase.PlayStyleHandSummaryBuilder
 import com.dangerfield.cards.features.room.impl.usecase.WinOddsEngine
 
 import androidx.lifecycle.viewModelScope
@@ -21,6 +22,7 @@ import com.dangerfield.cards.libraries.cards.EmojiBlast
 import com.dangerfield.cards.libraries.cards.EmotePackCatalog
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.PlayStyleRepository
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpMode
@@ -45,6 +47,8 @@ import com.dangerfield.cards.libraries.ui.components.poker.cardBackForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.feltForProductId
 import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
 import com.dangerfield.cards.libraries.review.ReviewTrigger
+import com.dangerfield.cards.libraries.social.FriendRepository
+import com.dangerfield.cards.libraries.social.SendFriendRequestResult
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -68,6 +72,7 @@ import kotlin.time.Clock
 class PlayPokerViewModel @Inject constructor(
     @Assisted private val sessionFactory: PokerSessionFactory,
     private val progressionRepository: ProgressionRepository,
+    private val playStyleRepository: PlayStyleRepository,
     private val progressionConfig: ProgressionConfig,
     private val achievementRepository: AchievementRepository,
     private val appCache: AppCache,
@@ -77,6 +82,7 @@ class PlayPokerViewModel @Inject constructor(
     private val chipsRepository: ChipsRepository,
     private val purchaseChipPack: PurchaseChipPackUseCase,
     private val profileRepository: ProfileRepository,
+    private val friendRepository: FriendRepository,
     private val reviewPromptCoordinator: ReviewPromptCoordinator,
     private val dispatcherProvider: DispatcherProvider,
     private val appScope: AppCoroutineScope,
@@ -102,6 +108,20 @@ class PlayPokerViewModel @Inject constructor(
     // tracked from events, cleared each hand.
     private var lastWinners: GameEvent.HandEnded? = null
     private val lastActionBySeat: MutableMap<Int, PlayerAction> = mutableMapOf()
+
+    // Tallies the human's actions across each hand off the event stream so the
+    // hand's play-style contribution can be recorded at HandEnded. Driven only
+    // from the single GameEventReceived collector (ordered: actions before end).
+    private val playStyleBuilder = PlayStyleHandSummaryBuilder()
+
+    // Hand number of the last play-style row we recorded — guards against a
+    // re-delivered HandEnded recording the same hand twice (the outbox feeds a
+    // server aggregate, so a double-count silently skews the user's style).
+    private var lastRecordedPlayStyleHand: Int? = null
+
+    // Opponents we've already fired a friend request at this session — guards a
+    // double-tap from sending twice (the inline button also flips to Sent).
+    private val requestedFriendIds: MutableSet<String> = mutableSetOf()
 
     // Authenticated profile for the human-seat projection (display name + avatar).
     // Null until the first Authenticated emission; fallback profiles are ignored.
@@ -166,6 +186,13 @@ class PlayPokerViewModel @Inject constructor(
                 sendEvent(PlayPokerEvent.OpponentsLeft)
             }
         }
+        // A non-last opponent left while others remain — surface a notice; the
+        // seat renders vacated off the next snapshot. Never fires for solo bots.
+        viewModelScope.launch {
+            session.opponentLeft.collect { displayName ->
+                sendEvent(PlayPokerEvent.OpponentLeft(displayName))
+            }
+        }
         // XP mirror
         viewModelScope.launch {
             progressionRepository.observeProgression().collect { progression ->
@@ -181,6 +208,11 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.WinOddsFlipHintSeenChanged(data.winOddsFlipHintSeen))
                 takeAction(PlayPokerAction.MutedEmojiPlayersChanged(data.mutedEmojiPlayerKeys))
                 takeAction(PlayPokerAction.XpBoostChanged(data.xpBoostExpiresAtEpochMs))
+                takeAction(
+                    PlayPokerAction.AchievementSettingsHintVisibilityChanged(
+                        data.achievementPopupHintShows < ACHIEVEMENT_HINT_MAX_SHOWS,
+                    ),
+                )
             }
         }
         // Owned emote-pack IDs → blast-tray pool (empty hides the tray).
@@ -192,6 +224,17 @@ class PlayPokerViewModel @Inject constructor(
                         EmotePackCatalog.availableEmojisFor(ownedIds),
                     ),
                 )
+                takeAction(
+                    PlayPokerAction.OwnsOpponentStyleReaderChanged(
+                        TOOL_OPPONENT_STYLE_PRODUCT_ID in ownedIds,
+                    ),
+                )
+            }
+        }
+        // Own derived play-style → self-card radar.
+        viewModelScope.launch {
+            playStyleRepository.observeOwnStyle().collect { style ->
+                takeAction(PlayPokerAction.OwnPlayStyleChanged(style))
             }
         }
         // Profile → re-project the table so the human seat picks up the
@@ -288,6 +331,13 @@ class PlayPokerViewModel @Inject constructor(
 
     private companion object {
         const val TOOL_WIN_ODDS_PRODUCT_ID = "tool_win_odds"
+        const val TOOL_OPPONENT_STYLE_PRODUCT_ID = "tool_opponent_style"
+        /**
+         * The "you can turn these off in Settings" footer rides the first few
+         * celebration sheets, then never shows again — long enough for a new
+         * user to learn the toggle exists without nagging a regular.
+         */
+        const val ACHIEVEMENT_HINT_MAX_SHOWS = 3
         /** Per product-spec.md §5.5 — 8 seconds between human-tapped emoji blasts. */
         const val EMOJI_COOLDOWN_MS: Long = 8_000
         /**
@@ -298,6 +348,38 @@ class PlayPokerViewModel @Inject constructor(
          * higher makes ticks expensive (~ms scales linearly).
          */
         const val WIN_ODDS_ITERATIONS = 400
+    }
+
+    /**
+     * Feed the per-hand play-style accumulator. Resets on a new hand, tallies
+     * the human's actions, and records the hand's contribution at HandEnded.
+     * Resolves the human seat from live state (MP seats vary; solo is 0).
+     */
+    private fun accumulatePlayStyle(event: GameEvent) {
+        val humanIdx = lastGameState?.let { sessionFactory.humanSeatIndex(it) } ?: humanSeatIndex
+        when (event) {
+            is GameEvent.HandStarted -> playStyleBuilder.reset()
+            is GameEvent.BlindPosted -> playStyleBuilder.onBlindPosted(event, humanIdx)
+            is GameEvent.StreetAdvanced -> playStyleBuilder.onStreetAdvanced(event)
+            is GameEvent.ActionTaken -> playStyleBuilder.onActionTaken(event, humanIdx)
+            is GameEvent.HandEnded -> {
+                val state = lastGameState ?: return
+                // Record each hand at most once, even if HandEnded is re-delivered.
+                if (state.handNumber == lastRecordedPlayStyleHand) return
+                val summary = playStyleBuilder.build(
+                    event = event,
+                    state = state,
+                    humanSeatIndex = humanIdx,
+                    mode = sessionFactory.xpMode,
+                ) ?: return
+                lastRecordedPlayStyleHand = state.handNumber
+                viewModelScope.launch {
+                    Catching { playStyleRepository.recordHand(summary) }
+                        .onFailure { logger.w(it) { "Recording play-style failed for hand ${summary.handId}" } }
+                }
+            }
+            else -> Unit
+        }
     }
 
     private fun handleHandEnded(
@@ -343,10 +425,17 @@ class PlayPokerViewModel @Inject constructor(
             }.onFailure {
                 logger.w(it) { "Achievement recording failed for hand ${summary.handId}" }
             }.getOrNull().orEmpty()
-            // Always resolve — even with no unlocks — so the awaiting flag clears
-            // and the dismiss path can advance.
-            takeAction(PlayPokerAction.AchievementsEarned(earned))
+            // Recording always runs (the unlock is banked regardless), but the
+            // user can silence the reveal in Settings. When off we surface an
+            // empty list so the celebration sheet and the inline showdown/bust
+            // rows show nothing — the unlock still appears later in their
+            // achievements list. Always resolve — even with no unlocks — so the
+            // awaiting flag clears and the dismiss path can advance.
+            val surfaced = if (appCache.get().showAchievementPopups) earned else emptyList()
+            takeAction(PlayPokerAction.AchievementsEarned(surfaced))
 
+            // The review prompt keys off the *real* unlocks, not what we showed —
+            // a silenced celebration shouldn't also suppress a review ask.
             maybeRequestReviewPrompt(priorLevel = priorLevel, earned = earned)
         }
     }
@@ -397,6 +486,9 @@ class PlayPokerViewModel @Inject constructor(
                 it.copy(occupants = action.occupants)
             }
             is PlayPokerAction.GameEventReceived -> {
+                // Tally the human's play-style off the same ordered event stream
+                // (actions always precede this hand's HandEnded here).
+                accumulatePlayStyle(action.event)
                 // Track projection transients GameState can't carry: the HandEnded
                 // winners (showdown) and the per-seat action pills.
                 val affectsProjection = when (val ev = action.event) {
@@ -515,6 +607,16 @@ class PlayPokerViewModel @Inject constructor(
             }
             is PlayPokerAction.AchievementsEarned -> action.updateState {
                 it.copy(recentlyEarned = action.earned, awaitingHandEndAchievements = false)
+            }
+            is PlayPokerAction.AchievementSettingsHintVisibilityChanged -> action.updateState {
+                it.copy(showAchievementSettingsHint = action.show)
+            }
+            is PlayPokerAction.MarkAchievementSettingsHintShown -> {
+                viewModelScope.launch {
+                    appCache.update {
+                        it.copy(achievementPopupHintShows = it.achievementPopupHintShows + 1)
+                    }
+                }
             }
             is PlayPokerAction.EquippedFeltChanged -> action.updateState {
                 it.copy(equippedFelt = action.felt)
@@ -683,6 +785,59 @@ class PlayPokerViewModel @Inject constructor(
                         }
                         data.copy(mutedEmojiPlayerKeys = next)
                     }
+                }
+            }
+            is PlayPokerAction.OwnPlayStyleChanged -> action.updateState {
+                it.copy(ownPlayStyle = action.playStyle)
+            }
+            is PlayPokerAction.OwnsOpponentStyleReaderChanged -> action.updateState {
+                it.copy(ownsOpponentStyleReader = action.owned)
+            }
+            is PlayPokerAction.RequestOpponentStyle -> {
+                // Fetch once per opponent per session. Only a *successful* fetch
+                // is cached — a transient network failure leaves the key absent
+                // so reopening the card retries instead of permanently showing
+                // "no style". A genuine empty (sampleSize 0) is a success and is
+                // cached, so a sparse opponent isn't refetched on every open.
+                if (action.userId !in stateFlow.value.opponentStyles) {
+                    viewModelScope.launch {
+                        playStyleRepository.getStyleFor(action.userId)
+                            .onSuccess {
+                                takeAction(PlayPokerAction.OpponentStyleLoaded(action.userId, it))
+                            }
+                            .onFailure {
+                                logger.w(it) { "Opponent style fetch failed for ${action.userId}" }
+                            }
+                    }
+                }
+            }
+            is PlayPokerAction.OpponentStyleLoaded -> action.updateState {
+                it.copy(opponentStyles = it.opponentStyles + (action.userId to action.playStyle))
+            }
+            is PlayPokerAction.AddFriend -> {
+                // Optimistic flip to Sent, un-flipped only on a server reject —
+                // same model as Home's recently-played add-friend tile. The fetch
+                // runs on its own launch so the round-trip never stalls the action
+                // loop. A successful or auto-accepted request stays Sent.
+                if (action.userId !in requestedFriendIds) {
+                    requestedFriendIds += action.userId
+                    action.updateState {
+                        it.copy(friendRequestSentIds = it.friendRequestSentIds + action.userId)
+                    }
+                    viewModelScope.launch {
+                        val stuck = when (friendRepository.sendRequest(action.userId)) {
+                            is SendFriendRequestResult.Requested,
+                            is SendFriendRequestResult.Accepted -> true
+                            else -> false
+                        }
+                        if (!stuck) takeAction(PlayPokerAction.FriendRequestFailed(action.userId))
+                    }
+                }
+            }
+            is PlayPokerAction.FriendRequestFailed -> {
+                requestedFriendIds -= action.userId
+                action.updateState {
+                    it.copy(friendRequestSentIds = it.friendRequestSentIds - action.userId)
                 }
             }
         }

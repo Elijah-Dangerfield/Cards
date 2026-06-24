@@ -10,12 +10,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.ui_level_chip_label
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD300
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -69,13 +72,7 @@ fun PlayerCardContent(
                 horizontalArrangement = Arrangement.spacedBy(Dimension.D200, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(Dimension.D200),
             ) {
-                level?.let {
-                    StatusPill(
-                        text = "Lvl $it",
-                        background = AppTheme.colors.surfaceHigh,
-                        foreground = AppTheme.colors.contentSecondary,
-                    )
-                }
+                level?.let { LevelChip(level = it) }
                 badges.forEach { badge ->
                     BadgeChip(badge = badge, onClick = { onBadgeClick(badge) })
                 }
@@ -89,6 +86,39 @@ fun PlayerCardContent(
                 stats.forEach { stat -> PlayerCardStatItem(stat) }
             }
         }
+    }
+}
+
+/**
+ * The level chip on a Player Card — the progression sparkle disc next to
+ * "Lvl N" in the progression accent on its subtle teal tint. Carries the same
+ * teal/sparkle identity the Profile level summary and Home pill wear, so the
+ * level reads as *progression* with weight rather than a neutral grey chip
+ * lost among the badges beside it (CARDS-1P).
+ *
+ * Static and progress-less: an opponent's card only knows their bare level,
+ * not their XP-into-level, so the disc renders at a full ring rather than an
+ * honest partial fill. For the interactive, progress-aware header pill use
+ * [LevelPill].
+ */
+@Composable
+private fun LevelChip(level: Int) {
+    StatusPill(
+        background = AppTheme.colors.accentSecondarySubtle,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = Dimension.D200,
+            end = Dimension.D400,
+            top = Dimension.D100,
+            bottom = Dimension.D100,
+        ),
+        horizontalSpacing = Dimension.D200,
+    ) {
+        XpBadge(fraction = 1f, size = 16.dp)
+        Text(
+            text = stringResource(Res.string.ui_level_chip_label, level),
+            typography = AppTheme.typography.Label.L500,
+            color = AppTheme.colors.accentSecondary,
+        )
     }
 }
 

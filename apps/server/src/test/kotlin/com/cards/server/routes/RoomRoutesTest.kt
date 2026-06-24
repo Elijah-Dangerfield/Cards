@@ -196,6 +196,25 @@ class RoomRoutesTest {
     }
 
     @Test
+    fun join_400_whenBuyInExceedsWalletBalance() = runTest {
+        withRooms(balanceFor = { uid -> if (uid == alice) 5_000L else Long.MAX_VALUE }) { client ->
+            val room = client.createRoom(asUser = host, buyIn = 20_000).body<CreateRoomResponse>().room
+            val resp = client.joinRoom(room.code, asUser = alice)
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertTrue(resp.bodyAsText().contains("insufficient_balance"))
+        }
+    }
+
+    @Test
+    fun join_succeeds_whenBalanceCoversBuyIn() = runTest {
+        withRooms(balanceFor = { 20_000L }) { client ->
+            val room = client.createRoom(asUser = host, buyIn = 20_000).body<CreateRoomResponse>().room
+            val resp = client.joinRoom(room.code, asUser = alice)
+            assertEquals(HttpStatusCode.OK, resp.status)
+        }
+    }
+
+    @Test
     fun join_404_whenUnknownCode() = runTest {
         withRooms { client ->
             val resp = client.joinRoom("ZZZZZZ", asUser = alice)
@@ -343,6 +362,7 @@ class RoomRoutesTest {
 
     private suspend fun withRooms(
         profileNameFor: (UserId) -> String = { uid -> "P-${uid.value.toString().take(4)}" },
+        balanceFor: (UserId) -> Long = { Long.MAX_VALUE },
         block: suspend (RoomsTestClient) -> Unit,
     ) {
         val rooms = InMemoryRoomService(
@@ -350,12 +370,13 @@ class RoomRoutesTest {
             random = Random(0L),
         )
         val profiles = FakeProfileRepository(profileNameFor)
+        val wallets = FixedBalanceWalletRepository(balanceFor)
         testApplication {
             application {
                 installSerialization()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { roomRoutes(rooms, profiles) }
+                routing { roomRoutes(rooms, profiles, wallets) }
             }
             val raw = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -409,6 +430,41 @@ class RoomRoutesTest {
 
     private class FixedClock(private val ms: Long = 1_700_000_000_000) : Clock {
         override fun now(): Instant = Instant.fromEpochMilliseconds(ms)
+    }
+
+    private class FixedBalanceWalletRepository(
+        private val balanceFor: (UserId) -> Long,
+    ) : com.dangerfield.cards.server.domain.WalletRepository {
+        override suspend fun findOrCreateResult(
+            userId: UserId,
+        ): com.dangerfield.cards.server.domain.FindOrCreateResult =
+            com.dangerfield.cards.server.domain.FindOrCreateResult(
+                wallet = wallet(userId),
+                created = false,
+            )
+
+        override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.Wallet = wallet(userId)
+
+        override suspend fun apply(
+            userId: UserId,
+            idempotencyKey: String,
+            delta: Long,
+            reason: String,
+        ): com.dangerfield.cards.server.domain.ApplyOutcome = error("not used in this test")
+
+        override suspend fun recentEvents(
+            userId: UserId,
+            limit: Int,
+        ): List<com.dangerfield.cards.server.domain.WalletEvent> = emptyList()
+
+        override suspend fun deleteAllForUser(userId: UserId) { /* no-op */ }
+
+        private fun wallet(userId: UserId) = com.dangerfield.cards.server.domain.Wallet(
+            userId = userId,
+            balance = balanceFor(userId),
+            createdAt = Instant.fromEpochMilliseconds(0),
+            updatedAt = Instant.fromEpochMilliseconds(0),
+        )
     }
 
     private class FakeProfileRepository(

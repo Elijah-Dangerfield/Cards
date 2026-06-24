@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.domain.UserId
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.engine.mock.respondError
+import io.ktor.http.content.TextContent
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
@@ -30,6 +31,11 @@ class HttpSupabaseAdminClientTest {
             assertEquals("/auth/v1/admin/users/${userId.value}", req.url.encodedPath)
             assertEquals("Bearer $serviceRoleKey", req.headers[HttpHeaders.Authorization])
             assertEquals(serviceRoleKey, req.headers["apikey"])
+            val body = (req.body as TextContent).text
+            assertTrue(
+                body.contains("\"should_soft_delete\"") && body.contains("false"),
+                "DELETE must request a hard delete (should_soft_delete=false); was: $body",
+            )
             respond(content = "", status = HttpStatusCode.NoContent, headers = headersOf())
         }
         val client = HttpSupabaseAdminClient(

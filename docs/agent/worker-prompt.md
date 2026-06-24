@@ -9,10 +9,10 @@ You are one of 4 scheduled workers shipping incremental engineering work for Car
 ## Start of run
 
 1. `git fetch origin`.
-2. `gh pr list --head develop --state open --json number,url`. If a PR exists, that's fine — keep working. Your commits stack on top of whatever's already in the PR, and the reviewer will append a fresh cycle block to the existing PR body so your work shows up under its own dated heading. Don't open a new PR.
+2. `gh pr list --head develop --state open --json number,url`. If a PR exists, that's fine — keep working (multiple cycles per night stack onto the same PR). Your commits stack on top of whatever's already in the PR, and the reviewer appends a fresh cycle block to the existing PR body so your work shows up under its own heading. Don't open a new PR.
 3. Align `develop` with the right base:
    - **If `docs/agent/in-flight.md` exists on `origin/develop`** → cycle is mid-stream (an earlier worker has already started). Just stack on top: `git checkout develop && git pull --rebase origin develop`.
-   - **If it doesn't** → last cycle's PR merged (or no cycle has started yet). Reset `develop` to `main` so the next PR shows only this cycle's commits — but **only when `develop`'s content already matches `main`**. A squash-merged PR leaves develop's old commit IDs "ahead" of main even though the content is identical; that drift is what you're clearing. Guard it so you never force over genuine unmerged work:
+   - **If it doesn't** → one of three things: last cycle's PR merged, no cycle has started yet, or a **follow-on run is stacking onto a still-open PR this same night** (the reviewer clears the in-flight log when it opens/updates the PR, so its absence no longer means "merged"). Reset `develop` to `main` **only when `develop`'s content already matches `main`** — a squash-merged PR leaves develop's old commit IDs "ahead" of main even though the content is identical, and that drift is all you're clearing. When a PR is still open, develop holds real unmerged commits, so the guard below won't reset and you'll stack instead. Guard it so you never force over genuine unmerged work:
      ```
      git checkout develop
      git fetch origin

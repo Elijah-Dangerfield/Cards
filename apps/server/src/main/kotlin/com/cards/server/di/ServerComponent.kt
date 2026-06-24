@@ -8,8 +8,10 @@ import com.dangerfield.cards.server.domain.EquipmentRepository
 import com.dangerfield.cards.server.domain.FriendRepository
 import com.dangerfield.cards.server.domain.HandsFinishedRepository
 import com.dangerfield.cards.server.domain.InventoryRepository
+import com.dangerfield.cards.server.domain.ModerationRepository
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
 import com.dangerfield.cards.server.domain.OrphanInstallSweep
+import com.dangerfield.cards.server.domain.PlayStyleRepository
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.ProgressionRepository
@@ -58,6 +60,7 @@ abstract class ServerComponent(
     abstract val appConfigSource: AppConfigSource
     abstract val productCatalogSource: ProductCatalogSource
     abstract val profileRepository: ProfileRepository
+    abstract val moderationRepository: ModerationRepository
     abstract val supabaseAdminClient: SupabaseAdminClient
     abstract val orphanAnonymousSweep: OrphanAnonymousSweep
     abstract val orphanInstallSweep: OrphanInstallSweep
@@ -65,6 +68,7 @@ abstract class ServerComponent(
     abstract val inventoryRepository: InventoryRepository
     abstract val walletRepository: WalletRepository
     abstract val progressionRepository: ProgressionRepository
+    abstract val playStyleRepository: PlayStyleRepository
     abstract val achievementRepository: AchievementRepository
     abstract val handsFinishedRepository: HandsFinishedRepository
     abstract val friendRepository: FriendRepository

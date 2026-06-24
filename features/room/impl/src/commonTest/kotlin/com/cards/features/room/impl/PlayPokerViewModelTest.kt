@@ -752,6 +752,29 @@ class PlayPokerViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun handEnded_recordsAchievement_butSuppressesReveal_whenPopupsOff() = runUnitTest {
+        val achievements = FakeAchievementRepository().apply {
+            nextEarned = listOf(testEarnedAchievement())
+        }
+        val factory = FakePokerSessionFactory()
+        val vm = buildVm(
+            appCache = FakeAppCache(AppData(showAchievementPopups = false)),
+            factory = factory,
+            achievementRepository = achievements,
+        )
+
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(sequence = 0, winners = emptyList(), board = emptyList(), revealedHoleCards = emptyMap()),
+            stubGameState(),
+            1_000L,
+        )
+
+        // The unlock is still banked — only the in-game reveal is silenced.
+        assertEquals(1, achievements.recordedHands.size)
+        assertTrue(vm.state.recentlyEarned.isEmpty())
+    }
+
+    @Test
     fun handEnded_passesOpponentBotNames_toAchievementContext() = runUnitTest {
         val achievements = FakeAchievementRepository()
         val factory = FakePokerSessionFactory(difficultyName = "Challenging")
@@ -1197,8 +1220,8 @@ class PlayPokerViewModelTest : CoroutineTest() {
     @Test
     fun equippedFeltChanged_repaintsTableSurface() = runUnitTest {
         val vm = buildVm()
-        vm.takeAction(PlayPokerAction.EquippedFeltChanged(EquippedFelt.Neon))
-        assertEquals(EquippedFelt.Neon, vm.state.equippedFelt)
+        vm.takeAction(PlayPokerAction.EquippedFeltChanged(EquippedFelt.Charcoal))
+        assertEquals(EquippedFelt.Charcoal, vm.state.equippedFelt)
     }
 
     @Test
@@ -1313,6 +1336,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
     private fun buildVm(
         factory: PokerSessionFactory = FakePokerSessionFactory(),
         progressionRepository: FakeProgressionRepository = FakeProgressionRepository(),
+        playStyleRepository: FakePlayStyleRepository = FakePlayStyleRepository(),
         progressionConfig: ProgressionConfig = FakeProgressionConfig(),
         achievementRepository: FakeAchievementRepository = FakeAchievementRepository(),
         appCache: FakeAppCache = FakeAppCache(),
@@ -1326,6 +1350,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
     ): PlayPokerViewModel = PlayPokerViewModel(
         sessionFactory = factory,
         progressionRepository = progressionRepository,
+        playStyleRepository = playStyleRepository,
         progressionConfig = progressionConfig,
         achievementRepository = achievementRepository,
         appCache = appCache,
@@ -1335,6 +1360,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         chipsRepository = chipsRepository,
         purchaseChipPack = purchaseChipPack,
         profileRepository = profileRepository,
+        friendRepository = FakeFriendRepository(),
         reviewPromptCoordinator = reviewPromptCoordinator,
         dispatcherProvider = dispatchers,
         appScope = com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope(dispatchers),

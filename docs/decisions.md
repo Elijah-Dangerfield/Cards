@@ -25,6 +25,20 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-24 — Banned-account gate lives in the JWT validate→challenge flow, not a post-auth plugin
+
+**Decision:** The server blocks a banned caller (native `auth.users.banned_until`) inside the existing JWT provider's `validate`/`challenge` path: `validate` resolves the user id, calls `ModerationRepository.banStatusFor`, and on a live ban stashes a locked `AccessDeniedResponse` on the call + returns no principal; `challenge` renders that stash as `403 {reason, until, appealUrl}` (else the usual `401`). A `BanGate(moderation, appealUrl)` is threaded into `installAuthentication`. Reasons are `banned` only today (the native flag carries no reason); the lookup fails **open** on a DB hiccup. Wire fields are camelCase to match the rest of the server JSON contract (`MeResponse.isAnonymous`), not the todo's illustrative `appeal_url`.
+**Why:** Responding from an `on(AuthenticationChecked)` application-plugin hook does **not** halt the routing pipeline — the route handler still runs and overwrites the response (observed: banned calls returned `200`). The auth provider's validate→challenge is the one place Ktor reliably short-circuits routing (it's how the `401` already works), so a banned caller provably never reaches a handler.
+**Alternatives considered:** *A standalone `createApplicationPlugin` on `AuthenticationChecked` that responds 403* — rejected: doesn't short-circuit (proven by a red test). *Throwing a typed exception caught by `StatusPages`* — rejected: exceptions thrown from the auth hook didn't propagate to StatusPages (still `200`). *A new moderation table for suspended-vs-banned + appeal URL* — deferred: the native flag only carries banned-until, and a richer split isn't needed for the minimum "don't let banned users keep playing" slice.
+**Status:** Locked (server half). Client half — parse the `403` and route to `BlockingErrorScreen` instead of the generic session-expiry screen — is the remaining slice in `docs/todo.md`.
+
+## 2026-06-24 — Matchmaking chooser is a phase of `PublicSearchingViewModel`, not a new screen
+
+**Decision:** The "present-matches-and-choose" flow (the open follow-up from the 2026-06-23 "Open to anyone" decision) lands as a new `SearchPhase.Choosing` inside the existing `PublicSearchingViewModel` / `PublicSearchingScreen`, not as a separate route + VM + screen. On `Start` the VM browses the read-only `GET /v1/matchmaking/candidates` endpoint: non-empty → the chooser lists the tables (buy-in, seats taken/max, real-human count) and re-polls every 5s so newly-formed tables surface; empty → it falls straight through to the existing find-and-wait search (`beginSearch`), so the honest bot fallback is reached identically. Picking a table joins it by code (`RoomRepository.joinRoom`) and reuses the same socket-observe → Playing → hand-off path as the auto-seat flow.
+**Why:** The chooser shares almost everything with the existing searching flow — the socket-observe loop, the `Playing`→navigate hand-off, leave-on-exit via `AppCoroutineScope`, the bot fallback, the error surface. A separate screen+VM+route would have duplicated all of that wiring and split the "what happens when no humans are found" logic across two places, where the empty-chooser and empty-search paths must converge anyway. The todo hint explicitly anticipated "`PublicSearchingViewModel` grows a 'matches' phase."
+**Alternatives considered:** *A dedicated `PublicChooserRoute` + VM + screen between Find and the table* (the todo's literal wording) — rejected: it duplicates the connect/handoff/leave plumbing and forces the empty-result fall-through to cross a navigation boundary, where today it's a single `updateState` + `beginSearch`. *Joining a picked table via `findOrJoinPublic` for its tier* — rejected in favour of join-by-code (`joinRoom`), which targets the exact table the user saw and carries the existing wallet/over-balance gate; `find` could seat them at a *different* table than the one they tapped.
+**Status:** Locked. The candidates endpoint debit is still advisory — the authoritative buy-in is the sit-down escrow when the picked table seats the user.
+
 ## 2026-06-23 — "Open to anyone": a private host can open a room; Open is server-dealt
 
 **Decision:** A host of a private game can flip it "Open to anyone", making the matchmaker seat strangers into it. There are now three visibilities: `Private` (code-only, host-dealt), `Open` (human-created, code-shareable, matchmaker-discoverable, **server-dealt**), `Public` (matchmaker-created, server-dealt). Open rides the existing `findOrJoinPublic` candidacy, join-by-code, escrow, real-stakes gating, mid-hand-join, and bot-collusion guard (`humans ≥ bots`) with no new code paths; the server's start gate became `startServerDealtTableIfReady` with a `!= Private` check. The dropped original "Share CTA" isn't built (no platform share-sheet infra).
@@ -2299,3 +2313,25 @@ as supporting context.
 **Notable constraints:** wire DTOs declare `schemaVersion` because debug's `NetworkJson` is strict (`ignoreUnknownKeys = false`) and would otherwise throw on the server's version field. The `403` mapping conflates not-played-with with a blocked pair (the server returns 403 for both) — acceptable until the block UI exists.
 
 **Status:** Shipped on `develop` this cycle. Closes the P0 "Recently-played-with — client wiring." The inbox / presence / friends-list / block items (separate P1s) will extend `FriendRepository` + `:libraries:social`.
+
+## 2026-06-23 — Player style: server-aggregated, outbox-fed, gated opponent readout
+
+**Decision:** Built the real human play-style derivation behind the radar "blob" that was stubbed on the Profile banner, Stats page, and play-poker player card. Four axes — **Tight / Aggro / Bluff / Patient** — are computed from real gameplay using standard poker stats:
+- **Tight** = `1 − VPIP` (voluntarily-put-money-in rate, over non-blind hands).
+- **Aggro** = aggression factor `AF = aggressive ÷ calls`, squashed via `AF/(AF+2)`.
+- **Bluff** = rate of betting/raising into a showdown with a weak made hand and losing.
+- **Patient** = preflop fold-discipline (fold rate when not in a blind).
+
+**Architecture (Model 2, mirrors XP/progression):** the client tallies one compact row per hand from the event stream (`PlayStyleHandSummaryBuilder`), writes it to a local Room outbox (`play_style_events`), and flushes batches via `POST /v1/me/play-style/sync`. The **server** sums the raw counters into a per-user rolling aggregate (`user_play_style_aggregate`, V69) and computes the 0..1 axes at read time — so the count→axis formula is tunable without an app release. Reads: `GET /v1/me/play-style` (own) and `GET /v1/users/{userId}/play-style` (public, for the Opponent Style Reader). Endpoints/tables/repo are near-exact copies of the progression module.
+
+**Why server aggregation (vs. client-computed like the XP total):** the play-style formula is expected to be tuned; keeping counters server-side and deriving axes on read means re-tuning is a server change. The per-hand outbox keeps it fully offline-friendly and batched (no streaming).
+
+**Opponent readout is gated.** Your own style renders free (Profile + Stats + your self-card). A human opponent's style on the seat-tap card is gated behind the existing `tool_opponent_style` shop utility (public info, paid convenience — matches the shop copy). Bots keep their free `BotPersonality`-derived path. `SeatView` now carries `userId` (`Seat.playerId`) so the card can fetch the opponent's public axes on open (in-session cached).
+
+**Sample gate (executive call):** below **20 dealt hands** (`PlayStyleAxes.MIN_SAMPLE`) the derived shape is noise, so the screens show a "keep playing to reveal your style" state instead of a misleading blob.
+
+**Shared archetype copy:** `archetypeFor` gained a raw-`(tightness, aggression, bluffRate)` overload so a human's axes classify into the same `BotArchetype` + `room_player_profile_style_*` label/description as a bot. The mapping lives once in `:libraries:ui` (`PlayStyleCopy`); `:libraries:ui` took a new `:libraries:bots` dependency (cycle-free) and the room feature's `playingStyleFor` now delegates to it.
+
+**Note / future tune:** Patient partially correlates with Tight by construction; because axes are server-computed it can be swapped later (e.g. to fold-to-aggression) without an app release.
+
+**Status:** Implemented on `develop`. Backend, client outbox/sync, per-hand capture, and all three UI sites are wired; covered by `PlayStyleHandSummaryBuilderTest`, `PostgresPlayStyleRepositoryTest`, and the schema/route smoke tests.

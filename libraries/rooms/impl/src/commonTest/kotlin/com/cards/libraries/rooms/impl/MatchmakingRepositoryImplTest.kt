@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
 import com.dangerfield.cards.libraries.networking.NetworkClient
+import com.dangerfield.cards.libraries.rooms.CandidatesOutcome
 import com.dangerfield.cards.libraries.rooms.FindTableOutcome
 import com.dangerfield.cards.libraries.rooms.PlayBotsOutcome
 import io.ktor.client.HttpClient
@@ -138,6 +139,50 @@ class MatchmakingRepositoryImplTest {
         assertTrue(networkError.cause is SimulatedNetworkError)
     }
 
+    // ---------- candidates ----------
+
+    @Test
+    fun candidates_200_returnsRooms_inOrder() = runTest {
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, CANDIDATES_RESPONSE) })
+        val success = assertIs<CandidatesOutcome.Success>(repo.findCandidates(1_000, 5_000))
+        assertEquals(listOf("AAA111", "BBB222"), success.rooms.map { it.code }, "server order preserved")
+    }
+
+    @Test
+    fun candidates_200_empty_returnsEmptySuccess() = runTest {
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, """{"schemaVersion":1,"rooms":[]}""") })
+        val success = assertIs<CandidatesOutcome.Success>(repo.findCandidates(1_000, 5_000))
+        assertTrue(success.rooms.isEmpty(), "no match → empty list, the caller offers bots")
+    }
+
+    @Test
+    fun candidates_400_insufficientBalance_returnsInsufficient() = runTest {
+        val repo = newRepo(MockEngine {
+            respondJson(
+                HttpStatusCode.BadRequest,
+                """{"error":{"code":"insufficient_balance","message":"That buy-in is more than your balance of 100 chips."}}""",
+            )
+        })
+        assertIs<CandidatesOutcome.InsufficientBalance>(repo.findCandidates(1_000, 5_000))
+    }
+
+    @Test
+    fun candidates_400_returnsInvalidRange() = runTest {
+        val repo = newRepo(MockEngine {
+            respondJson(
+                HttpStatusCode.BadRequest,
+                """{"error":{"code":"invalid_range","message":"minBuyIn must be <= maxBuyIn."}}""",
+            )
+        })
+        assertIs<CandidatesOutcome.InvalidRange>(repo.findCandidates(5_000, 1_000))
+    }
+
+    @Test
+    fun candidates_401_returnsNotSignedIn() = runTest {
+        val repo = newRepo(MockEngine { respondError(HttpStatusCode.Unauthorized) })
+        assertIs<CandidatesOutcome.NotSignedIn>(repo.findCandidates(1_000, 5_000))
+    }
+
     // ---------- scaffolding ----------
 
     private class SimulatedNetworkError(message: String) : RuntimeException(message)
@@ -181,5 +226,8 @@ class MatchmakingRepositoryImplTest {
         """.trimIndent()
         private val FIND_RESPONSE_JOINED = """{"schemaVersion":1,"created":false,"room":$ROOM_JSON}"""
         private val FIND_RESPONSE_CREATED = """{"schemaVersion":1,"created":true,"room":$ROOM_JSON}"""
+        private fun roomJson(code: String) = ROOM_JSON.replace("\"ABC123\"", "\"$code\"")
+        private val CANDIDATES_RESPONSE =
+            """{"schemaVersion":1,"rooms":[${roomJson("AAA111")},${roomJson("BBB222")}]}"""
     }
 }

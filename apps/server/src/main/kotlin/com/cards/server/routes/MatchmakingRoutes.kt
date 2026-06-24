@@ -11,6 +11,7 @@ import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
 import com.dangerfield.cards.server.domain.RoomVisibility
 import com.dangerfield.cards.server.domain.SYSTEM_HOST_USER_ID
+import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.plugins.MATCHMAKING_FIND_LIMIT
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
@@ -25,6 +26,7 @@ import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 
 /**
@@ -35,6 +37,11 @@ import io.ktor.server.routing.post
  *    range, else opens a fresh public table for them. Returns the room (the
  *    client opens its `/socket` next, exactly as for a private room) plus
  *    `created` for the created-vs-joined density metric.
+ *  - `GET /v1/matchmaking/candidates?minBuyIn=…&maxBuyIn=…` — read-only: the
+ *    qualifying tables the caller could join, ordered most-real-humans-first,
+ *    seating no one and creating nothing. Powers the chooser flow where the user
+ *    picks which table to join rather than being auto-seated by `find`. An empty
+ *    list means no match — the client offers the disclosed-bot fallback.
  *  - `POST /v1/matchmaking/{code}/play-bots` — the searcher consented to the
  *    honest bot fallback ("we couldn't find enough players — play with bots").
  *    Fills the caller's public table with DISCLOSED bots (🤖, bot badge — never
@@ -53,11 +60,13 @@ import io.ktor.server.routing.post
  * · 429 rate-limited. Abuse fence is per-IP rate limiting ([MATCHMAKING_FIND_LIMIT])
  * plus the empty-room GC that reclaims abandoned tables.
  *
- * Deferred to Phase 4 (escrow), tracked so they're explicit, not forgotten:
- *  - **No wallet check here.** The plan's fast advisory "can you afford this
- *    tier" reject at find() isn't wired yet; the authoritative check is the
- *    sit-down escrow debit. A searcher short on chips is seated and only bounced
- *    at the buy-in. Harmless today (no escrow), revisit when B3 lands.
+ * A wallet check rejects a range whose top exceeds the caller's balance
+ * (`insufficient_balance`, 400) — you can't search for a table you couldn't sit
+ * at. This is the advisory affordability fence; the authoritative debit is the
+ * sit-down escrow ([TableSessionService.sitDown], `mp_buyin`), which also applies
+ * the stricter public-table entry bar. Find is intentionally lenient (1× balance).
+ *
+ * Still open, tracked so it's explicit, not forgotten:
  *  - **No global public-room cap.** The per-IP rate limit + the GC-on-leave that
  *    reclaims a solo searcher's table before they can stack up another are the
  *    only ceilings on concurrent public rooms. A dedicated global cap (plan
@@ -71,6 +80,7 @@ fun Route.matchmakingRoutes(
     tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
     equipmentRepository: EquipmentRepository,
     progressionRepository: ProgressionRepository,
+    wallets: WalletRepository,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         rateLimit(RateLimitName(MATCHMAKING_FIND_LIMIT)) {
@@ -174,6 +184,21 @@ fun Route.matchmakingRoutes(
                         ),
                     )
                 }
+                // You can't search for a table you couldn't afford to sit at: the
+                // top of the range is what you're willing to buy in for, so reject
+                // it if it's more than your wallet holds. The client slider already
+                // fences this — this is the authoritative backstop for a tampered or
+                // stale request (e.g. balance dropped between screens).
+                val balance = wallets.findOrCreate(userId).balance
+                if (body.maxBuyIn > balance) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        matchmakingProblem(
+                            "insufficient_balance",
+                            "That buy-in is more than your balance of $balance chips.",
+                        ),
+                    )
+                }
 
                 val profile = profiles.findOrCreate(userId)
                 // One indexed read, before the rooms mutex — never query the
@@ -207,6 +232,61 @@ fun Route.matchmakingRoutes(
                         MatchmakingFindResponse(room = result.room.toDto(), created = created),
                     )
                 }
+            }
+
+            get("/v1/matchmaking/candidates") {
+                val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+                val minBuyIn = call.request.queryParameters["minBuyIn"]?.toLongOrNull()
+                val maxBuyIn = call.request.queryParameters["maxBuyIn"]?.toLongOrNull()
+                if (minBuyIn == null || maxBuyIn == null) {
+                    return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        matchmakingProblem("invalid_range", "minBuyIn and maxBuyIn are required."),
+                    )
+                }
+                if (minBuyIn > maxBuyIn) {
+                    return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        matchmakingProblem("invalid_range", "minBuyIn must be <= maxBuyIn."),
+                    )
+                }
+                if (minBuyIn < RoomSettings.MIN_BUY_IN || maxBuyIn > RoomSettings.MAX_BUY_IN) {
+                    return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        matchmakingProblem(
+                            "invalid_buy_in",
+                            "Buy-in range must be within " +
+                                "${RoomSettings.MIN_BUY_IN}..${RoomSettings.MAX_BUY_IN}.",
+                        ),
+                    )
+                }
+                // Same affordability fence as find: you can't browse for a table
+                // you couldn't sit at. The authoritative debit is still the
+                // sit-down escrow when the user picks one from the chooser.
+                val balance = wallets.findOrCreate(userId).balance
+                if (maxBuyIn > balance) {
+                    return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        matchmakingProblem(
+                            "insufficient_balance",
+                            "That buy-in is more than your balance of $balance chips.",
+                        ),
+                    )
+                }
+
+                // One indexed read, before the rooms mutex — never query the
+                // friend graph under the lock.
+                val blocked = friends.listBlockedUserIds(userId)
+                val candidates = rooms.findPublicCandidates(
+                    userId = userId,
+                    minBuyIn = minBuyIn,
+                    maxBuyIn = maxBuyIn,
+                    blockedUserIds = blocked,
+                )
+                call.respond(
+                    HttpStatusCode.OK,
+                    MatchmakingCandidatesResponse(rooms = candidates.map { it.toDto() }),
+                )
             }
         }
     }

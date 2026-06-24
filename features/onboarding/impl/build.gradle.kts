@@ -31,6 +31,7 @@ kotlin {
         commonTest.dependencies {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.features.onboarding)
+            implementation(projects.libraries.core)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.config)

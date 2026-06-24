@@ -35,7 +35,15 @@ import kotlin.time.Instant
  */
 class InProcessServer : AutoCloseable {
     private val rooms = InMemoryRoomService(clock = Clock.System, random = Random(0))
-    private val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), Clock.System)
+    // Shrink the next-hand settle delay + bot think-time so a multi-hand test
+    // over the real wire isn't gated on real seconds per hand (production uses 4s
+    // settle and a humanlike per-turn pause that can tank to several seconds).
+    private val registry = DefaultGameSessionRegistry(
+        NoOpSessionSnapshotStore(),
+        Clock.System,
+        mixedNextHandDelayMs = 50,
+        botThinkDelayMsOverride = 0,
+    )
 
     private val server = embeddedServer(Netty, port = 0) {
         installSerialization()
@@ -44,7 +52,7 @@ class InProcessServer : AutoCloseable {
         installWebSockets()
         installAuthentication(IntegrationAuth.verification)
         routing {
-            roomRoutes(rooms, FakeProfiles)
+            roomRoutes(rooms, FakeProfiles, FakeWallets)
             matchmakingRoutes(
                 rooms = rooms,
                 friends = FakeFriends,
@@ -53,6 +61,7 @@ class InProcessServer : AutoCloseable {
                 tableSessions = FakeTableSessions,
                 equipmentRepository = FakeEquipment,
                 progressionRepository = FakeProgression,
+                wallets = FakeWallets,
             )
             roomSocketRoutes(
                 rooms = rooms,

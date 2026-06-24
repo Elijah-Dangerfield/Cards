@@ -34,6 +34,7 @@ import cards.libraries.resources.generated.resources.room_achievement_reward_xp
 import cards.libraries.resources.generated.resources.room_achievement_reward_xp_plus_chips
 import cards.libraries.resources.generated.resources.room_celebration_continue_button
 import cards.libraries.resources.generated.resources.room_celebration_cosmetic_attribution
+import cards.libraries.resources.generated.resources.room_celebration_settings_hint
 import cards.libraries.resources.generated.resources.room_celebration_subtitle_multi
 import cards.libraries.resources.generated.resources.room_celebration_title_multi
 import cards.libraries.resources.generated.resources.room_celebration_title_single
@@ -42,6 +43,7 @@ import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.ConfettiBurst
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementUnlockReveal
 import com.dangerfield.cards.libraries.ui.components.achievement.toCelebrationTint
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -80,6 +82,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 internal fun AchievementCelebrationSheet(
     earned: List<EarnedAchievement>,
     onContinue: () -> Unit,
+    showSettingsHint: Boolean = false,
 ) {
     if (earned.isEmpty()) return
 
@@ -131,24 +134,57 @@ internal fun AchievementCelebrationSheet(
             }
         },
     ) {
-        Column(
-            modifier = Modifier.verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            earned.forEachIndexed { index, item ->
-                if (index > 0) VerticalSpacerD500()
-                CelebrationCard(
-                    earned = item,
-                    index = index,
-                    autoReveal = index == 0,
-                )
+        // Confetti rains over the whole sheet body the instant the first
+        // medallion slams home — the same "you earned it" payoff the level-up
+        // takeover gets, routed through the shared DS primitive so the feel
+        // never drifts between the two celebration surfaces.
+        var confettiOn by remember { mutableStateOf(false) }
+        Box {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                earned.forEachIndexed { index, item ->
+                    if (index > 0) VerticalSpacerD500()
+                    CelebrationCard(
+                        earned = item,
+                        index = index,
+                        autoReveal = index == 0,
+                        onRevealComplete = if (index == 0) {
+                            { confettiOn = true }
+                        } else {
+                            {}
+                        },
+                    )
+                }
+                // Quiet discoverability line for the Settings toggle — shown only the
+                // first few celebrations (gated by the caller) so new users learn the
+                // pop-ups can be silenced without it nagging every hand thereafter.
+                if (showSettingsHint) {
+                    VerticalSpacerD500()
+                    Text(
+                        text = stringResource(Res.string.room_celebration_settings_hint),
+                        typography = AppTheme.typography.Body.B400,
+                        color = AppTheme.colors.contentSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+            if (confettiOn) {
+                ConfettiBurst(modifier = Modifier.matchParentSize())
             }
         }
     }
 }
 
 @Composable
-private fun CelebrationCard(earned: EarnedAchievement, index: Int, autoReveal: Boolean) {
+private fun CelebrationCard(
+    earned: EarnedAchievement,
+    index: Int,
+    autoReveal: Boolean,
+    onRevealComplete: () -> Unit = {},
+) {
     val achievement = earned.achievement
     val cosmetic = remember(achievement.id) { cosmeticRewardFor(achievement.id) }
     val accent = remember(achievement.rarity) { achievement.rarity.toCelebrationTint() }
@@ -188,7 +224,10 @@ private fun CelebrationCard(earned: EarnedAchievement, index: Int, autoReveal: B
             // only fires when the card is tapped, never on pre-reveal mount.
             Box(modifier = Modifier.size(REVEAL_SIZE)) {
                 if (revealed) {
-                    AchievementUnlockReveal(achievement = achievement)
+                    AchievementUnlockReveal(
+                        achievement = achievement,
+                        onSequenceComplete = onRevealComplete,
+                    )
                 } else {
                     MysteryRevealTrigger(onTap = { revealed = true })
                 }
@@ -326,6 +365,7 @@ private fun AchievementCelebrationSheetPreview_Single() {
                 ),
             ),
             onContinue = {},
+            showSettingsHint = true,
         )
     }
 }

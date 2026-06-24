@@ -23,9 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.stats_play_style_blurb
+import cards.libraries.resources.generated.resources.stats_lifetime_opponents_label
 import cards.libraries.resources.generated.resources.stats_recent_xp_boosted_tag
-import cards.libraries.resources.generated.resources.stats_play_style_name
 import cards.libraries.resources.generated.resources.stats_play_style_section
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AllAchievements
@@ -41,9 +40,11 @@ import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.system.LocalLevelCurve
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
+import com.dangerfield.cards.libraries.ui.components.PlayStyleEmptyCard
 import com.dangerfield.cards.libraries.ui.components.PlayingStyleCard
-import com.dangerfield.cards.libraries.ui.components.RadarAxis
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
+import com.dangerfield.cards.libraries.ui.components.toRadarAxes
+import com.dangerfield.cards.libraries.ui.components.toStyleCopy
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.XpBoostBadge
 import com.dangerfield.cards.libraries.cards.currentProgress
@@ -58,6 +59,7 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import kotlin.math.roundToInt
 import kotlin.time.Clock
@@ -114,24 +116,28 @@ fun StatsScreen(
 
             SectionTitle("Lifetime")
             Spacer(modifier = Modifier.height(8.dp))
-            LifetimeStatsGrid(progression = state.progression)
+            LifetimeStatsGrid(
+                progression = state.progression,
+                distinctOpponentsPlayed = state.distinctOpponentsPlayed,
+            )
             Spacer(modifier = Modifier.height(24.dp))
 
             SectionTitle(stringResource(Res.string.stats_play_style_section))
             Spacer(modifier = Modifier.height(8.dp))
-            PlayingStyleCard(
-                // TODO: play-style axes are placeholder values — wire a real
-                // human play-style derivation (server Progression) later.
-                axes = listOf(
-                    RadarAxis(label = "Tight", value = 0.74f),
-                    RadarAxis(label = "Aggro", value = 0.78f),
-                    RadarAxis(label = "Bluff", value = 0.45f),
-                    RadarAxis(label = "Patient", value = 0.30f),
-                ),
-                styleName = stringResource(Res.string.stats_play_style_name),
-                description = stringResource(Res.string.stats_play_style_blurb),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            val style = state.playStyle
+            if (style != null && style.hasEnoughData) {
+                val copy = remember(style) { style.toStyleCopy() }
+                PlayingStyleCard(
+                    axes = style.toRadarAxes(),
+                    styleName = stringResource(copy.label),
+                    description = stringResource(copy.description),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                // Below the sample threshold the derived shape is noise — show a
+                // "keep playing" teaser instead of a misleading blob.
+                PlayStyleEmptyCard(modifier = Modifier.fillMaxWidth())
+            }
             Spacer(modifier = Modifier.height(24.dp))
 
             AchievementsHighlights(
@@ -197,7 +203,10 @@ private fun XpHero(progress: LevelProgress) {
 }
 
 @Composable
-private fun LifetimeStatsGrid(progression: Progression) {
+private fun LifetimeStatsGrid(
+    progression: Progression,
+    distinctOpponentsPlayed: Long?,
+) {
     val played = progression.handsPlayed
     val winRate = percentOf(progression.handsWon, played)
     val foldRate = percentOf(progression.handsFolded, played)
@@ -236,6 +245,15 @@ private fun LifetimeStatsGrid(progression: Progression) {
                 modifier = Modifier.weight(1f),
                 label = "Showdown losses",
                 value = formatThousands(progression.handsLostAtShowdown),
+            )
+        }
+        // Server-only MP stat — appears once the /v1/me/stats fetch lands. Full
+        // width since it's a lone tile with no natural pair.
+        if (distinctOpponentsPlayed != null) {
+            StatTile(
+                modifier = Modifier.fillMaxWidth(),
+                label = stringResource(Res.string.stats_lifetime_opponents_label),
+                value = formatThousands(distinctOpponentsPlayed),
             )
         }
     }
@@ -523,6 +541,7 @@ private fun StatsScreenPreview_Populated() {
                     XpEvent(id = 4, deltaXp = 6, source = XpSource.HAND_STRENGTH, mode = XpMode.BOTS, handId = "41", createdAtEpochMs = now - 3L * dayMs),
                     XpEvent(id = 5, deltaXp = 2, source = XpSource.BASE, mode = XpMode.BOTS, handId = "40", createdAtEpochMs = now - 9L * dayMs),
                 ),
+                distinctOpponentsPlayed = 17,
             ),
             onBack = {},
         )

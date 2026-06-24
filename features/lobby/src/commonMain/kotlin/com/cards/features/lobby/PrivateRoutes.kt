@@ -18,6 +18,20 @@ import kotlinx.serialization.Serializable
 @Serializable
 class PrivateCreateRoute : Route(authRequirement = AuthRequirement.Account)
 
-/** Enter a host's 6-character code to join their private table. */
+/**
+ * Enter a host's 6-character code to join their private table.
+ *
+ * [rejectedCode] re-seeds the screen after a join bounced back: the
+ * prefilled-code lobby pops itself and routes here with the bad code so the
+ * user lands back on the input (not stranded on a dead lobby spinner) with an
+ * inline "room not found" error and the code pre-filled to retry. Null = a
+ * fresh entry from the Home join sheet.
+ *
+ * `data class` (never `data object`) — a serializable `data object` route
+ * crashes the iOS navigator at navigate-time; a `data class` carrying args is
+ * safe (mirrors [LobbyRoute]).
+ */
 @Serializable
-class PrivateJoinRoute : Route(authRequirement = AuthRequirement.Account)
+data class PrivateJoinRoute(
+    val rejectedCode: String? = null,
+) : Route(authRequirement = AuthRequirement.Account)

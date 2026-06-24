@@ -288,6 +288,65 @@ class PokerScenarioMpTest : PokerScenarioTest() {
         }
     }
 
+    @Test
+    fun addFriend_sendsRequest_andFlipsSeatToSent() = runUnitTest {
+        val s = mpScenario().start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, displayName = "Alice"),
+                    mpSeat(1, playerId = "peer", displayName = "Bob"),
+                ),
+                actingSeatIndex = 0,
+            ),
+        )
+
+        s.vm.takeAction(PlayPokerAction.AddFriend("peer"))
+
+        assertEquals(listOf("peer"), s.friendRepository.sentTo)
+        assertTrue("peer" in s.vm.state.friendRequestSentIds)
+    }
+
+    @Test
+    fun addFriend_rejectedByServer_unflipsSentState() = runUnitTest {
+        val s = mpScenario().start()
+        s.friendRepository.nextResult =
+            com.dangerfield.cards.libraries.social.SendFriendRequestResult.NotPlayedWith
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, displayName = "Alice"),
+                    mpSeat(1, playerId = "peer", displayName = "Bob"),
+                ),
+                actingSeatIndex = 0,
+            ),
+        )
+
+        s.vm.takeAction(PlayPokerAction.AddFriend("peer"))
+
+        assertEquals(listOf("peer"), s.friendRepository.sentTo)
+        assertFalse("peer" in s.vm.state.friendRequestSentIds)
+    }
+
+    @Test
+    fun addFriend_isIdempotent_onDoubleTap() = runUnitTest {
+        val s = mpScenario().start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, displayName = "Alice"),
+                    mpSeat(1, playerId = "peer", displayName = "Bob"),
+                ),
+                actingSeatIndex = 0,
+            ),
+        )
+
+        s.vm.takeAction(PlayPokerAction.AddFriend("peer"))
+        s.vm.takeAction(PlayPokerAction.AddFriend("peer"))
+
+        assertEquals(listOf("peer"), s.friendRepository.sentTo)
+    }
+
     private fun member(userId: String, isBot: Boolean = false): RoomMember = RoomMember(
         userId = userId,
         displayName = userId,

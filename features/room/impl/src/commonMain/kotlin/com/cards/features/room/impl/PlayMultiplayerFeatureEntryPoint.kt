@@ -37,6 +37,7 @@ import com.dangerfield.cards.libraries.navigation.serializableType
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_opponent_left
 import cards.libraries.resources.generated.resources.room_quick_buy_failed
 import cards.libraries.resources.generated.resources.room_quick_buy_store_unavailable
 import cards.libraries.resources.generated.resources.room_quick_buy_success
@@ -117,6 +118,10 @@ class PlayMultiplayerFeatureEntryPoint(
                                 RoomKind.Public -> navigate(PublicFindRoute())
                             }
                         }
+                        is PlayPokerEvent.OpponentLeft -> showSnackBar(
+                            message = getString(Res.string.room_opponent_left, event.displayName),
+                            emoji = "👋",
+                        )
                         is PlayPokerEvent.QuickBuyFinished -> showQuickBuySnackbar(event.outcome)
                         PlayPokerEvent.ClaimAccountRequired -> router.navigate(ClaimAccountRoute())
                         PlayPokerEvent.RebuyInsufficientChips ->
@@ -128,16 +133,25 @@ class PlayMultiplayerFeatureEntryPoint(
             PlayPokerScreen(
                 state = state,
                 onAction = viewModel::takeAction,
-                // Backing out of an in-progress MP game lands on Home, not the
-                // lobby the player came through. goBack() first tears down this
-                // screen's VM so the room socket closes (the server frees the
-                // seat after grace); switchTab then surfaces Home. The whole
-                // pair runs as one batched op so a mid-teardown scope death
-                // can't strand the player on a dead table.
+                // Leaving an in-progress MP game lands on Home, never the dead
+                // setup screen the player came through. A private game pushes
+                // PlayMultiplayer on top of its Lobby, so popping a single
+                // screen would strand the player back in the lobby (CARDS-1Y) —
+                // pop the whole chain past the lobby to the Home tab root
+                // instead. A public game has no lobby underneath, so its plain
+                // goBack + switchTab already surfaces Home. Either way the pop
+                // tears down this VM so the socket closes and the server frees
+                // the seat after grace; batching keeps a mid-teardown scope
+                // death from stranding the player on a dead table.
                 onBack = {
                     router.batch {
-                        goBack()
-                        switchTab(HomeRoute())
+                        when (route.kind) {
+                            RoomKind.Private -> popBackTo(LobbyRoute(), inclusive = true)
+                            RoomKind.Public -> {
+                                goBack()
+                                switchTab(HomeRoute())
+                            }
+                        }
                     }
                 },
                 onTapXp = { router.navigate(StatsRoute()) },

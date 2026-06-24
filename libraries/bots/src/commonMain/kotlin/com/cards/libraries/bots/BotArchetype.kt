@@ -19,12 +19,24 @@ enum class BotArchetype {
     Balanced,
 }
 
-fun archetypeFor(personality: BotPersonality): BotArchetype {
-    val loose = personality.tightness < 0.50
-    val tight = personality.tightness > 0.55
-    val aggressive = personality.aggression > 0.55
-    val passive = personality.aggression < 0.45
-    val maniac = personality.bluffRate >= 0.25 && aggressive && loose
+fun archetypeFor(personality: BotPersonality): BotArchetype = archetypeFor(
+    tightness = personality.tightness,
+    aggression = personality.aggression,
+    bluffRate = personality.bluffRate,
+)
+
+/**
+ * Classify from the raw tendencies directly. Shared so a human's derived
+ * play-style (Tight / Aggro / Bluff axes) gets the same archetype + label as a
+ * bot — pass the human's bluff axis rescaled to the bot's `0..0.4` `bluffRate`
+ * range. [tightness] / [aggression] are `0..1`; [bluffRate] is `0..0.4`.
+ */
+fun archetypeFor(tightness: Double, aggression: Double, bluffRate: Double): BotArchetype {
+    val loose = tightness < 0.50
+    val tight = tightness > 0.55
+    val aggressive = aggression > 0.55
+    val passive = aggression < 0.45
+    val maniac = bluffRate >= 0.25 && aggressive && loose
 
     return when {
         maniac -> BotArchetype.Maniac

@@ -9,6 +9,7 @@ import com.dangerfield.cards.server.domain.MatchmakingResult
 import com.dangerfield.cards.server.domain.RemoveBotResult
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
+import com.dangerfield.cards.server.domain.RoomVisibility
 import com.dangerfield.cards.server.domain.SYSTEM_HOST_USER_ID
 import com.dangerfield.cards.server.domain.UserId
 import kotlinx.coroutines.async
@@ -957,6 +958,90 @@ class InMemoryRoomServiceTest {
     @Test
     fun trimBotForNewHumans_unknownRoom_isNull() = runTest {
         assertNull(newService().trimBotForNewHumans("ZZZZZZ", handNumber = 1))
+    }
+
+    // ---------- findPublicCandidates (chooser discovery, read-only) ----------
+
+    @Test
+    fun findPublicCandidates_listsEligibleInRangeTables_withoutSeatingAnyone() = runTest {
+        val service = newService()
+        // alice opens a public table at the 5k tier (lone searcher, no bots yet).
+        val table = assertIs<MatchmakingResult.Created>(
+            service.findOrJoinPublic(alice, "Alice", 5_000, 5_000, emptySet()),
+        ).room
+
+        val candidates = service.findPublicCandidates(bob, 5_000, 5_000, emptySet())
+        assertEquals(listOf(table.code), candidates.map { it.code }, "the in-range table is offered")
+        // Read-only: bob was not seated anywhere by the call.
+        assertEquals(1, service.find(table.code)!!.members.size, "the table still holds only alice")
+    }
+
+    @Test
+    fun findPublicCandidates_excludesOutOfRangeTables() = runTest {
+        val service = newService()
+        service.findOrJoinPublic(alice, "Alice", 1_000, 1_000, emptySet())
+        val big = assertIs<MatchmakingResult.Created>(
+            service.findOrJoinPublic(bob, "Bob", 100_000, 100_000, emptySet()),
+        ).room
+
+        val candidates = service.findPublicCandidates(carol, 100_000, 100_000, emptySet())
+        assertEquals(listOf(big.code), candidates.map { it.code }, "only the matching-tier table qualifies")
+    }
+
+    @Test
+    fun findPublicCandidates_skipsTablesWithABlockedMember() = runTest {
+        val service = newService()
+        val enemyRoom = assertIs<MatchmakingResult.Created>(
+            service.findOrJoinPublic(alice, "Alice", 5_000, 5_000, emptySet()),
+        ).room
+
+        val candidates = service.findPublicCandidates(bob, 5_000, 5_000, blockedUserIds = setOf(alice))
+        assertTrue(candidates.none { it.code == enemyRoom.code }, "a table with a blocked member is hidden")
+    }
+
+    @Test
+    fun findPublicCandidates_skipsPrivateAndFullTables() = runTest {
+        val service = newService()
+        // A code-only private room — never matchmaking inventory.
+        val private = service.createOrFail(host, "Host", maxSeats = 6)
+        // A full public table — no seat to offer.
+        val full = assertIs<MatchmakingResult.Created>(
+            service.findOrJoinPublic(alice, "Alice", 5_000, 5_000, emptySet()),
+        ).room
+        assertIs<AddBotResult.Success>(
+            service.fillBotsUpTo(full.code, SYSTEM_HOST_USER_ID, target = 6, difficulty = BotDifficulty.Standard, revealed = true),
+        )
+
+        val candidates = service.findPublicCandidates(bob, 5_000, 5_000, emptySet())
+        assertTrue(candidates.none { it.code == private.code }, "private rooms are not matchmaking candidates")
+        assertTrue(candidates.none { it.code == full.code }, "a full table is not offered")
+    }
+
+    @Test
+    fun findPublicCandidates_ordersMostHumansFirst() = runTest {
+        val service = newService()
+        // Two human-hosted Open tables at the same tier, built directly so they
+        // stay distinct (findOrJoinPublic would otherwise collapse them into one).
+        val onePlayer = assertIs<CreateResult.Success>(
+            service.create(alice, "Alice", buyIn = 5_000, visibility = RoomVisibility.Open),
+        ).room
+        val twoPlayers = assertIs<CreateResult.Success>(
+            service.create(bob, "Bob", buyIn = 5_000, visibility = RoomVisibility.Open),
+        ).room
+        service.join(twoPlayers.code, carol, "Carol")
+
+        val candidates = service.findPublicCandidates(host, 5_000, 5_000, emptySet())
+        assertEquals(
+            listOf(twoPlayers.code, onePlayer.code),
+            candidates.map { it.code },
+            "the table with more real humans is offered first",
+        )
+    }
+
+    @Test
+    fun findPublicCandidates_noMatch_isEmpty() = runTest {
+        val service = newService()
+        assertTrue(service.findPublicCandidates(alice, 5_000, 5_000, emptySet()).isEmpty())
     }
 
     /**

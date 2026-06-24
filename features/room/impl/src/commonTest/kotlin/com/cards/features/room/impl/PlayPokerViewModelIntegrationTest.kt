@@ -213,6 +213,7 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
         val vm = PlayPokerViewModel(
             sessionFactory = factory,
             progressionRepository = progression,
+            playStyleRepository = FakePlayStyleRepository(),
             progressionConfig = FakeProgressionConfig(),
             achievementRepository = achievements,
             appCache = appCache,
@@ -222,6 +223,7 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             chipsRepository = FakeChipsRepository(),
             purchaseChipPack = FakePurchaseChipPackUseCase(),
             profileRepository = FakeProfileRepository(),
+            friendRepository = FakeFriendRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
             dispatcherProvider = dispatchers,
             appScope = com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope(dispatchers),

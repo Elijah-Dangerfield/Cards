@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.lobby_error_join_not_found
 import cards.libraries.resources.generated.resources.private_join_cta
 import cards.libraries.resources.generated.resources.private_join_heading
 import cards.libraries.resources.generated.resources.private_join_helper
@@ -47,13 +48,22 @@ private const val ROOM_CODE_LENGTH = 6
  * Private "Join by code" screen (SPEC §7) — a [CodeEntryField] for the host's
  * 6-character room code. "Join room" funnels into the existing seated lobby
  * ([LobbyRoute] with `prefilledCode`), which performs the real join.
+ *
+ * [rejectedCode] re-seeds the field after a failed join bounced the user back
+ * here (an unknown code): the code is pre-filled and an inline "room not found"
+ * error shows until they edit it, so they retry in place instead of being
+ * stranded on a dead lobby spinner (CARDS-28).
  */
 @Composable
 fun PrivateJoinScreen(
     onBack: () -> Unit,
     onJoin: (code: String) -> Unit,
+    rejectedCode: String? = null,
 ) {
-    var code by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf(rejectedCode.orEmpty()) }
+    // Show the inline error only while the field still holds the rejected code;
+    // the moment the user changes a character we assume they're correcting it.
+    val showNotFound = rejectedCode != null && code == rejectedCode
     val complete = code.length == ROOM_CODE_LENGTH
     Screen(
         topBar = {
@@ -92,6 +102,16 @@ fun PrivateJoinScreen(
                 length = ROOM_CODE_LENGTH,
                 onImeDone = { if (complete) onJoin(code) },
             )
+
+            if (showNotFound) {
+                Spacer(Modifier.height(Dimension.D400))
+                Text(
+                    text = stringResource(Res.string.lobby_error_join_not_found, rejectedCode),
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.danger,
+                    textAlign = TextAlign.Center,
+                )
+            }
 
             Spacer(Modifier.weight(1f))
             ButtonPrimary(
@@ -132,5 +152,13 @@ private fun GridIconTile() {
 private fun PrivateJoinScreenPreview() {
     PreviewContent {
         PrivateJoinScreen(onBack = {}, onJoin = {})
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun PrivateJoinScreenPreview_RoomNotFound() {
+    PreviewContent {
+        PrivateJoinScreen(onBack = {}, onJoin = {}, rejectedCode = "WXYZ12")
     }
 }

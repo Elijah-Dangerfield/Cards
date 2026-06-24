@@ -155,6 +155,19 @@ data class MatchmakingFindResponse(
     val created: Boolean,
 )
 
+/**
+ * GET /v1/matchmaking/candidates response — the qualifying tables a searcher
+ * could join for their buy-in range, ordered most-real-humans-first. Powers the
+ * chooser flow: the client lists these and the user taps one to join (via the
+ * room's socket), instead of being silently auto-seated into the first match.
+ * Empty list = nothing found → the client falls back to the bot-fallback offer.
+ */
+@Serializable
+data class MatchmakingCandidatesResponse(
+    val schemaVersion: Int = 1,
+    val rooms: List<RoomDto>,
+)
+
 @OptIn(ExperimentalTime::class)
 internal fun Room.toDto(): RoomDto = RoomDto(
     code = code,

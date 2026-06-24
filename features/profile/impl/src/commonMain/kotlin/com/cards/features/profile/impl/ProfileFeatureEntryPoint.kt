@@ -52,6 +52,7 @@ import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.PlayStyleRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpBoostRepository
@@ -59,6 +60,7 @@ import com.dangerfield.cards.libraries.cards.XpBoostStatus
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.config.AppConfigRepository
 import com.dangerfield.cards.libraries.config.QaConfigValue
+import com.dangerfield.cards.libraries.social.FriendRepository
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
@@ -66,6 +68,7 @@ import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
 import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.LegalUrls
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
@@ -92,6 +95,7 @@ class ProfileFeatureEntryPoint(
     private val configOverrideRepository: ConfigOverrideRepository,
     private val configuredValues: Set<QaConfigValue>,
     private val progressionRepository: ProgressionRepository,
+    private val playStyleRepository: PlayStyleRepository,
     private val xpBoostRepository: XpBoostRepository,
     private val achievementRepository: AchievementRepository,
     private val feedbackViewModelFactory: () -> FeedbackViewModel,
@@ -105,6 +109,7 @@ class ProfileFeatureEntryPoint(
     private val appCache: AppCache,
     private val userMessageRepository: UserMessageRepository,
     private val inventoryRepository: InventoryRepository,
+    private val friendRepository: FriendRepository,
     private val shopDeepLinkBus: ShopDeepLinkBus,
 ) : FeatureEntryPoint {
 
@@ -112,6 +117,8 @@ class ProfileFeatureEntryPoint(
         screen<ProfileRoute> {
             val progression by progressionRepository.observeProgression()
                 .collectAsStateWithLifecycle(initialValue = Progression.Empty)
+            val playStyle by playStyleRepository.observeOwnStyle()
+                .collectAsStateWithLifecycle(initialValue = null)
             val achievementProgress by achievementRepository.observeProgress()
                 .collectAsStateWithLifecycle(initialValue = AchievementProgress.Empty)
             // Profile (display name + avatar + anon flag) is the canonical
@@ -139,6 +146,17 @@ class ProfileFeatureEntryPoint(
             // "Activate", or a running countdown).
             val xpBoostStatus by xpBoostRepository.observe()
                 .collectAsStateWithLifecycle(initialValue = XpBoostStatus.None)
+
+            // Inbound friend requests. Account-bound, so we only refresh once a
+            // real (claimed) account exists — re-fetched whenever the
+            // authenticated id resolves/changes so a switched-in account shows
+            // its own inbox rather than the prior one.
+            val incomingRequests by friendRepository.observeIncomingRequests()
+                .collectAsStateWithLifecycle(initialValue = emptyList())
+            val authedId = authenticated?.takeUnless { it.isAnonymous }?.id
+            androidx.compose.runtime.LaunchedEffect(authedId) {
+                if (authedId != null) friendRepository.refreshIncomingRequests()
+            }
 
             // Owned cosmetics (inventory ∩ catalog) for the grouped item
             // shelves. Reuses MyItemsViewModel so the catalog join + display
@@ -192,6 +210,7 @@ class ProfileFeatureEntryPoint(
                 ownedItems = myItemsState.ownedItems,
                 buyableItems = myItemsState.buyableItems,
                 winRatePercent = winRatePercent,
+                playStyle = playStyle,
                 boostOwnedCount = xpBoostStatus.ownedCount,
                 boostExpiresAtEpochMs = xpBoostStatus.expiresAtEpochMs,
                 onActivateBoost = { scope.launch { xpBoostRepository.activate() } },
@@ -217,6 +236,16 @@ class ProfileFeatureEntryPoint(
                 onHighlightConsumed = {
                     scope.launch { appCache.update { it.copy(pendingProfileHighlight = null) } }
                 },
+                friendRequests = incomingRequests.map { request ->
+                    FriendRequestRow(
+                        id = request.id,
+                        displayName = request.displayName,
+                        emoji = request.avatarEmoji,
+                        avatarBackgroundColorHex = request.avatarBackgroundColorHex,
+                    )
+                },
+                onAcceptFriendRequest = { id -> scope.launch { friendRepository.accept(id) } },
+                onDeclineFriendRequest = { id -> scope.launch { friendRepository.decline(id) } },
                 scrollState = scrollState,
             )
         }
@@ -258,6 +287,7 @@ class ProfileFeatureEntryPoint(
                     isAnonymous = isAnon,
                     botSpeed = appData.botSpeed,
                     turnFeedback = appData.turnFeedback,
+                    showAchievementPopups = appData.showAchievementPopups,
                     appVersion = "0.1.0",
                     unreadNotificationCount = unreadNotificationCount,
                     showQaMenu = BuildInfo.isDebug,
@@ -271,10 +301,14 @@ class ProfileFeatureEntryPoint(
                 onTurnFeedbackChange = { feedback ->
                     scope.launch { appCache.update { it.copy(turnFeedback = feedback) } }
                 },
+                onShowAchievementPopupsChange = { enabled ->
+                    scope.launch { appCache.update { it.copy(showAchievementPopups = enabled) } }
+                },
                 onSendFeedback = { router.navigate(FeedbackRoute()) },
                 onReportBug = { router.navigate(BugReportRoute()) },
-                onPrivacyPolicy = { router.openWebLink(PRIVACY_POLICY_URL) },
-                onTermsOfService = { router.openWebLink(TERMS_OF_SERVICE_URL) },
+                onPrivacyPolicy = { router.openWebLink(LegalUrls.PRIVACY_POLICY) },
+                onTermsOfService = { router.openWebLink(LegalUrls.TERMS_OF_SERVICE) },
+                onResponsiblePlay = { router.openWebLink(LegalUrls.RESPONSIBLE_PLAY) },
                 onDeleteAccount = { router.navigate(DeleteAccountRoute()) },
                 onSignOut = { accountActionsVm.takeAction(AccountActionsAction.ConfirmSignOut) },
                 isSigningOut = accountActionsState.isSigningOut,
@@ -424,11 +458,8 @@ class ProfileFeatureEntryPoint(
     }
 
     private companion object {
-        // GitHub Pages publishes `pages/` on push to main via `.github/workflows/pages.yml`.
-        // Swap to a custom domain (e.g. cards.dangerfield.com/...) by dropping a CNAME file
-        // into `pages/` and pointing DNS at GH Pages; these constants are the single update.
-        const val PRIVACY_POLICY_URL = "https://elijah-dangerfield.github.io/Cards/privacy.html"
-        const val TERMS_OF_SERVICE_URL = "https://elijah-dangerfield.github.io/Cards/terms.html"
+        // Legal + safety links live in `LegalUrls` (:libraries:core) so onboarding
+        // consent and these Settings rows share one source of truth.
         // Mirrors `FoundingMemberCatalog.PRODUCT_ID` server-side
         // (`apps/server/.../StarterInventory.kt`). Granted by the server at
         // profile-create time when `seq <= 1000`.

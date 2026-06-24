@@ -1,6 +1,8 @@
 package com.dangerfield.cards.libraries.social.impl
 
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.social.FriendProfile
+import com.dangerfield.cards.libraries.social.RespondToRequestResult
 import com.dangerfield.cards.libraries.social.SendFriendRequestResult
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -9,6 +11,7 @@ import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.flow.first
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -65,6 +68,117 @@ class FriendRepositoryImplTest : CoroutineTest() {
         val result = repo.sendRequest("u1")
         assertIs<SendFriendRequestResult.Error>(result)
         assertEquals(boom, result.cause)
+    }
+
+    @Test
+    fun incoming_requests_resolve_and_preserve_server_order() = runUnitTest {
+        val api = FakeSocialApi(
+            incomingRequestIds = listOf("b", "a", "c"),
+            profiles = listOf(publicProfile("a"), publicProfile("b"), publicProfile("c")),
+        )
+        val repo = FriendRepositoryImpl(api)
+
+        repo.refreshIncomingRequests()
+
+        assertEquals(listOf("b", "a", "c"), repo.observeIncomingRequests().first().map { it.id })
+    }
+
+    @Test
+    fun incoming_requests_drop_ids_that_do_not_resolve() = runUnitTest {
+        val api = FakeSocialApi(
+            incomingRequestIds = listOf("a", "missing", "c"),
+            profiles = listOf(publicProfile("a"), publicProfile("c")),
+        )
+        val repo = FriendRepositoryImpl(api)
+
+        repo.refreshIncomingRequests()
+
+        assertEquals(listOf("a", "c"), repo.observeIncomingRequests().first().map { it.id })
+    }
+
+    @Test
+    fun empty_incoming_requests_yield_empty_without_resolving() = runUnitTest {
+        val api = FakeSocialApi(incomingRequestIds = emptyList())
+        val repo = FriendRepositoryImpl(api)
+
+        repo.refreshIncomingRequests()
+
+        assertEquals(emptyList<FriendProfile>(), repo.observeIncomingRequests().first())
+        assertEquals(0, api.resolveCallCount)
+    }
+
+    @Test
+    fun incoming_refresh_failure_keeps_last_good_value() = runUnitTest {
+        val api = FakeSocialApi(
+            incomingRequestIds = listOf("a"),
+            profiles = listOf(publicProfile("a")),
+        )
+        val repo = FriendRepositoryImpl(api)
+        repo.refreshIncomingRequests()
+
+        api.incomingError = RuntimeException("network down")
+        repo.refreshIncomingRequests()
+
+        assertEquals(listOf("a"), repo.observeIncomingRequests().first().map { it.id })
+    }
+
+    @Test
+    fun accept_drops_the_row_optimistically() = runUnitTest {
+        val api = FakeSocialApi(
+            incomingRequestIds = listOf("a", "b"),
+            profiles = listOf(publicProfile("a"), publicProfile("b")),
+        )
+        val repo = FriendRepositoryImpl(api)
+        repo.refreshIncomingRequests()
+
+        assertEquals(RespondToRequestResult.Ok, repo.accept("a"))
+        assertEquals("a", api.lastAcceptedUserId)
+        assertEquals(listOf("b"), repo.observeIncomingRequests().first().map { it.id })
+    }
+
+    @Test
+    fun decline_drops_the_row_optimistically() = runUnitTest {
+        val api = FakeSocialApi(
+            incomingRequestIds = listOf("a", "b"),
+            profiles = listOf(publicProfile("a"), publicProfile("b")),
+        )
+        val repo = FriendRepositoryImpl(api)
+        repo.refreshIncomingRequests()
+
+        assertEquals(RespondToRequestResult.Ok, repo.decline("b"))
+        assertEquals("b", api.lastDeclinedUserId)
+        assertEquals(listOf("a"), repo.observeIncomingRequests().first().map { it.id })
+    }
+
+    @Test
+    fun respond_treats_a_gone_request_as_success() = runUnitTest {
+        val api = FakeSocialApi(
+            incomingRequestIds = listOf("a", "b"),
+            profiles = listOf(publicProfile("a"), publicProfile("b")),
+            acceptResult = Result.failure(clientResponseException(HttpStatusCode.NotFound)),
+        )
+        val repo = FriendRepositoryImpl(api)
+        repo.refreshIncomingRequests()
+
+        assertEquals(RespondToRequestResult.Ok, repo.accept("a"))
+        assertEquals(listOf("b"), repo.observeIncomingRequests().first().map { it.id })
+    }
+
+    @Test
+    fun respond_keeps_the_row_on_network_failure() = runUnitTest {
+        val boom = RuntimeException("offline")
+        val api = FakeSocialApi(
+            incomingRequestIds = listOf("a"),
+            profiles = listOf(publicProfile("a")),
+            declineResult = Result.failure(boom),
+        )
+        val repo = FriendRepositoryImpl(api)
+        repo.refreshIncomingRequests()
+
+        val result = repo.decline("a")
+        assertIs<RespondToRequestResult.Error>(result)
+        assertEquals(boom, result.cause)
+        assertEquals(listOf("a"), repo.observeIncomingRequests().first().map { it.id })
     }
 
     /**

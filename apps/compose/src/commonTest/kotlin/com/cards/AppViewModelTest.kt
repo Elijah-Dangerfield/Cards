@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 
@@ -132,7 +131,7 @@ class AppViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun sessionExpired_setsHasOnboardedFalse_andEmitsEvent_carryingAnonymity() = runUnitTest {
+    fun sessionExpired_keepsOnboardedFlag_andEmitsEvent_carryingAnonymity() = runUnitTest {
         val cache = FakeAppCache(AppData(hasUserOnboarded = true))
         val profile = FakeProfileRepository(initial = authenticated("guest-1", "Guest"))
         val auth = FakeAuthRepository(idleAuth())
@@ -148,8 +147,11 @@ class AppViewModelTest : CoroutineTest() {
             )
             assertTrue(awaitItem().wasAnonymous, "the guest flag must reach the App for routing")
         }
-        // Mirrors sign-out so a cold boot also lands on onboarding.
-        assertFalse(cache.get().hasUserOnboarded, "session expiry resets the onboarded flag")
+        // The blocking session-expired screen now owns the onboarded flag: its
+        // Retry restores the session in place, its Logout clears the flag. The
+        // expiry edge itself must leave the flag intact so a cold boot lands on
+        // that screen rather than bouncing straight to onboarding.
+        assertTrue(cache.get().hasUserOnboarded, "session expiry leaves onboarding intact for the blocking screen")
     }
 
     @Test

@@ -143,8 +143,9 @@ class AppViewModel(
                     auth.reason == AuthState.Unauthenticated.Reason.SessionExpired
                 // Fire only on the edge into SessionExpired, never repeatedly.
                 if (expired && !previousExpired) {
-                    // Mirror sign-out so a cold boot also lands on onboarding.
-                    appCache.update { it.copy(hasUserOnboarded = false) }
+                    // Route to the blocking session-expired screen; that screen's
+                    // Retry recovers in place (and restores hasUserOnboarded), while
+                    // its Logout clears the flag and lands on onboarding.
                     _sessionExpired.trySend(
                         SessionExpired(wasAnonymous = (auth as AuthState.Unauthenticated).wasAnonymous),
                     )

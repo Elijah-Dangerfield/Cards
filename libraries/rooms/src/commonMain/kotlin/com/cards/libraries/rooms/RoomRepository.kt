@@ -99,6 +99,9 @@ sealed interface JoinRoomOutcome {
     data object NotFound : JoinRoomOutcome
     data object Full : JoinRoomOutcome
     data object NotJoinable : JoinRoomOutcome
+
+    /** The table's buy-in is more than the caller's wallet balance. */
+    data class OverBalance(val message: String) : JoinRoomOutcome
     data class NotSignedIn(val cause: Throwable? = null) : JoinRoomOutcome
     data class NetworkError(val cause: Throwable) : JoinRoomOutcome
     data class Unknown(val cause: Throwable) : JoinRoomOutcome

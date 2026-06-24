@@ -93,8 +93,18 @@ class GameplaySession(
     suspend fun submit(
         intent: PlayerIntent,
         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+    ): GameplayFrame.IntentAck = submitWithNonce(intent, newNonce(), timeoutMs)
+
+    /**
+     * Submit [intent] under a caller-chosen [nonce]. Lets two clients drive the
+     * SAME nonce so a test can exercise the server's per-session idempotency
+     * (a duplicate nonce is processed once, acked to each submitter).
+     */
+    suspend fun submitWithNonce(
+        intent: PlayerIntent,
+        nonce: String,
+        timeoutMs: Long = DEFAULT_TIMEOUT_MS,
     ): GameplayFrame.IntentAck {
-        val nonce = newNonce()
         handle.send(ClientFrame.SubmitIntent(intent = intent, clientNonce = nonce))
         return withTimeout(timeoutMs) { acks.first { it.clientNonce == nonce } }
     }

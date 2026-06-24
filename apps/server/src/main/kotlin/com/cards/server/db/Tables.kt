@@ -177,6 +177,51 @@ object XpEventsTable : Table("xp_events") {
 }
 
 /**
+ * Server-authoritative play-style aggregate, one row per user. Rolling sums
+ * of per-hand counters flushed from the client; the four axes (Tight / Aggro
+ * / Bluff / Patient) are computed from these at read time, never stored, so
+ * the formula stays tunable. Also the public read surface for the Opponent
+ * Style Reader. See `V69__play_style.sql`.
+ */
+object UserPlayStyleAggregateTable : Table("user_play_style_aggregate") {
+    val userId = uuid("user_id")
+    val handsDealt = long("hands_dealt")
+    val handsDealtNonBlind = long("hands_dealt_non_blind")
+    val vpipCount = long("vpip_count")
+    val pfrCount = long("pfr_count")
+    val preflopFoldCount = long("preflop_fold_count")
+    val aggressiveActionCount = long("aggressive_action_count")
+    val callActionCount = long("call_action_count")
+    val showdownCount = long("showdown_count")
+    val showdownBluffCount = long("showdown_bluff_count")
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(userId)
+}
+
+/**
+ * Append-only ledger of per-hand play-style contributions. `(user_id,
+ * idempotency_key)` is the dedup boundary — a retried/reinstalled flush
+ * collapses to a single row, so the aggregate never double-counts a hand.
+ * See `V69__play_style.sql`.
+ */
+object PlayStyleEventsTable : Table("play_style_events") {
+    val userId = uuid("user_id")
+    val idempotencyKey = text("idempotency_key")
+    val mode = text("mode")
+    val inBlind = bool("in_blind")
+    val vpip = bool("vpip")
+    val pfr = bool("pfr")
+    val preflopFold = bool("preflop_fold")
+    val aggressiveActionCount = integer("aggressive_action_count")
+    val callActionCount = integer("call_action_count")
+    val wentToShowdown = bool("went_to_showdown")
+    val showdownBluff = bool("showdown_bluff")
+    val appliedAt = timestamp("applied_at")
+    override val primaryKey = PrimaryKey(userId, idempotencyKey)
+}
+
+/**
  * Server-authoritative earned-achievement set. One row per (user,
  * achievement); first-write-wins on `earned_at`. The criteria engine +
  * progress counters stay client-local — only the earned set syncs. See

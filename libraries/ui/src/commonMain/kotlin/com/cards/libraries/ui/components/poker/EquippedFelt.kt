@@ -18,7 +18,7 @@ import com.dangerfield.cards.system.AppTheme
  * [Default], so a new server-side felt before the client knows it
  * renders sanely instead of crashing or going black.
  */
-enum class EquippedFelt { Default, RoyalRed, MidnightBlue, Charcoal, Sunset, Neon, PineGreen }
+enum class EquippedFelt { Default, RoyalRed, MidnightBlue, Charcoal, Sunset, PineGreen }
 
 /**
  * Resolves a catalog product id to the felt style it equips, or
@@ -32,7 +32,6 @@ fun feltForProductId(productId: String?): EquippedFelt = when (productId) {
     "felt_charcoal" -> EquippedFelt.Charcoal
     "felt_pine_green" -> EquippedFelt.PineGreen
     "felt_sunset_weekend" -> EquippedFelt.Sunset
-    "table_neon" -> EquippedFelt.Neon
     else -> EquippedFelt.Default
 }
 
@@ -58,7 +57,6 @@ fun feltSurfaceColor(felt: EquippedFelt): Color = when (felt) {
     EquippedFelt.MidnightBlue -> Color(0xFF0E1B3D)
     EquippedFelt.Charcoal -> Color(0xFF15171A)
     EquippedFelt.Sunset -> Color(0xFF3B1F12)
-    EquippedFelt.Neon -> Color(0xFF1A0D2E)
     EquippedFelt.PineGreen -> Color(0xFF14322B)
 }
 
@@ -80,7 +78,6 @@ fun feltAccentSurface(felt: EquippedFelt): Color = when (felt) {
     EquippedFelt.MidnightBlue -> Color(0xFF1E3061)
     EquippedFelt.Charcoal -> Color(0xFF24272C)
     EquippedFelt.Sunset -> Color(0xFF5A331F)
-    EquippedFelt.Neon -> Color(0xFF2D1A4A)
     EquippedFelt.PineGreen -> Color(0xFF1F4A40)
 }
 

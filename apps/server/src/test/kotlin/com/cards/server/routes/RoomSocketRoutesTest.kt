@@ -1,9 +1,12 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.data.createOrFail
+import com.dangerfield.cards.server.domain.CreateResult
+import com.dangerfield.cards.server.domain.RoomVisibility
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
 import com.dangerfield.cards.server.game.SeatOccupant
+import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
@@ -73,6 +76,69 @@ class RoomSocketRoutesTest {
                 // Receiving from a closed channel throws.
                 assertTrue(session.expectClosed())
             }
+        }
+    }
+
+    @Test
+    fun nonMemberSpectator_onOpenRoom_isAdmitted_andSeesSnapshot() = runTest {
+        val rooms = newRoomService()
+        val room = openRoom(rooms, host)
+        withRoomSocketTestApp(rooms) { client ->
+            client.openSocket(room.code, asUser = alice) { spectator ->
+                val snap = assertIs<RoomSocketEventDto.Snapshot>(spectator.receiveOne())
+                assertEquals(room.code, snap.room.code)
+                // The spectator never becomes a member — they hold no seat.
+                assertTrue(
+                    snap.room.members.none { it.userId == alice.value.toString() },
+                    "a spectator must not be seated as a member",
+                )
+            }
+        }
+    }
+
+    @Test
+    fun nonMemberSpectator_onPrivateRoom_isRejected() = runTest {
+        val rooms = newRoomService()
+        val room = rooms.createOrFail(host, "Host")
+        withRoomSocketTestApp(rooms) { client ->
+            client.openSocket(room.code, asUser = alice) { session ->
+                assertTrue(session.expectClosed(), "a code-only Private room stays closed to non-members")
+            }
+        }
+    }
+
+    @Test
+    fun spectatorIntent_isRejected_withAck() = runTest {
+        val rooms = newRoomService()
+        val room = openRoom(rooms, host)
+        withRoomSocketTestApp(rooms) { client ->
+            client.openSocket(room.code, asUser = alice) { spectator ->
+                spectator.receiveOne() // drain the lobby snapshot
+                spectator.sendFrame(
+                    RoomClientFrame.SubmitIntent(
+                        intent = PlayerIntent.Fold(seatIndex = 0),
+                        clientNonce = "spectator-nonce",
+                    ),
+                )
+                val ack = spectator.receiveUntilAck("spectator-nonce")
+                assertEquals(false, ack.accepted, "a spectator's gameplay intent must be rejected")
+            }
+        }
+    }
+
+    @Test
+    fun spectatorDisconnect_leavesMembersUntouched() = runTest {
+        val rooms = newRoomService()
+        val room = openRoom(rooms, host)
+        withRoomSocketTestApp(rooms) { client ->
+            client.openSocket(room.code, asUser = alice) { spectator ->
+                spectator.receiveOne()
+            }
+            // No reaper, no markConnected — the host (the only real member)
+            // is still the sole seat after the spectator's socket closes.
+            val members = rooms.find(room.code)!!.members
+            assertEquals(1, members.size)
+            assertEquals(host, members.single().userId)
         }
     }
 
@@ -260,5 +326,12 @@ class RoomSocketRoutesTest {
             }
         }
     }
+
+    /** Create an Open (matchmaking-discoverable) room — the kind a non-member may spectate. */
+    private suspend fun openRoom(rooms: com.dangerfield.cards.server.domain.RoomService, hostUserId: UserId) =
+        when (val outcome = rooms.create(hostUserId, "Host", visibility = RoomVisibility.Open)) {
+            is CreateResult.Success -> outcome.room
+            is CreateResult.TooManyRooms -> error("openRoom expected Success, got TooManyRooms")
+        }
 
 }

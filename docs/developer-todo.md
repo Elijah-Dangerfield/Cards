@@ -122,6 +122,9 @@ The `Release` workflow auto-triggered after release-please tagged `v0.2.0` and f
 ### Sentry (release uploads from CI)
 - [ ] `SENTRY_AUTH_TOKEN` — Sentry → Account → API → Auth Tokens. Scopes: `project:releases`, `org:read`.
 
+### Fly server env (set via `fly secrets set <NAME>=... -a cards-server-dev`)
+- [ ] `APPEAL_URL` — public page/email a banned user is pointed at. The server now returns it verbatim in the ban-block `403` so the app can show an "appeal this" link; left blank the block still works but offers no appeal affordance. Ties to the support-URL item above. Set once the support/appeal page exists.
+
 ---
 
 ## Already done — for reference

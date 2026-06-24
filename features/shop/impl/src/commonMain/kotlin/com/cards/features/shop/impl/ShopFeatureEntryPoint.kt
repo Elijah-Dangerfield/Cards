@@ -17,6 +17,7 @@ import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.OnTabReselected
+import com.dangerfield.cards.libraries.core.LegalUrls
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.bottomSheet
 import com.dangerfield.cards.libraries.navigation.graphScopedViewModel
@@ -226,6 +227,7 @@ class ShopFeatureEntryPoint(
                         viewModel.takeAction(ShopAction.ConfirmPurchase(product))
                     },
                     onDismiss = { router.goBack() },
+                    onOpenResponsiblePlay = { router.openWebLink(LegalUrls.RESPONSIBLE_PLAY) },
                 )
             }
         }

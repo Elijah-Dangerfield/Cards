@@ -1,6 +1,13 @@
 package com.dangerfield.cards.features.profile.impl.edit
 
 import androidx.lifecycle.viewModelScope
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.profile_edit_save_error_avatar_color
+import cards.libraries.resources.generated.resources.profile_edit_save_error_avatar_emoji
+import cards.libraries.resources.generated.resources.profile_edit_save_error_name_invalid
+import cards.libraries.resources.generated.resources.profile_edit_save_error_name_taken
+import cards.libraries.resources.generated.resources.profile_edit_save_error_network
+import cards.libraries.resources.generated.resources.profile_edit_save_error_unknown
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
@@ -27,6 +34,7 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
+import org.jetbrains.compose.resources.getString
 
 /**
  * Edit-profile screen logic. Owns:
@@ -249,7 +257,7 @@ class EditProfileViewModel(
                     // Optimistic: navigate immediately, surface any
                     // failure as a snackbar in the background.
                     appScope.launch {
-                        deferred.await().toFailureMessage()?.let { showSnackBar(it) }
+                        deferred.await().failureMessageOrNull()?.let { showSnackBar(it) }
                     }
                     sendEvent(EditProfileEvent.Saved)
                 }
@@ -282,30 +290,36 @@ class EditProfileViewModel(
             // when we only sent the name) get the optimistic treatment:
             // navigate away + snackbar. The user can fix it next
             // session; they don't need to be stuck on Edit Profile.
+            // Navigate first; the snackbar copy resolves on appScope so
+            // the back-out isn't gated on the message lookup.
             else -> {
-                outcome.toFailureMessage()?.let { showSnackBar(it) }
                 sendEvent(EditProfileEvent.Saved)
+                appScope.launch {
+                    outcome.failureMessageOrNull()?.let { showSnackBar(it) }
+                }
             }
         }
     }
 
-    private fun UpdateProfileOutcome.toFailureMessage(): String? = when (this) {
+    private suspend fun UpdateProfileOutcome.failureMessageOrNull(): String? = when (this) {
         is UpdateProfileOutcome.Success -> null
         is UpdateProfileOutcome.Queued -> null
         is UpdateProfileOutcome.DisplayNameTaken ->
-            "Couldn't save — that name is already taken."
+            getString(Res.string.profile_edit_save_error_name_taken)
         is UpdateProfileOutcome.InvalidDisplayName ->
-            "Couldn't save — that name isn't allowed."
+            getString(Res.string.profile_edit_save_error_name_invalid)
         is UpdateProfileOutcome.InvalidAvatarEmoji ->
-            "Couldn't save — that avatar isn't available."
+            getString(Res.string.profile_edit_save_error_avatar_emoji)
         is UpdateProfileOutcome.InvalidAvatarBackgroundColor ->
-            "Couldn't save — that color isn't available."
-        is UpdateProfileOutcome.NotSignedIn ->
-            "Couldn't save — sign in first."
-        is UpdateProfileOutcome.NetworkError ->
-            "Couldn't save changes — check your connection."
+            getString(Res.string.profile_edit_save_error_avatar_color)
+        // A session-less save off a Fallback profile reads as a connection
+        // problem, not "sign in first" — the offline-queueable path already
+        // returns Queued, so reaching here means the request couldn't land.
+        is UpdateProfileOutcome.NotSignedIn,
+        is UpdateProfileOutcome.NetworkError,
+            -> getString(Res.string.profile_edit_save_error_network)
         is UpdateProfileOutcome.Unknown ->
-            "Couldn't save changes. Try again."
+            getString(Res.string.profile_edit_save_error_unknown)
     }
 }
 

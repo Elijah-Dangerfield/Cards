@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server
 
+import com.dangerfield.cards.server.config.AccessControlConfig
 import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.config.SupabaseConfig
 import com.dangerfield.cards.server.db.DatabaseTest
@@ -70,6 +71,7 @@ class FullStackRoomTest : DatabaseTest() {
                     component = component,
                     verification = JwtVerification.Static(RoomSocketTestAuth.verifier),
                     adminConfig = AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6),
+                    accessControl = AccessControlConfig(appealUrl = null),
                 )
             }
             val client = createClient {

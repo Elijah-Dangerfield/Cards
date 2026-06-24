@@ -2,7 +2,6 @@ package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.features.room.impl.session.RemotePokerSessionFactory
 import com.dangerfield.cards.features.room.impl.session.SoloBotsPokerSessionFactory
-import com.dangerfield.cards.features.room.impl.ui.BotPlayingStyle
 import com.dangerfield.cards.features.room.impl.ui.TenureHeadline
 import com.dangerfield.cards.features.room.impl.ui.label
 import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
@@ -95,6 +94,15 @@ sealed interface TableUiState {
          * re-arms on — including a raise that returns action to the same seat.
          */
         val turnSequence: Long = 0,
+        /**
+         * True when the local user is a member of this MP table but holds no
+         * seat in the current snapshot — i.e. they joined an in-progress game
+         * and are spectating until the next hand boundary seats them. Drives
+         * the "you'll be dealt in next hand" notice so a mid-game joiner isn't
+         * left wondering why they have no cards. Always false for solo bot
+         * sessions (the human is always seated) and once the joiner is dealt in.
+         */
+        val waitingToBeDealtIn: Boolean = false,
     ) : TableUiState
 
     companion object {
@@ -152,6 +160,13 @@ sealed interface TableUiState {
              * a curve through.
              */
             curve: LevelCurve = DefaultLevelCurve,
+            /**
+             * Whether the local user is a seatless member of this MP table —
+             * a mid-game joiner spectating until the next hand boundary. Set by
+             * [RemotePokerSessionFactory] when [humanSeatIndex] is negative.
+             * Always false for solo sessions (the human always has a seat).
+             */
+            waitingToBeDealtIn: Boolean = false,
         ): Active {
             val committedThisStreet = gameState.seats.sumOf { it.contributedThisStreet }
             val pot = committedThisStreet + gameState.pots.sumOf { it.amount }
@@ -216,6 +231,7 @@ sealed interface TableUiState {
                 subsidizedBotTable = subsidizedBotTable,
                 turnTimerSeconds = gameState.settings.turnTimerSeconds.takeIf { turnTimerEnforced },
                 turnSequence = gameState.lastSequence,
+                waitingToBeDealtIn = waitingToBeDealtIn,
             )
         }
 
@@ -228,7 +244,7 @@ sealed interface TableUiState {
          *
          * Returns a sealed shape so the renderer can resolve via
          * `stringResource(...)` without re-deriving the formatting; mirrors
-         * the [BotPlayingStyle] / [TenureHeadline] pattern.
+         * the playing-style / [TenureHeadline] pattern.
          */
         internal fun badgeFor(
             seat: Seat,
@@ -272,6 +288,13 @@ sealed interface TableUiState {
 
 data class SeatView(
     val index: Int,
+    /**
+     * Stable user id of the seat's occupant (`Seat.playerId`). For a remote
+     * human this is their account id — used to fetch their public play-style
+     * for the Opponent Style Reader. Null for empty seats; for bots it's a bot
+     * id (never used for a style fetch).
+     */
+    val userId: String? = null,
     val displayName: String,
     val stack: Long,
     val contributedThisStreet: Long,
@@ -395,6 +418,7 @@ data class SeatView(
             val isBusted = !seatEmpty && seat.stack <= 0L && handResolved
             return SeatView(
                 index = seat.index,
+                userId = seat.playerId,
                 displayName = displayName,
                 stack = seat.stack,
                 contributedThisStreet = seat.contributedThisStreet,

@@ -9,9 +9,8 @@ import androidx.navigation.toRoute
 import com.dangerfield.cards.features.room.PlayMultiplayerRoute
 import com.dangerfield.cards.features.room.RoomKind
 import com.dangerfield.cards.features.rooms.PublicFindRoute
-import com.dangerfield.cards.features.rooms.PublicLobbyRoute
-import com.dangerfield.cards.features.rooms.PublicNextRoundRoute
 import com.dangerfield.cards.features.rooms.PublicSearchingRoute
+import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
@@ -24,23 +23,27 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Hosts the PUBLIC rooms route family (SPEC §2–4). Find → Searching is now live
  * matchmaking: Find sets a buy-in range, Searching runs the real honest search
  * (real-humans-first, with the disclosed-bot fallback) and hands straight off to
- * the multiplayer table once a hand deals. Lobby / NextRound remain as the
- * mid-hand-join shells.
+ * the multiplayer table once a hand deals. Mid-hand joins are handled by the
+ * server-scrubbed spectate path on the live table, not a separate screen.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
 class RoomsFeatureEntryPoint(
     private val searchingViewModelFactory: (minBuyIn: Long, maxBuyIn: Long) -> PublicSearchingViewModel,
+    private val chipsRepository: ChipsRepository,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<PublicFindRoute> {
+            val chipBalance by chipsRepository.observeBalance()
+                .collectAsStateWithLifecycle(initialValue = null)
             PublicFindScreen(
                 onBack = { router.goBack() },
                 onFind = { minBuyIn, maxBuyIn ->
                     router.navigate(PublicSearchingRoute(minBuyIn = minBuyIn, maxBuyIn = maxBuyIn))
                 },
+                chipBalance = chipBalance,
             )
         }
         screen<PublicSearchingRoute> { backStackEntry ->
@@ -69,12 +72,6 @@ class RoomsFeatureEntryPoint(
                 state = state,
                 onAction = viewModel::takeAction,
             )
-        }
-        screen<PublicLobbyRoute> {
-            PublicLobbyScreen(onLeave = { router.goBack() })
-        }
-        screen<PublicNextRoundRoute> {
-            PublicNextRoundScreen(onLeave = { router.goBack() })
         }
     }
 }

@@ -47,6 +47,7 @@ import cards.libraries.resources.generated.resources.room_practice_tier_bots_pre
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_hand_info_a11y
+import cards.libraries.resources.generated.resources.room_waiting_to_be_dealt_in
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
 import com.dangerfield.cards.libraries.game.ConnectionState
@@ -283,6 +284,10 @@ fun PlayPokerScreen(
                     PracticeTierLabel(onClick = { practiceTierExplainerOpen = true })
                 }
 
+                if (active?.waitingToBeDealtIn == true) {
+                    WaitingToBeDealtInLabel()
+                }
+
                 if (active == null) {
                     LoadingTable()
                 } else {
@@ -364,7 +369,11 @@ fun PlayPokerScreen(
         }
 
         if (stackExplainerOpen) {
-            StackExplainer(stack = humanStack, onDismiss = { stackExplainerOpen = false })
+            StackExplainer(
+                stack = humanStack,
+                subsidized = active?.subsidizedBotTable == true,
+                onDismiss = { stackExplainerOpen = false },
+            )
         }
 
         // Auto-open the practice-tier explainer once when the player first
@@ -459,6 +468,13 @@ fun PlayPokerScreen(
         }
 
         profileSheetSeat?.let { seat ->
+            // Fetch the human opponent's public style on open, once, when the
+            // Opponent Style Reader is owned. Bots / empty seats never fetch.
+            if (!seat.isBot && seat.userId != null && state.ownsOpponentStyleReader) {
+                LaunchedEffect(seat.userId) {
+                    onAction(PlayPokerAction.RequestOpponentStyle(seat.userId))
+                }
+            }
             PlayerProfileSheet(
                 seat = seat,
                 isMuted = seatMuteKey(seat) in state.mutedEmojiPlayerKeys,
@@ -474,6 +490,15 @@ fun PlayPokerScreen(
                 badges = resolvePlayerBadges(seat.equippedBadgeProductIds, state.catalog),
                 onBadgeClick = { selectedBadge = it },
                 botDifficultyLabel = active?.botDifficultyLabel,
+                playStyle = seat.userId?.let { state.opponentStyles[it] },
+                ownsOpponentStyleReader = state.ownsOpponentStyleReader,
+                // Add-friend only for a real human opponent: a stable user id and
+                // not a bot. The friend graph's recently-played gate is satisfied
+                // by definition — they're at the table with you.
+                onAddFriend = seat.userId
+                    ?.takeIf { !seat.isBot && !seat.seatEmpty }
+                    ?.let { id -> { onAction(PlayPokerAction.AddFriend(id)) } },
+                friendRequestSent = seat.userId in state.friendRequestSentIds,
             )
         }
 
@@ -487,6 +512,7 @@ fun PlayPokerScreen(
                     onDismiss = { selfCardOpen = false },
                     badges = state.equippedBadges,
                     onBadgeClick = { selectedBadge = it },
+                    playStyle = state.ownPlayStyle,
                 )
             }
         }
@@ -561,6 +587,7 @@ fun PlayPokerScreen(
                     earnedAchievements = state.recentlyEarned,
                     xpMode = state.xpMode,
                     onDealMeIn = onDismiss,
+                    subsidized = active.subsidizedBotTable,
                 )
             } else {
                 ShowdownDialog(
@@ -577,11 +604,17 @@ fun PlayPokerScreen(
         if (celebrationActive && state.recentlyEarned.isNotEmpty()) {
             AchievementCelebrationSheet(
                 earned = state.recentlyEarned,
+                showSettingsHint = state.showAchievementSettingsHint,
                 onContinue = {
                     celebrationActive = false
                     onAction(PlayPokerAction.RequestNextHand)
                 },
             )
+            // Count this showing once the hint is actually on screen, so the
+            // footer fades after a few celebrations rather than per render.
+            if (state.showAchievementSettingsHint) {
+                LaunchedEffect(Unit) { onAction(PlayPokerAction.MarkAchievementSettingsHintShown) }
+            }
         }
 
         // In-game quick-buy upsell — overlays the bust dialog (which stays
@@ -632,6 +665,32 @@ private fun ConnectionBanner(connection: ConnectionState) {
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/**
+ * Table-side notice for a mid-game joiner: they're a seatless member of a live
+ * MP table, dealt in at the next hand boundary. Surfaced under the top bar so
+ * the spectating wait reads as intentional rather than a stuck/empty table.
+ */
+@Composable
+private fun WaitingToBeDealtInLabel() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(Res.string.room_waiting_to_be_dealt_in),
+            typography = AppTheme.typography.Caption.C400,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .clip(Radii.Callout.shape)
+                .background(AppTheme.colors.surface.color)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
         )
     }
 }
@@ -930,6 +989,7 @@ private fun previewActive(
     bigBlindSeatIndex: Int? = 2,
     practiceTierBotsPresent: Boolean = false,
     practiceTierBotsOnly: Boolean = false,
+    waitingToBeDealtIn: Boolean = false,
 ): TableUiState.Active = TableUiState.Active(
     street = street,
     communityCards = communityCards,
@@ -949,6 +1009,7 @@ private fun previewActive(
     bigBlindSeatIndex = bigBlindSeatIndex,
     practiceTierBotsPresent = practiceTierBotsPresent,
     practiceTierBotsOnly = practiceTierBotsOnly,
+    waitingToBeDealtIn = waitingToBeDealtIn,
 )
 
 private fun previewDefaultSeats(): List<SeatView> = listOf(
@@ -1016,6 +1077,28 @@ private fun PlayPokerScreenPreview_PracticeTier() {
     PreviewContent {
         PlayPokerScreen(
             state = PlayPokerState(table = previewActive(practiceTierBotsPresent = true)),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_WaitingToBeDealtIn() {
+    // Mid-game joiner spectating a live MP table with no seat yet — the
+    // "you'll be dealt in next hand" notice renders under the top bar so the
+    // seatless wait reads as intentional, not a stuck table (CARDS-22).
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(
+                    seats = previewDefaultSeats().map { it.copy(isHuman = false) },
+                    isHumanTurn = false,
+                    humanLegalActions = null,
+                    waitingToBeDealtIn = true,
+                ),
+            ),
             onAction = {},
             onBack = {},
         )
@@ -1458,8 +1541,3 @@ private fun PlayPokerScreenPreview_Felt_Charcoal() =
 @Composable
 private fun PlayPokerScreenPreview_Felt_Sunset() =
     PlayPokerScreenFeltPreview(EquippedFelt.Sunset)
-
-@Preview
-@Composable
-private fun PlayPokerScreenPreview_Felt_Neon() =
-    PlayPokerScreenFeltPreview(EquippedFelt.Neon)

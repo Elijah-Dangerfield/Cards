@@ -38,8 +38,9 @@ When you touch an item for any reason, leave it in this shape. You don't have to
 ## Start of run
 
 1. `git fetch origin`.
-2. `gh pr list --head develop --state open --json number,url`. **If a PR exists, exit immediately with no commits** — last night's work is still under review.
+2. `gh pr list --head develop --state open --json number,url`. **If a PR exists, switch to top-up-only mode** (don't exit). A PR open against `develop` means an earlier cycle this night already opened it and more pipelines are stacking onto it. You must NOT reset `develop` and must NOT reconcile against `main` — this cycle's shipped items live in the open PR, not `main` yet, so reconciling would mis-flag them as un-shipped. Instead: skip step 3's reset, skip Pass 1 entirely, and go straight to Pass 2 to refill the list for the next wave of workers, committing on top of the current `develop`. **No open PR → full run** (reconcile + top-up) as written below.
 3. Align `develop`:
+   - **Top-up-only mode (open PR, from step 2)** → `git checkout develop && git pull --rebase origin develop`. Do not reset, do not force-push — you're refilling the list on top of the in-review cycle's commits.
    - **If `docs/agent/in-flight.md` exists on `origin/develop`** → a worker is already mid-cycle. Exit; you should have run before workers, not during.
    - **Else** → reset `develop` to `main` so workers start clean — but **only when its content already matches `main`** (clears post-merge commit-ID drift without destroying unmerged work):
      ```
@@ -56,6 +57,8 @@ When you touch an item for any reason, leave it in this shape. You don't have to
 5. Read `docs/todo.md` (everything in it is in scope), `docs/backlog.md`, `docs/developer-todo.md` (**never edit**), and `docs/decisions.md`.
 
 ## Pass 1 — Reconcile (primary)
+
+**Skip this entire pass in top-up-only mode (open PR).** This cycle's shipped items aren't in `origin/main` yet — they're in the open PR — so reconciling against `main` would wrongly leave or re-flag them, and the workers already deleted shipped bullets as they went. Jump straight to Pass 2.
 
 For each item in `docs/todo.md`, form a one-sentence hypothesis of what would exist in the repo if it were done, then verify with the cheapest decisive signal: `git log -S "<symbol>" origin/main`, `git log --oneline origin/main -- <path>`, `rg` for the named symbol/flag/copy, or reading the file it points at.
 
@@ -74,7 +77,7 @@ Pick one outcome:
 
 ## Pass 2 — Top up (only if thin)
 
-Only if Pass 1 leaves **fewer than ~6 worker-pickable items**, add a few — **cap 4**, and stop the moment you've cleared the thin bar.
+Only if **fewer than ~6 worker-pickable items** remain, add a few — **cap 4** on a full run, **cap 8 in top-up-only mode** (it's the sole refill before the next worker wave, and the prior run just drained the list), and stop the moment you've cleared the bar. The quality gates below still apply to every added item — a higher cap buys quantity only when genuine cited gaps exist, never padding.
 
 **No lane is privileged. Do not bias toward tests.** The nightly loop has historically over-produced low-value test additions; correct for that. A new test only earns a slot when a **load-bearing, currently-untested path** (wallet / XP / level / onboarding / money / auth) would silently corrupt user state if it regressed — and the sibling pattern in the same module is already tested, so the gap is unambiguous. Otherwise, prefer real gaps:
 
@@ -98,7 +101,7 @@ If you changed nothing, exit cleanly. Empty runs are expected and healthy.
 Otherwise:
 
 1. Stage only `docs/todo.md` (and `docs/backlog.md` if appended).
-2. Commit:
+2. Commit (top-up-only mode → `docs(todo): top up M items (follow-on run)`):
    ```
    docs(todo): reconcile N items, add M
    ```

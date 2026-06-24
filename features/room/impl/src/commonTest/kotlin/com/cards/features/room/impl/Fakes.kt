@@ -19,6 +19,9 @@ import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.LevelReward
+import com.dangerfield.cards.libraries.cards.PlayStyleAxes
+import com.dangerfield.cards.libraries.cards.PlayStyleHandSummary
+import com.dangerfield.cards.libraries.cards.PlayStyleRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
@@ -273,6 +276,30 @@ class FakeProgressionRepository(initial: Progression = Progression.Empty) : Prog
     fun emit(progression: Progression) { state.value = progression }
 }
 
+// ---------- PlayStyleRepository ----------
+
+class FakePlayStyleRepository(initial: PlayStyleAxes? = null) : PlayStyleRepository {
+    private val state = MutableStateFlow(initial)
+    val recordedHands = mutableListOf<PlayStyleHandSummary>()
+    var opponentStyle: PlayStyleAxes? = null
+
+    override fun observeOwnStyle(): Flow<PlayStyleAxes?> = state
+    override suspend fun getOwnStyle(): PlayStyleAxes? = state.value
+
+    override suspend fun recordHand(summary: PlayStyleHandSummary) {
+        recordedHands += summary
+    }
+
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
+
+    override suspend fun getStyleFor(userId: String): Result<PlayStyleAxes?> =
+        Result.success(opponentStyle)
+
+    override suspend fun deleteAll() { state.value = null }
+
+    fun emit(style: PlayStyleAxes?) { state.value = style }
+}
+
 // ---------- AchievementRepository ----------
 
 class FakeAchievementRepository(
@@ -501,6 +528,40 @@ class FakeChipsRepository(
         return Result.success(Unit)
     }
     fun emit(value: Long?) { balance.value = value }
+}
+
+/**
+ * Records friend-request sends and returns a configurable [nextResult]. The
+ * inbox half is unused by the play-poker VM so it stays an empty stub.
+ */
+class FakeFriendRepository(
+    var nextResult: com.dangerfield.cards.libraries.social.SendFriendRequestResult =
+        com.dangerfield.cards.libraries.social.SendFriendRequestResult.Requested,
+) : com.dangerfield.cards.libraries.social.FriendRepository {
+    val sentTo = mutableListOf<String>()
+
+    override suspend fun sendRequest(
+        userId: String,
+    ): com.dangerfield.cards.libraries.social.SendFriendRequestResult {
+        sentTo += userId
+        return nextResult
+    }
+
+    override fun observeIncomingRequests():
+        Flow<List<com.dangerfield.cards.libraries.social.FriendProfile>> =
+        MutableStateFlow(emptyList())
+
+    override suspend fun refreshIncomingRequests() = Unit
+
+    override suspend fun accept(
+        userId: String,
+    ): com.dangerfield.cards.libraries.social.RespondToRequestResult =
+        com.dangerfield.cards.libraries.social.RespondToRequestResult.Ok
+
+    override suspend fun decline(
+        userId: String,
+    ): com.dangerfield.cards.libraries.social.RespondToRequestResult =
+        com.dangerfield.cards.libraries.social.RespondToRequestResult.Ok
 }
 
 /** Records quick-buy calls and returns a configurable [nextOutcome]. */

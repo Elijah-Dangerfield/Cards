@@ -7,6 +7,7 @@ import com.dangerfield.cards.features.room.impl.usecase.WinOddsEngine
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.EmojiBlast
+import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.TurnFeedback
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.game.ConnectionState
@@ -40,6 +41,13 @@ data class PlayPokerState(
      */
     val awaitingHandEndAchievements: Boolean = false,
     val turnFeedback: TurnFeedback = TurnFeedback.Vibrate,
+    /**
+     * AppData-derived: show the "you can turn these off in Settings" footer on
+     * the celebration sheet. True only for the first few celebrations (capped
+     * in [PlayPokerViewModel]); the toggle that silences reveals entirely lives
+     * in Settings and is enforced at hand-end, not via this flag.
+     */
+    val showAchievementSettingsHint: Boolean = false,
     val connection: ConnectionState = ConnectionState.Connected,
     /** Equipped felt; drives the background paint via [feltSurfaceColor]. */
     val equippedFelt: EquippedFelt = EquippedFelt.Default,
@@ -94,6 +102,26 @@ data class PlayPokerState(
     val quickBuyOpen: Boolean = false,
     /** True while a quick-buy IAP round-trip is in flight; the sheet shows a spinner. */
     val purchaseInFlight: Boolean = false,
+    /** The human's own derived play-style for their self-card; null pre-sync. */
+    val ownPlayStyle: PlayStyleAxes? = null,
+    /**
+     * True when the user owns the `tool_opponent_style` shop utility, which
+     * unlocks the play-style readout for human opponents on the seat-tap card.
+     */
+    val ownsOpponentStyleReader: Boolean = false,
+    /**
+     * Fetched play-style per opponent userId, populated on demand when their
+     * card opens (and the reader is owned). A present key with a null value
+     * means "fetched, none yet"; an absent key means "not fetched".
+     */
+    val opponentStyles: Map<String, PlayStyleAxes?> = emptyMap(),
+    /**
+     * Opponent userIds whose friend request flipped to "Sent" (optimistically on
+     * tap, kept on a successful / auto-accepted request, un-flipped only when the
+     * server rejects). Gates the player-card "Add friend" button to its sent
+     * state. Mirrors Home's recently-played add-friend model.
+     */
+    val friendRequestSentIds: Set<String> = emptySet(),
 ) {
     /**
      * Real-chips multiplayer (MP xpMode, not bots-only practice). Gates the bust
@@ -128,6 +156,12 @@ sealed interface PlayPokerAction {
     data class HandXpAwarded(val amount: Int) : PlayPokerAction
     data object HandEndAchievementsPending : PlayPokerAction
     data class AchievementsEarned(val earned: List<EarnedAchievement>) : PlayPokerAction
+
+    /** Fired by the AppCache mirror; gates the celebration sheet's Settings-hint footer. */
+    data class AchievementSettingsHintVisibilityChanged(val show: Boolean) : PlayPokerAction
+
+    /** Celebration sheet showed the hint footer — writes through so it fades after a few shows. */
+    data object MarkAchievementSettingsHintShown : PlayPokerAction
 
     /** Fired by the equipment subscription; repaints the table surface. */
     data class EquippedFeltChanged(val felt: EquippedFelt) : PlayPokerAction
@@ -217,6 +251,18 @@ sealed interface PlayPokerAction {
 
     /** Avatar-tap mute toggle — idempotent on the persisted AppCache set. */
     data class ToggleMutePlayer(val key: String) : PlayPokerAction
+
+    // Play-style (own self-card + gated opponent readout)
+    data class OwnPlayStyleChanged(val playStyle: PlayStyleAxes?) : PlayPokerAction
+    data class OwnsOpponentStyleReaderChanged(val owned: Boolean) : PlayPokerAction
+    /** Opening a human opponent's card; fetches their public style if the reader is owned. */
+    data class RequestOpponentStyle(val userId: String) : PlayPokerAction
+    data class OpponentStyleLoaded(val userId: String, val playStyle: PlayStyleAxes?) : PlayPokerAction
+
+    /** "Add friend" on a human opponent's player card — sends a friend request. */
+    data class AddFriend(val userId: String) : PlayPokerAction
+    /** Internal — the request was rejected by the server; un-flips the Sent state. */
+    data class FriendRequestFailed(val userId: String) : PlayPokerAction
 }
 
 sealed interface PlayPokerEvent {
@@ -228,6 +274,9 @@ sealed interface PlayPokerEvent {
 
     /** Last human standing (room still exists); the entry point routes by room kind. MP only. */
     data object OpponentsLeft : PlayPokerEvent
+
+    /** A non-last opponent left a live table; the screen toasts "X left the table". MP only. */
+    data class OpponentLeft(val displayName: String) : PlayPokerEvent
 
     /**
      * A quick-buy IAP round-trip finished; the screen toasts the result.

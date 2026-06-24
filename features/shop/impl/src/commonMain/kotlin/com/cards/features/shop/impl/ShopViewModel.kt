@@ -146,12 +146,12 @@ class ShopViewModel @Inject constructor(
                 // is driven by the repo flow (observeIsRefreshing)
                 // rather than set here, so any concurrently in-flight
                 // session-rollover refresh stays correctly reflected.
-                action.updateState { it.copy(errorMessage = null) }
+                action.updateState { it.copy(hasRefreshError = false) }
                 viewModelScope.launch {
                     val result = productsRepository.refresh(force = action.force)
                     result.onFailure { failure ->
                         logger.w(failure) { "Catalog refresh failed" }
-                        takeAction(ShopAction.RefreshFailed(failure.message ?: "Couldn't load shop"))
+                        takeAction(ShopAction.RefreshFailed)
                     }
                 }
             }
@@ -165,7 +165,7 @@ class ShopViewModel @Inject constructor(
                 it.copy(isRefreshing = action.value, hasLoaded = hasLoaded)
             }
             is ShopAction.RefreshFailed -> action.updateState {
-                it.copy(errorMessage = action.message)
+                it.copy(hasRefreshError = true)
             }
             is ShopAction.CatalogChanged -> action.updateState {
                 // Disk-hydrated catalog or a successful refresh both
@@ -191,7 +191,7 @@ class ShopViewModel @Inject constructor(
                 it.copy(timeAnchor = action.anchor)
             }
             is ShopAction.DismissError -> action.updateState {
-                it.copy(errorMessage = null)
+                it.copy(hasRefreshError = false)
             }
             is ShopAction.ScrollToCategory -> action.updateState {
                 it.copy(pendingScrollCategory = action.category)
@@ -294,7 +294,7 @@ class ShopViewModel @Inject constructor(
                 // UI's affordance check should prevent this, but if a race
                 // sneaks through (balance changed between sheet-open and
                 // confirm) we surface it as a transient error snackbar — not
-                // the persistent `errorMessage` banner, which is reserved for
+                // the persistent refresh-error banner, which is reserved for
                 // screen-level state like the offline-cache notice.
                 sendEvent(ShopEvent.InsufficientChips(offer))
             }
@@ -341,7 +341,10 @@ data class ShopState(
      *  Affordance gates ([canAfford], [classify], [sheetModeFor]) treat
      *  null as "can't afford anything" so the buy CTA stays disabled. */
     val chipBalance: Long? = null,
-    val errorMessage: String? = null,
+    /** Set when a catalog refresh fails; drives the persistent error banner.
+     *  The banner copy is screen-owned (resolved from resources) rather than
+     *  carried as free text from the VM. */
+    val hasRefreshError: Boolean = false,
     val inventory: List<InventoryItem> = emptyList(),
     /** Quick-lookup set of product ids the user owns. Updated alongside
      *  [inventory] so screen code doesn't re-derive it on every recompose. */
@@ -500,7 +503,7 @@ sealed interface ShopAction {
      * pull-driven or session-rollover-driven.
      */
     data class RefreshingChanged(val value: Boolean) : ShopAction
-    data class RefreshFailed(val message: String) : ShopAction
+    data object RefreshFailed : ShopAction
     data class CatalogChanged(val catalog: ProductCatalog) : ShopAction
     data class ChipsChanged(val balance: Long?) : ShopAction
     data class InventoryChanged(val inventory: List<InventoryItem>) : ShopAction

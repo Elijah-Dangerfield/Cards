@@ -166,9 +166,9 @@ fun ShopScreen(
                 }
             }
 
-            state.errorMessage?.let { message ->
+            if (state.hasRefreshError) {
                 ErrorBanner(
-                    message = message,
+                    message = stringResource(Res.string.shop_error_title),
                     onRetry = { onAction(ShopAction.Refresh(force = true)) },
                     onDismiss = { onAction(ShopAction.DismissError) },
                     modifier = Modifier
@@ -1176,7 +1176,7 @@ private fun ShopScreenPreview_ErrorWithPriorCatalog() {
                 hasLoaded = true,
                 chipBalance = 12_450,
                 catalog = previewFullCatalog(),
-                errorMessage = "Offline — pulled the cached shop.",
+                hasRefreshError = true,
             ),
             onAction = {},
             onProductTap = {},
@@ -1263,17 +1263,6 @@ private fun previewFullCatalog(): ProductCatalog = ProductCatalog(
             costChips = 10_000,
             grantsKey = "tool.win_odds",
             unlockLevel = 10,
-        ),
-        Product.ChipOffer(
-            id = "table_neon",
-            title = "Neon Table",
-            subtitle = "Table theme",
-            iconEmoji = "🎰",
-            featured = true,
-            badge = "NEW",
-            costChips = 8_000,
-            grantsKey = "table.neon",
-            unlockLevel = 8,
         ),
         Product.ChipOffer(
             id = "title_high_roller",

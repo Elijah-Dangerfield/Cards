@@ -6,6 +6,11 @@ import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.RemoveBotOutcome
+import com.dangerfield.cards.libraries.cards.AppEvent
+import com.dangerfield.cards.libraries.cards.AppEventListener
+import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.logOnFailure
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
@@ -18,6 +23,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -30,18 +36,47 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * The auth-related outcomes ([CreateRoomOutcome.NotSignedIn] etc.) fire
  * when the bearer refresh chain runs out of tokens (Ktor's Auth plugin
  * throws on a final 401). UI maps to "please sign in again."
+ *
+ * Also an [AppEventListener]: the active-rooms flow that backs Home's
+ * banner is a client-side projection updated by *this device's* mutations
+ * (create / join / leave), so a room change that originates elsewhere — a
+ * host closing the room on another device, a server-side forfeit / grace
+ * expiry — wouldn't surface until the next explicit [getActiveRooms]. We
+ * re-pull the authoritative server snapshot on the two edges where the
+ * projection is most likely stale: foregrounding the app and regaining
+ * connectivity. Best-effort and fired off the app scope so it never
+ * blocks the event dispatch.
  */
 @SingleIn(AppScope::class)
-@ContributesBinding(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = RoomRepository::class)
+@ContributesBinding(AppScope::class, boundType = AppEventListener::class, multibinding = true)
 @Inject
 class RoomRepositoryImpl(
     private val api: RoomApi,
     private val socket: RoomSocket,
-) : RoomRepository {
+    private val appScope: AppCoroutineScope,
+) : RoomRepository, AppEventListener {
 
     private val activeRooms = MutableStateFlow<List<Room>>(emptyList())
 
     override fun observeActiveRooms(): Flow<List<Room>> = activeRooms.asStateFlow()
+
+    override fun onForeground(event: AppEvent.OnForeground) {
+        // Cold boot resolves the banner through its own load; only the
+        // warm foreground (returning to an app left running) needs the
+        // off-device-change refresh.
+        if (event.isColdBoot) return
+        refreshActiveRooms()
+    }
+
+    override fun onConnectivityRegained(event: AppEvent.ConnectivityRegained) = refreshActiveRooms()
+
+    private fun refreshActiveRooms() {
+        appScope.launch {
+            Catching { getActiveRooms() }
+                .logOnFailure { "Active-rooms refresh on app event failed" }
+        }
+    }
 
     override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = try {
         val response = api.create(
@@ -79,6 +114,12 @@ class RoomRepositoryImpl(
     } catch (e: ClientRequestException) {
         when (e.response.status) {
             HttpStatusCode.NotFound -> JoinRoomOutcome.NotFound
+            HttpStatusCode.BadRequest ->
+                if (extractCode(e) == "insufficient_balance") {
+                    JoinRoomOutcome.OverBalance(extractMessage(e) ?: "Not enough chips for that buy-in")
+                } else {
+                    JoinRoomOutcome.Unknown(e)
+                }
             HttpStatusCode.Conflict -> when (extractCode(e)) {
                 "room_full" -> JoinRoomOutcome.Full
                 "room_not_joinable" -> JoinRoomOutcome.NotJoinable

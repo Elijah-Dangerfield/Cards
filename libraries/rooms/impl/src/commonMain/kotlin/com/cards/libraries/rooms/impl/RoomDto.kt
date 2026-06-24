@@ -135,6 +135,13 @@ data class MatchmakingFindResponseDto(
     val created: Boolean = false,
 )
 
+/** GET /v1/matchmaking/candidates response — the qualifying tables, most-humans-first. */
+@Serializable
+data class MatchmakingCandidatesResponseDto(
+    val schemaVersion: Int = 1,
+    val rooms: List<RoomDto> = emptyList(),
+)
+
 @Serializable
 data class ProblemEnvelopeDto(
     val error: ProblemDto,

@@ -45,9 +45,16 @@
     <string name="shop_snackbar_purchase_failed_title">Purchase failed</string>
     <!-- App - session-expiry boot (the auth server rejected our token mid-run). -->
     <string name="session_expired_title">Session expired</string>
-    <string name="session_expired_message">You were signed out. Sign in again to pick up where you left off.</string>
+    <string name="session_expired_message">We lost your session. Try again to pick up where you left off, or log out to start over.</string>
     <string name="session_expired_guest_title">Guest session ended</string>
-    <string name="session_expired_guest_message">Your guest session ended. Sign in or start a new game to keep playing - create an account so your progress is saved.</string>
+    <string name="session_expired_guest_message">We lost your guest session. Try again to get back in, or log out to start a new game.</string>
+    <string name="session_expired_retry">Try again</string>
+    <string name="session_expired_logout">Log out</string>
+    <string name="session_expired_retry_failed">Still cannot reach your session. Check your connection and try again.</string>
+    <string name="session_expired_guest_logout_confirm_title">Lose your progress?</string>
+    <string name="session_expired_guest_logout_confirm_message">Guest progress is not saved anywhere. Logging out clears your chips, XP, and history for good.</string>
+    <string name="session_expired_guest_logout_keep_playing">Keep trying</string>
+    <string name="session_expired_guest_logout_confirm">Log out anyway</string>
     <string name="shop_snackbar_insufficient_chips_title">Not enough chips</string>
     <string name="shop_snackbar_insufficient_chips_message">You need more chips to grab %1$s.</string>
     <string name="shop_snackbar_claim_required_title">Account needed</string>
@@ -76,6 +83,28 @@
     <string name="shop_error_title">Couldn't load shop</string>
     <string name="shop_error_retry">Retry</string>
 
+    <!-- Shop - quiet responsible-play line on the real-money chip-pack confirm sheet. "Play responsibly" is the tappable link to the NCPG help page. -->
+    <string name="shop_purchase_responsible_play">Play responsibly.</string>
+    <string name="shop_purchase_responsible_play_link">Play responsibly</string>
+
+    <!-- Shop - purchase-confirm bottom sheet (IAP pack + chip-funded offer). -->
+    <string name="shop_purchase_charged_via">Charged via your %1$s.</string>
+    <string name="shop_purchase_buy_now">Buy now</string>
+    <string name="shop_purchase_cancel">Cancel</string>
+    <string name="shop_purchase_close">Close</string>
+    <string name="shop_purchase_locked">Locked</string>
+    <string name="shop_purchase_need_more_chips">Need %1$s more chips</string>
+    <string name="shop_purchase_locked_body">Keep playing to level up. Once you hit Level %1$d this'll be buyable for %2$s chips.</string>
+    <string name="shop_purchase_owned_title">You own this</string>
+    <string name="shop_purchase_owned_body_avatars">Your new avatars are unlocked - pick one from Edit profile.</string>
+    <string name="shop_purchase_owned_body_emotes">Reactions ready - send them from the in-game emote tray.</string>
+    <string name="shop_purchase_owned_body_equippable">Equip it from My items in your profile.</string>
+    <string name="shop_purchase_owned_body_default">It's yours. Enjoy.</string>
+    <string name="shop_purchase_balance_current">Your balance</string>
+    <string name="shop_purchase_balance_after">After purchase</string>
+    <string name="shop_purchase_store_app_store">App Store</string>
+    <string name="shop_purchase_store_google_play">Google Play</string>
+
     <!-- Lobby - top-bar titles. Two phases: pre-room (Idle) vs. in-room. -->
     <string name="lobby_topbar_title_idle">Play with friends</string>
     <string name="lobby_topbar_title_in_room">Game room</string>
@@ -102,6 +131,11 @@
 
     <!-- Lobby - loading state while a room is being created or joined. -->
     <string name="lobby_setting_up">Setting up your table…</string>
+
+    <!-- Lobby - full-screen create-room error state with a retry affordance. -->
+    <string name="lobby_create_error_title">Couldn't create your table</string>
+    <string name="lobby_create_error_retry">Try again</string>
+    <string name="lobby_create_error_back">Go back</string>
 
     <!-- Lobby - InRoom: code surface, member list, start + leave CTAs. -->
     <string name="lobby_in_room_code_label">Room code</string>
@@ -180,6 +214,9 @@
     <string name="onboarding_welcome_oauth_in_flight">One moment…</string>
     <string name="onboarding_welcome_footer">No account required to play.\nSign in later if you want to save your progress.</string>
     <string name="onboarding_welcome_sign_in">Sign in with email</string>
+    <!-- Passive consent shown under the Welcome buttons. "Terms of Service" and "Privacy Policy"
+         must appear verbatim so buildClickableText can make each a tappable link. -->
+    <string name="onboarding_welcome_consent">By continuing, you agree to our Terms of Service and Privacy Policy.</string>
     <string name="onboarding_step_progress">Step %1$d of %2$d</string>
 
     <!-- Onboarding - PickIdentity step (name + starter-pack avatar picker). -->
@@ -223,6 +260,8 @@
     <string name="public_find_blinds_value">Scale with buy-in · 25/50 – 100/200</string>
     <string name="public_find_cta">Find a table</string>
     <string name="public_find_cta_hint">Usually seated in a few seconds</string>
+    <string name="public_find_balance_cap">Capped at your balance</string>
+    <string name="public_find_insufficient_hint">You don't have enough chips to find a table yet.</string>
 
     <!-- Public rooms - Searching / matchmaking (SPEC §2). -->
     <string name="public_searching_title">Finding a table</string>
@@ -230,14 +269,23 @@
     <string name="public_searching_cancel">Cancel search</string>
     <!-- Rotating reassurance shown while we genuinely hunt for real players. -->
     <string name="public_searching_rotate_1">Looking for real players at your buy-in…</string>
-    <string name="public_searching_rotate_2">We'd rather find you real people than fake a crowd.</string>
-    <string name="public_searching_rotate_3">Good tables are worth the wait, so hang tight.</string>
-    <string name="public_searching_rotate_4">Still searching. Sharing the app helps the tables fill faster.</string>
+    <string name="public_searching_rotate_2">Every seat at your table is a real person.</string>
+    <string name="public_searching_rotate_3">A good table is worth the wait. Hang tight.</string>
+    <string name="public_searching_rotate_4">Got friends who play? They make tables fill faster.</string>
     <string name="public_searching_alone">Still looking for players</string>
     <string name="public_searching_joined">A player joined. Dealing you in.</string>
+    <!-- Chooser - the qualifying tables the user can pick from (SPEC §2). -->
+    <string name="public_searching_choose_title">Tables you can join</string>
+    <string name="public_searching_choose_subtitle">Pick a table to take a seat. Joining buys you in at that table's stakes.</string>
+    <string name="public_searching_choose_seats">%1$d of %2$d seated</string>
+    <string name="public_searching_choose_humans_one">1 real player</string>
+    <string name="public_searching_choose_humans">%1$d real players</string>
+    <string name="public_searching_choose_join">Join</string>
+    <string name="public_searching_choose_none">None of these? Start a fresh table and we will wait for players.</string>
+    <string name="public_searching_choose_start_fresh">Start a fresh table</string>
     <!-- Honest disclosed-bot fallback after a fruitless search. -->
     <string name="public_searching_offer_title">We couldn't find anyone right now</string>
-    <string name="public_searching_offer_body">We looked hard and couldn't find enough real players right now. That's on us. You can still play for real chips against bots. You keep what you win, up to a daily limit, and they step aside the moment a real player joins.</string>
+    <string name="public_searching_offer_body">Play bots for real chips while you wait. You keep what you win, up to a daily limit, and they step aside the moment a real player joins.</string>
     <string name="public_searching_offer_play_bots">Play bots for real chips</string>
     <string name="public_searching_offer_keep_waiting">Keep waiting for players</string>
     <string name="public_searching_offer_try_later">Try again later</string>
@@ -245,38 +293,9 @@
     <string name="public_searching_joining_bots_body">Seating your opponents and dealing you in…</string>
     <!-- Search failed (network / rate limit / rejected). -->
     <string name="public_searching_error_body">We couldn't reach the tables just now. Check your connection and try again.</string>
+    <string name="public_searching_error_insufficient">That buy-in is more than your balance. Go back and lower your range.</string>
     <string name="public_searching_error_retry">Try again</string>
     <string name="public_searching_error_back">Back</string>
-
-    <!-- Public rooms - Lobby (timer auto-deal, SPEC §3). -->
-    <string name="public_lobby_title">The Felt</string>
-    <string name="public_lobby_subtitle">Public table</string>
-    <string name="public_lobby_timer">0:08</string>
-    <string name="public_lobby_autodeal_title">Dealing automatically</string>
-    <string name="public_lobby_autodeal_body">%1$d seated · first hand starts at the buzzer</string>
-    <string name="public_lobby_seats_count">Seats %1$d / %2$d</string>
-    <string name="public_lobby_filling">Filling up…</string>
-    <string name="public_lobby_stakes_label">Stakes</string>
-    <string name="public_lobby_stakes_value">25 / 50</string>
-    <string name="public_lobby_buyin_label">Your buy-in</string>
-    <string name="public_lobby_buyin_value">5,000</string>
-    <string name="public_lobby_reserved">Seat reserved · deals on its own - no host needed</string>
-    <string name="public_leave_table">Leave table</string>
-    <string name="public_lobby_leave_dialog_title">Leave this table?</string>
-    <string name="public_lobby_leave_dialog_body">You'll give up your seat and go back to find another table.</string>
-    <string name="public_lobby_leave_dialog_primary">Leave</string>
-    <string name="public_lobby_leave_dialog_secondary">Stay</string>
-
-    <!-- Public rooms - Next round (joined mid-hand, SPEC §4). -->
-    <string name="public_next_card_title">You're in for the next hand</string>
-    <string name="public_next_card_body">A hand's in progress - you'll be dealt in the moment it ends.</string>
-    <string name="public_next_at_table">At the table</string>
-    <string name="public_next_in_progress">Hand in progress</string>
-    <string name="public_next_buyin_label">Buying in for</string>
-    <string name="public_next_buyin_value">5,000</string>
-    <string name="public_next_buyin_note">within your range</string>
-    <string name="public_next_change">Change</string>
-    <string name="public_next_joining">Joining automatically when this hand ends</string>
 
     <!-- Home - Private room "create or join" bottom sheet (SPEC §1). -->
     <string name="private_choose_title">Private room</string>
@@ -303,13 +322,7 @@
     <string name="home_recents_add_friend">Add friend</string>
     <string name="home_recents_add_friend_sent">Sent</string>
 
-    <!-- Home - "coming soon" sheet copy for unbuilt CTAs (Quick Match, Friends, requests, recently-played). -->
-    <string name="home_coming_soon_quick_match_title">Quick Match</string>
-    <string name="home_coming_soon_quick_match_body">Public matchmaking ships once we have enough humans playing to keep wait times short. Until then, grab a Friend Game or a Practice table.</string>
-    <string name="home_coming_soon_friends_title">Friends</string>
-    <string name="home_coming_soon_friends_body">Adding friends, online presence, and the requests inbox all land together. Friends grow from the felt - anyone you face will surface in 'Recently played with' below, ready to add the moment the graph ships.</string>
-    <string name="home_coming_soon_friend_requests_title">Friend requests</string>
-    <string name="home_coming_soon_friend_requests_body">Sending friend requests ships with the friend graph. We hang onto who you've played with so you can opt in the moment that lands.</string>
+    <!-- Home - "coming soon" sheet copy for unbuilt CTAs (recently-played, tournament). -->
     <string name="home_coming_soon_recently_played_title">Recently played with</string>
     <string name="home_coming_soon_recently_played_body">The full history of humans you've played comes with Quick Match + Friend Games. For now we're showing the most recent at the table.</string>
     <string name="home_coming_soon_tournament_title">Tournament</string>
@@ -450,6 +463,8 @@
     <string name="profile_gameplay_bot_speed_supporting">How fast the bots think and act</string>
     <string name="profile_gameplay_turn_feedback_headline">Your turn feedback</string>
     <string name="profile_gameplay_turn_feedback_supporting">Cue when it becomes your turn</string>
+    <string name="profile_gameplay_achievement_popups_headline">Achievement pop-ups</string>
+    <string name="profile_gameplay_achievement_popups_supporting">Celebrate unlocks with a pop-up. They\'re still earned when off.</string>
     <string name="profile_bot_speed_slow">Slow</string>
     <string name="profile_bot_speed_normal">Normal</string>
     <string name="profile_bot_speed_fast">Fast</string>
@@ -500,17 +515,27 @@
     <string name="settings_section_account_support">Account &amp; support</string>
     <string name="settings_about_headline">About Cards</string>
     <string name="settings_legal_footer">Play money only · no real-money gambling</string>
+    <string name="settings_responsible_play_headline">Responsible play</string>
+    <string name="settings_responsible_play_supporting">Get help with problem gambling</string>
 
     <!-- Profile v2 - gear, header subtitle, stats banner, trophies, owned items. -->
     <string name="profile_settings_a11y">Settings</string>
     <string name="profile_header_joined">Joined %1$s %2$d</string>
-    <string name="profile_play_style_example">Sharp &amp; Steady</string>
+    <string name="stats_lifetime_opponents_label">Players faced</string>
     <string name="stats_play_style_section">Play style</string>
     <string name="stats_play_style_name">Tight-Aggressive</string>
     <string name="stats_play_style_blurb">You wait for strong hands, then bet them hard.</string>
+    <string name="stats_play_style_empty_title">Your style is taking shape</string>
+    <string name="stats_play_style_empty_blurb">Play at least %1$d hands and we will map how you play - tight or loose, aggressive or patient.</string>
     <string name="profile_stats_banner_title">Your stats &amp; style</string>
-    <string name="profile_stats_banner_subtitle">%1$s · %2$d%% win · %3$s won</string>
-    <string name="profile_stats_banner_subtitle_no_games">%1$s · Play a few hands to see your stats</string>
+    <string name="profile_stats_banner_subtitle_style_win">%1$s · %2$d%% win</string>
+    <string name="profile_stats_banner_subtitle_pending">Play more hands to build your style</string>
+    <string name="profile_friend_requests_title">Friend requests</string>
+    <string name="profile_friend_requests_count">%1$d pending</string>
+    <string name="profile_friend_requests_empty">Friends grow from the felt - play someone, then add them from "Recently played with".</string>
+    <string name="profile_friend_requests_accept">Accept</string>
+    <string name="profile_friend_requests_decline">Decline</string>
+    <string name="profile_friend_requests_wants_to_friend">wants to be friends</string>
     <string name="profile_achievements_title">Achievements</string>
     <string name="profile_achievements_count_see_all">%1$d / %2$d · See all</string>
     <string name="profile_items_shop_link">Shop ›</string>
@@ -567,6 +592,12 @@
     <string name="profile_edit_sync_rejected_name_taken">Couldn't save your name - that one's already taken.</string>
     <string name="profile_edit_sync_rejected_name_invalid">Couldn't save your name - that one's not allowed.</string>
     <string name="profile_edit_sync_rejected_avatar">Couldn't save your avatar - it's no longer available.</string>
+    <string name="profile_edit_save_error_name_taken">Couldn't save - that name is already taken.</string>
+    <string name="profile_edit_save_error_name_invalid">Couldn't save - that name isn't allowed.</string>
+    <string name="profile_edit_save_error_avatar_emoji">Couldn't save - that avatar isn't available.</string>
+    <string name="profile_edit_save_error_avatar_color">Couldn't save - that color isn't available.</string>
+    <string name="profile_edit_save_error_network">Couldn't save changes - check your connection.</string>
+    <string name="profile_edit_save_error_unknown">Couldn't save changes. Try again.</string>
     <string name="profile_card_stat_hands_played">Hands played</string>
     <string name="profile_card_stat_member_since">Member since</string>
     <string name="profile_card_member_since_value">%1$s %2$d</string>
@@ -680,6 +711,7 @@
     <string name="room_stack_explainer_title">You have %1$s chips</string>
     <string name="room_stack_explainer_body">Use them to bet, call, and raise during a hand. Chips you put in go to the pot - the player with the best hand at showdown wins it.</string>
     <string name="room_stack_explainer_practice_note">Go bust against bots and a fresh stack arrives next hand. Practice chips don't count for keeps.</string>
+    <string name="room_stack_explainer_subsidized_note">These are real chips - keep what you beat the bots for, up to a daily limit. Go bust and a fresh stack arrives next hand, on the house.</string>
 
     <!-- Room - Bet-pill explainer (tap on a player's gold bet pill). -->
     <string name="room_bet_pill_explainer_title">%1$s put in %2$s</string>
@@ -756,6 +788,8 @@
     <!-- Room - Bust dialog (human stack reached 0 this hand). -->
     <string name="room_bust_title">You went bust</string>
     <string name="room_bust_body">Practice chips refilled - chips against bots don't count for keeps. Deal yourself in and keep sharpening up.</string>
+    <!-- Bust on a public disclosed-bot table: real chips, house-funded refill. -->
+    <string name="room_bust_subsidized_body">Fresh stack on the house - these are real chips, so anything you beat the bots for is yours to keep, up to a daily limit. Deal yourself back in.</string>
     <string name="room_bust_deal_me_in_button">Deal me in</string>
     <!-- Room - Multiplayer bust dialog (rebuy with wallet chips, or buy more, or leave). -->
     <string name="room_mp_bust_title">You're out of chips</string>
@@ -777,6 +811,9 @@
     <string name="room_quick_buy_failed">Couldn't complete the purchase</string>
     <string name="room_quick_buy_store_unavailable">Store unavailable right now</string>
 
+    <!-- Room - transient notice when a non-last opponent leaves a live table. %1$s is their display name. -->
+    <string name="room_opponent_left">%1$s left the table</string>
+
     <!-- Room - Achievement-unlocked callout (inline within hand-end dialogs in MP mode). -->
     <string name="room_achievement_callout_heading">Achievement unlocked</string>
     <string name="room_achievement_reward_xp">+%1$d XP</string>
@@ -793,6 +830,7 @@
     <string name="room_celebration_title_multi">%1$d achievements unlocked</string>
     <string name="room_celebration_subtitle_multi">Stacked them in one hand.</string>
     <string name="room_celebration_continue_button">Continue</string>
+    <string name="room_celebration_settings_hint">You can turn these off in Settings → Gameplay.</string>
     <string name="room_celebration_cosmetic_attribution">from the %1$s achievement</string>
     <string name="room_celebration_tap_to_reveal">Tap to reveal</string>
 
@@ -846,8 +884,16 @@
 
     <!-- Room - Tap-an-opponent profile sheet (per-seat playing style + difficulty + settings). -->
     <string name="room_player_profile_playing_style_heading">Playing style</string>
+    <string name="room_player_profile_style_locked_title">Read their style</string>
+    <string name="room_player_profile_style_locked_body">Unlock the Opponent Style Reader in the shop to see how this player plays — tight or loose, aggressive or patient.</string>
+    <string name="room_player_profile_style_pending_body">Not enough hands yet to read this player\'s style.</string>
     <string name="room_player_profile_tenure_section_title">At this table</string>
     <string name="room_player_profile_difficulty_section_title">Difficulty</string>
+    <string name="room_player_profile_friend_section_title">Friend</string>
+    <string name="room_player_profile_add_friend_headline">Add friend</string>
+    <string name="room_player_profile_add_friend_supporting">You've played a hand together, so you can add them.</string>
+    <string name="room_player_profile_add_friend_button">Add</string>
+    <string name="room_player_profile_add_friend_button_sent">Sent</string>
     <string name="room_player_profile_settings_section_title">Settings</string>
     <string name="room_player_profile_mute_emoji_headline">Mute emoji</string>
     <string name="room_player_profile_mute_emoji_supporting_muted">You won't see their table blasts.</string>
@@ -954,6 +1000,7 @@
     <string name="room_top_bar_back_a11y">Back</string>
     <string name="room_top_bar_hand_info_a11y">Hand info and rankings</string>
     <string name="room_loading_dealing_in">Dealing in…</string>
+    <string name="room_waiting_to_be_dealt_in">You'll be dealt in next hand</string>
     <string name="room_practice_tier_bots_present">Practice tier · bots present</string>
     <string name="room_practice_tier_explainer_title">Practice tier</string>
     <string name="room_practice_tier_explainer_a11y">What practice tier means</string>
@@ -1057,6 +1104,9 @@
     <!-- UI library - LevelPill (progression pill "Level N" rendered in headers / shelves). -->
     <string name="ui_level_pill_label">Level %1$d</string>
 
+    <!-- UI library - LevelChip (compact "Lvl N" progression chip on the Player Card). -->
+    <string name="ui_level_chip_label">Lvl %1$d</string>
+
     <!-- UI library - TopBar back-icon a11y label (every screen with a back button reads this). -->
     <string name="ui_top_bar_back_a11y">Navigate back</string>
 
@@ -1140,6 +1190,21 @@
     <string name="account_setup_banner_message">Finishing account setup - we'll keep trying. Some features are limited until then.</string>
     <string name="account_setup_banner_retry">Retry</string>
     <string name="account_setup_banner_retrying">Retrying…</string>
+
+    <!-- Auth-gate sheet the router substitutes for a gated route. Three reasons,
+         each with its own title / body / primary CTA. The "Not now" ghost button
+         dismisses (absent on the FinishingSetup variant, whose primary CTA already
+         dismisses). -->
+    <string name="auth_gate_dismiss">Not now</string>
+    <string name="auth_gate_finishing_title">Finishing setup</string>
+    <string name="auth_gate_finishing_body">We're still setting up your account. Try again in a moment, we'll keep retrying in the background.</string>
+    <string name="auth_gate_finishing_cta">Got it</string>
+    <string name="auth_gate_need_account_title">Account needed</string>
+    <string name="auth_gate_need_account_body">Create an account to play with others.</string>
+    <string name="auth_gate_need_account_cta">Get started</string>
+    <string name="auth_gate_need_claimed_title">Save your account</string>
+    <string name="auth_gate_need_claimed_body">Save your account first so this stays yours across devices.</string>
+    <string name="auth_gate_need_claimed_cta">Save account</string>
 
     <!-- Generic top-of-screen offline strip shown whenever the device has no
          connection. -->
