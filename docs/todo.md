@@ -70,8 +70,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## B. Multiplayer hardening
 
-- `[P2]` **MP-1 — Orphaned-room policy — read-only spectator downgrade.** Seat-forfeit on grace expiry already lands (`forfeitSeat`); the remaining half is downgrading the forfeited member's WS subscription to **read-only spectator** instead of closing the socket, with `GET /v1/me/active-rooms` driving a Rejoin / Forfeit banner. The seatless-subscriber socket auth this needs already exists.
-
 - `[P0]` **MP-2 — Close the remaining multiplayer test gaps.** MP is the load-bearing feature of the app. The integration module + engine property tests + chaos suite are largely landed (see [`practices/testing.md`](./practices/testing.md)). Still open:
 
   - **Compose UI tests for `PlayPokerScreen`** — ~15 tests across the screen's 6+ states (your turn, bot thinking, raise unavailable, showdown, fold-around, loading, connection lost). Wire `androidx.compose.ui.test` into `:features:room:impl`'s `androidUnitTest`.
@@ -82,11 +80,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Out of scope:** Emulator-based UI tests (device-smoke checklist is the substitute) and hand-history regression fixtures (gated on a real production playtest).
 
-- `[P1]` **MP-6 — Finish the bots-for-chips settlement disclosure (post-cashout + sit-down cap).** The leave-confirm dialog now names the exact stack returning to the wallet on a subsidized table; `cashOut` already credits the full final stack (confirmed: no accounting bug — the `bot_subsidy_payout` cap only limits how much counts against the *daily budget*, not what cashes out). Two disclosure surfaces remain: (1) a post-leave confirmation (toast / Home summary) that names the credited amount + the new wallet balance, so the balance change is never a silent surprise; (2) a sit-down-time disclosure when the player is near their daily subsidy cap, so they learn the cap before playing rather than inferring it from an "odd balance" afterward.
+- `[P1]` **MP-6 — Surface bot-table chip settlement at the surprising moments.** Two disclosure surfaces remain on subsidized bot tables: (1) a post-leave confirmation (toast / Home summary) naming the credited amount + new wallet balance, so the balance change is never a silent surprise; (2) a sit-down disclosure when the player is near their daily subsidy cap, so they learn it before playing rather than from an "odd balance" afterward.
 
-  **Acceptance:** A player who wins on a subsidized bot table and leaves sees the credited amount confirmed after leaving; a player near their daily cap is told before they sit. The resulting balance is never surprising at any of the three moments (sit / leave-confirm / post-leave).
+  **Acceptance:** A player who wins on a subsidized table and leaves sees the credited amount confirmed; a player near their daily cap is told before they sit.
 
-  **Hints:** `DefaultTableSessionService.cashOut` credits `finalStack` in full; `SubsidyCapReached` (`SitDownResult`) is the cap gate. Leave-confirm slice landed in `LeaveBotsConfirmDialog`. Cases `docs/agent/feedback-cases/6dd1f1ffddb347fd9cf6c5909caa98d0.md` + `docs/agent/feedback-cases/a0e30df3e1f845e085a7b360e3e5a4c5.md`; Sentry CARDS-2N / CARDS-2Y.
+  **Hints:** `DefaultTableSessionService.cashOut` credits `finalStack`; `SubsidyCapReached` (`SitDownResult`) is the cap gate. Sentry CARDS-2N / CARDS-2Y.
 
 ---
 
