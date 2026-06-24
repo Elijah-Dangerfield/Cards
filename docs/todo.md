@@ -92,12 +92,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** Bots path precedent is `DefaultTableSessionService.cashOut` (credits `finalStack`); the private-room leave path has no equivalent. `ChipsRepository.addChips(idempotencyKey=…)` is the idempotent credit primitive; resume reconcile is `ChipsSync`. Case `docs/agent/feedback-cases/b12633cf4d4441a992f5de348a5900a8.md` (full A5MEME story, both seats) + `docs/agent/feedback-cases/624b47e2cfff46fc8d01f66f810d60dd.md` (the +100-on-resume detail). Sentry CARDS-3C/3E + CARDS-3F/3G.
 
-- `[P1]` **MP-8 — Room socket reconnect storm after the sole other human leaves.** Once the only opponent leaves a 2-player room (room NP2DDJ), the client socket wedges into an unbounded connect→drop→reconnect loop: hundreds of `Room socket connected` immediately followed by `Room socket reconnecting (attempt=1, backoff=…)` for ~30s after an NSPOSIXError 57 "Socket is not connected", with `attempt=1` never incrementing and no give-up. The user's only escape was mashing Back. Distinct from the existing backlog "$0 buy-in + 409 on POST /bots" residual (same room) — this is the reconnect-reliability half.
-
-  **Acceptance:** After the peer leaves and the socket half-opens, reconnect attempts back off and increment, and after a bounded number of failures the client lands on a terminal "reconnect failed / leave" state instead of looping. No tight connect/reconnect storm in the session log.
-
-  **Hints:** `RoomSocket` reconnect logic — the `attempt` counter isn't advancing and there's no backoff ceiling / terminal state; the server-side socket is half-open (status never dropped back to Lobby after the sole-human-left rebound, which is the shared root with the backlog item). Case `docs/agent/feedback-cases/74169a5f37b34263a6250e1081e30368.md`; Sentry CARDS-37. Related: backlog "MP lobby shows $0 buy-in + 409 … after sole-human-left rebound".
-
 ---
 
 ## C. Engineering

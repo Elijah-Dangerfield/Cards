@@ -553,6 +553,87 @@ class ReconnectingRoomSocketTest : CoroutineTest() {
         assertEquals(listOf(1, 2), attempts.take(2))
     }
 
+    /**
+     * Regression for the half-open-socket storm (CARDS-37): once the sole
+     * other human leaves, the server socket accepts the handshake and then
+     * drops it instantly, delivering no frames. The old loop reset the
+     * attempt counter on every handshake success, so it spun
+     * connect→drop→reconnect forever at the 250ms floor with attempt stuck
+     * at 1. The counter must now keep climbing across frame-less drops and
+     * land on Closed(ReconnectFailed) after the ceiling.
+     */
+    @Test
+    fun frameLessReconnects_climbAttempts_thenGiveUp_withReconnectFailed() = runUnitTest {
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        // Each open succeeds (handshake 101) but the session is primed to be
+        // dropped immediately with no frames — the half-open signature.
+        repeat(ReconnectingRoomSocket.MAX_RECONNECT_ATTEMPTS + 2) { transport.primeSuccess() }
+
+        val seen = mutableListOf<RoomConnection>()
+        val job = launch { socket.connect("NP2DDJ").connection.collect { seen += it } }
+        advanceUntilIdle()
+
+        // Drop every session the instant it opens; the loop should keep
+        // climbing the backoff rather than looping at attempt=1.
+        repeat(ReconnectingRoomSocket.MAX_RECONNECT_ATTEMPTS + 2) {
+            transport.latest?.closeFromPeer()
+            advanceTimeBy(60_000)
+            runCurrent()
+        }
+
+        val attempts = seen.filterIsInstance<RoomConnection.Reconnecting>().map { it.attempt }
+        assertEquals(
+            (1..ReconnectingRoomSocket.MAX_RECONNECT_ATTEMPTS).toList(),
+            attempts,
+            "frame-less drops must climb the attempt counter, not loop at 1; saw $attempts",
+        )
+        val closed = seen.filterIsInstance<RoomConnection.Closed>().firstOrNull()
+        assertNotNull(closed, "must terminate after the ceiling; saw $seen")
+        assertEquals(ClosedReason.ReconnectFailed, closed.reason)
+        job.cancel()
+    }
+
+    /**
+     * A session that actually delivered a frame was healthy, so a single
+     * drop after it must reset the backoff — the next drop starts from
+     * attempt=1 again rather than inheriting the prior climb. Guards against
+     * a long, working connection that blips once getting unfairly counted
+     * toward the give-up ceiling.
+     */
+    @Test
+    fun healthySession_resetsAttemptCounter_afterDrop() = runUnitTest {
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        val first = transport.primeSuccess()
+        val second = transport.primeSuccess()
+        transport.primeSuccess()
+
+        val seen = mutableListOf<RoomConnection>()
+        val job = launch { socket.connect("ABC123").connection.collect { seen += it } }
+        advanceUntilIdle()
+
+        // First session is healthy (delivers a snapshot) then drops.
+        first.receive(RoomSocketEventDto.Snapshot(sampleRoomDto("ABC123")))
+        advanceUntilIdle()
+        first.closeFromPeer()
+        advanceTimeBy(60_000); runCurrent()
+
+        // Second session is healthy too, then drops.
+        second.receive(RoomSocketEventDto.Snapshot(sampleRoomDto("ABC123")))
+        advanceUntilIdle()
+        second.closeFromPeer()
+        advanceTimeBy(60_000); runCurrent()
+
+        val attempts = seen.filterIsInstance<RoomConnection.Reconnecting>().map { it.attempt }
+        assertEquals(
+            listOf(1, 1),
+            attempts,
+            "each healthy session must reset the counter to 1 on drop; saw $attempts",
+        )
+        job.cancel()
+    }
+
     // ===================================================================
     // Lifecycle: subscribe count, linger, eviction
     // ===================================================================

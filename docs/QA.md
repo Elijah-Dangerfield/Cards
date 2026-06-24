@@ -327,3 +327,14 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 1. Play a hand to where Device B's stack busts (call/shove and lose).
 
 **Expected:** Device B sees the bust dialog with re-buy options (move another buy-in from wallet, drop to a lower tier, or — if broke — soft-bust protection). Choosing re-buy moves a fresh buy-in wallet → stack and deals B back in on the next hand. Declining leaves the table cleanly. On a subsidized bots-for-chips table, the bust dialog reads "fresh stack on the house" and the chips stay real (cross-ref `MP-6` settlement). Wallet math is correct after the re-buy — no double debit.
+
+---
+
+### `MP-9` ⚠️ 📱 Sole opponent leaves a 2-player room — no reconnect storm
+
+**State:** a 2-player room (Device A + Device B), then Device B leaves so Device A is the only human left.
+
+1. Device B: leave (or force-quit) the room.
+2. Device A: stay on the play screen and watch for ~30s.
+
+**Expected:** Device A does not wedge into a tight connect→reconnect loop. If the socket half-opens and keeps dropping, reconnect attempts back off and the attempt counter climbs (1, 2, 3…), then after a bounded number of failures the screen lands on a terminal "lost connection / leave" state instead of looping forever. No rapid-fire "Room socket connected / reconnecting (attempt=1)" churn in the session log. (Covers todo MP-8.)

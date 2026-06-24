@@ -198,7 +198,7 @@ class PublicSearchingViewModel(
                                 updateState { it.copy(phase = SearchPhase.Searching, error = null) }
                                 beginSearch(backoff = true)
                             }
-                        ClosedReason.Rejected ->
+                        ClosedReason.Rejected, ClosedReason.ReconnectFailed ->
                             updateState { it.copy(error = SearchError.Connection) }
                         ClosedReason.Cancelled -> Unit // we tore it down ourselves
                     }

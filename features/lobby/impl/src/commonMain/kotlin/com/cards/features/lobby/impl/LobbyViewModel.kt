@@ -242,6 +242,13 @@ class LobbyViewModel(
                                 joining = false,
                                 leaving = false,
                             )
+                            ClosedReason.ReconnectFailed -> it.copy(
+                                connectionStatus = ConnectionStatus.Disconnected,
+                                error = LobbyError.ConnectionLost,
+                                creating = false,
+                                joining = false,
+                                leaving = false,
+                            )
                             ClosedReason.Cancelled -> it.copy(
                                 connectionStatus = ConnectionStatus.Disconnected,
                             )
@@ -516,6 +523,7 @@ sealed interface LobbyError {
     data object LeaveServerNotNotified : LobbyError
     data object RoomWasClosed : LobbyError
     data object ConnectRejected : LobbyError
+    data object ConnectionLost : LobbyError
     data object StartGameComingSoon : LobbyError
     /** Add-/remove-bot call failed (full, network, etc.). */
     data object BotActionFailed : LobbyError

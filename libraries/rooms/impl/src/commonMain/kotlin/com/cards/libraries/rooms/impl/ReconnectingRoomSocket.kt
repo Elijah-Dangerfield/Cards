@@ -58,7 +58,7 @@ import kotlin.math.pow
  * one coordinator + two SharedFlows per code the user ever visited.
  *
  * Reconnect policy: exponential backoff starting at 250ms, doubling
- * per attempt, capped at 16s. Stops reconnecting on two terminal
+ * per attempt, capped at 16s. Stops reconnecting on three terminal
  * signals:
  *  - The server sends `room_closed` (no point reconnecting to a dead
  *    room).
@@ -68,6 +68,15 @@ import kotlin.math.pow
  *    re-subscribe. 5xx and transport-level failures still surface as
  *    [RoomConnection.Reconnecting] and back off — they're the server's
  *    transient problem, not ours.
+ *  - [MAX_RECONNECT_ATTEMPTS] consecutive failures without the socket
+ *    ever becoming healthy. A half-open server socket (e.g. left behind
+ *    after the sole other human leaves) accepts the WS handshake and
+ *    then drops it instantly, delivering no frames — the old loop reset
+ *    the attempt counter on every handshake success, so it spun
+ *    connect→drop→reconnect forever at the 250ms floor. The counter now
+ *    only resets once a session is *healthy* (delivers at least one
+ *    frame), so an instantly-dropping socket keeps climbing the backoff
+ *    and lands on [ClosedReason.ReconnectFailed] instead of looping.
  *
  * Forward-compat: unrecognized event types throw at JSON decode time
  * and the loop drops them with a warning.
@@ -295,16 +304,31 @@ class ReconnectingRoomSocket @Inject constructor(
                     }
                 }
 
-                attempt = 0
                 // Info: handshake succeeded — pairs with the close/drop logs to
                 // bound a connected window in a reported session's breadcrumbs.
                 logger.i { "Room socket connected (code=$code)" }
-                val terminal = runConnectedSession(session)
-                if (terminal) return@coroutineScope
+                val outcome = runConnectedSession(session)
+                if (outcome.terminal) return@coroutineScope
+
+                // A session that delivered at least one frame was genuinely
+                // healthy — reset the counter so a single mid-game drop after
+                // a long, working connection starts its backoff from scratch.
+                // A session that dropped without ever delivering a frame is the
+                // half-open-socket signature: do NOT reset, so repeated instant
+                // drops climb toward the ceiling instead of looping forever.
+                if (outcome.deliveredFrame) attempt = 0
 
                 // Clean drop without RoomClosed — server dropped us
-                // (deploy / restart / brief network glitch). Retry.
+                // (deploy / restart / brief network glitch, or a half-open
+                // peer socket). Retry until the ceiling.
                 attempt += 1
+                if (attempt > MAX_RECONNECT_ATTEMPTS) {
+                    logger.w {
+                        "Room socket giving up after $MAX_RECONNECT_ATTEMPTS reconnects (code=$code)"
+                    }
+                    _connection.emit(RoomConnection.Closed(ClosedReason.ReconnectFailed))
+                    return@coroutineScope
+                }
                 val backoff = backoffFor(attempt)
                 // Info: a routine reconnect (vs. the warn-level handshake-retry
                 // above) — explains a mid-game stall in the user's trail.
@@ -315,19 +339,22 @@ class ReconnectingRoomSocket @Inject constructor(
         }
 
         /**
-         * Drives one live session until it drops or completes a
-         * terminal frame. Returns true on terminal (no reconnect),
-         * false on clean drop (reconnect with backoff). Owns its own
-         * `coroutineScope` so the writer is structurally a child of
-         * this session and dies with it.
+         * Drives one live session until it drops or completes a terminal
+         * frame. Returns a [SessionOutcome] carrying whether the drop was
+         * terminal (no reconnect) and whether the session ever delivered a
+         * decodable frame (i.e. became healthy — drives the reconnect
+         * counter reset). Owns its own `coroutineScope` so the writer is
+         * structurally a child of this session and dies with it.
          */
-        private suspend fun runConnectedSession(session: RoomSocketSession): Boolean =
+        private suspend fun runConnectedSession(session: RoomSocketSession): SessionOutcome =
             coroutineScope {
                 val writerJob = launch { drainOutbound(session) }
                 var terminal = false
+                var deliveredFrame = false
                 try {
                     session.incoming.collect { text ->
                         val event = decode(text) ?: return@collect
+                        deliveredFrame = true
                         // Debug-only one-liner per inbound wire frame. Rides
                         // only in the in-memory ring buffer dumped on feedback
                         // — never as breadcrumbs or events. Gives reported
@@ -395,7 +422,7 @@ class ReconnectingRoomSocket @Inject constructor(
                     writerJob.cancel()
                     session.close()
                 }
-                terminal
+                SessionOutcome(terminal = terminal, deliveredFrame = deliveredFrame)
             }
 
         private suspend fun CoroutineScope.drainOutbound(session: RoomSocketSession) {
@@ -442,6 +469,15 @@ class ReconnectingRoomSocket @Inject constructor(
     }
 
     /**
+     * Result of one connected session. [terminal] means the server told
+     * us the room is gone (no reconnect); [deliveredFrame] means the
+     * session decoded at least one frame before dropping (it was healthy,
+     * so the reconnect counter resets). A half-open socket drops without
+     * either flag set.
+     */
+    private data class SessionOutcome(val terminal: Boolean, val deliveredFrame: Boolean)
+
+    /**
      * Exponential backoff with cap. attempt=1 → 250ms,
      * 2 → 500ms, 3 → 1s, 4 → 2s, … cap at 16s. Multiply by [0.5, 1.5]
      * jitter so a thundering-herd reconnect after a server restart
@@ -457,6 +493,14 @@ class ReconnectingRoomSocket @Inject constructor(
     companion object {
         private const val BACKOFF_BASE_MS: Long = 250
         private const val BACKOFF_CAP_MS: Long = 16_000
+
+        /**
+         * Consecutive reconnects (after a connect that never became
+         * healthy) before the socket gives up with
+         * [ClosedReason.ReconnectFailed]. Bounds the half-open-socket
+         * storm so the client stops looping and the user can leave.
+         */
+        internal const val MAX_RECONNECT_ATTEMPTS: Int = 6
 
         /** How long to keep the WS open after the last subscriber unsubscribes. */
         internal const val STOP_LINGER_MS: Long = 1_000

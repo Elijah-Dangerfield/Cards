@@ -197,6 +197,7 @@
     <string name="lobby_error_leave_server_not_notified">Couldn't tell the server we left. Your seat will free up.</string>
     <string name="lobby_error_room_was_closed">The room was closed.</string>
     <string name="lobby_error_connect_rejected">Couldn't connect - try rejoining.</string>
+    <string name="lobby_error_connection_lost">Lost connection to the room. Try rejoining.</string>
     <string name="lobby_error_start_coming_soon">Multiplayer gameplay launches with the next update - invite your friends and stand by.</string>
     <string name="lobby_error_bot_action_failed">Couldn't update the bots. Try again.</string>
 

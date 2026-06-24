@@ -167,6 +167,13 @@ enum class ClosedReason {
     RoomDeleted,
     /** Server rejected the upgrade (not a member, unknown code, etc.) — terminal. */
     Rejected,
+    /**
+     * The socket connected then dropped repeatedly without ever becoming
+     * healthy (no frames delivered) for [too many][RoomConnection] attempts —
+     * usually a half-open server socket. Terminal: the client gives up rather
+     * than looping forever, and the user should leave / re-enter the room.
+     */
+    ReconnectFailed,
     /** The user cancelled the observe call themselves. */
     Cancelled,
 }
