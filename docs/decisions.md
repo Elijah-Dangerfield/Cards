@@ -25,6 +25,23 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-24 — Branching: trunk-based, no release branches
+
+**Decision:** Stay on trunk-based development. `main` is always shippable, short-lived branches merge into `main`, releases are tags on `main` cut by release-please. No release branches, no GitFlow, no long-lived `develop` line (the `develop` branch we use is a worker-staging area for the nightly bot, not a release-stabilization branch).
+
+**Why:** release-please is aligned with TBD. Solo dev + store-submitted app + occasional store rejection means the retag cost is real but manageable (~1-2 retags per version at worst). Release branches would add real machinery — dual release-please configs, a merge-back ritual — to solve a problem we hit maybe once or twice per version. The smoother-ritual options (one-shot retag action, skip-play signal on tag push) are ~1 hour of work and cover 80% of the pain without changing the model.
+
+**Alternatives considered:**
+- **GitFlow (classic).** Long-lived `develop` + `release/*` branches + `master` for production. Designed for periodic boxed releases on a schedule; the original author has since added a disclaimer it's outdated for most teams. Rejected: high coordination overhead for a solo dev shipping continuously to two app stores.
+- **Release branches on top of trunk-based (the practical middle ground).** Cut a `release/vX` branch at version freeze; only stabilization commits go there; merge back to main. Earns its keep with multiple in-flight versions or LTS support. Rejected: we don't have multiple in-flight versions yet, and the dual release-please config would be a tax on every release.
+- **GitHub Flow (TBD's simpler cousin).** Effectively what we do. The distinction-without-difference vs. TBD is rhetorical.
+
+**Revisit when:** we hire a second developer, ship multiple major versions needing long-term support, or move to a cadence where v-next is actively underway while v-current is in Apple review. The full essay-form rationale (the four-model walkthrough, what companies actually do, what solo devs actually do, the case for/against release branches in this repo specifically) was preserved in git at `docs/branching-and-release-strategy.md` before its deletion in this commit.
+
+**Status:** Locked.
+
+---
+
 ## 2026-06-24 — Banned-account gate lives in the JWT validate→challenge flow, not a post-auth plugin
 
 **Decision:** The server blocks a banned caller (native `auth.users.banned_until`) inside the existing JWT provider's `validate`/`challenge` path: `validate` resolves the user id, calls `ModerationRepository.banStatusFor`, and on a live ban stashes a locked `AccessDeniedResponse` on the call + returns no principal; `challenge` renders that stash as `403 {reason, until, appealUrl}` (else the usual `401`). A `BanGate(moderation, appealUrl)` is threaded into `installAuthentication`. Reasons are `banned` only today (the native flag carries no reason); the lookup fails **open** on a DB hiccup. Wire fields are camelCase to match the rest of the server JSON contract (`MeResponse.isAnonymous`), not the todo's illustrative `appeal_url`.
