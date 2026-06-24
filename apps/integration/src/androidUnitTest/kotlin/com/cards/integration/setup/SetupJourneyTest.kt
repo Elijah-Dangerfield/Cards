@@ -27,13 +27,17 @@ class SetupJourneyTest : IntegrationTest() {
     // ---- Join failures surface as typed lobby errors ----
 
     @Test
-    fun join_unknownCode_surfacesNotFound() = integration {
+    fun join_unknownCode_bouncesBackToCodeEntry() = integration {
         // Deep-link join path: the lobby opens with the code populated and joins.
+        // A bad prefilled code bounces back to the code-entry screen (a
+        // JoinCodeRejected event) rather than stranding the player on the dead
+        // lobby with an inline error, so the inline error stays null.
         val joiner = client().lobbyVm(prefilledCode = "NOPE12")
 
-        val state = joiner.stateFlow.awaitState { it.error != null }
-        assertTrue(state.error is LobbyError.JoinRoomNotFound, "got ${state.error}")
-        assertEquals(null, state.room)
+        val rejected = joiner.awaitEvent<LobbyEvent.JoinCodeRejected>()
+        assertEquals("NOPE12", rejected.code)
+        assertEquals(null, joiner.state.room)
+        assertEquals(null, joiner.state.error)
     }
 
     @Test

@@ -44,7 +44,7 @@ class InProcessServer : AutoCloseable {
         installWebSockets()
         installAuthentication(IntegrationAuth.verification)
         routing {
-            roomRoutes(rooms, FakeProfiles)
+            roomRoutes(rooms, FakeProfiles, FakeWallets)
             matchmakingRoutes(
                 rooms = rooms,
                 friends = FakeFriends,
