@@ -110,6 +110,7 @@ fun HomeScreen(
         onSeeAllRecentOpponents = onSeeAllRecentOpponents,
         recentAchievements = state.recentAchievements,
         recentOpponents = state.recentOpponents,
+        pendingFriendRequests = state.pendingFriendRequests,
         modifier = modifier,
         scrollState = scrollState,
     )

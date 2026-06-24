@@ -12,8 +12,6 @@ import androidx.compose.ui.backhandler.BackHandler
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.home_coming_soon_friends_body
-import cards.libraries.resources.generated.resources.home_coming_soon_friends_title
 import cards.libraries.resources.generated.resources.home_coming_soon_recently_played_body
 import cards.libraries.resources.generated.resources.home_coming_soon_recently_played_title
 import cards.libraries.resources.generated.resources.home_coming_soon_tournament_body
@@ -29,6 +27,7 @@ import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.lobby.PrivateCreateRoute
 import com.dangerfield.cards.features.lobby.PrivateJoinRoute
 import com.dangerfield.cards.features.rooms.PublicFindRoute
+import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.progression.AchievementsRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
@@ -135,8 +134,6 @@ class HomeFeatureEntryPoint(
 
             val tournamentTitle = stringResource(Res.string.home_coming_soon_tournament_title)
             val tournamentBody = stringResource(Res.string.home_coming_soon_tournament_body)
-            val friendsTitle = stringResource(Res.string.home_coming_soon_friends_title)
-            val friendsBody = stringResource(Res.string.home_coming_soon_friends_body)
             val recentlyPlayedTitle = stringResource(Res.string.home_coming_soon_recently_played_title)
             val recentlyPlayedBody = stringResource(Res.string.home_coming_soon_recently_played_body)
 
@@ -164,17 +161,11 @@ class HomeFeatureEntryPoint(
                 onTapCash = { router.switchTab(ShopGraph) },
                 onRejoinRoom = { code -> router.navigate(LobbyRoute(prefilledCode = code)) },
                 onTapAchievements = { router.navigate(AchievementsRoute()) },
-                // No standalone Friends surface yet — friend graph,
-                // online presence, and the requests inbox all ship
-                // together in V1.x. Until then a "coming soon" sheet
-                // explains what's planned.
-                onTapFriends = {
-                    comingSoon = ComingSoonContent(
-                        title = friendsTitle,
-                        emoji = "🤝",
-                        body = friendsBody,
-                    )
-                },
+                // The friend-requests inbox lives on the Profile tab, so the
+                // strip's "N friend requests" badge (and its See-all) switch
+                // there. Online presence is still stubbed, so there's no
+                // standalone friends surface yet — Profile is the real inbox.
+                onTapFriends = { router.switchTab(ProfileRoute()) },
                 // Recent opponents — the social cold-start lever. Fires the
                 // outbound friend request through the VM, which flips the tile
                 // to "Sent" optimistically and reverts only if the server

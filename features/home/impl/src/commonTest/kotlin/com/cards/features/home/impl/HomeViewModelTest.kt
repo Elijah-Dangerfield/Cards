@@ -35,13 +35,17 @@ import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.rooms.RoomStatus
+import com.dangerfield.cards.libraries.social.FriendProfile
 import com.dangerfield.cards.libraries.social.FriendRepository
 import com.dangerfield.cards.libraries.social.RecentOpponentProfile
+import com.dangerfield.cards.libraries.social.RespondToRequestResult
 import com.dangerfield.cards.libraries.social.RecentOpponentsRepository
 import com.dangerfield.cards.libraries.social.SendFriendRequestResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -526,6 +530,42 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun pendingFriendRequests_reflectInboxCount_onRealSession() = runUnitTest {
+        // A claimed (non-anonymous) session triggers an inbox refresh; the
+        // resolved count surfaces on state for the Friends strip badge.
+        val friends = FakeFriendRepository(
+            onRefresh = listOf(friendProfile("u1"), friendProfile("u2")),
+        )
+        val profile = FakeProfileRepository(
+            initial = authenticatedProfile(displayName = "Claimed", isAnonymous = false),
+        )
+        val vm = buildVm(profile = profile, friends = friends)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.pendingFriendRequests != 2) last = awaitItem()
+            assertEquals(2, last.pendingFriendRequests)
+            assertEquals(1, friends.refreshCalls)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun pendingFriendRequests_skipRefreshForAnonymousSession() = runUnitTest {
+        // A guest has no friend graph — the inbox refresh must not fire, so the
+        // badge stays at zero.
+        val friends = FakeFriendRepository(onRefresh = listOf(friendProfile("u1")))
+        val vm = buildVm(profile = seatedProfile(), friends = friends)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.userName == null) last = awaitItem()
+            yield()
+            assertEquals(0, friends.refreshCalls)
+            assertEquals(0, last.pendingFriendRequests)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun addFriend_rejectedRequest_revertsSent() = runUnitTest {
         // A 403 (not played with) comes back — the optimistic flip is undone so
         // the tile returns to "Add".
@@ -604,6 +644,18 @@ class HomeViewModelTest : CoroutineTest() {
         avatarBackgroundColorHex = avatarBackgroundColorHex,
     )
 
+    private fun friendProfile(
+        id: String,
+        displayName: String = "name-$id",
+        avatarEmoji: String = "🦊",
+        avatarBackgroundColorHex: String? = null,
+    ): FriendProfile = FriendProfile(
+        id = id,
+        displayName = displayName,
+        avatarEmoji = avatarEmoji,
+        avatarBackgroundColorHex = avatarBackgroundColorHex,
+    )
+
     private class FakeRecentOpponentsRepository(
         private val onRefresh: List<RecentOpponentProfile> = emptyList(),
     ) : RecentOpponentsRepository {
@@ -620,11 +672,33 @@ class HomeViewModelTest : CoroutineTest() {
 
     private class FakeFriendRepository(
         private val result: SendFriendRequestResult = SendFriendRequestResult.Requested,
+        private val onRefresh: List<FriendProfile> = emptyList(),
     ) : FriendRepository {
         val sentTo: MutableList<String> = mutableListOf()
+        var refreshCalls: Int = 0
+            private set
+        private val incoming = MutableStateFlow<List<FriendProfile>>(emptyList())
+
         override suspend fun sendRequest(userId: String): SendFriendRequestResult {
             sentTo += userId
             return result
+        }
+
+        override fun observeIncomingRequests(): Flow<List<FriendProfile>> = incoming.asStateFlow()
+
+        override suspend fun refreshIncomingRequests() {
+            refreshCalls += 1
+            incoming.value = onRefresh
+        }
+
+        override suspend fun accept(userId: String): RespondToRequestResult {
+            incoming.update { current -> current.filterNot { it.id == userId } }
+            return RespondToRequestResult.Ok
+        }
+
+        override suspend fun decline(userId: String): RespondToRequestResult {
+            incoming.update { current -> current.filterNot { it.id == userId } }
+            return RespondToRequestResult.Ok
         }
     }
 

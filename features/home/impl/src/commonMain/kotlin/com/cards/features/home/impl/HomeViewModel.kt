@@ -146,6 +146,9 @@ class HomeViewModel(
                     lastFetchedUserId = profile.id
                     launch { roomRepository.getActiveRooms() }
                     launch { recentOpponentsRepository.refresh() }
+                    // Friend graph is account-bound — only a claimed account has
+                    // an inbox, so skip the fetch for an anonymous session.
+                    if (!profile.isAnonymous) launch { friendRepository.refreshIncomingRequests() }
                 }
             }
         }
@@ -156,6 +159,15 @@ class HomeViewModel(
             // session lands, in the profile collector above.
             recentOpponentsRepository.observe().collect { opponents ->
                 takeAction(HomeAction.RecentOpponentsChanged(opponents))
+            }
+        }
+        viewModelScope.launch {
+            // Pending inbound friend-request count → the Friends strip badge.
+            // The list is the same one the Profile inbox renders; Home only
+            // needs the count. Refresh is kicked once a real session lands, in
+            // the profile collector above.
+            friendRepository.observeIncomingRequests().collect { requests ->
+                takeAction(HomeAction.IncomingRequestsChanged(requests.size))
             }
         }
         viewModelScope.launch {
@@ -258,6 +270,9 @@ class HomeViewModel(
                         profile.toRecentOpponent(requestSent = profile.id in requestedFriendIds)
                     },
                 )
+            }
+            is HomeAction.IncomingRequestsChanged -> action.updateState {
+                it.copy(pendingFriendRequests = action.count)
             }
             is HomeAction.AddFriend -> action.startAddFriend(action.opponentId)
             is HomeAction.FriendRequestFailed -> {
@@ -470,6 +485,10 @@ data class HomeState(
      *  Empty until the first resolve lands; the strip renders its
      *  friend-via-play empty state in that case. */
     val recentOpponents: List<RecentOpponent> = emptyList(),
+    /** Count of pending inbound friend requests, driving the Friends strip's
+     *  "N friend requests" badge. The list itself is rendered by the Profile
+     *  inbox; Home only needs the count, so the badge tap routes to Profile. */
+    val pendingFriendRequests: Int = 0,
     /** Whether the user has dismissed the tutorial banner. Mirrors
      *  `AppData.tutorialBannerDismissed`; false means the banner shows
      *  above the home header.
@@ -560,6 +579,7 @@ sealed interface HomeAction {
     data class ProfileChanged(val profile: Profile) : HomeAction
     data class RecentUnlocksChanged(val items: List<RecentAchievement>) : HomeAction
     data class RecentOpponentsChanged(val profiles: List<RecentOpponentProfile>) : HomeAction
+    data class IncomingRequestsChanged(val count: Int) : HomeAction
     data class AddFriend(val opponentId: String) : HomeAction
     data class FriendRequestFailed(val opponentId: String) : HomeAction
     data class TutorialBannerDismissedChanged(val dismissed: Boolean) : HomeAction
