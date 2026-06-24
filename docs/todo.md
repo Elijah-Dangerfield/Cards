@@ -66,6 +66,12 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** The `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
 
+- `[P2]` **GAME-5 — Cut the XP-boost duration to 5 minutes (owner directive).** Owner: "we need to update the boost to be just 5 mins. 30 mins is insane. 1k chips for 5 mins boost and that's it." Change `XP_BOOST_DEFAULT_DURATION_MS` from 30 min to 5 min and confirm the boost price is 1000 chips. Sweep every surface that renders the duration/progress so the 5-min value flows through (the banner/badge/countdown fractions divide by the same constant, so they should follow automatically — verify).
+
+  **Acceptance:** Activating a boost lasts 5 minutes; the countdown, banner fraction, and badge all reflect 5 min; the purchase costs 1000 chips.
+
+  **Hints:** `XP_BOOST_DEFAULT_DURATION_MS = 30L * 60L * 1000L` in [`libraries/cards/src/commonMain/kotlin/com/cards/libraries/cards/XpBoost.kt`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/cards/XpBoost.kt); consumers `XpBoostBanner.kt`, `XpBoostBadge.kt`, `XpBoostCountdown.kt`, `App.kt`. Confirm the 1000-chip price in the shop/boost purchase path. Sentry CARDS-3A. (Owner directive — no case file.)
+
 ---
 
 ## B. Multiplayer hardening
@@ -85,6 +91,18 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** A player who wins on a subsidized table and leaves sees the credited amount confirmed; a player near their daily cap is told before they sit.
 
   **Hints:** `DefaultTableSessionService.cashOut` credits `finalStack`; `SubsidyCapReached` (`SitDownResult`) is the cap gate. Sentry CARDS-2N / CARDS-2Y.
+
+- `[P0]` **MP-7 — Private (human-vs-human) table winnings don't settle to the wallet on leave.** A player won a 500-chip pot in a private 2-player room (A5MEME), left, and their wallet showed nothing; a background/foreground later bumped the balance by +100, so the reconcile is not just missing but inconsistent. The server logs `Hand N finished` / seat-forfeit but emits no wallet-credit on leave for a private fake-chip room. Needs a product call on whether private fake-chip rooms move the wallet at all: if yes, this is a settlement bug (mirror the bots path's `cashOut` final-stack credit); if no, the table stack must stop being framed as the wallet balance. Either way "win 500 → wallet unchanged → +100 on resume" is broken and surprising.
+
+  **Acceptance:** Leaving a private MP room settles the final table stack to the wallet exactly once (or, if private rooms are decided not to touch the wallet, the table stack is never presented as a wallet change). No phantom delta appears on the next background/foreground resync.
+
+  **Hints:** Bots path precedent is `DefaultTableSessionService.cashOut` (credits `finalStack`); the private-room leave path has no equivalent. `ChipsRepository.addChips(idempotencyKey=…)` is the idempotent credit primitive; resume reconcile is `ChipsSync`. Case `docs/agent/feedback-cases/b12633cf4d4441a992f5de348a5900a8.md` (full A5MEME story, both seats) + `docs/agent/feedback-cases/624b47e2cfff46fc8d01f66f810d60dd.md` (the +100-on-resume detail). Sentry CARDS-3C/3E + CARDS-3F/3G.
+
+- `[P1]` **MP-8 — Room socket reconnect storm after the sole other human leaves.** Once the only opponent leaves a 2-player room (room NP2DDJ), the client socket wedges into an unbounded connect→drop→reconnect loop: hundreds of `Room socket connected` immediately followed by `Room socket reconnecting (attempt=1, backoff=…)` for ~30s after an NSPOSIXError 57 "Socket is not connected", with `attempt=1` never incrementing and no give-up. The user's only escape was mashing Back. Distinct from the existing backlog "$0 buy-in + 409 on POST /bots" residual (same room) — this is the reconnect-reliability half.
+
+  **Acceptance:** After the peer leaves and the socket half-opens, reconnect attempts back off and increment, and after a bounded number of failures the client lands on a terminal "reconnect failed / leave" state instead of looping. No tight connect/reconnect storm in the session log.
+
+  **Hints:** `RoomSocket` reconnect logic — the `attempt` counter isn't advancing and there's no backoff ceiling / terminal state; the server-side socket is half-open (status never dropped back to Lobby after the sole-human-left rebound, which is the shared root with the backlog item). Case `docs/agent/feedback-cases/74169a5f37b34263a6250e1081e30368.md`; Sentry CARDS-37. Related: backlog "MP lobby shows $0 buy-in + 409 … after sole-human-left rebound".
 
 ---
 
