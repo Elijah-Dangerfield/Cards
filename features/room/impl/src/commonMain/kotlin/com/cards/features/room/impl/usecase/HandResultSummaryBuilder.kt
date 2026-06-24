@@ -40,7 +40,7 @@ internal object HandResultSummaryBuilder {
                 ?.category
             val resolved = winningRank ?: humanRevealedCards
                 ?.takeIf { it.size == 2 }
-                ?.let { HandEvaluator.evaluate(it + event.board).category }
+                ?.let { HandEvaluator.evaluateOrNull(it + event.board)?.category }
             resolved?.toGrade()
         } else {
             null
@@ -55,14 +55,14 @@ internal object HandResultSummaryBuilder {
         val foldedHandWouldHaveLost = if (wasFold && humanSeat != null &&
             humanSeat.holeCards.size == 2 && event.board.size >= 3 && !byFoldAround
         ) {
-            val humanRank = HandEvaluator.evaluate(humanSeat.holeCards + event.board)
+            val humanRank = HandEvaluator.evaluateOrNull(humanSeat.holeCards + event.board)
             val bestRevealed = event.revealedHoleCards
                 .filterKeys { it != humanSeatIndex }
                 .mapNotNull { (_, holes) ->
-                    if (holes.size == 2) HandEvaluator.evaluate(holes + event.board) else null
+                    if (holes.size == 2) HandEvaluator.evaluateOrNull(holes + event.board) else null
                 }
                 .maxOrNull()
-            bestRevealed != null && humanRank < bestRevealed
+            humanRank != null && bestRevealed != null && humanRank < bestRevealed
         } else {
             false
         }

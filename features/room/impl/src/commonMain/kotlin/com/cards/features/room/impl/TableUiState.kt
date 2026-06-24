@@ -530,7 +530,7 @@ private fun previewHandLabel(holeCards: List<Card>, community: List<Card>): Stri
     val total = holeCards + community
     return when {
         total.size == 2 -> if (holeCards[0].rank == holeCards[1].rank) "Pocket pair" else null
-        total.size in 5..7 -> HandEvaluator.evaluate(total).category.displayName
+        total.size in 5..7 -> HandEvaluator.evaluateOrNull(total)?.category?.displayName
         else -> null
     }
 }

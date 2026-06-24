@@ -103,12 +103,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Out of scope:** Emulator-based UI tests (device-smoke checklist is the substitute) and hand-history regression fixtures (gated on a real production playtest).
 
-- `[P0]` **MP-4 — Fix the "Duplicate cards in hand" client crash at MP showdown + wrap the apply/render path in `Catching {}`.** An uncaught `kotlin.IllegalArgumentException: Duplicate cards in hand: [8♠, 2♥, 8♣, Q♠, 8♠, A♣, 6♥]` (note the duplicate 8♠) killed the app on `PlayMultiplayerRoute` at showdown (Sentry CARDS-2Q). The 7-card eval set was assembled on-device with a duplicate — backend telemetry for the session is clean, so the server-side hand finished fine; the dup came from a client board+hole merge or a `StateSnapshot` applied over stale local cards.
-
-  **Acceptance:** The evaluator never receives a duplicate card; a malformed snapshot surfaces an unrecoverable-error state instead of crashing. Add a regression test that applies a snapshot overlapping the local hole cards and asserts no dup reaches the evaluator.
-
-  **Hints:** Crash route `PlayMultiplayerRoute`, the showdown hand-eval call in `:features:room:impl`'s remote session/state-apply path; the engine `require(...)` that throws lives in the hand evaluator. Reporter explicitly asked for `Catching {}` around the MP render/apply. Case `docs/agent/feedback-cases/06ee9cf0d51a4c47ae0fb516465a42b5.md`; Sentry CARDS-2T / CARDS-2Q.
-
 - `[P1]` **MP-5 — Leaving an MP room must be reliable + idempotent (no dead leave button).** `DELETE /v1/rooms/{code}/me` returns 409 Conflict for ~90s while a room settles after an opponent crashes/disconnects (room S3XG9M: six 409s then a 204), and returns 404 when the client re-issues leave after the membership is already gone (room NZNR7C) — both render as "leave didn't work" with a dead back button.
 
   **Acceptance:** Leave during post-crash settlement succeeds or queues (no 409 loop); a 404/already-gone resolves the client to Home rather than looking like a failure. The back/leave button is never silently inert.

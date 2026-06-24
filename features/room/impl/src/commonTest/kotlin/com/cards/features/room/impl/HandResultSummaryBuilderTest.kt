@@ -126,6 +126,44 @@ class HandResultSummaryBuilderTest {
         assertFalse(summary.wonPot)
     }
 
+    @Test
+    fun staleSnapshotOverlappingHoleCards_doesNotCrash_andCreditsNoCategory() {
+        // MP-4: a StateSnapshot applied over stale local cards left a hole card
+        // (8 of spades) also sitting on the board, so the on-device showdown eval
+        // set had a duplicate. The strict evaluator threw and killed the screen
+        // (CARDS-2Q). The builder must absorb the malformed set: no throw, and
+        // the human gets no showdown category (no false credit off a bad set).
+        val dupCard = Card(Rank.Eight, Suit.Spades)
+        val humanHole = listOf(dupCard, Card(Rank.Ace, Suit.Clubs))
+        val board = listOf(
+            Card(Rank.Two, Suit.Hearts),
+            Card(Rank.Eight, Suit.Clubs),
+            Card(Rank.Queen, Suit.Spades),
+            dupCard,
+            Card(Rank.Six, Suit.Hearts),
+        )
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, isBot = false, playerId = "human").copy(holeCards = humanHole),
+            ),
+        )
+        val event = GameEvent.HandEnded(
+            sequence = 0,
+            winners = emptyList(),
+            board = board,
+            revealedHoleCards = mapOf(0 to humanHole),
+        )
+
+        val summary = HandResultSummaryBuilder.build(
+            event = event,
+            state = state,
+            humanSeatIndex = 0,
+            mode = XpMode.MULTIPLAYER,
+        )
+
+        assertNull(summary.handCategory)
+    }
+
     private fun table(humans: Int, bots: Int) = stubGameState(
         seats = buildList {
             repeat(humans) { i -> add(testSeat(index = size, isBot = false, playerId = "human-$i")) }

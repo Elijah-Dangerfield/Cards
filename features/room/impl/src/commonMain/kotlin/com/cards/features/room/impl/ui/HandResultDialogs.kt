@@ -504,7 +504,7 @@ private fun ShowdownRow(
     // lost" and "ah, the kicker decided it."
     val handDescription = remember(seat.holeCards, board) {
         if (seat.holeCards.size == 2 && board.size in 3..5) {
-            HandEvaluator.evaluate(seat.holeCards + board).describe()
+            HandEvaluator.evaluateOrNull(seat.holeCards + board)?.describe()
         } else null
     }
     val goldText = AppTheme.colors.poker.chipGold

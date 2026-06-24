@@ -1,0 +1,9 @@
+# In-flight
+
+## fix(room): stop MP showdown crash on duplicate cards (MP-4)
+
+**Problem:** An uncaught `IllegalArgumentException: Duplicate cards in hand` killed the app on `PlayMultiplayerRoute` at showdown (CARDS-2Q) when an on-device `holeCards + board` merge produced a duplicate after a `StateSnapshot` landed over stale local cards.
+
+**Approach:** Added `HandEvaluator.evaluateOrNull(...)` — same eval, returns null instead of throwing on a malformed set (wrong count / duplicate). Routed every on-device display + progression projection through it (`ShowdownRow`, `previewHandLabel`, `HandResultSummaryBuilder` x3, `PlayStyleHandSummaryBuilder`) so a transient desync degrades to "no hand shown" rather than crashing. Left the server-authoritative `GameEngine.runShowdown` and bot `HandStrength` on strict `evaluate` (engine cards come from one deck, so a dup there is a real bug we still want surfaced). Directional call: I made the evaluator non-throwing at the on-device callsites that can see a desynced set, rather than wrapping the whole render in `Catching {}` and showing a full unrecoverable-error screen — a single bad showdown row degrading to "—" is better UX than tearing down the whole table, and it kills the crash at its source for every callsite. The reporter asked for `Catching {}`; `evaluateOrNull` is the structurally-cleaner equivalent (no throw to catch). If the reviewer wants the explicit error-state screen too, that's a follow-on.
+
+**Reviewer notes:** Regression tests pin the exact CARDS-2Q 7-card set returning null from `evaluateOrNull`, and `HandResultSummaryBuilder` absorbing a hole/board overlap without throwing and crediting no category. I did not add a `TableUiState.UnrecoverableError` variant — see the directional call above; the crash can no longer originate from these paths, so the error-state screen is unneeded for this bug.
