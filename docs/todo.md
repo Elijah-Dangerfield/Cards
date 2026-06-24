@@ -133,9 +133,6 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
 
 A batch of small UX directives the owner filed via in-app feedback in one session. Grouped here for skimmability; the maintainer can redistribute into the topic sections above. Each links its Sentry report.
 
-- `[P2]` **Stats page: distinct-players-played-with count — client wiring.** Server slice shipped: `RecentOpponentsRepository.countDistinctOpponents` + `GET /v1/me/stats` now returns `{distinctOpponentsPlayed}`. Remaining: call that endpoint client-side, carry the count onto `StatsState` (its own field, or fold into `Progression` if/when it gains a sync), and render a `StatTile` in `StatsScreen.LifetimeStatsGrid`. *(feedback CARDS-P)*
-  **Hints:** `StatsScreen.LifetimeStatsGrid` / `StatsViewModel` (today driven only by `Progression` — needs a new read path for the server-only stat). Count is MP-only (bot hands don't populate the table). Sentry [CARDS-P](https://elijah-dangerfield.sentry.io/issues/CARDS-P).
-
 - `[P2]` **Debug feedback swipe is unreliable inside scroll views.** The right-edge swipe to open the feedback screen often takes a few tries, mostly when the user is already in a scroll view (gesture conflict). *(feedback CARDS-Y; debug-only feature from `fd5aeec8`)*
   **Hints:** the right-edge swipe detector competing with scroll containers. Sentry [CARDS-Y](https://elijah-dangerfield.sentry.io/issues/CARDS-Y).
 

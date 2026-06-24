@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.LifetimeStatsRepository
 import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.PlayStyleHandSummary
 import com.dangerfield.cards.libraries.cards.PlayStyleRepository
@@ -74,6 +75,12 @@ internal class FakeXpEventRepository(
     val events = MutableStateFlow(initial)
     override fun observeRecent(limit: Int): Flow<List<XpEvent>> = events
     override fun observeSince(sinceEpochMs: Long): Flow<List<XpEvent>> = events
+}
+
+internal class FakeLifetimeStatsRepository(
+    private val distinctOpponents: Result<Long> = Result.success(0L),
+) : LifetimeStatsRepository {
+    override suspend fun fetchDistinctOpponents(): Result<Long> = distinctOpponents
 }
 
 internal class FakeXpBoostRepository(

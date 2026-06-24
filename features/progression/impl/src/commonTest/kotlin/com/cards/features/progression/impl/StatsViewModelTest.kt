@@ -34,6 +34,7 @@ class StatsViewModelTest : CoroutineTest() {
             achievementRepository = NeverEmittingAchievementRepository,
             authRepository = FakeAuthRepository(),
             xpBoostRepository = FakeXpBoostRepository(),
+            lifetimeStatsRepository = FakeLifetimeStatsRepository(),
         )
         assertEquals(true, vm.state.isLoading)
         assertEquals(Progression.Empty, vm.state.progression)
@@ -68,6 +69,7 @@ class StatsViewModelTest : CoroutineTest() {
             achievementRepository = FakeAchievementRepository(initial = seedAchievements),
             authRepository = FakeAuthRepository(),
             xpBoostRepository = FakeXpBoostRepository(),
+            lifetimeStatsRepository = FakeLifetimeStatsRepository(),
         )
 
         vm.stateFlow.test {
@@ -93,6 +95,7 @@ class StatsViewModelTest : CoroutineTest() {
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(),
             xpBoostRepository = FakeXpBoostRepository(),
+            lifetimeStatsRepository = FakeLifetimeStatsRepository(),
         )
         vm.stateFlow.test {
             var last = awaitItem()
@@ -121,6 +124,7 @@ class StatsViewModelTest : CoroutineTest() {
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(),
             xpBoostRepository = FakeXpBoostRepository(),
+            lifetimeStatsRepository = FakeLifetimeStatsRepository(),
         )
         vm.stateFlow.test {
             var last = awaitItem()
@@ -158,6 +162,7 @@ class StatsViewModelTest : CoroutineTest() {
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(),
             xpBoostRepository = boost,
+            lifetimeStatsRepository = FakeLifetimeStatsRepository(),
         )
         vm.stateFlow.test {
             var last = awaitItem()
@@ -178,6 +183,7 @@ class StatsViewModelTest : CoroutineTest() {
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(initial = anonymousAuthState()),
             xpBoostRepository = FakeXpBoostRepository(),
+            lifetimeStatsRepository = FakeLifetimeStatsRepository(),
         )
         vm.stateFlow.test {
             var last = awaitItem()
@@ -196,11 +202,47 @@ class StatsViewModelTest : CoroutineTest() {
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(initial = claimedAuthState()),
             xpBoostRepository = FakeXpBoostRepository(),
+            lifetimeStatsRepository = FakeLifetimeStatsRepository(),
         )
         vm.stateFlow.test {
             assertEquals(false, awaitItem().isAnonymous)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun distinctOpponentsFetch_populatesState() = runUnitTest {
+        val vm = StatsViewModel(
+            progressionRepository = FakeProgressionRepository(),
+            playStyleRepository = FakePlayStyleRepository(),
+            xpEventRepository = FakeXpEventRepository(),
+            achievementRepository = FakeAchievementRepository(),
+            authRepository = FakeAuthRepository(),
+            xpBoostRepository = FakeXpBoostRepository(),
+            lifetimeStatsRepository = FakeLifetimeStatsRepository(Result.success(23L)),
+        )
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.distinctOpponentsPlayed == null) last = awaitItem()
+            assertEquals(23L, last.distinctOpponentsPlayed)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun distinctOpponentsFetchFailure_leavesCountNull() = runUnitTest {
+        val vm = StatsViewModel(
+            progressionRepository = FakeProgressionRepository(),
+            playStyleRepository = FakePlayStyleRepository(),
+            xpEventRepository = FakeXpEventRepository(),
+            achievementRepository = FakeAchievementRepository(),
+            authRepository = FakeAuthRepository(),
+            xpBoostRepository = FakeXpBoostRepository(),
+            lifetimeStatsRepository = FakeLifetimeStatsRepository(
+                Result.failure(IllegalStateException("offline")),
+            ),
+        )
+        assertEquals(null, vm.state.distinctOpponentsPlayed)
     }
 
     /** Repositories whose Flows never emit — pin the pre-emission state. */

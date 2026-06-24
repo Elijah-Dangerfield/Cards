@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.stats_lifetime_opponents_label
 import cards.libraries.resources.generated.resources.stats_recent_xp_boosted_tag
 import cards.libraries.resources.generated.resources.stats_play_style_section
 import com.dangerfield.cards.libraries.cards.AchievementProgress
@@ -115,7 +116,10 @@ fun StatsScreen(
 
             SectionTitle("Lifetime")
             Spacer(modifier = Modifier.height(8.dp))
-            LifetimeStatsGrid(progression = state.progression)
+            LifetimeStatsGrid(
+                progression = state.progression,
+                distinctOpponentsPlayed = state.distinctOpponentsPlayed,
+            )
             Spacer(modifier = Modifier.height(24.dp))
 
             SectionTitle(stringResource(Res.string.stats_play_style_section))
@@ -199,7 +203,10 @@ private fun XpHero(progress: LevelProgress) {
 }
 
 @Composable
-private fun LifetimeStatsGrid(progression: Progression) {
+private fun LifetimeStatsGrid(
+    progression: Progression,
+    distinctOpponentsPlayed: Long?,
+) {
     val played = progression.handsPlayed
     val winRate = percentOf(progression.handsWon, played)
     val foldRate = percentOf(progression.handsFolded, played)
@@ -238,6 +245,15 @@ private fun LifetimeStatsGrid(progression: Progression) {
                 modifier = Modifier.weight(1f),
                 label = "Showdown losses",
                 value = formatThousands(progression.handsLostAtShowdown),
+            )
+        }
+        // Server-only MP stat — appears once the /v1/me/stats fetch lands. Full
+        // width since it's a lone tile with no natural pair.
+        if (distinctOpponentsPlayed != null) {
+            StatTile(
+                modifier = Modifier.fillMaxWidth(),
+                label = stringResource(Res.string.stats_lifetime_opponents_label),
+                value = formatThousands(distinctOpponentsPlayed),
             )
         }
     }
@@ -525,6 +541,7 @@ private fun StatsScreenPreview_Populated() {
                     XpEvent(id = 4, deltaXp = 6, source = XpSource.HAND_STRENGTH, mode = XpMode.BOTS, handId = "41", createdAtEpochMs = now - 3L * dayMs),
                     XpEvent(id = 5, deltaXp = 2, source = XpSource.BASE, mode = XpMode.BOTS, handId = "40", createdAtEpochMs = now - 9L * dayMs),
                 ),
+                distinctOpponentsPlayed = 17,
             ),
             onBack = {},
         )
