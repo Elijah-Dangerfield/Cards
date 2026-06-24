@@ -252,6 +252,23 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun prefilledJoin_notFound_emitsJoinCodeRejected_notInlineError() = runUnitTest {
+        // The PrivateJoin → Lobby funnel: a bad prefilled code must bounce back
+        // to the input screen (event) rather than strand the user on a dead
+        // lobby spinner with an inline error (CARDS-28).
+        val rooms = FakeRoomRepository(joinOutcome = JoinRoomOutcome.NotFound)
+        val vm = buildVm(rooms = rooms, prefilledCode = "WXYZ12")
+
+        vm.eventFlow.test {
+            val event = awaitItem()
+            val rejected = assertIs<LobbyEvent.JoinCodeRejected>(event)
+            assertEquals("WXYZ12", rejected.code)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(null, vm.state.error)
+    }
+
+    @Test
     fun leave_serverCallSurvivesViewModelTeardown() = runUnitTest {
         // Fire-and-forget contract: the server-side `leaveRoom` POST must
         // complete even if the user pops the lobby screen mid-call.

@@ -143,8 +143,20 @@ class LobbyViewModel(
                 updateState { it.copy(joining = true, error = null) }
                 when (val outcome = rooms.joinRoom(code)) {
                     is JoinRoomOutcome.Success -> startConnection(outcome.room)
-                    JoinRoomOutcome.NotFound -> updateState {
-                        it.copy(joining = false, error = LobbyError.JoinRoomNotFound(code))
+                    JoinRoomOutcome.NotFound -> {
+                        // A prefilled-code join is the PrivateJoin → Lobby funnel:
+                        // the input screen already popped, so showing the error here
+                        // strands the user on a dead spinner. Route them back to the
+                        // code-entry screen to fix and retry (CARDS-28). A non-prefill
+                        // join (no input screen behind us) keeps the inline error.
+                        if (!prefilledCode.isNullOrBlank()) {
+                            updateState { it.copy(joining = false) }
+                            sendEvent(LobbyEvent.JoinCodeRejected(code))
+                        } else {
+                            updateState {
+                                it.copy(joining = false, error = LobbyError.JoinRoomNotFound(code))
+                            }
+                        }
                     }
                     JoinRoomOutcome.Full -> updateState {
                         it.copy(joining = false, error = LobbyError.JoinRoomFull)
@@ -503,6 +515,11 @@ sealed interface LobbyEvent {
         val newHostDisplayName: String,
         val isLocalUser: Boolean,
     ) : LobbyEvent
+
+    /** A deep-link / prefilled-code join hit an unknown room. Routes the user
+     *  back to the code-entry screen with the bad code so they can fix and
+     *  retry, rather than stranding them on a dead lobby spinner (CARDS-28). */
+    data class JoinCodeRejected(val code: String) : LobbyEvent
 }
 
 sealed interface LobbyAction {

@@ -47,8 +47,10 @@ class LobbyFeatureEntryPoint(
                 },
             )
         }
-        screen<PrivateJoinRoute> {
+        screen<PrivateJoinRoute> { backStackEntry ->
+            val joinRoute = backStackEntry.toRoute<PrivateJoinRoute>()
             PrivateJoinScreen(
+                rejectedCode = joinRoute.rejectedCode,
                 onBack = { router.goBack() },
                 onJoin = { code ->
                     router.batch {
@@ -80,6 +82,13 @@ class LobbyFeatureEntryPoint(
                             else "${event.newHostDisplayName} is now the host.",
                             duration = SnackbarDuration.Short,
                         )
+                        // The prefilled join hit an unknown room. Pop this dead
+                        // lobby and land back on the code-entry screen with the bad
+                        // code + inline error so the user retries in place.
+                        is LobbyEvent.JoinCodeRejected -> router.batch {
+                            popBackTo(LobbyRoute(), inclusive = true)
+                            navigate(PrivateJoinRoute(rejectedCode = event.code))
+                        }
                     }
                 }
             }
