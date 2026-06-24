@@ -26,24 +26,6 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 **Status:** Backlog. Polish on top of the shipped center-blast emote; the wire path + attribution already land it correctly.
 
-## Collapse `IdentityCache` into Supabase's session as source of truth
-
-**Idea:** We maintain a separate Cards-side `IdentityCache` (display name, avatar, isAnonymous, userId) alongside supabase-kt's own session cache. Three caches end up overlapping — Supabase's session (tokens + UserInfo metadata), our `IdentityCache` (display fields), and the `IdentityState` `StateFlow`. The 2026-05-21 boot-gate fix (see [decisions.md](./decisions.md)) papers over the race by gating at the network client, but the structural answer is to stop double-caching.
-
-**Sketch:**
-- Drop `IdentityCache` (or demote to a tiny display-only optimistic read for first-frame UX, never used as the source for `SignedIn`).
-- Derive `Identity` directly from `supabase.auth.currentSessionOrNull()?.user` for the userId + isAnonymous, plus `/v1/me` for the server-managed display name / avatar.
-- `IdentityState.SignedIn` then has a single invariant: Supabase session is in memory + `/v1/me` has resolved. The optimistic cache emit goes away.
-
-**Tradeoffs:**
-- First-frame UX: a returning user's name briefly shows as default until `/v1/me` lands (~200ms). The cached-emit today avoids this flash.
-- Offline first-launch becomes worse (no cached fallback display) — but offline first-launch is already the open "Identity cold-boot resilience" item in `docs/todo.md` §D, and that's the right place to address it.
-- Cleaner contract; one source of truth for "is this user authed and who are they."
-
-**Status:** Backlog. Pick up the next time the identity layer opens. Pairs with the existing `SupabaseIdentityRepository` review item in `docs/todo.md` §D ("are we double-caching?" — answer is yes).
-
----
-
 ## Bot bet-sizing tells
 
 **Idea:** Have bots treat the human's bet size as a *signal* (in addition to the existing pot-odds math). Right now bots only react to bet size mathematically — a big bet costs more to call, so marginal hands fold. They don't interpret "this is a 3× pot overbet from a tight player, that means something."
@@ -102,22 +84,6 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
-## Emojis-cost-chips as a chip sink
-
-**Idea (raised 2026-05-20):** Make each table-side emoji blast cost a small chip amount, so emojis become a chip sink that drives buying.
-
-**Dissent (recorded 2026-05-20):** I'd push back. Emojis are the social-signal feature that makes the table feel alive. Adding cost suppresses usage, which suppresses the social experience, which suppresses the loss-aversion-on-busts loop that actually drives chip purchases. The chip-sink instinct is right — the lever is wrong.
-
-**Better chip sinks to consider first:**
-- **MP buy-in / ante** (already on todo.md as a separate item). This is the natural chip sink in a poker game.
-- **Tip the dealer** at hand end (already in [product-spec.md §4.1.5](./product/product-spec.md#41-currency--chips)).
-- **Profile rename / title change cost.**
-- **Custom avatar slots, name color, name glow, profile decoration** — already in shop catalog (§4.3).
-
-**Status:** Backlog. Revisit only if the other sinks (especially MP buy-in) prove insufficient to keep chips a flowing resource. Default position: do not charge for emojis.
-
----
-
 ## Audio infrastructure (sound cues, BGM)
 
 **Idea:** Add a small KMP audio playback layer so "Your turn feedback = Sound" (and future cues — winning a hand, achievement unlock, table ambience) can actually play a tone instead of being a no-op. Today the setting persists but only the Vibrate option is wired (via Compose `HapticFeedback`); Sound is recorded in `AppData` but the human just gets silence.
@@ -135,19 +101,6 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
-## RankDetail hero gradient — raw brand colors
-
-**Idea (raised 2026-05-20):** `RankDetailSheet.RankHero` (~lines 88–92) uses raw `Color(0xFF8E7CC3)` + `Color(0xFFE07AB1)` for the hero gradient — an AGENTS.md DS-first violation (no `Color(0xFF…)` outside `PokerPalette`). Two directions:
-
-- **Promote both to `PokerPalette`** as the canonical "rank hero" pair, named for what they are visually (e.g. `rankHeroStart`, `rankHeroEnd`). Cheap, keeps the gradient working as-is.
-- **Replace with theme tokens** — likely `accentPrimary` and a sibling. Loses the bespoke purple→pink hue but pulls the surface into the semantic palette.
-
-Needs a designer call on whether the bespoke gradient is load-bearing for the Rank surface's identity. Touched-but-not-fixed during the 2026-05-20 white-alpha pill cleanup.
-
-**Status:** Backlog. Needs a design decision before swap.
-
----
-
 ## Route default `popExit` = reversal of `enter`
 
 **Idea (raised 2026-05-20):** After the cover-and-uncover NavHost rewire, every existing `Route` subclass still has to declare `popExit` explicitly to mirror `enter`. The default in `Route(...)` is hardcoded `AnimationType.SlideOutToRight`, which is fine for horizontal-slide routes but wrong by default for `SlideUp` / `FadeIn` / etc. — a new route that forgets to declare `popExit` will pop horizontally regardless of how it entered.
@@ -157,30 +110,6 @@ Worth deriving the default — `popExit: AnimationType = enter.reversal()` (the 
 Blocker on doing it now: `opposite()` currently maps `SlideInFromRight → SlideOutToLeft` (mirror), but the reversal we want for back-out is `SlideInFromRight → SlideOutToRight` (back the way it came). Renaming / fixing the mapping is a semantic call worth a deliberate pass rather than tucking into the wiring change.
 
 **Status:** Backlog. Captured 2026-05-20 alongside the NavHost cover-and-uncover wiring.
-
----
-
-## `FeatureCard` glyph block — white-alpha on accent gradient
-
-**Idea (raised 2026-05-21):** [`FeatureCard.kt:60`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/FeatureCard.kt#L60) renders the leading glyph block with `Color.White.copy(alpha = 0.15f)` — the exact pattern AGENTS.md DS rule §1 calls out. It's a hand-tuned tile on top of a gradient (the card's `accent.copy(alpha = 0.95f) → accent.copy(alpha = 0.7f)` horizontal gradient), so a flat `surface*` token would clash with the gradient.
-
-Two directions:
-- **New DS token for "overlay on accent surface."** Something like `AppTheme.colors.surfaceOverlayOnAccent` that resolves to a translucent neutral wash. Lets every accent-gradient card get the same glyph treatment without duplicating the magic alpha.
-- **Pin to `surfacePrimary.copy(alpha = X)`.** Cheaper, but ties the glyph block to whatever the surfacePrimary token resolves to under the gradient — needs an eyeball check across all four `FeatureCardAccents` (Green/Blue/Magenta/Gold).
-
-Needs a designer call on which approach the DS should codify.
-
-**Status:** Backlog. Surfaced during the 2026-05-21 Radii-token sweep.
-
----
-
-## `Route.exit` field — dead after cover-and-uncover wiring
-
-**Idea (raised 2026-05-21):** After the NavHost `exitTransition` was collapsed to `ExitTransition.None` (cover-and-uncover semantics), `Route.exit` is no longer read by the host. ~7 Route subclasses still declare it. Separable cleanup: drop `exit` from `Route(...)` and every subclass, then drop the dead `getExitTransition()` accessor and the `toExitTransition()` callers that route through it.
-
-Blocker on doing it now: should land alongside the `popExit = enter.reversal()` derivation (already in this backlog under "Route default `popExit` = reversal of `enter`") so the per-route animation surface gets rationalised in one pass rather than two.
-
-**Status:** Backlog. Captured 2026-05-21 alongside the NavHost cover-and-uncover wiring.
 
 ---
 
@@ -199,33 +128,6 @@ Blocker on doing it now: should land alongside the `popExit = enter.reversal()` 
 
 **Status:** Backlog. Non-blocking DS drift; pull when next opening the play-table surfaces.
 
-
----
-
-## Extract `ConfirmPill` into a `:libraries:ui` primitive
-
-**Idea (raised 2026-05-22):** Four feature modules now define identical-shape private `ConfirmPill` composables: `BotTableSetupDialog.kt:139`, `LeaveBotsConfirmDialog.kt:81`, `SwipeFoldConfirmDialog.kt:100` (added this cycle), and `RaiseSheet.kt:350`. All four are a `Box { clip(RoundedCornerShape(32.dp)), background(accentPrimary|surfaceSecondary), padding(vertical=16dp), Text }` with optional `primary: Boolean` for the colour split. The 32.dp corner radius itself shows up in 7 callsites in `features/room/impl/**` with no `Radii` token — a `Radii.Pill` (or `R900`-style alias) would tidy both this primitive and the loose literals.
-
-**Sketch:**
-- Add `ConfirmPill(label, primary, onClick, modifier)` to `:libraries:ui/components/button` (next to the existing `Button` family). Use surface tokens; expose the same Cancel/Confirm primary/secondary split the existing copies have.
-- Optionally introduce `Radii.Pill = R900` or a new alias if 32.dp doesn't match an existing token.
-- Migrate the four callsites, kill the private copies.
-
-**Tradeoff:** None significant — pure DRY win; the four copies have already drifted apart slightly in padding/typography.
-
-**Status:** Backlog. Non-blocking DS drift; pull on the next pass through `features/room/impl/**` or `features/home/impl/**`.
-
----
-
-## Server-side `runCatching` audit
-
-**Idea (raised 2026-05-22):** Client side now uses `Catching { }` from `:libraries:core` consistently (it rethrows `CancellationException`, preserving structured concurrency). `apps/server` still uses `runCatching` in `HttpSupabaseAdminClient`, `DefaultOrphanAnonymousSweep`, `MessageRoutes`, etc. Server doesn't depend on `:libraries:core` today, and Ktor request scopes are tied to the request lifecycle rather than `viewModelScope`-style structured concurrency, so the cancellation concern is materially less acute. Still worth deciding either way.
-
-**Sketch:** Either add `implementation(projects.libraries.core)` to `apps/server` and migrate the ~4 callsites, or formally document `runCatching` as the server convention (since the rule only really bites in shared-coroutine-scope client code).
-
-**Tradeoff:** Adding the dep brings the convention into one place; documenting it as "server can use runCatching" is cheaper but leaves a hidden rule.
-
-**Status:** Backlog. Deferred from the 2026-05-22 client-side `Catching` sweep.
 
 ---
 
@@ -423,18 +325,6 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 - Status quo is the right V1 trade. The cleanup item exists so we don't forget the layering smell.
 
 **Status:** Backlog. Pick up when the starter kit grows past a handful of items, when a second consumer of "create user's default X" lands (e.g. default chip wallet), or when `ProfileRepository` starts importing a third cross-domain repo.
-
----
-
-## `DispatcherProvider.mainImmediate` — or collapse the call site to `dispatchers.main`
-
-**Idea:** [`DelegatingRouter.kt:307`](../libraries/navigation/impl/src/commonMain/kotlin/com/cards/libraries/navigation/impl/DelegatingRouter.kt) uses `withContext(Dispatchers.Main.immediate)` to flush a navigation continuation on the calling frame when already on the main thread. The rest of `:libraries:ui` has been swept to `DispatcherProvider`, but this call site is the only `.immediate` consumer and `DispatcherProvider` doesn't expose that variant today.
-
-**Two paths:**
-- Add `mainImmediate: CoroutineDispatcher` to `DispatcherProvider` (and the test provider — point it at the same `TestDispatcher`). Keeps the .immediate semantics, finishes the dispatcher-sweep story.
-- Collapse the call site to `dispatchers.main` and accept the loss of the immediate-dispatch semantics. Probably fine for navigation — the difference is one frame at most — but worth confirming the navigation flow doesn't rely on synchronous flush.
-
-**Status:** Backlog. Held off in the V1 dispatcher-sweep cycle because the call is the only `.immediate` user and adding a member to the provider is a wider design call than fit under that `refactor:`.
 
 ---
 
@@ -668,14 +558,6 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Idea (raised 2026-06-24):** The new pick-a-table chooser (`PublicSearchingScreen.ChoosingContent` / `CandidateCard`) lists each candidate with buy-in, seats taken/max, and a real-human count. Two deferred niceties: (1) show the humans-vs-bots split more richly than a single "N playing" line (e.g. seat dots, or "3 players, 1 bot"); (2) mark a table the caller is already seated in with a "you're here" badge — the server already includes such a table in the candidates list per its KDoc, the client just renders it the same as any other today.
 
 **Status:** Backlog. Cosmetic polish on a shipped, functional chooser. Do when next iterating on matchmaking presentation.
-
----
-
-## Route the 403 ban envelope on a WS handshake too
-
-**Idea (raised 2026-06-24, follow-on to the HTTP 403 ban-envelope routing):** The HTTP path now decodes the server's locked `403 {reason, until, appealUrl}` envelope and pushes the blocking access-denied screen. The matching WS-handshake 403 doesn't — Ktor's WS-upgrade failure path is structurally different from `ResponseException` and the existing room socket maps any 403 to `NotHost` off the status alone. A banned user trying to join a room over the socket therefore won't land on the access-denied screen; they'll see a generic room-error instead. Confirm the failure surface on a banned account and (if it's a degraded experience) plumb the access-denied bus from the WS handshake too.
-
-**Status:** Backlog. Out-of-scope for the HTTP slice that just shipped; gate on confirming a banned WS user gets a sub-par error today. See [`NetworkClientImpl.signalAccessDeniedIfEnveloped`](../libraries/networking/impl/src/commonMain/kotlin/com/cards/libraries/networking/impl/NetworkClientImpl.kt) + [`KtorRoomSocketTransport`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/KtorRoomSocketTransport.kt).
 
 ---
 

@@ -235,6 +235,26 @@ The trigger was a `401 Unauthorized` on every cold-boot `InventorySync.sync()` c
 
 ---
 
+## 2026-05-20 — Reject "emojis cost chips" as a chip sink
+
+**Decision:** Table-side emoji blasts stay free. The chip-sink instinct is right; emojis are the wrong lever.
+
+**Why:** Emojis are the social-signal feature that makes the table feel alive. Adding cost suppresses usage, which suppresses the social experience, which suppresses the loss-aversion-on-busts loop that actually drives chip purchases. We'd lose more revenue (and a lot of brand warmth) than the sink would generate.
+
+**Better chip sinks to prefer first:**
+- MP buy-in / ante — the natural sink in a poker game.
+- Tip the dealer at hand end ([product-spec.md §4.1.5](./product/product-spec.md#41-currency--chips)).
+- Profile rename / title change cost.
+- Custom avatar slots, name color, name glow, profile decorations (shop catalog §4.3).
+
+**Alternatives considered:**
+- **Flat cost per blast.** Rejected as above.
+- **Tiered cost (rare emojis cost, common ones free).** Same suppression effect on the common-tier social signal that does the work.
+
+**Revisit when:** the preferred sinks (especially MP buy-in) prove insufficient to keep chips a flowing resource. Default position remains: do not charge for emojis.
+
+**Status:** Locked.
+
 ---
 
 ## 2026-05-18 — Identity pivot (REVERSED): back to Supabase Auth on the client
