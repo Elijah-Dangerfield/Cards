@@ -157,12 +157,11 @@ _Buy-in / escrow shipped._ The cash-game escrow is live: sit-down debits the buy
 
 _Multiplayer leave / last-human-left shipped._ Server frees the seat on leave (`removePlayer` ghost-seat fix + `forfeitSeat` fold + `cashOut`); the client routes off a dead table via `opponentsLeft` ("last human standing") and `roomClosed`, with the real-MP bust dialog.
 
-- `[P2]` **Orphaned-room policy — read-only spectator downgrade.** Seat-forfeit on grace expiry already lands (`forfeitSeat`); the remaining half is downgrading the forfeited member's WS subscription to **read-only spectator** instead of closing the socket, with `GET /v1/me/active-rooms` driving a Rejoin / Forfeit banner. **Depends on:** B4 (pure non-member spectator — the socket auth that allows a seatless subscriber).
+- `[P2]` **Orphaned-room policy — read-only spectator downgrade.** Seat-forfeit on grace expiry already lands (`forfeitSeat`); the remaining half is downgrading the forfeited member's WS subscription to **read-only spectator** instead of closing the socket, with `GET /v1/me/active-rooms` driving a Rejoin / Forfeit banner. The seatless-subscriber socket auth this needs now exists (B4 spectator), so the gap is the downgrade transition + the banner.
 
 ### B4 — Spectator role
 
-- `[P2]` **Pure non-member spectator = WS subscriber without a seat.** The mid-hand-join flavor of spectating already works and is tested (a matched joiner sees the scrubbed, no-hole-cards view, then is dealt in at the next boundary). What's missing is a *non-member* spectator: the socket still rejects a subscriber who isn't a room member (`RoomSocketRoutes` closes the socket with "not a member"). Extend the auth check so a seatless subscriber gets the scrubbed-for-everyone view and the server rejects `SubmitIntent` from them. Friend rooms stay closed to non-members.
-  **Hints:** the membership gate in `RoomSocketRoutes.kt` (the early "not a member" close). **Out of scope:** public-room discovery, spectator chat.
+_Server slice shipped._ A non-member may attach to a matchmaking-discoverable (Open/Public) table's socket as a **read-only spectator**: they get the scrubbed-for-everyone view (`scrubbedFor(-1)`), the server rejects every gameplay frame from them ("spectators cannot act"), and their close runs no presence/grace bookkeeping. Private (code-only) friend rooms stay closed to non-members. The remaining work is **client-side**: a discovery surface + a "watch this table" entry point (out of scope here — no public-room discovery / spectator chat yet).
 
 ### B6 — Bulletproof MP + engine test coverage
 
