@@ -55,6 +55,14 @@
     <string name="session_expired_guest_logout_confirm_message">Guest progress is not saved anywhere. Logging out clears your chips, XP, and history for good.</string>
     <string name="session_expired_guest_logout_keep_playing">Keep trying</string>
     <string name="session_expired_guest_logout_confirm">Log out anyway</string>
+    <!-- App - access denied (server returned the locked 403 envelope). Copy is keyed off `reason`; the wire never carries copy. -->
+    <string name="access_denied_banned_title">Account blocked</string>
+    <string name="access_denied_banned_message">Your account is blocked from Cards. Open an appeal if you think this is a mistake.</string>
+    <string name="access_denied_suspended_title">Account suspended</string>
+    <string name="access_denied_suspended_message">Your account is temporarily suspended. Open an appeal if you think this is a mistake.</string>
+    <string name="access_denied_default_title">Access blocked</string>
+    <string name="access_denied_default_message">Cards is not available for this account right now.</string>
+    <string name="access_denied_appeal">Open appeal</string>
     <string name="shop_snackbar_insufficient_chips_title">Not enough chips</string>
     <string name="shop_snackbar_insufficient_chips_message">You need more chips to grab %1$s.</string>
     <string name="shop_snackbar_claim_required_title">Account needed</string>
@@ -693,6 +701,7 @@
     <!-- Room - Leave-bots confirm dialog (back-press while a hand is in progress). -->
     <string name="room_leave_bots_title">Leave the table?</string>
     <string name="room_leave_bots_body">You'll lose progress on this hand. Your XP and chips are saved.</string>
+    <string name="room_leave_bots_subsidized_body">You'll lose progress on this hand. The %1$s chips at your seat are real - they go straight back to your wallet when you leave.</string>
     <string name="room_leave_bots_stay_button">Stay</string>
     <string name="room_leave_bots_leave_button">Leave</string>
 
@@ -1005,6 +1014,7 @@
     <string name="room_practice_tier_explainer_title">Practice tier</string>
     <string name="room_practice_tier_explainer_a11y">What practice tier means</string>
     <string name="room_practice_tier_explainer_body">This table has bots and not enough humans, so the hand counts as practice. You still earn XP, but only half as much, and multiplayer-only achievements stay locked. Get more humans to the table to play for full credit.</string>
+    <string name="room_practice_tier_explainer_subsidized_body">This table has bots and not enough humans, so XP is halved and multiplayer-only achievements stay locked. The chips are still real - get more humans to the table to earn full credit.</string>
     <string name="room_practice_tier_explainer_bots_only_body">You are the only human here, so real chips are no longer at stake - the bots play for practice only.</string>
     <string name="room_practice_tier_explainer_bots_only_subsidized_body">You are playing our bots while we find you real opponents - and we mean it: beat them and you keep the chips you win, on the house, up to a daily limit.</string>
 
@@ -1190,6 +1200,8 @@
     <string name="account_setup_banner_message">Finishing account setup - we'll keep trying. Some features are limited until then.</string>
     <string name="account_setup_banner_retry">Retry</string>
     <string name="account_setup_banner_retrying">Retrying…</string>
+    <string name="account_setup_retry_banner_title">Account setup unfinished</string>
+    <string name="account_setup_retry_banner_body">Your progress is saved here. We'll finish syncing it once you're back online.</string>
 
     <!-- Auth-gate sheet the router substitutes for a gated route. Three reasons,
          each with its own title / body / primary CTA. The "Not now" ghost button

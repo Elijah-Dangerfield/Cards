@@ -82,6 +82,7 @@ class MpScenarioBuilder(
             dispatcherProvider = dispatchers,
             appScope = AppCoroutineScope(dispatchers),
             clock = Clock.System,
+            socialEnabledConfig = com.dangerfield.cards.libraries.social.SocialEnabled.forTest(enabled = false),
         )
         val recorder = EventRecorder().also { it.attach(scope.backgroundScope, vm) }
         scope.advanceUntilIdle()
@@ -228,6 +229,10 @@ private object HarnessTelemetry : Telemetry {
     override fun setSession(sessionId: String) = Unit
     override fun setInstallId(installId: String) = Unit
     override fun setRoom(code: String?) = Unit
+    override fun setSeat(seatIndex: Int?) = Unit
+    override fun setHand(handNumber: Int?) = Unit
+    override fun setOpponents(userIds: List<String>?) = Unit
+    override fun setMpStateProvider(provider: (() -> String?)?) = Unit
     override fun captureUserFeedback(
         message: String,
         isBugReport: Boolean,

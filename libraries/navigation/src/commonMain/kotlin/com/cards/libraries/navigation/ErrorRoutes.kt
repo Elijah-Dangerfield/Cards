@@ -24,6 +24,28 @@ data class SessionExpiredRoute(
     popExit = AnimationType.FadeOut,
 ), NavigableWhileBlocked
 
+/**
+ * Blocking screen shown when the server returned the locked `403`
+ * access-denied envelope (banned / suspended). Distinct from [BlockingErrorRoute]
+ * because the copy is keyed off a machine-readable [reason] (the client
+ * localizes; the server never sends copy on the wire) and the screen exposes an
+ * optional appeal link.
+ *
+ *  - [reason] is the wire token (e.g. `"banned"` / `"suspended"`); unknown
+ *    values fall back to a generic block message.
+ *  - [appealUrl] opens in a browser via [Router.openWebLink]; null hides the
+ *    appeal button.
+ */
+@Serializable
+data class AccessDeniedRoute(
+    val reason: String,
+    val appealUrl: String? = null,
+) : Route(
+    enter = AnimationType.FadeIn,
+    exit = AnimationType.FadeOut,
+    popExit = AnimationType.FadeOut,
+), NavigableWhileBlocked
+
 @Serializable
 data class ErrorDialogRoute(
     val title: String,

@@ -76,3 +76,44 @@ internal sealed interface RoomSocketEventDto {
         val emoji: String,
     ) : RoomSocketEventDto
 }
+
+/**
+ * One-line debug summary of an inbound wire frame. Logged at debug-level by
+ * [ReconnectingRoomSocket], so it only ships as part of the feedback
+ * ring-buffer dump. Keep terse — the buffer is bounded and a busy hand fans
+ * out dozens of frames. Omit large payloads (snapshots, decks, hole cards):
+ * the client state attachment carries the table state at submit time, and
+ * the server log carries the authoritative event payload.
+ */
+internal fun RoomSocketEventDto.summary(): String = when (this) {
+    is RoomSocketEventDto.Snapshot -> "recv snapshot members=${room.members.size}"
+    is RoomSocketEventDto.MemberJoined -> "recv member_joined user=${member.userId}"
+    is RoomSocketEventDto.MemberLeft -> "recv member_left user=$userId"
+    is RoomSocketEventDto.MemberPresenceChanged ->
+        "recv presence user=$userId connected=$isConnected"
+    RoomSocketEventDto.RoomClosed -> "recv room_closed"
+    is RoomSocketEventDto.GameStateSnapshot ->
+        "recv game_state hand=${state.handNumber} street=${state.street} " +
+            "pot=${state.pots.sumOf { it.amount }} acting=${state.actingSeatIndex} " +
+            "seq=${state.lastSequence}"
+    is RoomSocketEventDto.GameEventOccurred -> "recv ${event.summary()} seq=$seq"
+    is RoomSocketEventDto.IntentAck ->
+        "recv intent_ack accepted=$accepted nonce=$clientNonce" +
+            (error?.let { " error=$it" } ?: "")
+    is RoomSocketEventDto.EmojiBlast -> "recv emoji_blast seat=$seatIndex emoji=$emoji"
+}
+
+private fun GameEvent.summary(): String = when (this) {
+    is GameEvent.HandStarted -> "HandStarted hand=$handNumber button=$buttonSeatIndex"
+    is GameEvent.BlindPosted ->
+        "BlindPosted seat=$seatIndex amount=$amount small=$isSmall"
+    is GameEvent.HoleCardsDealt -> "HoleCardsDealt seat=$seatIndex"
+    is GameEvent.StreetAdvanced ->
+        "StreetAdvanced street=$street board=${communityCards.size}"
+    is GameEvent.ActionTaken ->
+        "ActionTaken seat=$seatIndex action=${action::class.simpleName} " +
+            "contribution=$resultingStreetContribution"
+    is GameEvent.PotAwarded ->
+        "PotAwarded seat=$seatIndex amount=$amount pot=$potIndex"
+    is GameEvent.HandEnded -> "HandEnded winners=${winners.size}"
+}

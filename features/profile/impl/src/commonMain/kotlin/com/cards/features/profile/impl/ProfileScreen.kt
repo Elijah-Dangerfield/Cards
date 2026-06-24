@@ -102,7 +102,9 @@ import com.dangerfield.cards.libraries.ui.components.toStyleCopy
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
+import com.dangerfield.cards.libraries.ui.components.AccountSetupRetryBanner
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
+import com.dangerfield.cards.libraries.ui.system.LocalAccountSetupRetry
 import com.dangerfield.cards.libraries.ui.components.XpBoostBanner
 import com.dangerfield.cards.libraries.ui.components.rememberBoostRemainingMs
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
@@ -192,6 +194,10 @@ fun ProfileScreen(
     buyableItems: List<BuyableCosmetic> = emptyList(),
     highlightProductId: String? = null,
     onHighlightConsumed: () -> Unit = {},
+    // Master gate for the friend-request inbox (SOC-2). Default true so the
+    // populated previews render the section; production passes the
+    // `social.enabled` flag, which defaults off until V2 flips it on.
+    socialEnabled: Boolean = true,
     scrollState: ScrollState = rememberScrollState(),
 ) {
     // Ephemeral "Try it out" emote blast, fired from a pack's detail sheet and
@@ -236,6 +242,15 @@ fun ProfileScreen(
                 ProfileHeader(settings = settings, onEditProfile = onEditProfile)
                 VerticalSpacerD900()
 
+                val accountSetup = LocalAccountSetupRetry.current
+                if (accountSetup.pending) {
+                    AccountSetupRetryBanner(
+                        onRetry = accountSetup.onRetry,
+                        isRetrying = accountSetup.isRetrying,
+                    )
+                    VerticalSpacerD800()
+                }
+
                 if (settings.isAnonymous) {
                     SaveProgressBanner(onSignIn = onSignIn)
                     VerticalSpacerD800()
@@ -270,8 +285,10 @@ fun ProfileScreen(
 
                 // Friend-requests inbox. Account-bound — a guest has no friend
                 // graph, so the section (and its play-to-friend empty state)
-                // only shows once the user has claimed an account.
-                if (!settings.isAnonymous) {
+                // only shows once the user has claimed an account. Also gated
+                // behind SocialEnabled (SOC-2) — hidden entirely when social is
+                // descoped, not rendered disabled.
+                if (socialEnabled && !settings.isAnonymous) {
                     FriendRequestsSection(
                         requests = friendRequests,
                         onAccept = onAcceptFriendRequest,

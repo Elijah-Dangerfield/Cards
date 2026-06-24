@@ -122,6 +122,12 @@ data class PlayPokerState(
      * state. Mirrors Home's recently-played add-friend model.
      */
     val friendRequestSentIds: Set<String> = emptySet(),
+    /**
+     * Master gate for the at-table "Add friend" affordance (SOC-2). Mirrors the
+     * `social.enabled` app-config flag, default off — when false the player-card
+     * hides the add-friend section entirely rather than showing it disabled.
+     */
+    val socialEnabled: Boolean = false,
 ) {
     /**
      * Real-chips multiplayer (MP xpMode, not bots-only practice). Gates the bust

@@ -1,6 +1,8 @@
 package com.dangerfield.cards.libraries.networking.impl
 
 import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.networking.AccessDeniedBus
 import com.dangerfield.cards.libraries.networking.AuthTokenProvider
 import com.dangerfield.cards.libraries.networking.ClientHeaders
 import com.dangerfield.cards.libraries.networking.InternalNetworkingApi
@@ -11,6 +13,7 @@ import com.dangerfield.cards.libraries.networking.NetworkJson
 import com.dangerfield.cards.libraries.networking.NetworkReachability
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
+import io.ktor.client.call.body
 import io.ktor.client.plugins.DefaultRequest
 import io.ktor.client.plugins.HttpResponseValidator
 import io.ktor.client.plugins.HttpTimeout
@@ -20,9 +23,12 @@ import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.statement.HttpResponse
+import io.ktor.http.HttpStatusCode
 import kotlin.time.Duration.Companion.seconds
 import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.Serializable
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -37,17 +43,18 @@ class NetworkClientImpl(
     private val tokenProvider: AuthTokenProvider,
     private val headersProvider: ClientHeadersProvider,
     private val reachability: NetworkReachability,
+    private val accessDeniedBus: AccessDeniedBus,
 ) : NetworkClient {
 
     override val client: HttpClient by lazy {
         HttpClient {
-            applyCommonConfig(config, headersProvider, reachability)
+            applyCommonConfig(config, headersProvider, reachability, accessDeniedBus)
         }
     }
 
     override val authenticatedClient: HttpClient by lazy {
         HttpClient {
-            applyCommonConfig(config, headersProvider, reachability)
+            applyCommonConfig(config, headersProvider, reachability, accessDeniedBus)
             install(Auth) {
                 bearer {
                     // By the time loadTokens runs, authedCall has already
@@ -87,6 +94,7 @@ private fun HttpClientConfig<*>.applyCommonConfig(
     config: NetworkConfig,
     headersProvider: ClientHeadersProvider,
     reachability: NetworkReachability,
+    accessDeniedBus: AccessDeniedBus,
 ) {
     install(ContentNegotiation) {
         json(NetworkJson)
@@ -100,7 +108,13 @@ private fun HttpClientConfig<*>.applyCommonConfig(
         handleResponseExceptionWithRequest { cause, _ ->
             // A ResponseException means the server answered (a 4xx/5xx) — the
             // network is fine. Anything else never reached the server.
-            if (cause !is ResponseException) reachability.reportUnreachable()
+            if (cause !is ResponseException) {
+                reachability.reportUnreachable()
+                return@handleResponseExceptionWithRequest
+            }
+            if (cause.response.status == HttpStatusCode.Forbidden) {
+                signalAccessDeniedIfEnveloped(cause.response, accessDeniedBus)
+            }
         }
     }
     install(HttpTimeout) {
@@ -135,4 +149,49 @@ private fun HttpClientConfig<*>.applyCommonConfig(
         installNetworkInspector()
     }
     expectSuccess = true
+}
+
+/**
+ * Server's `403 AccessDeniedResponse` wire shape — duplicated here (not shared)
+ * because the server class lives in `:apps:server` which the client must not
+ * depend on. Locked machine-readable data only, no copy: the client localizes
+ * off [reason]. `internal` so the impl module's test can construct an
+ * envelope-shaped response without re-deriving the shape; the public surface
+ * outside the module is [AccessDeniedBus.Denial].
+ */
+@Serializable
+internal data class AccessDeniedWire(
+    val reason: String,
+    val until: String? = null,
+    val appealUrl: String? = null,
+)
+
+/**
+ * On a `403`, attempt to read the response body as the locked [AccessDeniedWire]
+ * envelope and signal the access-denied bus. We don't throw or swallow — the
+ * caller's existing failure flow gets the same `ClientRequestException` it
+ * always did. A 403 *without* our envelope (a route-level deny, an upstream
+ * proxy 403) doesn't decode and is skipped silently — the [Catching] wrap is
+ * the safety net there.
+ *
+ * Run from `handleResponseExceptionWithRequest` rather than `validateResponse`
+ * because the `ResponseException` Ktor throws after validation holds a *saved*
+ * copy of the response — reading the body here doesn't race the caller's own
+ * body decoding (callers like `RoomRepositoryImpl` map 403 → `NotHost` off the
+ * status alone and never re-read the body anyway).
+ */
+internal suspend fun signalAccessDeniedIfEnveloped(
+    response: HttpResponse,
+    accessDeniedBus: AccessDeniedBus,
+) {
+    Catching { response.body<AccessDeniedWire>() }
+        .onSuccess { wire ->
+            accessDeniedBus.signalDenied(
+                AccessDeniedBus.Denial(
+                    reason = wire.reason,
+                    until = wire.until,
+                    appealUrl = wire.appealUrl,
+                ),
+            )
+        }
 }

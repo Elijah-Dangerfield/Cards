@@ -5,10 +5,13 @@ Append-only record of in-app user feedback already triaged by the
 nightly run never re-triages the same report. One line per handled feedback:
 
 ```
-- <date> · <event_id> · session <session_id> · <disposition> · <Sentry issue URL>
+- <date> · <event_id> · session <session_id> · <disposition> · <Sentry issue URL> · case docs/agent/feedback-cases/<event_id>.md
 ```
 
 where `disposition` is `todo: <title>`, `backlog`, or `no-action: <reason>`.
+The `case …` tail points to the per-report investigation notes (bundle of IDs,
+log excerpts, client state, server activity, theory). It's omitted only for
+owner change-requests, which are filed as directives without a case file.
 
 ---
 
@@ -92,3 +95,16 @@ where `disposition` is `todo: <title>`, `backlog`, or `no-action: <reason>`.
 - 2026-06-24 · d825af851d9c4be2b95ac626a5371a84 · session afe5d2b7-0f87-4c22-8bd7-20d1e15d7ba0 · no-action: twin of carrier 9ba69ee9fb134ccfbde0d6117362f683 (already todo: confirm before leaving find-a-table lobby, CARDS-C) · https://elijah-dangerfield.sentry.io/issues/CARDS-D
 - 2026-06-24 · 1661e9babd594bd99e1ad2215b6e3870 · session afe5d2b7-0f87-4c22-8bd7-20d1e15d7ba0 · no-action: twin of carrier a104a1b6a3b54119949bb964f108241c (already todo: "New here" card close button white/right, CARDS-A) · https://elijah-dangerfield.sentry.io/issues/CARDS-B
 - 2026-06-24 · 9b4b6098891249d6b8d7e715fad9dd45 · session afe5d2b7-0f87-4c22-8bd7-20d1e15d7ba0 · no-action: twin of carrier fe5f574dde3f4863897b16bf1434d9c2 (already todo: raise in-app feedback character limit, CARDS-8) · https://elijah-dangerfield.sentry.io/issues/CARDS-9
+
+<!-- 2026-06-24 second playtest batch (11 reports, 4 sessions: 6d07773d/SharpJack91, fb519a07+214bc377/QuickQueen74, a8b2fcb3/LuckyKing27; dev-ios-debug). Keyed by the feedback twin's carrier associated_event_id. -->
+- 2026-06-24 · 176f4e0cf8414b629241a1cf52e2d9e8 · session 6d07773d-55d5-4183-a074-acfa49abee14 · no-action: owner directive covered by existing SOC-2 (gate friends/social behind social.enabled) · https://elijah-dangerfield.sentry.io/issues/CARDS-2H · case docs/agent/feedback-cases/176f4e0cf8414b629241a1cf52e2d9e8.md
+- 2026-06-24 · da248a9872764936abc088942c0d06e0 · session 6d07773d-55d5-4183-a074-acfa49abee14 · todo: [P2] GAME-4 split practice-tier dialog copy on forRealChips (owner directive) · https://elijah-dangerfield.sentry.io/issues/CARDS-2K
+- 2026-06-24 · 6dd1f1ffddb347fd9cf6c5909caa98d0 · session 6d07773d-55d5-4183-a074-acfa49abee14 · todo: [P1] MP-6 bots-for-chips cashout doesn't match shown stack (next-hand-button half = dup of P0 hand-end stall) · https://elijah-dangerfield.sentry.io/issues/CARDS-2N · case docs/agent/feedback-cases/6dd1f1ffddb347fd9cf6c5909caa98d0.md
+- 2026-06-24 · 7a8f1f0f377d43fd8e4b9836d696f914 · session fb519a07-c60c-491b-abe3-56ea8975a924 · todo: [P1] MP-5 can't leave MP room — DELETE /me 409s after opponent crash (room S3XG9M) · https://elijah-dangerfield.sentry.io/issues/CARDS-2R · case docs/agent/feedback-cases/7a8f1f0f377d43fd8e4b9836d696f914.md
+- 2026-06-24 · 06ee9cf0d51a4c47ae0fb516465a42b5 · session a8b2fcb3-c3b8-4c57-954e-59b71ace6dfe · todo: [P0] MP-4 client crash "Duplicate cards in hand" at MP showdown (carrier crash CARDS-2Q, room S3XG9M) · https://elijah-dangerfield.sentry.io/issues/CARDS-2T · case docs/agent/feedback-cases/06ee9cf0d51a4c47ae0fb516465a42b5.md
+- 2026-06-24 · 164944ca04ba4ba7af7a971e4e85dab6 · session 214bc377-8355-457c-90ff-ca2dbd318830 · no-action: friend graph unbuilt + descoped to V2 behind SOC-2 (dup of CARDS-1M/1N) · https://elijah-dangerfield.sentry.io/issues/CARDS-2W · case docs/agent/feedback-cases/164944ca04ba4ba7af7a971e4e85dab6.md
+- 2026-06-24 · a0e30df3e1f845e085a7b360e3e5a4c5 · session 214bc377-8355-457c-90ff-ca2dbd318830 · no-action: odd balance is bots-for-chips subsidy arithmetic, no corruption — folded into MP-6 (CARDS-2N) · https://elijah-dangerfield.sentry.io/issues/CARDS-2Y · case docs/agent/feedback-cases/a0e30df3e1f845e085a7b360e3e5a4c5.md
+- 2026-06-24 · 8474756631da4b8a95709781cf20aee5 · session a8b2fcb3-c3b8-4c57-954e-59b71ace6dfe · no-action: dup of existing room-not-found UX todo (CARDS-28/29) · https://elijah-dangerfield.sentry.io/issues/CARDS-30 · case docs/agent/feedback-cases/8474756631da4b8a95709781cf20aee5.md
+- 2026-06-24 · 7a4f6fcec21b4439a65781e4ea43f171 · session 214bc377-8355-457c-90ff-ca2dbd318830 · no-action: dup of P0 MP hand-end stall (CARDS-25/16) — no you-won dialog · https://elijah-dangerfield.sentry.io/issues/CARDS-32 · case docs/agent/feedback-cases/7a4f6fcec21b4439a65781e4ea43f171.md
+- 2026-06-24 · c2139485d47441dfbc455784d5226868 · session 214bc377-8355-457c-90ff-ca2dbd318830 · todo: [P1] MP-5 leave failed (DELETE /me 404, room NZNR7C) — folded into the leave-reliability todo · https://elijah-dangerfield.sentry.io/issues/CARDS-34 · case docs/agent/feedback-cases/c2139485d47441dfbc455784d5226868.md
+- 2026-06-24 · 3c35c7ff333f434897ff0a9c85e9eec1 · session a8b2fcb3-c3b8-4c57-954e-59b71ace6dfe · no-action: dup of opponent-left notice (CARDS-1E) + leave-→-Home (CARDS-1Y) + orphaned-room keep-playing (MP-1) · https://elijah-dangerfield.sentry.io/issues/CARDS-36 · case docs/agent/feedback-cases/3c35c7ff333f434897ff0a9c85e9eec1.md

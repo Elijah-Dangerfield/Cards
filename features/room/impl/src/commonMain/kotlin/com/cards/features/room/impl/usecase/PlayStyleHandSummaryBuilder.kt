@@ -106,7 +106,7 @@ internal class PlayStyleHandSummaryBuilder {
         val showdownBluff = reachedShowdown && !wonPot && postflopAggressiveCount > 0 && run {
             val cards = revealed?.takeIf { it.size == 2 }
                 ?: humanSeat.holeCards.takeIf { it.size == 2 }
-            val category = cards?.let { HandEvaluator.evaluate(it + event.board).category }
+            val category = cards?.let { HandEvaluator.evaluateOrNull(it + event.board)?.category }
             category != null && category.ordinal <= HandCategory.Pair.ordinal
         }
 

@@ -9,7 +9,27 @@ object HandEvaluator {
         require(cards.distinct().size == cards.size) {
             "Duplicate cards in hand: $cards"
         }
+        return evaluateValidated(cards)
+    }
 
+    /**
+     * Like [evaluate], but returns null instead of throwing when handed a
+     * malformed card set (wrong count or a duplicate card). On-device callers
+     * assemble the eval set from `holeCards + community`, and a [GameState]
+     * snapshot that lands over stale local cards can briefly produce an
+     * overlapping set. The engine itself constructs cards from a single deck
+     * and must never hit this, so server-authoritative paths keep calling
+     * [evaluate] so the strict contract still surfaces real engine bugs there.
+     * Display + progression projections call this so a transient desync degrades
+     * to "no hand shown" rather than crashing the play screen (MP-4).
+     */
+    fun evaluateOrNull(cards: List<Card>): HandRank? {
+        if (cards.size !in 5..7) return null
+        if (cards.distinct().size != cards.size) return null
+        return evaluateValidated(cards)
+    }
+
+    private fun evaluateValidated(cards: List<Card>): HandRank {
         if (cards.size == 5) return evaluateFive(cards)
 
         var best: HandRank? = null

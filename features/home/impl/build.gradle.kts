@@ -19,6 +19,7 @@ kotlin {
             implementation(projects.libraries.navigation)
 
             implementation(projects.libraries.core)
+            implementation(projects.libraries.config)
             implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.gameplay)
             implementation(projects.libraries.ui)
@@ -39,6 +40,7 @@ kotlin {
         commonTest.dependencies {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.libraries.cards)
+            implementation(projects.libraries.config)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.social)
             implementation(projects.libraries.rooms)

@@ -51,7 +51,8 @@ import kotlin.time.Instant
  *  - 401 when the JWT is missing
  *  - 404 when the code is unknown
  *  - 409 when the room is full
- *  - 409 when you try to leave a room you're not in
+ *  - leave is idempotent: 204 whether you're a member, not a member,
+ *    or the room is already gone
  *  - join is idempotent on the wire (`alreadyJoined: true`)
  *  - host display name comes from the profile, not the request body
  *  - leaving the last member reaps the room (next GET → 404)
@@ -233,12 +234,21 @@ class RoomRoutesTest {
     }
 
     @Test
-    fun leave_409_whenNotInRoom() = runTest {
+    fun leave_204_whenNotInRoom_isIdempotent() = runTest {
         withRooms { client ->
             val room = client.createRoom(asUser = host).body<CreateRoomResponse>().room
             val resp = client.leaveRoom(room.code, asUser = alice)
-            assertEquals(HttpStatusCode.Conflict, resp.status)
-            assertTrue(resp.bodyAsText().contains("not_in_room"))
+            assertEquals(HttpStatusCode.NoContent, resp.status)
+        }
+    }
+
+    @Test
+    fun leave_204_whenRoomGone_isIdempotent() = runTest {
+        withRooms { client ->
+            val room = client.createRoom(asUser = host).body<CreateRoomResponse>().room
+            assertEquals(HttpStatusCode.NoContent, client.leaveRoom(room.code, asUser = host).status)
+            val reLeave = client.leaveRoom(room.code, asUser = host)
+            assertEquals(HttpStatusCode.NoContent, reLeave.status)
         }
     }
 

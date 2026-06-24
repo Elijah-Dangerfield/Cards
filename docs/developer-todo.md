@@ -14,23 +14,11 @@ Normal engineering tasks pulled out of [todo.md](./todo.md) on purpose — to pi
 
 - [ ] **Strip WiretapKMP from iOS App Store builds.** The debug network inspector (shake → "Network inspector") is wired into `:libraries:networking:impl`. Android already swaps the real plugin for the zero-overhead noop automatically via `debug`/`releaseImplementation`, but iOS has no such variant split — it's driven by the `cards.wiretap.ios` Gradle property, which **defaults to `true`** so it works in local dev out of the box. An unflagged iOS store build therefore links the real Wiretap klib (dead weight only — `BuildInfo.isDebug` still keeps the inspector from ever opening, so it's not a leak, just binary bloat + shipped debug UI code). **Interim manual step:** pass `-Pcards.wiretap.ios=false` when building the iOS release framework. **Proper fix (this task):** wire that flag into the iOS release build path (Xcode Release config / `release.yml`) so it's automatic and can't be forgotten. See [project memory: Wiretap network inspector](~/.claude/projects/-Users-elijahdangerfield-Workspace-Cards/memory/project_wiretap_inspector.md).
 
-- [ ] **Integration test fan-out (testing-plan Round 2).** The harness landed: `:apps:integration` boots a real in-process Ktor server and drives the **real client + real `LobbyViewModel`s** against it, with a green, non-flaky friends-game golden path (create → join → presence → start → both navigate) and a dedicated `integration-test` CI job. Remaining is the fan-out on top of the harness — wire-format round trips, reconnect-mid-setup, host-disconnect/promotion, join-rejection cases, "add a bot", and the public-game path when it ships. See [`testing-plan.md`](./testing-plan.md) Round 2.
-
 ---
 
 ## Device QA
 
-- [ ] **App-store review prompt smoke test (Android + iOS).** Engineering is wired end-to-end (`ReviewPromptCoordinator`, `AndroidReviewPrompter`, `SKStoreReviewController`); meet the install-age + cooldown floors, then leave a bots table on a release build. Either outcome — Play Core / `SKStoreReviewController` showing the dialog or suppressing it — is correct per [spec §2.6](./product/product-spec.md#26-app-store-review-prompts). Never build a self-rolled fallback dialog.
-- [ ] **Soft bust protection — device verification.** Server + client wired (`maybeApplyBustProtection` on `GET /v1/me/wallet` and `POST /v1/me/wallet/sync`; `UserMessage` polling picks up the welcome dialog; `ChipsRepository.observeBalance()` sees the +1000 delta). Verify on a real device that the dialog renders correctly with the chip-bubble emoji + body, and that the wallet observer fires after the grant. If the auto-pop dialog placement is wrong (e.g. fires mid-hand), report back and engineering will gate on session-start instead.
-- [ ] **Device smoke test before merging `dev` → `main`.** Minimum checklist before any dev → main merge:
-  1. Fresh install on Android (or iOS) against the dev server.
-  2. Onboarding "Get Started" lands on Home without hanging.
-  3. Chip balance hydrates cleanly (no 0 → 10K flash; null → authoritative).
-  4. Sign up → verify email → claim account flow end-to-end on a real device.
-  5. Edit profile, save, observe optimistic update + server-confirmed value.
-  6. Shop purchase via the test billing path; chips deduct + restore correctly.
-- [ ] **Min-supported-version upgrade wall.** Verify that setting `minSupportedVersionCode` above the installed build actually triggers the upgrade-wall screen (and `maintenanceMode` triggers the maintenance screen) on a real device, and that a compliant build passes through. Becomes a live flip-and-check once the DB-backed config ([todo.md §C Phase 1](./todo.md)) lands — until then it needs a server redeploy to test.
-
+Fully QA the build
 ---
 
 ## Dashboard / external-service config

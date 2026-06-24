@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.networking.AuthTokenProvider
 import com.dangerfield.cards.libraries.networking.ClientHeaders
 import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.NetworkConfig
+import com.dangerfield.cards.libraries.networking.impl.AccessDeniedBusImpl
 import com.dangerfield.cards.libraries.networking.impl.NetworkClientImpl
 import com.dangerfield.cards.libraries.networking.impl.NetworkReachabilityImpl
 import com.dangerfield.cards.libraries.rooms.MatchmakingRepository
@@ -36,11 +37,16 @@ import java.util.UUID
  * Pass [faulty] = true to route the socket through a [FaultInjectingTransport],
  * exposed as [faults], so a test can drop/block the connection and exercise the
  * reconnect + presence machinery.
+ *
+ * Pass [latencyMs] to route the socket through a [LatencyTransport] that adds
+ * that one-way delay to every send and inbound frame (a slow-RTT network), so a
+ * test can prove time-sensitive client behaviour holds under latency.
  */
 class TestClient(
     serverUrl: String,
     val userId: String = randomUserId(),
     faulty: Boolean = false,
+    latencyMs: Long? = null,
 ) {
     /** Non-null only when constructed with `faulty = true`. */
     var faults: FaultInjectingTransport? = null
@@ -54,15 +60,17 @@ class TestClient(
         TokenProvider(userId),
         FixedHeaders,
         NetworkReachabilityImpl(AppCoroutineScope(DefaultDispatcherProvider())),
+        AccessDeniedBusImpl(),
     )
 
     val repository: RoomRepository = run {
         val realTransport = KtorRoomSocketTransport(networkClient, config)
-        val transport = if (faulty) {
+        val faultable = if (faulty) {
             FaultInjectingTransport(realTransport).also { faults = it }
         } else {
             realTransport
         }
+        val transport = latencyMs?.let { LatencyTransport(faultable, it) } ?: faultable
         val socket = ReconnectingRoomSocket(transport, AppCoroutineScope(DefaultDispatcherProvider()))
         RoomRepositoryImpl(HttpRoomApi(networkClient), socket, AppCoroutineScope(DefaultDispatcherProvider()))
     }

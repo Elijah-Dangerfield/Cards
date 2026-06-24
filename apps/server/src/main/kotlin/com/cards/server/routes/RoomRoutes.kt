@@ -39,6 +39,14 @@ import io.ktor.server.routing.route
  *                                     returns the same seat.
  *  - `DELETE /v1/rooms/{code}/me`   — leave. Frees the seat; reaps the
  *                                     room if you were the last one.
+ *                                     Idempotent: a room that's already
+ *                                     gone or a membership already cleared
+ *                                     (post-crash settlement, a re-issued
+ *                                     leave) both resolve to 204 — the
+ *                                     caller's goal of not being in the
+ *                                     room is satisfied either way, so a
+ *                                     404/409 there only reads as a dead
+ *                                     leave button.
  *
  * Every route requires a Supabase JWT (userId comes from the `sub`
  * claim). Display name comes from the profile so members can't spoof
@@ -190,16 +198,16 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository, wallets: W
                 val code = call.parameters["code"]?.uppercase()
                     ?: return@delete call.respond(HttpStatusCode.BadRequest)
                 val userId = call.userId() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
+                // Leave is idempotent: room-gone and already-not-a-member
+                // both mean the caller is no longer in the room, which is
+                // exactly what they asked for. 204 across the board so a
+                // re-issued or post-settlement leave never reads as a
+                // failure (the dead back button in CARDS-2R / CARDS-34).
                 when (rooms.leave(code, userId)) {
-                    is LeaveResult.Success -> call.respond(HttpStatusCode.NoContent)
-                    LeaveResult.RoomNotFound -> call.respond(
-                        HttpStatusCode.NotFound,
-                        problemEnvelope("room_not_found", "No room with code $code."),
-                    )
-                    LeaveResult.NotInRoom -> call.respond(
-                        HttpStatusCode.Conflict,
-                        problemEnvelope("not_in_room", "You're not a member of that room."),
-                    )
+                    is LeaveResult.Success,
+                    LeaveResult.RoomNotFound,
+                    LeaveResult.NotInRoom,
+                    -> call.respond(HttpStatusCode.NoContent)
                 }
             }
 

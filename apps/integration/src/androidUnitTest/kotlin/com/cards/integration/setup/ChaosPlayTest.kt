@@ -1,6 +1,7 @@
 package com.cards.integration.setup
 
 import com.cards.integration.helpers.IntegrationTest
+import com.cards.integration.helpers.seatFor
 import com.cards.integration.helpers.seatTwoAndConnect
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
@@ -75,6 +76,65 @@ class ChaosPlayTest : IntegrationTest() {
             resynced.settings.startingStack * resynced.seats.size,
             resynced.seats.sumOf { it.stack },
             "chips conserve across the fault — the award didn't mint or burn any",
+        )
+    }
+
+    /**
+     * Simulates the "client backgrounded during opponent's turn" case from
+     * Round 5 of the testing plan. The idle (non-acting) client drops + blocks
+     * its socket — mirroring an OS suspending the app — while the still-online
+     * opponent continues to play. When the idle client foregrounds (unblock),
+     * its real reconnect machinery + the socket's `replay = 1` latest-snapshot
+     * buffer must converge it on the live state without showing the stale
+     * pre-background view.
+     *
+     * Companion to [clientDropsMidHand_reconnects_andSeesTheAwardedPot]: that
+     * one tests a transient drop with reconnects allowed; this one tests a
+     * *sustained* offline window during which the table state changes on the
+     * server, then a resume.
+     */
+    @Test
+    fun idleClientBackgrounded_opponentActs_idleResumesAndResyncsToLiveState() = integration {
+        val table = seatTwoAndConnect()
+        table.hostGame.startHand()
+
+        val dealt = table.hostGame.nextSnapshot { it.actingSeatIndex != null }
+        table.joinerGame.nextSnapshot { it.actingSeatIndex != null }
+
+        // The non-acting client is the one being "backgrounded" — we want
+        // server state to move while they're offline, driven by the opponent.
+        val actingClient = table.actingClient(dealt)
+        val idleClient = table.other(actingClient)
+
+        // Background the idle client: drop the socket and block reconnects so
+        // the offline window is sustained, not just a one-frame blip.
+        idleClient.faults!!.dropAndBlock()
+
+        // Opponent's turn moves the state — a fold ends the heads-up hand, so
+        // the idle client must catch up to a Complete street on resume.
+        val actingSeat = dealt.seatFor(actingClient).index
+        val ack = table.gameOf(actingClient).submit(PlayerIntent.Fold(seatIndex = actingSeat))
+        assertTrue(ack.accepted, "opponent's fold accepted, error=${ack.error}")
+
+        // Confirm the server actually advanced the hand while the idle client
+        // was offline — otherwise the resume case below isn't testing what we
+        // think it is.
+        val completed = table.gameOf(actingClient).nextSnapshot { it.street == BettingRound.Complete }
+
+        // Foreground the idle client — reconnect succeeds, the socket's
+        // retained latest-snapshot fires, and the gameplay session resyncs.
+        idleClient.faults!!.blockReconnects = false
+
+        val resynced = table.gameOf(idleClient).nextSnapshot { it.street == BettingRound.Complete }
+        assertEquals(
+            completed.handNumber,
+            resynced.handNumber,
+            "resynced view must be the same hand the opponent finished",
+        )
+        assertEquals(
+            completed.seats.associate { it.index to it.stack },
+            resynced.seats.associate { it.index to it.stack },
+            "resynced stacks must match the post-action server view, not the stale pre-background view",
         )
     }
 }

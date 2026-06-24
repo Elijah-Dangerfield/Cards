@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.navigation.Route
+import com.dangerfield.cards.libraries.networking.AccessDeniedBus
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -68,6 +69,7 @@ class AppViewModel(
     private val profileRepository: ProfileRepository,
     private val authRepository: AuthRepository,
     private val ensureAppConfigLoaded: EnsureAppConfigLoaded,
+    private val accessDeniedBus: AccessDeniedBus,
 ) : ViewModel() {
 
     private val _startDestination = MutableStateFlow<Route?>(null)
@@ -83,6 +85,21 @@ class AppViewModel(
      */
     private val _sessionExpired = Channel<SessionExpired>(Channel.UNLIMITED)
     val sessionExpired: Flow<SessionExpired> = _sessionExpired.receiveAsFlow()
+
+    /**
+     * Fires when the server returned a `403` with the locked access-denied
+     * envelope — the caller is banned / suspended. The App composable collects
+     * this to push a blocking access-denied screen with localized copy keyed off
+     * [AccessDeniedBus.Denial.reason] + the appeal link. Same Channel shape as
+     * [sessionExpired] — exactly-once delivery, buffered if it fires before the
+     * collector is ready.
+     *
+     * Distinct from [sessionExpired] because the routing is different (a banned
+     * user's session isn't dead — the token still validates — so we can't tear it
+     * down; the screen owns the "log out / appeal" choices instead).
+     */
+    private val _accessDenied = Channel<AccessDeniedBus.Denial>(Channel.UNLIMITED)
+    val accessDenied: Flow<AccessDeniedBus.Denial> = _accessDenied.receiveAsFlow()
 
     private val _isReady = MutableStateFlow(false)
 
@@ -152,6 +169,15 @@ class AppViewModel(
                 }
                 previousExpired = expired
             }
+        }
+
+        // Route to the access-denied screen when the network layer reports a `403`
+        // with the locked envelope. Forward every signal — the App composable's
+        // `launchSingleTop` keeps a burst of denied calls from stacking duplicate
+        // screens, and the screen itself is dismiss-blocked, so re-emission is
+        // safe.
+        viewModelScope.launch {
+            accessDeniedBus.denials.collect { denial -> _accessDenied.trySend(denial) }
         }
     }
 

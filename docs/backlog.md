@@ -26,24 +26,6 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 **Status:** Backlog. Polish on top of the shipped center-blast emote; the wire path + attribution already land it correctly.
 
-## Collapse `IdentityCache` into Supabase's session as source of truth
-
-**Idea:** We maintain a separate Cards-side `IdentityCache` (display name, avatar, isAnonymous, userId) alongside supabase-kt's own session cache. Three caches end up overlapping — Supabase's session (tokens + UserInfo metadata), our `IdentityCache` (display fields), and the `IdentityState` `StateFlow`. The 2026-05-21 boot-gate fix (see [decisions.md](./decisions.md)) papers over the race by gating at the network client, but the structural answer is to stop double-caching.
-
-**Sketch:**
-- Drop `IdentityCache` (or demote to a tiny display-only optimistic read for first-frame UX, never used as the source for `SignedIn`).
-- Derive `Identity` directly from `supabase.auth.currentSessionOrNull()?.user` for the userId + isAnonymous, plus `/v1/me` for the server-managed display name / avatar.
-- `IdentityState.SignedIn` then has a single invariant: Supabase session is in memory + `/v1/me` has resolved. The optimistic cache emit goes away.
-
-**Tradeoffs:**
-- First-frame UX: a returning user's name briefly shows as default until `/v1/me` lands (~200ms). The cached-emit today avoids this flash.
-- Offline first-launch becomes worse (no cached fallback display) — but offline first-launch is already the open "Identity cold-boot resilience" item in `docs/todo.md` §D, and that's the right place to address it.
-- Cleaner contract; one source of truth for "is this user authed and who are they."
-
-**Status:** Backlog. Pick up the next time the identity layer opens. Pairs with the existing `SupabaseIdentityRepository` review item in `docs/todo.md` §D ("are we double-caching?" — answer is yes).
-
----
-
 ## Bot bet-sizing tells
 
 **Idea:** Have bots treat the human's bet size as a *signal* (in addition to the existing pot-odds math). Right now bots only react to bet size mathematically — a big bet costs more to call, so marginal hands fold. They don't interpret "this is a 3× pot overbet from a tight player, that means something."
@@ -102,22 +84,6 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
-## Emojis-cost-chips as a chip sink
-
-**Idea (raised 2026-05-20):** Make each table-side emoji blast cost a small chip amount, so emojis become a chip sink that drives buying.
-
-**Dissent (recorded 2026-05-20):** I'd push back. Emojis are the social-signal feature that makes the table feel alive. Adding cost suppresses usage, which suppresses the social experience, which suppresses the loss-aversion-on-busts loop that actually drives chip purchases. The chip-sink instinct is right — the lever is wrong.
-
-**Better chip sinks to consider first:**
-- **MP buy-in / ante** (already on todo.md as a separate item). This is the natural chip sink in a poker game.
-- **Tip the dealer** at hand end (already in [product-spec.md §4.1.5](./product/product-spec.md#41-currency--chips)).
-- **Profile rename / title change cost.**
-- **Custom avatar slots, name color, name glow, profile decoration** — already in shop catalog (§4.3).
-
-**Status:** Backlog. Revisit only if the other sinks (especially MP buy-in) prove insufficient to keep chips a flowing resource. Default position: do not charge for emojis.
-
----
-
 ## Audio infrastructure (sound cues, BGM)
 
 **Idea:** Add a small KMP audio playback layer so "Your turn feedback = Sound" (and future cues — winning a hand, achievement unlock, table ambience) can actually play a tone instead of being a no-op. Today the setting persists but only the Vibrate option is wired (via Compose `HapticFeedback`); Sound is recorded in `AppData` but the human just gets silence.
@@ -135,19 +101,6 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
-## RankDetail hero gradient — raw brand colors
-
-**Idea (raised 2026-05-20):** `RankDetailSheet.RankHero` (~lines 88–92) uses raw `Color(0xFF8E7CC3)` + `Color(0xFFE07AB1)` for the hero gradient — an AGENTS.md DS-first violation (no `Color(0xFF…)` outside `PokerPalette`). Two directions:
-
-- **Promote both to `PokerPalette`** as the canonical "rank hero" pair, named for what they are visually (e.g. `rankHeroStart`, `rankHeroEnd`). Cheap, keeps the gradient working as-is.
-- **Replace with theme tokens** — likely `accentPrimary` and a sibling. Loses the bespoke purple→pink hue but pulls the surface into the semantic palette.
-
-Needs a designer call on whether the bespoke gradient is load-bearing for the Rank surface's identity. Touched-but-not-fixed during the 2026-05-20 white-alpha pill cleanup.
-
-**Status:** Backlog. Needs a design decision before swap.
-
----
-
 ## Route default `popExit` = reversal of `enter`
 
 **Idea (raised 2026-05-20):** After the cover-and-uncover NavHost rewire, every existing `Route` subclass still has to declare `popExit` explicitly to mirror `enter`. The default in `Route(...)` is hardcoded `AnimationType.SlideOutToRight`, which is fine for horizontal-slide routes but wrong by default for `SlideUp` / `FadeIn` / etc. — a new route that forgets to declare `popExit` will pop horizontally regardless of how it entered.
@@ -157,30 +110,6 @@ Worth deriving the default — `popExit: AnimationType = enter.reversal()` (the 
 Blocker on doing it now: `opposite()` currently maps `SlideInFromRight → SlideOutToLeft` (mirror), but the reversal we want for back-out is `SlideInFromRight → SlideOutToRight` (back the way it came). Renaming / fixing the mapping is a semantic call worth a deliberate pass rather than tucking into the wiring change.
 
 **Status:** Backlog. Captured 2026-05-20 alongside the NavHost cover-and-uncover wiring.
-
----
-
-## `FeatureCard` glyph block — white-alpha on accent gradient
-
-**Idea (raised 2026-05-21):** [`FeatureCard.kt:60`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/FeatureCard.kt#L60) renders the leading glyph block with `Color.White.copy(alpha = 0.15f)` — the exact pattern AGENTS.md DS rule §1 calls out. It's a hand-tuned tile on top of a gradient (the card's `accent.copy(alpha = 0.95f) → accent.copy(alpha = 0.7f)` horizontal gradient), so a flat `surface*` token would clash with the gradient.
-
-Two directions:
-- **New DS token for "overlay on accent surface."** Something like `AppTheme.colors.surfaceOverlayOnAccent` that resolves to a translucent neutral wash. Lets every accent-gradient card get the same glyph treatment without duplicating the magic alpha.
-- **Pin to `surfacePrimary.copy(alpha = X)`.** Cheaper, but ties the glyph block to whatever the surfacePrimary token resolves to under the gradient — needs an eyeball check across all four `FeatureCardAccents` (Green/Blue/Magenta/Gold).
-
-Needs a designer call on which approach the DS should codify.
-
-**Status:** Backlog. Surfaced during the 2026-05-21 Radii-token sweep.
-
----
-
-## `Route.exit` field — dead after cover-and-uncover wiring
-
-**Idea (raised 2026-05-21):** After the NavHost `exitTransition` was collapsed to `ExitTransition.None` (cover-and-uncover semantics), `Route.exit` is no longer read by the host. ~7 Route subclasses still declare it. Separable cleanup: drop `exit` from `Route(...)` and every subclass, then drop the dead `getExitTransition()` accessor and the `toExitTransition()` callers that route through it.
-
-Blocker on doing it now: should land alongside the `popExit = enter.reversal()` derivation (already in this backlog under "Route default `popExit` = reversal of `enter`") so the per-route animation surface gets rationalised in one pass rather than two.
-
-**Status:** Backlog. Captured 2026-05-21 alongside the NavHost cover-and-uncover wiring.
 
 ---
 
@@ -199,33 +128,6 @@ Blocker on doing it now: should land alongside the `popExit = enter.reversal()` 
 
 **Status:** Backlog. Non-blocking DS drift; pull when next opening the play-table surfaces.
 
-
----
-
-## Extract `ConfirmPill` into a `:libraries:ui` primitive
-
-**Idea (raised 2026-05-22):** Four feature modules now define identical-shape private `ConfirmPill` composables: `BotTableSetupDialog.kt:139`, `LeaveBotsConfirmDialog.kt:81`, `SwipeFoldConfirmDialog.kt:100` (added this cycle), and `RaiseSheet.kt:350`. All four are a `Box { clip(RoundedCornerShape(32.dp)), background(accentPrimary|surfaceSecondary), padding(vertical=16dp), Text }` with optional `primary: Boolean` for the colour split. The 32.dp corner radius itself shows up in 7 callsites in `features/room/impl/**` with no `Radii` token — a `Radii.Pill` (or `R900`-style alias) would tidy both this primitive and the loose literals.
-
-**Sketch:**
-- Add `ConfirmPill(label, primary, onClick, modifier)` to `:libraries:ui/components/button` (next to the existing `Button` family). Use surface tokens; expose the same Cancel/Confirm primary/secondary split the existing copies have.
-- Optionally introduce `Radii.Pill = R900` or a new alias if 32.dp doesn't match an existing token.
-- Migrate the four callsites, kill the private copies.
-
-**Tradeoff:** None significant — pure DRY win; the four copies have already drifted apart slightly in padding/typography.
-
-**Status:** Backlog. Non-blocking DS drift; pull on the next pass through `features/room/impl/**` or `features/home/impl/**`.
-
----
-
-## Server-side `runCatching` audit
-
-**Idea (raised 2026-05-22):** Client side now uses `Catching { }` from `:libraries:core` consistently (it rethrows `CancellationException`, preserving structured concurrency). `apps/server` still uses `runCatching` in `HttpSupabaseAdminClient`, `DefaultOrphanAnonymousSweep`, `MessageRoutes`, etc. Server doesn't depend on `:libraries:core` today, and Ktor request scopes are tied to the request lifecycle rather than `viewModelScope`-style structured concurrency, so the cancellation concern is materially less acute. Still worth deciding either way.
-
-**Sketch:** Either add `implementation(projects.libraries.core)` to `apps/server` and migrate the ~4 callsites, or formally document `runCatching` as the server convention (since the rule only really bites in shared-coroutine-scope client code).
-
-**Tradeoff:** Adding the dep brings the convention into one place; documenting it as "server can use runCatching" is cheaper but leaves a hidden rule.
-
-**Status:** Backlog. Deferred from the 2026-05-22 client-side `Catching` sweep.
 
 ---
 
@@ -423,18 +325,6 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 - Status quo is the right V1 trade. The cleanup item exists so we don't forget the layering smell.
 
 **Status:** Backlog. Pick up when the starter kit grows past a handful of items, when a second consumer of "create user's default X" lands (e.g. default chip wallet), or when `ProfileRepository` starts importing a third cross-domain repo.
-
----
-
-## `DispatcherProvider.mainImmediate` — or collapse the call site to `dispatchers.main`
-
-**Idea:** [`DelegatingRouter.kt:307`](../libraries/navigation/impl/src/commonMain/kotlin/com/cards/libraries/navigation/impl/DelegatingRouter.kt) uses `withContext(Dispatchers.Main.immediate)` to flush a navigation continuation on the calling frame when already on the main thread. The rest of `:libraries:ui` has been swept to `DispatcherProvider`, but this call site is the only `.immediate` consumer and `DispatcherProvider` doesn't expose that variant today.
-
-**Two paths:**
-- Add `mainImmediate: CoroutineDispatcher` to `DispatcherProvider` (and the test provider — point it at the same `TestDispatcher`). Keeps the .immediate semantics, finishes the dispatcher-sweep story.
-- Collapse the call site to `dispatchers.main` and accept the loss of the immediate-dispatch semantics. Probably fine for navigation — the difference is one frame at most — but worth confirming the navigation flow doesn't rely on synchronous flush.
-
-**Status:** Backlog. Held off in the V1 dispatcher-sweep cycle because the call is the only `.immediate` user and adding a member to the provider is a wider design call than fit under that `refactor:`.
 
 ---
 
@@ -668,3 +558,75 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Idea (raised 2026-06-24):** The new pick-a-table chooser (`PublicSearchingScreen.ChoosingContent` / `CandidateCard`) lists each candidate with buy-in, seats taken/max, and a real-human count. Two deferred niceties: (1) show the humans-vs-bots split more richly than a single "N playing" line (e.g. seat dots, or "3 players, 1 bot"); (2) mark a table the caller is already seated in with a "you're here" badge — the server already includes such a table in the candidates list per its KDoc, the client just renders it the same as any other today.
 
 **Status:** Backlog. Cosmetic polish on a shipped, functional chooser. Do when next iterating on matchmaking presentation.
+
+---
+
+## XP anti-cheat hardening — server-derive XP when stakes rise
+
+**Idea:** The server stores client-computed XP deltas with a per-event clamp. That's fine for play-money — there's nothing to mint. When XP gates ranked status, leagues, or IAP-equivalent rewards, the trust model has to flip: the server should **derive** XP from synced hand facts (using the same curve it already serves to the client) and enforce caps / rate-limits / claw-back, instead of trusting whatever delta the client posts.
+
+**Trigger to revisit:** the first feature that makes XP convert into real value (ranked tier, league placement, exclusive cosmetic gates, IAP discounts tied to level).
+
+**Hints:** Same pattern as the server-derive level-up grants item in [`docs/todo.md`](./todo.md) — port the level/XP curve interpreter from `:libraries:cards` into `:apps:server`. Anti-cheat principles documented at [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md).
+
+**Status:** Backlog. Explicitly deferred — not worth the engineering until XP gates something a cheater would want.
+
+---
+
+## Responsible-play nudge after risky patterns
+
+**Idea:** A gentle, dismissible nudge after risky patterns (repeated chip buys after going bust, rapid repeat purchases). The Settings row and the real-money purchase-sheet link both already ship; this is the proactive in-app nudge on top. Needs an economy-event hook that doesn't exist yet — `AppEventBus` is lifecycle-level only.
+
+**Status:** Backlog. Owner unsure whether to ship this at all — revisit if user reports or analytics suggest the nudge would land. Retired from todo as AUTH-4.
+
+---
+
+## Multiplayer game summary + recent-games history
+
+**Idea:** No post-game summary exists in MP — the end-of-hand XP/achievement dialog is transient and nothing is stored. When an MP game ends (or a player leaves), show a summary: chips won/lost, XP gained, achievements earned during that game. Persist per-game results so Home can show a "recent games" list, each tapping into its summary. MP only.
+
+**Sketch:** Greenfield — needs a per-game result record (client Room table or a server endpoint; the server already logs `hands_finished`). The chips delta depends on the MP wallet settlement being real (it is). Distinct from the friend-graph `RecentlyPlayedWithStrip` (opponents-to-friend, not results).
+
+**Status:** Backlog. Retired from todo as GAME-2. Pull when player-history surfaces become a V2 priority.
+
+---
+
+## Server-derive level-up grants (when stakes rise)
+
+**Idea:** The server applies whatever `levelup_<level>` chip delta the client sends (only guard: no-below-zero) and gates the cosmetic grant by product allowlist, not by *level reached* — so a tampered client can mint level rewards it didn't earn. Harmless for play-money. When XP/chip totals feed leagues/leaderboards or anything else a cheater would want, switch to: on progression-sync, the server derives level from its reconciled `total_xp` against the curve it already serves, grants `levelup_<level>` itself (idempotent), and caps client-claimed amounts.
+
+**Hints:** Port the `levelProgressFor` interpreter from [`Level.kt`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/cards/Level.kt) into `:apps:server` (don't extract a shared module — see `decisions.md` 2026-06-21). Grant precedents: `PostgresWalletRepository.apply` + `LevelGrantableProducts` / `GrantsRoutes`. Client path: `LevelUpRewardGranter`.
+
+**Status:** Backlog. Same trigger as the XP anti-cheat hardening item above. Retired from todo as PROG-2.
+
+---
+
+## Pick-a-Card reward chest
+
+**Idea:** A consumable chest: open → magician-style card-shuffle/reveal → a prize (chips / card back / felt / boost) from a weighted, server-owned loot table. Server rolls + grants on open (idempotent); the client only animates + reveals the server's result. Online to open; ownable offline ("opens when you reconnect"). Giftable on level-up.
+
+**Phasing:**
+- **Phase A — inventory quantity + consumable kind:** add `quantity` (stockpile) + a consume path to inventory (today it's one permanent row per product) and a `chest_` product kind.
+- **Phase B — server chest-open:** `POST /v1/me/chest/{id}/open` rolls the weighted loot table, grants the prize (chips → wallet ledger, cosmetic → inventory grant), idempotent per open.
+- **Phase C — the pick screen:** full-screen pick/shuffle + reveal showing the server-rolled prize; offline "connect to open" gating.
+
+**Hints:** Grant precedent is `grantApi.grantAchievement` / `GrantsRoutes`; chips prize via `ChipsRepository.addChips(idempotencyKey=…)`. Touches wallet, inventory / my-items, shop, and level-up rewards.
+
+**Status:** Backlog. Retired from todo as SHOP-1. Real V1.x/V2 monetization feature; pull when consumables are on the table.
+
+---
+
+## Friends + social — descoped to V2
+
+**Idea:** Friends and social are explicitly out of V1. SOC-2 in todo.md gates all the existing fake-or-stubbed social surfaces (FriendsStrip, recently-played-with shelf, friend-requests inbox, at-table Add Friend) behind a config flag defaulted off. When V2 revives the feature, the V1 plumbing left behind the flag becomes the starting point.
+
+**V1 work that ships behind the flag (server-side, currently fake or no-op):**
+- Online-presence signal — server emits presence on WS connect/disconnect + stores last-seen / current-room; client subscribes once per session, filtered to friend ids.
+- Real friend graph backing the strip + the "recently played with" shelf (today the strip uses `defaultOnlineFriends()`; the shelf is a stubbed list).
+- Friend-request inbox + accept/reject flow (today the badge is real, the inbox isn't).
+
+**Locked rule for the V2 revive:** the only way to friend someone is the "recently played with" shelf — no search-by-handle, no suggestions. Empty states must say so.
+
+**Out of scope even for V2 revive:** friend suggestions, invite-via-share-link, push notifications for requests, group chat.
+
+**Status:** Backlog (V2). Retired from todo as SOC-1 (presence signal). The flag-gating work that disables these surfaces in V1 lives in todo.md as SOC-2.

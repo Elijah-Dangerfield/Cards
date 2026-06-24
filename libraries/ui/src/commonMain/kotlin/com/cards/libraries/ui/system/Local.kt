@@ -43,3 +43,19 @@ val LocalClock = staticCompositionLocalOf<Clock> {
  * [DefaultLevelCurve] so previews and tests render without a provider.
  */
 val LocalLevelCurve = staticCompositionLocalOf<LevelCurve> { DefaultLevelCurve }
+
+/**
+ * Degraded guest-account-creation status, provided once at the app root from the
+ * `GuestAccountCreator`. Surfaces (Profile, Settings) read this to offer a Retry
+ * affordance near their guest sign-in nudge when account setup is still pending
+ * after onboarding offline. Carries plain values so `:libraries:ui` keeps no
+ * dependency on the identity layer. Defaults to a noop so previews and tests
+ * render without a provider.
+ */
+data class AccountSetupRetryStatus(
+    val pending: Boolean = false,
+    val isRetrying: Boolean = false,
+    val onRetry: () -> Unit = {},
+)
+
+val LocalAccountSetupRetry = staticCompositionLocalOf { AccountSetupRetryStatus() }

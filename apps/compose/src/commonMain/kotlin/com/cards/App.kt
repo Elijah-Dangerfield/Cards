@@ -47,6 +47,7 @@ import com.dangerfield.cards.libraries.navigation.Route
 import com.dangerfield.cards.libraries.navigation.floatingwindow.FloatingWindowHost
 import com.dangerfield.cards.libraries.navigation.floatingwindow.FloatingWindowNavigator
 import com.dangerfield.cards.libraries.navigation.impl.DelegatingRouter
+import com.dangerfield.cards.libraries.navigation.AccessDeniedRoute
 import com.dangerfield.cards.libraries.navigation.AuthGateRoute
 import com.dangerfield.cards.libraries.navigation.GateReason
 import com.dangerfield.cards.libraries.navigation.SessionExpiredRoute
@@ -98,6 +99,8 @@ import org.jetbrains.compose.resources.stringResource
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarHost
 import com.dangerfield.cards.libraries.ui.snackbar.rememberSnackbarHostState
 import com.dangerfield.cards.libraries.ui.snackbar.showDebugSnackBar
+import com.dangerfield.cards.libraries.ui.system.AccountSetupRetryStatus
+import com.dangerfield.cards.libraries.ui.system.LocalAccountSetupRetry
 import com.dangerfield.cards.libraries.ui.system.LocalAppState
 import com.dangerfield.cards.libraries.ui.system.LocalBuildInfo
 import com.dangerfield.cards.libraries.ui.system.LocalClock
@@ -205,6 +208,13 @@ fun App(appComponent: AppComponent) {
         }
     )
 
+    val accountSetupStatus = rememberAccountSetupStatus(appComponent.guestAccountCreator)
+    val accountSetupRetry = AccountSetupRetryStatus(
+        pending = accountSetupStatus.pending,
+        isRetrying = accountSetupStatus.isRetrying,
+        onRetry = { appComponent.guestAccountCreator.retry() },
+    )
+
     CompositionLocalProvider(
         LocalAppState provides appComponent.appState,
         LocalClock provides appComponent.provideClock(),
@@ -212,6 +222,7 @@ fun App(appComponent: AppComponent) {
         LocalDialogHostState provides dialogHostState,
         LocalSnackbarHostState provides snackbarHostState,
         LocalLevelCurve provides levelCurve,
+        LocalAccountSetupRetry provides accountSetupRetry,
     ) {
         AppThemeProvider {
             Box(
@@ -273,6 +284,23 @@ fun App(appComponent: AppComponent) {
                     appViewModel.sessionExpired.collect { event ->
                         router.navigate(
                             SessionExpiredRoute(wasAnonymous = event.wasAnonymous),
+                            NavigationOptions(launchSingleTop = true),
+                        )
+                    }
+                }
+
+                // Server returned the locked `403` access-denied envelope: push
+                // the blocking AccessDenied screen. Same launchSingleTop pattern
+                // as SessionExpired — a burst of denied calls collapses to one
+                // screen on top. The screen localizes title/body off `reason`
+                // and surfaces the appeal link.
+                LaunchedEffect(Unit) {
+                    appViewModel.accessDenied.collect { denial ->
+                        router.navigate(
+                            AccessDeniedRoute(
+                                reason = denial.reason,
+                                appealUrl = denial.appealUrl,
+                            ),
                             NavigationOptions(launchSingleTop = true),
                         )
                     }

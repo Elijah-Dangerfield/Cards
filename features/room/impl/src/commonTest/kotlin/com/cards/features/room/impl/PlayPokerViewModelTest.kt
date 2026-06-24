@@ -1347,6 +1347,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         chipsRepository: FakeChipsRepository = FakeChipsRepository(),
         purchaseChipPack: FakePurchaseChipPackUseCase = FakePurchaseChipPackUseCase(),
         clock: kotlin.time.Clock = kotlin.time.Clock.System,
+        socialEnabled: Boolean = false,
     ): PlayPokerViewModel = PlayPokerViewModel(
         sessionFactory = factory,
         progressionRepository = progressionRepository,
@@ -1365,6 +1366,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         dispatcherProvider = dispatchers,
         appScope = com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope(dispatchers),
         clock = clock,
+        socialEnabledConfig = com.dangerfield.cards.libraries.social.SocialEnabled.forTest(socialEnabled),
     )
 
     private class FixedClock(private val nowMs: Long) : kotlin.time.Clock {

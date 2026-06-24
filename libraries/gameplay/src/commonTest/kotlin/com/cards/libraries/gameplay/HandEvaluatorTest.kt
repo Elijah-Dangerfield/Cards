@@ -3,6 +3,7 @@ package com.dangerfield.cards.libraries.gameplay
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class HandEvaluatorTest {
@@ -280,6 +281,32 @@ class HandEvaluatorTest {
         assertFailsWith<IllegalArgumentException> {
             HandEvaluator.evaluate(hand("A♠", "K♦", "Q♣", "J♠", "T♥", "9♥", "8♥", "7♥"))
         }
+    }
+
+    @Test
+    fun evaluateOrNull_returnsNullOnDuplicate_insteadOfThrowing() {
+        // MP-4: the exact 7-card set that crashed the play screen at showdown
+        // (CARDS-2Q) — a board+hole merge that duplicated the 8 of spades after
+        // a snapshot landed over stale local cards. The display/projection path
+        // must degrade to null, never throw.
+        val crashSet = hand("8♠", "2♥", "8♣", "Q♠", "8♠", "A♣", "6♥")
+        assertNull(HandEvaluator.evaluateOrNull(crashSet))
+    }
+
+    @Test
+    fun evaluateOrNull_returnsNullOnWrongCardCount() {
+        assertNull(HandEvaluator.evaluateOrNull(hand("A♠", "K♦", "Q♣", "J♠")))
+        assertNull(
+            HandEvaluator.evaluateOrNull(
+                hand("A♠", "K♦", "Q♣", "J♠", "T♥", "9♥", "8♥", "7♥"),
+            ),
+        )
+    }
+
+    @Test
+    fun evaluateOrNull_matchesEvaluateOnValidHand() {
+        val cards = hand("A♠", "A♥", "K♦", "K♣", "3♠", "2♣", "7♥")
+        assertEquals(HandEvaluator.evaluate(cards), HandEvaluator.evaluateOrNull(cards))
     }
 
     @Test

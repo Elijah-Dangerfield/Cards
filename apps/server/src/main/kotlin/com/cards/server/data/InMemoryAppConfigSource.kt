@@ -33,6 +33,11 @@ class InMemoryAppConfigSource : AppConfigSource {
                     "maintenanceMessage" to JsonPrimitive("We're updating the servers, back in a moment."),
                 ),
             ),
+            "social" to JsonObject(
+                mapOf(
+                    "enabled" to JsonPrimitive(false),
+                ),
+            ),
         ),
     )
 }

@@ -61,6 +61,7 @@ import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.config.AppConfigRepository
 import com.dangerfield.cards.libraries.config.QaConfigValue
 import com.dangerfield.cards.libraries.social.FriendRepository
+import com.dangerfield.cards.libraries.social.SocialEnabled
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
@@ -110,6 +111,7 @@ class ProfileFeatureEntryPoint(
     private val userMessageRepository: UserMessageRepository,
     private val inventoryRepository: InventoryRepository,
     private val friendRepository: FriendRepository,
+    private val socialEnabled: SocialEnabled,
     private val shopDeepLinkBus: ShopDeepLinkBus,
 ) : FeatureEntryPoint {
 
@@ -154,8 +156,9 @@ class ProfileFeatureEntryPoint(
             val incomingRequests by friendRepository.observeIncomingRequests()
                 .collectAsStateWithLifecycle(initialValue = emptyList())
             val authedId = authenticated?.takeUnless { it.isAnonymous }?.id
-            androidx.compose.runtime.LaunchedEffect(authedId) {
-                if (authedId != null) friendRepository.refreshIncomingRequests()
+            val isSocialEnabled = socialEnabled()
+            androidx.compose.runtime.LaunchedEffect(authedId, isSocialEnabled) {
+                if (isSocialEnabled && authedId != null) friendRepository.refreshIncomingRequests()
             }
 
             // Owned cosmetics (inventory ∩ catalog) for the grouped item
@@ -246,6 +249,7 @@ class ProfileFeatureEntryPoint(
                 },
                 onAcceptFriendRequest = { id -> scope.launch { friendRepository.accept(id) } },
                 onDeclineFriendRequest = { id -> scope.launch { friendRepository.decline(id) } },
+                socialEnabled = isSocialEnabled,
                 scrollState = scrollState,
             )
         }

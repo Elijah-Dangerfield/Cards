@@ -58,6 +58,15 @@ You may modify `docs/todo.md` in three cases: removing an item you fully shipped
 3. Run locally before committing — `./gradlew :apps:compose:assembleDebug` for client, `./gradlew :apps:server:test` for server, plus targeted module tests.
 4. One logical commit per item, Conventional Commits subject under ~70 chars.
 5. **Remove the item from `docs/todo.md` in the same commit.** This is not optional. If you shipped the item end-to-end, the bullet must be gone from `docs/todo.md`. Partial slice → rewrite the bullet to describe what's left (the slicing rule above). Fully shipped → delete the bullet. A todo entry sitting in the file after its item shipped is the most common failure mode of this prompt — re-check before pushing.
+
+5a. **Don't leave scaffolding behind.** Removing an item also means removing everything that only existed to introduce it: orphan section headers (a topic header with no remaining bullets under it), `_Shipped._` narrative subsections, "Phase A / Phase B" stub headers that no longer point at remaining work, `*(proposed YYYY-MM-DD)*` footnotes, "State of play" paragraphs, "Architecture (date):" framing notes. If your removal leaves a section with zero remaining items, delete the section header too. The doc is a punch list, not a history of decisions — a bullet whose only neighbours are dead narrative is itself buried.
+
+5b. **Never add a `_Shipped._` note when you remove an item.** The item being gone *is* the signal that it shipped. The `in-flight.md` block + the commit body carry the narrative. Same for "Phase A landed, Phase B remains" — rewrite the bullet to describe Phase B as the active gap, don't append a Phase A obituary.
+
+5c. **Item IDs are stable.** When you fully ship an item, its ID retires — never reuse the number. When you partially ship and rewrite the bullet, keep the original ID. Refer to items by their ID in your commit subject + `in-flight.md` block (e.g. `feat(stats): graduate hand counters to server (PROG-1)`).
+
+5d. **Consider `docs/QA.md`.** If the item ships a user-facing change, decide whether it needs a QA entry: new feature → new test entry; UX tweak → sub-bullet on existing coverage; backend / invisible → skip. Match the file's format (ID + priority emoji + platform tag + **State** / numbered steps / **Expected**). Cross-reference the todo ID in the test if it verifies a known behaviour or pending fix.
+
 6. Append a block to `docs/agent/in-flight.md` (create if missing):
 
    ```

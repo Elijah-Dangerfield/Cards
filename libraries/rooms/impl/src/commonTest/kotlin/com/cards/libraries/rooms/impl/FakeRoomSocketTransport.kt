@@ -64,6 +64,21 @@ internal class FakeRoomSocketTransport : RoomSocketTransport {
         }
     }
 
+    /**
+     * Simulate a server-initiated reconnect: close the current live
+     * session (the inbound flow completes, matching a real WS drop) and
+     * queue the next [primeSuccess] so the production reconnect loop's
+     * fresh `open()` lands on the returned session. Spells out the
+     * close → reopen contract that tests previously had to assemble
+     * from two raw helpers; the production [ReconnectingRoomSocket]
+     * does exactly this every reconnect cycle, so the fake should
+     * model it as one explicit call.
+     */
+    fun simulateReconnect(): FakeRoomSocketSession {
+        latest?.closeFromPeer()
+        return primeSuccess()
+    }
+
     override suspend fun open(code: String): Result<RoomSocketSession> {
         openCalls += 1
         openCodes += code

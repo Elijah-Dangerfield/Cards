@@ -1,6 +1,10 @@
-# Release automation
+# Release
 
-This template ships to the App Store and Play Store with no human clicks after one-time setup. This doc has two short sections for the two things most people ask, then reference material for when something breaks.
+This template ships to the App Store and Play Store with no human clicks after one-time setup. Two short sections for the things most people ask, then reference material for when something breaks.
+
+## Branching model: trunk-based
+
+`main` is always shippable; short-lived branches merge into `main`; releases are tags on `main` cut by release-please. No long-lived release branches. The full rationale (and the alternatives we rejected) is in [`../decisions.md`](../decisions.md) under the 2026-06-24 entry — "Branching: trunk-based, no release branches."
 
 ---
 

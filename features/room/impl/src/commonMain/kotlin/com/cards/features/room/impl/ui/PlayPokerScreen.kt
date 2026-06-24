@@ -425,6 +425,8 @@ fun PlayPokerScreen(
                     leaveConfirmOpen = false
                     leaveTable()
                 },
+                subsidized = active?.subsidizedBotTable == true,
+                cashOutChips = humanStack,
             )
         }
 
@@ -496,7 +498,7 @@ fun PlayPokerScreen(
                 // not a bot. The friend graph's recently-played gate is satisfied
                 // by definition — they're at the table with you.
                 onAddFriend = seat.userId
-                    ?.takeIf { !seat.isBot && !seat.seatEmpty }
+                    ?.takeIf { state.socialEnabled && !seat.isBot && !seat.seatEmpty }
                     ?.let { id -> { onAction(PlayPokerAction.AddFriend(id)) } },
                 friendRequestSent = seat.userId in state.friendRequestSentIds,
             )
