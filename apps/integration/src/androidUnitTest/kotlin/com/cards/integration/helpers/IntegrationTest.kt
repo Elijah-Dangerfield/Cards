@@ -59,8 +59,12 @@ class Harness(val server: InProcessServer) {
     /** Background scope for session collectors; cancelled when the test ends. */
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-    fun client(userId: String = randomUserId(), faulty: Boolean = false): TestClient =
-        TestClient(serverUrl = server.baseUrl, userId = userId, faulty = faulty)
+    fun client(
+        userId: String = randomUserId(),
+        faulty: Boolean = false,
+        latencyMs: Long? = null,
+    ): TestClient =
+        TestClient(serverUrl = server.baseUrl, userId = userId, faulty = faulty, latencyMs = latencyMs)
 
     /** A gameplay view over a live connection handle (real socket). */
     fun gameplay(handle: RoomConnectionHandle): GameplaySession =

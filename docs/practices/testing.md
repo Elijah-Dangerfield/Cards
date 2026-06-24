@@ -65,7 +65,6 @@ These are the remaining gaps. Tracked in `docs/todo.md` under `MP-2`; this list 
 - **Compose UI tests for `PlayPokerScreen`** — ~15 tests across the screen's 6+ states (your turn, bot thinking, raise unavailable, showdown, fold-around, loading, connection lost). Wire `androidx.compose.ui.test` into `:features:room:impl`'s `androidUnitTest`.
 - **Server restart mid-hand → full client reconnect.** Server-side hydration is pinned by `SessionHydrationTest`. The open part is the client-reconnect-after-restart end-to-end in `:apps:integration`.
 - **`FakeRoomServer` for the integration tier.** A fake that responds to `StartHand` / `SubmitIntent` / `RequestNextHand` using a real `GameSession`, so client-side tests can cover full turn cycles without booting Ktor. Two layers: real Ktor for end-to-end, `FakeRoomServer` for unit-fast turn cycles.
-- **Latency-simulating transport** (200ms+ RTT) at `:apps:integration`. The double-submit dedupe guard is pinned at the VM layer (`PlayPokerViewModelTest.submit_doubleTapOnSameDecision_forwardsOnce`); the latency transport itself is missing.
 - **Hand-history regression fixtures.** Capture 50 real hands from a playtest, freeze as `.json`, replay through the engine on every change. Gated on a real production playtest.
 - **Event-tail catch-up after reconnect** — if/when a rolling-event-tail ships, test that a reconnecting client requests events since `lastKnownSequence` and the server replays.
 
