@@ -7,8 +7,10 @@ import com.cards.integration.helpers.playPassivelyToCompletion
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import com.dangerfield.cards.libraries.rooms.CandidatesOutcome
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.FindTableOutcome
+import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.PlayBotsOutcome
 import com.dangerfield.cards.libraries.rooms.RoomVisibility
 import kotlin.test.Test
@@ -52,6 +54,53 @@ class MatchmakingPlayTest : IntegrationTest() {
         val completed = table.playPassivelyToCompletion()
         assertEquals(BettingRound.Complete, completed.street, "two real humans played a hand to the end")
         assertTrue(completed.seats.all { !it.isBot }, "an all-human table — no bots seated")
+    }
+
+    @Test
+    fun chooser_browsesCandidates_thenJoinsThePickedTable_andPlaysAHand() = integration {
+        // One searcher opens a fresh table (nobody to match yet).
+        val opener = client()
+        val opened = assertIs<FindTableOutcome.Success>(opener.matchmaking.findTable(1_000, 1_000))
+        assertTrue(opened.created, "the opener seats themselves in a fresh table")
+        val code = opened.room.code
+
+        // A second player browses candidates instead of auto-joining: the read-only
+        // endpoint lists the opener's table and seats no one (the opener is still the
+        // only member after the browse).
+        val chooser = client()
+        val candidates = assertIs<CandidatesOutcome.Success>(chooser.matchmaking.findCandidates(1_000, 1_000))
+        val candidate = candidates.rooms.firstOrNull { it.code == code }
+        assertTrue(candidate != null, "the opener's table is a candidate")
+        assertEquals(
+            1,
+            candidate.members.count { !it.isBot },
+            "browsing seats nobody — the candidate still has just the opener",
+        )
+
+        // The chooser picks that table and joins it by code (the explicit accept).
+        val joined = assertIs<JoinRoomOutcome.Success>(chooser.repository.joinRoom(code))
+        assertEquals(code, joined.room.code, "joined the table the chooser picked, not some other match")
+
+        // Both connect — a public table is server-dealt, so a hand deals itself once
+        // both humans are present.
+        val openerGame = gameplay(opener.connect(code))
+        val chooserGame = gameplay(chooser.connect(code))
+        openerGame.awaitConnected()
+        chooserGame.awaitConnected()
+
+        val table = Table(code, opener, openerGame, chooser, chooserGame)
+        val completed = table.playPassivelyToCompletion()
+        assertEquals(BettingRound.Complete, completed.street, "the chosen table played a full hand")
+        assertTrue(completed.seats.all { !it.isBot }, "two humans chose and played — no bots")
+    }
+
+    @Test
+    fun chooser_withNoEligibleTables_getsAnEmptyList() = integration {
+        // Nothing is open at this tier, so the browse returns empty — the client
+        // then converges on the honest bot-fallback path (pinned at the unit tier).
+        val chooser = client()
+        val candidates = assertIs<CandidatesOutcome.Success>(chooser.matchmaking.findCandidates(1_000, 1_000))
+        assertTrue(candidates.rooms.isEmpty(), "no eligible table → empty list, seating no one")
     }
 
     @Test
