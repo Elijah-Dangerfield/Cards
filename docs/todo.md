@@ -118,13 +118,6 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
   - **A real player matches while you're deciding / playing bots →** they can still join later (the bot table already steps aside for real players; the chooser should reflect newly-appeared tables live, not a frozen snapshot).
   **Hints:** server side, this means returning *candidates* (a list) rather than join-or-create-one — likely a new `GET`/`find` shape alongside `findOrJoinPublic` in `InMemoryRoomService`, leaving create-on-accept to a follow-up call. Client: new route + screen between `PublicSearchingRoute` and the table, wired in `RoomsFeatureEntryPoint`; `PublicSearchingViewModel` grows a "matches" phase. Applies to **both** Open and Public tables, not just Open. Supersedes the old "snap host stakes to canonical tiers" idea — **don't** snap a host's deliberate buy-in. Background in [decisions.md](./decisions.md) (2026-06-23 "Open to anyone").
 
-### From the 2026-06-22 owner playtest
-
-A batch of small UX directives the owner filed via in-app feedback in one session. Grouped here for skimmability; the maintainer can redistribute into the topic sections above. Each links its Sentry report.
-
-- `[P2]` **Debug feedback swipe is unreliable inside scroll views.** The right-edge swipe to open the feedback screen often takes a few tries, mostly when the user is already in a scroll view (gesture conflict). *(feedback CARDS-Y; debug-only feature from `fd5aeec8`)*
-  **Hints:** the right-edge swipe detector competing with scroll containers. Sentry [CARDS-Y](https://elijah-dangerfield.sentry.io/issues/CARDS-Y).
-
 ### From the 2026-06-23 owner playtest
 
 A second batch of in-app feedback from a live two-device MP playtest. Hard bugs from this session are filed in their topical sections above (account-deletion soft-delete, private-join balance gate, the B7 hand-end stall, mid-game opponent-leave notice); these are the UX/copy directives.
