@@ -1,5 +1,9 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
+import app.cash.turbine.test
+import com.dangerfield.cards.libraries.cards.AppEvent
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
+import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
@@ -36,7 +40,7 @@ import kotlin.test.assertTrue
  * MockEngine, so the assertions exercise the actual interceptor +
  * deserialization path. Misses bugs from a hand-rolled fake.
  */
-class RoomRepositoryImplTest {
+class RoomRepositoryImplTest : CoroutineTest() {
 
     @Test
     fun createRoom_200_returnsSuccess_withRoom() = runTest {
@@ -264,6 +268,46 @@ class RoomRepositoryImplTest {
         assertEquals(listOf("ABC123"), repo.observeActiveRooms().first().map { it.code })
     }
 
+    @Test
+    fun onForeground_warm_refreshesActiveRoomsFromServer() = runUnitTest {
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, ACTIVE_ROOMS_ONE_ROOM_JSON) })
+        repo.observeActiveRooms().test {
+            assertTrue(awaitItem().isEmpty())
+            repo.onForeground(AppEvent.OnForeground(isColdBoot = false))
+            assertEquals(
+                listOf("ABC123"),
+                awaitItem().map { it.code },
+                "a warm foreground re-pulls the authoritative server snapshot so off-device changes surface",
+            )
+        }
+    }
+
+    @Test
+    fun onForeground_coldBoot_doesNotRefresh() = runUnitTest {
+        var calls = 0
+        val repo = newRepo(MockEngine {
+            calls++
+            respondJson(HttpStatusCode.OK, ACTIVE_ROOMS_ONE_ROOM_JSON)
+        })
+        repo.onForeground(AppEvent.OnForeground(isColdBoot = true))
+        testScheduler.advanceUntilIdle()
+        assertEquals(0, calls, "cold boot has its own load path; the listener must not double-fetch")
+    }
+
+    @Test
+    fun onConnectivityRegained_refreshesActiveRoomsFromServer() = runUnitTest {
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, ACTIVE_ROOMS_ONE_ROOM_JSON) })
+        repo.observeActiveRooms().test {
+            assertTrue(awaitItem().isEmpty())
+            repo.onConnectivityRegained(AppEvent.ConnectivityRegained)
+            assertEquals(
+                listOf("ABC123"),
+                awaitItem().map { it.code },
+                "regaining connectivity re-pulls the server snapshot to catch changes made while offline",
+            )
+        }
+    }
+
     /**
      * Cross-platform stand-in for `java.io.IOException` — see the sibling
      * comment in `ReconnectingRoomSocketTest`.
@@ -289,7 +333,7 @@ class RoomRepositoryImplTest {
                 override suspend fun send(frame: ClientFrame) = Unit
             }
         }
-        return RoomRepositoryImpl(api, socket)
+        return RoomRepositoryImpl(api, socket, AppCoroutineScope(dispatchers))
     }
 
     @OptIn(com.dangerfield.cards.libraries.networking.InternalNetworkingApi::class)

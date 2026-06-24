@@ -19,6 +19,7 @@ kotlin {
             implementation(projects.libraries.rooms)
             implementation(projects.libraries.networking)
             implementation(projects.libraries.core)
+            implementation(projects.libraries.cards)
             implementation(projects.libraries.flowroutines)
             // Multiplayer wire frames carry GameState / GameEvent /
             // PlayerIntent. The server runs the same gameplay engine so
@@ -32,8 +33,10 @@ kotlin {
             implementation(libs.ktor.serialization.kotlinx.json)
         }
         commonTest.dependencies {
+            implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.libraries.networking)
+            implementation(projects.libraries.cards)
             implementation(projects.libraries.rooms)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.contentNegotiation)

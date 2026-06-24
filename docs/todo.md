@@ -70,9 +70,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** the glyph reads optically centered in the circle at every `Size`.
   **Hints:** the `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
 
-- `[P1]` **Home active-room banner — back the reactive flow with a server-pushed source.** `observeActiveRooms()` is a client-side projection: room changes that don't originate on this device (host closes the room elsewhere, server-side forfeit/grace expiry, a second device) don't reflect until the next `getActiveRooms()`. Hang it off the durable membership source so it's authoritative regardless of who mutated the room. *(proposed 2026-05-31)*
-  **Acceptance:** the banner reflects room changes made off-device without a manual refresh.
-  **Hints:** [`RoomRepositoryImpl.observeActiveRooms`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/RoomRepositoryImpl.kt) holds the in-memory `MutableStateFlow` today; the durable source is [B2](#b2--persisted-room-membership) (persisted membership), and presence pushes pair with the [online-presence WS signal](#social-graph--friends--load-bearing-for-v1x).
+- `[P1]` **Home active-room banner — live WS-pushed source (follow-on).** `RoomRepositoryImpl` now re-pulls `getActiveRooms()` on warm foreground + connectivity-regained, so off-device changes surface when the user returns to the app. The remaining gap is *live* push while Home is open: a host closing the room (or a server-side forfeit/grace expiry) elsewhere still won't reflect until the next foreground. Hang the flow off a durable WS/presence push so it updates without a foreground edge. *(proposed 2026-05-31; refresh-on-edge slice shipped 2026-06-23)*
+  **Hints:** pairs with the [online-presence WS signal](#social-graph--friends--load-bearing-for-v1x); the per-edge refresh lives in `RoomRepositoryImpl.onForeground` / `onConnectivityRegained`.
 
 ### Stats & progression
 
