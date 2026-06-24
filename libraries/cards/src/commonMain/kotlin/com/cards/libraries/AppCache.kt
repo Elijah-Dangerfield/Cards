@@ -210,7 +210,7 @@ data class AppData(
      * How many **inactive** XP boosts the user owns but hasn't lit yet. Buying
      * one in the shop or being gifted one at level-up increments this; lighting
      * one (opening the [xpBoostExpiresAtEpochMs] window) decrements it. Boosts
-     * are a uniform 30-minute consumable, so the stash is a plain count rather
+     * are a uniform 5-minute consumable, so the stash is a plain count rather
      * than a per-boost duration. Account-scoped like the window.
      */
     val xpBoostOwnedCount: Int = 0,

@@ -5,8 +5,8 @@ import kotlinx.coroutines.flow.Flow
 /** Multiplier applied to every XP award while a boost is active. */
 const val XP_BOOST_MULTIPLIER: Int = 2
 
-/** Default boost window: 30 minutes. */
-const val XP_BOOST_DEFAULT_DURATION_MS: Long = 30L * 60L * 1000L
+/** Default boost window: 5 minutes. */
+const val XP_BOOST_DEFAULT_DURATION_MS: Long = 5L * 60L * 1000L
 
 /**
  * Catalog id + grant key for the chip-priced XP Boost shop product. The

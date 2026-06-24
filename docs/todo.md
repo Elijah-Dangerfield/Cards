@@ -66,12 +66,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** The `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
 
-- `[P2]` **GAME-5 — Cut the XP-boost duration to 5 minutes (owner directive).** Owner: "we need to update the boost to be just 5 mins. 30 mins is insane. 1k chips for 5 mins boost and that's it." Change `XP_BOOST_DEFAULT_DURATION_MS` from 30 min to 5 min and confirm the boost price is 1000 chips. Sweep every surface that renders the duration/progress so the 5-min value flows through (the banner/badge/countdown fractions divide by the same constant, so they should follow automatically — verify).
-
-  **Acceptance:** Activating a boost lasts 5 minutes; the countdown, banner fraction, and badge all reflect 5 min; the purchase costs 1000 chips.
-
-  **Hints:** `XP_BOOST_DEFAULT_DURATION_MS = 30L * 60L * 1000L` in [`libraries/cards/src/commonMain/kotlin/com/cards/libraries/cards/XpBoost.kt`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/cards/XpBoost.kt); consumers `XpBoostBanner.kt`, `XpBoostBadge.kt`, `XpBoostCountdown.kt`, `App.kt`. Confirm the 1000-chip price in the shop/boost purchase path. Sentry CARDS-3A. (Owner directive — no case file.)
-
 ---
 
 ## B. Multiplayer hardening

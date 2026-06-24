@@ -204,7 +204,7 @@ fun ProfileScreen(
     // rendered over the whole screen — the same animation as the poker table.
     var emojiBlast by remember { mutableStateOf<EmojiBlast?>(null) }
 
-    // Lighting a stashed boost burns 30 minutes starting immediately, so we
+    // Lighting a stashed boost burns 5 minutes starting immediately, so we
     // confirm first (and restate that it's hand XP only) rather than firing on
     // the banner's tap.
     val boostConfirmState = rememberDialogState(initiallyVisible = false)
