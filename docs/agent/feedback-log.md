@@ -52,3 +52,6 @@ where `disposition` is `todo: <title>`, `backlog`, or `no-action: <reason>`.
 - 2026-06-23 · 10ff4ad1e5614360b9b2af9b6de01ee6 · session eeddea6e-3c9f-4df7-a122-b2bd5a699a7b · backlog: more stats metrics (Best Hands / Biggest Pots) · https://elijah-dangerfield.sentry.io/issues/CARDS-1W
 - 2026-06-23 · 4c58fe7bebff49b9a8238db86e584497 · session 2f21f0e2-cef3-448c-ab03-bf52cfcb8293 · no-action: duplicate of existing "Tap-an-opponent sheet — Add friend affordance" todo (friend request/status on player card) · https://elijah-dangerfield.sentry.io/issues/CARDS-2C
 - 2026-06-22 · 99dcc7b246d840a18e17822fe9854c8b · session ce98ee29-3fe5-4885-9e57-03334c92c4e6 · no-action: duplicate of "Friend requests inbox" todo — friend graph is unbuilt/no-op, so requests don't deliver yet · https://elijah-dangerfield.sentry.io/issues/CARDS-1M
+
+<!-- 2026-06-24 owner playtest (1 report, session 89cec431, dev-ios-debug; carrier CARDS-2E + feedback-twin CARDS-2F) -->
+- 2026-06-24 · c42c260a1df7455c9a2e1eef990c6643 · session 89cec431-6e3e-42e1-ab8f-a8613d1f322e · todo: [P2] redesign the "couldn't create a room" error screen (LobbyScreen CreateNetworkError/CreateUnknownError) · https://elijah-dangerfield.sentry.io/issues/CARDS-2E
