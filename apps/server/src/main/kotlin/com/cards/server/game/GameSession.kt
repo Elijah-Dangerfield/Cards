@@ -435,6 +435,19 @@ class GameSession internal constructor(
     }
 
     /**
+     * Player ids queued to be dealt in at the next hand boundary but not yet in a
+     * seat (true mid-hand joiners). The server-dealt advance gate counts these so
+     * a table that drops to a single seated player with chips still deals the next
+     * hand when a joiner is waiting to fill it (CARDS-24) — without this, a joiner
+     * matched into a table whose only opponent then busts/trims out is stranded,
+     * because [requestNextHand] is never called. Lock-free read of the current
+     * keys: the driver only needs an approximate count to decide whether to
+     * advance, and [requestNextHand] re-checks the real occupant count under the
+     * mutex before dealing.
+     */
+    val pendingJoinerIds: Set<String> get() = pendingJoiners.keys.toSet()
+
+    /**
      * Permanently drop a player from this session's future hands. Used for two
      * cases: a **human who left** the room mid-hand (so their seat isn't
      * re-dealt next hand — the long-standing "ghost seat" bug), and a **bot

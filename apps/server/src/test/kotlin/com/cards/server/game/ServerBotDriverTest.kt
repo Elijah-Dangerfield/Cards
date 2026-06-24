@@ -4,8 +4,12 @@ import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.bots.BotThought
 import com.dangerfield.cards.libraries.gameplay.BettingRound
+import com.dangerfield.cards.libraries.gameplay.GameState
+import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import com.dangerfield.cards.libraries.gameplay.Seat
+import com.dangerfield.cards.libraries.gameplay.SeatStatus
 import com.dangerfield.cards.server.domain.BotSeat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -280,6 +284,75 @@ class ServerBotDriverTest {
             "an all-bot table stays idle — never simulates a hand to an empty room",
         )
         assertEquals(BettingRound.Complete, session.state.value!!.street)
+    }
+
+    /**
+     * CARDS-24 regression. A human matched into an in-progress public table is
+     * queued for the next hand. If the table then drops to a single seated player
+     * with chips (the only opponent busts or trims out), the seated-only "2 with
+     * chips" advance gate used to skip the boundary — so [requestNextHand] never
+     * fired and the queued joiner was stranded while the table sat idle. The gate
+     * now counts the pending joiner, so a single survivor + one waiting joiner
+     * advances and the joiner is dealt in.
+     */
+    @Test
+    fun serverDealtTable_oneSurvivorPlusPendingJoiner_advancesAndDealsTheJoinerIn() = runTest {
+        val session = GameSession(random = Random(seed = 5))
+        // A Complete heads-up state where seat 0 busted (0 chips) and seat 1
+        // survives — only one seated player has chips at the boundary.
+        session.startHand(
+            listOf(
+                SeatOccupant(seatIndex = 0, userId = "busted", displayName = "Busted", isBot = false),
+                SeatOccupant(seatIndex = 1, userId = "survivor", displayName = "Survivor", isBot = false),
+            ),
+            settings,
+        )
+        session.hydrate(
+            GameState(
+                settings = settings,
+                handNumber = 2,
+                buttonSeatIndex = 0,
+                seats = listOf(
+                    Seat(
+                        index = 0,
+                        playerId = "busted",
+                        displayName = "Busted",
+                        stack = 0,
+                        seatStatus = SeatStatus.Active,
+                        handParticipation = HandParticipation.Folded,
+                    ),
+                    Seat(
+                        index = 1,
+                        playerId = "survivor",
+                        displayName = "Survivor",
+                        stack = 2_000,
+                        seatStatus = SeatStatus.Active,
+                        handParticipation = HandParticipation.InHand,
+                    ),
+                ),
+                community = emptyList(),
+                street = BettingRound.Complete,
+                currentBetThisStreet = 0,
+                lastFullRaiseSize = 0,
+                actingSeatIndex = null,
+                deckRemaining = emptyList(),
+            ),
+        )
+        // A searcher matched in mid-hand — queued, not yet seated.
+        val joiner = SeatOccupant(seatIndex = 2, userId = "joiner", displayName = "Joiner", isBot = false)
+        session.queueJoiner(joiner)
+
+        val driver = unconfinedDriver(session)
+        driver.setServerDealt(true)
+        driver.start()
+        advanceUntilIdle()
+
+        assertEquals(3, session.state.value!!.handNumber, "the boundary advances despite a lone seated survivor")
+        assertEquals(
+            setOf("survivor", "joiner"),
+            session.state.value!!.seats.mapNotNull { it.playerId }.toSet(),
+            "the queued joiner is dealt in; the busted seat drops out",
+        )
     }
 
     /**

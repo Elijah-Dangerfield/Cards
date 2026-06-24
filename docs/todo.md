@@ -148,12 +148,6 @@ _Server slice shipped._ A non-member may attach to a matchmaking-discoverable (O
 - `[P2]` **Integration tests should play full multi-hand games, not thin slices.** Owner review: the `:apps:integration` coverage feels thin — he expected to see full hands actually played end-to-end. Strengthen Round 2 so the in-process server + clients play complete consecutive hands (deal → streets → showdown → next hand), not just connection/seat/handshake assertions. *(feedback 2026-06-22; sharpens B6 Round 2)*
   **Hints:** the two-client harness in `:apps:integration` / `testing-plan.md` Round 2; the now-fixed bot-room hand-end stall (CARDS-16) is exactly the kind of bug full-hand coverage would have caught. Sentry [CARDS-10](https://elijah-dangerfield.sentry.io/issues/CARDS-10).
 
-### B7 — Live hand-end stall in human rooms (post-CARDS-16)
-
-- `[P1]` **Mid-game public joiner isn't dealt in at the next hand boundary.** A player matched into an in-progress public game stays out: they report not getting dealt the next hand while existing seats keep playing. Pairs with the stall above (same `NMGSSC` session) but is its own gap — a joiner who should sit in at the next boundary never does.
-  **Acceptance:** a human who joins a live public table is seated and dealt in at the next hand start; the table reflects the new seat.
-  **Hints:** the mid-hand-join → next-boundary deal path; `InMemoryRoomService.trimBotForNewHumans` / seat allocation on join. Sentry [CARDS-24](https://elijah-dangerfield.sentry.io/issues/CARDS-24).
-
 ### B5 — Parked
 
 - Rolling event tail for smoother reconnect animations — resurrect only if users complain post-launch.

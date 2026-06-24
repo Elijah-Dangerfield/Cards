@@ -170,9 +170,16 @@ class ServerBotDriver(
         val seated = state.seats.filter { it.playerId != null }
         if (seated.none { !it.isBot }) return // all-bot table: idle, don't simulate to nobody
         val seatsWithChips = seated.filter { it.stack > 0 }
-        if (seatsWithChips.size < 2) return
+        // A mid-hand joiner sits in the session's pending queue, not in [state.seats],
+        // and is folded into the deal by [requestNextHand]. Count them toward the
+        // "enough players to deal" gate: a table that drops to a single seated player
+        // with chips must still advance when a joiner is waiting to fill it (CARDS-24),
+        // or the queued player is stranded forever because requestNextHand never fires.
+        val pendingJoiners = session.pendingJoinerIds.count { it !in seatsWithChips.mapNotNull { seat -> seat.playerId } }
+        if (seatsWithChips.size + pendingJoiners < 2) return
         // A bot is always willing to deal; on a server-dealt all-human table the
-        // lowest-seat human stands in (no client tap exists to drive it).
+        // lowest-seat human stands in (no client tap exists to drive it). A joiner
+        // hasn't a seat yet, so the advancer is always a current seat-holder.
         val advancer = seatsWithChips.filter { it.isBot }.minByOrNull { it.index }
             ?: seatsWithChips.takeIf { serverDealt }?.minByOrNull { it.index }
             ?: return
