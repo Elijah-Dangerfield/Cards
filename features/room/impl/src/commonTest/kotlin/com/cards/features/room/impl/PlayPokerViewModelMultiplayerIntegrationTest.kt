@@ -383,6 +383,7 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
             dispatcherProvider = dispatchers,
             appScope = com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope(dispatchers),
             clock = kotlin.time.Clock.System,
+            socialEnabledConfig = com.dangerfield.cards.libraries.social.SocialEnabled.forTest(enabled = false),
         )
         return vm to handle
     }

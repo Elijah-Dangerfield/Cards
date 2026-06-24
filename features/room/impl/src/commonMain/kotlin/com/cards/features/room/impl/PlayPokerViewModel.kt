@@ -49,6 +49,7 @@ import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
 import com.dangerfield.cards.libraries.review.ReviewTrigger
 import com.dangerfield.cards.libraries.social.FriendRepository
 import com.dangerfield.cards.libraries.social.SendFriendRequestResult
+import com.dangerfield.cards.libraries.social.SocialEnabled
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -87,8 +88,12 @@ class PlayPokerViewModel @Inject constructor(
     private val dispatcherProvider: DispatcherProvider,
     private val appScope: AppCoroutineScope,
     private val clock: Clock,
+    socialEnabledConfig: SocialEnabled,
 ) : SEAViewModel<PlayPokerState, PlayPokerEvent, PlayPokerAction>(
-    initialStateArg = PlayPokerState(xpMode = sessionFactory.xpMode),
+    initialStateArg = PlayPokerState(
+        xpMode = sessionFactory.xpMode,
+        socialEnabled = socialEnabledConfig(),
+    ),
 ) {
 
     private val logger = KLog.withTag("PlayPokerViewModel")

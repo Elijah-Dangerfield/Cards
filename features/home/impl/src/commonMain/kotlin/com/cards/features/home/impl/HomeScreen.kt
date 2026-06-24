@@ -111,6 +111,7 @@ fun HomeScreen(
         recentAchievements = state.recentAchievements,
         recentOpponents = state.recentOpponents,
         pendingFriendRequests = state.pendingFriendRequests,
+        socialEnabled = state.socialEnabled,
         modifier = modifier,
         scrollState = scrollState,
     )
@@ -141,6 +142,10 @@ private fun HomeScreenContent(
     onTapAchievements: () -> Unit,
     onAddRecentOpponent: (opponentId: String) -> Unit,
     onSeeAllRecentOpponents: () -> Unit,
+    // Master gate for the social shelves (SOC-2). Default true so previews
+    // exercise the populated layout; production passes `state.socialEnabled`,
+    // which defaults off until the `social.enabled` app-config flag flips on.
+    socialEnabled: Boolean = true,
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState(),
     // ----- Shelf content --------------------------------------------------
@@ -241,12 +246,14 @@ private fun HomeScreenContent(
                 )
             }
 
-            VerticalSpacerD1100()
-            FriendsStrip(
-                friends = onlineFriends,
-                pendingRequests = pendingFriendRequests,
-                onSeeAll = onTapFriends,
-            )
+            if (socialEnabled) {
+                VerticalSpacerD1100()
+                FriendsStrip(
+                    friends = onlineFriends,
+                    pendingRequests = pendingFriendRequests,
+                    onSeeAll = onTapFriends,
+                )
+            }
 
             VerticalSpacerD1100()
             RecentAchievementsStrip(
@@ -254,12 +261,14 @@ private fun HomeScreenContent(
                 onSeeAll = onTapAchievements,
             )
 
-            VerticalSpacerD1100()
-            RecentlyPlayedWithStrip(
-                opponents = recentOpponents,
-                onAddFriend = { opponent -> onAddRecentOpponent(opponent.id) },
-                onSeeAll = onSeeAllRecentOpponents,
-            )
+            if (socialEnabled) {
+                VerticalSpacerD1100()
+                RecentlyPlayedWithStrip(
+                    opponents = recentOpponents,
+                    onAddFriend = { opponent -> onAddRecentOpponent(opponent.id) },
+                    onSeeAll = onSeeAllRecentOpponents,
+                )
+            }
 
             VerticalSpacerD1100()
             BottomBarSpacer()
@@ -432,6 +441,34 @@ private fun HomeScreenPreview_NoSocialState() {
             pendingFriendRequests = 0,
             recentAchievements = emptyList(),
             recentOpponents = emptyList(),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun HomeScreenPreview_SocialDisabled() {
+    // SOC-2 default: social.enabled is off, so the Friends and
+    // recently-played-with shelves don't render at all — the recent-unlocks
+    // shelf sits directly under the play CTAs. Achievements stay visible.
+    PreviewContent(bottomBar = PreviewBottomBar.Home) {
+        HomeScreenContent(
+            levelProgress = levelProgressFor(totalXp = 1_140),
+            chips = 12_300,
+            activeRooms = emptyList(),
+            onPlayBots = {},
+            onPublicRooms = {},
+            onPrivateRoom = {},
+            onTournament = {},
+            onTapLevel = {},
+            onTapCash = {},
+            onRejoinRoom = {},
+            onForfeitRoom = {},
+            onTapFriends = {},
+            onTapAchievements = {},
+            onAddRecentOpponent = {},
+            onSeeAllRecentOpponents = {},
+            socialEnabled = false,
         )
     }
 }

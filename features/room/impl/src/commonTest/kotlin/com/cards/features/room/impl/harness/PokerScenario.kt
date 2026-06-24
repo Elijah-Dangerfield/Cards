@@ -142,6 +142,7 @@ class SoloScenarioBuilder(
             dispatcherProvider = dispatchers,
             appScope = AppCoroutineScope(dispatchers),
             clock = Clock.System,
+            socialEnabledConfig = com.dangerfield.cards.libraries.social.SocialEnabled.forTest(enabled = false),
         )
         val recorder = EventRecorder().also { it.attach(scope.backgroundScope, vm) }
         scope.advanceUntilIdle()

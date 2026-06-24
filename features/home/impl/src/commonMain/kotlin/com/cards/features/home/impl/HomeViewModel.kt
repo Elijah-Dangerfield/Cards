@@ -25,6 +25,7 @@ import com.dangerfield.cards.libraries.social.FriendRepository
 import com.dangerfield.cards.libraries.social.RecentOpponentProfile
 import com.dangerfield.cards.libraries.social.RecentOpponentsRepository
 import com.dangerfield.cards.libraries.social.SendFriendRequestResult
+import com.dangerfield.cards.libraries.social.SocialEnabled
 import com.dangerfield.cards.libraries.ui.system.DialogIntroDelay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -47,11 +48,14 @@ class HomeViewModel(
     private val progressionConfig: ProgressionConfig,
     private val appCache: AppCache,
     private val appScope: AppCoroutineScope,
+    socialEnabledConfig: SocialEnabled,
 ) : SEAViewModel<HomeState, HomeEvent, HomeAction>(
-    initialStateArg = HomeState()
+    initialStateArg = HomeState(socialEnabled = socialEnabledConfig())
 ) {
 
     private val homeLogger = KLog.withTag("HomeViewModel")
+
+    private val isSocialEnabled = socialEnabledConfig()
 
     /**
      * Opponents the user has fired (or had auto-completed) a friend request to
@@ -145,29 +149,35 @@ class HomeViewModel(
                 if (profile is Profile.Authenticated && profile.id != lastFetchedUserId) {
                     lastFetchedUserId = profile.id
                     launch { roomRepository.getActiveRooms() }
-                    launch { recentOpponentsRepository.refresh() }
-                    // Friend graph is account-bound — only a claimed account has
-                    // an inbox, so skip the fetch for an anonymous session.
-                    if (!profile.isAnonymous) launch { friendRepository.refreshIncomingRequests() }
+                    // Social graph is descoped behind SocialEnabled — don't fetch
+                    // recents / the friend inbox when the surfaces are hidden.
+                    if (isSocialEnabled) {
+                        launch { recentOpponentsRepository.refresh() }
+                        // Friend graph is account-bound — only a claimed account has
+                        // an inbox, so skip the fetch for an anonymous session.
+                        if (!profile.isAnonymous) launch { friendRepository.refreshIncomingRequests() }
+                    }
                 }
             }
         }
-        viewModelScope.launch {
-            // Recently-played-with shelf. The repo resolves bare opponent ids to
-            // public profiles; we just project them into state (applying any
-            // optimistic "Sent" flips this session). Refresh is kicked once a real
-            // session lands, in the profile collector above.
-            recentOpponentsRepository.observe().collect { opponents ->
-                takeAction(HomeAction.RecentOpponentsChanged(opponents))
+        if (isSocialEnabled) {
+            viewModelScope.launch {
+                // Recently-played-with shelf. The repo resolves bare opponent ids to
+                // public profiles; we just project them into state (applying any
+                // optimistic "Sent" flips this session). Refresh is kicked once a real
+                // session lands, in the profile collector above.
+                recentOpponentsRepository.observe().collect { opponents ->
+                    takeAction(HomeAction.RecentOpponentsChanged(opponents))
+                }
             }
-        }
-        viewModelScope.launch {
-            // Pending inbound friend-request count → the Friends strip badge.
-            // The list is the same one the Profile inbox renders; Home only
-            // needs the count. Refresh is kicked once a real session lands, in
-            // the profile collector above.
-            friendRepository.observeIncomingRequests().collect { requests ->
-                takeAction(HomeAction.IncomingRequestsChanged(requests.size))
+            viewModelScope.launch {
+                // Pending inbound friend-request count → the Friends strip badge.
+                // The list is the same one the Profile inbox renders; Home only
+                // needs the count. Refresh is kicked once a real session lands, in
+                // the profile collector above.
+                friendRepository.observeIncomingRequests().collect { requests ->
+                    takeAction(HomeAction.IncomingRequestsChanged(requests.size))
+                }
             }
         }
         viewModelScope.launch {
@@ -513,6 +523,10 @@ data class HomeState(
      *  `LevelUpRewardGranter` already granted; this is the reveal, not the
      *  grant. Cleared alongside [levelUpCelebration]. */
     val levelUpRewards: List<LevelReward> = emptyList(),
+    /** Master gate for the social shelves (friends + recently-played-with).
+     *  Mirrors the `social.enabled` app-config flag, default off (SOC-2) —
+     *  when false the Home social surfaces don't render at all. */
+    val socialEnabled: Boolean = false,
 )
 
 /**

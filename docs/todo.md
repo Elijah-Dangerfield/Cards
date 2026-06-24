@@ -72,14 +72,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** The practice-tier / bots explainer dialog in `:features:room:impl`; condition on the existing `forRealChips` flag. Sentry CARDS-2K. Pairs with the existing real-chip-framing / bots-explainer todo (CARDS-20).
 
-### Social
-
-- `[P0]` **SOC-2 — Gate all friends/social surfaces behind a config flag, default off.** Friends and social are descoped to V2. Add a `social.enabled` flag to the app config (default `false`) and hide every social surface behind it: the Home `FriendsStrip`, the "recently played with" shelf, the friend-requests inbox on Profile, the at-table "Add friend" affordance. When the flag is off, those surfaces disappear — they don't render in a disabled state.
-
-  **Acceptance:** Flag off (default) → none of those surfaces render. Flag on → same UX as today. No code is deleted — the flag is the gate, so reviving in V2 is a config flip, not a re-implementation.
-
-  **Hints:** Mirror `identity.GoogleSignInEnabled` / `AppleSignInEnabled`. Flag lives in `apps/server/src/main/kotlin/com/cards/server/data/AppConfigSource.kt`; client reads it via `AppConfigRepository`.
-
 ---
 
 ## B. Multiplayer hardening

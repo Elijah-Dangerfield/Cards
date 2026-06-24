@@ -208,3 +208,21 @@ Two variants, both must pass:
 2. Walk through onboarding quickly; arrive at Home with the welcome dialog still showing.
 
 **Expected:** Dialog renders even if the wallet fetch hasn't completed — chip count shows a placeholder (em-dash or similar). Once the wallet response lands, the chip count updates in place to 10K. No crash if the dialog is dismissed before the count lands.
+
+---
+
+## Social gating
+
+Friends/social is descoped to V2 behind the `social.enabled` app-config flag (default off). These confirm the surfaces stay hidden in the shipped default (SOC-2).
+
+---
+
+### `SOC-1` ⚠️ 📱 Social surfaces hidden by default
+
+**State:** any signed-in session, online, `social.enabled` at its default (off). Claim an account so the friend inbox would otherwise be eligible.
+
+1. Open Home and scroll the full screen.
+2. Open the Profile tab and scroll the full screen.
+3. Join or start a multiplayer table and tap a human opponent's avatar to open their player card.
+
+**Expected:** Home shows no "Friends" strip and no "Recently played with" strip (the achievements strip still shows). Profile shows no friend-requests inbox. The opponent player card shows no "Add friend" section. Nothing renders in a disabled/greyed state — the surfaces are simply absent.

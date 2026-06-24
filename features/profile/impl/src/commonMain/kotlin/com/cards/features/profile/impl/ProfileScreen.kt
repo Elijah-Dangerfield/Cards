@@ -192,6 +192,10 @@ fun ProfileScreen(
     buyableItems: List<BuyableCosmetic> = emptyList(),
     highlightProductId: String? = null,
     onHighlightConsumed: () -> Unit = {},
+    // Master gate for the friend-request inbox (SOC-2). Default true so the
+    // populated previews render the section; production passes the
+    // `social.enabled` flag, which defaults off until V2 flips it on.
+    socialEnabled: Boolean = true,
     scrollState: ScrollState = rememberScrollState(),
 ) {
     // Ephemeral "Try it out" emote blast, fired from a pack's detail sheet and
@@ -270,8 +274,10 @@ fun ProfileScreen(
 
                 // Friend-requests inbox. Account-bound — a guest has no friend
                 // graph, so the section (and its play-to-friend empty state)
-                // only shows once the user has claimed an account.
-                if (!settings.isAnonymous) {
+                // only shows once the user has claimed an account. Also gated
+                // behind SocialEnabled (SOC-2) — hidden entirely when social is
+                // descoped, not rendered disabled.
+                if (socialEnabled && !settings.isAnonymous) {
                     FriendRequestsSection(
                         requests = friendRequests,
                         onAccept = onAcceptFriendRequest,

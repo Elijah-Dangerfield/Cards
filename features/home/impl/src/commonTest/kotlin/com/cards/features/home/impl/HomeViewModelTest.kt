@@ -41,6 +41,7 @@ import com.dangerfield.cards.libraries.social.RecentOpponentProfile
 import com.dangerfield.cards.libraries.social.RespondToRequestResult
 import com.dangerfield.cards.libraries.social.RecentOpponentsRepository
 import com.dangerfield.cards.libraries.social.SendFriendRequestResult
+import com.dangerfield.cards.libraries.social.SocialEnabled
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -550,6 +551,29 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun socialDisabled_skipsInboxRefresh_andGatesStateOff() = runUnitTest {
+        // SOC-2: with social.enabled off, the Home social shelves are hidden, so
+        // the VM must neither subscribe to the friend graph nor fire the inbox
+        // refresh — even for a claimed account that would otherwise trigger it.
+        val friends = FakeFriendRepository(
+            onRefresh = listOf(friendProfile("u1"), friendProfile("u2")),
+        )
+        val profile = FakeProfileRepository(
+            initial = authenticatedProfile(displayName = "Claimed", isAnonymous = false),
+        )
+        val vm = buildVm(profile = profile, friends = friends, socialEnabled = false)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.userName == null) last = awaitItem()
+            yield()
+            assertEquals(false, last.socialEnabled)
+            assertEquals(0, friends.refreshCalls)
+            assertEquals(0, last.pendingFriendRequests)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun pendingFriendRequests_skipRefreshForAnonymousSession() = runUnitTest {
         // A guest has no friend graph — the inbox refresh must not fire, so the
         // badge stays at zero.
@@ -619,6 +643,7 @@ class HomeViewModelTest : CoroutineTest() {
         friends: FakeFriendRepository = FakeFriendRepository(),
         appCache: FakeAppCache = FakeAppCache(),
         progressionConfig: ProgressionConfig = FakeProgressionConfig(),
+        socialEnabled: Boolean = true,
     ): HomeViewModel = HomeViewModel(
         progressionRepository = progression,
         achievementRepository = achievements,
@@ -630,6 +655,7 @@ class HomeViewModelTest : CoroutineTest() {
         progressionConfig = progressionConfig,
         appCache = appCache,
         appScope = AppCoroutineScope(dispatchers),
+        socialEnabledConfig = SocialEnabled.forTest(socialEnabled),
     )
 
     private fun recentProfile(
