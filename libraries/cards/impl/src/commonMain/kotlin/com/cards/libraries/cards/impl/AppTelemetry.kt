@@ -174,6 +174,38 @@ private class ConfiguredTelemetry(
         }
     }
 
+    override fun setSeat(seatIndex: Int?) {
+        if (!Sentry.isEnabled()) return
+        Sentry.configureScope {
+            if (seatIndex == null) it.removeTag(SEAT_INDEX_KEY)
+            else it.setTag(SEAT_INDEX_KEY, seatIndex.toString())
+        }
+    }
+
+    override fun setHand(handNumber: Int?) {
+        if (!Sentry.isEnabled()) return
+        Sentry.configureScope {
+            if (handNumber == null) it.removeTag(HAND_NUMBER_KEY)
+            else it.setTag(HAND_NUMBER_KEY, handNumber.toString())
+        }
+    }
+
+    override fun setOpponents(userIds: List<String>?) {
+        if (!Sentry.isEnabled()) return
+        Sentry.configureScope {
+            if (userIds.isNullOrEmpty()) it.removeTag(OPPONENT_USER_IDS_KEY)
+            else it.setTag(OPPONENT_USER_IDS_KEY, userIds.joinToString(","))
+        }
+    }
+
+    // Held across captureUserFeedback calls; the holder is what the feedback
+    // path consults to grab a snapshot. Null when no MP session is active.
+    private var mpStateProvider: (() -> String?)? = null
+
+    override fun setMpStateProvider(provider: (() -> String?)?) {
+        mpStateProvider = provider
+    }
+
     @OptIn(ExperimentalUuidApi::class)
     override fun captureUserFeedback(
         message: String,
@@ -217,11 +249,22 @@ private class ConfiguredTelemetry(
         // as breadcrumbs, captured only when the user actually files feedback.
         // Local scope means none of this leaks onto later events.
         val logDump = sentryLogTree?.snapshot()?.takeIf { it.isNotBlank() }
+        // Best-effort snapshot of the active MP game state. Provider invocation
+        // is wrapped: if serialization or the holder itself throws, the report
+        // still ships without the attachment.
+        val mpStateDump = mpStateProvider?.let { provider ->
+            Catching { provider() }.getOrNull()?.takeIf { it.isNotBlank() }
+        }
         val feedbackId = Uuid.random().toString()
         val sentryId = Sentry.captureMessage(if (isBugReport) "Bug report" else "User feedback") { scope ->
             scope.setTag(FEEDBACK_EVENT_TAG, feedbackId)
             if (logDump != null) {
                 scope.addAttachment(Attachment(logDump.encodeToByteArray(), "session-log.txt", "text/plain"))
+            }
+            if (mpStateDump != null) {
+                scope.addAttachment(
+                    Attachment(mpStateDump.encodeToByteArray(), "client-state.json", "application/json"),
+                )
             }
         }
 
@@ -263,6 +306,12 @@ private const val INSTALL_ID_KEY = "install_id"
 // Mirrors the backend gameplay span attribute `room.code` so feedback during a
 // game pivots to that room's server traces/logs.
 private const val ROOM_CODE_KEY = "room_code"
+// MP-only context tags refreshed on seat/hand changes. The values are
+// derivable from server-side spans, but stamping them on the Sentry event
+// removes a step from triage and makes the report self-describing.
+private const val SEAT_INDEX_KEY = "seat_index"
+private const val HAND_NUMBER_KEY = "hand_number"
+private const val OPPONENT_USER_IDS_KEY = "opponent_user_ids"
 
 // Per-feedback id stamped on the carrier event; `beforeSend` turns it into the
 // event fingerprint so each feedback report is its own Sentry issue despite the

@@ -333,7 +333,7 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
         return buildMpVm(localUserId = localUserId, handle = handle)
     }
 
-    /** No-op [Telemetry] — the factory only calls setRoom during bootstrap. */
+    /** No-op [Telemetry] — the factory pushes MP scope tags during bootstrap. */
     private object NoopTelemetry : com.dangerfield.cards.libraries.cards.Telemetry {
         override fun initialize() = Unit
         override fun setUser(email: String?, name: String?, id: String?) = Unit
@@ -341,6 +341,10 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
         override fun setSession(sessionId: String) = Unit
         override fun setInstallId(installId: String) = Unit
         override fun setRoom(code: String?) = Unit
+        override fun setSeat(seatIndex: Int?) = Unit
+        override fun setHand(handNumber: Int?) = Unit
+        override fun setOpponents(userIds: List<String>?) = Unit
+        override fun setMpStateProvider(provider: (() -> String?)?) = Unit
         override fun captureUserFeedback(
             message: String,
             isBugReport: Boolean,

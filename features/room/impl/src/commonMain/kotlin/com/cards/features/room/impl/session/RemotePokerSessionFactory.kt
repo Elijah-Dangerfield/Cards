@@ -10,12 +10,18 @@ import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.levelProgressFor
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.rooms.RoomRepository
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
 
@@ -87,13 +93,77 @@ class RemotePokerSessionFactory @Inject constructor(
         // play session is live — run() suspends until the VM scope tears down,
         // so the finally clears it on every exit (clean leave, room closed, or
         // VM cleared). Feedback filed mid-game then carries room_code, the
-        // pivot to this room's server traces/logs.
+        // pivot to this room's server traces/logs. Same lifecycle owns the
+        // other MP scope tags (seat / hand / opponents) and the snapshot
+        // provider that attaches the live GameState to a feedback report.
+        val mpSession = session as RemotePokerSession
         telemetry.setRoom(roomCode)
+        telemetry.setMpStateProvider {
+            // Read-and-serialize lives inside the provider so the snapshot
+            // reflects the moment feedback is filed, not bootstrap time.
+            // Sentinel pre-first-snapshot state (empty seats) is treated as
+            // no-snapshot — there's nothing useful to attach yet.
+            Catching {
+                val state = mpSession.gameStateFlow.value
+                if (state.seats.isEmpty()) null
+                else mpStateJson.encodeToString(GameState.serializer(), state)
+            }.getOrNull()
+        }
         try {
-            (session as RemotePokerSession).run()
+            coroutineScope {
+                launch { mirrorMpScope(mpSession) }
+                mpSession.run()
+            }
         } finally {
             telemetry.setRoom(null)
+            telemetry.setSeat(null)
+            telemetry.setHand(null)
+            telemetry.setOpponents(null)
+            telemetry.setMpStateProvider(null)
         }
+    }
+
+    /**
+     * Push the local player's seat, the current hand number, and the other
+     * humans' user ids onto the Sentry scope whenever the table changes.
+     * `distinctUntilChanged` keeps tag writes proportional to real changes,
+     * not snapshot churn — most snapshots carry the same seat assignment.
+     */
+    private suspend fun mirrorMpScope(session: RemotePokerSession) {
+        session.gameStateFlow
+            .map { state ->
+                if (state.seats.isEmpty()) {
+                    MpScopeContext(seatIndex = null, handNumber = null, opponents = emptyList())
+                } else {
+                    val mySeat = state.seats.firstOrNull { it.playerId == localUserId }?.index
+                    val opponents = state.seats
+                        .mapNotNull { it.playerId }
+                        .filter { it != localUserId }
+                    MpScopeContext(
+                        seatIndex = mySeat,
+                        handNumber = state.handNumber.takeIf { it > 0 },
+                        opponents = opponents,
+                    )
+                }
+            }
+            .distinctUntilChanged()
+            .collect { ctx ->
+                telemetry.setSeat(ctx.seatIndex)
+                telemetry.setHand(ctx.handNumber)
+                telemetry.setOpponents(ctx.opponents.takeIf { it.isNotEmpty() })
+            }
+    }
+
+    private data class MpScopeContext(
+        val seatIndex: Int?,
+        val handNumber: Int?,
+        val opponents: List<String>,
+    )
+
+    private companion object {
+        // Default config is fine — GameState's serializers handle every nested
+        // type. `encodeDefaults` left off so the attachment stays compact.
+        private val mpStateJson = Json { ignoreUnknownKeys = true }
     }
 
     override fun humanSeatIndex(state: GameState): Int =

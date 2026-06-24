@@ -212,6 +212,14 @@ class TelemetryUserBinderTest : CoroutineTest() {
 
         override fun setRoom(code: String?) = Unit
 
+        override fun setSeat(seatIndex: Int?) = Unit
+
+        override fun setHand(handNumber: Int?) = Unit
+
+        override fun setOpponents(userIds: List<String>?) = Unit
+
+        override fun setMpStateProvider(provider: (() -> String?)?) = Unit
+
         override fun captureUserFeedback(
             message: String,
             isBugReport: Boolean,

@@ -56,6 +56,41 @@ interface Telemetry {
      */
     fun setRoom(code: String?)
 
+    /**
+     * Records the local player's seat index in the current MP hand as a
+     * `seat_index` tag, or clears it when null. Cleared on leave, refreshed
+     * whenever the player re-seats. Cheap correlation handle for "which seat
+     * was the reporter in when this happened."
+     */
+    fun setSeat(seatIndex: Int?)
+
+    /**
+     * Records the current MP hand number as a `hand_number` tag, or clears it
+     * when null. Updated whenever the hand advances. Lets feedback narrow
+     * straight to the hand of interest in server traces / logs.
+     */
+    fun setHand(handNumber: Int?)
+
+    /**
+     * Records the user ids of the other humans at the current MP table as an
+     * `opponent_user_ids` tag (comma-joined short ids), or clears it when null
+     * / empty. Refreshed whenever the seat assignment changes. Gives feedback
+     * a direct list of the parties involved without grepping logs.
+     */
+    fun setOpponents(userIds: List<String>?)
+
+    /**
+     * Registers a provider that returns a JSON snapshot of the current MP game
+     * state (or null when no MP session is active). The snapshot is attached to
+     * the carrier event in [captureUserFeedback] as `client-state.json`, so a
+     * triager sees the table the reporter was looking at. Pass null to clear.
+     *
+     * The provider is invoked synchronously from the feedback path, so it must
+     * be cheap (read a held reference + serialize). Throwing is treated as
+     * "no snapshot" — the report still goes through.
+     */
+    fun setMpStateProvider(provider: (() -> String?)?)
+
     fun captureUserFeedback(
         message: String,
         isBugReport: Boolean,
