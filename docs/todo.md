@@ -151,10 +151,6 @@ A second batch of in-app feedback from a live two-device MP playtest. Hard bugs 
   **Acceptance:** a mid-game joiner sees a clear "dealt in next hand" message until they're seated.
   **Hints:** the scrubbed mid-hand-join state in the play-poker MP screen. Sentry [CARDS-22](https://elijah-dangerfield.sentry.io/issues/CARDS-22).
 
-- `[P2]` **Real-chip table should not show the "playing for fake chips" framing.** Two reports: a player who chose disclosed-bots-for-real-chips got the "you're playing for fake chips" join dialog, and a player who busted against a real opponent got the "dealt back in, chips were fake against bots" bust copy. The fake-vs-real-stakes messaging is mis-keyed for real-chip games. *(feedback CARDS-20, CARDS-1C)*
-  **Acceptance:** real-chip games (including disclosed-bot real-money) never show fake-chip join or bust copy; the play screen reflects that real chips are at stake.
-  **Hints:** the join + bust dialogs in the room feature that branch on stakes/bot framing; align with the escrow being live. Sentry [CARDS-20](https://elijah-dangerfield.sentry.io/issues/CARDS-20), [CARDS-1C](https://elijah-dangerfield.sentry.io/issues/CARDS-1C).
-
 - `[P2]` **Make the whole "Javier progress" profile banner tappable, not just part of it.** The achievement/progress banner on the profile screen should accept a tap anywhere on the banner. *(feedback CARDS-1R)*
   **Acceptance:** tapping anywhere on the banner triggers its action.
   **Hints:** the progress banner composable on `ProfileScreen`; move the click modifier to the banner container. Sentry [CARDS-1R](https://elijah-dangerfield.sentry.io/issues/CARDS-1R).

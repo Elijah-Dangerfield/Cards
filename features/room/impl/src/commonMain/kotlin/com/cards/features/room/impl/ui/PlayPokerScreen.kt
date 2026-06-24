@@ -364,7 +364,11 @@ fun PlayPokerScreen(
         }
 
         if (stackExplainerOpen) {
-            StackExplainer(stack = humanStack, onDismiss = { stackExplainerOpen = false })
+            StackExplainer(
+                stack = humanStack,
+                subsidized = active?.subsidizedBotTable == true,
+                onDismiss = { stackExplainerOpen = false },
+            )
         }
 
         // Auto-open the practice-tier explainer once when the player first
@@ -571,6 +575,7 @@ fun PlayPokerScreen(
                     earnedAchievements = state.recentlyEarned,
                     xpMode = state.xpMode,
                     onDealMeIn = onDismiss,
+                    subsidized = active.subsidizedBotTable,
                 )
             } else {
                 ShowdownDialog(

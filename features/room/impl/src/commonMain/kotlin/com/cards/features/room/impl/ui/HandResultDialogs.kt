@@ -32,6 +32,7 @@ import cards.libraries.resources.generated.resources.room_achievement_cosmetic_l
 import cards.libraries.resources.generated.resources.room_achievement_reward_xp
 import cards.libraries.resources.generated.resources.room_achievement_reward_xp_plus_chips
 import cards.libraries.resources.generated.resources.room_bust_body
+import cards.libraries.resources.generated.resources.room_bust_subsidized_body
 import cards.libraries.resources.generated.resources.room_bust_deal_me_in_button
 import cards.libraries.resources.generated.resources.room_bust_title
 import cards.libraries.resources.generated.resources.room_mp_bust_body
@@ -234,6 +235,10 @@ internal fun ShowdownDialog(
  * modal just makes that moment legible so new players don't wonder how they
  * still have chips next hand. Single "Deal me in" CTA which triggers the
  * normal next-hand advance.
+ *
+ * [subsidized] flips the body off the practice "chips don't count" framing onto
+ * the public disclosed-bot copy — real chips, house-funded refill, keep what you
+ * win. Same auto-rebuy mechanic either way; only the framing differs.
  */
 @Composable
 internal fun BustDialog(
@@ -241,6 +246,7 @@ internal fun BustDialog(
     earnedAchievements: List<EarnedAchievement>,
     xpMode: XpMode,
     onDealMeIn: () -> Unit,
+    subsidized: Boolean = false,
 ) {
     Dialog(
         onDismissRequest = onDealMeIn,
@@ -263,7 +269,9 @@ internal fun BustDialog(
                     color = AppTheme.colors.content,
                 )
                 Text(
-                    text = stringResource(Res.string.room_bust_body),
+                    text = stringResource(
+                        if (subsidized) Res.string.room_bust_subsidized_body else Res.string.room_bust_body,
+                    ),
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.contentSecondary,
                     textAlign = TextAlign.Center,
@@ -612,6 +620,21 @@ private fun BustDialogPreview() {
             earnedAchievements = emptyList(),
             xpMode = XpMode.BOTS,
             onDealMeIn = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun BustDialogPreview_Subsidized() {
+    // Public disclosed-bot table: real chips, house-funded refill copy.
+    PreviewContent {
+        BustDialog(
+            xpEarned = 25,
+            earnedAchievements = emptyList(),
+            xpMode = XpMode.MULTIPLAYER,
+            onDealMeIn = {},
+            subsidized = true,
         )
     }
 }

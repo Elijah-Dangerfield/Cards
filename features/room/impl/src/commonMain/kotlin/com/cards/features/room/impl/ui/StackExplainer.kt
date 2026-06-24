@@ -5,6 +5,7 @@ import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_stack_explainer_body
 import cards.libraries.resources.generated.resources.room_stack_explainer_practice_note
+import cards.libraries.resources.generated.resources.room_stack_explainer_subsidized_note
 import cards.libraries.resources.generated.resources.room_stack_explainer_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
@@ -18,9 +19,12 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * Quick-reference modal opened by tapping the user's own chip stack number on
  * the bot table — explains where these chips come from and that they refill
  * on bust, so a new player isn't worried about "losing" them.
+ *
+ * [subsidized] swaps the practice "don't count for keeps" note for the public
+ * disclosed-bot framing — real chips, keep what you win up to a daily limit.
  */
 @Composable
-internal fun StackExplainer(stack: Long, onDismiss: () -> Unit) {
+internal fun StackExplainer(stack: Long, subsidized: Boolean, onDismiss: () -> Unit) {
     Dialog(
         title = stringResource(Res.string.room_stack_explainer_title, stack.toString()),
         onDismissRequest = onDismiss,
@@ -33,7 +37,13 @@ internal fun StackExplainer(stack: Long, onDismiss: () -> Unit) {
             textAlign = TextAlign.Center,
         )
         Text(
-            text = stringResource(Res.string.room_stack_explainer_practice_note),
+            text = stringResource(
+                if (subsidized) {
+                    Res.string.room_stack_explainer_subsidized_note
+                } else {
+                    Res.string.room_stack_explainer_practice_note
+                },
+            ),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
@@ -45,6 +55,14 @@ internal fun StackExplainer(stack: Long, onDismiss: () -> Unit) {
 @Composable
 private fun StackExplainerPreview() {
     PreviewContent {
-        StackExplainer(stack = 1_240, onDismiss = {})
+        StackExplainer(stack = 1_240, subsidized = false, onDismiss = {})
+    }
+}
+
+@Preview
+@Composable
+private fun StackExplainerPreview_Subsidized() {
+    PreviewContent {
+        StackExplainer(stack = 1_240, subsidized = true, onDismiss = {})
     }
 }

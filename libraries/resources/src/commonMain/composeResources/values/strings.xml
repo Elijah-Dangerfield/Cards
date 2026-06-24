@@ -661,6 +661,7 @@
     <string name="room_stack_explainer_title">You have %1$s chips</string>
     <string name="room_stack_explainer_body">Use them to bet, call, and raise during a hand. Chips you put in go to the pot - the player with the best hand at showdown wins it.</string>
     <string name="room_stack_explainer_practice_note">Go bust against bots and a fresh stack arrives next hand. Practice chips don't count for keeps.</string>
+    <string name="room_stack_explainer_subsidized_note">These are real chips - keep what you beat the bots for, up to a daily limit. Go bust and a fresh stack arrives next hand, on the house.</string>
 
     <!-- Room - Bet-pill explainer (tap on a player's gold bet pill). -->
     <string name="room_bet_pill_explainer_title">%1$s put in %2$s</string>
@@ -737,6 +738,8 @@
     <!-- Room - Bust dialog (human stack reached 0 this hand). -->
     <string name="room_bust_title">You went bust</string>
     <string name="room_bust_body">Practice chips refilled - chips against bots don't count for keeps. Deal yourself in and keep sharpening up.</string>
+    <!-- Bust on a public disclosed-bot table: real chips, house-funded refill. -->
+    <string name="room_bust_subsidized_body">Fresh stack on the house - these are real chips, so anything you beat the bots for is yours to keep, up to a daily limit. Deal yourself back in.</string>
     <string name="room_bust_deal_me_in_button">Deal me in</string>
     <!-- Room - Multiplayer bust dialog (rebuy with wallet chips, or buy more, or leave). -->
     <string name="room_mp_bust_title">You're out of chips</string>
