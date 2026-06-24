@@ -100,6 +100,13 @@ class InProcessServer(
         wallets.find(UserId(UUID.fromString(userId)))?.balance
     }
 
+    /**
+     * Read-only probe: does a room with [code] still exist server-side? Use to
+     * assert a room was GC'd (reaper / last-leave) without a mutating join, which
+     * would itself re-create membership and keep the room alive.
+     */
+    fun roomExists(code: String): Boolean = runBlocking { rooms.find(code) != null }
+
     override fun close() {
         server.stop(0, 0)
     }

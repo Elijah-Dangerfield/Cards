@@ -4,11 +4,13 @@ import com.dangerfield.cards.features.lobby.impl.LobbyEvent
 import com.dangerfield.cards.features.lobby.impl.LobbyState
 import com.dangerfield.cards.features.lobby.impl.LobbyViewModel
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
+import com.dangerfield.cards.server.routes.DEFAULT_REAPER_GRACE
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
@@ -19,6 +21,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
+import kotlin.time.Duration
 
 /**
  * Base class for the end-to-end integration tests. Handles the two cross-cutting
@@ -41,9 +44,18 @@ abstract class IntegrationTest {
     @AfterTest
     fun restoreMainDispatcher() = Dispatchers.resetMain()
 
-    /** Boots a real [InProcessServer] and runs [block] against it. */
-    protected fun integration(block: suspend Harness.() -> Unit) = runBlocking {
-        InProcessServer().use { server ->
+    /**
+     * Boots a real [InProcessServer] and runs [block] against it. [reaperGrace]
+     * is the disconnect-grace window the server schedules before freeing a
+     * dropped seat — left at production's [DEFAULT_REAPER_GRACE] for most tests,
+     * dropped to a sub-second window by grace-boundary (reaper) tests so the
+     * timer actually fires inside the test.
+     */
+    protected fun integration(
+        reaperGrace: Duration = DEFAULT_REAPER_GRACE,
+        block: suspend Harness.() -> Unit,
+    ) = runBlocking {
+        InProcessServer(reaperGrace).use { server ->
             val harness = Harness(server)
             try {
                 harness.block()
@@ -51,6 +63,23 @@ abstract class IntegrationTest {
                 harness.close()
             }
         }
+    }
+}
+
+/**
+ * Poll [block] until it returns true or [timeoutMs] elapses, sleeping
+ * [stepMs] between tries. For asserting an *eventual* server state that has no
+ * push signal to await on — e.g. a room GC'd by the reaper, observable only by
+ * a fresh probe that flips from found to not-found. Prefer the push-based
+ * `await*` helpers whenever a flow carries the signal.
+ */
+suspend fun awaitUntil(
+    timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+    stepMs: Long = 25,
+    block: suspend () -> Boolean,
+) {
+    withTimeout(timeoutMs) {
+        while (!block()) delay(stepMs)
     }
 }
 

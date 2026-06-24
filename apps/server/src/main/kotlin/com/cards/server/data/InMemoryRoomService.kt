@@ -334,13 +334,12 @@ class InMemoryRoomService(
             }
 
             // Host migration: if the host is the one leaving, promote the
-            // longest-tenured remaining member (oldest `joinedAt`, ties
-            // broken by lowest seat). Without this the room would keep a
+            // longest-tenured remaining human. Without this the room would keep a
             // stale `hostUserId` pointing at someone who's no longer a
             // member — start-game permissions break, the UI shows a ghost
             // host, the next leave loops.
             val nextHostUserId = if (current.hostUserId == userId) {
-                remaining.minWith(compareBy({ it.joinedAt }, { it.seatIndex })).userId
+                nextHumanHost(remaining)
             } else {
                 current.hostUserId
             }
@@ -598,7 +597,12 @@ class InMemoryRoomService(
                     // No flow update — the room is gone and any straggling
                     // subscribers will simply stop receiving emissions.
                 } else {
-                    val swept = current.copy(members = survivors)
+                    // Migrate the host if the sweep reaped them — same ghost-host
+                    // fix as leave(), which the batch sweep path was missing.
+                    val hostReaped = toReap.any { it.userId == current.hostUserId }
+                    val nextHostUserId =
+                        if (hostReaped) nextHumanHost(survivors) else current.hostUserId
+                    val swept = current.copy(hostUserId = nextHostUserId, members = survivors)
                     state.update(swept)
                     persist(swept)
                 }
@@ -648,12 +652,23 @@ class InMemoryRoomService(
                 closedRoom = current
                 log.info("Room $code: reaped $userId after disconnect grace; only bots/none left, closed")
             } else {
-                val swept = current.copy(members = survivors)
+                // Migrate the host if the reaped member was it — without this the
+                // room keeps a ghost host pointer (the reaped, now-gone host), so
+                // the survivor can never start the next hand on a private table
+                // and the room is stranded. The leave() path already did this; the
+                // grace-reaper path was silently missing it.
+                val nextHostUserId =
+                    if (current.hostUserId == userId) nextHumanHost(survivors) else current.hostUserId
+                val swept = current.copy(hostUserId = nextHostUserId, members = survivors)
                 state.update(swept)
                 persist(swept)
                 // Info: seat-freeing after a drop — explains "my opponent vanished"
                 // or "I got kicked" in a reported session.
-                log.info("Room $code: reaped $userId after disconnect grace, ${survivors.size} remain")
+                if (nextHostUserId != current.hostUserId) {
+                    log.info("Room $code: reaped $userId (was host) after grace; host migrated to $nextHostUserId, ${survivors.size} remain")
+                } else {
+                    log.info("Room $code: reaped $userId after disconnect grace, ${survivors.size} remain")
+                }
             }
             true
         }
@@ -700,6 +715,17 @@ class InMemoryRoomService(
         log.info("Room $code hydrated from durable store after a cache miss")
         return state
     }
+
+    /**
+     * The member to promote to host when the current host departs (leaves, is
+     * reaped, or is swept), given the [survivors]. Longest-tenured human wins,
+     * ties broken by lowest seat. Prefers humans so the host pointer never lands
+     * on a bot — a bot has no socket and can't start a hand, which would strand a
+     * private table. Callers reach this only when survivors contain a human
+     * (all-bot rooms are GC'd first), so the filter is always non-empty.
+     */
+    private fun nextHumanHost(survivors: List<RoomMember>): UserId =
+        survivors.filter { !it.isBot }.minWith(compareBy({ it.joinedAt }, { it.seatIndex })).userId
 
     private fun generateUniqueCode(): String {
         repeat(MAX_CODE_RETRIES) {
