@@ -138,10 +138,6 @@ A second batch of in-app feedback from a live two-device MP playtest. Hard bugs 
   **Acceptance:** a mid-game joiner sees a clear "dealt in next hand" message until they're seated.
   **Hints:** the scrubbed mid-hand-join state in the play-poker MP screen. Sentry [CARDS-22](https://elijah-dangerfield.sentry.io/issues/CARDS-22).
 
-- `[P2]` **Render the level with more pageantry on the player card others see.** The level badge on the outward-facing player card reads plainly; give it more visual weight. *(feedback CARDS-1P)*
-  **Acceptance:** the level on the shared player card has a richer treatment.
-  **Hints:** the at-table Player Card surface (see the tap-an-opponent sheet item above). Sentry [CARDS-1P](https://elijah-dangerfield.sentry.io/issues/CARDS-1P).
-
 ---
 
 ## B. Multiplayer hardening

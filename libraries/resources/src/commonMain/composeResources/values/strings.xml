@@ -1049,6 +1049,9 @@
     <!-- UI library - LevelPill (progression pill "Level N" rendered in headers / shelves). -->
     <string name="ui_level_pill_label">Level %1$d</string>
 
+    <!-- UI library - LevelChip (compact "Lvl N" progression chip on the Player Card). -->
+    <string name="ui_level_chip_label">Lvl %1$d</string>
+
     <!-- UI library - TopBar back-icon a11y label (every screen with a back button reads this). -->
     <string name="ui_top_bar_back_a11y">Navigate back</string>
 
