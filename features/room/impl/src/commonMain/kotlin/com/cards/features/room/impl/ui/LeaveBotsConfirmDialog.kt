@@ -14,7 +14,9 @@ import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_leave_bots_body
 import cards.libraries.resources.generated.resources.room_leave_bots_leave_button
 import cards.libraries.resources.generated.resources.room_leave_bots_stay_button
+import cards.libraries.resources.generated.resources.room_leave_bots_subsidized_body
 import cards.libraries.resources.generated.resources.room_leave_bots_title
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
@@ -30,11 +32,18 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * hand" so the user doesn't drop a hand by accident swiping back. Always
  * shows when a hand is in progress; leaving is a real cost and warrants
  * an explicit confirmation every time.
+ *
+ * On a [subsidized] bots-for-chips table the body states the exact stack
+ * cashing back to the wallet (MP-6) — the disclosed-bot complaint was that
+ * the chips watched at the table didn't visibly follow the player out, so
+ * the leave moment names the number going home.
  */
 @Composable
 internal fun LeaveBotsConfirmDialog(
     onStay: () -> Unit,
     onLeave: () -> Unit,
+    subsidized: Boolean = false,
+    cashOutChips: Long = 0,
 ) {
     Dialog(
         onDismissRequest = onStay,
@@ -54,7 +63,14 @@ internal fun LeaveBotsConfirmDialog(
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = stringResource(Res.string.room_leave_bots_body),
+                text = if (subsidized) {
+                    stringResource(
+                        Res.string.room_leave_bots_subsidized_body,
+                        formatThousands(cashOutChips),
+                    )
+                } else {
+                    stringResource(Res.string.room_leave_bots_body)
+                },
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
@@ -84,6 +100,19 @@ private fun LeaveBotsConfirmDialogPreview() {
         LeaveBotsConfirmDialog(
             onStay = {},
             onLeave = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LeaveBotsConfirmDialogPreview_Subsidized() {
+    PreviewContent {
+        LeaveBotsConfirmDialog(
+            onStay = {},
+            onLeave = {},
+            subsidized = true,
+            cashOutChips = 9_180,
         )
     }
 }

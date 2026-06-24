@@ -425,6 +425,8 @@ fun PlayPokerScreen(
                     leaveConfirmOpen = false
                     leaveTable()
                 },
+                subsidized = active?.subsidizedBotTable == true,
+                cashOutChips = humanStack,
             )
         }
 

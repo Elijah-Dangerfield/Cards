@@ -82,11 +82,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Out of scope:** Emulator-based UI tests (device-smoke checklist is the substitute) and hand-history regression fixtures (gated on a real production playtest).
 
-- `[P1]` **MP-6 — Bots-for-chips cashout doesn't match the stack the player saw; make the settlement honest.** On leaving a bot table the player won, the server pays a capped `bot_subsidy_payout` (room MZJMA5: granted 4475, cap 25000) instead of the ~9k stack shown at the table, so "the chips didn't go with me." A second user questioned an odd 10,018 balance from the same subsidy arithmetic. No accounting corruption found — the subsidy model is just opaque to the player.
+- `[P1]` **MP-6 — Finish the bots-for-chips settlement disclosure (post-cashout + sit-down cap).** The leave-confirm dialog now names the exact stack returning to the wallet on a subsidized table; `cashOut` already credits the full final stack (confirmed: no accounting bug — the `bot_subsidy_payout` cap only limits how much counts against the *daily budget*, not what cashes out). Two disclosure surfaces remain: (1) a post-leave confirmation (toast / Home summary) that names the credited amount + the new wallet balance, so the balance change is never a silent surprise; (2) a sit-down-time disclosure when the player is near their daily subsidy cap, so they learn the cap before playing rather than inferring it from an "odd balance" afterward.
 
-  **Acceptance:** Either the cashout credits the chips the player watched themselves win, or the table/cashout UX makes the subsidy + cap explicit before and after the hand so the resulting balance is never surprising. Make a directional call and ship a slice.
+  **Acceptance:** A player who wins on a subsidized bot table and leaves sees the credited amount confirmed after leaving; a player near their daily cap is told before they sit. The resulting balance is never surprising at any of the three moments (sit / leave-confirm / post-leave).
 
-  **Hints:** `DefaultTableSessionService.cashOut` → `bot_subsidy_payout` (cap 25000); wallet ledger is authoritative. Cases `docs/agent/feedback-cases/6dd1f1ffddb347fd9cf6c5909caa98d0.md` + `docs/agent/feedback-cases/a0e30df3e1f845e085a7b360e3e5a4c5.md`; Sentry CARDS-2N / CARDS-2Y. (The "next-hand button did nothing" half of CARDS-2N is the separate P0 hand-end stall, not this item.)
+  **Hints:** `DefaultTableSessionService.cashOut` credits `finalStack` in full; `SubsidyCapReached` (`SitDownResult`) is the cap gate. Leave-confirm slice landed in `LeaveBotsConfirmDialog`. Cases `docs/agent/feedback-cases/6dd1f1ffddb347fd9cf6c5909caa98d0.md` + `docs/agent/feedback-cases/a0e30df3e1f845e085a7b360e3e5a4c5.md`; Sentry CARDS-2N / CARDS-2Y.
 
 ---
 

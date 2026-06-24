@@ -314,6 +314,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 **Expected:**
 - Variant A — Device B's seat is released immediately; its remaining stack returns to its wallet (wallet goes up by the cashed-out stack). Device A sees B leave and the hand continues / settles around the empty seat. Back navigation lands cleanly on Multiplayer with no stuck "Leaving…" state.
 - Variant B — Device B's seat shows disconnected and is swept after the grace window (not instantly); the stack still cashes back. Device A's game is not ended by B's drop.
+- On a **subsidized** bots-for-chips table (Variant A, mid-hand), the leave-confirm dialog names the exact stack returning to the wallet ("The N chips at your seat are real…") — the number matches the stack shown at the seat, and the wallet rises by that amount after leaving (MP-6).
 
 ---
 

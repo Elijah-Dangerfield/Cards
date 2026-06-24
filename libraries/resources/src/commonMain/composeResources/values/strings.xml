@@ -701,6 +701,7 @@
     <!-- Room - Leave-bots confirm dialog (back-press while a hand is in progress). -->
     <string name="room_leave_bots_title">Leave the table?</string>
     <string name="room_leave_bots_body">You'll lose progress on this hand. Your XP and chips are saved.</string>
+    <string name="room_leave_bots_subsidized_body">You'll lose progress on this hand. The %1$s chips at your seat are real - they go straight back to your wallet when you leave.</string>
     <string name="room_leave_bots_stay_button">Stay</string>
     <string name="room_leave_bots_leave_button">Leave</string>
 
