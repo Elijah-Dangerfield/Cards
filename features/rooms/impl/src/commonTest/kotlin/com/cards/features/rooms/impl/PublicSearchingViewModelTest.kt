@@ -83,6 +83,12 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         assertEquals(SearchPhase.Choosing, vm.state.phase)
         assertEquals(listOf("AAA111", "BBB222"), vm.state.candidates.map { it.code })
         assertEquals(0, mm.findCalls, "the chooser seats no one — find is not called")
+
+        // Entering the chooser arms the live candidates re-poll (an infinite
+        // delay loop). Tear it down so the test's virtual clock can drain
+        // instead of the eager dispatcher busy-spinning the poll forever.
+        vm.takeAction(PublicSearchingAction.Cancel)
+        runCurrent()
     }
 
     @Test
