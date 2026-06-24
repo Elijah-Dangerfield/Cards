@@ -77,6 +77,13 @@ class GameplaySession(
 
     suspend fun startHand() = handle.send(ClientFrame.StartHand(clientNonce = newNonce()))
 
+    /** Send StartHand and return the server's correlated ack (accepted or rejected). */
+    suspend fun startHandAwaitingAck(timeoutMs: Long = DEFAULT_TIMEOUT_MS): GameplayFrame.IntentAck {
+        val nonce = newNonce()
+        handle.send(ClientFrame.StartHand(clientNonce = nonce))
+        return withTimeout(timeoutMs) { acks.first { it.clientNonce == nonce } }
+    }
+
     suspend fun requestNextHand() = handle.send(ClientFrame.RequestNextHand(clientNonce = newNonce()))
 
     /**
