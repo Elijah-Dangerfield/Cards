@@ -85,6 +85,25 @@
 
     <!-- Shop - quiet responsible-play line on the real-money chip-pack confirm sheet. "Play responsibly" is the tappable link to the NCPG help page. -->
     <string name="shop_purchase_responsible_play">Play responsibly.</string>
+    <string name="shop_purchase_responsible_play_link">Play responsibly</string>
+
+    <!-- Shop - purchase-confirm bottom sheet (IAP pack + chip-funded offer). -->
+    <string name="shop_purchase_charged_via">Charged via your %1$s.</string>
+    <string name="shop_purchase_buy_now">Buy now</string>
+    <string name="shop_purchase_cancel">Cancel</string>
+    <string name="shop_purchase_close">Close</string>
+    <string name="shop_purchase_locked">Locked</string>
+    <string name="shop_purchase_need_more_chips">Need %1$s more chips</string>
+    <string name="shop_purchase_locked_body">Keep playing to level up. Once you hit Level %1$d this'll be buyable for %2$s chips.</string>
+    <string name="shop_purchase_owned_title">You own this</string>
+    <string name="shop_purchase_owned_body_avatars">Your new avatars are unlocked - pick one from Edit profile.</string>
+    <string name="shop_purchase_owned_body_emotes">Reactions ready - send them from the in-game emote tray.</string>
+    <string name="shop_purchase_owned_body_equippable">Equip it from My items in your profile.</string>
+    <string name="shop_purchase_owned_body_default">It's yours. Enjoy.</string>
+    <string name="shop_purchase_balance_current">Your balance</string>
+    <string name="shop_purchase_balance_after">After purchase</string>
+    <string name="shop_purchase_store_app_store">App Store</string>
+    <string name="shop_purchase_store_google_play">Google Play</string>
 
     <!-- Lobby - top-bar titles. Two phases: pre-room (Idle) vs. in-room. -->
     <string name="lobby_topbar_title_idle">Play with friends</string>

@@ -17,7 +17,25 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.CosmeticSlot
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.shop_purchase_balance_after
+import cards.libraries.resources.generated.resources.shop_purchase_balance_current
+import cards.libraries.resources.generated.resources.shop_purchase_buy_now
+import cards.libraries.resources.generated.resources.shop_purchase_cancel
+import cards.libraries.resources.generated.resources.shop_purchase_charged_via
+import cards.libraries.resources.generated.resources.shop_purchase_close
+import cards.libraries.resources.generated.resources.shop_purchase_locked
+import cards.libraries.resources.generated.resources.shop_purchase_locked_body
+import cards.libraries.resources.generated.resources.shop_purchase_need_more_chips
+import cards.libraries.resources.generated.resources.shop_purchase_owned_body_avatars
+import cards.libraries.resources.generated.resources.shop_purchase_owned_body_default
+import cards.libraries.resources.generated.resources.shop_purchase_owned_body_emotes
+import cards.libraries.resources.generated.resources.shop_purchase_owned_body_equippable
+import cards.libraries.resources.generated.resources.shop_purchase_owned_title
 import cards.libraries.resources.generated.resources.shop_purchase_responsible_play
+import cards.libraries.resources.generated.resources.shop_purchase_responsible_play_link
+import cards.libraries.resources.generated.resources.shop_purchase_store_app_store
+import cards.libraries.resources.generated.resources.shop_purchase_store_google_play
+import cards.libraries.resources.generated.resources.shop_unlocks_at_level
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.StoreSku
 import com.dangerfield.cards.libraries.ui.Elevation
@@ -199,13 +217,13 @@ private fun IapPackConfirmContent(
         )
         VerticalSpacerD200()
         Text(
-            text = "Charged via your ${platformStoreName()}.",
+            text = stringResource(Res.string.shop_purchase_charged_via, platformStoreName()),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.contentSecondary,
         )
         VerticalSpacerD500()
         SheetButtons(
-            confirmLabel = "Buy now",
+            confirmLabel = stringResource(Res.string.shop_purchase_buy_now),
             onConfirm = onConfirm,
             onCancel = onCancel,
             confirmEnabled = true,
@@ -214,9 +232,10 @@ private fun IapPackConfirmContent(
         // bought with chips don't spend cash). "Play responsibly" links to the
         // NCPG help page via the same ClickableText pattern as onboarding consent.
         VerticalSpacerD400()
+        val responsiblePlayLink = stringResource(Res.string.shop_purchase_responsible_play_link)
         ClickableText(
             text = buildClickableText(stringResource(Res.string.shop_purchase_responsible_play)) {
-                link("Play responsibly") { onOpenResponsiblePlay() }
+                link(responsiblePlayLink) { onOpenResponsiblePlay() }
             },
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.contentSecondary,
@@ -353,12 +372,16 @@ private fun ChipOfferConfirmContent(
             }
             is PurchaseSheetMode.Locked -> StatusPrompt(
                 emoji = "🔒",
-                title = "Unlocks at Level ${mode.requiredLevel}",
-                body = "Keep playing to level up. Once you hit Level ${mode.requiredLevel} this'll be buyable for ${formatChips(offer.costChips)} chips.",
+                title = stringResource(Res.string.shop_unlocks_at_level, mode.requiredLevel),
+                body = stringResource(
+                    Res.string.shop_purchase_locked_body,
+                    mode.requiredLevel,
+                    formatChips(offer.costChips),
+                ),
             )
             is PurchaseSheetMode.Owned -> StatusPrompt(
                 emoji = "✓",
-                title = "You own this",
+                title = stringResource(Res.string.shop_purchase_owned_title),
                 body = ownedBodyFor(offer),
             )
         }
@@ -368,25 +391,28 @@ private fun ChipOfferConfirmContent(
         // close-only Owned variant.
         when (mode) {
             is PurchaseSheetMode.Available -> SheetButtons(
-                confirmLabel = "Buy now",
+                confirmLabel = stringResource(Res.string.shop_purchase_buy_now),
                 onConfirm = onConfirm,
                 onCancel = onCancel,
                 confirmEnabled = true,
             )
             is PurchaseSheetMode.Insufficient -> SheetButtons(
-                confirmLabel = "Need ${formatChips(mode.shortBy)} more chips",
+                confirmLabel = stringResource(
+                    Res.string.shop_purchase_need_more_chips,
+                    formatChips(mode.shortBy),
+                ),
                 onConfirm = onConfirm,
                 onCancel = onCancel,
                 confirmEnabled = false,
             )
             is PurchaseSheetMode.Locked -> SheetButtons(
-                confirmLabel = "Locked",
+                confirmLabel = stringResource(Res.string.shop_purchase_locked),
                 onConfirm = onConfirm,
                 onCancel = onCancel,
                 confirmEnabled = false,
             )
             is PurchaseSheetMode.Owned -> SheetButtons(
-                confirmLabel = "Close",
+                confirmLabel = stringResource(Res.string.shop_purchase_close),
                 onConfirm = onCancel,  // primary = close
                 onCancel = onCancel,
                 confirmEnabled = true,
@@ -456,10 +482,13 @@ private fun BalancePreview(currentBalance: Long, cost: Long, canAfford: Boolean)
         contentPadding = PaddingValues(14.dp),
     ) {
         Column {
-            BalanceRow(label = "Your balance", amount = currentBalance)
+            BalanceRow(
+                label = stringResource(Res.string.shop_purchase_balance_current),
+                amount = currentBalance,
+            )
             VerticalSpacerD200()
             BalanceRow(
-                label = "After purchase",
+                label = stringResource(Res.string.shop_purchase_balance_after),
                 amount = newBalance,
                 amountColor = if (canAfford) AppTheme.colors.content else AppTheme.colors.danger,
             )
@@ -512,7 +541,7 @@ private fun SheetButtons(
         if (showCancel) {
             VerticalSpacerD300()
             ButtonSecondary(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
-                Text(text = "Cancel")
+                Text(text = stringResource(Res.string.shop_purchase_cancel))
             }
         }
     }
@@ -535,22 +564,25 @@ private fun SheetButtons(
  * field that distinguishes them today; if a `kind` field gets added
  * later, swap this for a proper enum match.
  */
+@Composable
 private fun ownedBodyFor(offer: Product.ChipOffer): String = when {
     offer.id.startsWith("avatars_") ->
-        "Your new avatars are unlocked — pick one from Edit profile."
+        stringResource(Res.string.shop_purchase_owned_body_avatars)
     offer.id.startsWith("emotes_") ->
-        "Reactions ready — send them from the in-game emote tray."
+        stringResource(Res.string.shop_purchase_owned_body_emotes)
     offer.isEquippable ->
-        "Equip it from My items in your profile."
+        stringResource(Res.string.shop_purchase_owned_body_equippable)
     else ->
-        "It's yours. Enjoy."
+        stringResource(Res.string.shop_purchase_owned_body_default)
 }
 
 @Composable
 private fun platformStoreName(): String =
     when (com.dangerfield.cards.libraries.core.BuildInfo.platform) {
-        com.dangerfield.cards.libraries.core.Platform.iOS -> "App Store"
-        com.dangerfield.cards.libraries.core.Platform.Android -> "Google Play"
+        com.dangerfield.cards.libraries.core.Platform.iOS ->
+            stringResource(Res.string.shop_purchase_store_app_store)
+        com.dangerfield.cards.libraries.core.Platform.Android ->
+            stringResource(Res.string.shop_purchase_store_google_play)
     }
 
 // ---------------------------------------------------------------------------
