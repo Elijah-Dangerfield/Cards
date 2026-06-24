@@ -55,6 +55,7 @@ import cards.libraries.resources.generated.resources.public_searching_rotate_2
 import cards.libraries.resources.generated.resources.public_searching_rotate_3
 import cards.libraries.resources.generated.resources.public_searching_rotate_4
 import cards.libraries.resources.generated.resources.public_searching_title
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.isReduceMotionEnabled
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
@@ -399,9 +400,6 @@ private fun BuyInRangeCard(minBuyIn: Long, maxBuyIn: Long) {
         }
     }
 }
-
-private fun formatThousands(value: Long): String =
-    value.toString().reversed().chunked(3).joinToString(",").reversed()
 
 private const val ROTATE_INTERVAL_MS = 5_000L
 

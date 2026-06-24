@@ -34,6 +34,7 @@ import cards.libraries.resources.generated.resources.public_find_range_label
 import cards.libraries.resources.generated.resources.public_find_range_per_table
 import cards.libraries.resources.generated.resources.public_find_subtitle
 import cards.libraries.resources.generated.resources.public_find_title
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.Screen
@@ -212,7 +213,7 @@ private fun BuyInChip(amount: Int) {
         ChipCoin(size = 13.dp)
         Spacer(Modifier.size(Dimension.D200))
         Text(
-            text = formatThousands(amount),
+            text = formatThousands(amount.toLong()),
             typography = AppTheme.typography.Label.L500,
             color = AppTheme.colors.content,
         )
@@ -235,9 +236,6 @@ private fun buyInFor(fraction: Float, maxBuyIn: Int): Int {
     val raw = MIN_BUY_IN + fraction * (maxBuyIn - MIN_BUY_IN)
     return ((raw / BUY_IN_STEP).roundToInt() * BUY_IN_STEP).coerceIn(MIN_BUY_IN, maxBuyIn)
 }
-
-private fun formatThousands(value: Int): String =
-    value.toString().reversed().chunked(3).joinToString(",").reversed()
 
 /** Compact label for the scale ticks under the slider (e.g. 33_300 -> "33k"). */
 private fun compactChips(value: Int): String = when {
