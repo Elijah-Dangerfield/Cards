@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
 import com.dangerfield.cards.server.game.NoOpSessionSnapshotStore
+import com.dangerfield.cards.server.game.RoomTeardownCoordinator
 import com.dangerfield.cards.server.plugins.installAuthentication
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
@@ -44,7 +45,6 @@ import kotlin.time.Instant
 class InProcessServer(
     reaperGrace: Duration = DEFAULT_REAPER_GRACE,
 ) : AutoCloseable {
-    private val rooms = InMemoryRoomService(clock = Clock.System, random = Random(0))
 
     /** Per-server wallet + escrow fakes, exposed so escrow tests can read balances. */
     val wallets = FakeWallets()
@@ -58,6 +58,16 @@ class InProcessServer(
         Clock.System,
         mixedNextHandDelayMs = 50,
         botThinkDelayMsOverride = 0,
+    )
+
+    // Wire the REAL teardown coordinator (production binds this via DI) so a room
+    // GC settles every seated human's escrow + ends the session — without it the
+    // harness used NoOp, so the last member out of a room was never cashed out
+    // and chip conservation across teardown couldn't be asserted.
+    private val rooms = InMemoryRoomService(
+        clock = Clock.System,
+        random = Random(0),
+        roomClosedListener = RoomTeardownCoordinator(registry, tableSessions),
     )
 
     private val server = embeddedServer(Netty, port = 0) {
