@@ -155,7 +155,6 @@ internal class ControllableFeedbackRepository(
 internal object NoopRouter : Router {
     override fun navigate(route: Route, options: NavigationOptions) = Unit
     override fun goBack() = Unit
-    override fun popBackTo(route: Route, inclusive: Boolean) = Unit
     override fun <T : Route> popBackTo(routeClass: kotlin.reflect.KClass<T>, inclusive: Boolean) = Unit
     override fun switchTab(route: TabRoute) = Unit
     override fun enterTab(route: TabRoute) = Unit

@@ -60,7 +60,7 @@ class RoomsFeatureEntryPoint(
                         // Find + Searching so "leave table" returns Home, not back
                         // into the radar.
                         is PublicSearchingEvent.NavigateToTable -> router.batch {
-                            popBackTo(PublicFindRoute(), inclusive = true)
+                            popBackTo(PublicFindRoute::class, inclusive = true)
                             navigate(PlayMultiplayerRoute(roomCode = event.roomCode, kind = RoomKind.Public))
                         }
                         PublicSearchingEvent.NavigateBack -> router.goBack()

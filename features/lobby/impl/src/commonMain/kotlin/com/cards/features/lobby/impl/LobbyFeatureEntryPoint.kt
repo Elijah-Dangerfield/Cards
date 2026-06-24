@@ -41,7 +41,7 @@ class LobbyFeatureEntryPoint(
                 onBack = { router.goBack() },
                 onCreate = { maxPlayers, buyIn, open ->
                     router.batch {
-                        popBackTo(PrivateCreateRoute(), inclusive = true)
+                        popBackTo(PrivateCreateRoute::class, inclusive = true)
                         navigate(LobbyRoute(autoCreate = true, maxSeats = maxPlayers, buyIn = buyIn, open = open))
                     }
                 },
@@ -54,7 +54,7 @@ class LobbyFeatureEntryPoint(
                 onBack = { router.goBack() },
                 onJoin = { code ->
                     router.batch {
-                        popBackTo(PrivateJoinRoute(), inclusive = true)
+                        popBackTo(PrivateJoinRoute::class, inclusive = true)
                         navigate(LobbyRoute(prefilledCode = code))
                     }
                 },
@@ -84,9 +84,12 @@ class LobbyFeatureEntryPoint(
                         )
                         // The prefilled join hit an unknown room. Pop this dead
                         // lobby and land back on the code-entry screen with the bad
-                        // code + inline error so the user retries in place.
+                        // code + inline error so the user retries in place. Match
+                        // by class — this lobby was pushed with prefilledCode set,
+                        // which an instance match against LobbyRoute() would silently
+                        // miss, leaving a zombie lobby underneath the join screen.
                         is LobbyEvent.JoinCodeRejected -> router.batch {
-                            popBackTo(LobbyRoute(), inclusive = true)
+                            popBackTo(LobbyRoute::class, inclusive = true)
                             navigate(PrivateJoinRoute(rejectedCode = event.code))
                         }
                     }

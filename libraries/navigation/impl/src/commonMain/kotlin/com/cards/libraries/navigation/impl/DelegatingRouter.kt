@@ -153,12 +153,6 @@ class DelegatingRouter(
         }
     }
 
-    override fun popBackTo(route: Route, inclusive: Boolean) {
-        enqueueNavigation("popBackTo ${route.nameForLogs()}") {
-            popBackStack(route, inclusive)
-        }
-    }
-
     override fun <T : Route> popBackTo(routeClass: KClass<T>, inclusive: Boolean) {
         enqueueNavigation("popBackTo<${routeClass.simpleName}>") {
             popBackStack(routeClass, inclusive)
@@ -214,10 +208,6 @@ class DelegatingRouter(
                         return
                     }
                     controller.executeSwitchTab(route)
-                }
-
-                override fun popBackTo(route: Route, inclusive: Boolean) {
-                    controller.popBackStack(route, inclusive)
                 }
 
                 override fun <T : Route> popBackTo(routeClass: KClass<T>, inclusive: Boolean) {
