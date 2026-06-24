@@ -41,7 +41,7 @@ import kotlin.test.assertTrue
  *  - Init wiring: catalog + chip balance + inventory flows mirror into state,
  *    and refresh + sync both fire on construction.
  *  - Pull-to-refresh: success populates catalog, failure leaves prior
- *    catalog intact + surfaces errorMessage.
+ *    catalog intact + raises the refresh-error flag.
  *  - Sheet mode classification: `sheetModeFor` returns the right
  *    PurchaseSheetMode given owned / locked / insufficient / available.
  *  - Confirm guard: `ConfirmPurchase` is a no-op for owned items (the
@@ -82,7 +82,7 @@ class ShopViewModelTest : CoroutineTest() {
         vm.takeAction(ShopAction.Refresh(force = true))
 
         assertEquals(2, vm.state.catalog.chipPacks.size, "prior catalog preserved")
-        assertEquals("offline", vm.state.errorMessage)
+        assertTrue(vm.state.hasRefreshError)
     }
 
     @Test
@@ -96,10 +96,10 @@ class ShopViewModelTest : CoroutineTest() {
         }
         val vm = buildVm(productsRepository = repo)
         vm.takeAction(ShopAction.Refresh(force = true))
-        assertNotNull(vm.state.errorMessage)
+        assertTrue(vm.state.hasRefreshError)
 
         vm.takeAction(ShopAction.DismissError)
-        assertNull(vm.state.errorMessage)
+        assertFalse(vm.state.hasRefreshError)
     }
 
     @Test
@@ -225,7 +225,7 @@ class ShopViewModelTest : CoroutineTest() {
         assertNotNull(event, "InsufficientChips should fire as a transient error snackbar")
         assertEquals(offer.id, (event as ShopEvent.InsufficientChips).offer.id)
         // The transient error must NOT leak into the persistent screen banner.
-        assertNull(vm.state.errorMessage, "errorMessage banner stays clear")
+        assertFalse(vm.state.hasRefreshError, "refresh-error banner stays clear")
     }
 
     @Test
@@ -241,7 +241,7 @@ class ShopViewModelTest : CoroutineTest() {
         vm.takeAction(ShopAction.ConfirmPurchase(offer))
 
         assertTrue(received.any { it is ShopEvent.AlreadyOwned })
-        assertNull(vm.state.errorMessage, "AlreadyOwned isn't surfaced as an error")
+        assertFalse(vm.state.hasRefreshError, "AlreadyOwned isn't surfaced as an error")
     }
 
     // ---------- XP Boost consumable ----------

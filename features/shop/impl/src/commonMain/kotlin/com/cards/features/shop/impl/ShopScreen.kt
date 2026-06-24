@@ -166,9 +166,9 @@ fun ShopScreen(
                 }
             }
 
-            state.errorMessage?.let { message ->
+            if (state.hasRefreshError) {
                 ErrorBanner(
-                    message = message,
+                    message = stringResource(Res.string.shop_error_title),
                     onRetry = { onAction(ShopAction.Refresh(force = true)) },
                     onDismiss = { onAction(ShopAction.DismissError) },
                     modifier = Modifier
@@ -1176,7 +1176,7 @@ private fun ShopScreenPreview_ErrorWithPriorCatalog() {
                 hasLoaded = true,
                 chipBalance = 12_450,
                 catalog = previewFullCatalog(),
-                errorMessage = "Offline — pulled the cached shop.",
+                hasRefreshError = true,
             ),
             onAction = {},
             onProductTap = {},
