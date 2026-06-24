@@ -573,6 +573,12 @@
     <string name="profile_edit_sync_rejected_name_taken">Couldn't save your name - that one's already taken.</string>
     <string name="profile_edit_sync_rejected_name_invalid">Couldn't save your name - that one's not allowed.</string>
     <string name="profile_edit_sync_rejected_avatar">Couldn't save your avatar - it's no longer available.</string>
+    <string name="profile_edit_save_error_name_taken">Couldn't save - that name is already taken.</string>
+    <string name="profile_edit_save_error_name_invalid">Couldn't save - that name isn't allowed.</string>
+    <string name="profile_edit_save_error_avatar_emoji">Couldn't save - that avatar isn't available.</string>
+    <string name="profile_edit_save_error_avatar_color">Couldn't save - that color isn't available.</string>
+    <string name="profile_edit_save_error_network">Couldn't save changes - check your connection.</string>
+    <string name="profile_edit_save_error_unknown">Couldn't save changes. Try again.</string>
     <string name="profile_card_stat_hands_played">Hands played</string>
     <string name="profile_card_stat_member_since">Member since</string>
     <string name="profile_card_member_since_value">%1$s %2$d</string>
