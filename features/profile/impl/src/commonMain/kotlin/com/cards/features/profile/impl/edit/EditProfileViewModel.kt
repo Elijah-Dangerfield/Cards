@@ -290,9 +290,13 @@ class EditProfileViewModel(
             // when we only sent the name) get the optimistic treatment:
             // navigate away + snackbar. The user can fix it next
             // session; they don't need to be stuck on Edit Profile.
+            // Navigate first; the snackbar copy resolves on appScope so
+            // the back-out isn't gated on the message lookup.
             else -> {
-                outcome.failureMessageOrNull()?.let { showSnackBar(it) }
                 sendEvent(EditProfileEvent.Saved)
+                appScope.launch {
+                    outcome.failureMessageOrNull()?.let { showSnackBar(it) }
+                }
             }
         }
     }
