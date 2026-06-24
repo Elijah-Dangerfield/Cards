@@ -5,10 +5,13 @@ Append-only record of in-app user feedback already triaged by the
 nightly run never re-triages the same report. One line per handled feedback:
 
 ```
-- <date> · <event_id> · session <session_id> · <disposition> · <Sentry issue URL>
+- <date> · <event_id> · session <session_id> · <disposition> · <Sentry issue URL> · case docs/agent/feedback-cases/<event_id>.md
 ```
 
 where `disposition` is `todo: <title>`, `backlog`, or `no-action: <reason>`.
+The `case …` tail points to the per-report investigation notes (bundle of IDs,
+log excerpts, client state, server activity, theory). It's omitted only for
+owner change-requests, which are filed as directives without a case file.
 
 ---
 

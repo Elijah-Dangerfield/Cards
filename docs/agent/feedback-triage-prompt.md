@@ -31,6 +31,6 @@ Your job around the skill:
 
 ## Guardrails
 
-- **Read-mostly:** the only writes are `docs/todo.md`, `docs/backlog.md`, `docs/agent/feedback-log.md`, and (if `SENTRY_AUTH_TOKEN` is set) Sentry issue status. No code changes — fixing a bug is a worker's job off the todo you file.
+- **Read-mostly:** the only writes are `docs/todo.md`, `docs/backlog.md`, `docs/agent/feedback-log.md`, the per-report case files at `docs/agent/feedback-cases/<event_id>.md`, and (if `SENTRY_AUTH_TOKEN` is set) Sentry issue status. No code changes — fixing a bug is a worker's job off the todo you file. The case file is the bundle a worker reads to pick up the full investigation cold.
 - **Idempotent:** the ledger check is mandatory; never double-file.
 - **Don't guess telemetry:** empty Tempo/Loki for a `session_id` usually means a dev build that didn't reach the cloud backend or a pre-correlation client — note it, don't fabricate a backend cause.
