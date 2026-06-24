@@ -47,6 +47,7 @@ import com.dangerfield.cards.libraries.navigation.Route
 import com.dangerfield.cards.libraries.navigation.floatingwindow.FloatingWindowHost
 import com.dangerfield.cards.libraries.navigation.floatingwindow.FloatingWindowNavigator
 import com.dangerfield.cards.libraries.navigation.impl.DelegatingRouter
+import com.dangerfield.cards.libraries.navigation.AccessDeniedRoute
 import com.dangerfield.cards.libraries.navigation.AuthGateRoute
 import com.dangerfield.cards.libraries.navigation.GateReason
 import com.dangerfield.cards.libraries.navigation.SessionExpiredRoute
@@ -273,6 +274,23 @@ fun App(appComponent: AppComponent) {
                     appViewModel.sessionExpired.collect { event ->
                         router.navigate(
                             SessionExpiredRoute(wasAnonymous = event.wasAnonymous),
+                            NavigationOptions(launchSingleTop = true),
+                        )
+                    }
+                }
+
+                // Server returned the locked `403` access-denied envelope: push
+                // the blocking AccessDenied screen. Same launchSingleTop pattern
+                // as SessionExpired — a burst of denied calls collapses to one
+                // screen on top. The screen localizes title/body off `reason`
+                // and surfaces the appeal link.
+                LaunchedEffect(Unit) {
+                    appViewModel.accessDenied.collect { denial ->
+                        router.navigate(
+                            AccessDeniedRoute(
+                                reason = denial.reason,
+                                appealUrl = denial.appealUrl,
+                            ),
                             NavigationOptions(launchSingleTop = true),
                         )
                     }

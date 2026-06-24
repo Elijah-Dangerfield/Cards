@@ -11,6 +11,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.onboarding.OnboardingRoute
 import com.dangerfield.cards.features.profile.BugReportRoute
+import com.dangerfield.cards.libraries.navigation.AccessDeniedRoute
 import com.dangerfield.cards.libraries.navigation.BlockingErrorRoute
 import com.dangerfield.cards.libraries.navigation.ErrorDialogAction
 import com.dangerfield.cards.libraries.navigation.ErrorDialogRoute
@@ -62,6 +63,15 @@ class ErrorEntryPoints(
                 retryFailed = state.retryFailed,
                 onRetry = { viewModel.takeAction(SessionExpiredViewModel.Action.Retry) },
                 onLogout = { viewModel.takeAction(SessionExpiredViewModel.Action.Logout) },
+            )
+        }
+
+        screen<AccessDeniedRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<AccessDeniedRoute>()
+            AccessDeniedScreen(
+                reason = route.reason,
+                appealUrl = route.appealUrl,
+                onAppeal = { url -> router.openWebLink(url) },
             )
         }
 

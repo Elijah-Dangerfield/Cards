@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.networking.AuthTokenProvider
 import com.dangerfield.cards.libraries.networking.ClientHeaders
 import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.NetworkConfig
+import com.dangerfield.cards.libraries.networking.impl.AccessDeniedBusImpl
 import com.dangerfield.cards.libraries.networking.impl.NetworkClientImpl
 import com.dangerfield.cards.libraries.networking.impl.NetworkReachabilityImpl
 import com.dangerfield.cards.libraries.rooms.MatchmakingRepository
@@ -54,6 +55,7 @@ class TestClient(
         TokenProvider(userId),
         FixedHeaders,
         NetworkReachabilityImpl(AppCoroutineScope(DefaultDispatcherProvider())),
+        AccessDeniedBusImpl(),
     )
 
     val repository: RoomRepository = run {

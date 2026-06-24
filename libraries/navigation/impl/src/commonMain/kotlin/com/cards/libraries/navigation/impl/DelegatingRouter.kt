@@ -20,6 +20,7 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.flowroutines.observeWithLifecycle
 import androidx.navigation.NavBackStackEntry
+import com.dangerfield.cards.libraries.navigation.AccessDeniedRoute
 import com.dangerfield.cards.libraries.navigation.AuthGateChecker
 import com.dangerfield.cards.libraries.navigation.BlockingErrorRoute
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
@@ -310,7 +311,8 @@ class DelegatingRouter(
 
     private fun NavHostController.isBlockingErrorActive(): Boolean {
         val destination = currentBackStackEntry?.destination ?: return false
-        return destination.hasRoute<BlockingErrorRoute>()
+        return destination.hasRoute<BlockingErrorRoute>() ||
+            destination.hasRoute<AccessDeniedRoute>()
     }
 
     private fun Route.nameForLogs(): String =

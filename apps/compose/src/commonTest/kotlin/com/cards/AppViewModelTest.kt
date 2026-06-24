@@ -15,9 +15,13 @@ import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
+import com.dangerfield.cards.libraries.networking.AccessDeniedBus
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -44,7 +48,7 @@ class AppViewModelTest : CoroutineTest() {
     fun firstLaunchUser_landsOnOnboardingRoute_andIsReadyImmediately() = runUnitTest {
         val cache = FakeAppCache(AppData(hasUserOnboarded = false))
         val profile = FakeProfileRepository()
-        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), instantConfig())
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), instantConfig(), FakeAccessDeniedBus())
 
         vm.startDestination.test {
             assertTrue(awaitItem() is OnboardingRoute)
@@ -58,7 +62,7 @@ class AppViewModelTest : CoroutineTest() {
     fun onboardedUser_landsOnHomeRoute() = runUnitTest {
         val cache = FakeAppCache(AppData(hasUserOnboarded = true))
         val profile = FakeProfileRepository(initial = authenticated("user-1", "Elijah"))
-        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), instantConfig())
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), instantConfig(), FakeAccessDeniedBus())
 
         vm.startDestination.test {
             assertTrue(awaitItem() is HomeRoute)
@@ -71,7 +75,7 @@ class AppViewModelTest : CoroutineTest() {
         // Profile never emits — isReady must still flip so the platform
         // splash hands off to the Compose boot gate.
         val profile = ManualProfileRepository()
-        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), instantConfig())
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), instantConfig(), FakeAccessDeniedBus())
 
         vm.isReady.test {
             assertEquals(true, awaitItem())
@@ -84,7 +88,7 @@ class AppViewModelTest : CoroutineTest() {
         // Cold flow that we manually advance — the VM should not flip
         // isBootComplete until our emit() lands.
         val profile = ManualProfileRepository()
-        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), instantConfig())
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), instantConfig(), FakeAccessDeniedBus())
 
         vm.isBootComplete.test {
             assertEquals(false, awaitItem())
@@ -104,7 +108,7 @@ class AppViewModelTest : CoroutineTest() {
         // First-launch users don't wait on profile, so app-config is the
         // sole gate on the boot-complete signal.
         val config = ManualEnsureConfig()
-        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), config)
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), config, FakeAccessDeniedBus())
 
         vm.isBootComplete.test {
             assertEquals(false, awaitItem())
@@ -122,7 +126,7 @@ class AppViewModelTest : CoroutineTest() {
         val profile = FakeProfileRepository()
         // Config never completes; the boot gate must still release once the
         // hard-cap timeout elapses (virtual time) so we never strand boot.
-        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), ManualEnsureConfig())
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), ManualEnsureConfig(), FakeAccessDeniedBus())
 
         vm.isBootComplete.test {
             assertEquals(false, awaitItem())
@@ -135,7 +139,7 @@ class AppViewModelTest : CoroutineTest() {
         val cache = FakeAppCache(AppData(hasUserOnboarded = true))
         val profile = FakeProfileRepository(initial = authenticated("guest-1", "Guest"))
         val auth = FakeAuthRepository(idleAuth())
-        val vm = AppViewModel(cache, profile, auth, instantConfig())
+        val vm = AppViewModel(cache, profile, auth, instantConfig(), FakeAccessDeniedBus())
 
         vm.sessionExpired.test {
             // The auth server rejected our (guest) session mid-run.
@@ -161,13 +165,38 @@ class AppViewModelTest : CoroutineTest() {
         val cache = FakeAppCache(AppData(hasUserOnboarded = true))
         val profile = FakeProfileRepository(initial = authenticated("u", "E"))
         val auth = FakeAuthRepository(idleAuth())
-        val vm = AppViewModel(cache, profile, auth, instantConfig())
+        val vm = AppViewModel(cache, profile, auth, instantConfig(), FakeAccessDeniedBus())
 
         vm.sessionExpired.test {
             auth.emit(AuthState.Unauthenticated(reason = AuthState.Unauthenticated.Reason.None))
             expectNoEvents()
         }
         assertTrue(cache.get().hasUserOnboarded, "a benign sign-out must not touch the onboarded flag here")
+    }
+
+    @Test
+    fun accessDeniedBus_signal_forwards_toAccessDeniedEvent_carryingWireFields() = runUnitTest {
+        // A 403 with the locked envelope flows network → bus → AppViewModel → App.
+        // Pin that the wire fields reach the event verbatim so the screen can
+        // localize off `reason` and open the appeal URL.
+        val cache = FakeAppCache(AppData(hasUserOnboarded = true))
+        val profile = FakeProfileRepository(initial = authenticated("u", "E"))
+        val bus = FakeAccessDeniedBus()
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), instantConfig(), bus)
+
+        vm.accessDenied.test {
+            bus.signalDenied(
+                AccessDeniedBus.Denial(
+                    reason = "banned",
+                    until = "2026-12-01T00:00:00Z",
+                    appealUrl = "https://support.cards.app/appeal",
+                ),
+            )
+            val event = awaitItem()
+            assertEquals("banned", event.reason)
+            assertEquals("2026-12-01T00:00:00Z", event.until)
+            assertEquals("https://support.cards.app/appeal", event.appealUrl)
+        }
     }
 
     private fun idleAuth(): AuthState =
@@ -234,6 +263,16 @@ class AppViewModelTest : CoroutineTest() {
         ): UpdateProfileOutcome = error("not used by AppViewModel")
         override suspend fun fetchAvatarPack(): AvatarPackOutcome =
             error("not used by AppViewModel")
+    }
+
+    private class FakeAccessDeniedBus : AccessDeniedBus {
+        private val flow = MutableSharedFlow<AccessDeniedBus.Denial>(
+            replay = 0,
+            extraBufferCapacity = 8,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        )
+        override val denials: Flow<AccessDeniedBus.Denial> = flow.asSharedFlow()
+        override fun signalDenied(denial: AccessDeniedBus.Denial) { flow.tryEmit(denial) }
     }
 
     private class ManualProfileRepository : ProfileRepository {
