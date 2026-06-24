@@ -663,12 +663,6 @@ private fun ConnectionBanner(connection: ConnectionState) {
 }
 
 /**
- * Table-side notice that this MP hand earns only practice-tier credit
- * because the table is bot-stacked (product-spec.md §5.4). Surfaced under
- * the top bar so the player understands why their XP / achievements read
- * "practice" rather than full multiplayer — never a silent downgrade.
- */
-/**
  * Table-side notice for a mid-game joiner: they're a seatless member of a live
  * MP table, dealt in at the next hand boundary. Surfaced under the top bar so
  * the spectating wait reads as intentional rather than a stuck/empty table.
@@ -694,6 +688,12 @@ private fun WaitingToBeDealtInLabel() {
     }
 }
 
+/**
+ * Table-side notice that this MP hand earns only practice-tier credit
+ * because the table is bot-stacked (product-spec.md §5.4). Surfaced under
+ * the top bar so the player understands why their XP / achievements read
+ * "practice" rather than full multiplayer — never a silent downgrade.
+ */
 @Composable
 private fun PracticeTierLabel(onClick: () -> Unit) {
     val clickLabel = stringResource(Res.string.room_practice_tier_explainer_a11y)
