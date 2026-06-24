@@ -424,8 +424,16 @@ class GameSession internal constructor(
      * the next [requestNextHand] seats them. Re-queuing the same playerId
      * replaces the prior entry (e.g. a reconnect). No-op once they'd be a
      * duplicate of a live seat — [requestNextHand] guards that too.
+     *
+     * Clears any prior [removePlayer] mark for this id: queuing is an explicit
+     * re-entry, and [removedPlayerIds] is otherwise sticky for the session — a
+     * player who left mid-hand and rejoined would be filtered out of every
+     * future deal forever (both the returning-seat filter and the joiner filter
+     * in [requestNextHand] consult it). Re-admitting them here lets a rejoiner
+     * actually be dealt back in.
      */
     suspend fun queueJoiner(occupant: SeatOccupant): Unit = mutex.withLock {
+        removedPlayerIds.remove(occupant.userId)
         pendingJoiners[occupant.userId] = occupant
     }
 
