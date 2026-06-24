@@ -654,3 +654,11 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Idea (feedback CARDS-1W, 2026-06-23):** Owner floated adding richer stats-page entries like "Best Hands" and "Biggest Pots" ("or something idk"). Needs a product call on which metrics are worth tracking and a per-hand result record to back them (the per-hand decision-capture / per-game result work in `docs/todo.md` is the prerequisite data source).
 
 **Status:** Backlog. Fuzzy feature idea; gate on a per-hand/per-game result store existing. Sentry [CARDS-1W](https://elijah-dangerfield.sentry.io/issues/CARDS-1W).
+
+---
+
+## Surface the legal-consent record + a "Terms changed, re-accept" gate
+
+**Idea (raised 2026-06-23):** Onboarding now silently records which Terms/Privacy version the user accepted (by proceeding past the Welcome step) plus a timestamp, into `AppData.acceptedLegalVersion` / `legalConsentAcceptedAt`. Two follow-ons sit on top, both deferred until legal asks: (1) surface the acceptance record somewhere (e.g. a read-only line in Settings or an exportable audit field) so it's not write-only; (2) a re-consent gate that compares the persisted `acceptedLegalVersion` against the live `LegalUrls.LEGAL_VERSION` and re-prompts when the hosted docs materially change (bump `LEGAL_VERSION` to trigger).
+
+**Status:** Backlog. The audit record is captured; these consume it. Gate on legal/owner deciding the audit surface + re-accept UX are wanted.
