@@ -73,7 +73,9 @@ import com.dangerfield.cards.libraries.ui.components.DropdownMenu
 import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
 import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
+import com.dangerfield.cards.libraries.ui.components.AccountSetupRetryBanner
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
+import com.dangerfield.cards.libraries.ui.system.LocalAccountSetupRetry
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.button.ButtonDanger
@@ -141,6 +143,15 @@ fun SettingsScreen(
                 .screenContentPadding(paddingValues = padding)
                 .padding(vertical = 16.dp),
         ) {
+            val accountSetup = LocalAccountSetupRetry.current
+            if (accountSetup.pending) {
+                AccountSetupRetryBanner(
+                    onRetry = accountSetup.onRetry,
+                    isRetrying = accountSetup.isRetrying,
+                )
+                VerticalSpacerD800()
+            }
+
             if (settings.isAnonymous) {
                 SaveProgressBanner(onSignIn = onClaimAccount)
                 VerticalSpacerD800()

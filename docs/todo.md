@@ -34,9 +34,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Auth & onboarding
 
-- `[P2]` **AUTH-1 — Polish the "account-creation pending" UX.** When someone signs up but the server account hasn't created yet (offline / network blip), we show a thin banner and that's it. The state is safe — the user can keep playing locally — but the surface feels under-built. Three small upgrades: (1) replace the thin `AccountSetupBanner` with a richer dialog when the user first hits it; (2) tighten the device-verify banner copy + placement; (3) optionally mirror the Retry button on Profile/Settings near `SaveProgressBanner`.
+- `[P2]` **AUTH-1 — Polish the "account-creation pending" UX.** When someone signs up but the server account hasn't created yet (offline / network blip), we show a thin banner and that's it. The state is safe — the user can keep playing locally — but the surface feels under-built. Two upgrades remain: (1) replace the thin `AccountSetupBanner` with a richer dialog when the user first hits it; (2) tighten the device-verify banner copy + placement.
 
-  **Hints:** State lives at `GuestAccountCreator.state`; banner at `apps/compose/AccountSetupBanner.kt`.
+  **Hints:** State lives at `GuestAccountCreator.state`; banner at `apps/compose/AccountSetupBanner.kt`. The in-page Retry mirror on Profile/Settings already shipped via the `AccountSetupRetryBanner` DS primitive + `LocalAccountSetupRetry`.
 
 - `[P1]` **AUTH-2 — Reconcile local bot-play progress when a degraded account is finally created.** While creation is pending (offline), the user plays bots and accrues XP/chips locally against `Profile.Fallback`. Degraded play stays purely local — it doesn't write to the server-bound ledger. When `GuestAccountCreator` succeeds the server is authoritative: replay the pending local deltas on top of the server balance **once**, and never re-grant the provisional starter (`OnboardingStarterGrant`).
 

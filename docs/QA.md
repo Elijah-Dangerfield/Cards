@@ -93,11 +93,13 @@ Two variants, both must pass:
 
 **Expected:** Lands on Home. Welcome grant dialog shows 10K chips. The "account-creation pending" banner (`AccountSetupBanner`) is visible at the top of Home. No crashes, no error spinners.
 
+- While still offline, open Profile and Settings: each shows an in-page "Account setup unfinished" banner with a **Retry** button (`AccountSetupRetryBanner`, AUTH-1) above the "Save your progress" nudge. Tapping Retry while offline keeps it pending (shows "Retrying…"), not an error.
+
 **Then bring the device online:**
 
 3. Turn airplane mode off. Wait up to ~5s.
 
-**Expected:** Pending banner disappears once `GuestAccountCreator` succeeds. Chip balance stays at 10K — no duplicate grant, no flicker. Wallet sync completes silently.
+**Expected:** Pending banner disappears once `GuestAccountCreator` succeeds — on Home and on the Profile/Settings in-page banners. Chip balance stays at 10K — no duplicate grant, no flicker. Wallet sync completes silently.
 
 ---
 

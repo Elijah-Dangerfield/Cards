@@ -1200,6 +1200,8 @@
     <string name="account_setup_banner_message">Finishing account setup - we'll keep trying. Some features are limited until then.</string>
     <string name="account_setup_banner_retry">Retry</string>
     <string name="account_setup_banner_retrying">Retrying…</string>
+    <string name="account_setup_retry_banner_title">Account setup unfinished</string>
+    <string name="account_setup_retry_banner_body">Your progress is saved here. We'll finish syncing it once you're back online.</string>
 
     <!-- Auth-gate sheet the router substitutes for a gated route. Three reasons,
          each with its own title / body / primary CTA. The "Not now" ghost button

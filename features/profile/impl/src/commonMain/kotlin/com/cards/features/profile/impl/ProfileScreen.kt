@@ -102,7 +102,9 @@ import com.dangerfield.cards.libraries.ui.components.toStyleCopy
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
+import com.dangerfield.cards.libraries.ui.components.AccountSetupRetryBanner
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
+import com.dangerfield.cards.libraries.ui.system.LocalAccountSetupRetry
 import com.dangerfield.cards.libraries.ui.components.XpBoostBanner
 import com.dangerfield.cards.libraries.ui.components.rememberBoostRemainingMs
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
@@ -239,6 +241,15 @@ fun ProfileScreen(
             ) {
                 ProfileHeader(settings = settings, onEditProfile = onEditProfile)
                 VerticalSpacerD900()
+
+                val accountSetup = LocalAccountSetupRetry.current
+                if (accountSetup.pending) {
+                    AccountSetupRetryBanner(
+                        onRetry = accountSetup.onRetry,
+                        isRetrying = accountSetup.isRetrying,
+                    )
+                    VerticalSpacerD800()
+                }
 
                 if (settings.isAnonymous) {
                     SaveProgressBanner(onSignIn = onSignIn)

@@ -99,6 +99,8 @@ import org.jetbrains.compose.resources.stringResource
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarHost
 import com.dangerfield.cards.libraries.ui.snackbar.rememberSnackbarHostState
 import com.dangerfield.cards.libraries.ui.snackbar.showDebugSnackBar
+import com.dangerfield.cards.libraries.ui.system.AccountSetupRetryStatus
+import com.dangerfield.cards.libraries.ui.system.LocalAccountSetupRetry
 import com.dangerfield.cards.libraries.ui.system.LocalAppState
 import com.dangerfield.cards.libraries.ui.system.LocalBuildInfo
 import com.dangerfield.cards.libraries.ui.system.LocalClock
@@ -206,6 +208,13 @@ fun App(appComponent: AppComponent) {
         }
     )
 
+    val accountSetupStatus = rememberAccountSetupStatus(appComponent.guestAccountCreator)
+    val accountSetupRetry = AccountSetupRetryStatus(
+        pending = accountSetupStatus.pending,
+        isRetrying = accountSetupStatus.isRetrying,
+        onRetry = { appComponent.guestAccountCreator.retry() },
+    )
+
     CompositionLocalProvider(
         LocalAppState provides appComponent.appState,
         LocalClock provides appComponent.provideClock(),
@@ -213,6 +222,7 @@ fun App(appComponent: AppComponent) {
         LocalDialogHostState provides dialogHostState,
         LocalSnackbarHostState provides snackbarHostState,
         LocalLevelCurve provides levelCurve,
+        LocalAccountSetupRetry provides accountSetupRetry,
     ) {
         AppThemeProvider {
             Box(
