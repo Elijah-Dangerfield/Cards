@@ -328,6 +328,13 @@ class ReconnectingRoomSocket @Inject constructor(
                 try {
                     session.incoming.collect { text ->
                         val event = decode(text) ?: return@collect
+                        // Debug-only one-liner per inbound wire frame. Rides
+                        // only in the in-memory ring buffer dumped on feedback
+                        // — never as breadcrumbs or events. Gives reported
+                        // sessions a record of what the server actually said,
+                        // which is the missing half of "the chips animated
+                        // wrong when they bet."
+                        logger.d { event.summary() }
                         when (event) {
                             is RoomSocketEventDto.Snapshot -> {
                                 val room: Room = event.room.toDomain()

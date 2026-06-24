@@ -223,6 +223,12 @@ internal class RemotePokerSession(
 
     private suspend fun collectGameplay() {
         handle.gameplayFrames.collect { frame ->
+            // Debug: a "what reached the dispatcher" companion to the socket
+            // layer's "recv" log. The socket log covers raw wire frames
+            // including lobby/presence; this one is gameplay only, after the
+            // staleness filter — useful when reconstructing what the UI was
+            // actually told about. Lives only in the ring-buffer dump.
+            logger.d { "apply ${frame.summary()}" }
             when (frame) {
                 is GameplayFrame.StateSnapshot -> {
                     if (isStale(incoming = frame.state, current = _gameStateFlow.value)) {
@@ -390,6 +396,17 @@ internal class RemotePokerSession(
             deckRemaining = emptyList(),
         )
     }
+}
+
+private fun GameplayFrame.summary(): String = when (this) {
+    is GameplayFrame.StateSnapshot ->
+        "StateSnapshot hand=${state.handNumber} street=${state.street} " +
+            "acting=${state.actingSeatIndex} seq=${state.lastSequence}"
+    is GameplayFrame.Event -> "Event ${event::class.simpleName} seq=$seq"
+    is GameplayFrame.IntentAck ->
+        "IntentAck accepted=$accepted nonce=$clientNonce" +
+            (error?.let { " error=$it" } ?: "")
+    is GameplayFrame.EmojiBlast -> "EmojiBlast seat=$seatIndex emoji=$emoji"
 }
 
 /**
