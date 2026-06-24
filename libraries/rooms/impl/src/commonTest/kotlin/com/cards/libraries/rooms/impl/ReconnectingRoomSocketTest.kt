@@ -511,6 +511,28 @@ class ReconnectingRoomSocketTest : CoroutineTest() {
     }
 
     @Test
+    fun simulateReconnect_dropsCurrentSession_andLandsNextOpenOnFreshSession() = runUnitTest {
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        val first = transport.primeSuccess()
+        val handle = socket.connect("ABC123")
+
+        val job = launch { handle.connection.collect { } }
+        advanceUntilIdle()
+        assertEquals(1, transport.openCalls)
+        assertEquals(first, transport.latest)
+
+        val second = transport.simulateReconnect()
+        advanceTimeBy(60_000)
+        runCurrent()
+
+        assertEquals(2, transport.openCalls, "simulateReconnect must trigger one reopen")
+        assertEquals(second, transport.latest, "next open() lands on the simulated session")
+        assertTrue(transport.sessions.containsAll(listOf(first, second)))
+        job.cancel()
+    }
+
+    @Test
     fun consecutiveFailures_incrementAttemptCounter() = runUnitTest {
         val transport = FakeRoomSocketTransport()
         val socket = newSocket(transport)
