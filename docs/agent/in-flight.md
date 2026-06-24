@@ -43,3 +43,9 @@
 **Problem:** The B3 item asked to correct the `mp-chip-buyin-economy.md` top banner from "dormant" to "shipped", but that banner already reads SHIPPED (corrected earlier this cycle) — a stale instruction.
 **Approach:** Removed the trailing "its top banner still says dormant; correct it to shipped" clause from the B3 note in `docs/todo.md`. Pure doc hygiene — no code.
 **Reviewer notes:** None.
+
+## docs(testing-plan): record the server-dealt consecutive-hands coverage
+
+**Problem:** The B7 fix added a server-dealt-table consecutive-hands test, but `testing-plan.md` (the running history for the MP testing rounds) didn't list it under Round 2's "Remaining fan-out".
+**Approach:** Added a ticked bullet citing `MatchmakingPlayTest.serverDealtAllHumanTable_advancesConsecutiveHands_withNoNextHandTap` + the `ServerBotDriverTest` unit pin. Doc-only; the tests themselves shipped in the prior `fix(server)` commit.
+**Reviewer notes:** None.
