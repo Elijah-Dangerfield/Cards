@@ -45,9 +45,16 @@
     <string name="shop_snackbar_purchase_failed_title">Purchase failed</string>
     <!-- App - session-expiry boot (the auth server rejected our token mid-run). -->
     <string name="session_expired_title">Session expired</string>
-    <string name="session_expired_message">You were signed out. Sign in again to pick up where you left off.</string>
+    <string name="session_expired_message">We lost your session. Try again to pick up where you left off, or log out to start over.</string>
     <string name="session_expired_guest_title">Guest session ended</string>
-    <string name="session_expired_guest_message">Your guest session ended. Sign in or start a new game to keep playing - create an account so your progress is saved.</string>
+    <string name="session_expired_guest_message">We lost your guest session. Try again to get back in, or log out to start a new game.</string>
+    <string name="session_expired_retry">Try again</string>
+    <string name="session_expired_logout">Log out</string>
+    <string name="session_expired_retry_failed">Still cannot reach your session. Check your connection and try again.</string>
+    <string name="session_expired_guest_logout_confirm_title">Lose your progress?</string>
+    <string name="session_expired_guest_logout_confirm_message">Guest progress is not saved anywhere. Logging out clears your chips, XP, and history for good.</string>
+    <string name="session_expired_guest_logout_keep_playing">Keep trying</string>
+    <string name="session_expired_guest_logout_confirm">Log out anyway</string>
     <string name="shop_snackbar_insufficient_chips_title">Not enough chips</string>
     <string name="shop_snackbar_insufficient_chips_message">You need more chips to grab %1$s.</string>
     <string name="shop_snackbar_claim_required_title">Account needed</string>

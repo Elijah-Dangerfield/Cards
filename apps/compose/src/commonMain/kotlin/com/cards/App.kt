@@ -49,6 +49,7 @@ import com.dangerfield.cards.libraries.navigation.floatingwindow.FloatingWindowN
 import com.dangerfield.cards.libraries.navigation.impl.DelegatingRouter
 import com.dangerfield.cards.libraries.navigation.AuthGateRoute
 import com.dangerfield.cards.libraries.navigation.GateReason
+import com.dangerfield.cards.libraries.navigation.SessionExpiredRoute
 import com.dangerfield.cards.libraries.navigation.dialog
 import com.dangerfield.cards.libraries.navigation.serializableType
 import com.dangerfield.cards.libraries.navigation.toEnterTransition
@@ -92,10 +93,6 @@ import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.profile_edit_sync_rejected_avatar
 import cards.libraries.resources.generated.resources.profile_edit_sync_rejected_name_invalid
 import cards.libraries.resources.generated.resources.profile_edit_sync_rejected_name_taken
-import cards.libraries.resources.generated.resources.session_expired_guest_message
-import cards.libraries.resources.generated.resources.session_expired_guest_title
-import cards.libraries.resources.generated.resources.session_expired_message
-import cards.libraries.resources.generated.resources.session_expired_title
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarHost
@@ -107,7 +104,6 @@ import com.dangerfield.cards.libraries.ui.system.LocalClock
 import com.dangerfield.cards.libraries.ui.system.LocalLevelCurve
 import com.dangerfield.cards.system.AppThemeProvider
 import kotlin.reflect.typeOf
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.launch
 
@@ -267,29 +263,17 @@ fun App(appComponent: AppComponent) {
 
                 SplashGate()
 
-                // The auth server rejected our session mid-run: boot to the
-                // landing (clearing the stack from wherever they were) and
-                // explain why. AuthRepository already tore down caches/session;
-                // this is the navigation + message an ambient event can't do
-                // from a feature screen. Copy differs for a guest (no account to
-                // sign back into — start fresh) vs a claimed account (sign in).
-                val sessionExpiredTitle = stringResource(Res.string.session_expired_title)
-                val sessionExpiredMessage = stringResource(Res.string.session_expired_message)
-                val guestSessionEndedTitle = stringResource(Res.string.session_expired_guest_title)
-                val guestSessionEndedMessage = stringResource(Res.string.session_expired_guest_message)
+                // The auth server rejected our session mid-run: push a blocking
+                // SessionExpired screen (kept on top, stack intact) that owns
+                // Retry (recover in place) + Logout (tear down to onboarding).
+                // An ambient network event can't present this from a feature
+                // screen, so it routes here. The screen picks guest vs claimed
+                // copy off wasAnonymous itself.
                 LaunchedEffect(Unit) {
                     appViewModel.sessionExpired.collect { event ->
                         router.navigate(
-                            OnboardingRoute(),
-                            NavigationOptions(launchSingleTop = true, clearBackStack = true),
-                        )
-                        showSnackBar(
-                            title = if (event.wasAnonymous) guestSessionEndedTitle else sessionExpiredTitle,
-                            message = if (event.wasAnonymous) guestSessionEndedMessage else sessionExpiredMessage,
-                            level = SnackbarLevel.Error,
-                            duration = SnackbarDuration.Long,
-                            // Let the landing settle before the toast lands on top.
-                            delayBy = 500.milliseconds,
+                            SessionExpiredRoute(wasAnonymous = event.wasAnonymous),
+                            NavigationOptions(launchSingleTop = true),
                         )
                     }
                 }
