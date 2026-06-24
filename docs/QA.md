@@ -226,3 +226,101 @@ Friends/social is descoped to V2 behind the `social.enabled` app-config flag (de
 3. Join or start a multiplayer table and tap a human opponent's avatar to open their player card.
 
 **Expected:** Home shows no "Friends" strip and no "Recently played with" strip (the achievements strip still shows). Profile shows no friend-requests inbox. The opponent player card shows no "Add friend" section. Nothing renders in a disabled/greyed state — the surfaces are simply absent.
+
+---
+
+## Multiplayer
+
+Multiplayer is the load-bearing feature. These walk the major MP surfaces as device-runnable scenarios. Run them with two real devices (or one device + one bot table) unless a test says otherwise. Architecture primer: [`wiki/multiplayer.md`](./wiki/multiplayer.md).
+
+**Terms** (full glossary in the wiki): **Stack** = chips in front of you at the table; the buy-in returns to your wallet on leave. **Host** = the member who created a private room and taps Start. **Grace** = the 5-min window the server holds a disconnected seat before sweeping it.
+
+**Finish lines vary by path:** joining ends at the lobby, finding-a-game ends at sit-down, playing ends at the post-hand summary or the next-hand prompt.
+
+---
+
+### `MP-1` 🚨 📱 Create a private room + join by code
+
+**State:** two devices, both signed in, online. Device A is the host.
+
+1. Device A: Home → Multiplayer → create a private room. Note the room code shown.
+2. Device B: Multiplayer → join by code → enter Device A's code.
+
+**Expected:** Device B lands in the same room's lobby. Both devices show both members in the seat list, each marked connected. The host badge sits on Device A. No spinner stall longer than ~2s after the code is entered.
+
+---
+
+### `MP-2` ⚠️ 📱 Find a public game via matchmaking
+
+**State:** one device, signed in, online, wallet funded above the tier's buy-in.
+
+1. Home → Multiplayer → "Find a game" (public matchmaking).
+2. Set a buy-in range that spans at least one open/public table, or let it fall through to the bot fallback.
+
+**Expected:** Either a chooser lists candidate tables (buy-in, seats taken / max, real-human count) and tapping one seats you at that table, or — on an empty result — the search waits and then seats you against bots. Finish line is sit-down: you have a stack at the table. The buy-in is reserved from your wallet (wallet drops by the buy-in, not spent).
+
+---
+
+### `MP-3` 🚨 📱 Play a hand to showdown
+
+**State:** two seated members at the same table (from `MP-1`), a hand in progress.
+
+1. Play a full hand: post blinds, act in turn (check/call/raise/fold) on both devices through every street.
+2. Carry the hand to showdown (both players reach the river without folding).
+
+**Expected:** Each device only ever sees its own hole cards — opponents' cards stay face-down until showdown reveal. Turn passes correctly; the action ring/timer points at the acting seat. At showdown the winning hand is revealed and the pot moves to the winner's stack. The post-hand summary shows the result. No duplicate-card crash, no stuck turn.
+
+---
+
+### `MP-4` ⚠️ 📱 Multi-hand sequence — button rotation
+
+**State:** two seated members, having just finished `MP-3`.
+
+1. From the post-hand summary, tap "Next hand" (or wait for the auto-deal on a server-dealt table).
+2. Play three consecutive hands.
+
+**Expected:** The dealer button advances one seat each hand; blinds rotate with it. Stacks carry over hand-to-hand (the winner's stack from hand 1 is its starting stack in hand 2). No re-deal of the same button, no stack reset between hands.
+
+---
+
+### `MP-5` 🚨 📱 Host disconnect + auto-promotion
+
+**State:** three+ seated members, host is Device A, a hand not currently mid-deal.
+
+1. Device A (host): force-quit the app (or enable airplane mode).
+2. Observe Devices B and C for ~10s.
+
+**Expected:** Within the grace window the host badge auto-promotes to the first still-connected member. The table keeps playing — the remaining members are not kicked. Device A's seat shows as disconnected (held), not gone. If Device A returns within grace, it reconnects to its seat (see `MP-6`).
+
+---
+
+### `MP-6` 🚨 📱 Reconnect mid-hand
+
+**State:** a member (Device B) seated in an active hand.
+
+1. Device B: toggle airplane mode on for ~5s, then off (stay within the 5-min grace).
+
+**Expected:** The client retries the socket with backoff and reconnects. Device B's view resyncs to the current hand state (its hole cards, the board, whose turn it is, pot + stacks) — no stale snapshot, no "you left" screen. If it was Device B's turn, the turn is still available (the timer accounts for the gap).
+
+---
+
+### `MP-7` ⚠️ 📱 Graceful leave vs. force-quit
+
+**State:** two seated members at a table mid-hand.
+
+1. Variant A (graceful): Device B taps the in-room Leave button → confirms in the leave dialog.
+2. Variant B (force-quit): on a fresh hand, Device B force-quits instead.
+
+**Expected:**
+- Variant A — Device B's seat is released immediately; its remaining stack returns to its wallet (wallet goes up by the cashed-out stack). Device A sees B leave and the hand continues / settles around the empty seat. Back navigation lands cleanly on Multiplayer with no stuck "Leaving…" state.
+- Variant B — Device B's seat shows disconnected and is swept after the grace window (not instantly); the stack still cashes back. Device A's game is not ended by B's drop.
+
+---
+
+### `MP-8` ⚠️ 📱 Bust + re-buy
+
+**State:** a seated member whose stack reaches 0 during a hand.
+
+1. Play a hand to where Device B's stack busts (call/shove and lose).
+
+**Expected:** Device B sees the bust dialog with re-buy options (move another buy-in from wallet, drop to a lower tier, or — if broke — soft-bust protection). Choosing re-buy moves a fresh buy-in wallet → stack and deals B back in on the next hand. Declining leaves the table cleanly. On a subsidized bots-for-chips table, the bust dialog reads "fresh stack on the house" and the chips stay real (cross-ref `MP-6` settlement). Wallet math is correct after the re-buy — no double debit.

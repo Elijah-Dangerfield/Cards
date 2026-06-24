@@ -70,12 +70,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## B. Multiplayer hardening
 
-- `[P1]` **MP-3 — Author the multiplayer section of [`docs/QA.md`](./QA.md).** Onboarding is seeded (16 tests); MP needs the same treatment. Cover the major MP surfaces as device-runnable scenarios: create-room + join-by-code, find a public game via matchmaking, play a hand to showdown, multi-hand sequence (button rotation), host disconnect + promotion, reconnect mid-hand, graceful vs force-quit leave, bust + re-buy.
-
-  Match the existing test shape (ID + priority + platform + **State** / steps / **Expected**). Finish lines vary by path — joining ends at the lobby, finding ends at sit-down, playing ends at post-hand or the next-hand prompt.
-
-  **Hints:** Walk `features/room/impl/` + `apps/server/src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt` + the matchmaking routes; [`wiki/multiplayer.md`](./wiki/multiplayer.md) is the architectural primer. Cross-reference `MP-1` / `MP-2` where a known gap applies.
-
 - `[P2]` **MP-1 — Orphaned-room policy — read-only spectator downgrade.** Seat-forfeit on grace expiry already lands (`forfeitSeat`); the remaining half is downgrading the forfeited member's WS subscription to **read-only spectator** instead of closing the socket, with `GET /v1/me/active-rooms` driving a Rejoin / Forfeit banner. The seatless-subscriber socket auth this needs already exists.
 
 - `[P0]` **MP-2 — Close the remaining multiplayer test gaps.** MP is the load-bearing feature of the app. The integration module + engine property tests + chaos suite are largely landed (see [`practices/testing.md`](./practices/testing.md)). Still open:
