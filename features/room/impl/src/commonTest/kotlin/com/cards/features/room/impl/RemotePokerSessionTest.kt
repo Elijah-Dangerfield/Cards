@@ -363,6 +363,104 @@ class RemotePokerSessionTest : CoroutineTest() {
     }
 
     // ===================================================================
+    // opponentLeft / opponentsLeft — departure detection across snapshots
+    // ===================================================================
+
+    @Test
+    fun opponentLeft_emitsName_whenNonLastOpponentLeaves() = runUnitTest {
+        // Three humans → two: a known opponent vanished but the table still has
+        // 2+ humans, so this is a non-terminal "X left the table" notice, not the
+        // last-human-standing route-off.
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle, localUserId = "me")
+        val left = mutableListOf<String>()
+        val terminal = mutableListOf<Unit>()
+        val runJob = launch { session.run() }
+        val leftJob = launch { session.opponentLeft.collect { left += it } }
+        val terminalJob = launch { session.opponentsLeft.collect { terminal += it } }
+        advanceUntilIdle()
+
+        handle.pushConnection(
+            RoomConnection.Connected(
+                sampleRoom(
+                    members = listOf(
+                        human("me", "Me", 0),
+                        human("a", "Alice", 1),
+                        human("b", "Bob", 2),
+                    ),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+        handle.pushConnection(
+            RoomConnection.Connected(
+                sampleRoom(members = listOf(human("me", "Me", 0), human("b", "Bob", 2))),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf("Alice"), left)
+        assertTrue(terminal.isEmpty(), "two humans remain; the terminal opponents-left must not fire")
+        runJob.cancel()
+        leftJob.cancel()
+        terminalJob.cancel()
+    }
+
+    @Test
+    fun opponentsLeft_firesNotOpponentLeft_whenLastOpponentLeaves() = runUnitTest {
+        // Two humans → one (the local player alone): the terminal route-off, not
+        // an in-game notice.
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle, localUserId = "me")
+        val left = mutableListOf<String>()
+        val terminal = mutableListOf<Unit>()
+        val runJob = launch { session.run() }
+        val leftJob = launch { session.opponentLeft.collect { left += it } }
+        val terminalJob = launch { session.opponentsLeft.collect { terminal += it } }
+        advanceUntilIdle()
+
+        handle.pushConnection(
+            RoomConnection.Connected(
+                sampleRoom(members = listOf(human("me", "Me", 0), human("a", "Alice", 1))),
+            ),
+        )
+        advanceUntilIdle()
+        handle.pushConnection(
+            RoomConnection.Connected(sampleRoom(members = listOf(human("me", "Me", 0)))),
+        )
+        advanceUntilIdle()
+
+        assertEquals(1, terminal.size, "the last opponent leaving must fire the terminal signal")
+        assertTrue(left.isEmpty(), "the terminal case must not also fire the per-opponent notice")
+        runJob.cancel()
+        leftJob.cancel()
+        terminalJob.cancel()
+    }
+
+    @Test
+    fun opponentLeft_doesNotFire_onFirstSnapshot() = runUnitTest {
+        // The first snapshot only establishes the baseline — a member absent
+        // from a set we never saw isn't a "departure."
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle, localUserId = "me")
+        val left = mutableListOf<String>()
+        val runJob = launch { session.run() }
+        val leftJob = launch { session.opponentLeft.collect { left += it } }
+        advanceUntilIdle()
+
+        handle.pushConnection(
+            RoomConnection.Connected(
+                sampleRoom(members = listOf(human("me", "Me", 0), human("a", "Alice", 1))),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertTrue(left.isEmpty(), "the baseline snapshot must not read as a departure")
+        runJob.cancel()
+        leftJob.cancel()
+    }
+
+    // ===================================================================
     // submit() — accept, reject, timeout, cleanup
     // ===================================================================
 
@@ -736,14 +834,30 @@ class RemotePokerSessionTest : CoroutineTest() {
     private fun sampleHandStarted(): GameEvent.HandStarted =
         GameEvent.HandStarted(sequence = 1L, handNumber = 1, buttonSeatIndex = 0)
 
-    private fun sampleRoom(): com.dangerfield.cards.libraries.rooms.Room =
+    private fun sampleRoom(
+        members: List<com.dangerfield.cards.libraries.rooms.RoomMember> = emptyList(),
+    ): com.dangerfield.cards.libraries.rooms.Room =
         com.dangerfield.cards.libraries.rooms.Room(
             code = "ABC123",
             hostUserId = "host",
             createdAtEpochMs = 0L,
             maxSeats = 6,
             status = com.dangerfield.cards.libraries.rooms.RoomStatus.Playing,
-            members = emptyList(),
+            members = members,
+        )
+
+    private fun human(
+        userId: String,
+        displayName: String,
+        seatIndex: Int,
+    ): com.dangerfield.cards.libraries.rooms.RoomMember =
+        com.dangerfield.cards.libraries.rooms.RoomMember(
+            userId = userId,
+            displayName = displayName,
+            seatIndex = seatIndex,
+            joinedAtEpochMs = 0L,
+            isConnected = true,
+            isBot = false,
         )
 }
 

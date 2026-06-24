@@ -762,6 +762,9 @@
     <string name="room_quick_buy_failed">Couldn't complete the purchase</string>
     <string name="room_quick_buy_store_unavailable">Store unavailable right now</string>
 
+    <!-- Room - transient notice when a non-last opponent leaves a live table. %1$s is their display name. -->
+    <string name="room_opponent_left">%1$s left the table</string>
+
     <!-- Room - Achievement-unlocked callout (inline within hand-end dialogs in MP mode). -->
     <string name="room_achievement_callout_heading">Achievement unlocked</string>
     <string name="room_achievement_reward_xp">+%1$d XP</string>

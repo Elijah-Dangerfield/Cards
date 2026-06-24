@@ -179,6 +179,13 @@ class PlayPokerViewModel @Inject constructor(
                 sendEvent(PlayPokerEvent.OpponentsLeft)
             }
         }
+        // A non-last opponent left while others remain — surface a notice; the
+        // seat renders vacated off the next snapshot. Never fires for solo bots.
+        viewModelScope.launch {
+            session.opponentLeft.collect { displayName ->
+                sendEvent(PlayPokerEvent.OpponentLeft(displayName))
+            }
+        }
         // XP mirror
         viewModelScope.launch {
             progressionRepository.observeProgression().collect { progression ->

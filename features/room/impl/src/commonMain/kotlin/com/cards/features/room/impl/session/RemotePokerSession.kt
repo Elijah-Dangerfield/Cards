@@ -126,9 +126,19 @@ internal class RemotePokerSession(
     private val _opponentsLeft = MutableSharedFlow<Unit>(replay = 1)
     override val opponentsLeft: SharedFlow<Unit> = _opponentsLeft.asSharedFlow()
 
-    // Last observed count of human (non-bot) room members. Seeded to -1 so the
-    // first snapshot establishes a baseline without ever reading as a "drop."
-    private var previousHumanCount: Int = -1
+    /**
+     * `replay = 0` — a "someone left" notice is a live, momentary event; a
+     * collector mounting later (a screen re-subscribe) must not re-fire a
+     * stale departure. `extraBufferCapacity` covers a burst of simultaneous
+     * leaves landing in one snapshot.
+     */
+    private val _opponentLeft = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    override val opponentLeft: SharedFlow<String> = _opponentLeft.asSharedFlow()
+
+    // Last observed human (non-bot) room members, keyed by user id → display
+    // name. Null until the first snapshot establishes a baseline, so the first
+    // snapshot never reads as a "drop."
+    private var previousHumans: Map<String, String>? = null
     private var opponentsAlreadyLeft: Boolean = false
 
     private val pendingAcks: MutableMap<String, CompletableDeferred<GameplayFrame.IntentAck>> =
@@ -163,19 +173,33 @@ internal class RemotePokerSession(
             }
             _connectionState.value = next
 
-            // Detect "all other opponents left": the human (non-bot) member
-            // count drops to the local player alone, after having been 2+. Only
-            // a Connected snapshot carries the live member list.
+            // Diff the human (non-bot) member set across snapshots to surface
+            // departures. Only a Connected snapshot carries the live member list.
+            //
+            //  - Terminal "all opponents left" (count drops to the local player
+            //    alone after 2+): fire [opponentsLeft] once — the screen routes
+            //    the lone player off the dead table.
+            //  - A non-last opponent leaving (a known human disappears while 2+
+            //    humans remain): fire [opponentLeft] with their name so the
+            //    screen shows a transient notice and the seat renders vacated.
             if (conn is RoomConnection.Connected) {
-                val humans = conn.room.members.count { !it.isBot }
-                val iAmStillSeated = conn.room.members.any { it.userId == localUserId }
-                if (!opponentsAlreadyLeft && iAmStillSeated &&
-                    previousHumanCount >= 2 && humans <= 1
-                ) {
-                    opponentsAlreadyLeft = true
-                    _opponentsLeft.tryEmit(Unit)
+                val humans = conn.room.members
+                    .filter { !it.isBot }
+                    .associate { it.userId to it.displayName }
+                val iAmStillSeated = humans.containsKey(localUserId)
+                val previous = previousHumans
+                if (previous != null && iAmStillSeated) {
+                    val departed = previous.keys - humans.keys
+                    if (!opponentsAlreadyLeft && previous.size >= 2 && humans.size <= 1) {
+                        opponentsAlreadyLeft = true
+                        _opponentsLeft.tryEmit(Unit)
+                    } else {
+                        departed.forEach { id ->
+                            previous[id]?.let { name -> _opponentLeft.tryEmit(name) }
+                        }
+                    }
                 }
-                previousHumanCount = humans
+                previousHumans = humans
             }
             // Info: connection lifecycle is the backbone of reconstructing a
             // reported MP session — it rides in release breadcrumbs and, with

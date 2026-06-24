@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.rooms.ClosedReason
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -71,6 +72,18 @@ interface PokerSession {
     val opponentsLeft: SharedFlow<Unit>
 
     /**
+     * Fires the display name of an opponent who left a *live* table while
+     * two or more humans remain — the non-terminal counterpart to
+     * [opponentsLeft]. The screen surfaces a transient "X left the table"
+     * notice; the seat then renders vacated off the next server snapshot.
+     * Never fires when the leaver was the last opponent (that's
+     * [opponentsLeft], which routes the player off the dead table) nor for
+     * solo-bot sessions. Defaults to a never-emitting flow so the local-bots
+     * session and test fakes don't have to override it.
+     */
+    val opponentLeft: SharedFlow<String> get() = NeverEmits
+
+    /**
      * Submit the local player's intent. Suspends because the local-bots implementation
      * runs the bot loop synchronously after the human acts.
      */
@@ -107,6 +120,8 @@ interface PokerSession {
      */
     suspend fun sendEmote(emoji: String)
 }
+
+private val NeverEmits: SharedFlow<Nothing> = MutableSharedFlow()
 
 /**
  * A table emote received from another seat over the wire. [seatIndex]

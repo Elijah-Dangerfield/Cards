@@ -263,6 +263,9 @@ sealed interface PlayPokerEvent {
     /** Last human standing (room still exists); the entry point routes by room kind. MP only. */
     data object OpponentsLeft : PlayPokerEvent
 
+    /** A non-last opponent left a live table; the screen toasts "X left the table". MP only. */
+    data class OpponentLeft(val displayName: String) : PlayPokerEvent
+
     /**
      * A quick-buy IAP round-trip finished; the screen toasts the result.
      * Mirrors the shop's `PurchaseFinished` feedback, in-game.
