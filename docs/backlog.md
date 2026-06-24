@@ -676,3 +676,75 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Idea (raised 2026-06-24, follow-on to the HTTP 403 ban-envelope routing):** The HTTP path now decodes the server's locked `403 {reason, until, appealUrl}` envelope and pushes the blocking access-denied screen. The matching WS-handshake 403 doesn't — Ktor's WS-upgrade failure path is structurally different from `ResponseException` and the existing room socket maps any 403 to `NotHost` off the status alone. A banned user trying to join a room over the socket therefore won't land on the access-denied screen; they'll see a generic room-error instead. Confirm the failure surface on a banned account and (if it's a degraded experience) plumb the access-denied bus from the WS handshake too.
 
 **Status:** Backlog. Out-of-scope for the HTTP slice that just shipped; gate on confirming a banned WS user gets a sub-par error today. See [`NetworkClientImpl.signalAccessDeniedIfEnveloped`](../libraries/networking/impl/src/commonMain/kotlin/com/cards/libraries/networking/impl/NetworkClientImpl.kt) + [`KtorRoomSocketTransport`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/KtorRoomSocketTransport.kt).
+
+---
+
+## XP anti-cheat hardening — server-derive XP when stakes rise
+
+**Idea:** The server stores client-computed XP deltas with a per-event clamp. That's fine for play-money — there's nothing to mint. When XP gates ranked status, leagues, or IAP-equivalent rewards, the trust model has to flip: the server should **derive** XP from synced hand facts (using the same curve it already serves to the client) and enforce caps / rate-limits / claw-back, instead of trusting whatever delta the client posts.
+
+**Trigger to revisit:** the first feature that makes XP convert into real value (ranked tier, league placement, exclusive cosmetic gates, IAP discounts tied to level).
+
+**Hints:** Same pattern as the server-derive level-up grants item in [`docs/todo.md`](./todo.md) — port the level/XP curve interpreter from `:libraries:cards` into `:apps:server`. Anti-cheat principles documented at [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md).
+
+**Status:** Backlog. Explicitly deferred — not worth the engineering until XP gates something a cheater would want.
+
+---
+
+## Responsible-play nudge after risky patterns
+
+**Idea:** A gentle, dismissible nudge after risky patterns (repeated chip buys after going bust, rapid repeat purchases). The Settings row and the real-money purchase-sheet link both already ship; this is the proactive in-app nudge on top. Needs an economy-event hook that doesn't exist yet — `AppEventBus` is lifecycle-level only.
+
+**Status:** Backlog. Owner unsure whether to ship this at all — revisit if user reports or analytics suggest the nudge would land. Retired from todo as AUTH-4.
+
+---
+
+## Multiplayer game summary + recent-games history
+
+**Idea:** No post-game summary exists in MP — the end-of-hand XP/achievement dialog is transient and nothing is stored. When an MP game ends (or a player leaves), show a summary: chips won/lost, XP gained, achievements earned during that game. Persist per-game results so Home can show a "recent games" list, each tapping into its summary. MP only.
+
+**Sketch:** Greenfield — needs a per-game result record (client Room table or a server endpoint; the server already logs `hands_finished`). The chips delta depends on the MP wallet settlement being real (it is). Distinct from the friend-graph `RecentlyPlayedWithStrip` (opponents-to-friend, not results).
+
+**Status:** Backlog. Retired from todo as GAME-2. Pull when player-history surfaces become a V2 priority.
+
+---
+
+## Server-derive level-up grants (when stakes rise)
+
+**Idea:** The server applies whatever `levelup_<level>` chip delta the client sends (only guard: no-below-zero) and gates the cosmetic grant by product allowlist, not by *level reached* — so a tampered client can mint level rewards it didn't earn. Harmless for play-money. When XP/chip totals feed leagues/leaderboards or anything else a cheater would want, switch to: on progression-sync, the server derives level from its reconciled `total_xp` against the curve it already serves, grants `levelup_<level>` itself (idempotent), and caps client-claimed amounts.
+
+**Hints:** Port the `levelProgressFor` interpreter from [`Level.kt`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/cards/Level.kt) into `:apps:server` (don't extract a shared module — see `decisions.md` 2026-06-21). Grant precedents: `PostgresWalletRepository.apply` + `LevelGrantableProducts` / `GrantsRoutes`. Client path: `LevelUpRewardGranter`.
+
+**Status:** Backlog. Same trigger as the XP anti-cheat hardening item above. Retired from todo as PROG-2.
+
+---
+
+## Pick-a-Card reward chest
+
+**Idea:** A consumable chest: open → magician-style card-shuffle/reveal → a prize (chips / card back / felt / boost) from a weighted, server-owned loot table. Server rolls + grants on open (idempotent); the client only animates + reveals the server's result. Online to open; ownable offline ("opens when you reconnect"). Giftable on level-up.
+
+**Phasing:**
+- **Phase A — inventory quantity + consumable kind:** add `quantity` (stockpile) + a consume path to inventory (today it's one permanent row per product) and a `chest_` product kind.
+- **Phase B — server chest-open:** `POST /v1/me/chest/{id}/open` rolls the weighted loot table, grants the prize (chips → wallet ledger, cosmetic → inventory grant), idempotent per open.
+- **Phase C — the pick screen:** full-screen pick/shuffle + reveal showing the server-rolled prize; offline "connect to open" gating.
+
+**Hints:** Grant precedent is `grantApi.grantAchievement` / `GrantsRoutes`; chips prize via `ChipsRepository.addChips(idempotencyKey=…)`. Touches wallet, inventory / my-items, shop, and level-up rewards.
+
+**Status:** Backlog. Retired from todo as SHOP-1. Real V1.x/V2 monetization feature; pull when consumables are on the table.
+
+---
+
+## Friends + social — descoped to V2
+
+**Idea:** Friends and social are explicitly out of V1. SOC-2 in todo.md gates all the existing fake-or-stubbed social surfaces (FriendsStrip, recently-played-with shelf, friend-requests inbox, at-table Add Friend) behind a config flag defaulted off. When V2 revives the feature, the V1 plumbing left behind the flag becomes the starting point.
+
+**V1 work that ships behind the flag (server-side, currently fake or no-op):**
+- Online-presence signal — server emits presence on WS connect/disconnect + stores last-seen / current-room; client subscribes once per session, filtered to friend ids.
+- Real friend graph backing the strip + the "recently played with" shelf (today the strip uses `defaultOnlineFriends()`; the shelf is a stubbed list).
+- Friend-request inbox + accept/reject flow (today the badge is real, the inbox isn't).
+
+**Locked rule for the V2 revive:** the only way to friend someone is the "recently played with" shelf — no search-by-handle, no suggestions. Empty states must say so.
+
+**Out of scope even for V2 revive:** friend suggestions, invite-via-share-link, push notifications for requests, group chat.
+
+**Status:** Backlog (V2). Retired from todo as SOC-1 (presence signal). The flag-gating work that disables these surfaces in V1 lives in todo.md as SOC-2.
