@@ -109,6 +109,6 @@ Concrete next steps if approved:
 3. Promote the four-stub `newRouter()` helper into a shared `:libraries:navigation:impl:testFixtures` (or similar) so feature modules don't re-implement it.
 4. Write the 10 scenarios from the table above.
 
-If we *don't* adopt Robolectric: the alternative is "every nav-layer bug we ship next gets caught by hand-testing on a simulator" which is what we already do, plus the [docs/agent/integration-test-matrix.md](integration-test-matrix.md) covers the layer below this one (so we'd still be making progress on the bigger picture).
+If we *don't* adopt Robolectric: the alternative is "every nav-layer bug we ship next gets caught by hand-testing on a simulator" which is what we already do, plus the `apps/integration` suite covers the layer below this one (so we'd still be making progress on the bigger picture).
 
 I'd take the Robolectric pill. It's a known-cost dependency that unblocks a known-value test layer. The two bugs from today are not isolated — they're representative of a class we'll keep paying for until this layer exists.
