@@ -668,3 +668,11 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Idea (raised 2026-06-24):** The new pick-a-table chooser (`PublicSearchingScreen.ChoosingContent` / `CandidateCard`) lists each candidate with buy-in, seats taken/max, and a real-human count. Two deferred niceties: (1) show the humans-vs-bots split more richly than a single "N playing" line (e.g. seat dots, or "3 players, 1 bot"); (2) mark a table the caller is already seated in with a "you're here" badge — the server already includes such a table in the candidates list per its KDoc, the client just renders it the same as any other today.
 
 **Status:** Backlog. Cosmetic polish on a shipped, functional chooser. Do when next iterating on matchmaking presentation.
+
+---
+
+## Route the 403 ban envelope on a WS handshake too
+
+**Idea (raised 2026-06-24, follow-on to the HTTP 403 ban-envelope routing):** The HTTP path now decodes the server's locked `403 {reason, until, appealUrl}` envelope and pushes the blocking access-denied screen. The matching WS-handshake 403 doesn't — Ktor's WS-upgrade failure path is structurally different from `ResponseException` and the existing room socket maps any 403 to `NotHost` off the status alone. A banned user trying to join a room over the socket therefore won't land on the access-denied screen; they'll see a generic room-error instead. Confirm the failure surface on a banned account and (if it's a degraded experience) plumb the access-denied bus from the WS handshake too.
+
+**Status:** Backlog. Out-of-scope for the HTTP slice that just shipped; gate on confirming a banned WS user gets a sub-par error today. See [`NetworkClientImpl.signalAccessDeniedIfEnveloped`](../libraries/networking/impl/src/commonMain/kotlin/com/cards/libraries/networking/impl/NetworkClientImpl.kt) + [`KtorRoomSocketTransport`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/KtorRoomSocketTransport.kt).
