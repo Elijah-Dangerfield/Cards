@@ -444,3 +444,40 @@ private fun PublicSearchingOfferPreview() {
         )
     }
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun PublicSearchingJoiningBotsPreview() {
+    PreviewContent {
+        PublicSearchingScreen(
+            state = PublicSearchingState(phase = SearchPhase.JoiningBots, minBuyIn = 1_000, maxBuyIn = 25_000),
+            onAction = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun PublicSearchingErrorPreview() {
+    PreviewContent {
+        PublicSearchingScreen(
+            state = PublicSearchingState(minBuyIn = 1_000, maxBuyIn = 25_000, error = SearchError.Network),
+            onAction = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun PublicSearchingInsufficientErrorPreview() {
+    PreviewContent {
+        PublicSearchingScreen(
+            state = PublicSearchingState(
+                minBuyIn = 1_000,
+                maxBuyIn = 25_000,
+                error = SearchError.InsufficientBalance,
+            ),
+            onAction = {},
+        )
+    }
+}

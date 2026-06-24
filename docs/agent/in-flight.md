@@ -1,0 +1,11 @@
+## refactor(rooms): dedupe formatThousands onto the shared helper
+
+**Problem:** `PublicSearchingScreen` and `PublicFindScreen` each carried a local `formatThousands` copy (`reversed().chunked(3)...`) duplicating the canonical `:libraries:cards` `formatThousands(Long)`.
+**Approach:** Deleted both local copies and routed the call sites through the shared helper (`amount.toLong()` for the Int call site in `PublicFindScreen`). The shared one is strictly more correct (handles negatives + the <1000 fast path); `:features:rooms:impl` already depended on `:libraries:cards`, so no new dependency.
+**Reviewer notes:** None. Pure reuse cleanup; full client `assembleDebug` is green.
+
+## test(rooms): chooser candidates re-poll coverage + missing previews
+
+**Problem:** The chooser's live candidates re-poll (`armCandidatesPoll` → `CandidatesRefreshed`) had no dedicated coverage, and `PublicSearchingScreen` lacked previews for the `JoiningBots` phase and the error states.
+**Approach:** Added three `PublicSearchingViewModelTest` cases driving the 5s poll via `advanceTimeBy` (list-refresh / empty-list fall-through / transient-failure-keeps-list), plus a `candidatesSequence` to the fake so successive `findCandidates` calls return different results; each test ends with a `Cancel` to tear the poll down. Added `JoiningBots`, generic `Network` error, and `InsufficientBalance` error previews.
+**Reviewer notes:** **I could not get a green local run of `PublicSearchingViewModelTest`.** The whole class hangs the test JVM at ~99% CPU in this environment — and it hangs identically on the *pre-existing* tests with my additions stashed out (verified by stashing my changes and running only the existing `onStart_withCandidates_showsChooser_withoutSeating`, which also spins). So the hang is an environmental `runTest`-vs-infinite-poll-loop interaction local to this machine, not a regression from these tests. Test **sources compile clean** (`compileDebugUnitTestKotlinAndroid` BUILD SUCCESSFUL) and the new assertions were hand-checked against the VM branches they cover. Please confirm green in CI. If the env hang turns out to be real beyond this machine, the underlying fix is to launch `armCandidatesPoll` on a scope the test harness can drain (e.g. `backgroundScope`) — out of scope for this commit.

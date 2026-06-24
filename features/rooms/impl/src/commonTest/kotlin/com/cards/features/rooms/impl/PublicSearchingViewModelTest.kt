@@ -155,6 +155,84 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun chooser_rePollsCandidates_andRefreshesTheVisibleList() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            candidatesSequence = listOf(
+                CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+                CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"), roomOf(code = "BBB222"))),
+            ),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+        assertEquals(SearchPhase.Choosing, vm.state.phase)
+        assertEquals(listOf("AAA111"), vm.state.candidates.map { it.code })
+
+        // A re-poll fires on the interval and surfaces the newly-formed table.
+        testScheduler.advanceTimeBy(6.seconds)
+        testScheduler.runCurrent()
+
+        assertEquals(SearchPhase.Choosing, vm.state.phase)
+        assertEquals(listOf("AAA111", "BBB222"), vm.state.candidates.map { it.code })
+
+        // Tear the live poll down so the test's virtual clock can drain.
+        vm.takeAction(PublicSearchingAction.Cancel)
+        runCurrent()
+    }
+
+    @Test
+    fun chooser_rePollComesBackEmpty_fallsThroughToTheGenuineWait() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            find = FindTableOutcome.Success(roomOf(), created = true),
+            candidatesSequence = listOf(
+                CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+                CandidatesOutcome.Success(emptyList()),
+            ),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+        assertEquals(SearchPhase.Choosing, vm.state.phase)
+
+        // Every table emptied out while deciding — the re-poll drops the dead
+        // chooser and converges on the genuine find-and-wait search.
+        testScheduler.advanceTimeBy(6.seconds)
+        testScheduler.runCurrent()
+
+        assertEquals(SearchPhase.Searching, vm.state.phase)
+        assertEquals(emptyList(), vm.state.candidates)
+        assertEquals(1, mm.findCalls, "the empty re-poll opens a real table to wait in")
+
+        // Tear the live search down so the test's virtual clock can drain.
+        vm.takeAction(PublicSearchingAction.Cancel)
+        runCurrent()
+    }
+
+    @Test
+    fun chooser_transientRePollFailure_keepsTheExistingList() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            candidatesSequence = listOf(
+                CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+                CandidatesOutcome.NetworkError(RuntimeException("blip")),
+            ),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+        assertEquals(listOf("AAA111"), vm.state.candidates.map { it.code })
+
+        // A flaky re-poll leaves the chooser untouched rather than yanking it
+        // out from under the user.
+        testScheduler.advanceTimeBy(6.seconds)
+        testScheduler.runCurrent()
+
+        assertEquals(SearchPhase.Choosing, vm.state.phase)
+        assertEquals(listOf("AAA111"), vm.state.candidates.map { it.code })
+        assertNull(vm.state.error)
+
+        // Tear the live poll down so the test's virtual clock can drain.
+        vm.takeAction(PublicSearchingAction.Cancel)
+        runCurrent()
+    }
+
+    @Test
     fun connected_countsOtherConnectedHumans_excludingSelfAndBots() = runUnitTest {
         val conn = MutableSharedFlow<RoomConnection>(extraBufferCapacity = 8)
         val vm = buildVm(rooms = FakeRoomRepository(connection = conn))
@@ -530,6 +608,10 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         // Default to no candidates so the VM falls through to the genuine
         // find-and-wait path — keeps the legacy assertions on findTable valid.
         private val candidates: CandidatesOutcome = CandidatesOutcome.Success(emptyList()),
+        // Successive findCandidates calls walk this list (the initial browse +
+        // each re-poll); once exhausted the last entry repeats. Lets a test
+        // drive the chooser's live re-poll without a custom fake.
+        private val candidatesSequence: List<CandidatesOutcome> = emptyList(),
     ) : MatchmakingRepository {
         var findCalls: Int = 0
             private set
@@ -544,8 +626,11 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         }
 
         override suspend fun findCandidates(minBuyIn: Long, maxBuyIn: Long): CandidatesOutcome {
+            val outcome = candidatesSequence.getOrNull(candidatesCalls)
+                ?: candidatesSequence.lastOrNull()
+                ?: candidates
             candidatesCalls += 1
-            return candidates
+            return outcome
         }
 
         override suspend fun playBots(code: String): PlayBotsOutcome {
