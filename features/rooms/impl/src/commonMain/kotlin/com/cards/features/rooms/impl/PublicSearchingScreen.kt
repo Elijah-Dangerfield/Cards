@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,6 +30,14 @@ import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.public_searching_alone
 import cards.libraries.resources.generated.resources.public_searching_buyin_label
 import cards.libraries.resources.generated.resources.public_searching_cancel
+import cards.libraries.resources.generated.resources.public_searching_choose_humans
+import cards.libraries.resources.generated.resources.public_searching_choose_humans_one
+import cards.libraries.resources.generated.resources.public_searching_choose_join
+import cards.libraries.resources.generated.resources.public_searching_choose_none
+import cards.libraries.resources.generated.resources.public_searching_choose_seats
+import cards.libraries.resources.generated.resources.public_searching_choose_start_fresh
+import cards.libraries.resources.generated.resources.public_searching_choose_subtitle
+import cards.libraries.resources.generated.resources.public_searching_choose_title
 import cards.libraries.resources.generated.resources.public_searching_error_body
 import cards.libraries.resources.generated.resources.public_searching_error_back
 import cards.libraries.resources.generated.resources.public_searching_error_insufficient
@@ -101,6 +111,7 @@ fun PublicSearchingScreen(
         ) {
             when {
                 state.error != null -> ErrorContent(state.error, onAction)
+                state.phase == SearchPhase.Choosing -> ChoosingContent(state.candidates, onAction)
                 state.phase == SearchPhase.BotFallbackOffer -> BotFallbackContent(onAction)
                 state.phase == SearchPhase.JoiningBots -> JoiningBotsContent()
                 else -> SearchingContent(state, onAction)
@@ -144,6 +155,104 @@ private fun ColumnScope.SearchingContent(
         Text(stringResource(Res.string.public_searching_cancel))
     }
     Spacer(Modifier.height(Dimension.D800))
+}
+
+@Composable
+private fun ColumnScope.ChoosingContent(
+    candidates: List<TableCandidate>,
+    onAction: (PublicSearchingAction) -> Unit,
+) {
+    Spacer(Modifier.height(Dimension.D500))
+    Text(
+        text = stringResource(Res.string.public_searching_choose_title),
+        typography = AppTheme.typography.Heading.H800,
+        color = AppTheme.colors.content,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(Dimension.D200))
+    Text(
+        text = stringResource(Res.string.public_searching_choose_subtitle),
+        typography = AppTheme.typography.Body.B500,
+        color = AppTheme.colors.contentSecondary,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(Dimension.D600))
+    LazyColumn(
+        modifier = Modifier.weight(1f).fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Dimension.D400),
+    ) {
+        items(items = candidates, key = { it.code }) { candidate ->
+            CandidateCard(
+                candidate = candidate,
+                onJoin = { onAction(PublicSearchingAction.JoinCandidate(candidate.code)) },
+            )
+        }
+    }
+    Spacer(Modifier.height(Dimension.D500))
+    Text(
+        text = stringResource(Res.string.public_searching_choose_none),
+        typography = AppTheme.typography.Body.B400,
+        color = AppTheme.colors.contentTertiary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(Dimension.D400))
+    ButtonSecondary(
+        onClick = { onAction(PublicSearchingAction.StartFreshTable) },
+        style = ButtonStyle.Outlined,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(stringResource(Res.string.public_searching_choose_start_fresh))
+    }
+    Spacer(Modifier.height(Dimension.D800))
+}
+
+@Composable
+private fun CandidateCard(candidate: TableCandidate, onJoin: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(Radii.R700.shape)
+            .background(AppTheme.colors.surface.color)
+            .border(1.dp, AppTheme.colors.border.color, Radii.R700.shape)
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D500),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ChipCoin(size = 16.dp)
+                Spacer(Modifier.size(Dimension.D200))
+                Text(
+                    text = formatThousands(candidate.buyIn),
+                    typography = AppTheme.typography.Label.L500,
+                    color = AppTheme.colors.content,
+                )
+            }
+            Spacer(Modifier.height(Dimension.D100))
+            Text(
+                text = if (candidate.humans == 1) {
+                    stringResource(Res.string.public_searching_choose_humans_one)
+                } else {
+                    stringResource(Res.string.public_searching_choose_humans, candidate.humans)
+                },
+                typography = AppTheme.typography.Label.L400,
+                color = AppTheme.colors.accentSecondary,
+            )
+            Text(
+                text = stringResource(
+                    Res.string.public_searching_choose_seats,
+                    candidate.seatsTaken,
+                    candidate.maxSeats,
+                ),
+                typography = AppTheme.typography.Label.L300,
+                color = AppTheme.colors.contentTertiary,
+            )
+        }
+        Spacer(Modifier.size(Dimension.D400))
+        ButtonPrimary(onClick = onJoin) {
+            Text(stringResource(Res.string.public_searching_choose_join))
+        }
+    }
 }
 
 @Composable
@@ -302,6 +411,26 @@ private fun PublicSearchingScreenPreview() {
     PreviewContent {
         PublicSearchingScreen(
             state = PublicSearchingState(minBuyIn = 1_000, maxBuyIn = 25_000),
+            onAction = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun PublicSearchingChooserPreview() {
+    PreviewContent {
+        PublicSearchingScreen(
+            state = PublicSearchingState(
+                phase = SearchPhase.Choosing,
+                minBuyIn = 1_000,
+                maxBuyIn = 25_000,
+                candidates = listOf(
+                    TableCandidate(code = "ABC123", buyIn = 5_000, seatsTaken = 4, maxSeats = 6, humans = 3),
+                    TableCandidate(code = "DEF456", buyIn = 2_500, seatsTaken = 2, maxSeats = 6, humans = 2),
+                    TableCandidate(code = "GHI789", buyIn = 10_000, seatsTaken = 5, maxSeats = 6, humans = 1),
+                ),
+            ),
             onAction = {},
         )
     }

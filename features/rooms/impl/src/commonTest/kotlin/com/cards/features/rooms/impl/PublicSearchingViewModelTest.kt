@@ -15,6 +15,7 @@ import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import com.dangerfield.cards.libraries.rooms.AddBotOutcome
+import com.dangerfield.cards.libraries.rooms.CandidatesOutcome
 import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
@@ -60,9 +61,97 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         val vm = buildVm(matchmaking = mm)
         runCurrent()
 
-        assertEquals(1, mm.findCalls)
+        assertEquals(1, mm.candidatesCalls, "the browse runs first")
+        assertEquals(1, mm.findCalls, "no candidates → fall through to the genuine wait")
         assertEquals(SearchPhase.Searching, vm.state.phase)
         assertNull(vm.state.error)
+    }
+
+    @Test
+    fun onStart_withCandidates_showsChooser_withoutSeating() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            candidates = CandidatesOutcome.Success(
+                listOf(
+                    roomOf(code = "AAA111", members = listOf(member("h1", "H1", isConnected = true))),
+                    roomOf(code = "BBB222", members = emptyList()),
+                ),
+            ),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+
+        assertEquals(SearchPhase.Choosing, vm.state.phase)
+        assertEquals(listOf("AAA111", "BBB222"), vm.state.candidates.map { it.code })
+        assertEquals(0, mm.findCalls, "the chooser seats no one — find is not called")
+    }
+
+    @Test
+    fun joinCandidate_joinsByCode_andHandsOffWhenDealing() = runUnitTest {
+        val conn = MutableSharedFlow<RoomConnection>(extraBufferCapacity = 8)
+        val mm = FakeMatchmakingRepository(
+            candidates = CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+        )
+        val rooms = FakeRoomRepository(
+            connection = conn,
+            join = JoinRoomOutcome.Success(roomOf(code = "AAA111"), alreadyJoined = false),
+        )
+        val vm = buildVm(matchmaking = mm, rooms = rooms)
+        runCurrent()
+        assertEquals(SearchPhase.Choosing, vm.state.phase)
+
+        vm.eventFlow.test {
+            vm.takeAction(PublicSearchingAction.JoinCandidate("AAA111"))
+            runCurrent()
+            assertEquals(listOf("AAA111"), rooms.joinedCodes, "picking a table joins it by code")
+
+            conn.emit(
+                RoomConnection.Connected(
+                    roomOf(
+                        code = "AAA111",
+                        status = RoomStatus.Playing,
+                        members = listOf(
+                            member(LOCAL_USER, "You", isConnected = true),
+                            member("peer", "Peer", isConnected = true, seatIndex = 1),
+                        ),
+                    ),
+                ),
+            )
+            val event = assertIs<PublicSearchingEvent.NavigateToTable>(awaitItem())
+            assertEquals("AAA111", event.roomCode)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun joinCandidate_overBalance_surfacesInsufficientError() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            candidates = CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+        )
+        val rooms = FakeRoomRepository(join = JoinRoomOutcome.OverBalance("too rich"))
+        val vm = buildVm(matchmaking = mm, rooms = rooms)
+        runCurrent()
+
+        vm.takeAction(PublicSearchingAction.JoinCandidate("AAA111"))
+        runCurrent()
+
+        assertEquals(SearchError.InsufficientBalance, vm.state.error)
+    }
+
+    @Test
+    fun startFreshTable_fromChooser_fallsThroughToTheGenuineWait() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            find = FindTableOutcome.Success(roomOf(), created = true),
+            candidates = CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+        assertEquals(SearchPhase.Choosing, vm.state.phase)
+
+        vm.takeAction(PublicSearchingAction.StartFreshTable)
+        runCurrent()
+
+        assertEquals(SearchPhase.Searching, vm.state.phase)
+        assertEquals(1, mm.findCalls, "starting fresh opens a real table to wait in")
     }
 
     @Test
@@ -438,15 +527,25 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         private val playBots: PlayBotsOutcome = PlayBotsOutcome.Success(
             Room("ABC123", "00000000-0000-0000-0000-000000000000", 0, 6, RoomStatus.Lobby, emptyList()),
         ),
+        // Default to no candidates so the VM falls through to the genuine
+        // find-and-wait path — keeps the legacy assertions on findTable valid.
+        private val candidates: CandidatesOutcome = CandidatesOutcome.Success(emptyList()),
     ) : MatchmakingRepository {
         var findCalls: Int = 0
             private set
         var playBotsCalls: Int = 0
             private set
+        var candidatesCalls: Int = 0
+            private set
 
         override suspend fun findTable(minBuyIn: Long, maxBuyIn: Long): FindTableOutcome {
             findCalls += 1
             return find
+        }
+
+        override suspend fun findCandidates(minBuyIn: Long, maxBuyIn: Long): CandidatesOutcome {
+            candidatesCalls += 1
+            return candidates
         }
 
         override suspend fun playBots(code: String): PlayBotsOutcome {
@@ -457,8 +556,13 @@ class PublicSearchingViewModelTest : CoroutineTest() {
 
     private class FakeRoomRepository(
         private val connection: Flow<RoomConnection> = flow { },
+        private val join: JoinRoomOutcome = JoinRoomOutcome.Success(
+            Room("ABC123", "00000000-0000-0000-0000-000000000000", 0, 6, RoomStatus.Lobby, emptyList()),
+            alreadyJoined = false,
+        ),
     ) : RoomRepository {
         val leftCodes: MutableList<String> = mutableListOf()
+        val joinedCodes: MutableList<String> = mutableListOf()
 
         override fun connect(code: String): RoomConnectionHandle = object : RoomConnectionHandle {
             override val connection: Flow<RoomConnection> = this@FakeRoomRepository.connection
@@ -471,8 +575,12 @@ class PublicSearchingViewModelTest : CoroutineTest() {
             return LeaveRoomOutcome.Success
         }
 
+        override suspend fun joinRoom(code: String): JoinRoomOutcome {
+            joinedCodes += code
+            return join
+        }
+
         override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = error("unused")
-        override suspend fun joinRoom(code: String): JoinRoomOutcome = error("unused")
         override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome = error("unused")
         override suspend fun removeBot(code: String, botUserId: String): RemoveBotOutcome = error("unused")
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome = GetActiveRoomsOutcome.Success(emptyList())

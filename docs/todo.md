@@ -111,13 +111,6 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
 
 - **`[P2]` Deep-link + share-invite in the private lobby.** The placeholder "Share invite" button (which only copied the code, same as Copy) was removed. The real feature is a shareable **deep link into the lobby** (`PrivateJoinRoute` / `LobbyRoute(prefilledCode=…)`) opened via a cross-platform OS share sheet — so a tapped link lands the invitee straight in the join/lobby flow, not just a bare code. **Note:** this is the real home for the cross-platform OS share-sheet infra — the matchmaking "Share" CTA was dropped from the Open-to-anyone plan for the same missing-infra reason (see [decisions.md](./decisions.md) 2026-06-23). Build it once here and both surfaces can use it.
 
-- **`[P2]` Matchmaking chooser — client flow over the candidates endpoint.** **Problem:** the Find flow still auto-joins the first match (`PublicSearchingScreen` seats silently). The read-only server discovery slice now exists — `GET /v1/matchmaking/candidates?minBuyIn=&maxBuyIn=` returns the qualifying tables (most-humans-first), seating no one — but no client surface consumes it. **Owner direction (2026-06-23):** show the matches and let the user pick which to join, accepting that table's buy-in explicitly.
-  **Acceptance:**
-  - **Matches found →** a new chooser screen lists qualifying tables (buy-in, players seated/max, maybe humans-vs-bots) from the candidates endpoint; tapping one joins it (via `findOrJoinPublic` for that table's tier, or a join-by-code follow-up). (Today's silent auto-join becomes "join the one you picked.")
-  - **None found →** the existing honest fallback (`SearchPhase.BotFallbackOffer` in `PublicSearchingScreen`): play disclosed bots for real chips, keep waiting, or bow out.
-  - **A real player matches while you're deciding / playing bots →** they can still join later (the bot table already steps aside for real players; the chooser should reflect newly-appeared tables live, not a frozen snapshot — re-poll candidates).
-  **Hints:** client only now — new route + screen between `PublicSearchingRoute` and the table, wired in `RoomsFeatureEntryPoint`; `PublicSearchingViewModel` grows a "matches" phase that calls the candidates endpoint and re-polls. Applies to **both** Open and Public tables. **Don't** snap a host's deliberate buy-in. Background in [decisions.md](./decisions.md) (2026-06-23 "Open to anyone").
-
 ### From the 2026-06-23 owner playtest
 
 A second batch of in-app feedback from a live two-device MP playtest. Hard bugs from this session are filed in their topical sections above (account-deletion soft-delete, private-join balance gate, the B7 hand-end stall, mid-game opponent-leave notice); these are the UX/copy directives.

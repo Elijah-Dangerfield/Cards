@@ -22,6 +22,16 @@ interface MatchmakingRepository {
     suspend fun findTable(minBuyIn: Long, maxBuyIn: Long): FindTableOutcome
 
     /**
+     * Read-only browse: the qualifying tables in [minBuyIn]..[maxBuyIn] the user
+     * could join, ordered most-real-humans-first, **seating no one and creating
+     * nothing**. Powers the chooser where the user picks which table to join (via
+     * [RoomRepository.joinRoom] + [RoomRepository.connect]) instead of being
+     * auto-seated by [findTable]. An empty list means no match — the caller offers
+     * the disclosed-bot fallback exactly as the empty-search path does.
+     */
+    suspend fun findCandidates(minBuyIn: Long, maxBuyIn: Long): CandidatesOutcome
+
+    /**
      * Consent to the honest disclosed-bot fallback after the search came up
      * empty: fill the user's own forming public table with **labelled** bots and
      * deal. Valid only on the user's own public table while it's still forming.
@@ -31,6 +41,23 @@ interface MatchmakingRepository {
      * The client should drop the bot offer and stay in the real table.
      */
     suspend fun playBots(code: String): PlayBotsOutcome
+}
+
+sealed interface CandidatesOutcome {
+    /** The qualifying tables (possibly empty — no match → offer bots). */
+    data class Success(val rooms: List<Room>) : CandidatesOutcome
+
+    /** The buy-in range was malformed or outside the allowed band (400). */
+    data class InvalidRange(val message: String) : CandidatesOutcome
+
+    /** The top of the requested range is more than the user's wallet holds (400). */
+    data class InsufficientBalance(val message: String) : CandidatesOutcome
+    data class NotSignedIn(val cause: Throwable? = null) : CandidatesOutcome
+
+    /** Searched too often too fast (429) — back off and retry. */
+    data class RateLimited(val cause: Throwable? = null) : CandidatesOutcome
+    data class NetworkError(val cause: Throwable) : CandidatesOutcome
+    data class Unknown(val cause: Throwable) : CandidatesOutcome
 }
 
 sealed interface FindTableOutcome {

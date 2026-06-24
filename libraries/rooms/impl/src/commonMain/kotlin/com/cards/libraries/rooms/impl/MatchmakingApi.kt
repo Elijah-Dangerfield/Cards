@@ -2,6 +2,9 @@ package com.dangerfield.cards.libraries.rooms.impl
 
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.authedCall
+import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
+import io.ktor.client.request.get
+import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -25,6 +28,13 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 interface MatchmakingApi {
     suspend fun findTable(request: MatchmakingFindRequestDto): HttpResponse
     suspend fun playBots(code: String): HttpResponse
+
+    /**
+     * Read-only: the qualifying tables in [minBuyIn]..[maxBuyIn] the caller could
+     * join, most-real-humans-first, seating no one. Drives the chooser. Idempotent
+     * (a GET that creates nothing), so it retries on a transient blip unlike find.
+     */
+    suspend fun candidates(minBuyIn: Long, maxBuyIn: Long): HttpResponse
 }
 
 @SingleIn(AppScope::class)
@@ -47,6 +57,14 @@ class HttpMatchmakingApi(
             client.post("/v1/matchmaking/$code/play-bots") {
                 contentType(ContentType.Application.Json)
                 setBody("{}")
+            }
+        }.getOrThrow()
+
+    override suspend fun candidates(minBuyIn: Long, maxBuyIn: Long): HttpResponse =
+        networkClient.authedCall("matchmaking.candidates", retry = RetryPolicy.idempotent()) { client ->
+            client.get("/v1/matchmaking/candidates") {
+                parameter("minBuyIn", minBuyIn)
+                parameter("maxBuyIn", maxBuyIn)
             }
         }.getOrThrow()
 }
