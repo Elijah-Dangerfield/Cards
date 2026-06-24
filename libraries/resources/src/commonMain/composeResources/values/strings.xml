@@ -76,6 +76,9 @@
     <string name="shop_error_title">Couldn't load shop</string>
     <string name="shop_error_retry">Retry</string>
 
+    <!-- Shop - quiet responsible-play line on the real-money chip-pack confirm sheet. "Play responsibly" is the tappable link to the NCPG help page. -->
+    <string name="shop_purchase_responsible_play">Play responsibly.</string>
+
     <!-- Lobby - top-bar titles. Two phases: pre-room (Idle) vs. in-room. -->
     <string name="lobby_topbar_title_idle">Play with friends</string>
     <string name="lobby_topbar_title_in_room">Game room</string>

@@ -16,10 +16,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.CosmeticSlot
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.shop_purchase_responsible_play
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.StoreSku
 import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.buildClickableText
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -36,7 +39,9 @@ import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
 import com.dangerfield.cards.libraries.ui.components.poker.FlippableCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.poker.cardBackForProductId
+import com.dangerfield.cards.libraries.ui.components.text.ClickableText
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import org.jetbrains.compose.resources.stringResource
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -89,6 +94,7 @@ internal fun PurchaseConfirmSheet(
     timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    onOpenResponsiblePlay: () -> Unit = {},
 ) {
     var pendingTerminalAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
@@ -131,6 +137,7 @@ internal fun PurchaseConfirmSheet(
                 onConfirm = animatedConfirm,
                 onCancel = animatedCancel,
                 onExpired = animatedCancel,
+                onOpenResponsiblePlay = onOpenResponsiblePlay,
             )
             is Product.ChipOffer -> ChipOfferConfirmContent(
                 offer = product,
@@ -152,6 +159,7 @@ private fun IapPackConfirmContent(
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
     onExpired: () -> Unit,
+    onOpenResponsiblePlay: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -201,6 +209,18 @@ private fun IapPackConfirmContent(
             onConfirm = onConfirm,
             onCancel = onCancel,
             confirmEnabled = true,
+        )
+        // Quiet responsible-play line — only on the real-money pack path (chips
+        // bought with chips don't spend cash). "Play responsibly" links to the
+        // NCPG help page via the same ClickableText pattern as onboarding consent.
+        VerticalSpacerD400()
+        ClickableText(
+            text = buildClickableText(stringResource(Res.string.shop_purchase_responsible_play)) {
+                link("Play responsibly") { onOpenResponsiblePlay() }
+            },
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = TextAlign.Center,
         )
     }
 }
