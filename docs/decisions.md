@@ -1150,7 +1150,7 @@ The moment Apple/Google "claim" lands (Phase 3.1). A claimed account binds to a 
 
 **Upgrade path:**
 - Add `androidx.security:security-crypto` to `:libraries:identity:impl` androidMain deps. Bind an `EncryptedSharedPreferencesTokenStore` with `@ContributesBinding(replaces = [TokenStoreImpl::class])` in the same source set.
-- Add an iOS Keychain wrapper. Easiest route: Swift Twin (per `docs/swift-kotlin-communication-patterns.md`) — interface stays in commonMain, Swift implements it and passes it into the DI graph via `IosAppComponentFactory.create(...)`. Bind with the same `replaces` annotation in iosMain.
+- Add an iOS Keychain wrapper. Easiest route: Swift Twin (per `docs/practices/swift-kotlin.md`) — interface stays in commonMain, Swift implements it and passes it into the DI graph via `IosAppComponentFactory.create(...)`. Bind with the same `replaces` annotation in iosMain.
 - The interface (`com.dangerfield.cards.libraries.identity.TokenStore`) doesn't change; only the wiring does. Existing on-device tokens get re-written into the new store on the next refresh (or first run after the upgrade).
 
 **Status:** Accepted V1 trade-off. Bump to OS-encrypted storage before the claim flow ships.

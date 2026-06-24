@@ -113,7 +113,7 @@ When exposing Kotlin types to Swift, use `@ObjCName` for stable naming:
 interface MyType { ... }
 ```
 
-See [Swift-Kotlin Communication Patterns](docs/swift-kotlin-communication-patterns.md) for detailed guidance.
+See [Swift-Kotlin Communication Patterns](docs/practices/swift-kotlin.md) for detailed guidance.
 
 ## Coding Guidelines
 

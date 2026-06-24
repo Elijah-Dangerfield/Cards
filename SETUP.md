@@ -170,4 +170,4 @@ often the dialog actually shows. Don't show your own UI before/after.
 
 ---
 
-See `docs/release-automation.md` for the full pipeline runbook.
+See `docs/practices/release.md` for the full pipeline runbook.

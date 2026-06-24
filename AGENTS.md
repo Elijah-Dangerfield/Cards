@@ -4,7 +4,7 @@ Guidelines for AI agents working in the Cards repository.
 
 ## Overview
 
-KMP (Kotlin Multiplatform) app with Compose Multiplatform. Modular architecture with Room database, navigation, and SEAViewModel pattern. Most code is shared; platform features (permissions, sensors, native APIs) need platform-specific impls — follow `docs/swift-kotlin-communication-patterns.md`.
+KMP (Kotlin Multiplatform) app with Compose Multiplatform. Modular architecture with Room database, navigation, and SEAViewModel pattern. Most code is shared; platform features (permissions, sensors, native APIs) need platform-specific impls — follow `docs/practices/swift-kotlin.md`.
 
 ## Where work comes from
 
@@ -416,6 +416,6 @@ Top-edge emoji bubbles attach to both — dialogs via `emoji = dialogEmoji("🎉
 | SEAViewModel | `libraries/flowroutines/src/.../SEAViewModel.kt` |
 | App DI | `apps/compose/src/.../AppComponent.kt` |
 | iOS entry | `apps/ios/iosApp/iOSApp.swift` |
-| Swift↔Kotlin patterns | `docs/swift-kotlin-communication-patterns.md` |
+| Swift↔Kotlin patterns | `docs/practices/swift-kotlin.md` |
 | Architecture decisions log (append-only) | `docs/decisions.md` |
 | Remote config + QA menu | `libraries/config/...`, `features/profile/impl/.../QaMenuScreen.kt` |
