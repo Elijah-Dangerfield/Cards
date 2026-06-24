@@ -32,6 +32,15 @@ interface SocialApi {
 
     /** `POST /v1/friends/requests` — send a request. Throws on 4xx. */
     suspend fun sendFriendRequest(userId: String): FriendRequestResultDto
+
+    /** `GET /v1/friends/requests` — bare ids of pending inbound requesters. */
+    suspend fun incomingFriendRequestIds(): List<String>
+
+    /** `POST /v1/friends/requests/{id}/accept`. Throws on 4xx. */
+    suspend fun acceptFriendRequest(userId: String): FriendRequestResultDto
+
+    /** `POST /v1/friends/requests/{id}/decline`. Throws on 4xx. */
+    suspend fun declineFriendRequest(userId: String): FriendRequestResultDto
 }
 
 @Serializable
@@ -62,6 +71,12 @@ data class FriendRequestBodyDto(
 @Serializable
 data class FriendRequestResultDto(
     val state: String,
+)
+
+@Serializable
+data class FriendRequestsResponseDto(
+    val schemaVersion: Int = 1,
+    val requests: List<String> = emptyList(),
 )
 
 @SingleIn(AppScope::class)
@@ -96,5 +111,23 @@ class HttpSocialApi(
                 contentType(ContentType.Application.Json)
                 setBody(FriendRequestBodyDto(userId))
             }.body<FriendRequestResultDto>()
+        }.getOrThrow()
+
+    // GET is read-only — safe to retry.
+    override suspend fun incomingFriendRequestIds(): List<String> =
+        networkClient.authedCall("friends.requests.fetch", retry = RetryPolicy.idempotent()) { client ->
+            client.get("/v1/friends/requests").body<FriendRequestsResponseDto>()
+        }.getOrThrow().requests
+
+    // Accept/decline are idempotent on the server (a re-accept is a no-op,
+    // a gone request returns 404), so retry is safe.
+    override suspend fun acceptFriendRequest(userId: String): FriendRequestResultDto =
+        networkClient.authedCall("friends.request.accept", retry = RetryPolicy.idempotent()) { client ->
+            client.post("/v1/friends/requests/$userId/accept").body<FriendRequestResultDto>()
+        }.getOrThrow()
+
+    override suspend fun declineFriendRequest(userId: String): FriendRequestResultDto =
+        networkClient.authedCall("friends.request.decline", retry = RetryPolicy.idempotent()) { client ->
+            client.post("/v1/friends/requests/$userId/decline").body<FriendRequestResultDto>()
         }.getOrThrow()
 }

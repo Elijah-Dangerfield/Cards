@@ -60,6 +60,7 @@ import com.dangerfield.cards.libraries.cards.XpBoostStatus
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.config.AppConfigRepository
 import com.dangerfield.cards.libraries.config.QaConfigValue
+import com.dangerfield.cards.libraries.social.FriendRepository
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
@@ -108,6 +109,7 @@ class ProfileFeatureEntryPoint(
     private val appCache: AppCache,
     private val userMessageRepository: UserMessageRepository,
     private val inventoryRepository: InventoryRepository,
+    private val friendRepository: FriendRepository,
     private val shopDeepLinkBus: ShopDeepLinkBus,
 ) : FeatureEntryPoint {
 
@@ -144,6 +146,17 @@ class ProfileFeatureEntryPoint(
             // "Activate", or a running countdown).
             val xpBoostStatus by xpBoostRepository.observe()
                 .collectAsStateWithLifecycle(initialValue = XpBoostStatus.None)
+
+            // Inbound friend requests. Account-bound, so we only refresh once a
+            // real (claimed) account exists — re-fetched whenever the
+            // authenticated id resolves/changes so a switched-in account shows
+            // its own inbox rather than the prior one.
+            val incomingRequests by friendRepository.observeIncomingRequests()
+                .collectAsStateWithLifecycle(initialValue = emptyList())
+            val authedId = authenticated?.takeUnless { it.isAnonymous }?.id
+            androidx.compose.runtime.LaunchedEffect(authedId) {
+                if (authedId != null) friendRepository.refreshIncomingRequests()
+            }
 
             // Owned cosmetics (inventory ∩ catalog) for the grouped item
             // shelves. Reuses MyItemsViewModel so the catalog join + display
@@ -223,6 +236,16 @@ class ProfileFeatureEntryPoint(
                 onHighlightConsumed = {
                     scope.launch { appCache.update { it.copy(pendingProfileHighlight = null) } }
                 },
+                friendRequests = incomingRequests.map { request ->
+                    FriendRequestRow(
+                        id = request.id,
+                        displayName = request.displayName,
+                        emoji = request.avatarEmoji,
+                        avatarBackgroundColorHex = request.avatarBackgroundColorHex,
+                    )
+                },
+                onAcceptFriendRequest = { id -> scope.launch { friendRepository.accept(id) } },
+                onDeclineFriendRequest = { id -> scope.launch { friendRepository.decline(id) } },
                 scrollState = scrollState,
             )
         }

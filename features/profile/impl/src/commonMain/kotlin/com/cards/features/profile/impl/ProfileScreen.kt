@@ -182,6 +182,9 @@ fun ProfileScreen(
     onOpenShop: () -> Unit,
     onSignIn: () -> Unit,
     modifier: Modifier = Modifier,
+    friendRequests: List<FriendRequestRow> = emptyList(),
+    onAcceptFriendRequest: (String) -> Unit = {},
+    onDeclineFriendRequest: (String) -> Unit = {},
     boostOwnedCount: Int = 0,
     boostExpiresAtEpochMs: Long? = null,
     onActivateBoost: () -> Unit = {},
@@ -264,6 +267,18 @@ fun ProfileScreen(
                     progress = achievementProgress,
                     onSeeAll = onSeeAllAchievements,
                 )
+
+                // Friend-requests inbox. Account-bound — a guest has no friend
+                // graph, so the section (and its play-to-friend empty state)
+                // only shows once the user has claimed an account.
+                if (!settings.isAnonymous) {
+                    FriendRequestsSection(
+                        requests = friendRequests,
+                        onAccept = onAcceptFriendRequest,
+                        onDecline = onDeclineFriendRequest,
+                    )
+                    VerticalSpacerD800()
+                }
 
                 OwnedItemsSections(
                     ownedItems = ownedItems,
@@ -1089,6 +1104,10 @@ private fun ProfileScreenPreview() {
                 ),
             ),
             winRatePercent = 58,
+            friendRequests = listOf(
+                FriendRequestRow("u1", "Jordan", "🦊", "#E48A58"),
+                FriendRequestRow("u2", "Priya", "💀", "#9E9E9E"),
+            ),
             onOpenSettings = {},
             onEditProfile = {},
             onTapStats = {},
