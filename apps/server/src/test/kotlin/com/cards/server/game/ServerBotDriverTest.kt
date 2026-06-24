@@ -207,6 +207,45 @@ class ServerBotDriverTest {
     }
 
     /**
+     * CARDS-25 regression. A server-dealt (Open / Public) table that converges to
+     * all-human — every matchmaking bot trimmed or busted out — has no client
+     * "next hand" control: the server is its dealer. It used to stall at hand end
+     * because the driver only advanced bot-occupied tables. With [setServerDealt]
+     * true the driver advances it too (a human stands in for the absent bot), so
+     * consecutive hands deal without a single next-hand tap.
+     */
+    @Test
+    fun serverDealtAllHumanTable_autoAdvances_withoutNextHandTap() = runTest {
+        val session = GameSession(random = Random(seed = 5))
+        val driver = unconfinedDriver(session)
+        driver.setServerDealt(true)
+        driver.start()
+
+        val human2 = SeatOccupant(seatIndex = 1, userId = "human-2", displayName = "Peer", isBot = false)
+        session.startHand(listOf(human, human2), settings)
+
+        // Play only the humans' in-hand turns — never call requestNextHand. A
+        // server-dealt table must carry itself across hand boundaries.
+        var guard = 0
+        while (guard++ < 300 && session.state.value!!.handNumber < 3) {
+            advanceUntilIdle()
+            val state = session.state.value!!
+            if (state.handNumber >= 3) break
+            if (state.street == BettingRound.Complete) continue // driver auto-advances
+            val acting = state.actingSeatIndex ?: continue
+            val seat = state.seats.first { it.index == acting }
+            val toCall = state.currentBetThisStreet - seat.contributedThisStreet
+            val intent = if (toCall > 0) PlayerIntent.Fold(acting) else PlayerIntent.Check(acting)
+            session.applyIntent(seat.playerId!!, intent, "h-$guard")
+        }
+
+        assertTrue(
+            session.state.value!!.handNumber >= 3,
+            "a server-dealt all-human table advances consecutive hands with no next-hand tap",
+        )
+    }
+
+    /**
      * The teardown half: an all-bot table (no human left — the lone human quit a
      * fallback table, or every human dropped a private bot room) must NOT keep
      * simulating hands to an empty room. It goes idle at hand end so the orphan

@@ -702,7 +702,12 @@ private suspend fun dealFundedHand(
         funded.newlyFunded.forEach { Catching { tableSessions.cashOut(it, finalStack = null) } }
         return IntentResult.Rejected("need at least 2 funded players to start")
     }
-    val result = gameSessions.startHand(room.code, funded.occupants, room.settings)
+    val result = gameSessions.startHand(
+        room.code,
+        funded.occupants,
+        room.settings,
+        serverDealt = room.visibility != RoomVisibility.Private,
+    )
     if (result is IntentResult.Accepted) {
         rooms.markPlaying(room.code)
     }

@@ -66,6 +66,15 @@ class ServerBotDriver(
     @Volatile
     private var roster: Map<String, BotSeat> = emptyMap()
 
+    // True once a hand starts on a server-dealt table (Open / Public). Those have
+    // no client "next hand" control — the server is the dealer — so the driver
+    // must advance them at hand end even after they converge to all-human (every
+    // bot trimmed or busted out). A host-driven Private table leaves this false:
+    // its humans tap "next hand" at their own pace. Set per startHand by the
+    // registry, which is the only place the room's visibility is known.
+    @Volatile
+    private var serverDealt: Boolean = false
+
     private var job: Job? = null
 
     /** Merge the bot occupants of a fresh hand into the roster (idempotent). */
@@ -73,6 +82,11 @@ class ServerBotDriver(
         val additions = occupants.mapNotNull { occ -> occ.bot?.let { occ.userId to it } }
         if (additions.isEmpty()) return
         roster = roster + additions
+    }
+
+    /** Mark whether this session's table is server-dealt (Open / Public). */
+    fun setServerDealt(serverDealt: Boolean) {
+        this.serverDealt = serverDealt
     }
 
     fun start() {
@@ -138,8 +152,15 @@ class ServerBotDriver(
      * and `requestNextHand` re-checks `street == Complete` + dedupes by nonce, so
      * a benign race is a no-op.
      *
-     * Two tables are deliberately NOT advanced here:
-     *  - **All-human** — those players continue at their own pace via client taps.
+     * An **all-human** table advances here only when it's [serverDealt] (Open /
+     * Public): those have no client "next hand" control, so the server is the
+     * dealer for them too — the lowest-seat human drives the next hand, exactly
+     * as a bot would on a mixed table. A server-dealt table that trims its last
+     * bot (or busts it out) used to stall at hand end with every seat's next-hand
+     * control inert (CARDS-25); driving it server-side closes that. A host-run
+     * **Private** all-human table is left alone — its humans tap at their own pace.
+     *
+     * Still deliberately NOT advanced:
      *  - **All-bot** — a table with no human left (the lone human quit a bot
      *    fallback table, or every human dropped from a private bot room) goes
      *    idle instead of simulating hands forever to an empty room. The idle
@@ -150,7 +171,11 @@ class ServerBotDriver(
         if (seated.none { !it.isBot }) return // all-bot table: idle, don't simulate to nobody
         val seatsWithChips = seated.filter { it.stack > 0 }
         if (seatsWithChips.size < 2) return
-        val advancer = seatsWithChips.filter { it.isBot }.minByOrNull { it.index } ?: return
+        // A bot is always willing to deal; on a server-dealt all-human table the
+        // lowest-seat human stands in (no client tap exists to drive it).
+        val advancer = seatsWithChips.filter { it.isBot }.minByOrNull { it.index }
+            ?: seatsWithChips.takeIf { serverDealt }?.minByOrNull { it.index }
+            ?: return
         delay(mixedNextHandDelayMs)
         session.requestNextHand(advancer.playerId!!, "bot-next:${session.id}:${state.handNumber}")
     }

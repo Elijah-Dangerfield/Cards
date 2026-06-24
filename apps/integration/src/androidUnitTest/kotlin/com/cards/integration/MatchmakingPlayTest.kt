@@ -1,9 +1,12 @@
 package com.cards.integration
 
+import com.cards.integration.helpers.GameplaySession
 import com.cards.integration.helpers.IntegrationTest
 import com.cards.integration.helpers.Table
 import com.cards.integration.helpers.playPassivelyToCompletion
 import com.dangerfield.cards.libraries.gameplay.BettingRound
+import com.dangerfield.cards.libraries.gameplay.GameState
+import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.FindTableOutcome
 import com.dangerfield.cards.libraries.rooms.PlayBotsOutcome
@@ -118,4 +121,68 @@ class MatchmakingPlayTest : IntegrationTest() {
         val room = gameplay(rescuer.connect(code)).awaitConnected()
         assertEquals(2, room.members.count { !it.isBot }, "both humans are live at the table")
     }
+
+    /**
+     * CARDS-25 regression over the real wire. A server-dealt all-human table
+     * (here an Open table matched by two humans, no bots) has no client "next
+     * hand" control — the server is its dealer. It used to stall the moment a
+     * hand finished: the driver only advanced bot-occupied tables, so every
+     * seat's next-hand was inert. Here both humans play consecutive hands to
+     * completion without ever tapping next-hand; the server must keep dealing.
+     */
+    @Test
+    fun serverDealtAllHumanTable_advancesConsecutiveHands_withNoNextHandTap() = integration {
+        val host = client()
+        val created = assertIs<CreateRoomOutcome.Success>(host.repository.createRoom(buyIn = 1_000, open = true))
+        val code = created.room.code
+
+        val stranger = client()
+        assertIs<FindTableOutcome.Success>(stranger.matchmaking.findTable(1_000, 1_000))
+
+        val hostGame = gameplay(host.connect(code))
+        val strangerGame = gameplay(stranger.connect(code))
+        hostGame.awaitConnected()
+        strangerGame.awaitConnected()
+
+        val seatOf = mapOf(host.userId to hostGame, stranger.userId to strangerGame)
+        // Drive three consecutive hands purely by acting each human's turn — never
+        // calling requestNextHand. An all-human server-dealt table only reaches
+        // hand 3 if the server itself advances each boundary.
+        val handsSeen = playHumanTurnsAcrossHands(hostGame, seatOf, targetHand = 3)
+
+        assertTrue(
+            handsSeen >= 3,
+            "a server-dealt all-human table deals consecutive hands with no next-hand tap (saw hand $handsSeen)",
+        )
+    }
+}
+
+/**
+ * Walk the table forward by acting only the human seats (fold facing a bet, else
+ * check) until [observer] reports reaching [targetHand], never calling
+ * requestNextHand. Bot turns and hand-boundary auto-advance are the server's job;
+ * the loop just keeps reading snapshots and acting whichever human is on the
+ * clock. Returns the highest hand number observed.
+ */
+private suspend fun playHumanTurnsAcrossHands(
+    observer: GameplaySession,
+    seatOf: Map<String, GameplaySession>,
+    targetHand: Int,
+    maxSteps: Int = 400,
+): Int {
+    var highestHand = 0
+    var steps = 0
+    while (steps++ < maxSteps) {
+        val state: GameState = observer.nextSnapshot(timeoutMs = 30_000) {
+            it.actingSeatIndex != null || it.street == BettingRound.Complete
+        }
+        highestHand = maxOf(highestHand, state.handNumber)
+        if (state.handNumber >= targetHand && state.street == BettingRound.Complete) return highestHand
+        val acting = state.actingSeatIndex ?: continue // post-hand or bot settling — read on
+        val seat = state.seats.first { it.index == acting }
+        val game = seatOf[seat.playerId] ?: continue // a bot's turn — the server drives it
+        val toCall = state.currentBetThisStreet - seat.contributedThisStreet
+        game.submit(if (toCall > 0) PlayerIntent.Fold(acting) else PlayerIntent.Check(acting))
+    }
+    return highestHand
 }
