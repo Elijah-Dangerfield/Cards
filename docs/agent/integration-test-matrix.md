@@ -4,6 +4,35 @@
 **Scope:** scenarios to add to `apps/integration` (real in-process server + real `TestClient`s + real WS sockets)
 **Out of scope:** UI / navigation tests — see [spike-compose-ui-tests.md](spike-compose-ui-tests.md) for that layer.
 
+## Status: implemented (2026-06-24)
+
+40 new integration tests landed across 13 files covering all 11 categories below
+(a few P2s noted as deferred inline). The push found and fixed **three** real
+server bugs, each now pinned by a regression test:
+
+1. **Ghost host on reap/sweep** — `InMemoryRoomService.reapIfStillDisconnected`
+   and `sweepDisconnected` removed a disconnected host without migrating
+   `hostUserId`, stranding a private room (only the host can start). Only
+   `leave()` migrated. Fixed with a shared human-preferring `nextHumanHost()`.
+   (reaper category)
+2. **Sticky `removedPlayerIds`** — a player who left mid-hand was filtered out of
+   every future deal for the whole session, so rejoining did nothing. `queueJoiner`
+   now clears the mark on re-entry. (forfeit category)
+3. **Harness fidelity gap** (not prod) — the harness wired `RoomClosedListener.NoOp`,
+   so the last leaver was never cashed out; the conservation test forced wiring
+   the real `RoomTeardownCoordinator`. (chip-economy category)
+
+Harness seams added: injectable `reaperGrace`, per-server wallet/escrow fakes +
+`walletBalance`/`roomExists` probes, `awaitRoom`/`awaitUntil`/`startHandAwaitingAck`
+helpers, `driveToCompletion(observer, actable)` N-player passive driver, and
+`seatPrivate(n, maxSeats)`.
+
+The matrix below is the original plan; the implemented files map to it by
+category (MidHandJoinPlayTest, ReaperGraceExpiryPlayTest, ForfeitAndRemovePlayerTest,
+ChipEconomyPlayTest, HandEndTransitionsTest, LobbyLifecycleTest, ErrorSurfacesTest,
+ConcurrencyTest, WireAndSnapshotTest, DisconnectResyncTest, BotIntegrationTest,
+MatchmakingGapsTest, EdgeCasesPlayTest).
+
 ## How to read this
 
 Each row is a scenario we can write today using the existing harness (`IntegrationTest` base, `InProcessServer`, `TestClient`, `awaitState` / `awaitEvent` helpers). The "Why not covered today" column is the validity check — every row was verified against the existing test files before being listed.
