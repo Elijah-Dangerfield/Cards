@@ -153,7 +153,7 @@ _Shipped._ [`InMemoryRoomService`](../apps/server/src/main/kotlin/com/cards/serv
 
 ### B3 — Gameplay items
 
-_Buy-in / escrow shipped._ The cash-game escrow is live: sit-down debits the buy-in, the deal funds only affordable seats (`dealFundedHand`), every exit path cashes the current stack back (`cashOut` on leave/disconnect), `Rebuy` busts back in, and the matchmaking disclosed-bot subsidy (`V68`) is wired. Full design in [`mp-chip-buyin-economy.md`](./plans/mp-chip-buyin-economy.md) — **its top banner still says "dormant"; correct it to shipped.**
+_Buy-in / escrow shipped._ The cash-game escrow is live: sit-down debits the buy-in, the deal funds only affordable seats (`dealFundedHand`), every exit path cashes the current stack back (`cashOut` on leave/disconnect), `Rebuy` busts back in, and the matchmaking disclosed-bot subsidy (`V68`) is wired. Full design in [`mp-chip-buyin-economy.md`](./plans/mp-chip-buyin-economy.md).
 
 _Multiplayer leave / last-human-left shipped._ Server frees the seat on leave (`removePlayer` ghost-seat fix + `forfeitSeat` fold + `cashOut`); the client routes off a dead table via `opponentsLeft` ("last human standing") and `roomClosed`, with the real-MP bust dialog.
 
