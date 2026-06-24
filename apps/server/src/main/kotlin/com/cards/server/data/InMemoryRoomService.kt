@@ -163,7 +163,15 @@ class InMemoryRoomService(
         val current = state.room
 
         current.memberFor(userId)?.let { return@withLock JoinResult.AlreadyJoined(current) }
-        if (current.status != RoomStatus.Lobby) return@withLock JoinResult.NotJoinable(current.status)
+        // Mid-hand join is allowed for Lobby AND Playing rooms — the joiner
+        // becomes a member now and is seated/dealt in at the next hand
+        // boundary by the engine's per-hand seating (the socket handshake
+        // wires queueMidHandJoinerIfNeeded on connect). Private rooms gate
+        // entry via the room code rather than via room status: knowing the
+        // code is the membership credential, and there's no reason to make
+        // a friend wait outside a live game when they have the invite. Only
+        // a terminal Finished room rejects new members.
+        if (current.status == RoomStatus.Finished) return@withLock JoinResult.NotJoinable(current.status)
         if (current.isFull) return@withLock JoinResult.Full
 
         val seatIndex = nextFreeSeat(current)

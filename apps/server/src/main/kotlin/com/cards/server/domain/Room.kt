@@ -110,9 +110,12 @@ data class RoomMember(
 }
 
 /**
- * V1 only uses [Lobby]. [Playing] / [Finished] are sketched in for the
- * Phase 4.2 game-state pass; the room machine refuses joins outside
- * Lobby today.
+ * [Lobby] = pre-deal or between hands (host can start, new members can
+ * sit). [Playing] = a hand is in flight; new joins are still accepted —
+ * the joiner becomes a member, takes a seat slot, and is dealt in at
+ * the next hand boundary (the in-flight hand's seat order is fixed, so
+ * they spectate it). [Finished] is a terminal state that rejects new
+ * members; not currently set anywhere (sketched in for future).
  */
 enum class RoomStatus { Lobby, Playing, Finished }
 

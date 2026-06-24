@@ -28,7 +28,7 @@ A room has one of three visibilities. The difference shapes who can find it, who
 | **Open** | ✅ | ✅ | Server (auto-deal at 2+ present) |
 | **Public** | ✅ (matchmaker-created) | ❌ | Server (auto-deal at 2+ present) |
 
-**Open** is the "private host opens their room to strangers" flow — a host of a `Private` room can flip the visibility to `Open` and the matchmaker starts seating strangers. Open rides the existing `findOrJoinPublic` candidacy, join-by-code, escrow, real-stakes gating, mid-hand-join, and bot-collusion guard (`humans ≥ bots`). The server's start gate is `startServerDealtTableIfReady`, which fires for any visibility `!= Private`.
+**Open** is the "private host opens their room to strangers" flow — a host of a `Private` room can flip the visibility to `Open` and the matchmaker starts seating strangers. Open rides the existing `findOrJoinPublic` candidacy, join-by-code, escrow, real-stakes gating, and bot-collusion guard (`humans ≥ bots`). Mid-hand join is universal (see *Player states* below); it's not Open-specific. The server's start gate is `startServerDealtTableIfReady`, which fires for any visibility `!= Private`.
 
 ### Why server-dealt for Open + Public
 
@@ -76,7 +76,10 @@ Key takeaways:
 
 - **Sit-out ≠ spectator.** A sit-out player is *seated* and resting (keeps stack, instant toggle back). A spectator has *no seat or stack* and must take an open seat + buy in to play.
 - **"Forfeit-then-spectator"** — when your disconnect grace expires mid-hand, the server forfeits your seat, auto-folds your hand, and (when `MP-1` ships) drops your socket to read-only spectator instead of ending everyone's game.
-- **Spectator is the public-room join funnel.** You can't drop into a *seat* mid-hand, so the natural flow for public games is **join → spectate → get prompted to take an open seat + buy in at the next hand boundary.** That's why spectator matters a lot for *public* matchmaking but is lower priority for *friend* rooms (which you join straight into a seat).
+- **Mid-hand join works the same for every visibility.** Private, Open, and Public all accept new members while a hand is in flight — the in-flight hand's seat order is fixed, so the joiner takes a seat slot and is dealt in at the next hand boundary. The difference between visibilities is **how you discover the room**, not whether you can enter it during a hand:
+  - Private = code-share (you need an invite), then `POST /v1/rooms/{code}/join` regardless of room status.
+  - Open / Public = matchmaker pairs you, lands you as a member via `findOrJoinPublic`.
+- **Spectator** (`isSpectator = !memberFor(userId)`) is for *non-member* socket attachments only — read-only viewing without ever taking a seat. Allowed for Open/Public (anyone with the code can watch a discoverable table); blocked for Private (members-only viewing — the code is the membership credential, but watching without joining doesn't make sense for a friend room).
 
 ---
 

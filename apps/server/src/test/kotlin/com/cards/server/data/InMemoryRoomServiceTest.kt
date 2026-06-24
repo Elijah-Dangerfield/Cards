@@ -139,6 +139,42 @@ class InMemoryRoomServiceTest {
     }
 
     @Test
+    fun join_whilePlaying_seatsMember_forMidHandJoin() = runTest {
+        // Private rooms accept code-share joins while a hand is in flight —
+        // the joiner takes a seat slot now and the next-hand seating logic
+        // (queueMidHandJoinerIfNeeded on socket connect) deals them in at the
+        // next boundary. Previously this returned NotJoinable(Playing), which
+        // forced friends to wait outside a live game when they had the invite.
+        val service = newService()
+        val room = service.createOrFail(host, "Host", maxSeats = 4)
+        service.markPlaying(room.code)
+
+        val outcome = service.join(room.code, alice, "Alice")
+
+        val success = assertIs<JoinResult.Success>(outcome)
+        assertEquals(2, success.room.members.size, "joiner seated alongside the host")
+        assertEquals(RoomStatus.Playing, success.room.status, "join must not flip the live hand back to Lobby")
+        assertNotNull(success.room.memberFor(alice))
+    }
+
+    @Test
+    fun join_afterHandFinishes_succeeds() = runTest {
+        // markFinished returns the room to Lobby (Finished is sketched-in but
+        // never actually set by today's hand pipeline). A joiner arriving in
+        // the lull between hands gets seated immediately. Sibling to the
+        // mid-hand-join test — together they cover all live-room join windows.
+        val service = newService()
+        val room = service.createOrFail(host, "Host")
+        service.markPlaying(room.code)
+        service.markFinished(room.code)
+
+        val outcome = service.join(room.code, alice, "Alice")
+
+        assertIs<JoinResult.Success>(outcome)
+        assertEquals(RoomStatus.Lobby, service.find(room.code)!!.status)
+    }
+
+    @Test
     fun leave_lastMember_reapsRoom() = runTest {
         val service = newService()
         val room = service.createOrFail(host, "Host")
