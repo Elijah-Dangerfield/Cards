@@ -95,12 +95,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Out of scope:** Emulator-based UI tests (device-smoke checklist is the substitute) and hand-history regression fixtures (gated on a real production playtest).
 
-- `[P1]` **MP-5 — Leaving an MP room must be reliable + idempotent (no dead leave button).** `DELETE /v1/rooms/{code}/me` returns 409 Conflict for ~90s while a room settles after an opponent crashes/disconnects (room S3XG9M: six 409s then a 204), and returns 404 when the client re-issues leave after the membership is already gone (room NZNR7C) — both render as "leave didn't work" with a dead back button.
-
-  **Acceptance:** Leave during post-crash settlement succeeds or queues (no 409 loop); a 404/already-gone resolves the client to Home rather than looking like a failure. The back/leave button is never silently inert.
-
-  **Hints:** `DELETE /v1/rooms/{code}/me` in `RoomSocketRoutes.kt` / room service `leave`; client leave handler in `:features:room:impl`. Cases `docs/agent/feedback-cases/7a8f1f0f377d43fd8e4b9836d696f914.md` (409) + `docs/agent/feedback-cases/c2139485d47441dfbc455784d5226868.md` (404); Sentry CARDS-2R / CARDS-34.
-
 - `[P1]` **MP-6 — Bots-for-chips cashout doesn't match the stack the player saw; make the settlement honest.** On leaving a bot table the player won, the server pays a capped `bot_subsidy_payout` (room MZJMA5: granted 4475, cap 25000) instead of the ~9k stack shown at the table, so "the chips didn't go with me." A second user questioned an odd 10,018 balance from the same subsidy arithmetic. No accounting corruption found — the subsidy model is just opaque to the player.
 
   **Acceptance:** Either the cashout credits the chips the player watched themselves win, or the table/cashout UX makes the subsidy + cap explicit before and after the hand so the resulting balance is never surprising. Make a directional call and ship a slice.

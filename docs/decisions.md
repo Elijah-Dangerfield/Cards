@@ -27,6 +27,18 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-24 — `DELETE /v1/rooms/{code}/me` (leave) is idempotent: 204 across the board
+
+**Decision:** Leaving a room returns 204 whether the caller is a current member, was never a member, or the room is already gone. The route no longer maps `LeaveResult.RoomNotFound`→404 or `LeaveResult.NotInRoom`→409; the service still returns those distinct results, only the HTTP projection collapses them.
+
+**Why:** The caller's goal is "I am not in this room." Once that's true, a non-2xx only reads as a dead leave button. CARDS-2R saw `DELETE /me` 409-loop for ~90s while a room settled after an opponent crashed (the surviving human's membership transiently read as gone), and CARDS-34 saw a re-issued leave 404 after the membership was already cleared — both surfaced as "leave didn't work." Idempotency makes a re-tap, a post-settlement leave, and a double-fire all succeed.
+
+**Alternatives considered:**
+- **Queue the leave server-side during settlement, keep 409 otherwise.** More machinery (a pending-leave set + drain) to preserve a distinction no caller acts on — the client already maps 404/409 to a success-equivalent and the lobby treats them as `resetToIdle(error = null)`. Rejected as over-built for the same end-state.
+- **Fix only the client (treat 404/409 as success everywhere).** Already largely true, but leaves the server emitting misleading error envelopes other clients/tools would have to special-case. The honest fix is at the contract.
+
+**Status:** Locked.
+
 ## 2026-06-24 — Branching: trunk-based, no release branches
 
 **Decision:** Stay on trunk-based development. `main` is always shippable, short-lived branches merge into `main`, releases are tags on `main` cut by release-please. No release branches, no GitFlow, no long-lived `develop` line (the `develop` branch we use is a worker-staging area for the nightly bot, not a release-stabilization branch).
