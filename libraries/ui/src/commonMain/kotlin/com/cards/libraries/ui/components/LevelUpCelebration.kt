@@ -1,7 +1,9 @@
 package com.dangerfield.cards.libraries.ui.components
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -21,7 +23,9 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +48,7 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -58,8 +63,10 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * content) rather than a [com.dangerfield.cards.libraries.ui.components.dialog.Dialog]:
  * the moment wants the whole screen. Hosted by a routed full-screen destination
  * (no bottom bar) — never at the poker table — per `docs/decisions.md`
- * 2026-06-06. The entrance animates (scale + fade in) and a heavy haptic fires
- * as the dial lands so the level-up registers in the hand as well as the eye.
+ * 2026-06-06. The dial "slams in" (a quick anticipation dip, an overshoot past
+ * full size, then a snap-and-settle) with a two-beat haptic (a light tick as it
+ * launches, a heavy impact on the slam landing) and a confetti burst on arrival,
+ * so the level-up lands in the hand as well as the eye.
  *
  * @param level the level just reached (the net level on a multi-level jump).
  * @param onContinue fires only when the user taps Continue — there is no
@@ -77,16 +84,42 @@ fun LevelUpCelebration(
 ) {
     val haptics = LocalHapticFeedback.current
     val inInspection = LocalInspectionMode.current
+    // Fade rides in fast; the slam owns the scale so it can dip, overshoot, then
+    // settle. Both default to their landed values in inspection so previews
+    // render the resting frame.
     val entrance = remember(level) { Animatable(if (inInspection) 1f else 0f) }
+    val slam = remember(level) { Animatable(if (inInspection) 1f else 0.6f) }
+    var confettiOn by remember(level) { mutableStateOf(inInspection) }
 
     LaunchedEffect(level) {
         if (inInspection) return@LaunchedEffect
+        // Beat one: a light tick as the dial launches.
+        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        launch {
+            entrance.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 220, easing = FastOutLinearInEasing),
+            )
+        }
+        // The slam: anticipation dip → overshoot past full → snap back and let a
+        // stiff bouncy spring settle the recoil.
+        slam.animateTo(
+            targetValue = 1.12f,
+            animationSpec = keyframes {
+                durationMillis = 340
+                0.6f at 0
+                0.52f at 70
+                1.12f at 300
+            },
+        )
+        // Beat two: the heavy impact as it lands, paired with the confetti.
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-        entrance.animateTo(
+        confettiOn = true
+        slam.animateTo(
             targetValue = 1f,
             animationSpec = spring(
                 dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessLow,
+                stiffness = Spring.StiffnessMedium,
             ),
         )
     }
@@ -110,10 +143,9 @@ fun LevelUpCelebration(
                 .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(horizontal = Dimension.D1000)
                 .graphicsLayer {
-                    val e = entrance.value
-                    alpha = e
-                    scaleX = 0.85f + 0.15f * e
-                    scaleY = 0.85f + 0.15f * e
+                    alpha = entrance.value
+                    scaleX = slam.value
+                    scaleY = slam.value
                 },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top,
@@ -172,6 +204,12 @@ fun LevelUpCelebration(
             ) {
                 Text(text = stringResource(Res.string.ui_level_up_continue))
             }
+        }
+
+        // Confetti fires the moment the dial slams home, raining over the whole
+        // takeover (content draws under it, ignoring touches).
+        if (confettiOn) {
+            ConfettiBurst(modifier = Modifier.fillMaxSize())
         }
     }
 }
