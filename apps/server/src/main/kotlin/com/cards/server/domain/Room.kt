@@ -201,6 +201,28 @@ interface RoomService {
     ): MatchmakingResult
 
     /**
+     * Read-only matchmaking discovery: the eligible Open/Public tables whose
+     * buy-in is in `[minBuyIn, maxBuyIn]` that [userId] could join, ordered the
+     * same way [findOrJoinPublic] would pick (most real humans first, ties to the
+     * oldest room). Unlike [findOrJoinPublic] this seats no one and creates
+     * nothing — it powers the matchmaking *chooser*, where the user picks which
+     * qualifying table to join rather than being silently auto-seated into the
+     * first match.
+     *
+     * Same eligibility predicate as the auto-pick (eligible, not Finished, not
+     * full, in range, no blocked member). A table [userId] is already seated in
+     * is included (the chooser can show "you're already here"). [blockedUserIds]
+     * (both directions) is computed by the caller before the call, like
+     * [findOrJoinPublic] — never query the friend graph under the rooms mutex.
+     */
+    suspend fun findPublicCandidates(
+        userId: UserId,
+        minBuyIn: Long,
+        maxBuyIn: Long,
+        blockedUserIds: Set<UserId>,
+    ): List<Room>
+
+    /**
      * Explicit leave. Frees the seat. When the room empties, the
      * service garbage-collects it (returns [LeaveResult.Success] and
      * the next [find] returns null).

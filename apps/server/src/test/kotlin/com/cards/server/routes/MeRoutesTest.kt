@@ -778,6 +778,12 @@ class MeRoutesTest {
             avatarEmoji: String,
             avatarBackgroundColor: String?,
         ): com.dangerfield.cards.server.domain.MatchmakingResult = error("unused")
+        override suspend fun findPublicCandidates(
+            userId: UserId,
+            minBuyIn: Long,
+            maxBuyIn: Long,
+            blockedUserIds: Set<UserId>,
+        ): List<com.dangerfield.cards.server.domain.Room> = error("unused")
         override suspend fun join(
             code: String,
             userId: UserId,

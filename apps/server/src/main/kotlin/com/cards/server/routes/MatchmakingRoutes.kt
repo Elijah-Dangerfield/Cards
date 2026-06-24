@@ -26,6 +26,7 @@ import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 
 /**
@@ -36,6 +37,11 @@ import io.ktor.server.routing.post
  *    range, else opens a fresh public table for them. Returns the room (the
  *    client opens its `/socket` next, exactly as for a private room) plus
  *    `created` for the created-vs-joined density metric.
+ *  - `GET /v1/matchmaking/candidates?minBuyIn=…&maxBuyIn=…` — read-only: the
+ *    qualifying tables the caller could join, ordered most-real-humans-first,
+ *    seating no one and creating nothing. Powers the chooser flow where the user
+ *    picks which table to join rather than being auto-seated by `find`. An empty
+ *    list means no match — the client offers the disclosed-bot fallback.
  *  - `POST /v1/matchmaking/{code}/play-bots` — the searcher consented to the
  *    honest bot fallback ("we couldn't find enough players — play with bots").
  *    Fills the caller's public table with DISCLOSED bots (🤖, bot badge — never
@@ -226,6 +232,61 @@ fun Route.matchmakingRoutes(
                         MatchmakingFindResponse(room = result.room.toDto(), created = created),
                     )
                 }
+            }
+
+            get("/v1/matchmaking/candidates") {
+                val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+                val minBuyIn = call.request.queryParameters["minBuyIn"]?.toLongOrNull()
+                val maxBuyIn = call.request.queryParameters["maxBuyIn"]?.toLongOrNull()
+                if (minBuyIn == null || maxBuyIn == null) {
+                    return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        matchmakingProblem("invalid_range", "minBuyIn and maxBuyIn are required."),
+                    )
+                }
+                if (minBuyIn > maxBuyIn) {
+                    return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        matchmakingProblem("invalid_range", "minBuyIn must be <= maxBuyIn."),
+                    )
+                }
+                if (minBuyIn < RoomSettings.MIN_BUY_IN || maxBuyIn > RoomSettings.MAX_BUY_IN) {
+                    return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        matchmakingProblem(
+                            "invalid_buy_in",
+                            "Buy-in range must be within " +
+                                "${RoomSettings.MIN_BUY_IN}..${RoomSettings.MAX_BUY_IN}.",
+                        ),
+                    )
+                }
+                // Same affordability fence as find: you can't browse for a table
+                // you couldn't sit at. The authoritative debit is still the
+                // sit-down escrow when the user picks one from the chooser.
+                val balance = wallets.findOrCreate(userId).balance
+                if (maxBuyIn > balance) {
+                    return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        matchmakingProblem(
+                            "insufficient_balance",
+                            "That buy-in is more than your balance of $balance chips.",
+                        ),
+                    )
+                }
+
+                // One indexed read, before the rooms mutex — never query the
+                // friend graph under the lock.
+                val blocked = friends.listBlockedUserIds(userId)
+                val candidates = rooms.findPublicCandidates(
+                    userId = userId,
+                    minBuyIn = minBuyIn,
+                    maxBuyIn = maxBuyIn,
+                    blockedUserIds = blocked,
+                )
+                call.respond(
+                    HttpStatusCode.OK,
+                    MatchmakingCandidatesResponse(rooms = candidates.map { it.toDto() }),
+                )
             }
         }
     }

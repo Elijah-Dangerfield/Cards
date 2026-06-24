@@ -217,20 +217,7 @@ class InMemoryRoomService(
         // bots) IS still matchmaking inventory — we want a later searcher to land
         // there and rescue them into a real human game. Real-pairing always wins;
         // the bots yield to the arriving human (server-side bot trimming).
-        val candidate = rooms.values
-            .map { it.room }
-            .filter { room ->
-                room.isMatchmakingEligible &&
-                    room.status != RoomStatus.Finished &&
-                    !room.isFull &&
-                    room.buyIn in minBuyIn..maxBuyIn &&
-                    room.members.none { it.userId in blockedUserIds }
-            }
-            .sortedWith(
-                compareByDescending<Room> { room -> room.members.count { !it.isBot } }
-                    .thenBy { it.createdAt },
-            )
-            .firstOrNull()
+        val candidate = matchmakingCandidates(minBuyIn, maxBuyIn, blockedUserIds).firstOrNull()
 
         val now = clock.now()
         if (candidate != null) {
@@ -281,6 +268,40 @@ class InMemoryRoomService(
         log.info("Matchmaking opened public room $code at buy-in ${room.buyIn} for $userId")
         MatchmakingResult.Created(room)
     }
+
+    override suspend fun findPublicCandidates(
+        userId: UserId,
+        minBuyIn: Long,
+        maxBuyIn: Long,
+        blockedUserIds: Set<UserId>,
+    ): List<Room> = mutex.withLock {
+        matchmakingCandidates(minBuyIn, maxBuyIn, blockedUserIds)
+    }
+
+    /**
+     * The ordered set of eligible Open/Public tables a searcher could land on for
+     * `[minBuyIn, maxBuyIn]`: not Finished, not full, in range, no blocked member.
+     * Ordered most-real-humans-first (ties → oldest room) so the auto-pick takes
+     * the head and the chooser presents the same priority. Must be called under
+     * [mutex] — reads the live rooms map.
+     */
+    private fun matchmakingCandidates(
+        minBuyIn: Long,
+        maxBuyIn: Long,
+        blockedUserIds: Set<UserId>,
+    ): List<Room> = rooms.values
+        .map { it.room }
+        .filter { room ->
+            room.isMatchmakingEligible &&
+                room.status != RoomStatus.Finished &&
+                !room.isFull &&
+                room.buyIn in minBuyIn..maxBuyIn &&
+                room.members.none { it.userId in blockedUserIds }
+        }
+        .sortedWith(
+            compareByDescending<Room> { room -> room.members.count { !it.isBot } }
+                .thenBy { it.createdAt },
+        )
 
     override suspend fun leave(code: String, userId: UserId): LeaveResult {
         var closedRoom: Room? = null

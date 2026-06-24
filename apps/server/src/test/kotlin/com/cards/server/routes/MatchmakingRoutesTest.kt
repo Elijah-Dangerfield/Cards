@@ -17,6 +17,7 @@ import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -277,6 +278,68 @@ class MatchmakingRoutesTest {
         }
     }
 
+    @Test
+    fun candidates_listsQualifyingTables_withoutJoining() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            // One searcher opens a 5k table.
+            val opened = client.find(jwt(UUID.randomUUID()), 5_000, 5_000).body<MatchmakingFindResponse>()
+
+            val resp = client.candidates(jwt(UUID.randomUUID()), 5_000, 5_000)
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<MatchmakingCandidatesResponse>()
+            assertEquals(listOf(opened.room.code), body.rooms.map { it.code })
+            // Read-only: nobody new was seated into the table.
+            assertEquals(1, body.rooms.single().members.size, "browsing doesn't seat the browser")
+        }
+    }
+
+    @Test
+    fun candidates_withNoMatch_returnsEmptyList() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            val body = client.candidates(jwt(UUID.randomUUID()), 5_000, 5_000).body<MatchmakingCandidatesResponse>()
+            assertTrue(body.rooms.isEmpty(), "no table at this tier yet")
+        }
+    }
+
+    @Test
+    fun candidates_neverOffersATableWithABlockedMember() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val enemy = UUID.randomUUID()
+        withApp(rooms, friends = BlockingFriends(setOf(UserId(enemy)))) { client ->
+            client.find(jwt(enemy), 5_000, 5_000)
+            val body = client.candidates(jwt(UUID.randomUUID()), 5_000, 5_000).body<MatchmakingCandidatesResponse>()
+            assertTrue(body.rooms.isEmpty(), "the enemy's table is filtered out of the chooser")
+        }
+    }
+
+    @Test
+    fun candidates_withInvertedRange_returns400() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            assertEquals(HttpStatusCode.BadRequest, client.candidates(jwt(UUID.randomUUID()), 100_000, 1_000).status)
+        }
+    }
+
+    @Test
+    fun candidates_aboveBalance_returns400_insufficientBalance() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms, walletBalance = 5_000) { client ->
+            val resp = client.candidates(jwt(UUID.randomUUID()), 1_000, 100_000)
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertTrue(resp.bodyAsText().contains("insufficient_balance"))
+        }
+    }
+
+    @Test
+    fun candidates_withoutJwt_returns401() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            assertEquals(HttpStatusCode.Unauthorized, client.candidates(bearer = null, min = 1_000, max = 100_000).status)
+        }
+    }
+
     // --- harness ------------------------------------------------------------
 
     private suspend fun withApp(
@@ -319,6 +382,11 @@ class MatchmakingRoutesTest {
             bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
             contentType(ContentType.Application.Json)
             setBody("""{"minBuyIn":$min,"maxBuyIn":$max}""")
+        }
+
+    private suspend fun io.ktor.client.HttpClient.candidates(bearer: String?, min: Long, max: Long) =
+        get("/v1/matchmaking/candidates?minBuyIn=$min&maxBuyIn=$max") {
+            bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
         }
 
     private fun jwt(sub: UUID): String = JWT.create()
