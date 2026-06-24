@@ -39,6 +39,16 @@ interface Router {
     fun popBackTo(route: Route, inclusive: Boolean)
 
     /**
+     * Pop the back stack down to the topmost entry whose route is of [routeClass],
+     * matching by Kotlin class rather than serialized-route equality. Use this when
+     * the caller doesn't know which exact argument permutation the destination was
+     * pushed with — instance-based [popBackTo] silently no-ops if the args differ
+     * (e.g. popping `LobbyRoute()` while the stack holds `LobbyRoute(autoCreate=true)`).
+     * No-op if no entry of that class is on the stack.
+     */
+    fun <T : Route> popBackTo(routeClass: KClass<T>, inclusive: Boolean)
+
+    /**
      * Switch to a top-level destination from *inside* the tab system, saving the current
      * tab's stack and restoring any previously-saved stack for the target. Use this for
      * bottom-bar taps OR a feature that needs to deep-link into a different tab (e.g.
@@ -126,6 +136,7 @@ interface RouterBatch {
 
     fun switchTab(route: TabRoute)
     fun popBackTo(route: Route, inclusive: Boolean)
+    fun <T : Route> popBackTo(routeClass: KClass<T>, inclusive: Boolean)
     fun goBack()
 }
 
