@@ -66,6 +66,12 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** The `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
 
+- `[P2]` **GAME-4 — Split the practice-tier dialog copy on `forRealChips`.** Owner directive: the practice-tier dialog still shows copy that conflicts for bots-for-chips MP games (where you *do* play bots for real chips). Branch the dialog on `forRealChips` — one variant for true practice (no chips at stake), one for bots-for-chips — rather than one message that contradicts itself.
+
+  **Acceptance:** A bots-for-chips table shows chips-at-stake copy; a pure-practice table shows no-stakes copy. No single dialog reads both ways.
+
+  **Hints:** The practice-tier / bots explainer dialog in `:features:room:impl`; condition on the existing `forRealChips` flag. Sentry CARDS-2K. Pairs with the existing real-chip-framing / bots-explainer todo (CARDS-20).
+
 ### Social
 
 - `[P0]` **SOC-2 — Gate all friends/social surfaces behind a config flag, default off.** Friends and social are descoped to V2. Add a `social.enabled` flag to the app config (default `false`) and hide every social surface behind it: the Home `FriendsStrip`, the "recently played with" shelf, the friend-requests inbox on Profile, the at-table "Add friend" affordance. When the flag is off, those surfaces disappear — they don't render in a disabled state.
@@ -96,6 +102,24 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** Each bullet lands as its own commit. The "test the seams in production order" rules in [`practices/testing.md`](./practices/testing.md) apply to every new test.
 
   **Out of scope:** Emulator-based UI tests (device-smoke checklist is the substitute) and hand-history regression fixtures (gated on a real production playtest).
+
+- `[P0]` **MP-4 — Fix the "Duplicate cards in hand" client crash at MP showdown + wrap the apply/render path in `Catching {}`.** An uncaught `kotlin.IllegalArgumentException: Duplicate cards in hand: [8♠, 2♥, 8♣, Q♠, 8♠, A♣, 6♥]` (note the duplicate 8♠) killed the app on `PlayMultiplayerRoute` at showdown (Sentry CARDS-2Q). The 7-card eval set was assembled on-device with a duplicate — backend telemetry for the session is clean, so the server-side hand finished fine; the dup came from a client board+hole merge or a `StateSnapshot` applied over stale local cards.
+
+  **Acceptance:** The evaluator never receives a duplicate card; a malformed snapshot surfaces an unrecoverable-error state instead of crashing. Add a regression test that applies a snapshot overlapping the local hole cards and asserts no dup reaches the evaluator.
+
+  **Hints:** Crash route `PlayMultiplayerRoute`, the showdown hand-eval call in `:features:room:impl`'s remote session/state-apply path; the engine `require(...)` that throws lives in the hand evaluator. Reporter explicitly asked for `Catching {}` around the MP render/apply. Case `docs/agent/feedback-cases/06ee9cf0d51a4c47ae0fb516465a42b5.md`; Sentry CARDS-2T / CARDS-2Q.
+
+- `[P1]` **MP-5 — Leaving an MP room must be reliable + idempotent (no dead leave button).** `DELETE /v1/rooms/{code}/me` returns 409 Conflict for ~90s while a room settles after an opponent crashes/disconnects (room S3XG9M: six 409s then a 204), and returns 404 when the client re-issues leave after the membership is already gone (room NZNR7C) — both render as "leave didn't work" with a dead back button.
+
+  **Acceptance:** Leave during post-crash settlement succeeds or queues (no 409 loop); a 404/already-gone resolves the client to Home rather than looking like a failure. The back/leave button is never silently inert.
+
+  **Hints:** `DELETE /v1/rooms/{code}/me` in `RoomSocketRoutes.kt` / room service `leave`; client leave handler in `:features:room:impl`. Cases `docs/agent/feedback-cases/7a8f1f0f377d43fd8e4b9836d696f914.md` (409) + `docs/agent/feedback-cases/c2139485d47441dfbc455784d5226868.md` (404); Sentry CARDS-2R / CARDS-34.
+
+- `[P1]` **MP-6 — Bots-for-chips cashout doesn't match the stack the player saw; make the settlement honest.** On leaving a bot table the player won, the server pays a capped `bot_subsidy_payout` (room MZJMA5: granted 4475, cap 25000) instead of the ~9k stack shown at the table, so "the chips didn't go with me." A second user questioned an odd 10,018 balance from the same subsidy arithmetic. No accounting corruption found — the subsidy model is just opaque to the player.
+
+  **Acceptance:** Either the cashout credits the chips the player watched themselves win, or the table/cashout UX makes the subsidy + cap explicit before and after the hand so the resulting balance is never surprising. Make a directional call and ship a slice.
+
+  **Hints:** `DefaultTableSessionService.cashOut` → `bot_subsidy_payout` (cap 25000); wallet ledger is authoritative. Cases `docs/agent/feedback-cases/6dd1f1ffddb347fd9cf6c5909caa98d0.md` + `docs/agent/feedback-cases/a0e30df3e1f845e085a7b360e3e5a4c5.md`; Sentry CARDS-2N / CARDS-2Y. (The "next-hand button did nothing" half of CARDS-2N is the separate P0 hand-end stall, not this item.)
 
 ---
 
