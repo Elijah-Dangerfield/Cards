@@ -59,7 +59,7 @@ data class XpBoostStatus(
  *
  * Buying or gifting a boost calls [grant] (it lands in the stash, **inactive**);
  * the user later lights one with [activate], which consumes one stashed boost and
- * opens the window. Boosts are a uniform 30-minute consumable — the stash is a
+ * opens the window. Boosts are a uniform 5-minute consumable — the stash is a
  * plain count, not a per-boost duration. Re-activating while active *extends* the
  * window rather than resetting it (though the UI blocks that path so a second
  * boost isn't burned while one's already running).
