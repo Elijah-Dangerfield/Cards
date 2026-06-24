@@ -10,6 +10,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.auth_gate_dismiss
+import cards.libraries.resources.generated.resources.auth_gate_finishing_body
+import cards.libraries.resources.generated.resources.auth_gate_finishing_cta
+import cards.libraries.resources.generated.resources.auth_gate_finishing_title
+import cards.libraries.resources.generated.resources.auth_gate_need_account_body
+import cards.libraries.resources.generated.resources.auth_gate_need_account_cta
+import cards.libraries.resources.generated.resources.auth_gate_need_account_title
+import cards.libraries.resources.generated.resources.auth_gate_need_claimed_body
+import cards.libraries.resources.generated.resources.auth_gate_need_claimed_cta
+import cards.libraries.resources.generated.resources.auth_gate_need_claimed_title
 import com.dangerfield.cards.libraries.navigation.GateReason
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -22,6 +33,7 @@ import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Shared "you need an account for this" sheet the router substitutes for a
@@ -44,7 +56,7 @@ fun AuthGateSheet(
     onDismiss: () -> Unit,
     state: DialogState = rememberDialogState(),
 ) {
-    val copy = reason.copy()
+    val copy = reason.rememberCopy()
     Dialog(
         state = state,
         onDismissRequest = onDismiss,
@@ -93,7 +105,7 @@ fun AuthGateSheet(
                     type = ButtonType.Ghost,
                     style = ButtonStyle.Text,
                 ) {
-                    Text("Not now")
+                    Text(stringResource(Res.string.auth_gate_dismiss))
                 }
             }
         }
@@ -107,23 +119,24 @@ private data class GateCopy(
     val primaryCta: String,
 )
 
-private fun GateReason.copy(): GateCopy = when (this) {
+@Composable
+private fun GateReason.rememberCopy(): GateCopy = when (this) {
     GateReason.FinishingSetup -> GateCopy(
         emoji = "⏳",
-        title = "Finishing setup",
-        body = "We're still setting up your account — try again in a moment. We'll keep retrying in the background.",
-        primaryCta = "Got it",
+        title = stringResource(Res.string.auth_gate_finishing_title),
+        body = stringResource(Res.string.auth_gate_finishing_body),
+        primaryCta = stringResource(Res.string.auth_gate_finishing_cta),
     )
     GateReason.NeedAccount -> GateCopy(
         emoji = "🪪",
-        title = "Account needed",
-        body = "Create an account to play with others.",
-        primaryCta = "Get started",
+        title = stringResource(Res.string.auth_gate_need_account_title),
+        body = stringResource(Res.string.auth_gate_need_account_body),
+        primaryCta = stringResource(Res.string.auth_gate_need_account_cta),
     )
     GateReason.NeedClaimedAccount -> GateCopy(
         emoji = "🔒",
-        title = "Save your account",
-        body = "Save your account first so this stays yours across devices.",
-        primaryCta = "Save account",
+        title = stringResource(Res.string.auth_gate_need_claimed_title),
+        body = stringResource(Res.string.auth_gate_need_claimed_body),
+        primaryCta = stringResource(Res.string.auth_gate_need_claimed_cta),
     )
 }

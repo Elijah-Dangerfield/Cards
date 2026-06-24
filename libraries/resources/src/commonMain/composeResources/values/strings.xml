@@ -1191,6 +1191,21 @@
     <string name="account_setup_banner_retry">Retry</string>
     <string name="account_setup_banner_retrying">Retrying…</string>
 
+    <!-- Auth-gate sheet the router substitutes for a gated route. Three reasons,
+         each with its own title / body / primary CTA. The "Not now" ghost button
+         dismisses (absent on the FinishingSetup variant, whose primary CTA already
+         dismisses). -->
+    <string name="auth_gate_dismiss">Not now</string>
+    <string name="auth_gate_finishing_title">Finishing setup</string>
+    <string name="auth_gate_finishing_body">We're still setting up your account. Try again in a moment, we'll keep retrying in the background.</string>
+    <string name="auth_gate_finishing_cta">Got it</string>
+    <string name="auth_gate_need_account_title">Account needed</string>
+    <string name="auth_gate_need_account_body">Create an account to play with others.</string>
+    <string name="auth_gate_need_account_cta">Get started</string>
+    <string name="auth_gate_need_claimed_title">Save your account</string>
+    <string name="auth_gate_need_claimed_body">Save your account first so this stays yours across devices.</string>
+    <string name="auth_gate_need_claimed_cta">Save account</string>
+
     <!-- Generic top-of-screen offline strip shown whenever the device has no
          connection. -->
     <string name="app_offline_banner_message">Offline, some features unavailable.</string>
