@@ -73,7 +73,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P0]` **MP-2 — Close the remaining multiplayer test gaps.** MP is the load-bearing feature of the app. The integration module + engine property tests + chaos suite are largely landed (see [`practices/testing.md`](./practices/testing.md)). Still open:
 
   - **Compose UI tests for `PlayPokerScreen`** — ~15 tests across the screen's 6+ states (your turn, bot thinking, raise unavailable, showdown, fold-around, loading, connection lost). Wire `androidx.compose.ui.test` into `:features:room:impl`'s `androidUnitTest`.
-  - **Server restart mid-hand → full client reconnect.** Server-side hydration is pinned by `SessionHydrationTest`; the open part is the client-reconnect-after-restart end-to-end in `:apps:integration`.
   - **`FakeRoomServer` for the integration tier.** A fake that responds to `StartHand` / `SubmitIntent` / `RequestNextHand` using a real `GameSession`, so client-side tests can cover full turn cycles without booting Ktor.
 
   **Acceptance:** Each bullet lands as its own commit. The "test the seams in production order" rules in [`practices/testing.md`](./practices/testing.md) apply to every new test.

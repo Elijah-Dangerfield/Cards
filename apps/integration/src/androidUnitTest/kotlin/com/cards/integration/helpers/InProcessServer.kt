@@ -6,8 +6,10 @@ import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
-import com.dangerfield.cards.server.game.NoOpSessionSnapshotStore
+import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.game.RoomTeardownCoordinator
+import com.dangerfield.cards.server.game.SessionSnapshot
+import com.dangerfield.cards.server.game.SessionSnapshotStore
 import com.dangerfield.cards.server.plugins.installAuthentication
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
@@ -17,11 +19,15 @@ import com.dangerfield.cards.server.routes.roomRoutes
 import com.dangerfield.cards.server.routes.roomSocketRoutes
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.routes.DEFAULT_REAPER_GRACE
+import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import io.ktor.server.netty.NettyApplicationEngine
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -41,68 +47,135 @@ import kotlin.time.Instant
  * grace boundary (reaper category) passes a sub-second window so the timer
  * actually fires inside the test. The fakes ([wallets], [tableSessions]) are
  * per-server instances so a test can read wallet balances to assert escrow.
+ *
+ * Durable state ([rooms], [snapshots]) is held by *this* instance, not the netty
+ * engine, so [restart] can drop the engine + its in-memory registry (simulating
+ * a process bounce) while the room membership + the persisted session snapshot
+ * survive — exactly what production keeps in Postgres. A client whose socket
+ * dropped at restart reconnects to the new engine and the registry rehydrates
+ * the live hand from [snapshots].
  */
 class InProcessServer(
-    reaperGrace: Duration = DEFAULT_REAPER_GRACE,
+    private val reaperGrace: Duration = DEFAULT_REAPER_GRACE,
 ) : AutoCloseable {
 
     /** Per-server wallet + escrow fakes, exposed so escrow tests can read balances. */
     val wallets = FakeWallets()
     private val tableSessions = FakeTableSessions(wallets)
 
-    // Shrink the next-hand settle delay + bot think-time so a multi-hand test
-    // over the real wire isn't gated on real seconds per hand (production uses 4s
-    // settle and a humanlike per-turn pause that can tank to several seconds).
-    private val registry = DefaultGameSessionRegistry(
-        NoOpSessionSnapshotStore(),
-        Clock.System,
-        mixedNextHandDelayMs = 50,
-        botThinkDelayMsOverride = 0,
-    )
+    // Stands in for the production `room_sessions` Postgres table: survives a
+    // [restart] so the registry built by the fresh engine can rehydrate a live
+    // hand the dropped client reconnects to.
+    private val snapshots = InMemorySessionSnapshotStore()
+
+    // The live engine's registry. Rebuilt per engine ([buildEngine]) so a restart
+    // drops the old engine's in-memory sessions; the durable [snapshots] is what
+    // the fresh registry rehydrates from. Bots/turn-timers run on the registry's
+    // own scope inside the engine.
+    @Volatile
+    private var registry: GameSessionRegistry = buildRegistry()
 
     // Wire the REAL teardown coordinator (production binds this via DI) so a room
     // GC settles every seated human's escrow + ends the session — without it the
     // harness used NoOp, so the last member out of a room was never cashed out
     // and chip conservation across teardown couldn't be asserted.
+    //
+    // The room service is held by this instance (not rebuilt on restart) because
+    // production room membership lives in Postgres and survives a bounce; the
+    // socket connect path looks the room up by code, so it must still be there
+    // post-restart. Its teardown coordinator forwards to [registry], which always
+    // points at the current engine's registry.
     private val rooms = InMemoryRoomService(
         clock = Clock.System,
         random = Random(0),
-        roomClosedListener = RoomTeardownCoordinator(registry, tableSessions),
+        roomClosedListener = RoomTeardownCoordinator(CurrentRegistry(), tableSessions),
     )
 
-    private val server = embeddedServer(Netty, port = 0) {
-        installSerialization()
-        installStatusPages()
-        installRateLimits()
-        installWebSockets()
-        installAuthentication(IntegrationAuth.verification)
-        routing {
-            roomRoutes(rooms, FakeProfiles, wallets)
-            matchmakingRoutes(
-                rooms = rooms,
-                friends = FakeFriends,
-                profiles = FakeProfiles,
-                gameSessions = registry,
-                tableSessions = tableSessions,
-                equipmentRepository = FakeEquipment,
-                progressionRepository = FakeProgression,
-                wallets = wallets,
-            )
-            roomSocketRoutes(
-                rooms = rooms,
-                gameSessions = registry,
-                equipmentRepository = FakeEquipment,
-                progressionRepository = FakeProgression,
-                wallets = wallets,
-                tableSessions = tableSessions,
-                reaperGrace = reaperGrace,
-            )
-        }
-    }.start(wait = false)
+    private var engine: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration> =
+        buildEngine(registry, port = 0).start(wait = false)
+
+    /** The bound port — fixed across [restart] so a client's `baseUrl` stays valid. */
+    private val boundPort: Int = runBlocking {
+        engine.engine.resolvedConnectors().first().port
+    }
 
     /** The base URL a client's `NetworkConfig` should point at. */
-    val baseUrl: String = runBlocking {
-        "http://127.0.0.1:${server.engine.resolvedConnectors().first().port}"
+    val baseUrl: String get() = "http://127.0.0.1:$boundPort"
+
+    /** Forwards to the live engine's [registry]; lets the shared room teardown reach across a restart. */
+    private inner class CurrentRegistry : GameSessionRegistry by registry {
+        // Delegation captures the field reference at construction, so override the
+        // members the teardown path touches to read the current value each call.
+        override fun peek(code: String) = registry.peek(code)
+        override suspend fun end(code: String) = registry.end(code)
+    }
+
+    // Shrink the next-hand settle delay + bot think-time so a multi-hand test
+    // over the real wire isn't gated on real seconds per hand (production uses 4s
+    // settle and a humanlike per-turn pause that can tank to several seconds).
+    private fun buildRegistry(): GameSessionRegistry = DefaultGameSessionRegistry(
+        snapshots,
+        Clock.System,
+        mixedNextHandDelayMs = 50,
+        botThinkDelayMsOverride = 0,
+    )
+
+    private fun buildEngine(
+        registry: GameSessionRegistry,
+        port: Int,
+    ): EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration> {
+        return embeddedServer(Netty, port = port) {
+            installSerialization()
+            installStatusPages()
+            installRateLimits()
+            installWebSockets()
+            installAuthentication(IntegrationAuth.verification)
+            routing {
+                roomRoutes(rooms, FakeProfiles, wallets)
+                matchmakingRoutes(
+                    rooms = rooms,
+                    friends = FakeFriends,
+                    profiles = FakeProfiles,
+                    gameSessions = registry,
+                    tableSessions = tableSessions,
+                    equipmentRepository = FakeEquipment,
+                    progressionRepository = FakeProgression,
+                    wallets = wallets,
+                )
+                roomSocketRoutes(
+                    rooms = rooms,
+                    gameSessions = registry,
+                    equipmentRepository = FakeEquipment,
+                    progressionRepository = FakeProgression,
+                    wallets = wallets,
+                    tableSessions = tableSessions,
+                    reaperGrace = reaperGrace,
+                )
+            }
+        }
+    }
+
+    /**
+     * Bounce the process: stop the current netty engine (dropping its in-memory
+     * game registry — the live sessions vanish, just like a real crash) and start
+     * a fresh engine on the **same** port reusing the durable [rooms] + [snapshots]
+     * state. A client whose socket was open when this runs sees the connection
+     * drop, then its [ReconnectingRoomSocket] dials the new engine, which
+     * rehydrates the hand from the snapshot.
+     */
+    fun restart() {
+        // Stop + start on a dedicated thread: Ktor's stop() drives a blocking
+        // application teardown that cancels the engine's coroutines, and run from
+        // the test's own runBlocking scope that JobCancellationException bubbles
+        // up and fails the test. A separate thread isolates the bounce from the
+        // caller's coroutine context.
+        val bounce = Thread {
+            engine.stop(0, 0)
+            registry = buildRegistry()
+            engine = buildEngine(registry, port = boundPort).start(wait = false)
+        }
+        bounce.start()
+        bounce.join()
     }
 
     /** Current wallet balance for [userId] (a UUID string), or null if never touched. */
@@ -118,7 +191,28 @@ class InProcessServer(
     fun roomExists(code: String): Boolean = runBlocking { rooms.find(code) != null }
 
     override fun close() {
-        server.stop(0, 0)
+        engine.stop(0, 0)
+    }
+}
+
+/**
+ * In-memory [SessionSnapshotStore] that survives an [InProcessServer.restart]
+ * because the same instance is handed to every engine the server builds. Stands
+ * in for [com.dangerfield.cards.server.game.PostgresSessionSnapshotStore] without
+ * a Postgres in the loop. Concurrent because the engine persists frames off the
+ * per-session mutex while a test thread restarts.
+ */
+private class InMemorySessionSnapshotStore : SessionSnapshotStore {
+    private val byCode = ConcurrentHashMap<String, SessionSnapshot>()
+
+    override suspend fun upsert(snapshot: SessionSnapshot) {
+        byCode[snapshot.code] = snapshot
+    }
+
+    override suspend fun readByCode(code: String): SessionSnapshot? = byCode[code]
+
+    override suspend fun deleteByCode(code: String) {
+        byCode.remove(code)
     }
 }
 

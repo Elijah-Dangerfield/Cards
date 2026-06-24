@@ -22,6 +22,7 @@ import com.dangerfield.cards.libraries.rooms.impl.KtorRoomSocketTransport
 import com.dangerfield.cards.libraries.rooms.impl.MatchmakingRepositoryImpl
 import com.dangerfield.cards.libraries.rooms.impl.ReconnectingRoomSocket
 import com.dangerfield.cards.libraries.rooms.impl.RoomRepositoryImpl
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import java.util.UUID
@@ -52,6 +53,13 @@ class TestClient(
     var faults: FaultInjectingTransport? = null
         private set
 
+    // One app-lifetime scope per client. The socket's reconnect loop + the
+    // repository's fire-and-forget work all live here, so [close] can quiesce a
+    // client's background reconnect attempts — important for a test that bounces
+    // the server (a still-retrying client otherwise hammers the recycled port and
+    // destabilises later tests in the same JVM).
+    private val appScope = AppCoroutineScope(DefaultDispatcherProvider())
+
     private val config = object : NetworkConfig {
         override val baseUrl: String = serverUrl
     }
@@ -59,7 +67,7 @@ class TestClient(
         config,
         TokenProvider(userId),
         FixedHeaders,
-        NetworkReachabilityImpl(AppCoroutineScope(DefaultDispatcherProvider())),
+        NetworkReachabilityImpl(appScope),
         AccessDeniedBusImpl(),
     )
 
@@ -71,9 +79,12 @@ class TestClient(
             realTransport
         }
         val transport = latencyMs?.let { LatencyTransport(faultable, it) } ?: faultable
-        val socket = ReconnectingRoomSocket(transport, AppCoroutineScope(DefaultDispatcherProvider()))
-        RoomRepositoryImpl(HttpRoomApi(networkClient), socket, AppCoroutineScope(DefaultDispatcherProvider()))
+        val socket = ReconnectingRoomSocket(transport, appScope)
+        RoomRepositoryImpl(HttpRoomApi(networkClient), socket, appScope)
     }
+
+    /** Cancel this client's background work (reconnect loop, fire-and-forget calls). */
+    fun close() = appScope.cancel()
 
     /** The real matchmaking client surface — `find` / `play-bots` over HTTP. */
     val matchmaking: MatchmakingRepository = MatchmakingRepositoryImpl(HttpMatchmakingApi(networkClient))
