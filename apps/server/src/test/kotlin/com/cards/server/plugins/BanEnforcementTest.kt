@@ -31,8 +31,8 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 /**
- * Plugin-level tests for [BanEnforcement]. Mounts a trivial authenticated
- * route guarded by the plugin and a fake [ModerationRepository], so the
+ * Auth-level tests for the [BanGate]. Mounts a trivial authenticated route
+ * guarded by [installAuthentication] + a fake [ModerationRepository], so the
  * concern under test is "does a banned caller get a typed 403 instead of
  * reaching the handler" — without a DB or the full route graph.
  *
