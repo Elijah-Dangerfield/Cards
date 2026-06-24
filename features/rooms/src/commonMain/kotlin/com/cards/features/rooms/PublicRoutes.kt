@@ -9,8 +9,8 @@ import kotlinx.serialization.Serializable
  * host) deals. See `docs/design-handoff/rooms/SPEC.md`.
  *
  * Find → Searching is live matchmaking (Phase 5); Searching hands straight off
- * to the multiplayer table once a hand deals. Lobby / NextRound remain as the
- * mid-hand-join shells.
+ * to the multiplayer table once a hand deals. Mid-hand joins are handled by the
+ * server-scrubbed spectate path on the live table, not a separate screen.
  *
  * All routes are `class` / `data class` (never `data object`): a serializable
  * `data object` route crashes the iOS navigator at navigate-time.
@@ -30,11 +30,3 @@ data class PublicSearchingRoute(
     val minBuyIn: Long,
     val maxBuyIn: Long,
 ) : Route()
-
-/** Matched into a table that hasn't dealt yet; a timer auto-deals. */
-@Serializable
-data class PublicLobbyRoute(val tableId: String) : Route()
-
-/** Matched into a table mid-hand; you're dealt in next round. */
-@Serializable
-data class PublicNextRoundRoute(val tableId: String) : Route()

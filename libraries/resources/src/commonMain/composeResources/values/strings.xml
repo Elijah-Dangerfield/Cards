@@ -254,36 +254,6 @@
     <string name="public_searching_error_retry">Try again</string>
     <string name="public_searching_error_back">Back</string>
 
-    <!-- Public rooms - Lobby (timer auto-deal, SPEC §3). -->
-    <string name="public_lobby_title">The Felt</string>
-    <string name="public_lobby_subtitle">Public table</string>
-    <string name="public_lobby_timer">0:08</string>
-    <string name="public_lobby_autodeal_title">Dealing automatically</string>
-    <string name="public_lobby_autodeal_body">%1$d seated · first hand starts at the buzzer</string>
-    <string name="public_lobby_seats_count">Seats %1$d / %2$d</string>
-    <string name="public_lobby_filling">Filling up…</string>
-    <string name="public_lobby_stakes_label">Stakes</string>
-    <string name="public_lobby_stakes_value">25 / 50</string>
-    <string name="public_lobby_buyin_label">Your buy-in</string>
-    <string name="public_lobby_buyin_value">5,000</string>
-    <string name="public_lobby_reserved">Seat reserved · deals on its own - no host needed</string>
-    <string name="public_leave_table">Leave table</string>
-    <string name="public_lobby_leave_dialog_title">Leave this table?</string>
-    <string name="public_lobby_leave_dialog_body">You'll give up your seat and go back to find another table.</string>
-    <string name="public_lobby_leave_dialog_primary">Leave</string>
-    <string name="public_lobby_leave_dialog_secondary">Stay</string>
-
-    <!-- Public rooms - Next round (joined mid-hand, SPEC §4). -->
-    <string name="public_next_card_title">You're in for the next hand</string>
-    <string name="public_next_card_body">A hand's in progress - you'll be dealt in the moment it ends.</string>
-    <string name="public_next_at_table">At the table</string>
-    <string name="public_next_in_progress">Hand in progress</string>
-    <string name="public_next_buyin_label">Buying in for</string>
-    <string name="public_next_buyin_value">5,000</string>
-    <string name="public_next_buyin_note">within your range</string>
-    <string name="public_next_change">Change</string>
-    <string name="public_next_joining">Joining automatically when this hand ends</string>
-
     <!-- Home - Private room "create or join" bottom sheet (SPEC §1). -->
     <string name="private_choose_title">Private room</string>
     <string name="private_choose_create_title">Create a room</string>
