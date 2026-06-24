@@ -129,12 +129,6 @@ A batch of small UX directives the owner filed via in-app feedback in one sessio
 
 A second batch of in-app feedback from a live two-device MP playtest. Hard bugs from this session are filed in their topical sections above (account-deletion soft-delete, private-join balance gate, the B7 hand-end stall, mid-game opponent-leave notice); these are the UX/copy directives.
 
-### From the 2026-06-24 owner playtest
-
-- `[P2]` **Redesign the "couldn't create a room" error screen.** When room creation fails the lobby falls back to a bare error state the owner flagged as bad — surface a clear message + a retry affordance (and keep the user on the create screen rather than dumping them out). Covers the `CreateNetworkError` / `CreateUnknownError` paths; align it with the parallel "room not found" join-error UX (CARDS-28/CARDS-29). *(feedback CARDS-2E)*
-  **Acceptance:** failing `rooms.createRoom(...)` shows a styled error with a retry action on the create surface, not a raw fallback; visually consistent with the join-error treatment.
-  **Hints:** `LobbyViewModel.kt` maps the failure to `LobbyError.CreateNetworkError` / `CreateUnknownError`; rendered in `LobbyScreen.kt` (`features/lobby/impl`). Sentry [CARDS-2E](https://elijah-dangerfield.sentry.io/issues/CARDS-2E); session_id 89cec431-6e3e-42e1-ab8f-a8613d1f322e.
-
 ---
 
 ## B. Multiplayer hardening

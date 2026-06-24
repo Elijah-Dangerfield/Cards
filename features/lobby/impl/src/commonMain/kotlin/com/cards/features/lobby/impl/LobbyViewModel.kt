@@ -430,6 +430,24 @@ data class LobbyState(
 ) {
     val isBusy: Boolean get() = creating || joining || leaving
     val isInRoom: Boolean get() = room != null
+
+    /**
+     * A create-room call failed and we're not in a room. The lobby is
+     * only ever entered to create or join, so a Create* error with no
+     * room means the "Setting up…" path dead-ended — show the full-screen
+     * retry state instead of a stranded spinner (CARDS-2E).
+     */
+    val createError: LobbyError?
+        get() = if (!isInRoom && !creating) {
+            error?.takeIf {
+                it is LobbyError.CreateNetworkError ||
+                    it is LobbyError.CreateUnknownError ||
+                    it is LobbyError.CreateNotSignedIn ||
+                    it is LobbyError.CreateInvalidMaxSeats
+            }
+        } else {
+            null
+        }
     val canSubmitJoin: Boolean
         get() = !isBusy && !isInRoom && codeInput.trim().length in MIN_CODE_LENGTH..MAX_CODE_LENGTH
     val canCreate: Boolean

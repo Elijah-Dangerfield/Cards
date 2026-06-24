@@ -326,6 +326,39 @@ class LobbyViewModelTest : CoroutineTest() {
         }
     }
 
+    @Test
+    fun createError_isExposed_whenACreateCallFailsOutsideARoom() = runUnitTest {
+        // CARDS-2E: a failed create call should drive the full-screen retry
+        // state, not strand the user on the "Setting up…" spinner.
+        val rooms = FakeRoomRepository(
+            createOutcome = CreateRoomOutcome.NetworkError(RuntimeException("boom")),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertEquals(LobbyError.CreateNetworkError, last.createError)
+            assertFalse(last.creating, "the spinner is gone once the create error lands")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun createError_isNull_forJoinErrors() = runUnitTest {
+        // A join failure keeps the inline-error treatment, not the full-screen one.
+        val state = LobbyState(error = LobbyError.JoinRoomFull)
+        assertNull(state.createError)
+    }
+
+    @Test
+    fun createError_isNull_whileCreating() = runUnitTest {
+        // Mid-retry the spinner shows again, not the error screen.
+        val state = LobbyState(creating = true, error = LobbyError.CreateNetworkError)
+        assertNull(state.createError)
+    }
+
     // ---------- new MP paths (B6 Round 1) ----------
 
     @Test
