@@ -9,9 +9,14 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -94,6 +99,42 @@ class KtorRoomSocketTransportTest {
     }
 
     @Test
+    fun open_suspendsUntilAuthReady_thenFiresHandshake() = runTest(StandardTestDispatcher()) {
+        val authReady = CompletableDeferred<Unit>()
+        val requests = mutableListOf<String>()
+        val engine = MockEngine { request ->
+            requests += request.url.toString()
+            respond(content = "", status = HttpStatusCode.InternalServerError)
+        }
+        val client = HttpClient(engine) {
+            install(WebSockets)
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            install(io.ktor.client.plugins.DefaultRequest) { url("https://example.com") }
+        }
+        val transport = KtorRoomSocketTransport(
+            networkClient = GateableAuthNetworkClient(client, authReady),
+            networkConfig = FakeNetworkConfig(baseUrl = "https://example.com"),
+        )
+
+        // Start the open while auth hasn't completed — the helper's pre-flight
+        // `awaitAuthReady()` must hold the WS handshake until the gate releases.
+        val deferred = async { transport.open("ABC123") }
+        runCurrent()
+        assertTrue(
+            requests.isEmpty(),
+            "no handshake must fire while awaitAuthReady is pending; got: $requests",
+        )
+
+        // Auth completes — the open continues, the WS upgrade fires through
+        // the engine. The result is failure (5xx) but that's beside the point;
+        // we're pinning ordering, not the response.
+        authReady.complete(Unit)
+        deferred.await()
+        assertEquals(1, requests.size, "exactly one handshake once auth is ready; got: $requests")
+        assertTrue(requests.single().startsWith("wss://"), "wss upgrade; got: ${requests.single()}")
+    }
+
+    @Test
     fun httpBaseUrl_keepsWs() = runTest {
         val requests = mutableListOf<String>()
         val engine = MockEngine { request ->
@@ -137,6 +178,18 @@ class KtorRoomSocketTransportTest {
         override val client: HttpClient get() = httpClient
         override val authenticatedClient: HttpClient get() = httpClient
         override suspend fun awaitAuthReady() = Unit
+    }
+
+    @OptIn(com.dangerfield.cards.libraries.networking.InternalNetworkingApi::class)
+    private class GateableAuthNetworkClient(
+        private val httpClient: HttpClient,
+        private val gate: CompletableDeferred<Unit>,
+    ) : NetworkClient {
+        override val client: HttpClient get() = httpClient
+        override val authenticatedClient: HttpClient get() = httpClient
+        override suspend fun awaitAuthReady() {
+            gate.await()
+        }
     }
 
     private class FakeNetworkConfig(
