@@ -33,15 +33,15 @@ once reporting exists, add a rule: **≥ 3 reports against one account within 72
 
 ## Accounts
 
-### Conservative inactivity-based orphan deletion
-V1 deletes an abandoned anonymous account only opportunistically — when its device is now bound to a
-*different* active anon account (the "one in use, one unreachable" case), and only if it has **no
-real-money purchase** and **no meaningful XP** (see `decisions.md` 2026-06-19). The other deletion
-trigger — **≥ 1 year fully inactive** — is deferred here because a never-reused account is never
-re-visited by the opportunistic path, so it needs a **scheduled sweep**. Low priority: orphan rows
-are cheap, and the whole point of the conservative model is that we'd rather leak rows than ever
-delete someone's progress by accident. Same hard guards apply: never delete with purchases, never
-delete a high-XP account.
+### Auto-trigger the inactivity-based orphan sweep
+Opportunistic orphan deletion is shipped (`DefaultOrphanInstallSweep`, fires on `/v1/me` when a
+device re-binds to a different active anon, with the no-purchase / no-meaningful-XP guards from
+`decisions.md` 2026-06-19). The ≥-1-year inactivity sweep is also built (`DefaultOrphanAnonymousSweep`,
+exposed at `POST /v1/admin/sweep-anonymous-users`) — but it only runs when something hits the route.
+Post-launch, wire an automatic trigger (Fly scheduled task, cron, GitHub Actions cron) so the sweep
+runs without a manual kick. Low priority: orphan rows are cheap, and the conservative-by-design
+guards (no purchases, no high XP, no active room seat) mean a missed sweep just leaks rows, never
+deletes someone's progress.
 
 ## App platform
 

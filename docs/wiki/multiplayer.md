@@ -34,7 +34,7 @@ These are four *different* things and they're easy to conflate:
 | State | Have a seat? | Have a stack? | Dealt cards? | What it means |
 |---|:---:|:---:|:---:|---|
 | **Fold** | ✅ | ✅ | ✅ → mucks | Give up *this hand only*. Still seated. |
-| **Sit-out** | ✅ | ✅ | ❌ skipped | "I'm out for now" toggle. Keep your seat + stack, dealer skips you, toggle back next hand. |
+| **Sit-out** | ✅ | ✅ | ❌ skipped | Keep your seat + stack, dealer skips you, resume next hand. **Engine-only today** — the `SittingOut` seat state exists and the engine respects it, but no player-facing toggle is wired yet. |
 | **Forfeit** | ❌ loses it | → wallet | ❌ | You lose / leave your seat entirely; remaining stack cashes back to your wallet. |
 | **Spectator** | ❌ never had one | ❌ | ❌ | Just watching. Sees the scrubbed view (no hole cards), can't act. |
 
