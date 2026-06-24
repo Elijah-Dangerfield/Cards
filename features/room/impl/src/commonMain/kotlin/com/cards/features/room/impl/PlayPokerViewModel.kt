@@ -93,6 +93,7 @@ class PlayPokerViewModel @Inject constructor(
     initialStateArg = PlayPokerState(
         xpMode = sessionFactory.xpMode,
         socialEnabled = socialEnabledConfig(),
+        roomCode = sessionFactory.roomCode,
     ),
 ) {
 

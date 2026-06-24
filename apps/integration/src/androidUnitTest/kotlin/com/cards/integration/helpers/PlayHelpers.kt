@@ -57,6 +57,42 @@ class Trio(
 fun GameState.seatFor(client: TestClient): Seat = seats.first { it.playerId == client.userId }
 
 /**
+ * [humanCount] seated, connected humans in one Private room (host = first), all
+ * sockets live and confirmed in the membership. Generalises [seatTwoAndConnect]
+ * /[seatThreeAndConnect] with the clients exposed, for tests that drive specific
+ * players (leave one, act another). [maxSeats] defaults to exactly [humanCount];
+ * pass a larger value to leave room for mid-hand joiners.
+ */
+suspend fun Harness.seatPrivate(humanCount: Int, maxSeats: Int = humanCount): SeatedRoom {
+    require(humanCount >= 1)
+    val clients = List(humanCount) { client() }
+    val created = clients.first().repository.createRoom(maxSeats = maxSeats)
+    check(created is CreateRoomOutcome.Success) { "createRoom failed: $created" }
+    val code = created.room.code
+    clients.drop(1).forEach { it.repository.joinRoom(code) }
+    val games = clients.map { gameplay(it.connect(code)) }
+    games.forEach { it.awaitConnected() }
+    games.first().awaitRoom { it.members.size == humanCount }
+    return SeatedRoom(code, clients, games)
+}
+
+/** An N-human Private table with clients + sessions exposed for targeted control. */
+class SeatedRoom(
+    val code: String,
+    val clients: List<TestClient>,
+    val games: List<GameplaySession>,
+) {
+    val host: TestClient get() = clients.first()
+    val hostGame: GameplaySession get() = games.first()
+
+    fun gameOf(client: TestClient): GameplaySession = games[clients.indexOf(client)]
+
+    /** playerId → session for exactly the listed clients (the actors a hand should use). */
+    fun actableOf(vararg included: TestClient): Map<String, GameplaySession> =
+        included.associate { it.userId to gameOf(it) }
+}
+
+/**
  * Two seated, connected clients and their gameplay sessions — the standard
  * heads-up table. Both are fault-capable so chaos tests can drop either.
  */
@@ -134,4 +170,41 @@ private suspend fun Table.actPassively(state: GameState) {
         if (toCall > 0) PlayerIntent.Call(seatIndex) else PlayerIntent.Check(seatIndex),
     )
     check(ack.accepted) { "passive action at seat $seatIndex (${state.street}) rejected: ${ack.error}" }
+}
+
+/**
+ * Drive a hand to [BettingRound.Complete] over the wire, acting only the seats
+ * whose `playerId` is a key in [actable] (→ that player's session). Each acted
+ * seat plays passively (call when something is owed, else check). Seats NOT in
+ * [actable] — a folded/forfeited player, a bot the server drives — are never
+ * acted on, so the caller controls exactly who's still playing. Reads forward
+ * from [observer]; returns the completed snapshot.
+ *
+ * Generalises [Table.playPassivelyToCompletion] to N players with explicit
+ * actor control — needed by forfeit/concurrency tests where one seat drops out
+ * mid-hand and the rest must carry the hand to the end.
+ */
+suspend fun driveToCompletion(
+    observer: GameplaySession,
+    actable: Map<String, GameplaySession>,
+    maxActions: Int = 80,
+): GameState {
+    var guard = 0
+    while (guard++ < maxActions) {
+        val s = observer.nextSnapshot { it.street == BettingRound.Complete || it.actingSeatIndex != null }
+        if (s.street == BettingRound.Complete) return s
+        val acting = s.actingSeatIndex!!
+        val seat = s.seatAt(acting)
+        val game = actable[seat.playerId]
+        if (game == null) {
+            // The acting seat isn't one we drive — a bot the server plays, or a
+            // player mid-forfeit whose turn is about to advance. Wait for the
+            // next snapshot rather than acting (or erroring) for them.
+            continue
+        }
+        val toCall = s.currentBetThisStreet - seat.contributedThisStreet
+        val ack = game.submit(if (toCall > 0) PlayerIntent.Call(acting) else PlayerIntent.Check(acting))
+        check(ack.accepted) { "passive action at seat $acting (${s.street}) rejected: ${ack.error}" }
+    }
+    error("hand did not complete within $maxActions actions")
 }

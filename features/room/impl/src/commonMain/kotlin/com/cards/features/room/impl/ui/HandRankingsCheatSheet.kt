@@ -19,8 +19,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.lobby_in_room_code_copied
+import cards.libraries.resources.generated.resources.lobby_in_room_code_label
+import cards.libraries.resources.generated.resources.lobby_in_room_code_share_hint
+import cards.libraries.resources.generated.resources.lobby_in_room_copy_button
 import cards.libraries.resources.generated.resources.room_cheat_sheet_action_all_in_description
 import cards.libraries.resources.generated.resources.room_cheat_sheet_action_all_in_title
 import cards.libraries.resources.generated.resources.room_cheat_sheet_action_call_description
@@ -74,11 +80,15 @@ import com.dangerfield.cards.libraries.gameplay.HandEvaluator
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
+import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BaseBottomSheet
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -231,6 +241,7 @@ fun HandRankingsCheatSheet(
     pot: Long? = null,
     holeCards: List<Card> = emptyList(),
     boardCards: List<Card> = emptyList(),
+    roomCode: String? = null,
 ) {
     val currentCategory = remember(holeCards, boardCards) {
         currentHandCategory(holeCards, boardCards)
@@ -246,6 +257,11 @@ fun HandRankingsCheatSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 24.dp),
         ) {
+            if (roomCode != null) {
+                RoomCodeCard(code = roomCode)
+                VerticalSpacerD800()
+            }
+
             if (holeCards.isNotEmpty()) {
                 YouHaveBanner(
                     category = currentCategory,
@@ -318,6 +334,48 @@ fun HandRankingsCheatSheet(
                 VerticalSpacerD300()
             }
             VerticalSpacerD300()
+        }
+    }
+}
+
+@Composable
+private fun RoomCodeCard(code: String) {
+    val clipboard = LocalClipboardManager.current
+    val copied = stringResource(Res.string.lobby_in_room_code_copied)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(Radii.R1000.shape)
+            .background(AppTheme.colors.accentPrimary.color.copy(alpha = 0.12f))
+            .padding(Dimension.D850),
+        verticalArrangement = Arrangement.spacedBy(Dimension.D300),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(Res.string.lobby_in_room_code_label),
+            typography = AppTheme.typography.Label.L500,
+            color = AppTheme.colors.contentSecondary,
+        )
+        Text(
+            text = code,
+            typography = AppTheme.typography.Display.D1000.Italic,
+            color = AppTheme.colors.accentPrimary,
+        )
+        Text(
+            text = stringResource(Res.string.lobby_in_room_code_share_hint),
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.contentSecondary,
+        )
+        VerticalSpacerD300()
+        ButtonSecondary(
+            onClick = {
+                clipboard.setText(AnnotatedString(code))
+                showSnackBar(message = copied)
+            },
+            size = ButtonSize.Small,
+            style = ButtonStyle.Outlined,
+        ) {
+            Text(stringResource(Res.string.lobby_in_room_copy_button))
         }
     }
 }
@@ -615,6 +673,30 @@ private fun HandRankingsCheatSheetPreview_MidHand() {
 private fun HandRankingsCheatSheetPreview_NoHandInfo() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
         HandRankingsCheatSheet(onDismiss = {})
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun HandRankingsCheatSheetPreview_WithRoomCode() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        HandRankingsCheatSheet(
+            onDismiss = {},
+            handNumber = 4,
+            street = BettingRound.Turn,
+            pot = 420,
+            holeCards = listOf(
+                Card(Rank.Ace, Suit.Spades),
+                Card(Rank.King, Suit.Diamonds),
+            ),
+            boardCards = listOf(
+                Card(Rank.Ace, Suit.Hearts),
+                Card(Rank.Seven, Suit.Clubs),
+                Card(Rank.Two, Suit.Diamonds),
+                Card(Rank.Jack, Suit.Spades),
+            ),
+            roomCode = "ASTRO",
+        )
     }
 }
 

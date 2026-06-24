@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.util.UUID
@@ -54,6 +55,20 @@ class GameplaySession(
             connection.filterIsInstance<RoomConnection.Connected>().first().room
         }
 
+    /**
+     * The next live room snapshot (over the connection flow) satisfying
+     * [predicate] — the lobby-shaped view, distinct from the gameplay snapshots
+     * [nextSnapshot] walks. Use it to sync on membership/presence changes (a
+     * leave, a join, a presence flip) that don't move the game state, since a
+     * non-seated member churning the room never produces a game-state snapshot.
+     */
+    suspend fun awaitRoom(
+        timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+        predicate: (Room) -> Boolean,
+    ): Room = withTimeout(timeoutMs) {
+        connection.filterIsInstance<RoomConnection.Connected>().map { it.room }.first(predicate)
+    }
+
     // Forward-only cursor so a buffered (replayed) older snapshot is never
     // re-matched — keyed on (handNumber, lastSequence), mirroring the client's
     // own out-of-order guard (lastSequence resets per hand).
@@ -61,6 +76,13 @@ class GameplaySession(
     private var cursorSeq = -1L
 
     suspend fun startHand() = handle.send(ClientFrame.StartHand(clientNonce = newNonce()))
+
+    /** Send StartHand and return the server's correlated ack (accepted or rejected). */
+    suspend fun startHandAwaitingAck(timeoutMs: Long = DEFAULT_TIMEOUT_MS): GameplayFrame.IntentAck {
+        val nonce = newNonce()
+        handle.send(ClientFrame.StartHand(clientNonce = nonce))
+        return withTimeout(timeoutMs) { acks.first { it.clientNonce == nonce } }
+    }
 
     suspend fun requestNextHand() = handle.send(ClientFrame.RequestNextHand(clientNonce = newNonce()))
 

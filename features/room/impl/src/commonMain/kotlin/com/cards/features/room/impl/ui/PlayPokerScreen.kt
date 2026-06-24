@@ -357,6 +357,7 @@ fun PlayPokerScreen(
                 pot = active?.pot,
                 holeCards = humanSeat?.holeCards.orEmpty(),
                 boardCards = active?.communityCards.orEmpty(),
+                roomCode = state.roomCode,
             )
         }
 

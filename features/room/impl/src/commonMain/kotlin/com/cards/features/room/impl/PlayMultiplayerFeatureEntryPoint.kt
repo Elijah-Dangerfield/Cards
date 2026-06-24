@@ -109,13 +109,24 @@ class PlayMultiplayerFeatureEntryPoint(
                     when (event) {
                         is PlayPokerEvent.RoomClosed -> router.goBack()
                         PlayPokerEvent.OpponentsLeft -> router.batch {
-                            goBack()
                             when (route.kind) {
-                                RoomKind.Private -> navigate(LobbyRoute(prefilledCode = route.roomCode))
+                                // Pop back to the player's EXISTING lobby (it sits
+                                // below the play screen for both host and joiner
+                                // paths — autoCreate=true vs prefilledCode=… —
+                                // hence the class-based pop). The lobby VM is
+                                // still alive, still subscribed to the room, so
+                                // the lone player picks back up where they were
+                                // and can wait / re-invite without a duplicate
+                                // lobby stacking on top auto-rejoining a room
+                                // they never left.
+                                RoomKind.Private -> popBackTo(LobbyRoute::class, inclusive = false)
                                 // Public games are anonymous + stakes-flexible, so send
                                 // them back to Find to re-pick a range and search again
                                 // (the old table's buy-in range isn't carried here).
-                                RoomKind.Public -> navigate(PublicFindRoute())
+                                RoomKind.Public -> {
+                                    goBack()
+                                    navigate(PublicFindRoute())
+                                }
                             }
                         }
                         is PlayPokerEvent.OpponentLeft -> showSnackBar(
@@ -138,15 +149,20 @@ class PlayMultiplayerFeatureEntryPoint(
                 // PlayMultiplayer on top of its Lobby, so popping a single
                 // screen would strand the player back in the lobby (CARDS-1Y) —
                 // pop the whole chain past the lobby to the Home tab root
-                // instead. A public game has no lobby underneath, so its plain
-                // goBack + switchTab already surfaces Home. Either way the pop
-                // tears down this VM so the socket closes and the server frees
-                // the seat after grace; batching keeps a mid-teardown scope
-                // death from stranding the player on a dead table.
+                // instead. The class-based pop is load-bearing: the host's
+                // lobby is LobbyRoute(autoCreate=true), the joiner's is
+                // LobbyRoute(prefilledCode=…), and route-instance equality
+                // would silently no-op on the mismatched args, stranding the
+                // player on the dead play screen. A public game has no lobby
+                // underneath, so its plain goBack + switchTab already surfaces
+                // Home. Either way the pop tears down this VM so the socket
+                // closes and the server frees the seat after grace; batching
+                // keeps a mid-teardown scope death from stranding the player
+                // on a dead table.
                 onBack = {
                     router.batch {
                         when (route.kind) {
-                            RoomKind.Private -> popBackTo(LobbyRoute(), inclusive = true)
+                            RoomKind.Private -> popBackTo(LobbyRoute::class, inclusive = true)
                             RoomKind.Public -> {
                                 goBack()
                                 switchTab(HomeRoute())

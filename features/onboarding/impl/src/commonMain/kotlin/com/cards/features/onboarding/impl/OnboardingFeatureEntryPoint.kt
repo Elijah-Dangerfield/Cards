@@ -102,7 +102,7 @@ class OnboardingFeatureEntryPoint(
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
                 onSignIn = {
-                    router.popBackTo(SignUpRoute(), inclusive = true)
+                    router.popBackTo(SignUpRoute::class, inclusive = true)
                     router.navigate(SignInRoute(), NavigationOptions(launchSingleTop = true))
                 },
             )

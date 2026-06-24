@@ -128,6 +128,13 @@ data class PlayPokerState(
      * hides the add-friend section entirely rather than showing it disabled.
      */
     val socialEnabled: Boolean = false,
+    /**
+     * Room code for shareable MP sessions, surfaced in the cheat sheet so a
+     * host can still invite a friend mid-game (the lobby's code surface is
+     * gone by then). Null in solo / bot-only sessions where there's nothing
+     * to share.
+     */
+    val roomCode: String? = null,
 ) {
     /**
      * Real-chips multiplayer (MP xpMode, not bots-only practice). Gates the bust

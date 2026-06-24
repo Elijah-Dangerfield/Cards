@@ -52,9 +52,24 @@ The engine is solid. **New testing effort should target the wire and the VM proj
 - **Server WS** (`:apps:server`) — `RoomSocketRoutesTest` (lobby / presence), `RoomSocketGameplayRoutesTest` (gameplay route → registry → broadcast).
 - **Server game session** (`:apps:server`) — `GameSessionTest`, `GameSessionRegistryIntegrationTest`, `SessionHydrationTest`.
 - **Full-stack** (`:apps:server`) — `FullStackRoomTest` boots the real `ServerComponent` over real Postgres (Testcontainers).
-- **End-to-end integration** (`:apps:integration`) — Android library, runs as Android unit tests on the host JVM. Real in-process Ktor + two real clients with real `LobbyViewModel`s + real `RemotePokerSession`s + real socket. `FaultInjectingTransport` for drop / block. Files include `FriendsGameHappyPathTest`, `SetupJourneyTest`, `WireFormatContractTest`, `InHandPlayTest`, `DeeperPlayTest`, `WireBettingLinesTest`, `WireAllInTest`, `WireSidePotTest`, `MultiHandWireTest`, `ChaosPlayTest`, `MatchmakingPlayTest`, `NonceRaceTest`, `ConcurrentIntentTest`, `InFlightSubmitReconnectTest`. Run via `./gradlew :apps:integration:testDebugUnitTest`.
+- **End-to-end integration** (`:apps:integration`) — Android library, runs as Android unit tests on the host JVM. Real in-process Ktor + two real clients with real `LobbyViewModel`s + real `RemotePokerSession`s + real socket. `FaultInjectingTransport` for drop / block. Files include `FriendsGameHappyPathTest`, `SetupJourneyTest`, `WireFormatContractTest`, `InHandPlayTest`, `DeeperPlayTest`, `WireBettingLinesTest`, `WireAllInTest`, `WireSidePotTest`, `MultiHandWireTest`, `ChaosPlayTest`, `MatchmakingPlayTest`, `NonceRaceTest`, `ConcurrentIntentTest`, `InFlightSubmitReconnectTest`, plus the 2026-06-24 lifecycle pass: `MidHandJoinPlayTest`, `ReaperGraceExpiryPlayTest`, `ForfeitAndRemovePlayerTest`, `ChipEconomyPlayTest`, `HandEndTransitionsTest`, `LobbyLifecycleTest`, `ErrorSurfacesTest`, `ConcurrencyTest`, `WireAndSnapshotTest`, `DisconnectResyncTest`, `BotIntegrationTest`, `EdgeCasesPlayTest`, `MatchmakingGapsTest`. Harness seams: injectable `reaperGrace`, per-server wallet/escrow fakes + `walletBalance`/`roomExists` probes, the real `RoomTeardownCoordinator`, and `awaitRoom`/`awaitUntil`/`startHandAwaitingAck`/`driveToCompletion`/`seatPrivate` helpers. Run via `./gradlew :apps:integration:testDebugUnitTest`.
 
 Hand-rolled fakes only — no Mockito / MockK anywhere.
+
+---
+
+## Which layer catches which bug (don't duplicate)
+
+The pyramid only stays clean if **each bug class is tested at exactly one layer — the cheapest layer that can fail when it breaks.** When you're tempted to assert the same thing at two layers, the lower one wins and the higher one doesn't get written. The recurring smell is re-verifying gameplay/escrow correctness up at the UI, or re-verifying pure VM derivations down at the integration tier.
+
+| Bug class | Owning layer | NOT here |
+|---|---|---|
+| Poker rules, pot/chip math, hand eval, scrub | engine (unit, property) | never re-tested above |
+| `GameState → TableUiState` derivation, action→state | VM-contract unit | not integration, not UI |
+| Two-client races, escrow ledger, reconnect, host-migration, mid-hand join, lifecycle | `:apps:integration` (real client↔server) | not UI — a UI test is single-user and can't race two clients |
+| Button→action wiring, back-stack/nav landing, screen-state rendering, loading/empty/error/not-found surfaces | Compose UI (see below) | not integration — don't replay gameplay through the UI |
+
+**The integration tier is the load-bearing middle and nothing replaces it.** The Compose UI tier goes *on top* and is additive — it catches the wiring/navigation class that no other layer reaches (the 2026-06-24 MP-leave bugs lived exactly there). It does **not** re-prove escrow, payout, who-gets-dealt, or chip conservation — those are owned by `:apps:integration` + the engine. A UI test for "you won and your balance went up" asserts the **screen reflects** the new balance; the *ledger correctness* is `ChipEconomyPlayTest`'s job. Over time the UI tier should let us *thin* the VM-contract tier's "VM forwards a server event" tests (the integration tier already proves those against a real server); keep the VM tier for pure-derivation logic.
 
 ---
 
@@ -62,7 +77,7 @@ Hand-rolled fakes only — no Mockito / MockK anywhere.
 
 These are the remaining gaps. Tracked in `docs/todo.md` under `MP-2`; this list is the worklist.
 
-- **Compose UI tests for `PlayPokerScreen`** — ~15 tests across the screen's 6+ states (your turn, bot thinking, raise unavailable, showdown, fold-around, loading, connection lost). Wire `androidx.compose.ui.test` into `:features:room:impl`'s `androidUnitTest`.
+- **Compose UI / navigation tier.** Scoped + sequenced in [`docs/agent/compose-ui-testing-spike.md`](../agent/compose-ui-testing-spike.md). Two shapes were evaluated: full real `App()` via a test DI component (Option 3, the recommended target) vs. the nav graph in isolation (Option 2, the fallback). Both need Robolectric + `androidx.compose.ui.test` (no emulator) and run against the in-process server — they do **not** re-test escrow/gameplay (see *Which layer catches which bug*). Build risk is front-loaded into a make-or-break Phase 1 harness spike. Coverage is wiring + screen states only: create/join/find flows landing on the right screen, not-found / no-game-found / bad-code surfaces, leave→Home, host-leaves-private routing, and the `PlayPokerScreen` states (your turn, bot thinking, raise unavailable, showdown, fold-around, loading, connection lost). Cap it at ~15-20 tests; it's a thin top, not a second integration suite.
 - **Server restart mid-hand → full client reconnect.** Server-side hydration is pinned by `SessionHydrationTest`. The open part is the client-reconnect-after-restart end-to-end in `:apps:integration`.
 - **`FakeRoomServer` for the integration tier.** A fake that responds to `StartHand` / `SubmitIntent` / `RequestNextHand` using a real `GameSession`, so client-side tests can cover full turn cycles without booting Ktor. Two layers: real Ktor for end-to-end, `FakeRoomServer` for unit-fast turn cycles.
 - **Hand-history regression fixtures.** Capture 50 real hands from a playtest, freeze as `.json`, replay through the engine on every change. Gated on a real production playtest.

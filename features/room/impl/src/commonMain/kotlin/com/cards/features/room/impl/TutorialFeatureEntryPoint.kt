@@ -74,7 +74,7 @@ class TutorialFeatureEntryPoint(
                 // would cancel a composition-scoped coroutine mid-`delay`
                 // and swallow the navigate — the dialog would never fire.
                 onAchievementUnlocked = {
-                    router.popBackTo(TutorialRoute(), inclusive = true)
+                    router.popBackTo(TutorialRoute::class, inclusive = true)
                     appScope.launch {
                         // Respect the Settings "achievement pop-ups" toggle — when
                         // off, completing the tutorial still banks the achievement,

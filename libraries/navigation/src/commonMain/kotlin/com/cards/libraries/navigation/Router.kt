@@ -36,7 +36,19 @@ interface Router {
 
     fun goBack()
 
-    fun popBackTo(route: Route, inclusive: Boolean)
+    /**
+     * Pop the back stack down to the topmost entry whose route is of [routeClass].
+     * Matches by Kotlin class rather than serialized-route equality — the caller
+     * doesn't need to know which exact argument permutation the destination was
+     * pushed with. No-op if no entry of that class is on the stack.
+     *
+     * There used to be an instance-taking sibling (`popBackTo(route, inclusive)`);
+     * it silently no-opped when the route's serialized args didn't match the actual
+     * back-stack entry (e.g. popping `LobbyRoute()` while the stack held
+     * `LobbyRoute(autoCreate=true)`), which stranded the host on a dead play screen.
+     * Deleted in favour of this class-based form which can never miss.
+     */
+    fun <T : Route> popBackTo(routeClass: KClass<T>, inclusive: Boolean)
 
     /**
      * Switch to a top-level destination from *inside* the tab system, saving the current
@@ -125,7 +137,7 @@ interface RouterBatch {
         throw UnsupportedOperationException("Compile-time guard only — use switchTab(route).")
 
     fun switchTab(route: TabRoute)
-    fun popBackTo(route: Route, inclusive: Boolean)
+    fun <T : Route> popBackTo(routeClass: KClass<T>, inclusive: Boolean)
     fun goBack()
 }
 

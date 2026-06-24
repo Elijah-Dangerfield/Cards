@@ -48,7 +48,7 @@ import me.tatarka.inject.annotations.Inject
  * static one and removes a hidden invariant).
  */
 class RemotePokerSessionFactory @Inject constructor(
-    @Assisted private val roomCode: String,
+    @Assisted override val roomCode: String,
     @Assisted private val localUserId: String,
     // True for a public (matchmade) table. A public bots-only table is the
     // disclosed-bot subsidy — real chips ARE at stake (you keep what you win, up

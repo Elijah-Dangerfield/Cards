@@ -630,3 +630,17 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Out of scope even for V2 revive:** friend suggestions, invite-via-share-link, push notifications for requests, group chat.
 
 **Status:** Backlog (V2). Retired from todo as SOC-1 (presence signal). The flag-gating work that disables these surfaces in V1 lives in todo.md as SOC-2.
+
+---
+
+## MP lobby shows $0 buy-in + 409 on POST /bots after sole-human-left rebound
+
+**Symptom (owner repro 2026-06-24, room NP2DDJ):** After Player A leaves a 2-player private room, Player B (now sole human) is routed back to the in-room lobby view. The lobby reads **buy-in $0** and "waiting for players" instead of the room's actual buy-in, and at some point fires a POST `/v1/rooms/{code}/bots` that the server rejects with 409 NotJoinable (room status still `Playing`). The two big-ticket bugs from this repro — A stranded on the play screen, B getting a stacked duplicate Lobby — are fixed in `feat(navigation): class-based popBackTo` and `fix(room): pop existing lobby on OpponentsLeft`. The $0 buy-in + 409 are residuals.
+
+**What's not yet pinned down:**
+- Whether `room.buyIn` is genuinely 0 (room creation default issue?) or the LobbyScreen is rendering a stale `Room` snapshot from the auto-rejoin path that the duplicate-lobby fix now eliminates.
+- Whether the server's `RoomStatus` is failing to drop back to `Lobby` after a one-hand session ends, or whether the client is triggering an automatic bot-add at the wrong moment.
+
+**Action:** repro fresh with the just-shipped inbound-WS-frame logs (the `recv game_state hand=… street=… …` lines now ride in feedback `session-log.txt`). Those will say exactly which `RoomStatus` and `buyIn` the client saw in the snapshot it rendered, which disambiguates the two hypotheses without another guess-and-check.
+
+**Status:** Backlog. Pull when next a similar report comes in; the new client-state.json attachment + frame logs should make it a one-pass triage.
