@@ -23,5 +23,9 @@ CREATE TABLE IF NOT EXISTS auth.users (
     -- auth.users WHERE is_anonymous = TRUE)` gate, so the stub has to
     -- carry it. Defaults to FALSE so existing seed callers stay
     -- non-anonymous; callers explicitly opt in via seedAuthUser(..., isAnonymous = true).
-    is_anonymous BOOLEAN NOT NULL DEFAULT FALSE
+    is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Mirrors the real Supabase column. A dashboard ban (or the Admin API)
+    -- sets this to a future timestamp; PostgresModerationRepository reads it
+    -- to gate every authenticated route. NULL = good standing.
+    banned_until TIMESTAMPTZ
 );

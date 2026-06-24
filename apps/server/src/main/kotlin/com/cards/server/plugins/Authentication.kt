@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.plugins
 
 import com.auth0.jwk.JwkProviderBuilder
 import com.auth0.jwt.interfaces.JWTVerifier
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.config.SupabaseConfig
 import com.dangerfield.cards.server.domain.UserId
 import io.ktor.http.HttpStatusCode
@@ -13,6 +14,8 @@ import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.jwt.jwt
 import io.ktor.server.auth.principal
 import io.ktor.server.response.respond
+import io.ktor.util.AttributeKey
+import org.slf4j.LoggerFactory
 import java.net.URL
 import java.util.concurrent.TimeUnit
 
@@ -64,7 +67,10 @@ sealed interface JwtVerification {
  * challenge behaviour (UUID `sub`, JSON 401) is identical regardless of how
  * signatures are checked.
  */
-fun Application.installAuthentication(verification: JwtVerification) {
+fun Application.installAuthentication(
+    verification: JwtVerification,
+    banGate: BanGate? = null,
+) {
     install(Authentication) {
         jwt(SUPABASE_JWT_AUTH) {
             when (verification) {
@@ -80,7 +86,7 @@ fun Application.installAuthentication(verification: JwtVerification) {
 
                 is JwtVerification.Static -> verifier(verification.verifier)
             }
-            validateAndChallengeForUserId()
+            validateAndChallengeForUserId(banGate)
         }
     }
 }
@@ -97,26 +103,67 @@ fun Application.installAuthentication(config: SupabaseConfig) =
 internal fun Application.installAuthenticationWithVerifier(verifier: JWTVerifier) =
     installAuthentication(JwtVerification.Static(verifier))
 
-private fun io.ktor.server.auth.jwt.JWTAuthenticationProvider.Config.validateAndChallengeForUserId() {
+/**
+ * Marks a call whose token was valid but belongs to a banned user. Set during
+ * [validate] (which then returns no principal); read in [challenge] so a ban
+ * renders the `403` [AccessDeniedResponse] while a genuinely missing/invalid
+ * token still renders the `401`. The validate→challenge flow is the one place
+ * in Ktor that reliably short-circuits routing, so a banned caller never
+ * reaches a route handler.
+ */
+private val BannedResponseKey = AttributeKey<AccessDeniedResponse>("cards.banned-response")
+
+private fun io.ktor.server.auth.jwt.JWTAuthenticationProvider.Config.validateAndChallengeForUserId(
+    banGate: BanGate?,
+) {
     validate { credential ->
         // sub must parse as a UUID. Anything else is a malformed token.
-        try {
+        val userId = try {
             val sub = credential.payload.subject
-            if (sub.isNullOrBlank()) null
-            else {
-                UserId.parse(sub) // throws on invalid UUID
-                JWTPrincipal(credential.payload)
-            }
+            if (sub.isNullOrBlank()) null else UserId.parse(sub) // throws on invalid UUID
         } catch (_: IllegalArgumentException) {
             null
-        }
+        } ?: return@validate null
+
+        if (banGate != null && rejectIfBanned(banGate, userId)) return@validate null
+
+        JWTPrincipal(credential.payload)
     }
     challenge { _, _ ->
-        call.respond(
-            HttpStatusCode.Unauthorized,
-            mapOf("error" to mapOf("code" to "unauthorized", "message" to "Missing or invalid access token")),
-        )
+        val banned = call.attributes.getOrNull(BannedResponseKey)
+        if (banned != null) {
+            call.respond(HttpStatusCode.Forbidden, banned)
+        } else {
+            call.respond(
+                HttpStatusCode.Unauthorized,
+                mapOf("error" to mapOf("code" to "unauthorized", "message" to "Missing or invalid access token")),
+            )
+        }
     }
+}
+
+/**
+ * True if [userId] is banned — and, as a side effect, stashes the locked `403`
+ * envelope on the call so [challenge] can render it. A lookup failure logs and
+ * returns false (fail **open**): a transient `auth` read must not lock every
+ * user out, and the token still expires on its own.
+ */
+private suspend fun ApplicationCall.rejectIfBanned(banGate: BanGate, userId: UserId): Boolean {
+    val status = Catching { banGate.moderation.banStatusFor(userId) }
+        .getOrElse { error ->
+            LoggerFactory.getLogger("BanGate").warn("Ban lookup failed for {} — allowing through", userId, error)
+            null
+        } ?: return false
+
+    attributes.put(
+        BannedResponseKey,
+        AccessDeniedResponse(
+            reason = status.reason.wire,
+            until = status.until?.toString(),
+            appealUrl = banGate.appealUrl,
+        ),
+    )
+    return true
 }
 
 /**

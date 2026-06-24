@@ -1,0 +1,11 @@
+# In-flight
+
+## feat(server): block banned users with a 403 access-denied gate
+
+**Problem:** A dashboard ban only set `auth.users.banned_until`; the server verified JWT signature/exp only, so a banned user kept playing until their token failed to refresh — which the client then misread as a generic session expiry.
+
+**Approach:** Server slice of the banned-account item. New `ModerationRepository` (`PostgresModerationRepository` reads native `auth.users.banned_until` via cross-schema raw SQL, mirroring `findInstallSiblings`; fails open). A `BanGate(moderation, appealUrl)` is threaded into `installAuthentication`: a banned caller's token validates to no-principal and the auth `challenge` renders `403 {reason, until, appealUrl}`. I deliberately folded the gate into the JWT validate→challenge path rather than a standalone post-auth plugin — responding from an `AuthenticationChecked` hook does NOT halt routing (the handler still runs and returns 200; proven by a red test), and validate→challenge is the one place Ktor reliably short-circuits. Appeal URL comes from a new `APPEAL_URL` env (`AccessControlConfig`). Wire fields are camelCase (`appealUrl`) to match the rest of the server JSON contract (`MeResponse.isAnonymous`), not the todo's illustrative `appeal_url`.
+
+**Reviewer notes:** Reasons are `banned` only — the native flag carries no reason, so suspended-vs-banned + a per-user appeal URL is deferred (needs an app-level moderation table; noted out-of-scope in the rewritten todo). The lookup fails open on a DB error (logged), so a transient `auth` read can't lock everyone out. The `:apps:integration` harness wires routes manually (not via `installApp`) so it doesn't install the gate — server unit tests (`BanEnforcementTest`, `PostgresModerationRepositoryTest`) cover it; the repo test needs Docker (Testcontainers) and skips otherwise. Added `banned_until` to the test `auth.users` stub (`init-auth.sql`) + a `setBannedUntil` helper on `DatabaseTest`. Decision logged in `decisions.md` (2026-06-24).
+
+**Deferred:** Client half (parse the `403` → route to `BlockingErrorScreen` instead of the session-expiry screen) — rewrote the todo item to describe exactly that remaining slice and bumped it to P1.

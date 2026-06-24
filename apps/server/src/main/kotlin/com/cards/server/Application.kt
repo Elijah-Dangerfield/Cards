@@ -1,10 +1,12 @@
 package com.dangerfield.cards.server
 
+import com.dangerfield.cards.server.config.AccessControlConfig
 import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.config.ServerConfig
 import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.di.ServerComponent
 import com.dangerfield.cards.server.di.create
+import com.dangerfield.cards.server.plugins.BanGate
 import com.dangerfield.cards.server.plugins.JwtVerification
 import com.dangerfield.cards.server.plugins.installAuthentication
 import com.dangerfield.cards.server.plugins.installCors
@@ -72,6 +74,7 @@ fun Application.module(config: ServerConfig) {
         component = component,
         verification = JwtVerification.Jwks(config.supabase.jwksUrl, config.supabase.expectedIssuer),
         adminConfig = config.admin,
+        accessControl = config.accessControl,
     )
 
     // Boot recovery: after a restart every in-memory room is gone, so any
@@ -103,13 +106,20 @@ fun Application.installApp(
     component: ServerComponent,
     verification: JwtVerification,
     adminConfig: AdminConfig,
+    accessControl: AccessControlConfig,
 ) {
     installSerialization()
     installCors()
     installRateLimits()
     installWebSockets()
     installStatusPages()
-    installAuthentication(verification)
+    installAuthentication(
+        verification = verification,
+        banGate = BanGate(
+            moderation = component.moderationRepository,
+            appealUrl = accessControl.appealUrl,
+        ),
+    )
 
     routing {
         healthRoutes()
