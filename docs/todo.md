@@ -134,10 +134,6 @@ A batch of small UX directives the owner filed via in-app feedback in one sessio
 
 A second batch of in-app feedback from a live two-device MP playtest. Hard bugs from this session are filed in their topical sections above (account-deletion soft-delete, private-join balance gate, the B7 hand-end stall, mid-game opponent-leave notice); these are the UX/copy directives.
 
-- `[P2]` **Tell the user they'll be dealt in at the next hand when they join a live game.** Joining an in-progress public table gives no indication you're waiting for the next hand boundary — add a "you'll be dealt in next hand" notice. *(feedback CARDS-22; pairs with the mid-game-join seat fix in B7)*
-  **Acceptance:** a mid-game joiner sees a clear "dealt in next hand" message until they're seated.
-  **Hints:** the scrubbed mid-hand-join state in the play-poker MP screen. Sentry [CARDS-22](https://elijah-dangerfield.sentry.io/issues/CARDS-22).
-
 ---
 
 ## B. Multiplayer hardening

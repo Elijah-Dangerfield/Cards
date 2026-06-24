@@ -949,6 +949,7 @@
     <string name="room_top_bar_back_a11y">Back</string>
     <string name="room_top_bar_hand_info_a11y">Hand info and rankings</string>
     <string name="room_loading_dealing_in">Dealing in…</string>
+    <string name="room_waiting_to_be_dealt_in">You'll be dealt in next hand</string>
     <string name="room_practice_tier_bots_present">Practice tier · bots present</string>
     <string name="room_practice_tier_explainer_title">Practice tier</string>
     <string name="room_practice_tier_explainer_a11y">What practice tier means</string>

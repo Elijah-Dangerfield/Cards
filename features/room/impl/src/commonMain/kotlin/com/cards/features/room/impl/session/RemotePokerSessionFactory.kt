@@ -166,6 +166,10 @@ class RemotePokerSessionFactory @Inject constructor(
             subsidizedBotTable = isPublicTable && MultiplayerCredit.isBotsOnly(state),
             turnTimerEnforced = true,
             curve = curve,
+            // A seatless local member is a mid-game joiner spectating until the
+            // next hand boundary seats them — surface the "dealt in next hand"
+            // notice rather than leaving them staring at a table with no cards.
+            waitingToBeDealtIn = humanSeatIndex < 0,
         )
     }
 }

@@ -47,6 +47,7 @@ import cards.libraries.resources.generated.resources.room_practice_tier_bots_pre
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_hand_info_a11y
+import cards.libraries.resources.generated.resources.room_waiting_to_be_dealt_in
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
 import com.dangerfield.cards.libraries.game.ConnectionState
@@ -281,6 +282,10 @@ fun PlayPokerScreen(
 
                 if (active?.practiceTierBotsPresent == true) {
                     PracticeTierLabel(onClick = { practiceTierExplainerOpen = true })
+                }
+
+                if (active?.waitingToBeDealtIn == true) {
+                    WaitingToBeDealtInLabel()
                 }
 
                 if (active == null) {
@@ -663,6 +668,32 @@ private fun ConnectionBanner(connection: ConnectionState) {
  * the top bar so the player understands why their XP / achievements read
  * "practice" rather than full multiplayer — never a silent downgrade.
  */
+/**
+ * Table-side notice for a mid-game joiner: they're a seatless member of a live
+ * MP table, dealt in at the next hand boundary. Surfaced under the top bar so
+ * the spectating wait reads as intentional rather than a stuck/empty table.
+ */
+@Composable
+private fun WaitingToBeDealtInLabel() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(Res.string.room_waiting_to_be_dealt_in),
+            typography = AppTheme.typography.Caption.C400,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .clip(Radii.Callout.shape)
+                .background(AppTheme.colors.surface.color)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+    }
+}
+
 @Composable
 private fun PracticeTierLabel(onClick: () -> Unit) {
     val clickLabel = stringResource(Res.string.room_practice_tier_explainer_a11y)
@@ -951,6 +982,7 @@ private fun previewActive(
     bigBlindSeatIndex: Int? = 2,
     practiceTierBotsPresent: Boolean = false,
     practiceTierBotsOnly: Boolean = false,
+    waitingToBeDealtIn: Boolean = false,
 ): TableUiState.Active = TableUiState.Active(
     street = street,
     communityCards = communityCards,
@@ -970,6 +1002,7 @@ private fun previewActive(
     bigBlindSeatIndex = bigBlindSeatIndex,
     practiceTierBotsPresent = practiceTierBotsPresent,
     practiceTierBotsOnly = practiceTierBotsOnly,
+    waitingToBeDealtIn = waitingToBeDealtIn,
 )
 
 private fun previewDefaultSeats(): List<SeatView> = listOf(
@@ -1037,6 +1070,28 @@ private fun PlayPokerScreenPreview_PracticeTier() {
     PreviewContent {
         PlayPokerScreen(
             state = PlayPokerState(table = previewActive(practiceTierBotsPresent = true)),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_WaitingToBeDealtIn() {
+    // Mid-game joiner spectating a live MP table with no seat yet — the
+    // "you'll be dealt in next hand" notice renders under the top bar so the
+    // seatless wait reads as intentional, not a stuck table (CARDS-22).
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(
+                    seats = previewDefaultSeats().map { it.copy(isHuman = false) },
+                    isHumanTurn = false,
+                    humanLegalActions = null,
+                    waitingToBeDealtIn = true,
+                ),
+            ),
             onAction = {},
             onBack = {},
         )
