@@ -15,6 +15,7 @@ import com.dangerfield.cards.server.routes.matchmakingRoutes
 import com.dangerfield.cards.server.routes.roomRoutes
 import com.dangerfield.cards.server.routes.roomSocketRoutes
 import com.dangerfield.cards.server.plugins.installRateLimits
+import com.dangerfield.cards.server.routes.DEFAULT_REAPER_GRACE
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.routing.routing
@@ -22,6 +23,7 @@ import kotlinx.coroutines.runBlocking
 import java.util.UUID
 import kotlin.random.Random
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Instant
 
 /**
@@ -32,9 +34,22 @@ import kotlin.time.Instant
  * engine and talks over real TCP, which Ktor's in-memory `testApplication`
  * engine can't serve. No Postgres/Docker — storage is in-memory and auth is
  * stubbed, so this runs as a plain host-JVM unit test.
+ *
+ * [reaperGrace] is the disconnect-grace window the socket routes schedule before
+ * freeing a dropped seat. Production is 5 minutes; a test that exercises the
+ * grace boundary (reaper category) passes a sub-second window so the timer
+ * actually fires inside the test. The fakes ([wallets], [tableSessions]) are
+ * per-server instances so a test can read wallet balances to assert escrow.
  */
-class InProcessServer : AutoCloseable {
+class InProcessServer(
+    reaperGrace: Duration = DEFAULT_REAPER_GRACE,
+) : AutoCloseable {
     private val rooms = InMemoryRoomService(clock = Clock.System, random = Random(0))
+
+    /** Per-server wallet + escrow fakes, exposed so escrow tests can read balances. */
+    val wallets = FakeWallets()
+    private val tableSessions = FakeTableSessions(wallets)
+
     // Shrink the next-hand settle delay + bot think-time so a multi-hand test
     // over the real wire isn't gated on real seconds per hand (production uses 4s
     // settle and a humanlike per-turn pause that can tank to several seconds).
@@ -52,24 +67,25 @@ class InProcessServer : AutoCloseable {
         installWebSockets()
         installAuthentication(IntegrationAuth.verification)
         routing {
-            roomRoutes(rooms, FakeProfiles, FakeWallets)
+            roomRoutes(rooms, FakeProfiles, wallets)
             matchmakingRoutes(
                 rooms = rooms,
                 friends = FakeFriends,
                 profiles = FakeProfiles,
                 gameSessions = registry,
-                tableSessions = FakeTableSessions,
+                tableSessions = tableSessions,
                 equipmentRepository = FakeEquipment,
                 progressionRepository = FakeProgression,
-                wallets = FakeWallets,
+                wallets = wallets,
             )
             roomSocketRoutes(
                 rooms = rooms,
                 gameSessions = registry,
                 equipmentRepository = FakeEquipment,
                 progressionRepository = FakeProgression,
-                wallets = FakeWallets,
-                tableSessions = FakeTableSessions,
+                wallets = wallets,
+                tableSessions = tableSessions,
+                reaperGrace = reaperGrace,
             )
         }
     }.start(wait = false)
@@ -77,6 +93,11 @@ class InProcessServer : AutoCloseable {
     /** The base URL a client's `NetworkConfig` should point at. */
     val baseUrl: String = runBlocking {
         "http://127.0.0.1:${server.engine.resolvedConnectors().first().port}"
+    }
+
+    /** Current wallet balance for [userId] (a UUID string), or null if never touched. */
+    fun walletBalance(userId: String): Long? = runBlocking {
+        wallets.find(UserId(UUID.fromString(userId)))?.balance
     }
 
     override fun close() {
@@ -148,7 +169,7 @@ private object FakeEquipment : com.dangerfield.cards.server.domain.EquipmentRepo
  * balance negative, mirroring the real repository's contract closely enough for
  * full-hand play. Synchronized because sockets apply concurrently.
  */
-private object FakeWallets : com.dangerfield.cards.server.domain.WalletRepository {
+class FakeWallets : com.dangerfield.cards.server.domain.WalletRepository {
     private val lock = Any()
     private val balances = mutableMapOf<UserId, Long>()
     private val appliedKeys = mutableSetOf<Pair<UserId, String>>()
@@ -211,7 +232,9 @@ private object FakeWallets : com.dangerfield.cards.server.domain.WalletRepositor
  * the same keyed semantics as the production engine, so buy-in at deal and
  * cash-out on leave reconcile the wallet across a full game.
  */
-private object FakeTableSessions : com.dangerfield.cards.server.domain.TableSessionService {
+class FakeTableSessions(
+    private val wallets: FakeWallets,
+) : com.dangerfield.cards.server.domain.TableSessionService {
     private val lock = Any()
     private data class Active(val id: UUID, val roomCode: String, val buyIn: Long, var rebuys: Int)
     private val active = mutableMapOf<UserId, Active>()
@@ -226,12 +249,12 @@ private object FakeTableSessions : com.dangerfield.cards.server.domain.TableSess
         synchronized(lock) { active[userId] }?.let {
             return com.dangerfield.cards.server.domain.SitDownResult.AlreadyAtTable(it.roomCode)
         }
-        val balance = FakeWallets.findOrCreate(userId).balance
+        val balance = wallets.findOrCreate(userId).balance
         if (enforceEntryBar && balance < buyIn * 4) {
             return com.dangerfield.cards.server.domain.SitDownResult.BelowEntryBar(balance, buyIn * 4)
         }
         val id = UUID.randomUUID()
-        return when (val o = FakeWallets.apply(userId, "table:$id:buyin", -buyIn, "mp_buyin")) {
+        return when (val o = wallets.apply(userId, "table:$id:buyin", -buyIn, "mp_buyin")) {
             is com.dangerfield.cards.server.domain.ApplyOutcome.InsufficientChips ->
                 com.dangerfield.cards.server.domain.SitDownResult.InsufficientChips(o.balance)
             is com.dangerfield.cards.server.domain.ApplyOutcome.Applied -> {
@@ -248,7 +271,7 @@ private object FakeTableSessions : com.dangerfield.cards.server.domain.TableSess
         val s = synchronized(lock) { active[userId] }
             ?: return com.dangerfield.cards.server.domain.RebuyResult.NoActiveSession
         val n = synchronized(lock) { ++s.rebuys }
-        return when (val o = FakeWallets.apply(userId, "table:${s.id}:rebuy:$n", -s.buyIn, "mp_rebuy")) {
+        return when (val o = wallets.apply(userId, "table:${s.id}:rebuy:$n", -s.buyIn, "mp_rebuy")) {
             is com.dangerfield.cards.server.domain.ApplyOutcome.InsufficientChips ->
                 com.dangerfield.cards.server.domain.RebuyResult.InsufficientChips(o.balance)
             is com.dangerfield.cards.server.domain.ApplyOutcome.Applied ->
@@ -263,7 +286,7 @@ private object FakeTableSessions : com.dangerfield.cards.server.domain.TableSess
         val s = synchronized(lock) { active.remove(userId) }
             ?: return com.dangerfield.cards.server.domain.CashOutResult.NoActiveSession
         val refund = (finalStack ?: s.buyIn * (1 + s.rebuys)).coerceAtLeast(0L)
-        val o = FakeWallets.apply(userId, "table:${s.id}:cashout", refund, "mp_cashout")
+        val o = wallets.apply(userId, "table:${s.id}:cashout", refund, "mp_cashout")
             as com.dangerfield.cards.server.domain.ApplyOutcome.Applied
         return com.dangerfield.cards.server.domain.CashOutResult.CashedOut(refund, o.balance)
     }
