@@ -64,6 +64,9 @@ You may modify `docs/todo.md` in three cases: removing an item you fully shipped
 5b. **Never add a `_Shipped._` note when you remove an item.** The item being gone *is* the signal that it shipped. The `in-flight.md` block + the commit body carry the narrative. Same for "Phase A landed, Phase B remains" — rewrite the bullet to describe Phase B as the active gap, don't append a Phase A obituary.
 
 5c. **Item IDs are stable.** When you fully ship an item, its ID retires — never reuse the number. When you partially ship and rewrite the bullet, keep the original ID. Refer to items by their ID in your commit subject + `in-flight.md` block (e.g. `feat(stats): graduate hand counters to server (PROG-1)`).
+
+5d. **Consider `docs/QA.md`.** If the item ships a user-facing change, decide whether it needs a QA entry: new feature → new test entry; UX tweak → sub-bullet on existing coverage; backend / invisible → skip. Match the file's format (ID + priority emoji + platform tag + **State** / numbered steps / **Expected**). Cross-reference the todo ID in the test if it verifies a known behaviour or pending fix.
+
 6. Append a block to `docs/agent/in-flight.md` (create if missing):
 
    ```

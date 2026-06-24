@@ -13,11 +13,14 @@ KMP (Kotlin Multiplatform) app with Compose Multiplatform. Modular architecture 
 | [`docs/todo.md`](docs/todo.md) | Standing | AI workers + human | Active engineering work — current ship target. Everything here is worker-pickable. |
 | [`docs/backlog.md`](docs/backlog.md) | Standing | Human curates; AI may append | Someday/maybe + follow-ups. Workers don't pick from here; they **append** when noticing good follow-ups outside current scope. |
 | [`docs/developer-todo.md`](docs/developer-todo.md) | Standing | Human curates; reviewer may append | Human-only — credentials, GitHub settings, dashboard config, device QA, content writing, deferred product decisions. **Workers must never edit.** Reviewer may *append* a one-line entry per cycle; may not edit/delete existing entries. |
+| [`docs/QA.md`](docs/QA.md) | Standing | Human runs the checklist on a real device pre-release; workers may append | Pre-launch verification organised by feature. Each test has a stable ID + State / Steps / Expected. |
 | PR "Heads up" section | Ephemeral (per PR) | Reviewer writes; human reads | Per-cycle follow-ups tied to *this* PR's diff. Lives in the PR body. |
 
 Routing for human-only items: dies the moment the human acts on it this cycle → PR Heads up; standing across cycles → `developer-todo.md` (mention once in Heads up so it's not invisible).
 
 Closing a `docs/todo.md` item that involved a non-trivial architectural call → add an entry to [`docs/decisions.md`](docs/decisions.md).
+
+Shipping a user-facing change → decide whether [`docs/QA.md`](docs/QA.md) needs updating: new feature → add a new test; UX tweak → sub-bullet on existing coverage; backend / invisible → skip. Match the file's existing format (ID + priority emoji + platform tag + **State** / steps / **Expected**).
 
 Nightly automation uses [`docs/agent/`](docs/agent/) for prompts and the ephemeral `in-flight.md` handoff log (workers create, reviewer deletes in the PR).
 
