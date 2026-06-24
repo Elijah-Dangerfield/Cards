@@ -34,12 +34,6 @@ kotlin {
             implementation(projects.libraries.core)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.cards)
-            // SPIKE: Compose UI test infrastructure for the nav-flow harness.
-            // Provides runComposeUiTest, ComposeUiTest, and the testable
-            // SemanticsNodeInteraction surface — works on JVM (no emulator).
-            @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
-            implementation(compose.uiTest)
-            implementation(compose.material3)
         }
     }
 }
