@@ -18,6 +18,40 @@ Multiplayer is the load-bearing feature of the app. This doc explains how it wor
 
 ---
 
+## Room visibility — Private, Open, Public
+
+A room has one of three visibilities. The difference shapes who can find it, who deals, and what the start-gate looks like.
+
+| Visibility | Discoverable by matchmaker? | Code-shareable? | Who deals? |
+|---|:---:|:---:|---|
+| **Private** | ❌ | ✅ | Host (manual Start) |
+| **Open** | ✅ | ✅ | Server (auto-deal at 2+ present) |
+| **Public** | ✅ (matchmaker-created) | ❌ | Server (auto-deal at 2+ present) |
+
+**Open** is the "private host opens their room to strangers" flow — a host of a `Private` room can flip the visibility to `Open` and the matchmaker starts seating strangers. Open rides the existing `findOrJoinPublic` candidacy, join-by-code, escrow, real-stakes gating, mid-hand-join, and bot-collusion guard (`humans ≥ bots`). The server's start gate is `startServerDealtTableIfReady`, which fires for any visibility `!= Private`.
+
+### Why server-dealt for Open + Public
+
+A matched stranger should never wait on the host tapping Start — they came expecting "fill it and play." Auto-dealing at 2+ present matches the user expectation.
+
+### Accepted trade-offs
+
+- **Open auto-deals at 2.** A host can't "wait for my friends to arrive" on an Open table — stay Private if you want a gated start.
+- **Open tables never trim bots.** The bot-trim collector is Public-only by design (`trimBotForNewHumans` returns null for non-Public): a host's bots are a deliberate choice, not matchmaking placeholders, so they stay. The `humans ≥ bots` real-stakes guard keeps a bot-heavy Open table as practice (no escrow).
+- **Open keeps the full 5-min reaper grace,** not Public's 25s "forming" window. A lone member of an Open lobby is the host *waiting for players*, not a searcher whose ghost should free fast. Giving Open the 25s window let a brief background GC the host's table ("my table vanished"). Cost: an abandoned stranger's seat in an Open lobby lingers up to 5 min.
+- **Discovery is range-overlap, not exact match.** The Find screen is a free-form range slider (no canonical snapping) and `findOrJoinPublic` matches `room.buyIn in minBuyIn..maxBuyIn`. An Open table is found by any searcher whose range spans its buy-in. We chose not to snap host-chosen stakes to canonical tiers — overriding a deliberate host choice would be worse than the rare "hosted at 3,000, below the default ~18k floor" miss.
+
+### Matchmaking chooser
+
+When a search returns multiple candidates, the user sees a chooser (the `Choosing` phase of `PublicSearchingViewModel` / `PublicSearchingScreen`) listing each table's buy-in, seats taken / max, and real-human count. Re-polls every 5s so newly-formed tables surface. Empty result falls through to the existing find-and-wait search + bot fallback. Picking a table joins it by code (`RoomRepository.joinRoom`) so the user lands at the exact table they tapped.
+
+### Key files
+
+- Server: `apps/server/.../routes/RoomSocketRoutes.kt`, `PublicMatchmakingRoutes.kt`, `GameSessionRegistry` (start gate).
+- Client: `features/room/impl/.../PublicSearchingViewModel.kt`, `PublicSearchingScreen.kt`.
+
+---
+
 ## The chip economy (buy-in / stack / re-buy)
 
 - **Wallet** = all your chips (the number on Home / Shop).
