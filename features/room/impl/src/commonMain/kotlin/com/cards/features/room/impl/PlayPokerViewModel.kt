@@ -47,6 +47,8 @@ import com.dangerfield.cards.libraries.ui.components.poker.cardBackForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.feltForProductId
 import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
 import com.dangerfield.cards.libraries.review.ReviewTrigger
+import com.dangerfield.cards.libraries.social.FriendRepository
+import com.dangerfield.cards.libraries.social.SendFriendRequestResult
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -80,6 +82,7 @@ class PlayPokerViewModel @Inject constructor(
     private val chipsRepository: ChipsRepository,
     private val purchaseChipPack: PurchaseChipPackUseCase,
     private val profileRepository: ProfileRepository,
+    private val friendRepository: FriendRepository,
     private val reviewPromptCoordinator: ReviewPromptCoordinator,
     private val dispatcherProvider: DispatcherProvider,
     private val appScope: AppCoroutineScope,
@@ -115,6 +118,10 @@ class PlayPokerViewModel @Inject constructor(
     // re-delivered HandEnded recording the same hand twice (the outbox feeds a
     // server aggregate, so a double-count silently skews the user's style).
     private var lastRecordedPlayStyleHand: Int? = null
+
+    // Opponents we've already fired a friend request at this session — guards a
+    // double-tap from sending twice (the inline button also flips to Sent).
+    private val requestedFriendIds: MutableSet<String> = mutableSetOf()
 
     // Authenticated profile for the human-seat projection (display name + avatar).
     // Null until the first Authenticated emission; fallback profiles are ignored.
@@ -806,6 +813,32 @@ class PlayPokerViewModel @Inject constructor(
             }
             is PlayPokerAction.OpponentStyleLoaded -> action.updateState {
                 it.copy(opponentStyles = it.opponentStyles + (action.userId to action.playStyle))
+            }
+            is PlayPokerAction.AddFriend -> {
+                // Optimistic flip to Sent, un-flipped only on a server reject —
+                // same model as Home's recently-played add-friend tile. The fetch
+                // runs on its own launch so the round-trip never stalls the action
+                // loop. A successful or auto-accepted request stays Sent.
+                if (action.userId !in requestedFriendIds) {
+                    requestedFriendIds += action.userId
+                    action.updateState {
+                        it.copy(friendRequestSentIds = it.friendRequestSentIds + action.userId)
+                    }
+                    viewModelScope.launch {
+                        val stuck = when (friendRepository.sendRequest(action.userId)) {
+                            is SendFriendRequestResult.Requested,
+                            is SendFriendRequestResult.Accepted -> true
+                            else -> false
+                        }
+                        if (!stuck) takeAction(PlayPokerAction.FriendRequestFailed(action.userId))
+                    }
+                }
+            }
+            is PlayPokerAction.FriendRequestFailed -> {
+                requestedFriendIds -= action.userId
+                action.updateState {
+                    it.copy(friendRequestSentIds = it.friendRequestSentIds - action.userId)
+                }
             }
         }
     }

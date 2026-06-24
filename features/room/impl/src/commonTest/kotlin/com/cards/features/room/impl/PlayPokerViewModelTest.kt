@@ -1360,6 +1360,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         chipsRepository = chipsRepository,
         purchaseChipPack = purchaseChipPack,
         profileRepository = profileRepository,
+        friendRepository = FakeFriendRepository(),
         reviewPromptCoordinator = reviewPromptCoordinator,
         dispatcherProvider = dispatchers,
         appScope = com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope(dispatchers),

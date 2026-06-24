@@ -26,6 +26,9 @@ kotlin {
             implementation(projects.libraries.gameplay)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.core)
+            // FriendRepository — the player card's "Add friend" affordance sends a
+            // request to a human opponent (the friend graph's recently-played gate).
+            implementation(projects.libraries.social)
             // Product catalog — the player-profile sheet resolves a player's
             // equipped badges/titles to display metadata from the catalog.
             implementation(projects.libraries.products)
@@ -65,6 +68,7 @@ kotlin {
             implementation(projects.libraries.products)
             implementation(projects.libraries.resources)
             implementation(projects.libraries.review)
+            implementation(projects.libraries.social)
             implementation(projects.libraries.storage)
             implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.ui)

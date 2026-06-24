@@ -530,6 +530,40 @@ class FakeChipsRepository(
     fun emit(value: Long?) { balance.value = value }
 }
 
+/**
+ * Records friend-request sends and returns a configurable [nextResult]. The
+ * inbox half is unused by the play-poker VM so it stays an empty stub.
+ */
+class FakeFriendRepository(
+    var nextResult: com.dangerfield.cards.libraries.social.SendFriendRequestResult =
+        com.dangerfield.cards.libraries.social.SendFriendRequestResult.Requested,
+) : com.dangerfield.cards.libraries.social.FriendRepository {
+    val sentTo = mutableListOf<String>()
+
+    override suspend fun sendRequest(
+        userId: String,
+    ): com.dangerfield.cards.libraries.social.SendFriendRequestResult {
+        sentTo += userId
+        return nextResult
+    }
+
+    override fun observeIncomingRequests():
+        Flow<List<com.dangerfield.cards.libraries.social.FriendProfile>> =
+        MutableStateFlow(emptyList())
+
+    override suspend fun refreshIncomingRequests() = Unit
+
+    override suspend fun accept(
+        userId: String,
+    ): com.dangerfield.cards.libraries.social.RespondToRequestResult =
+        com.dangerfield.cards.libraries.social.RespondToRequestResult.Ok
+
+    override suspend fun decline(
+        userId: String,
+    ): com.dangerfield.cards.libraries.social.RespondToRequestResult =
+        com.dangerfield.cards.libraries.social.RespondToRequestResult.Ok
+}
+
 /** Records quick-buy calls and returns a configurable [nextOutcome]. */
 class FakePurchaseChipPackUseCase(
     var nextOutcome: com.dangerfield.cards.libraries.billing.IapPurchaseOutcome =

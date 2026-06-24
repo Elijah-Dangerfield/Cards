@@ -857,6 +857,11 @@
     <string name="room_player_profile_style_pending_body">Not enough hands yet to read this player\'s style.</string>
     <string name="room_player_profile_tenure_section_title">At this table</string>
     <string name="room_player_profile_difficulty_section_title">Difficulty</string>
+    <string name="room_player_profile_friend_section_title">Friend</string>
+    <string name="room_player_profile_add_friend_headline">Add friend</string>
+    <string name="room_player_profile_add_friend_supporting">You've played a hand together, so you can add them.</string>
+    <string name="room_player_profile_add_friend_button">Add</string>
+    <string name="room_player_profile_add_friend_button_sent">Sent</string>
     <string name="room_player_profile_settings_section_title">Settings</string>
     <string name="room_player_profile_mute_emoji_headline">Mute emoji</string>
     <string name="room_player_profile_mute_emoji_supporting_muted">You won't see their table blasts.</string>

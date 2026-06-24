@@ -492,6 +492,13 @@ fun PlayPokerScreen(
                 botDifficultyLabel = active?.botDifficultyLabel,
                 playStyle = seat.userId?.let { state.opponentStyles[it] },
                 ownsOpponentStyleReader = state.ownsOpponentStyleReader,
+                // Add-friend only for a real human opponent: a stable user id and
+                // not a bot. The friend graph's recently-played gate is satisfied
+                // by definition — they're at the table with you.
+                onAddFriend = seat.userId
+                    ?.takeIf { !seat.isBot && !seat.seatEmpty }
+                    ?.let { id -> { onAction(PlayPokerAction.AddFriend(id)) } },
+                friendRequestSent = seat.userId in state.friendRequestSentIds,
             )
         }
 

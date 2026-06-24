@@ -115,6 +115,13 @@ data class PlayPokerState(
      * means "fetched, none yet"; an absent key means "not fetched".
      */
     val opponentStyles: Map<String, PlayStyleAxes?> = emptyMap(),
+    /**
+     * Opponent userIds whose friend request flipped to "Sent" (optimistically on
+     * tap, kept on a successful / auto-accepted request, un-flipped only when the
+     * server rejects). Gates the player-card "Add friend" button to its sent
+     * state. Mirrors Home's recently-played add-friend model.
+     */
+    val friendRequestSentIds: Set<String> = emptySet(),
 ) {
     /**
      * Real-chips multiplayer (MP xpMode, not bots-only practice). Gates the bust
@@ -251,6 +258,11 @@ sealed interface PlayPokerAction {
     /** Opening a human opponent's card; fetches their public style if the reader is owned. */
     data class RequestOpponentStyle(val userId: String) : PlayPokerAction
     data class OpponentStyleLoaded(val userId: String, val playStyle: PlayStyleAxes?) : PlayPokerAction
+
+    /** "Add friend" on a human opponent's player card — sends a friend request. */
+    data class AddFriend(val userId: String) : PlayPokerAction
+    /** Internal — the request was rejected by the server; un-flips the Sent state. */
+    data class FriendRequestFailed(val userId: String) : PlayPokerAction
 }
 
 sealed interface PlayPokerEvent {

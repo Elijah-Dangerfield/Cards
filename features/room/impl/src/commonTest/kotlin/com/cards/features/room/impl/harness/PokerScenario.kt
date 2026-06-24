@@ -137,6 +137,7 @@ class SoloScenarioBuilder(
             chipsRepository = FakeChipsRepository(),
             purchaseChipPack = FakePurchaseChipPackUseCase(),
             profileRepository = FakeProfileRepository(),
+            friendRepository = FakeFriendRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
             dispatcherProvider = dispatchers,
             appScope = AppCoroutineScope(dispatchers),

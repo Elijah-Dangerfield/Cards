@@ -11,6 +11,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.profile_player_card_view_blurb
+import cards.libraries.resources.generated.resources.room_player_profile_add_friend_button
+import cards.libraries.resources.generated.resources.room_player_profile_add_friend_button_sent
+import cards.libraries.resources.generated.resources.room_player_profile_add_friend_headline
+import cards.libraries.resources.generated.resources.room_player_profile_add_friend_supporting
+import cards.libraries.resources.generated.resources.room_player_profile_friend_section_title
 import cards.libraries.resources.generated.resources.room_player_profile_bot_callout_body
 import cards.libraries.resources.generated.resources.room_player_profile_bot_callout_title
 import cards.libraries.resources.generated.resources.room_player_profile_difficulty_section_title
@@ -39,6 +44,8 @@ import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
 import com.dangerfield.cards.libraries.ui.components.PlayerBadge
 import com.dangerfield.cards.libraries.ui.components.PlayerCardContent
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.PlayingStyleCard
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
@@ -78,6 +85,15 @@ internal fun PlayerProfileSheet(
     playStyle: PlayStyleAxes? = null,
     /** Owns `tool_opponent_style` — gates the human-opponent style readout. */
     ownsOpponentStyleReader: Boolean = false,
+    /**
+     * Send a friend request to this human opponent. Null hides the Add-friend
+     * section (bots, empty seats, your own card, or a seat with no stable user
+     * id). The friend graph's only friending path is a played-with opponent, so
+     * the section is appropriate only on a human opponent's card.
+     */
+    onAddFriend: (() -> Unit)? = null,
+    /** True once a request to this opponent is outbound — flips the button to Sent. */
+    friendRequestSent: Boolean = false,
 ) {
     val bubbleColor = resolveAvatarBackground(seat.avatarBackgroundColorHex)
     val handle: BottomSheetDragHandle = topAccessoryEmoji(
@@ -157,6 +173,35 @@ internal fun PlayerProfileSheet(
                     )
                     VerticalSpacerD500()
                 }
+            }
+            if (!isMePlayer && onAddFriend != null) {
+                ListSection(
+                    title = stringResource(Res.string.room_player_profile_friend_section_title),
+                    items = listOf(
+                        ListSectionItem(
+                            headlineText = stringResource(Res.string.room_player_profile_add_friend_headline),
+                            supportingText = stringResource(Res.string.room_player_profile_add_friend_supporting),
+                            accessory = ListItemAccessory.Custom {
+                                ButtonSecondary(
+                                    onClick = onAddFriend,
+                                    size = ButtonSize.Small,
+                                    enabled = !friendRequestSent,
+                                ) {
+                                    Text(
+                                        text = stringResource(
+                                            if (friendRequestSent) {
+                                                Res.string.room_player_profile_add_friend_button_sent
+                                            } else {
+                                                Res.string.room_player_profile_add_friend_button
+                                            },
+                                        ),
+                                    )
+                                }
+                            },
+                        ),
+                    ),
+                )
+                VerticalSpacerD500()
             }
             if (isMePlayer) {
                 // Your own card: no mute (can't mute yourself); instead remind
@@ -339,6 +384,37 @@ private fun PlayerProfileSheetPreview_Bot_LooseAggressive() {
             onToggleMute = {},
             onDismiss = {},
             botDifficultyLabel = "Casual",
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayerProfileSheetPreview_HumanOpponent_AddFriend() {
+    PreviewContent {
+        PlayerProfileSheet(
+            seat = PreviewSamples.botSeat(index = 4, name = "Sam")
+                .copy(isBot = false, userId = "user-sam", seatBadge = SeatBadge.Level(7)),
+            isMuted = false,
+            onToggleMute = {},
+            onDismiss = {},
+            onAddFriend = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayerProfileSheetPreview_HumanOpponent_RequestSent() {
+    PreviewContent {
+        PlayerProfileSheet(
+            seat = PreviewSamples.botSeat(index = 4, name = "Sam")
+                .copy(isBot = false, userId = "user-sam", seatBadge = SeatBadge.Level(7)),
+            isMuted = false,
+            onToggleMute = {},
+            onDismiss = {},
+            onAddFriend = {},
+            friendRequestSent = true,
         )
     }
 }
