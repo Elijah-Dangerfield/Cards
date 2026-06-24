@@ -10,14 +10,19 @@ You are the reviewer for the Cards nightly automation. Workers (1–4am) stacked
 
 1. `git fetch origin && git checkout develop && git pull --rebase origin develop`.
 2. Read `AGENTS.md`.
-3. Read `docs/agent/in-flight.md`. If missing/empty, check `git log --oneline origin/main..origin/develop`:
-   - Zero commits → **exit**.
+3. **Establish this run's review scope.** When multiple pipelines run in one night they stack onto the same open PR, so `origin/main` no longer marks where the last cycle ended (main only advances on merge). Anchor instead on the previous cycle's reviewer boundary — the most recent `chore: clear nightly in-flight log` commit:
+   ```
+   BASE=$(git log --grep="clear nightly in-flight log" --format=%H -n1 origin/develop)
+   BASE=${BASE:-origin/main}   # first cycle of this PR → fall back to main
+   ```
+   Review only `git log --oneline $BASE..origin/develop`. `docs/agent/in-flight.md` holds just this run's blocks (the prior reviewer removed its own). If it's missing/empty:
+   - Zero commits in `$BASE..origin/develop` → **exit**.
    - Commits but no log → reconstruct from diffs, flag the missing log in "Heads up."
 4. `gh pr list --head develop --base main --state open --json number,url`. If one exists, **append** a new cycle block to its body and push your commits — don't open a duplicate, don't rewrite prior cycles' notes. See "Closing out" for the append mechanics.
 
 ## Per-commit review
 
-For each in-flight block (and each commit since `origin/main`):
+For each in-flight block (and each commit in this run's scope, `$BASE..origin/develop` from step 3):
 
 1. `git show <sha>`.
 2. Did the change solve the stated problem? Consider one alternative — simpler/safer?
@@ -83,7 +88,7 @@ Broken: fix as a small commit, or revert the breaking commit. Don't knowingly pu
 2. `git push origin develop`.
 3. Open or update the PR.
 
-   Every cycle writes its own `## Cycle <YYYY-MM-DD>` block. **Talk only about commits your run reviewed/added** — never restate prior cycles, never rewrite their notes. If a previous cycle's Heads up turns out to be wrong or outdated, leave it alone; the human resolves it on merge. Your scope is the diff since the last cycle.
+   Every cycle writes its own `## Cycle <YYYY-MM-DD>` block. **If the PR body already has a block for today's date** (a same-night follow-on run), suffix yours so the two stay distinct: `## Cycle <YYYY-MM-DD> (run 2)`, `(run 3)`, … counting the existing same-day blocks +1. **Talk only about commits your run reviewed/added** — never restate prior cycles, never rewrite their notes. If a previous cycle's Heads up turns out to be wrong or outdated, leave it alone; the human resolves it on merge. Your scope is the diff since the last cycle.
 
    **First cycle of an open PR (no PR against `develop` yet) — create:**
 
@@ -106,6 +111,7 @@ Broken: fix as a small commit, or revert the breaking commit. Don't knowingly pu
 
    ```
    existing=$(gh pr view <number> --json body --jq .body)
+   # If $existing already has a "## Cycle <today>" block, use "## Cycle <today> (run 2)" etc.
    addition=$(cat <<'EOF'
 
    ## Cycle <YYYY-MM-DD>
