@@ -78,6 +78,12 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** Convention plugins live in `build-logic/`; existing `.githooks/` has `commit-msg`. **Out of scope:** migrating the existing string violations — separate cleanup once the gate exists. **Version blocker (needs a human call before this is worker-pickable):** the repo is on Kotlin 2.3.21, but detekt 1.23.x bundles the 2.0.0 compiler and chokes on 2.3 metadata (detekt#8865) — only `dev.detekt` 2.0.0-alpha supports Kotlin 2.3, and gating CI + pre-push on an alpha risks reddening every build. Either pin a deliberate detekt-2-alpha version (then the framework + `verifyStrings` rule can land behind a baseline) or hold until detekt 2 stabilises.
 
+### Hygiene
+
+- `[P2]` **ENG-3 — Replace `runCatching` with `Catching {}` in `ProfileScreen`. (proposed 2026-06-25)** `MyItemsShelves`'s highlight-pulse `LaunchedEffect` wraps `highlightRequester.bringIntoView()` in `runCatching` — the one client-side `runCatching` left in a main source set. Per AGENTS.md it swallows `CancellationException`, so a recompose that cancels the effect mid-call is silently eaten.
+  **Acceptance:** `ProfileScreen.kt:737` uses `Catching {}`; `rg runCatching` over client `commonMain` is empty.
+  **Hints:** `features/profile/impl/src/commonMain/.../ProfileScreen.kt`, import from `:libraries:core`.
+
 ### Billing
 
 - `[P0]` **BILL-1 — Server-side IAP receipt validation + server-authoritative purchase ledger.** Today `ShopViewModel.ConfirmPendingPurchase` drives `billingClient.purchase(...)` and credits chips locally on success — the server never validates the receipt, so a forged receipt mints chips. Before any real-money sale: `POST /v1/billing/redeem` validates against the Apple App Store Server API / Google Play Developer API, then grants chips through the server wallet ledger, idempotent per store transaction id. **Gated on:** store IAP products + store API credentials existing (developer-todo).
