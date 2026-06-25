@@ -1,109 +1,100 @@
-# Achievements — server-authoritative, offline-instant
+# Achievements — how progress is kept
 
-The design for making achievement progress survive reinstall / account-switch
-(PROG-1) without making the unlock feel laggy or break offline. This is the
-reference for the in-flight implementation.
+How achievement progress survives reinstall / account-switch (PROG-1), and the
+deliberate decisions about what is and isn't server-driven. This describes the
+system **as built**.
 
-## The five pieces (don't conflate them)
+## The model: players report facts, not progress
+
+The key idea — and the thing that makes everything else fall out — is that the
+client reports the **raw facts of each finished hand** ("won, pot 1,200, all-in,
+showed a flush, busted 1 opponent"), never per-achievement progress. The server
+folds those facts into every achievement counter.
 
 | Piece | Scope | Lives in |
 |---|---|---|
-| **Definitions** — the catalog: id, which counter, threshold, reward, display | Same for everyone | Bundled default in `:libraries:achievements`; live catalog server-served (overrides + hot-adds) |
-| **Facts** — the raw record of one finished hand ("won, pot 1,200, all-in, showed a flush") | Per user, append-only | `player_stat_events` ledger; client outbox flushes them |
-| **Progress** — counters derived from facts ("7/10 wins vs Jane") | Per user, derived | `AchievementCounters.fold` (shared); materialized on `user_player_stats.achievement_counters` |
-| **Earned / claimed** — which achievements you've unlocked + been paid for | Per user | Server-authoritative; the existing achievements endpoint |
-| **The unlock moment** — crossing the threshold → celebration + reward | — | *See the core decision below* |
+| **Definitions** — the catalog: id, criterion, threshold, reward, display | Same for everyone | **Client code** (`AchievementRegistry`). *Deliberately not server-served — see below.* |
+| **Facts** — the raw record of one finished hand | Per user, append-only | `player_stat_events` ledger; client outbox flushes them to `POST /v1/me/player-stats/sync` |
+| **Progress (counters)** — derived from facts ("7/10 wins vs Jane") | Per user, derived | `AchievementCounters.fold` in shared `:libraries:achievements`; materialized on `user_player_stats.achievement_counters` (JSONB) |
+| **Earned** — which achievements you've unlocked | Per user | Synced to the server (the existing achievements endpoint) |
+| **Unlock + reward** — crossing the threshold → celebration + chips | — | **Client-side, optimistic** (the existing engine). *Not server-validated — see below.* |
 
-The headline win is that **player actions are agnostic of achievements**: the
-client reports raw facts, never per-achievement progress. So a brand-new
-achievement back-fills from a player's stored history the moment it's added — no
-"only counts from today" asterisk.
+Because the server derives counters from raw facts (never from a client-sent
+progress number), a reinstall can't reset or clobber progress: the fresh client
+sends no new facts for already-applied hands, so the server's counters stand.
 
-## The core decision: who decides you crossed the line?
+And because the **facts** are stored append-only, a brand-new achievement
+back-fills from a player's history the moment it's added — "player actions are
+agnostic of achievements."
 
-The client **celebrates optimistically**; the server is the **authority of
-record + reward**.
-
-- The client ships the definitions and runs the *same* shared fold + threshold
-  check, so it knows the instant you cross — and fires the celebration
-  immediately, **even offline**.
-- The server independently re-derives the crossing from the raw facts on sync,
-  owns the durable `earned`/`claimed` record, and grants the reward **exactly
-  once** (keyed wallet event).
-
-**Why optimism is safe:** the celebration doesn't have to be *trusted*. A hacked
-client could fake the popup — but the server gates the actual chips, so faking
-the animation earns nothing. We get the instant dopamine without giving up
-integrity. (Rejected alternative: a thin client where the server decides
-everything and the client GETs to display. Simpler and un-cheatable, but the
-unlock isn't visible until the next flush→GET round trip — and offline bot play
-sees nothing until reconnect. Not acceptable for a reward feature on an
-offline-first app.)
-
-## Data flow
+## Data flow (as built)
 
 ```
-Each hand ─▶ client appends raw FACTS to local outbox ─▶ batched flush
-                  │                                            │
-   (offline) client folds facts → counters → checks      POST /v1/me/player-stats/sync
-   definitions → CELEBRATES instantly                    server folds facts, records
-                                                          EARNED, grants REWARD once,
-                                                          response says "you just
-                                                          earned X (+chips)"
-Achievements screen ─▶ GET → catalog + your progress + earned/claimed
-                            (source of truth; reconciles optimism; how a
-                             reinstall / 2nd device gets it right)
+Each hand ─▶ client appends raw FACTS to the local outbox ─▶ batched flush
+                                                                  │
+                                          POST /v1/me/player-stats/sync
+                                          server folds facts → counters,
+                                          returns the authoritative snapshot
+Stats / Achievements screen
+   • earned badges   ← synced earned set (already cross-device)
+   • progress bars   ← server counters (AchievementProgress.withServerCounters)
+   • unlock + chips  ← local engine, optimistically, offline-instant
 ```
 
-Two properties make this clean:
+- **Progress bars** read the server's counter projection (overlaid onto the
+  local base by `withServerCounters`), so they survive reinstall / account
+  switch. The counters the server doesn't fold from hand facts keep their local
+  value: `current_level` (XP-derived, and XP is separately server-reconciled),
+  `tutorial_complete`, and the always-zero multiplayer keys.
+- **The contract:** the server folds counters under the *same* string keys the
+  client's `Criterion` uses (`no_bust_streak`, `max_pot_seen`, `wins_vs_bot_*`,
+  …). Today that alignment is maintained by hand across the two modules; a future
+  unification onto the shared module's keys would make it compiler-enforced.
 
-- **The flush response carries the unlock.** `POST /sync` already returns your
-  updated counters; it also returns newly-earned achievements + rewards granted.
-  So online, the flush *is* the get — one round trip, no flush-then-GET race.
-- **The GET is the reconciliation surface**, not the dopamine path. It returns
-  the catalog + per-user progress + earned/claimed for the achievements screen,
-  for reconciling a brief optimism divergence, and for a fresh device with no
-  local history. The client never depends on it to celebrate.
+## Two things we deliberately did NOT make server-driven
 
-## Definitions: server-served, bundled default
+Both were considered and rejected for now (with reasons), so the system stays
+simple. They live in the backlog if a concrete need appears.
 
-Endpoint vs config-blob is just packaging; the invariant is that the **client
-ships a bundled default catalog**, because offline / first-launch-no-network it
-needs something to show and evaluate against.
+### 1. Server-*served* achievement definitions (hot-add without a release)
 
-- `:libraries:achievements` holds the definition **shape**, the **bundled
-  default**, and the **fold** — the one module both client and server compile.
-- The server **serves** the live catalog (overrides + hot-added achievements)
-  and **evaluates** the same catalog → no drift between "what it told the
-  client" and "what it grants."
-- Hot-adding an achievement requires no app release **if cards render from
-  data** (data-driven title + an icon the client can resolve without a new
-  asset — emoji or a named-icon set with an "unknown" fallback). Lock that in
-  early or hot-add silently regresses to needing a release.
+Rejected. The client must ship a complete bundled catalog **anyway** for offline,
+so server definitions would *override* the client copy, not replace it —
+duplication, not simplification. And a genuinely new achievement almost always
+needs a new icon/copy → an app release regardless. The only release-free wins
+would be retuning a threshold/reward or a kill-switch, which are rare enough not
+to justify a definitions endpoint + data-driven rendering now. The app-config
+mechanism already exists, so this can be added cheaply later if live-ops needs it.
 
-## What stays where
+### 2. Server-authoritative unlock + reward granting
 
-- **Definitions** → shared code + server catalog (same for everyone).
-- **Earned / claimed state** → per-user achievements endpoint (yours).
-- **Counters** → `user_player_stats.achievement_counters`, derived server-side.
-- **Level / XP** → unchanged; its own `progression.*` config (see
-  [progression.md](progression.md)).
+Deferred. The server *could* re-derive each crossing and grant the chips exactly
+once (anti-cheat, exactly-once across devices) — it already does this for the
+multiplayer achievements. But chips are freemium (no cash-out), so a cheated or
+double-granted achievement reward is in-game inflation, not lost money. For that
+stake it isn't worth moving the bot-mode grant off the existing client-optimistic
+path right now.
 
-## The one trade we accept
+## Known limitation (the cost of deferring #2)
 
-The client carries the definitions + a threshold check (cheap — shared module),
-and we handle the rare "client celebrated, server says already-earned-elsewhere"
-by reconciling from the GET (don't double-celebrate). That's the entire
-downside.
+Progress **display** is server-authoritative, but the client's **unlock engine**
+still reads local counters that reset on reinstall. So immediately after a
+reinstall, a player who was mid-progress and crosses a threshold may see the bar
+at ~100% (server) while the unlock celebration lags until their *local* count
+re-accumulates. The earned set is synced, so already-earned achievements never
+re-fire or get lost — only an in-flight unlock can be delayed in that narrow
+window. Closing this is the backlog item below (reconcile the local engine's
+counters from the server snapshot, or move granting server-side).
 
-## Implementation status (PROG-1)
+→ Backlog: **server-authoritative achievement granting + local-counter reconciliation.**
+
+## Implementation status (PROG-1 — complete for the reset bug)
 
 - **Phase 1 — done.** Server event-sources raw `HandFacts`; `AchievementCounters.fold`
-  materializes every counter on `user_player_stats`; counters exposed on the read
-  endpoint. Streak derived from a bust fact, never a client snapshot.
+  (shared module) materializes every counter on `user_player_stats`; exposed on the
+  read endpoint. Streak derived from a bust fact, never a client snapshot.
 - **Phase 2a — done.** Client sends the full per-hand facts so the rich counters populate.
-- **Phase 2b — in progress.** Point the progress bars at the server counter snapshot
-  (local DAO becomes a cache, not the truth).
-- **Phase 3 — planned.** Definitions as shared-shape + server-served catalog (bundled
-  default); server-authoritative unlock + claim-once with optimistic client celebration;
-  sync response carries newly-earned + reward.
+- **Phase 2b — done.** Progress bars render from the server counters
+  (`withServerCounters`), surviving reinstall / account switch.
+- **Phase 3 — not doing now (backlog).** Server-served definitions and
+  server-validated granting, per the two decisions above.

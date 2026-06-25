@@ -26,14 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## A. UX gaps
 
-### Progression & stats
-
-- `[P1]` **PROG-1 — Make the achievement engine server-authoritative over player stats.** `AchievementRepositoryImpl` accumulates its own per-id progress via local `AchievementDao` counters, so bars reset on account-switch / reinstall. Expand the server stats so it computes/stores every counter the predicates need (reshape `PlayerStatsDto` or add a dedicated achievements-stats endpoint — whichever is cleanest), convert the client predicates to read that snapshot, and record a `claimed_at_value` per achievement so each unlocks once. ~20 counters need server backing today (pot high-water marks, comeback/recovery, good-fold, all-in, doubles/triples, busts-dealt, the 9 hand-strength shows, level) — the rest (`handsPlayed`, no-bust streak, `perBotWins`) already exist on `PlayerStats`.
-
-  **Acceptance:** Sign in on a second device → correct progress after one sync; achievement bars agree with the stats screen.
-
-  **Hints:** Land server schema + endpoint and the client conversion together, achievement-unlock tests green. Server: `apps/server/.../PlayerStatsRepository.kt`, `PlayerStatsDto.kt`, a migration. Client: `AchievementRepositoryImpl.kt`, `AchievementRegistry.kt`, `PlayerStats.kt`.
-
 ### Multiplayer & rooms
 
 - `[P1]` **MP-13 — Persist last-known stack so the crash-recovery sweep can't mint.** The live mint is fixed: a busted-and-dropped player who leaves (or is torn down) is now cashed out their real 0 via `GameSession.lastKnownStack`, not refunded their escrow — and because the leave + teardown paths now derive the same value, the concurrent-cashout race resolves correctly too (`Mp13ConservationTest` proves it over the wire). One edge remains: `lastKnownStacks` is in-memory, so after a server crash the boot recovery sweep (`DefaultTableSessionRecoverySweep`) rehydrates only the snapshot — which has no seat for a busted-dropped player — and still falls through to a full-escrow refund. Persist the last-known stack in the session snapshot (or the `table_sessions` row) so the sweep reads it too.

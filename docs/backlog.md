@@ -713,3 +713,13 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 - **`AccessDeniedScreen` with no appeal URL is a dead end.** `AccessDeniedScreen.kt` blocks back (`BackHandler { }`) and only shows an "Appeal" button when `appealUrl != null`; a banned user with no appeal URL configured has text and no actionable control, and the route is `NavigableWhileBlocked` so it can't be popped until auth state changes. Not MP-specific; an auth/ban-path edge. Ensure an appeal URL is always configured, or give a fallback action.
 
 **Status:** Backlog. Both are real but low-frequency; pull when touching the dialogs or the ban gate.
+
+## Server-authoritative achievement granting + local-counter reconciliation (PROG-1 follow-up)
+
+**Idea (2026-06-25):** PROG-1 made achievement *progress* server-authoritative — the server folds raw hand facts into every counter (`user_player_stats.achievement_counters`) and the bars read it (`AchievementProgress.withServerCounters`), so progress survives reinstall / account switch. What's deliberately deferred:
+
+- **Server-validated unlock + reward granting.** The bot-mode unlock + chip grant still happen client-side optimistically (the existing engine); the server doesn't re-derive the crossing and grant exactly-once (it already does this for the *multiplayer* achievements). Deferred because chips are freemium (no cash-out), so a cheated/double-granted reward is in-game inflation, not lost money. Pull if achievement-reward abuse ever shows up, or for consistency with the rest of the server-authoritative economy.
+- **Local-counter reconciliation (the known gap).** The client's unlock engine reads local counters that still reset on reinstall, so right after a reinstall a mid-progress achievement can show ~100% (server) while the unlock *celebration* lags until the local count re-accumulates. Earned state is synced so nothing re-fires or is lost — only an in-flight unlock is delayed. Cheapest fix: seed/reconcile the local achievement engine's counters from the server snapshot on sync (mirrors how the no-bust streak already seeds). The full fix is server-side granting above.
+- **Server-served definitions (hot-add without a release).** Rejected, not just deferred: the client needs a bundled catalog anyway for offline (so server defs override, not replace — duplication), and new achievements usually need new assets → a release regardless. The app-config mechanism already exists if a release-free threshold-retune / kill-switch is ever genuinely needed.
+
+**Status:** Backlog. The reset bug (the thing that mattered) is fixed and shipped. See `docs/wiki/achievements.md` for the full as-built design + rationale.
