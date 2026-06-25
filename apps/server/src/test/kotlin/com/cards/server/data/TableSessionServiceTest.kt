@@ -371,6 +371,22 @@ class TableSessionServiceTest : DatabaseTest() {
         assertTrue(realTable is SitDownResult.Funded, "the cap gates only bot tables, was $realTable")
     }
 
+    @Test
+    fun incrementRebuy_returnsMonotonicPostIncrementCounts_andPersists() = runTest {
+        // The rebuy ledger key (`table:{id}:rebuy:{n}`) needs a distinct, gap-free
+        // n per top-up. The atomic UPDATE computes `rebuy_count + 1` server-side
+        // off the live row — no read-then-write window — and hands back the new
+        // count. (True concurrent contention can't be reproduced at this layer:
+        // the suspended-transaction harness serializes, and production serializes
+        // rebuys through the game mutex regardless; this pins the value contract.)
+        val repo = newTableSessions()
+        val user = newUser()
+        val funded = newService().sitDown(user, ROOM, CASUAL_BUY_IN) as SitDownResult.Funded
+
+        assertEquals(listOf(1, 2, 3), (1..3).map { repo.incrementRebuy(funded.sessionId) })
+        assertEquals(3, repo.find(funded.sessionId)!!.rebuyCount, "the last write persists")
+    }
+
     private fun newWallets(clock: Clock = Clock.System) = PostgresWalletRepository(database, clock)
     private fun newTableSessions(clock: Clock = Clock.System) = PostgresTableSessionRepository(database, clock)
 
