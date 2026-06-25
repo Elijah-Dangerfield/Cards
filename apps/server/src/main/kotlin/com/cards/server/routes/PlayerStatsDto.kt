@@ -52,8 +52,23 @@ data class PlayerStatHandDto(
     val vsBot: Boolean,
     /** Bot the player beat this hand, when [won] && [vsBot]; null otherwise. */
     val beatenBotId: String? = null,
-    /** Client-computed no-bust streak after this hand (order-dependent). */
+    /** Client-computed no-bust streak after this hand; `0` means busted this hand. */
     val noBustStreak: Long,
+    // Richer facts (PROG-1) — defaulted so a client that hasn't been updated to
+    // send them still applies cleanly; those counters stay zero until it does.
+    // [busted] is reconstructed from `noBustStreak == 0` when null, so the
+    // no-bust streak stays correct without a client change.
+    val busted: Boolean? = null,
+    val botDifficulty: String? = null,
+    val startStack: Long = 0,
+    val endStack: Long = 0,
+    val bigBlind: Long = 0,
+    val potTotal: Long = 0,
+    val wasAllIn: Boolean = false,
+    val wonByFold: Boolean = false,
+    val bustsDealt: Int = 0,
+    val foldedWouldHaveLost: Boolean = false,
+    val handStrengthShown: String? = null,
 )
 
 @Serializable

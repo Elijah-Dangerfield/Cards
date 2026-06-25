@@ -1,23 +1,26 @@
 package com.dangerfield.cards.server.domain
 
-import kotlin.math.max
+import com.dangerfield.cards.libraries.achievements.AchievementCounters
+import com.dangerfield.cards.libraries.achievements.HandFacts
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 /**
- * Server-authoritative player-stats aggregate for a user. Cumulative hand
- * counters, the no-bust streak (current + best), and a per-bot win map.
+ * Server-authoritative player-stats aggregate for a user: the eight headline
+ * counters + the no-bust streak (for the stats screen), plus [counters] — the
+ * full materialized achievement-counter projection.
  *
- * Model 2 (optimistic-local + server-reconciled), mirroring
- * [PlayStyleRepository]: the client records one row per finished hand offline
- * and flushes batches; the server accumulates them idempotently. The
- * append-only `player_stat_events` ledger is keyed `(userId, idempotencyKey)`;
- * re-applying the same key is a no-op.
+ * Event-sourced (Model 2): the append-only `player_stat_events` ledger stores
+ * the complete raw [HandFacts] of each finished hand, keyed `(userId,
+ * idempotencyKey)`; re-applying a key is a no-op. The aggregate is the
+ * materialized read model — [counters] is `AchievementCounters` folded over the
+ * ledger by [AchievementCounters.fold], the same fold the client runs for
+ * optimistic display. The eight headline fields are a denormalized view of
+ * well-known counter keys, kept for the existing stats DTO.
  *
- * Stats are the source of truth for the stats screen, and achievements read
- * their progress from these counters (rather than carrying their own numbers),
- * so adding an achievement later points at an existing counter with no data
- * migration.
+ * Because every counter is derived by the server from raw facts (never from a
+ * client-sent snapshot), a reinstall can't reset or clobber progress: it sends
+ * no new facts for already-applied hands.
  */
 @OptIn(ExperimentalTime::class)
 data class PlayerStats(
@@ -31,6 +34,8 @@ data class PlayerStats(
     val bestNoBustStreak: Long,
     /** Per-bot win counts, keyed by bot id. Empty when no bot beaten yet. */
     val perBotWins: Map<String, Long>,
+    /** The full achievement-counter projection (`name -> value`). */
+    val counters: AchievementCounters,
     val createdAt: Instant,
     val updatedAt: Instant,
 ) {
@@ -46,55 +51,19 @@ data class PlayerStats(
             currentNoBustStreak = 0,
             bestNoBustStreak = 0,
             perBotWins = emptyMap(),
+            counters = AchievementCounters.EMPTY,
             createdAt = now,
             updatedAt = now,
         )
     }
 }
 
-/**
- * Per-hand stat contribution the client flushes. All fields are the raw
- * signals for one finished hand; the server folds them into the aggregate.
- *
- * [noBustStreak] is the client's running no-bust streak *after* this hand —
- * streaks are order-dependent so the server can't re-derive them by summing.
- * The aggregate takes the latest applied value as the current streak and the
- * running max as the best.
- */
-data class PlayerStatHand(
-    val idempotencyKey: String,
-    val mode: String,
-    val won: Boolean,
-    val folded: Boolean,
-    val lostAtShowdown: Boolean,
-    val vsBot: Boolean,
-    /** Bot the player beat this hand, when [won] && [vsBot]; null otherwise. */
-    val beatenBotId: String?,
-    val noBustStreak: Long,
-)
-
-/**
- * Fold one finished hand's signals into [PlayerStats]. The streak fields take
- * the event's snapshot (latest-wins for current, running max for best); every
- * other counter accumulates.
- */
-fun PlayerStats.applying(hand: PlayerStatHand): PlayerStats {
-    val beatenBot = hand.beatenBotId?.takeIf { hand.won && hand.vsBot }
-    val nextPerBotWins = if (beatenBot != null) {
-        perBotWins + (beatenBot to ((perBotWins[beatenBot] ?: 0L) + 1))
-    } else {
-        perBotWins
-    }
-    return copy(
-        handsPlayed = handsPlayed + 1,
-        handsWon = handsWon + if (hand.won) 1 else 0,
-        handsFolded = handsFolded + if (hand.folded) 1 else 0,
-        handsLostAtShowdown = handsLostAtShowdown + if (hand.lostAtShowdown) 1 else 0,
-        botHandsPlayed = botHandsPlayed + if (hand.vsBot) 1 else 0,
-        currentNoBustStreak = hand.noBustStreak,
-        bestNoBustStreak = max(bestNoBustStreak, hand.noBustStreak),
-        perBotWins = nextPerBotWins,
-    )
+/** The per-bot win map ({botId -> wins}) projected out of the `wins_vs_bot_*` counter family. */
+fun AchievementCounters.perBotWins(): Map<String, Long> {
+    val prefix = AchievementCounters.winsVsBot("")
+    return values.asSequence()
+        .filter { it.key.startsWith(prefix) && it.value > 0 }
+        .associate { it.key.removePrefix(prefix) to it.value }
 }
 
 /**
@@ -116,14 +85,15 @@ interface PlayerStatsRepository {
     suspend fun find(userId: UserId): PlayerStats?
 
     /**
-     * Fold one finished hand into the aggregate idempotently. Lazy-creates the
-     * row if missing. Re-applying the same [PlayerStatHand.idempotencyKey]
-     * returns `wasAlreadyApplied = true` and mutates nothing.
+     * Fold one finished hand's raw [HandFacts] into the aggregate idempotently.
+     * Lazy-creates the row if missing. Re-applying the same
+     * [HandFacts.idempotencyKey] returns `wasAlreadyApplied = true` and mutates
+     * nothing.
      *
      * Implementations MUST take a transaction so the ledger row + the bumped
      * aggregate commit together or not at all.
      */
-    suspend fun applyHand(userId: UserId, hand: PlayerStatHand): ApplyPlayerStatOutcome
+    suspend fun applyHand(userId: UserId, facts: HandFacts): ApplyPlayerStatOutcome
 
     /**
      * Wipe player-stats aggregate + ledger for a user. Called from the

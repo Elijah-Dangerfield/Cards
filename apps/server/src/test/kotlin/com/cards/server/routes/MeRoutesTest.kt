@@ -723,7 +723,7 @@ class MeRoutesTest {
         override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.PlayerStats? = null
         override suspend fun applyHand(
             userId: UserId,
-            hand: com.dangerfield.cards.server.domain.PlayerStatHand,
+            facts: com.dangerfield.cards.libraries.achievements.HandFacts,
         ) = error("unused")
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit
