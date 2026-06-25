@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.db.WalletsTable
 import com.dangerfield.cards.server.domain.CashOutResult
 import com.dangerfield.cards.server.domain.RebuyResult
 import com.dangerfield.cards.server.domain.SitDownResult
+import com.dangerfield.cards.server.domain.TableSessionRepository
 import com.dangerfield.cards.server.domain.TableSessionStatus
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.Wallet
@@ -271,6 +272,65 @@ class TableSessionServiceTest : DatabaseTest() {
         service.cashOut(user, finalStack = 200) // walked away down
 
         assertEquals(0, tableSessions.find(funded.sessionId)!!.subsidyGranted, "a loss is no house subsidy")
+    }
+
+    @Test
+    fun subsidizedCashOut_resumedAfterCrash_recordsTheWinExactlyOnce() = runTest {
+        // Crash window: the cash-out credited the wallet but the process died
+        // before `markClosed`, so the boot sweep re-runs cash-out over a still-
+        // `closing` session. The wallet credit is keyed (idempotent), but the
+        // subsidy record + `bot_subsidy_payout` telemetry must NOT fire a second
+        // time — else the Grafana budget dashboard double-counts the same win.
+        val recordingRepo = RecordCountingTableSessions(
+            delegate = PostgresTableSessionRepository(database, Clock.System),
+            swallowFirstMarkClosed = true, // simulate the crash before the first close
+        )
+        val service = DefaultTableSessionService(
+            database = database,
+            tableSessions = recordingRepo,
+            wallets = newWallets(),
+            clock = Clock.System,
+        )
+        val user = newUser()
+        service.sitDown(user, ROOM, CASUAL_BUY_IN, subsidized = true)
+
+        // First cash-out credits the win but "crashes" before markClosed → the
+        // session stays active (`closing`), so the sweep can re-run it.
+        service.cashOut(user, finalStack = CASUAL_BUY_IN + 2_500)
+        // Boot-sweep resume: same keyed credit (already applied), close for real.
+        service.cashOut(user, finalStack = CASUAL_BUY_IN + 2_500)
+
+        assertEquals(
+            1,
+            recordingRepo.recordSubsidyCalls,
+            "the subsidy win is recorded once, not re-counted on the crash-resumed cash-out",
+        )
+        // The player still keeps every chip; only the bookkeeping/telemetry is guarded.
+        assertEquals(Wallet.STARTER_GRANT + 2_500, newWallets().findOrCreate(user).balance)
+    }
+
+    /**
+     * Wraps the real repo to (a) count `recordSubsidyGranted` calls and (b)
+     * optionally swallow the first `markClosed` so a cash-out leaves the session
+     * `closing` — reproducing the crash-before-close window the boot sweep resumes.
+     */
+    private class RecordCountingTableSessions(
+        private val delegate: TableSessionRepository,
+        private val swallowFirstMarkClosed: Boolean,
+    ) : TableSessionRepository by delegate {
+        var recordSubsidyCalls = 0
+            private set
+        private var markClosedCalls = 0
+
+        override suspend fun recordSubsidyGranted(sessionId: java.util.UUID, amount: Long) {
+            recordSubsidyCalls++
+            delegate.recordSubsidyGranted(sessionId, amount)
+        }
+
+        override suspend fun markClosed(sessionId: java.util.UUID): Boolean {
+            if (swallowFirstMarkClosed && markClosedCalls++ == 0) return false
+            return delegate.markClosed(sessionId)
+        }
     }
 
     @Test

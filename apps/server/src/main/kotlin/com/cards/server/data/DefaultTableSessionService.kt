@@ -207,11 +207,14 @@ class DefaultTableSessionService(
         )
 
         // Disclosed-bot subsidy: record the net house-funded win (final stack over
-        // everything the player put in) so it counts against their daily cap. Set,
-        // not added — deterministic from the row, so a crash-resumed cash-out
-        // records the same value. Only a positive net is house-funded; a losing
-        // session granted nothing.
-        if (session.subsidized) {
+        // everything the player put in) so it counts against their daily cap. Only
+        // run this when the credit actually landed *this* call — a crash-resumed
+        // cash-out re-applies the keyed credit as a no-op (`wasAlreadyApplied`), and
+        // re-recording (harmless, it's a `set`) but re-emitting `bot_subsidy_payout`
+        // would double-count the win on the Grafana budget dashboard. Only a
+        // positive net is house-funded; a losing session granted nothing.
+        val creditJustApplied = (outcome as? ApplyOutcome.Applied)?.wasAlreadyApplied == false
+        if (session.subsidized && creditJustApplied) {
             val funded = session.buyIn * (1 + session.rebuyCount)
             val net = (refund - funded).coerceAtLeast(0L)
             if (net > 0) {
