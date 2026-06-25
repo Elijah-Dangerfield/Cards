@@ -62,14 +62,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** The create-room buy-in slider is seeded to a sensible non-zero default (lowest tier); Create is blocked at buy-in 0.
   **Hints:** Create-room form / its slider initial value. Distinct from the backlog post-leave "$0 buy-in after sole-human-left rebound" symptom. Case `docs/agent/feedback-cases/a3b1fc7d414444b295669d047d173ff8.md`; Sentry CARDS-3X (+ CARDS-3N).
 
-- `[P2]` **ROOM-2 — In-room "Leave room" button is unreliable; top back button works.** The dedicated "Leave room" button in the lobby doesn't reliably leave, while the top back arrow (same end action) works every time. Backend leave succeeds (DELETE `/me` → 204) — this is the button's wiring/affordance, not a leave-reliability backend bug.
-  **Acceptance:** The "Leave room" button performs the same leave+navigation as the back affordance, in every lobby state.
-  **Hints:** Point the button's onClick at the same leave action as the back handler; check for a debounce/disabled-state gate or hit-area issue. Not the prior DELETE-409/404 leave-reliability work (MP-5, shipped). Case `docs/agent/feedback-cases/d30606fc0af84acf88b28e4b4ece3e4a.md`; Sentry CARDS-47.
-
-- `[P2]` **ROOM-3 — Mark the current user in the lobby member list.** Owner directive: add a "you" label/badge next to the local player's row in the room lobby so it's obvious which member is you.
-  **Acceptance:** The local player's lobby row shows a "you" label; other members don't.
-  **Hints:** Lobby member-list row in the rooms lobby UI; compare each member's id to the current user id. Owner directive — Sentry CARDS-42.
-
 ---
 
 ## B. Engineering

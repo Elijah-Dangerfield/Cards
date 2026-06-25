@@ -368,3 +368,16 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Device A: stay on the play screen and watch for ~30s.
 
 **Expected:** Device A does not wedge into a tight connect→reconnect loop. If the socket half-opens and keeps dropping, reconnect attempts back off and the attempt counter climbs (1, 2, 3…), then after a bounded number of failures the screen lands on a terminal "lost connection / leave" state instead of looping forever. No rapid-fire "Room socket connected / reconnecting (attempt=1)" churn in the session log. (Covers todo MP-8.)
+
+---
+
+### `MP-10` ⚠️ 📱 Lobby Leave button leaves and navigates
+
+**State:** two devices in the same private room's lobby (from `MP-1`), pre-deal.
+
+1. Device B: tap the in-room "Leave room" button (not the top back arrow). Confirm in the leave dialog.
+2. Repeat on a second attempt from a fresh join.
+
+**Expected:** The Leave button behaves identically to the top back arrow every time — it shows the leave-confirm dialog, then notifies the server and navigates back out of the lobby. Device B never stays stranded on the now-empty lobby. Device A sees B drop from the seat list. (Covers todo ROOM-2.)
+
+- Each lobby seat shows the correct member. The local player's own seat carries a "you" caption under their name; no other seat does. The host badge is unaffected — a host who is also you shows both HOST and the "you" caption. (Covers todo ROOM-3.)

@@ -115,10 +115,11 @@ fun LobbyScreen(
     onAction: (LobbyAction) -> Unit,
     onBack: () -> Unit,
 ) {
-    // Leaving via the in-room Leave button notifies the server and drops
-    // the seat cleanly. Backing out (top-bar or OS back) used to do the
-    // same drop silently, so once seated we intercept back with a confirm
-    // and route the confirmed exit through Leave so the server is told.
+    // One leave path for every affordance: top-bar back, OS back, and the
+    // in-room Leave button all route through requestBack, which confirms then
+    // fires Leave (notifies the server) and onBack (navigates away). The Leave
+    // button used to fire Leave alone, which dropped the seat but left the user
+    // stranded on the now-idle lobby (ROOM-2).
     var confirmingLeave by remember { mutableStateOf(false) }
     val requestBack: () -> Unit = {
         if (state.isInRoom) confirmingLeave = true else onBack()
@@ -161,7 +162,7 @@ fun LobbyScreen(
             Spacer(modifier = Modifier.height(Dimension.D300))
 
             if (state.isInRoom) {
-                InRoomContent(state = state, onAction = onAction)
+                InRoomContent(state = state, onAction = onAction, onLeave = requestBack)
             } else {
                 // We only ever enter the lobby via Create (autoCreate) or Join
                 // (prefilledCode), so room == null means the create/join call
@@ -265,7 +266,11 @@ private fun CreateErrorContent(
 }
 
 @Composable
-private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
+private fun InRoomContent(
+    state: LobbyState,
+    onAction: (LobbyAction) -> Unit,
+    onLeave: () -> Unit,
+) {
     val room = state.room ?: return
     val clipboard = LocalClipboardManager.current
     val copiedMessage = stringResource(Res.string.lobby_in_room_code_copied)
@@ -430,7 +435,7 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     }
 
     com.dangerfield.cards.libraries.ui.components.button.ButtonDanger(
-        onClick = { onAction(LobbyAction.Leave) },
+        onClick = onLeave,
         enabled = !state.leaving,
         style = ButtonStyle.Text,
         modifier = Modifier.fillMaxWidth(),
