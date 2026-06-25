@@ -35,6 +35,13 @@ interface MatchmakingApi {
      * (a GET that creates nothing), so it retries on a transient blip unlike find.
      */
     suspend fun candidates(minBuyIn: Long, maxBuyIn: Long): HttpResponse
+
+    /**
+     * Read-only: the caller's disclosed-bot subsidy draw-down for the rolling
+     * window (`grantedToday` / `cap` / `remaining`). Idempotent — retries on a
+     * transient blip like [candidates].
+     */
+    suspend fun subsidyBudget(): HttpResponse
 }
 
 @SingleIn(AppScope::class)
@@ -66,5 +73,10 @@ class HttpMatchmakingApi(
                 parameter("minBuyIn", minBuyIn)
                 parameter("maxBuyIn", maxBuyIn)
             }
+        }.getOrThrow()
+
+    override suspend fun subsidyBudget(): HttpResponse =
+        networkClient.authedCall("matchmaking.subsidyBudget", retry = RetryPolicy.idempotent()) { client ->
+            client.get("/v1/matchmaking/subsidy-budget")
         }.getOrThrow()
 }

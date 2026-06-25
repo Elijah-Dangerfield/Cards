@@ -298,6 +298,9 @@
     <string name="public_searching_offer_play_bots">Play bots for real chips</string>
     <string name="public_searching_offer_keep_waiting">Keep waiting for players</string>
     <string name="public_searching_offer_try_later">Try again later</string>
+    <!-- Near-cap subsidy disclosure shown on the bot offer so the daily limit is never a surprise (MP-6). %1$s is the remaining bonus chip count. -->
+    <string name="public_searching_offer_subsidy_remaining">Heads up: you have %1$s in daily bonus chips left. You can still play, but winnings past that today won't be topped up.</string>
+    <string name="public_searching_offer_subsidy_exhausted">Heads up: you've used today's bonus chips. You can still play bots, but winnings won't be topped up until tomorrow.</string>
     <string name="public_searching_joining_bots_title">Setting up your table</string>
     <string name="public_searching_joining_bots_body">Seating your opponents and dealing you in…</string>
     <!-- Search failed (network / rate limit / rejected). -->

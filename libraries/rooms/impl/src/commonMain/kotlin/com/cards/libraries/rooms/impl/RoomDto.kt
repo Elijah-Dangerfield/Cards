@@ -142,6 +142,15 @@ data class MatchmakingCandidatesResponseDto(
     val rooms: List<RoomDto> = emptyList(),
 )
 
+/** GET /v1/matchmaking/subsidy-budget response — the caller's subsidy draw-down. */
+@Serializable
+data class SubsidyBudgetResponseDto(
+    val schemaVersion: Int = 1,
+    val grantedToday: Long,
+    val cap: Long,
+    val remaining: Long,
+)
+
 @Serializable
 data class ProblemEnvelopeDto(
     val error: ProblemDto,
