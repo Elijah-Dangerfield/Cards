@@ -1168,7 +1168,7 @@
 
     <!-- Profile - confirm dialog before lighting a stashed XP boost. -->
     <string name="profile_boost_confirm_title">Activate XP Boost?</string>
-    <string name="profile_boost_confirm_message">Your 5-minute window starts now - you\'ll earn double XP on every hand you play. (Achievement XP isn\'t boosted.)</string>
+    <string name="profile_boost_confirm_message">Your 5-minute window starts now - you'll earn double XP on every hand you play. (Achievement XP isn't boosted.)</string>
     <string name="profile_boost_confirm_activate">Activate</string>
     <string name="profile_boost_confirm_cancel">Not yet</string>
 
