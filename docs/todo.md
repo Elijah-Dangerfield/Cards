@@ -51,10 +51,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Lint / static analysis
 
-- `[P1]` **ENG-2 — Stand up detekt as the custom-rule framework, gated in CI + pre-push.** Give the build a growable way to mechanically enforce AGENTS.md conventions. Land the framework (detekt in `libs.versions.toml` + a `build-logic/` convention plugin, wired into `check` and a new `.githooks/pre-push`, behind a baseline) plus rule #1 — `verifyStrings`: fail on inline user-facing string literals outside `:libraries:resources`, allowlisting glyph-only / preview / server-supplied strings.
+- `[P1]` **ENG-2 — Wire the detekt custom-rule framework into the build.** The `:detekt-rules` module — the `cards` rule set + the `VerifyStrings` rule (flags inline user-facing string literals passed to `Text(...)`, allowlisting glyph-only / `@Preview` / non-literal expressions), compiling against detekt 2.0.0-alpha.5 — already exists. What's left is making it run: a `cards.detekt` convention plugin that applies the `dev.detekt` plugin, registers `detektPlugins(project(":detekt-rules"))`, points at a `detekt.yml` enabling the `cards` ruleset, runs behind a generated baseline; applied across the feature/library modules; plus a `.githooks/pre-push` running `./gradlew detekt`.
 
-  **Acceptance:** `Text("Hello")` in a feature `:impl` fails both `./gradlew check` and pre-push; `stringResource(...)` passes; a suppress annotation clears a line; a second rule is just a new rule class + config entry.
+  **Acceptance:** `Text("Hello")` in a feature `:impl` fails both `./gradlew check` and pre-push; `stringResource(...)` passes; a `@Suppress("VerifyStrings")` clears a line; a second rule is just a new rule class + a constructor ref in `CardsRuleSetProvider`.
 
-  **Hints:** Pin `dev.detekt` 2.0.0-alpha (the only line that supports Kotlin 2.3.21; it's a dev/CI-only build dependency, never shipped to users — contain blast radius behind a baseline). `gradle/libs.versions.toml`, a new `build-logic/` convention plugin, `.githooks/pre-push`.
+  **Hints:** detekt 2.0 plugin id is `dev.detekt` (auto-wires `check`). Generate the baseline so existing literals don't break the build. `detekt-test` is unusable on alpha.5 — its `detekt-api` test-fixtures jar 404s on Maven Central — so verify rule behaviour via the real `detekt` task over a sample, not a unit test.
 
   **Out of scope:** migrating existing string violations.
