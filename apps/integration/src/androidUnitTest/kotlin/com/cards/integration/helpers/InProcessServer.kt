@@ -401,6 +401,19 @@ class FakeTableSessions(
             as com.dangerfield.cards.server.domain.ApplyOutcome.Applied
         return com.dangerfield.cards.server.domain.CashOutResult.CashedOut(refund, o.balance)
     }
+
+    override suspend fun subsidyBudget(
+        userId: UserId,
+    ): com.dangerfield.cards.server.domain.SubsidyBudget =
+        com.dangerfield.cards.server.domain.SubsidyBudget(
+            grantedToday = 0L,
+            cap = SUBSIDY_CAP,
+            remaining = SUBSIDY_CAP,
+        )
+
+    private companion object {
+        const val SUBSIDY_CAP = 25_000L
+    }
 }
 
 /** No-op progression source — the integration harness doesn't seat opponent levels. */
