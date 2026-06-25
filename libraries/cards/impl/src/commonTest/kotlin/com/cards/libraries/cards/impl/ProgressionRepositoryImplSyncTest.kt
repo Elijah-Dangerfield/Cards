@@ -212,6 +212,52 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
+    fun degradedPlayDeltas_replayOnceOnClaim_andDoNotDoubleApply() = runUnitTest {
+        // AUTH-2: while account creation is pending the user plays bots and
+        // accrues XP locally (pending rows, no auth to flush them). When the
+        // guest claims their account, onAccountClaimed flushes those rows
+        // exactly once and reconciles the local total to the server's
+        // authoritative value. A second claim/sync replays the same keys, the
+        // server reports AlreadyApplied, and the total must not double-count.
+        val progressionDao = FakeProgressionDao(seedTotalXp = 70L)
+        val xpDao = FakeXpEventDao(xpEvent("local-1", 30), xpEvent("local-2", 40))
+        val appScope = AppCoroutineScope(dispatchers)
+        var hits = 0
+        val repo = buildRepoWithScope(progressionDao, xpDao, appScope) {
+            hits++
+            when (hits) {
+                1 -> respondJson(
+                    """
+                    {"schemaVersion":1,"totalXp":70,"results":[
+                      {"idempotencyKey":"local-1","outcome":"Applied","totalXp":30},
+                      {"idempotencyKey":"local-2","outcome":"Applied","totalXp":70}
+                    ]}
+                    """.trimIndent(),
+                )
+                else -> respondJson(
+                    // The first sync marked both rows synced, so the second
+                    // claim posts an empty batch and just re-hydrates the
+                    // authoritative total — the server holds the deltas once.
+                    """{"schemaVersion":1,"totalXp":70,"results":[]}""",
+                )
+            }
+        }
+
+        repo.onAccountClaimed(AppEvent.AccountClaimed(userId = "guest-1"))
+        appScope.coroutineContext.job.children.toList().forEach { it.join() }
+
+        assertEquals(1, hits, "the claim flushes the pending degraded-play deltas")
+        assertTrue(xpDao.getUnsynced().isEmpty(), "applied degraded-play rows are marked synced")
+        assertEquals(70L, progressionDao.getProgression()?.totalXp, "total reconciles to the server value")
+
+        repo.onAccountClaimed(AppEvent.AccountClaimed(userId = "guest-1"))
+        appScope.coroutineContext.job.children.toList().forEach { it.join() }
+
+        assertEquals(2, hits, "a second claim re-posts (now an empty/replayed batch)")
+        assertEquals(70L, progressionDao.getProgression()?.totalXp, "replay does not double-apply the deltas")
+    }
+
+    @Test
     fun onUserChanged_toSignedOut_doesNotSync() = runUnitTest {
         val appScope = AppCoroutineScope(dispatchers)
         var hits = 0

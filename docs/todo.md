@@ -38,10 +38,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** Verify surface is `features/onboarding/impl/AuthScreens.kt` (`VerifyEmailScreen`, banner sits between body + the Check-verification button). Needs Studio to eyeball.
 
-- `[P1]` **AUTH-2 — Reconcile local bot-play progress when a degraded account is finally created.** While creation is pending (offline), the user plays bots and accrues XP/chips locally against `Profile.Fallback`. Degraded play stays purely local — it doesn't write to the server-bound ledger. When `GuestAccountCreator` succeeds the server is authoritative: replay the pending local deltas on top of the server balance **once**, and never re-grant the provisional starter (`OnboardingStarterGrant`).
-
-  **Hints:** `ChipsRepositoryImpl.sync` already replays pending `wallet_events`; progression/XP sync is the riskier half — same local-until-creation rule.
-
 ### Gameplay & table UX
 
 - `[P2]` **GAME-3 — Emote button glyph isn't optically centered.** The play-poker emote trigger ([`TopBarEmojiButton`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/EmojiTray.kt) → DS [`EmojiButton`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/icon/EmojiButton.kt)) centers its circular bounding box correctly, but the emoji glyph sits slightly up-and-left inside it — the text line-box midpoint ≠ the glyph's visual midpoint.
