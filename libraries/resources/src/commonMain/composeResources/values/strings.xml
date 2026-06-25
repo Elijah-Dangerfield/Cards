@@ -827,6 +827,9 @@
     <!-- Room - transient notice when a non-last opponent leaves a live table. %1$s is their display name. -->
     <string name="room_opponent_left">%1$s left the table</string>
 
+    <!-- Room - confirmation toast after leaving a real-chip table with a credited stack. %1$s is the credited amount, %2$s the new wallet balance. -->
+    <string name="room_leave_cashout_credited">%1$s chips from your seat went back to your wallet. New balance: %2$s.</string>
+
     <!-- Room - Achievement-unlocked callout (inline within hand-end dialogs in MP mode). -->
     <string name="room_achievement_callout_heading">Achievement unlocked</string>
     <string name="room_achievement_reward_xp">+%1$d XP</string>

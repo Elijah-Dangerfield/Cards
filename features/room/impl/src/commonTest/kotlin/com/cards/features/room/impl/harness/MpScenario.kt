@@ -51,6 +51,7 @@ class MpScenarioBuilder(
     private var handle: FakeRoomConnectionHandle = FakeRoomConnectionHandle()
     private val friendRepository = FakeFriendRepository()
     private val chipsRepository = FakeChipsRepository()
+    private val leaveCashOutNotifier = FakeLeaveCashOutNotifier()
 
     /** Pre-seed frames before the VM mounts (e.g. the subscribe-after-deal case). */
     internal suspend fun preSeed(block: suspend FakeRoomConnectionHandle.() -> Unit): MpScenarioBuilder = apply {
@@ -80,6 +81,7 @@ class MpScenarioBuilder(
             profileRepository = FakeProfileRepository(),
             friendRepository = friendRepository,
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
+            leaveCashOutNotifier = leaveCashOutNotifier,
             dispatcherProvider = dispatchers,
             appScope = AppCoroutineScope(dispatchers),
             clock = Clock.System,
@@ -87,7 +89,9 @@ class MpScenarioBuilder(
         )
         val recorder = EventRecorder().also { it.attach(scope.backgroundScope, vm) }
         scope.advanceUntilIdle()
-        return RunningMpScenario(vm, handle, recorder, scope, friendRepository, chipsRepository)
+        return RunningMpScenario(
+            vm, handle, recorder, scope, friendRepository, chipsRepository, leaveCashOutNotifier,
+        )
     }
 }
 
@@ -104,6 +108,7 @@ class RunningMpScenario internal constructor(
     private val scope: TestScope,
     val friendRepository: FakeFriendRepository,
     val chipsRepository: FakeChipsRepository,
+    val leaveCashOutNotifier: FakeLeaveCashOutNotifier,
 ) {
     private var seq: Long = 0L
 

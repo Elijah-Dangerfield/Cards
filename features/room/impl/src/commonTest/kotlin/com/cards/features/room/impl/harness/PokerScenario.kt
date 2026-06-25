@@ -139,6 +139,7 @@ class SoloScenarioBuilder(
             profileRepository = FakeProfileRepository(),
             friendRepository = FakeFriendRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
+            leaveCashOutNotifier = FakeLeaveCashOutNotifier(),
             dispatcherProvider = dispatchers,
             appScope = AppCoroutineScope(dispatchers),
             clock = Clock.System,

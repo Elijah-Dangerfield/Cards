@@ -1363,6 +1363,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         profileRepository = profileRepository,
         friendRepository = FakeFriendRepository(),
         reviewPromptCoordinator = reviewPromptCoordinator,
+        leaveCashOutNotifier = FakeLeaveCashOutNotifier(),
         dispatcherProvider = dispatchers,
         appScope = com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope(dispatchers),
         clock = clock,

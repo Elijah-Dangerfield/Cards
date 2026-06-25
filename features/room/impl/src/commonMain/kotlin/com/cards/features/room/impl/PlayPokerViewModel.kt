@@ -85,6 +85,7 @@ class PlayPokerViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val friendRepository: FriendRepository,
     private val reviewPromptCoordinator: ReviewPromptCoordinator,
+    private val leaveCashOutNotifier: LeaveCashOutNotifier,
     private val dispatcherProvider: DispatcherProvider,
     private val appScope: AppCoroutineScope,
     private val clock: Clock,
@@ -478,9 +479,21 @@ class PlayPokerViewModel @Inject constructor(
         // the wallet, but the client only learns the new balance on the next
         // sync. Without this the won pot stays invisible until the next cold
         // boot / foreground (CARDS-3C: "won 500, wallet unchanged, +100 later").
-        if (sessionFactory.xpMode == XpMode.MULTIPLAYER) {
-            Catching { chipsRepository.sync() }
-                .onFailure { e -> logger.w(e) { "wallet sync after leave failed" } }
+        if (sessionFactory.xpMode != XpMode.MULTIPLAYER) return
+
+        val balanceBefore = chipsRepository.getBalance()
+        Catching { chipsRepository.sync() }
+            .onFailure { e -> logger.w(e) { "wallet sync after leave failed" } }
+        // MP-6: the sync above reconciles the credited stack into the balance,
+        // but a silent number change reads as a glitch. Confirm the credit on
+        // the surface the player lands on so the wallet bump never surprises
+        // them (Sentry CARDS-2N / 2Y). Only fire on a real gain — a lost stack
+        // or empty leave stays quiet.
+        val balanceAfter = chipsRepository.getBalance()
+        if (balanceBefore == null || balanceAfter == null) return
+        val credited = balanceAfter - balanceBefore
+        if (credited > 0L) {
+            leaveCashOutNotifier.confirmCredit(credited = credited, balanceAfter = balanceAfter)
         }
     }
 

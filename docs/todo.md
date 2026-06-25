@@ -79,12 +79,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Out of scope:** Emulator-based UI tests (device-smoke checklist is the substitute) and hand-history regression fixtures (gated on a real production playtest).
 
-- `[P1]` **MP-6 — Confirm the credited amount when a player leaves a subsidized bot table.** A player who wins on a subsidized bot table and leaves should see the credited amount + new wallet balance confirmed (toast / Home summary), so the balance change is never a silent surprise.
-
-  **Acceptance:** A player who wins on a subsidized table and leaves sees the credited amount confirmed.
-
-  **Hints:** `DefaultTableSessionService.cashOut` returns `CashedOut(refunded, balanceAfter)` but the leave HTTP/socket path doesn't surface it to the client yet — needs the amount routed to a post-leave surface. Sentry CARDS-2N / CARDS-2Y.
-
 ---
 
 ## C. Engineering

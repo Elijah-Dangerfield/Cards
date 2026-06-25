@@ -225,6 +225,7 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             profileRepository = FakeProfileRepository(),
             friendRepository = FakeFriendRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
+            leaveCashOutNotifier = FakeLeaveCashOutNotifier(),
             dispatcherProvider = dispatchers,
             appScope = com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope(dispatchers),
             clock = kotlin.time.Clock.System,
