@@ -704,3 +704,12 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Idea (2026-06-25, ENG-2 follow-up):** Standing up the detekt `VerifyStrings` rule baselined 42 existing inline user-facing string literals (`Text("Claim")`, `Text("BUSTED")`, `Text("Report to developers")`, …) in `config/detekt/baseline.xml`. New code is gated, but the baselined ones are real localization/i18n debt frozen in place. Sweep them into `:libraries:resources` (`stringResource(...)`) and shrink the baseline toward empty — each extraction removes its baseline entry. Mechanical but spans many files; do it as a focused sweep, not piecemeal.
 
 **Status:** Backlog. Engineering hygiene, not V1-blocking (the app is English-only for V1); pull when localization or a UI-copy pass comes up.
+
+## Audit follow-ups (lower priority, 2026-06-25)
+
+**Idea (client/lifecycle audit):** Two lower-impact findings from the MP audit, parked rather than filed as todos:
+
+- **Solo Showdown/Bust dialogs dismiss on scrim-tap → silently advance.** `ShowdownDialog` (`onDismissRequest = onNextHand`) and `BustDialog` (`onDealMeIn`) in `HandResultDialogs.kt` advance the hand on a stray outside-tap. Lower harm than the MP real-chips ejection (already fixed) — for solo it may even be intended "tap to continue." Decide whether to lock them with `ModalDialogProperties(dismissOnClickOutside = false)` or keep the convenience.
+- **`AccessDeniedScreen` with no appeal URL is a dead end.** `AccessDeniedScreen.kt` blocks back (`BackHandler { }`) and only shows an "Appeal" button when `appealUrl != null`; a banned user with no appeal URL configured has text and no actionable control, and the route is `NavigableWhileBlocked` so it can't be popped until auth state changes. Not MP-specific; an auth/ban-path edge. Ensure an appeal URL is always configured, or give a fallback action.
+
+**Status:** Backlog. Both are real but low-frequency; pull when touching the dialogs or the ban gate.
