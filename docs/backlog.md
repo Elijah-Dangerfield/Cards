@@ -688,3 +688,13 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Action:** Two follow-ons now the harness exists: (1) add per-action-button coverage (Fold/Call/Raise visible and tappable on the human's turn), accepting the brittleness tradeoff; (2) extend the same harness shape to other feature screens that warrant UI tests. Neither is filed elsewhere.
 
 **Status:** Backlog. Pull when extending UI-test coverage.
+
+---
+
+## Fold HandRankingsCheatSheet off the `BaseBottomSheet` escape hatch
+
+**Idea (raised 2026-06-25):** `HandRankingsCheatSheet.kt:249` uses `BaseBottomSheet` (the `@LowLevelDSComponent` raw layer) because the opinionated `BottomSheet` wrapper doesn't yet expose the content shape it needs (custom drag handle / full-bleed scrollable body). AGENTS.md flags this as an escape that "should resolve by extending `BottomSheet`, not entrenching" — extend the opinionated layer with the missing slot, then route the cheat sheet back through it.
+
+**Why it's backlog, not a worker one-liner:** the fix is a DS design call (what content/handle override to add to `BottomSheet`), not a mechanical swap. Do it when next touching the bottom-sheet primitive.
+
+**Status:** Backlog. Design judgment on the DS surface; AGENTS.md references it.

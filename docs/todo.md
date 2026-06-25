@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-24 · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-25 · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -37,6 +37,12 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P2]` **AUTH-1 — Tune the device-verify banner placement.** Copy is refined; what's left is where the banner sits relative to the verify CTA on `VerifyEmailScreen` — eyeball the spacing/position against the screen and adjust.
 
   **Hints:** Verify surface is `features/onboarding/impl/AuthScreens.kt` (`VerifyEmailScreen`, banner sits between body + the Check-verification button). Needs Studio to eyeball.
+
+- `[P2]` **AUTH-7 — Move onboarding legal-link labels into `:libraries:resources` (proposed 2026-06-25).** The consent line's two tappable link labels are inline literals — `link("Terms of Service")` / `link("Privacy Policy")` in `OnboardingScreen.kt:433-434` — while the surrounding sentence is already resourced (`onboarding_welcome_consent`). Per the string-resource convention these user-facing labels belong in `strings.xml`.
+
+  **Acceptance:** Both labels read via `stringResource`; the link text still matches the substrings inside `onboarding_welcome_consent` so the clickable spans line up.
+
+  **Hints:** Add two entries next to `onboarding_welcome_consent`; the `link(...)` calls take the resolved strings.
 
 ### Gameplay & table UX
 
