@@ -122,14 +122,7 @@ fun AvatarCircle(
 
 private data class AvatarContent(val text: String, val isEmoji: Boolean)
 
-/**
- * Renders a single avatar glyph (emoji or initial) centered on its optical
- * midpoint. A plain centered [Text] floats the glyph slightly high: the line
- * box reserves descent space the glyph doesn't fill, so the visual center sits
- * above the geometric center. Trimming the half-leading and centering within
- * the line box pins the glyph dead-center — the fix the emote bubble and seat
- * avatars both want.
- */
+/** The avatar's emoji/initial in the content color, optically centered via [CenteredGlyph]. */
 @Composable
 private fun AvatarGlyph(text: String, typography: TypographyResource) {
     CenteredGlyph(
