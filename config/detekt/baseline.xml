@@ -1,0 +1,48 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>VerifyStrings:BannerCatalog.kt:"Claim"</ID>
+    <ID>VerifyStrings:BannerCatalog.kt:"View"</ID>
+    <ID>VerifyStrings:BlockingErrorScreen.kt:"Report to developers"</ID>
+    <ID>VerifyStrings:BustedStamp.kt:"BUSTED"</ID>
+    <ID>VerifyStrings:ButtonCatalog.kt:"Danger"</ID>
+    <ID>VerifyStrings:ButtonCatalog.kt:"ExtraSmall"</ID>
+    <ID>VerifyStrings:ButtonCatalog.kt:"Ghost"</ID>
+    <ID>VerifyStrings:ButtonCatalog.kt:"Large"</ID>
+    <ID>VerifyStrings:ButtonCatalog.kt:"Medium"</ID>
+    <ID>VerifyStrings:ButtonCatalog.kt:"Outlined"</ID>
+    <ID>VerifyStrings:ButtonCatalog.kt:"Primary"</ID>
+    <ID>VerifyStrings:ButtonCatalog.kt:"Secondary"</ID>
+    <ID>VerifyStrings:ButtonCatalog.kt:"Small"</ID>
+    <ID>VerifyStrings:ButtonCatalog.kt:"Tertiary"</ID>
+    <ID>VerifyStrings:ButtonCatalog.kt:"Text"</ID>
+    <ID>VerifyStrings:CameraPreview.android.kt:"Camera Ready"</ID>
+    <ID>VerifyStrings:Catalog.kt:"Aa"</ID>
+    <ID>VerifyStrings:ColorCatalog.kt:"accentPrimaryGradient"</ID>
+    <ID>VerifyStrings:DesignSystemColorsScreen.kt:"Design-system color tokens. Reach for a role (AppTheme.colors.xyz), never a raw color."</ID>
+    <ID>VerifyStrings:FormCatalog.kt:"Display name"</ID>
+    <ID>VerifyStrings:NativeButton.jvm.kt:"Native Button"</ID>
+    <ID>VerifyStrings:QaMenuScreen.kt:"Apply"</ID>
+    <ID>VerifyStrings:QaMenuScreen.kt:"Clear all overrides"</ID>
+    <ID>VerifyStrings:QaMenuScreen.kt:"Design system · Colors"</ID>
+    <ID>VerifyStrings:QaMenuScreen.kt:"Grant + activate XP Boost (30m)"</ID>
+    <ID>VerifyStrings:QaMenuScreen.kt:"Override any server-driven config value for this session. Cleared on uninstall."</ID>
+    <ID>VerifyStrings:QaMenuScreen.kt:"Progression"</ID>
+    <ID>VerifyStrings:QaMenuScreen.kt:"Sets XP directly — bypasses the ledger. Level snaps to that level's start XP."</ID>
+    <ID>VerifyStrings:QaMenuScreen.kt:"User ID"</ID>
+    <ID>VerifyStrings:RankDetailSheet.kt:"Claim your account"</ID>
+    <ID>VerifyStrings:RankDetailSheet.kt:"Play with real opponents"</ID>
+    <ID>VerifyStrings:RankDetailSheet.kt:"Sign in with Apple or Google to unlock multiplayer, earn a real rank, and save your chips across devices. Your XP and progress carry over."</ID>
+    <ID>VerifyStrings:RankDetailSheet.kt:"Three separate axes — chips, rank, XP — so a rough session never wipes your sense of progress."</ID>
+    <ID>VerifyStrings:RoomSeat.kt:"Add a bot"</ID>
+    <ID>VerifyStrings:RoomSeat.kt:"Open"</ID>
+    <ID>VerifyStrings:RoomSeat.kt:"joining…"</ID>
+    <ID>VerifyStrings:RoomSeat.kt:"up next"</ID>
+    <ID>VerifyStrings:StatsExplainersSheet.kt:"Bot hands earn at half the rate of multiplayer. XP never depends on whether you win or lose — just on how engaged the hand was."</ID>
+    <ID>VerifyStrings:StatsExplainersSheet.kt:"How XP works"</ID>
+    <ID>VerifyStrings:StatsExplainersSheet.kt:"Multiplayer hands will earn 2× when it ships."</ID>
+    <ID>VerifyStrings:StatsExplainersSheet.kt:"XP is your lifetime engagement score — it never goes down. Every session adds to it whether you stack chips or bust out."</ID>
+    <ID>VerifyStrings:StatsScreen.kt:"Achievements"</ID>
+  </CurrentIssues>
+</SmellBaseline>

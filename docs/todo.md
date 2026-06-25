@@ -44,17 +44,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P1]` **MP-16 — Fix the post-leave $0 buy-in rebound.** A $0 room is already structurally impossible: the create-form slider seeds `DEFAULT_BUY_IN` (`0c4f28a9`) and the server rejects out-of-range buy-ins (`RoomRoutes.kt` create floor). So the remaining user-visible $0 — sole human routed back to the in-room lobby after the other player leaves — is a **stale/placeholder client `Room` snapshot**, not a real room state. Since `buyIn == 0` now provably means "not a real snapshot," make the client refuse to render/stage it (retain the last known-good room rather than overwrite with a $0 one), then remove the `LobbyScreen` band-aid (`if (room.buyIn > 0)` at `LobbyScreen.kt:383`).
   **Acceptance:** After the opponent leaves, the sole-human lobby keeps showing the real stakes; no $0 ever renders; the band-aid is gone.
   **Hints:** Client room state flows through `RoomRepositoryImpl.upsertActive` → lobby state; the rebound snapshot arrives after `MemberLeft`. See backlog "$0 buy-in … after sole-human-left rebound". Case `docs/agent/feedback-cases/a3b1fc7d414444b295669d047d173ff8.md`; Sentry CARDS-3X/CARDS-3N.
-
----
-
-## B. Engineering
-
-### Lint / static analysis
-
-- `[P1]` **ENG-2 — Wire the detekt custom-rule framework into the build.** The `:detekt-rules` module — the `cards` rule set + the `VerifyStrings` rule (flags inline user-facing string literals passed to `Text(...)`, allowlisting glyph-only / `@Preview` / non-literal expressions), compiling against detekt 2.0.0-alpha.5 — already exists. What's left is making it run: a `cards.detekt` convention plugin that applies the `dev.detekt` plugin, registers `detektPlugins(project(":detekt-rules"))`, points at a `detekt.yml` enabling the `cards` ruleset, runs behind a generated baseline; applied across the feature/library modules; plus a `.githooks/pre-push` running `./gradlew detekt`.
-
-  **Acceptance:** `Text("Hello")` in a feature `:impl` fails both `./gradlew check` and pre-push; `stringResource(...)` passes; a `@Suppress("VerifyStrings")` clears a line; a second rule is just a new rule class + a constructor ref in `CardsRuleSetProvider`.
-
-  **Hints:** detekt 2.0 plugin id is `dev.detekt` (auto-wires `check`). Generate the baseline so existing literals don't break the build. `detekt-test` is unusable on alpha.5 — its `detekt-api` test-fixtures jar 404s on Maven Central — so verify rule behaviour via the real `detekt` task over a sample, not a unit test.
-
-  **Out of scope:** migrating existing string violations.

@@ -1,0 +1,10 @@
+# detekt config for the Cards custom ruleset (ENG-2).
+#
+# detekt's built-in rule sets are turned off in build.gradle.kts
+# (disableDefaultRuleSets = true) — this file only configures the custom
+# `cards` rules from :detekt-rules. Adding a rule = a new entry here plus a
+# constructor reference in CardsRuleSetProvider.
+cards:
+  active: true
+  VerifyStrings:
+    active: true
