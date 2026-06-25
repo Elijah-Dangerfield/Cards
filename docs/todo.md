@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-25 · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-25 (feedback triage: CARDS-3N…47) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -45,6 +45,32 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** The glyph reads optically centered in the circle at every `Size`.
 
   **Hints:** The `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
+
+### Multiplayer & rooms
+
+- `[P0]` **MP-13 — MP wallet settlement doesn't conserve chips across a game.** Two humans each started a heads-up game and the sum of their wallets *grew* (10k+10k → 12450+9550 = 22000, +2000 minted). The table-chip side is conserved; the wallet settlement is client-derived with no server-authoritative or test-enforced conservation invariant.
+  **Acceptance:** A full MP game settles wallets so `sum(wallets_after) == sum(wallets_before)`; an integration test plays a complete MP game and asserts conservation.
+  **Hints:** MP chip escrow/settlement shipped in #67; make the server authoritative for MP buy-in debit + pot payout (one ledger entry per seat per game) rather than each client computing its own delta. Likely interacts with the $0-buy-in bug (MP-16). Case `docs/agent/feedback-cases/7b9fada4e2364ed6971fffef505ec57b.md`; Sentry CARDS-3V.
+
+- `[P0]` **MP-14 — Heads-up bust deadlocks the table.** When the loser busts to 0 in a heads-up game, the server (correctly) rejects the next hand with `not enough players with chips for next hand`, but the winner's "next hand" button silently does nothing and the busted player is stuck on "you're out of chips" with no rebuy / match-over / leave resolution.
+  **Acceptance:** On a heads-up bust, the winner sees a match-over result (takes the table) or the busted player gets a rebuy — no dead "next hand" button, no stuck "out of chips" screen.
+  **Hints:** Triggered by the server's `not enough players with chips for next hand` intent_ack rejection at hand end (RequestNextHand). Terminal-state cousin of the prior hand-end-stall family (CARDS-25/16) but a *legitimate* bust — needs a product call on rebuy vs match-over. Case `docs/agent/feedback-cases/e98cfac9d86545ad89083f7341e6f22a.md`; Sentry CARDS-3S.
+
+- `[P1]` **MP-15 — Public matchmaking opens a fresh room instead of joining an existing open one.** Player A opens a public room; Player B's "Find a Room" spins up a brand-new empty room and leaves B stuck on the "searching" screen. B only got in by leaving and joining A's room by code.
+  **Acceptance:** With one eligible open room, `find` lands the searcher in it (members=2), never a new room; a freshly-opened room appears in `candidates` without delay. Covered by a test: A opens → B's find joins A's room.
+  **Hints:** Server log shows `Matchmaking opened public room <new> …` (`InMemoryRoomService.findOrJoinPublic`, ~line 276) firing while an open room existed — join-existing must beat open-new; check the open-room eligibility/visibility filter and any in-memory registry race. Public matchmaking shipped in #67. Case `docs/agent/feedback-cases/cffeaf3aecbd49cd9aacb0ca1daa0155.md`; Sentry CARDS-3Z (+ CARDS-40, CARDS-45).
+
+- `[P1]` **MP-16 — Create-room buy-in defaults to 0 until the slider is touched.** Two testers independently created rooms with a $0 buy-in because the create-room buy-in slider starts at 0 — tapping Create without dragging it yields a meaningless $0 game (and likely feeds the wallet-conservation bug MP-13).
+  **Acceptance:** The create-room buy-in slider is seeded to a sensible non-zero default (lowest tier); Create is blocked at buy-in 0.
+  **Hints:** Create-room form / its slider initial value. Distinct from the backlog post-leave "$0 buy-in after sole-human-left rebound" symptom. Case `docs/agent/feedback-cases/a3b1fc7d414444b295669d047d173ff8.md`; Sentry CARDS-3X (+ CARDS-3N).
+
+- `[P2]` **ROOM-2 — In-room "Leave room" button is unreliable; top back button works.** The dedicated "Leave room" button in the lobby doesn't reliably leave, while the top back arrow (same end action) works every time. Backend leave succeeds (DELETE `/me` → 204) — this is the button's wiring/affordance, not a leave-reliability backend bug.
+  **Acceptance:** The "Leave room" button performs the same leave+navigation as the back affordance, in every lobby state.
+  **Hints:** Point the button's onClick at the same leave action as the back handler; check for a debounce/disabled-state gate or hit-area issue. Not the prior DELETE-409/404 leave-reliability work (MP-5, shipped). Case `docs/agent/feedback-cases/d30606fc0af84acf88b28e4b4ece3e4a.md`; Sentry CARDS-47.
+
+- `[P2]` **ROOM-3 — Mark the current user in the lobby member list.** Owner directive: add a "you" label/badge next to the local player's row in the room lobby so it's obvious which member is you.
+  **Acceptance:** The local player's lobby row shows a "you" label; other members don't.
+  **Hints:** Lobby member-list row in the rooms lobby UI; compare each member's id to the current user id. Owner directive — Sentry CARDS-42.
 
 ---
 
