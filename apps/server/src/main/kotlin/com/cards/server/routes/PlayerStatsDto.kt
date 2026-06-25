@@ -5,8 +5,8 @@ import kotlinx.serialization.Serializable
 /**
  * Wire format for the server-authoritative player-stats endpoints.
  *
- * `GET /v1/me/stats` returns [PlayerStatsResponse] (the cumulative counters +
- * streaks + per-bot wins). `POST /v1/me/stats/sync` accepts
+ * `GET /v1/me/player-stats` returns [PlayerStatsResponse] (the cumulative
+ * counters + streaks + per-bot wins). `POST /v1/me/player-stats/sync` accepts
  * [PlayerStatsSyncRequest] (a batch of per-hand contributions the client wants
  * to flush) and returns [PlayerStatsSyncResponse] with the post-sync snapshot
  * plus per-event outcomes.

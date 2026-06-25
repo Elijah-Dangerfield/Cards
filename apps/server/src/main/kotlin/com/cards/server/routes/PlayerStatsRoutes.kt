@@ -22,23 +22,27 @@ import io.ktor.server.routing.post
  * flushes batches here; the server accumulates them idempotently and serves
  * the authoritative snapshot the stats screen + achievement predicates read.
  *
- * - `GET  /v1/me/stats` — the caller's own stats, lazy-creating at zero.
- * - `POST /v1/me/stats/sync` — flush a batch of per-hand contributions, return
- *   the post-sync snapshot + per-event outcomes.
+ * - `GET  /v1/me/player-stats` — the caller's own stats, lazy-creating at zero.
+ * - `POST /v1/me/player-stats/sync` — flush a batch of per-hand contributions,
+ *   return the post-sync snapshot + per-event outcomes.
+ *
+ * The path is `player-stats`, not `stats`: `GET /v1/me/stats` already serves the
+ * lifetime distinct-opponents read (see [meRoutes]), so these endpoints carve
+ * out their own namespace rather than shadow it.
  *
  * All require a valid Supabase JWT. Stats are private (no public read), unlike
  * play style.
  */
 fun Route.playerStatsRoutes(repository: PlayerStatsRepository) {
     authenticate(SUPABASE_JWT_AUTH) {
-        get("/v1/me/stats") {
+        get("/v1/me/player-stats") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
             val stats = repository.findOrCreate(userId)
             call.respond(HttpStatusCode.OK, PlayerStatsResponse(stats = stats.toDto()))
         }
 
         rateLimit(RateLimitName(PROGRESSION_WRITE_LIMIT)) {
-            post("/v1/me/stats/sync") {
+            post("/v1/me/player-stats/sync") {
                 val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
                 val body = call.receive<PlayerStatsSyncRequest>()
 
