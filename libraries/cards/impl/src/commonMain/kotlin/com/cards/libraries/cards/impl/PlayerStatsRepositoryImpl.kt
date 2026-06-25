@@ -153,6 +153,7 @@ class PlayerStatsRepositoryImpl(
                 currentNoBustStreak = stats.currentNoBustStreak,
                 bestNoBustStreak = stats.bestNoBustStreak,
                 perBotWinsJson = statsJson.encodeToString(PER_BOT_WINS_SERIALIZER, stats.perBotWins),
+                achievementCountersJson = statsJson.encodeToString(PER_BOT_WINS_SERIALIZER, stats.achievementCounters),
                 updatedAtEpochMs = clock.now().toEpochMilliseconds(),
             ),
         )
@@ -189,6 +190,7 @@ class PlayerStatsRepositoryImpl(
         currentNoBustStreak = currentNoBustStreak,
         bestNoBustStreak = bestNoBustStreak,
         perBotWins = decodePerBotWins(perBotWinsJson),
+        achievementCounters = decodePerBotWins(achievementCountersJson),
     )
 
     private fun decodePerBotWins(json: String): Map<String, Long> =

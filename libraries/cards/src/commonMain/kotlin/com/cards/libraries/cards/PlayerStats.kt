@@ -21,6 +21,12 @@ data class PlayerStats(
     val currentNoBustStreak: Long,
     val bestNoBustStreak: Long,
     val perBotWins: Map<String, Long>,
+    /**
+     * The server's full achievement-counter projection (`name -> value`). The
+     * source of truth for achievement progress bars — survives reinstall /
+     * account switch, unlike the local counter cache. Empty until the first sync.
+     */
+    val achievementCounters: Map<String, Long> = emptyMap(),
 ) {
     companion object {
         val Empty = PlayerStats(
@@ -32,6 +38,7 @@ data class PlayerStats(
             currentNoBustStreak = 0,
             bestNoBustStreak = 0,
             perBotWins = emptyMap(),
+            achievementCounters = emptyMap(),
         )
     }
 }
