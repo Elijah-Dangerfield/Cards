@@ -921,6 +921,9 @@
     <string name="room_player_profile_bot_callout_title">This is a bot</string>
     <string name="room_player_profile_bot_callout_body">Bots only see their own hand and the community cards. They don't use AI. Each follows a fixed playing style.</string>
 
+    <!-- Room - Seat caption marking the local player's own seat in the grid. -->
+    <string name="room_seat_you_label">you</string>
+
     <!-- Room - Seat badge (small pill rendered below avatar: human level vs bot difficulty). -->
     <string name="room_seat_badge_level">Lvl %1$d</string>
     <string name="room_seat_badge_bot_with_difficulty">Bot · %1$s</string>
