@@ -75,6 +75,15 @@ interface TableSessionService {
      * [sitDown] enforces with [SitDownResult.SubsidyCapReached].
      */
     suspend fun subsidyBudget(userId: UserId): SubsidyBudget
+
+    /**
+     * Every user with an open (non-closed) table session in [roomCode] — everyone
+     * still holding escrowed chips for this room, whether they're a seated member
+     * or a player who left mid-hand all-in and is awaiting deferred settlement.
+     * The room-teardown cashes each of these out so no escrow is orphaned when the
+     * room closes (MP-17).
+     */
+    suspend fun activeUsersInRoom(roomCode: String): List<UserId>
 }
 
 /**

@@ -255,6 +255,9 @@ class DefaultTableSessionService(
         return CashOutResult.CashedOut(refunded = refund, balanceAfter = outcome.balance)
     }
 
+    override suspend fun activeUsersInRoom(roomCode: String): List<UserId> =
+        tableSessions.findActiveByRoom(roomCode).map { it.userId }
+
     override suspend fun subsidyBudget(userId: UserId): com.dangerfield.cards.server.domain.SubsidyBudget {
         val grantedToday = tableSessions.subsidyGrantedSince(userId, clock.now() - subsidyWindow)
         return com.dangerfield.cards.server.domain.SubsidyBudget(

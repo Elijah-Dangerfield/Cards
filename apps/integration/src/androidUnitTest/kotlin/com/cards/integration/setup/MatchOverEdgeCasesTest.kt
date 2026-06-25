@@ -57,13 +57,37 @@ class MatchOverEdgeCasesTest : IntegrationTest() {
         }
     }
 
-    // NOTE: the "both players leave during a live all-in" case is NOT covered here.
-    // When every client vanishes mid-hand there's no live socket to process the
-    // second leave's forfeit (which would resolve the hand) or to collect the
-    // departed all-in leaver's deferred settlement, so it falls to the boot-sweep
-    // backstop rather than settling in-session. Closing it cleanly means resolving
-    // the live hand + settling pending leavers from RoomTeardownCoordinator (which
-    // owns the wallet at room close) — tracked under MP-17.
+    @Test
+    fun bothPlayersLeaveDuringAllIn_settledAtTeardown_chipsConserve() = integration {
+        // Seat 0 shoves all-in, then BOTH players abandon the table — the shover
+        // (deferred), then the seat facing the shove (which folds, resolving the
+        // hand in the shover's favour). With no live socket left, the shover's
+        // deferred settlement can't be collected in-session; the room-teardown must
+        // settle every still-open session at its resolved stack so no chip is lost.
+        val table = seatTwoAndConnect()
+        server.scriptDeck(
+            table.code,
+            stackedDeck(
+                holeBySeat = listOf(cards("As Ad"), cards("2c 7d")),
+                board = cards("Ah 9c 4s Kd 6h"),
+            ),
+        )
+
+        table.hostGame.startHand()
+        val dealt = table.hostGame.nextSnapshot { it.actingSeatIndex != null }
+        val shover = dealt.actingSeatIndex!!
+        val shoverClient = table.actingClient(dealt)
+        table.gameForSeat(dealt, shover).submit(PlayerIntent.AllIn(seatIndex = shover))
+
+        shoverClient.repository.leaveRoom(table.code)
+        table.other(shoverClient).repository.leaveRoom(table.code)
+
+        awaitUntil(timeoutMs = 10_000) {
+            val h = server.walletBalance(table.host.userId)
+            val j = server.walletBalance(table.joiner.userId)
+            h != null && j != null && h + j == 20_000L
+        }
+    }
 
     @Test
     fun allInWinnerLeavesMidHand_isSettledOnShowdown_chipsConserve() = integration {

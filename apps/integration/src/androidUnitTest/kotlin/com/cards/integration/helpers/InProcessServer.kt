@@ -451,6 +451,9 @@ class FakeTableSessions(
         return com.dangerfield.cards.server.domain.CashOutResult.CashedOut(refund, o.balance)
     }
 
+    override suspend fun activeUsersInRoom(roomCode: String): List<UserId> =
+        synchronized(lock) { active.filterValues { it.roomCode == roomCode }.keys.toList() }
+
     override suspend fun subsidyBudget(
         userId: UserId,
     ): com.dangerfield.cards.server.domain.SubsidyBudget =
