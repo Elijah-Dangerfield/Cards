@@ -24,13 +24,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Progression & stats
 
-- `[P1]` **PROG-1 — Convert the achievement engine to predicates over the server-authoritative player stats.** `StatsViewModel` now reads the no-bust streak off `PlayerStatsRepository.observeStats()`, but the achievement engine still carries its own per-id progress in `AchievementProgress.counters` / `customCounters`, accumulated locally in `AchievementRepositoryImpl.recordHand`. What's left: make the predicates read the cumulative counters / no-bust streak / per-bot wins off the `PlayerStats` snapshot, recording a `claimed_at_value` per achievement so they unlock once and don't re-fire.
+- `[P1]` **PROG-1 — Convert the achievement engine to predicates over `PlayerStats`.** The achievement engine still accumulates its own per-id progress in `AchievementRepositoryImpl.recordHand` (`counters` / `customCounters`), so achievement bars reset on account-switch / reinstall. Make the predicates read cumulative counters / no-bust streak / per-bot wins off the server-authoritative `PlayerStats` snapshot, recording a `claimed_at_value` per achievement so each unlocks once and doesn't re-fire.
 
-  **Approach:** Stats are the source of truth; achievements become predicates over stats. This is the riskier half — it touches the live unlock path in `AchievementRepositoryImpl.recordHand`, so land it as its own commit with the existing achievement unlock tests green.
+  **Acceptance:** Sign in on a second device → correct achievement progress after one sync; stats screen and achievement bars agree; a new achievement points at an existing stat with no data migration.
 
-  **Acceptance:** Sign in on a second device → correct achievement progress after one sync. Stats screen and achievement bars agree. Adding a new achievement later points at an existing stat, no data migration.
-
-  **Hints:** Repo + DTOs: `PlayerStatsRepositoryImpl` / `dto/PlayerStatsDto.kt`. Endpoints are `/v1/me/player-stats` + `/v1/me/player-stats/sync`. `observeStats()` is already an offline-first `Flow<PlayerStats?>` and `StatsViewModel` already injects it (the no-bust streak tiles read from it). The streak the client sends is computed in `PlayerStatHandSummaryBuilder` (seeded from the cached snapshot).
+  **Hints:** `PlayerStats` is already an offline-first `observeStats(): Flow<PlayerStats?>` (`PlayerStatsRepositoryImpl`). Touches the live unlock path — land as its own commit with the achievement-unlock tests green.
 
 ### Auth & onboarding
 
@@ -78,15 +76,16 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Lint / static analysis
 
-- `[P1]` **ENG-2 — Stand up detekt as the project's custom-rule framework, gated in CI + pre-push.** The point is a growable set of AGENTS.md conventions the build mechanically enforces — both in CI and on `.githooks/pre-push` — so neither humans nor the nightly agents can violate them. Land the framework + the first rule now; the rest are cheap follow-ons.
+- `[P1]` **ENG-2 — Stand up detekt as the custom-rule framework, gated in CI + pre-push.** Give the build a growable way to mechanically enforce AGENTS.md conventions. Land the framework + the first rule; later rules (`Catching` over `runCatching`, `DispatcherProvider` over direct `Dispatchers.*`, raw `Color(0xFF…)` for semantic surfaces) are cheap follow-on items.
 
-  - **Framework:** add detekt to `gradle/libs.versions.toml` + a `build-logic/` convention plugin, wire `detekt` into `check` (so CI's existing gradle run catches it) and into a new `.githooks/pre-push`. Land behind a baseline file so the gate is green on day one.
-  - **Rule #1 — `verifyStrings`:** fail on inline user-facing string literals (`Text("…")`, `placeholder = "…"`, VM-emitted copy) outside `:libraries:resources`, with an allowlist for glyph-only / preview / server-supplied strings.
-  - **Follow-on rules (each a separate item, not part of this one):** `Catching {}` over `try/catch` / `runCatching`; `DispatcherProvider` over direct `Dispatchers.{Main,IO,Default,Unconfined}`; raw `Color(0xFF…)` / `Color.White.copy(alpha=)` / one-off `RoundedCornerShape(N.dp)` for semantic surfaces.
+  - **Framework:** add detekt to `gradle/libs.versions.toml` + a `build-logic/` convention plugin, wire it into `check` and a new `.githooks/pre-push`, behind a baseline so the gate is green day one.
+  - **Rule #1 — `verifyStrings`:** fail on inline user-facing string literals (`Text("…")`, `placeholder = "…"`, VM copy) outside `:libraries:resources`, allowlisting glyph-only / preview / server-supplied strings.
 
-  **Acceptance:** Adding `Text("Hello")` to a feature `:impl` fails both `./gradlew check` and the pre-push hook; `stringResource(...)` passes; a documented suppress annotation clears a flagged line; adding a second rule is a localized change (new rule class + config entry), no framework rework.
+  **Acceptance:** `Text("Hello")` in a feature `:impl` fails both `./gradlew check` and pre-push; `stringResource(...)` passes; a suppress annotation clears a line; adding a second rule is a new rule class + config entry, no framework rework.
 
-  **Hints:** Convention plugins live in `build-logic/`; existing `.githooks/` has `commit-msg`. **Out of scope:** migrating the existing string violations — separate cleanup once the gate exists. **Version blocker (needs a human call before this is worker-pickable):** the repo is on Kotlin 2.3.21, but detekt 1.23.x bundles the 2.0.0 compiler and chokes on 2.3 metadata (detekt#8865) — only `dev.detekt` 2.0.0-alpha supports Kotlin 2.3, and gating CI + pre-push on an alpha risks reddening every build. Either pin a deliberate detekt-2-alpha version (then the framework + `verifyStrings` rule can land behind a baseline) or hold until detekt 2 stabilises.
+  **Blocker (needs a human call first):** repo is on Kotlin 2.3.21; detekt 1.23.x bundles the 2.0.0 compiler and chokes on 2.3 metadata (detekt#8865). Only `dev.detekt` 2.0.0-alpha supports Kotlin 2.3 — pin the alpha deliberately or hold until detekt 2 stabilises.
+
+  **Out of scope:** migrating existing string violations — separate cleanup once the gate exists.
 
 ### Billing
 
