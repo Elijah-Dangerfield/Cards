@@ -9,9 +9,10 @@
 #               always — green or red, so post-mortem on a failed test
 #               doesn't require re-running locally) and the debug APK
 #               on push-to-main only (30 days). PR runs upload reports
-#               but not APKs. The `test-results` job aggregates every job's
-#               JUnit XML into one PR comment + a "Test results" check + a
-#               job summary (grand total + per-suite breakdown). Ship by
+#               but not APKs. Each test job publishes its own JUnit XML as an
+#               inline check via dorny/test-reporter ("Unit test results",
+#               "Server test results", "Integration test results") with
+#               pass/fail counts + click-through to failures. Ship by
 #               cutting a release via the release-please PR → release.yml.
 # Edit to change: compile commands or the test task below.
 # See: docs/release-automation.md
@@ -40,10 +41,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# Most jobs only read the repo. The `test-results` job that posts the aggregated
-# comment + check gets its own elevated permissions at the job level.
+# Each test job's dorny/test-reporter step posts an inline check with pass/fail
+# counts and failing-test detail, so a red run doesn't require downloading the
+# artifact zip. checks:write is needed to publish those checks.
 permissions:
   contents: read
+  checks: write
 
 jobs:
   build-and-test:
@@ -105,6 +108,19 @@ jobs:
         # unit-test signal — exclude them from this sweep to avoid running twice.
         run: ./gradlew testDebugUnitTest -x :apps:integration:testDebugUnitTest
 
+      - name: Publish unit test results
+        # Parses the JUnit XML and posts an inline "Unit test results" check
+        # with pass/fail counts + click-through to failing assertions, so a red
+        # run doesn't require downloading the artifact zip. Informational only —
+        # `Build + test` is the gating check.
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit test results
+          path: '**/build/test-results/testDebugUnitTest/*.xml'
+          reporter: java-junit
+          fail-on-error: false
+
       - name: Upload unit test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -153,6 +169,17 @@ jobs:
       - name: Run server tests
         run: ./gradlew :apps:server:test
 
+      - name: Publish server test results
+        # Inline "Server test results" check with pass/fail counts +
+        # failing-test detail. Informational only — `Server tests` gates.
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Server test results
+          path: 'apps/server/build/test-results/test/*.xml'
+          reporter: java-junit
+          fail-on-error: false
+
       - name: Upload server test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -193,6 +220,17 @@ jobs:
       - name: Run integration tests
         run: ./gradlew :apps:integration:testDebugUnitTest
 
+      - name: Publish integration test results
+        # Inline "Integration test results" check with pass/fail counts +
+        # failing-test detail. Informational only — `Integration tests` gates.
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Integration test results
+          path: 'apps/integration/build/test-results/testDebugUnitTest/*.xml'
+          reporter: java-junit
+          fail-on-error: false
+
       - name: Upload integration test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -203,34 +241,3 @@ jobs:
             apps/integration/build/reports/tests/testDebugUnitTest/**
           if-no-files-found: ignore
           retention-days: 14
-
-  test-results:
-    name: Test results
-    # One place to answer "how many tests, how many passed". Aggregates the
-    # JUnit XML uploaded by all three jobs into a single sticky PR comment, one
-    # "Test results" check, and a job summary with the grand total + a
-    # per-suite breakdown + click-through to any failures. Runs even when a test
-    # job fails (if: always) so failures are surfaced, not hidden.
-    needs: [build-and-test, server-test, integration-test]
-    if: always()
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: write
-    steps:
-      - name: Download all test reports
-        uses: actions/download-artifact@v4
-        with:
-          path: test-artifacts
-
-      - name: Publish aggregated test results
-        uses: EnricoMi/publish-unit-test-result-action@v2
-        with:
-          check_name: Test results
-          comment_mode: always
-          # Don't add a second gating signal — the per-job checks already gate;
-          # this is the human-readable rollup.
-          action_fail: false
-          files: |
-            test-artifacts/**/*.xml
