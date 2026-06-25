@@ -647,11 +647,13 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 ---
 
-## Flaky integration test: `LobbyLifecycleTest.hostLeaves_promotedMemberCanStart`
+## Flaky integration tests: multiplayer socket-lifecycle suite
 
-**Symptom:** Fails roughly 1-in-3 full-suite runs of `:apps:integration` on a clean tree (reproduced by a worker on `origin/develop` with all in-flight changes stashed and the new server-restart test removed — still failed ~1/4). A real-time socket-timing race that surfaces under JVM load when the whole suite runs; the test passes reliably in isolation.
+**Symptom:** Two `:apps:integration` tests time out (`TimeoutCancellationException`) intermittently on full-suite runs, while passing reliably in isolation — a real-time socket-timing race that surfaces under JVM load:
+- `LobbyLifecycleTest.hostLeaves_promotedMemberCanStart` — fails roughly 1-in-3 full-suite runs on a clean tree (reproduced by a worker on `origin/develop` with all in-flight changes stashed and the new server-restart test removed — still failed ~1/4).
+- `SetupJourneyTest.hostDropsAndReconnectsFast_bothClientsAgreeOnExactlyOneHost` — observed timing out alongside it on a CI run whose changes (offline lobby error copy, an AppData flag reset, verify-banner strings) don't touch the socket path.
 
-**Action:** Stabilise the host-leaves → promoted-member-can-start path — likely needs a longer / polling await on the promotion-and-reconnect step rather than a one-shot assertion, matching the suite's "real time + generous timeouts, never fixed sleeps" convention. Not introduced by any current PR; flagged during MP-2 review.
+**Action:** Stabilise the host-leaves → promoted-member-can-start and host-drop → single-host-agreement paths — likely needs longer / polling awaits on the promotion-and-reconnect steps rather than one-shot assertions, matching the suite's "real time + generous timeouts, never fixed sleeps" convention. Not introduced by any current PR; first flagged during MP-2 review.
 
 **Status:** Backlog. Pull when stabilising the integration tier.
 
