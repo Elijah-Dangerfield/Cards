@@ -471,6 +471,19 @@ class PlayPokerViewModel @Inject constructor(
         }.onFailure { logger.w(it) { "Review prompt request failed" } }
     }
 
+    private suspend fun leaveAndReconcileWallet() {
+        Catching { session.leave() }
+            .onFailure { e -> logger.w(e) { "room leave failed" } }
+        // On a real-chip table the server cashes the leaver's final stack back to
+        // the wallet, but the client only learns the new balance on the next
+        // sync. Without this the won pot stays invisible until the next cold
+        // boot / foreground (CARDS-3C: "won 500, wallet unchanged, +100 later").
+        if (sessionFactory.xpMode == XpMode.MULTIPLAYER) {
+            Catching { chipsRepository.sync() }
+                .onFailure { e -> logger.w(e) { "wallet sync after leave failed" } }
+        }
+    }
+
     override suspend fun handleAction(action: PlayPokerAction) {
         when (action) {
             is PlayPokerAction.GameStateUpdated -> {
@@ -661,18 +674,12 @@ class PlayPokerViewModel @Inject constructor(
                 // On appScope, not viewModelScope: the screen pops this VM the
                 // instant it fires LeaveTable, but the leave must still reach the
                 // server. No-op for solo.
-                appScope.launch {
-                    Catching { session.leave() }
-                        .onFailure { e -> logger.w(e) { "room leave failed" } }
-                }
+                appScope.launch { leaveAndReconcileWallet() }
             }
             is PlayPokerAction.LeaveGameFromBust -> {
                 // Same teardown as LeaveTable, on appScope so it lands as the
                 // screen routes away.
-                appScope.launch {
-                    Catching { session.leave() }
-                        .onFailure { e -> logger.w(e) { "room leave failed" } }
-                }
+                appScope.launch { leaveAndReconcileWallet() }
             }
             is PlayPokerAction.OpenQuickBuy -> action.updateState { it.copy(quickBuyOpen = true) }
             is PlayPokerAction.DismissQuickBuy -> action.updateState { it.copy(quickBuyOpen = false) }

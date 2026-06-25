@@ -85,12 +85,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** `DefaultTableSessionService.cashOut` returns `CashedOut(refunded, balanceAfter)` but the leave HTTP/socket path doesn't surface it to the client yet — needs the amount routed to a post-leave surface. Sentry CARDS-2N / CARDS-2Y.
 
-- `[P0]` **MP-7 — Private (human-vs-human) table winnings don't settle to the wallet on leave.** A player won a 500-chip pot in a private 2-player room (A5MEME), left, and their wallet showed nothing; a background/foreground later bumped the balance by +100, so the reconcile is not just missing but inconsistent. The server logs `Hand N finished` / seat-forfeit but emits no wallet-credit on leave for a private fake-chip room. Needs a product call on whether private fake-chip rooms move the wallet at all: if yes, this is a settlement bug (mirror the bots path's `cashOut` final-stack credit); if no, the table stack must stop being framed as the wallet balance. Either way "win 500 → wallet unchanged → +100 on resume" is broken and surprising.
-
-  **Acceptance:** Leaving a private MP room settles the final table stack to the wallet exactly once (or, if private rooms are decided not to touch the wallet, the table stack is never presented as a wallet change). No phantom delta appears on the next background/foreground resync.
-
-  **Hints:** Bots path precedent is `DefaultTableSessionService.cashOut` (credits `finalStack`); the private-room leave path has no equivalent. `ChipsRepository.addChips(idempotencyKey=…)` is the idempotent credit primitive; resume reconcile is `ChipsSync`. Case `docs/agent/feedback-cases/b12633cf4d4441a992f5de348a5900a8.md` (full A5MEME story, both seats) + `docs/agent/feedback-cases/624b47e2cfff46fc8d01f66f810d60dd.md` (the +100-on-resume detail). Sentry CARDS-3C/3E + CARDS-3F/3G.
-
 ---
 
 ## C. Engineering

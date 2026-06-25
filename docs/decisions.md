@@ -499,3 +499,16 @@ This makes Supabase feel like "managed Postgres + hosted auth" rather than "all-
 **Alternatives considered:** (1) Time-based health (session up ≥ N ms) — needs an injected clock and is harder to virtualize in the existing `StandardTestDispatcher` tests. (2) Capping the handshake-retry path too — left out to preserve the existing `consecutiveFailures_incrementAttemptCounter` contract and because the reported failure is the connected-then-dropped path, not 5xx handshakes. Deferred as a follow-up.
 
 **Status:** Shipped.
+
+
+---
+
+## 2026-06-24 — Reconcile the wallet on leaving a real-chip MP table (MP-7)
+
+**Decision:** `PlayPokerViewModel` calls `chipsRepository.sync()` immediately after `session.leave()` whenever the table is a real-chip multiplayer table (`XpMode.MULTIPLAYER`). Both leave paths (`LeaveTable`, `LeaveGameFromBust`) route through one `leaveAndReconcileWallet()` helper on `appScope` so the sync outlives the screen pop. Solo/bots practice tables skip the sync (no escrow moves).
+
+**Why:** The server already cashes a leaver's final table stack back to the wallet on leave (`DefaultTableSessionService.cashOut`, keyed/idempotent — proven by `ChipEconomyPlayTest`). The bug was purely client-side reflection: the local wallet is a write-through cache that only hydrates on cold boot / warm foreground, so a player who won a pot and left saw their balance unchanged until the next foreground, when a partial resync surfaced a confusing phantom delta (CARDS-3C: "won 500, wallet unchanged, then +100 later"). Forcing a sync on leave lands the credited stack right away.
+
+**Alternatives considered:** (1) Route the server's `CashedOut(refunded, balanceAfter)` to the client over the socket and apply it optimistically — richer (enables a credited-amount toast, MP-6 part 1) but needs new protocol plumbing on a fan-out leave path with no request/response tie; deferred. (2) Push a server-authoritative balance frame on every leave — same plumbing cost. The sync-on-leave is the minimal correct fix; the existing single-flight mutex on `sync()` collapses any overlap with the foreground resync.
+
+**Status:** Shipped.

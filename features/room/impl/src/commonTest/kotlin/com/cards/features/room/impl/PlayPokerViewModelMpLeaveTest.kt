@@ -170,6 +170,38 @@ class PlayPokerViewModelMpLeaveTest : CoroutineTest() {
         )
     }
 
+    @Test
+    fun leaveTable_onRealChipTable_syncsWalletSoCreditedStackLands() = runUnitTest {
+        // MP-7 / CARDS-3C: the server cashes the leaver's final stack back to the
+        // wallet on leave, but the client only sees the new balance after a sync.
+        // Leaving a real-chip MP table must trigger that sync so a won pot is not
+        // invisible until the next foreground.
+        val scenario = MpScenarioBuilder(this, dispatchers, LOCAL).start()
+        scenario.serverConnection(connected(humans = listOf(LOCAL, PEER)))
+        scenario.serverSnapshot(twoHumanTable(actingSeatIndex = 0))
+
+        scenario.vm.takeAction(PlayPokerAction.LeaveTable)
+        advanceUntilIdle()
+
+        assertEquals(
+            1,
+            scenario.chipsRepository.syncCount,
+            "leaving a real-chip MP table must reconcile the wallet exactly once",
+        )
+    }
+
+    @Test
+    fun leaveGameFromBust_onRealChipTable_syncsWallet() = runUnitTest {
+        val scenario = MpScenarioBuilder(this, dispatchers, LOCAL).start()
+        scenario.serverConnection(connected(humans = listOf(LOCAL, PEER)))
+        scenario.serverSnapshot(twoHumanTable(actingSeatIndex = 0))
+
+        scenario.vm.takeAction(PlayPokerAction.LeaveGameFromBust)
+        advanceUntilIdle()
+
+        assertEquals(1, scenario.chipsRepository.syncCount)
+    }
+
     // ---------- helpers ----------
 
     private fun twoHumanTable(actingSeatIndex: Int) = mpTable(
