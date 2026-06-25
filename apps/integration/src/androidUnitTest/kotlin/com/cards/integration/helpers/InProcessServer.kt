@@ -399,10 +399,13 @@ class FakeTableSessions(
     override suspend fun sitDown(
         userId: UserId,
         roomCode: String,
-        buyIn: Long,
+        requestedBuyIn: Long,
         enforceEntryBar: Boolean,
         subsidized: Boolean,
     ): com.dangerfield.cards.server.domain.SitDownResult {
+        // The harness only ever sits valid (≥ floor) buy-ins, so unlike the real
+        // service this fake skips the MIN_BUY_IN coercion and charges as-requested.
+        val buyIn = requestedBuyIn
         synchronized(lock) { active[userId] }?.let {
             return com.dangerfield.cards.server.domain.SitDownResult.AlreadyAtTable(it.roomCode)
         }
