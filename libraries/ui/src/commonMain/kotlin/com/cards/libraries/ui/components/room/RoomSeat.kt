@@ -25,6 +25,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_seat_you_label
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -33,6 +35,7 @@ import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /** Presence/role state for a seated player in a room grid. */
@@ -160,6 +163,11 @@ private fun FilledSeat(
                 text = "up next",
                 typography = AppTheme.typography.Caption.C300,
                 color = AppTheme.colors.accentPrimary,
+            )
+            player.isYou -> Text(
+                text = stringResource(Res.string.room_seat_you_label),
+                typography = AppTheme.typography.Caption.C300,
+                color = AppTheme.colors.accentSecondary,
             )
         }
     }

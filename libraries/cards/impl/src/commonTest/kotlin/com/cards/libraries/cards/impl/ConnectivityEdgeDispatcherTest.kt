@@ -6,6 +6,8 @@ import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -117,7 +119,12 @@ class ConnectivityEdgeDispatcherTest : CoroutineTest() {
 
     private class RecordingBus : AppEventBus {
         val events = mutableListOf<AppEvent>()
-        override fun dispatch(event: AppEvent) { events += event }
+        private val stream = MutableSharedFlow<AppEvent>(replay = 1, extraBufferCapacity = 64)
+        override fun dispatch(event: AppEvent) {
+            events += event
+            stream.tryEmit(event)
+        }
+        override fun eventStream(): Flow<AppEvent> = stream
     }
 
     private companion object {

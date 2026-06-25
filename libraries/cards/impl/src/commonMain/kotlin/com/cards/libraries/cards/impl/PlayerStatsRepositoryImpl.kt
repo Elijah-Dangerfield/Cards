@@ -1,7 +1,5 @@
 package com.dangerfield.cards.libraries.cards.impl
 
-import com.dangerfield.cards.libraries.cards.AppEvent
-import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.PlayerStatHandSummary
 import com.dangerfield.cards.libraries.cards.PlayerStats
 import com.dangerfield.cards.libraries.cards.PlayerStatsRepository
@@ -16,7 +14,6 @@ import com.dangerfield.cards.libraries.cards.storage.db.PlayerStatsDao
 import com.dangerfield.cards.libraries.cards.storage.db.PlayerStatsEntity
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
-import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.authedCall
 import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
@@ -27,7 +24,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.builtins.MapSerializer
@@ -57,15 +53,14 @@ import kotlin.uuid.Uuid
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = PlayerStatsRepository::class)
-@ContributesBinding(AppScope::class, multibinding = true, boundType = AppEventListener::class)
+@ContributesBinding(AppScope::class, multibinding = true, boundType = UserScopedSyncer::class)
 @Inject
 class PlayerStatsRepositoryImpl(
     private val playerStatsDao: PlayerStatsDao,
     private val playerStatEventDao: PlayerStatEventDao,
     private val networkClient: NetworkClient,
-    private val appScope: AppCoroutineScope,
     private val clock: Clock,
-) : PlayerStatsRepository, AppEventListener {
+) : PlayerStatsRepository, UserScopedSyncer {
 
     private val logger = KLog.withTag("PlayerStatsRepository")
     private val syncMutex = Mutex()
@@ -101,7 +96,8 @@ class PlayerStatsRepositoryImpl(
     override suspend fun sync(): Result<Unit> = syncMutex.withLock {
         // Always POST — an empty events list is a valid "hydrate snapshot" call,
         // which is how a reinstall / second device picks up stats accumulated
-        // elsewhere.
+        // elsewhere. Callers gate *when* to sync (see the event hooks below); this
+        // just does the work.
         networkClient.authedCall("player-stats.sync", retry = RetryPolicy.idempotent()) { client ->
             val pending = playerStatEventDao.getUnsynced()
 
@@ -133,22 +129,6 @@ class PlayerStatsRepositoryImpl(
     override suspend fun deleteAll() {
         playerStatsDao.deleteAll()
         playerStatEventDao.deleteAll()
-    }
-
-    override fun onUserChanged(event: AppEvent.UserChanged) {
-        if (event.current == null) return
-        appScope.launch { sync() }
-    }
-
-    override fun onAccountClaimed(event: AppEvent.AccountClaimed) {
-        appScope.launch { sync() }
-    }
-
-    override fun onForeground(event: AppEvent.OnForeground) {
-        // Cold-boot's initial sync is owned by [onUserChanged]; this handles
-        // the warm-resume reconcile only.
-        if (event.isColdBoot) return
-        appScope.launch { sync() }
     }
 
     private suspend fun cacheSnapshot(stats: PlayerStatsDto) {

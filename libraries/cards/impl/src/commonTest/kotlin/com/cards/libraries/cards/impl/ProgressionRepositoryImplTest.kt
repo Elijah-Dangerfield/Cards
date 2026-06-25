@@ -9,7 +9,6 @@ import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionEntity
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
-import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.networking.InternalNetworkingApi
 import com.dangerfield.cards.libraries.networking.NetworkClient
@@ -302,7 +301,6 @@ class ProgressionRepositoryImplTest : CoroutineTest() {
         progressionDao = dao,
         xpEventDao = ledger,
         networkClient = NeverCalledNetworkClient,
-        appScope = AppCoroutineScope(dispatchers),
         clock = FixedClock(clockEpochMs),
         xpBoostRepository = FixedXpBoostRepository(active = boostActive),
     )

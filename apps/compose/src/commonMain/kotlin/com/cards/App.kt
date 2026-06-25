@@ -1,6 +1,7 @@
 package com.dangerfield.cards
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDeepLinkRequest
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavUri
 import androidx.navigation.compose.NavHost
@@ -372,19 +374,166 @@ private fun AppNavigation(
     topBar: @Composable () -> Unit = {},
 ) {
 
-    val currentBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = navController.currentDestination
-
     // Tag every crash/error with the route the user is currently on. Sheets
     // and dialogs are real destinations on this same back stack (see
     // `bottomSheet`/`dialog` nav builders), so an open sheet wins over the
     // screen beneath it — exactly the granularity we want for triage. Pushed
     // from a LaunchedEffect keyed on the name so we only touch the Sentry
     // scope when the route actually changes, not on every recomposition.
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRouteName = currentBackStackEntry?.destination?.routeClassNameOrNull()
     LaunchedEffect(currentRouteName) {
         currentRouteName?.let { telemetry.setCurrentRoute(it) }
     }
+
+    Screen(
+        topBar = topBar,
+        bottomBar = {
+            // The bottom bar's reactive reads (profile avatar, unread badge, shop
+            // dot, xp-boost tint) live here, NOT in AppNavigation's body — so when
+            // any of them emit, only the bar recomposes. Reading them above would
+            // recompose AppNavigation, which churns [AppNavHost] and (because the
+            // NavHost graph used to rebuild on recomposition) re-pushed the start
+            // destination, silently recreating the current screen's ViewModel.
+            AppChromeBottomBar(
+                navController = navController,
+                router = router,
+                userMessageRepository = userMessageRepository,
+                profileRepository = profileRepository,
+                shopBadgeStateRepository = shopBadgeStateRepository,
+                xpBoostRepository = xpBoostRepository,
+            )
+        },
+        content = { scaffoldPadding ->
+            AppNavHost(
+                navController = navController,
+                startDestination = startDestination,
+                featureEntryPoints = featureEntryPoints,
+                router = router,
+                floatingWindowNavigator = floatingWindowNavigator,
+                contentPadding = scaffoldPadding,
+            )
+        },
+    )
+}
+
+/**
+ * Owns the [NavHost]. Kept as its own composable taking only stable, graph-shaping
+ * inputs so the volatile chrome reads in [AppChromeBottomBar] can't recompose it.
+ *
+ * The graph builder is **remembered**: navigation-compose keys the graph's internal
+ * `remember` on the builder lambda, so a fresh lambda each recomposition would rebuild
+ * the graph and re-push the start destination — which destroys and recreates the
+ * current destination's [NavBackStackEntry], silently resetting its ViewModel (the
+ * onboarding "back to Welcome" bounce). Remembering it keeps the graph built once.
+ */
+@Composable
+private fun AppNavHost(
+    navController: NavHostController,
+    startDestination: Route,
+    featureEntryPoints: Set<FeatureEntryPoint>,
+    router: DelegatingRouter,
+    floatingWindowNavigator: FloatingWindowNavigator,
+    contentPadding: PaddingValues,
+) {
+    val graph: NavGraphBuilder.() -> Unit = remember(featureEntryPoints, router) {
+        {
+            featureEntryPoints.forEach { entryPoint ->
+                with(entryPoint) {
+                    buildNavGraph(router)
+                }
+            }
+            // Shared auth-gate sheet the router substitutes for a route the
+            // current user can't enter (see AuthGateChecker). Registered here
+            // (not in a feature) because its CTAs span onboarding + claim, which
+            // the app layer already knows about.
+            dialog<AuthGateRoute>(
+                // AuthGateRoute carries a GateReason arg; iOS/Native needs an
+                // explicit NavType for it (the base-route types come from the
+                // builder's baseRouteTypeMap).
+                typeMap = mapOf(typeOf<GateReason>() to serializableType<GateReason>()),
+            ) { entry, dialogState ->
+                val reason = entry.toRouteOrNull<AuthGateRoute>()?.reason
+                    ?: GateReason.NeedAccount
+                AuthGateSheet(
+                    reason = reason,
+                    state = dialogState,
+                    onCreateAccount = { router.goBack(); router.navigate(OnboardingRoute()) },
+                    onSaveAccount = { router.goBack(); router.navigate(ClaimAccountRoute()) },
+                    onDismiss = { router.goBack() },
+                )
+            }
+        }
+    }
+
+    val statusBarTop = WindowInsets.statusBars
+        .asPaddingValues()
+        .calculateTopPadding()
+    val chromeTopPadding = (contentPadding.calculateTopPadding() - statusBarTop)
+        .coerceAtLeast(0.dp)
+
+    NavHost(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = chromeTopPadding),
+        navController = navController,
+        startDestination = startDestination,
+        //To make this more readable consider Screens A and B
+        enterTransition = {
+            // A -> B
+            // How should we animate the B screen?
+            // Enter animation should match B's Enter
+            val targetRoute = targetState.toRouteOrNull<Route>()
+            val (animationType, reason) = when {
+                isSwitchingTabs() -> AnimationType.None to "Switching tabs"
+                targetRoute != null -> targetRoute.enter to "Using target route enter animation"
+                else -> AnimationType.None to "Target destination is not a Route; default to none"
+            }
+
+            animationType.toEnterTransition()
+        },
+        popEnterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popExitTransition = {
+            // Popping from B back to A
+            // Initial: B | Target A
+            // How should we animate the B screen
+            // Exit animation should match B's pope Exit
+            val initialRoute = initialState.toRouteOrNull<Route>()
+
+            val (animationType, reason) = when {
+                isSwitchingTabs() -> AnimationType.None to "Switching tabs"
+                initialRoute != null -> initialRoute.popExit to "Using initial route popExit animation"
+                else -> AnimationType.None to "Initial destination is not a Route; default to none"
+            }
+
+            animationType.toExitTransition()
+        },
+        typeMap = baseRouteTypeMap,
+        builder = graph,
+    )
+
+    FloatingWindowHost(floatingWindowNavigator)
+
+    router.Bind(navController)
+}
+
+/**
+ * The bottom-bar chrome. All of its reactive reads (route selection, unread badge,
+ * shop dot, profile avatar, xp-boost tint) are confined here so their emissions
+ * recompose only the bar — never [AppNavigation] or the [AppNavHost] it wraps.
+ */
+@Composable
+private fun AppChromeBottomBar(
+    navController: NavHostController,
+    router: DelegatingRouter,
+    userMessageRepository: com.dangerfield.cards.libraries.cards.UserMessageRepository,
+    profileRepository: ProfileRepository,
+    shopBadgeStateRepository: com.dangerfield.cards.libraries.products.ShopBadgeStateRepository,
+    xpBoostRepository: com.dangerfield.cards.libraries.cards.XpBoostRepository,
+) {
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentDestination = navController.currentDestination
     val shouldHideBottomBar = currentBackStackEntry?.tabString() == null
     val unreadNotifications by userMessageRepository.observeUnreadInboxCount()
         .collectAsState(initial = 0)
@@ -405,158 +554,72 @@ private fun AppNavigation(
         null
     }
 
-    Screen(
-        topBar = topBar,
-        bottomBar = {
-            AnimatedVisibility(
-                visible = !shouldHideBottomBar,
-                enter = slideInVertically { it },
-                exit = slideOutVertically { it },
-            ) {
-                // The Shop tab counts as selected for both the grid
-                // (`ShopRoute`) and its sheet sub-route
-                // (`ShopProductSheetRoute`) — both belong to the Shop tab
-                // visually. Treat tap as already-selected if either route
-                // is current so we don't re-fire navigation while a sheet
-                // is open.
-                val isShopSelected = currentDestination?.hasRoute<ShopRoute>() == true ||
-                    currentDestination?.hasRoute<ShopProductSheetRoute>() == true
+    AnimatedVisibility(
+        visible = !shouldHideBottomBar,
+        enter = slideInVertically { it },
+        exit = slideOutVertically { it },
+    ) {
+        // The Shop tab counts as selected for both the grid (`ShopRoute`) and its
+        // sheet sub-route (`ShopProductSheetRoute`) — both belong to the Shop tab
+        // visually. Treat tap as already-selected if either route is current so we
+        // don't re-fire navigation while a sheet is open.
+        val isShopSelected = currentDestination?.hasRoute<ShopRoute>() == true ||
+            currentDestination?.hasRoute<ShopProductSheetRoute>() == true
 
-                AppBottomBar(
-                    boostProgress = boostProgress,
-                    items = listOf(
-                        BottomBarItem.Home(isSelected = currentDestination?.hasRoute<HomeRoute>() == true),
-                        BottomBarItem.Shop(
-                            isSelected = isShopSelected,
-                            // Dot only shows when the user is NOT already on
-                            // the Shop tab — once you're looking at the
-                            // catalog, the "you should look at the catalog"
-                            // cue is noise.
-                            showsBadgeDot = shopHasUnseenItems && !isShopSelected,
-                        ),
-                        BottomBarItem.Profile(
-                            isSelected = currentDestination?.hasRoute<ProfileRoute>() == true,
-                            badgeAmount = unreadNotifications,
-                            // Honor a locally-chosen (offline) identity so the
-                            // tab avatar isn't a generic icon for a Fallback user.
-                            avatarDisplayName = profile?.displayNameOrNull,
-                            avatarEmoji = profile?.avatarEmojiOrNull,
-                            avatarBackgroundColor = profile?.avatarBackgroundColorOrNull,
-                        ),
-                    ),
-                    onItemClick = { item ->
-                        val (isAlreadySelected, route) = when (item) {
-                            is BottomBarItem.Home -> (currentDestination?.hasRoute<HomeRoute>() == true) to HomeRoute()
-                            // Tab target is the graph entry, not the leaf — only navigating to
-                            // ShopGraph keeps saveState/restoreState working across tab switches.
-                            // (Targeting the inner ShopRoute silently no-ops restoreState and
-                            // recreates the ShopViewModel on every visit.)
-                            is BottomBarItem.Shop -> isShopSelected to ShopGraph
-                            is BottomBarItem.Profile -> (currentDestination?.hasRoute<ProfileRoute>() == true) to ProfileRoute()
-                        }
+        AppBottomBar(
+            boostProgress = boostProgress,
+            items = listOf(
+                BottomBarItem.Home(isSelected = currentDestination?.hasRoute<HomeRoute>() == true),
+                BottomBarItem.Shop(
+                    isSelected = isShopSelected,
+                    // Dot only shows when the user is NOT already on the Shop tab —
+                    // once you're looking at the catalog, the "you should look at
+                    // the catalog" cue is noise.
+                    showsBadgeDot = shopHasUnseenItems && !isShopSelected,
+                ),
+                BottomBarItem.Profile(
+                    isSelected = currentDestination?.hasRoute<ProfileRoute>() == true,
+                    badgeAmount = unreadNotifications,
+                    // Honor a locally-chosen (offline) identity so the tab avatar
+                    // isn't a generic icon for a Fallback user.
+                    avatarDisplayName = profile?.displayNameOrNull,
+                    avatarEmoji = profile?.avatarEmojiOrNull,
+                    avatarBackgroundColor = profile?.avatarBackgroundColorOrNull,
+                ),
+            ),
+            onItemClick = { item ->
+                val (isAlreadySelected, route) = when (item) {
+                    is BottomBarItem.Home -> (currentDestination?.hasRoute<HomeRoute>() == true) to HomeRoute()
+                    // Tab target is the graph entry, not the leaf — only navigating to
+                    // ShopGraph keeps saveState/restoreState working across tab switches.
+                    // (Targeting the inner ShopRoute silently no-ops restoreState and
+                    // recreates the ShopViewModel on every visit.)
+                    is BottomBarItem.Shop -> isShopSelected to ShopGraph
+                    is BottomBarItem.Profile -> (currentDestination?.hasRoute<ProfileRoute>() == true) to ProfileRoute()
+                }
 
-                        if (item is BottomBarItem.Shop) {
-                            // Tab open clears the "new items" dot — whether
-                            // this is a first-tap or a re-tap, the user is
-                            // now looking at the catalog. Fire-and-forget
-                            // via the composition scope; the write is
-                            // idempotent against the current catalog so a
-                            // double-tap is harmless.
-                            shopMarkSeenScope.launch {
-                                shopBadgeStateRepository.markCurrentItemsSeen()
-                            }
-                        }
-
-                        if (isAlreadySelected) {
-                            // Re-tap on the active tab — let the tab react (scroll to
-                            // top, dismiss sheet, etc.) instead of swallowing the tap.
-                            // Subscribers wire up via `router.OnTabReselected(...)`.
-                            router.notifyTabReselected(route)
-                        } else {
-                            KLog.d { "Navigating to bottom bar route: ${item.title}" }
-                            router.switchTab(route)
-                        }
-                    },
-                )
-            }
-        },
-        content = { scaffoldPadding ->
-            val statusBarTop = WindowInsets.statusBars
-                .asPaddingValues()
-                .calculateTopPadding()
-            val chromeTopPadding = (scaffoldPadding.calculateTopPadding() - statusBarTop)
-                .coerceAtLeast(0.dp)
-            NavHost(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = chromeTopPadding),
-                navController = navController,
-                startDestination = startDestination,
-                //To make this more readable consider Screens A and B
-                enterTransition = {
-                    // A -> B
-                    // How should we animate the B screen?
-                    // Enter animation should match B's Enter
-                    val targetRoute = targetState.toRouteOrNull<Route>()
-                    val (animationType, reason) = when {
-                        isSwitchingTabs() -> AnimationType.None to "Switching tabs"
-                        targetRoute != null -> targetRoute.enter to "Using target route enter animation"
-                        else -> AnimationType.None to "Target destination is not a Route; default to none"
-                    }
-
-                    animationType.toEnterTransition()
-                },
-                popEnterTransition = { EnterTransition.None },
-                exitTransition = { ExitTransition.None },
-                popExitTransition = {
-                    // Popping from B back to A
-                    // Initial: B | Target A
-                    // How should we animate the B screen
-                    // Exit animation should match B's pope Exit
-                    val initialRoute = initialState.toRouteOrNull<Route>()
-
-                    val (animationType, reason) = when {
-                        isSwitchingTabs() -> AnimationType.None to "Switching tabs"
-                        initialRoute != null -> initialRoute.popExit to "Using initial route popExit animation"
-                        else -> AnimationType.None to "Initial destination is not a Route; default to none"
-                    }
-
-                    animationType.toExitTransition()
-                },
-                typeMap = baseRouteTypeMap
-            ) {
-                featureEntryPoints.forEach { entryPoint ->
-                    with(entryPoint) {
-                        buildNavGraph(router)
+                if (item is BottomBarItem.Shop) {
+                    // Tab open clears the "new items" dot — whether this is a
+                    // first-tap or a re-tap, the user is now looking at the catalog.
+                    // Fire-and-forget via the composition scope; the write is
+                    // idempotent against the current catalog so a double-tap is harmless.
+                    shopMarkSeenScope.launch {
+                        shopBadgeStateRepository.markCurrentItemsSeen()
                     }
                 }
-                // Shared auth-gate sheet the router substitutes for a route the
-                // current user can't enter (see AuthGateChecker). Registered
-                // here (not in a feature) because its CTAs span onboarding +
-                // claim, which the app layer already knows about.
-                dialog<AuthGateRoute>(
-                    // AuthGateRoute carries a GateReason arg; iOS/Native needs an
-                    // explicit NavType for it (the base-route types come from the
-                    // builder's baseRouteTypeMap).
-                    typeMap = mapOf(typeOf<GateReason>() to serializableType<GateReason>()),
-                ) { entry, dialogState ->
-                    val reason = entry.toRouteOrNull<AuthGateRoute>()?.reason
-                        ?: GateReason.NeedAccount
-                    AuthGateSheet(
-                        reason = reason,
-                        state = dialogState,
-                        onCreateAccount = { router.goBack(); router.navigate(OnboardingRoute()) },
-                        onSaveAccount = { router.goBack(); router.navigate(ClaimAccountRoute()) },
-                        onDismiss = { router.goBack() },
-                    )
+
+                if (isAlreadySelected) {
+                    // Re-tap on the active tab — let the tab react (scroll to top,
+                    // dismiss sheet, etc.) instead of swallowing the tap. Subscribers
+                    // wire up via `router.OnTabReselected(...)`.
+                    router.notifyTabReselected(route)
+                } else {
+                    KLog.d { "Navigating to bottom bar route: ${item.title}" }
+                    router.switchTab(route)
                 }
-            }
-
-            FloatingWindowHost(floatingWindowNavigator)
-
-            router.Bind(navController)
-        },
-    )
+            },
+        )
+    }
 }
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.isSwitchingTabs(): Boolean {

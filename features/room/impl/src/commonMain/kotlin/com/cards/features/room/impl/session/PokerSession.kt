@@ -84,12 +84,27 @@ interface PokerSession {
     val opponentLeft: SharedFlow<String> get() = NeverEmits
 
     /**
+     * Fires when the server rejects a [requestNextHand] because the table can't
+     * deal another hand — heads-up, the loser busted to 0 and nobody else has
+     * chips, so the winner's "next hand" tap would otherwise vanish silently
+     * (MP-14). The screen surfaces a notice; the busted player resolves via the
+     * rebuy dialog. Defaults to a never-emitting flow so solo-bot sessions and
+     * test fakes don't have to override it.
+     */
+    val nextHandUnavailable: SharedFlow<Unit> get() = NeverEmits
+
+    /**
      * Submit the local player's intent. Suspends because the local-bots implementation
      * runs the bot loop synchronously after the human acts.
      */
     suspend fun submit(intent: PlayerIntent)
 
-    /** Signal readiness to advance to the next hand. No-op when no hand is pending. */
+    /**
+     * Signal readiness to advance to the next hand. No-op when no hand is
+     * pending. Remote sessions await the server ack off-band and surface a
+     * rejection via [nextHandUnavailable] rather than to the caller, so this
+     * stays fire-and-forget.
+     */
     fun requestNextHand()
 
     /**

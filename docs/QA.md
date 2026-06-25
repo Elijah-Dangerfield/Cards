@@ -358,6 +358,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Device B sees the bust dialog with re-buy options (move another buy-in from wallet, drop to a lower tier, or — if broke — soft-bust protection). Choosing re-buy moves a fresh buy-in wallet → stack and deals B back in on the next hand. Declining leaves the table cleanly. On a subsidized bots-for-chips table, the bust dialog reads "fresh stack on the house" and the chips stay real (cross-ref `MP-6` settlement). Wallet math is correct after the re-buy — no double debit.
 
+- **Heads-up:** while Device B sits on the bust dialog (hasn't rebought), Device A (the winner) taps "next hand". A is not left with a dead button — a notice toasts ("waiting for your opponent to rebuy or leave") instead of the tap silently doing nothing. (Covers todo MP-14, partial — the terminal match-over routing is still pending.)
+
 ---
 
 ### `MP-9` ⚠️ 📱 Sole opponent leaves a 2-player room — no reconnect storm
@@ -368,3 +370,27 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Device A: stay on the play screen and watch for ~30s.
 
 **Expected:** Device A does not wedge into a tight connect→reconnect loop. If the socket half-opens and keeps dropping, reconnect attempts back off and the attempt counter climbs (1, 2, 3…), then after a bounded number of failures the screen lands on a terminal "lost connection / leave" state instead of looping forever. No rapid-fire "Room socket connected / reconnecting (attempt=1)" churn in the session log. (Covers todo MP-8.)
+
+---
+
+### `MP-10` ⚠️ 📱 Lobby Leave button leaves and navigates
+
+**State:** two devices in the same private room's lobby (from `MP-1`), pre-deal.
+
+1. Device B: tap the in-room "Leave room" button (not the top back arrow). Confirm in the leave dialog.
+2. Repeat on a second attempt from a fresh join.
+
+**Expected:** The Leave button behaves identically to the top back arrow every time — it shows the leave-confirm dialog, then notifies the server and navigates back out of the lobby. Device B never stays stranded on the now-empty lobby. Device A sees B drop from the seat list. (Covers todo ROOM-2.)
+
+- Each lobby seat shows the correct member. The local player's own seat carries a "you" caption under their name; no other seat does. The host badge is unaffected — a host who is also you shows both HOST and the "you" caption. (Covers todo ROOM-3.)
+
+---
+
+### `MP-11` ℹ️ 📱 Lobby never flashes a "$0" buy-in
+
+**State:** two devices; Device A creates a private room with a real buy-in, Device B joins by code.
+
+1. Device A: create a room (any tier).
+2. Device B: join by code and watch the lobby as it loads.
+
+**Expected:** Neither device ever shows a "$0" buy-in or "0 / 0" blinds in the lobby. The stakes/buy-in row either shows the real values or is absent while the room snapshot is still hydrating — it never renders a zero. (Covers todo MP-16, partial — the underlying zero-snapshot source is still being pinned.)

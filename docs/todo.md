@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-25 · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-25 (feedback triage: CARDS-3N…47) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -24,13 +24,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Progression & stats
 
-- `[P1]` **PROG-1 — Convert the achievement engine to predicates over the server-authoritative player stats.** `StatsViewModel` now reads the no-bust streak off `PlayerStatsRepository.observeStats()`, but the achievement engine still carries its own per-id progress in `AchievementProgress.counters` / `customCounters`, accumulated locally in `AchievementRepositoryImpl.recordHand`. What's left: make the predicates read the cumulative counters / no-bust streak / per-bot wins off the `PlayerStats` snapshot, recording a `claimed_at_value` per achievement so they unlock once and don't re-fire.
+- `[P1]` **PROG-1 — Convert the achievement engine to predicates over `PlayerStats`.** The achievement engine still accumulates its own per-id progress in `AchievementRepositoryImpl.recordHand` (`counters` / `customCounters`), so achievement bars reset on account-switch / reinstall. Make the predicates read cumulative counters / no-bust streak / per-bot wins off the server-authoritative `PlayerStats` snapshot, recording a `claimed_at_value` per achievement so each unlocks once and doesn't re-fire.
 
-  **Approach:** Stats are the source of truth; achievements become predicates over stats. This is the riskier half — it touches the live unlock path in `AchievementRepositoryImpl.recordHand`, so land it as its own commit with the existing achievement unlock tests green.
+  **Acceptance:** Sign in on a second device → correct achievement progress after one sync; stats screen and achievement bars agree; a new achievement points at an existing stat with no data migration.
 
-  **Acceptance:** Sign in on a second device → correct achievement progress after one sync. Stats screen and achievement bars agree. Adding a new achievement later points at an existing stat, no data migration.
-
-  **Hints:** Repo + DTOs: `PlayerStatsRepositoryImpl` / `dto/PlayerStatsDto.kt`. Endpoints are `/v1/me/player-stats` + `/v1/me/player-stats/sync`. `observeStats()` is already an offline-first `Flow<PlayerStats?>` and `StatsViewModel` already injects it (the no-bust streak tiles read from it). The streak the client sends is computed in `PlayerStatHandSummaryBuilder` (seeded from the cached snapshot).
+  **Hints:** `PlayerStats` is already an offline-first `observeStats(): Flow<PlayerStats?>` (`PlayerStatsRepositoryImpl`). Touches the live unlock path — land as its own commit with the achievement-unlock tests green.
 
 ### Auth & onboarding
 
@@ -46,21 +44,39 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** The `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
 
+### Multiplayer & rooms
+
+- `[P0]` **MP-13 — MP wallet settlement doesn't conserve chips across a game.** Two humans each started a heads-up game and the sum of their wallets *grew* (10k+10k → 12450+9550 = 22000, +2000 minted). The table-chip side is conserved; the wallet settlement is client-derived with no server-authoritative or test-enforced conservation invariant.
+  **Acceptance:** A full MP game settles wallets so `sum(wallets_after) == sum(wallets_before)`; an integration test plays a complete MP game and asserts conservation.
+  **Hints:** MP chip escrow/settlement shipped in #67; make the server authoritative for MP buy-in debit + pot payout (one ledger entry per seat per game) rather than each client computing its own delta. Likely interacts with the $0-buy-in bug (MP-16). Case `docs/agent/feedback-cases/7b9fada4e2364ed6971fffef505ec57b.md`; Sentry CARDS-3V.
+
+- `[P0]` **MP-14 — Heads-up bust needs a terminal match-over resolution.** The winner's rejected "next hand" no longer no-ops silently (it now toasts "waiting for your opponent to rebuy or leave"), and the busted player already has the rebuy/buy/leave dialog. What's missing is the *terminal* path: if the busted player can't or won't rebuy, the table should resolve to a match-over (winner takes the table) rather than both players idling indefinitely on the "waiting" notice.
+  **Acceptance:** On a heads-up bust where the loser doesn't rebuy, the winner sees a match-over result and is routed off the dead table — no indefinite "waiting" loop.
+  **Hints:** Needs a product call on the resolution trigger (busted-player leave, a rebuy-grace timeout, or an explicit winner "end match" action) and a server-driven match-over signal — there's no match-over concept today. The client already surfaces the rejection via `PlayPokerEvent.NextHandUnavailable` / `PokerSession.nextHandUnavailable`. Case `docs/agent/feedback-cases/e98cfac9d86545ad89083f7341e6f22a.md`; Sentry CARDS-3S.
+
+- `[P1]` **MP-15 — Public matchmaking opens a fresh room instead of joining an existing open one.** Player A opens a public room; Player B's "Find a Room" spins up a brand-new empty room and leaves B stuck on the "searching" screen. B only got in by leaving and joining A's room by code.
+  **Acceptance:** With one eligible open room, `find` lands the searcher in it (members=2), never a new room; a freshly-opened room appears in `candidates` without delay. Covered by a test: A opens → B's find joins A's room.
+  **Hints:** Server log shows `Matchmaking opened public room <new> …` (`InMemoryRoomService.findOrJoinPublic`, ~line 276) firing while an open room existed — join-existing must beat open-new; check the open-room eligibility/visibility filter and any in-memory registry race. Public matchmaking shipped in #67. Case `docs/agent/feedback-cases/cffeaf3aecbd49cd9aacb0ca1daa0155.md`; Sentry CARDS-3Z (+ CARDS-40, CARDS-45).
+
+- `[P1]` **MP-16 — Pin where the lobby's $0 buy-in snapshot leaks from.** The slider seed and the server buyIn=0 reject are already correct, and the lobby now suppresses the stakes/buy-in row while `room.buyIn == 0` so testers no longer see a flashed "$0". What's unconfirmed is *which* snapshot path stages a `buyIn == 0` room in the first place — every wire path (`POST /v1/rooms`, join, the socket `Snapshot`, the active-rooms list) carries the real buy-in via `Room.toDto()`, so the 0 must come from a partial/transient snapshot or a persisted-room restore (`PostgresRoomStore`) reading an unwritten column. Needs runtime traces from a repro to pin and fix at the source.
+  **Hints:** `RoomDto.buyIn` / `Room.buyIn` both default to 0. The display guard lives in `LobbyScreen.kt` `InRoomContent`. Case `docs/agent/feedback-cases/a3b1fc7d414444b295669d047d173ff8.md`; Sentry CARDS-3X (+ CARDS-3N).
+
 ---
 
 ## B. Engineering
 
 ### Lint / static analysis
 
-- `[P1]` **ENG-2 — Stand up detekt as the project's custom-rule framework, gated in CI + pre-push.** The point is a growable set of AGENTS.md conventions the build mechanically enforces — both in CI and on `.githooks/pre-push` — so neither humans nor the nightly agents can violate them. Land the framework + the first rule now; the rest are cheap follow-ons.
+- `[P1]` **ENG-2 — Stand up detekt as the custom-rule framework, gated in CI + pre-push.** Give the build a growable way to mechanically enforce AGENTS.md conventions. Land the framework + the first rule; later rules (`Catching` over `runCatching`, `DispatcherProvider` over direct `Dispatchers.*`, raw `Color(0xFF…)` for semantic surfaces) are cheap follow-on items.
 
-  - **Framework:** add detekt to `gradle/libs.versions.toml` + a `build-logic/` convention plugin, wire `detekt` into `check` (so CI's existing gradle run catches it) and into a new `.githooks/pre-push`. Land behind a baseline file so the gate is green on day one.
-  - **Rule #1 — `verifyStrings`:** fail on inline user-facing string literals (`Text("…")`, `placeholder = "…"`, VM-emitted copy) outside `:libraries:resources`, with an allowlist for glyph-only / preview / server-supplied strings.
-  - **Follow-on rules (each a separate item, not part of this one):** `Catching {}` over `try/catch` / `runCatching`; `DispatcherProvider` over direct `Dispatchers.{Main,IO,Default,Unconfined}`; raw `Color(0xFF…)` / `Color.White.copy(alpha=)` / one-off `RoundedCornerShape(N.dp)` for semantic surfaces.
+  - **Framework:** add detekt to `gradle/libs.versions.toml` + a `build-logic/` convention plugin, wire it into `check` and a new `.githooks/pre-push`, behind a baseline so the gate is green day one.
+  - **Rule #1 — `verifyStrings`:** fail on inline user-facing string literals (`Text("…")`, `placeholder = "…"`, VM copy) outside `:libraries:resources`, allowlisting glyph-only / preview / server-supplied strings.
 
-  **Acceptance:** Adding `Text("Hello")` to a feature `:impl` fails both `./gradlew check` and the pre-push hook; `stringResource(...)` passes; a documented suppress annotation clears a flagged line; adding a second rule is a localized change (new rule class + config entry), no framework rework.
+  **Acceptance:** `Text("Hello")` in a feature `:impl` fails both `./gradlew check` and pre-push; `stringResource(...)` passes; a suppress annotation clears a line; adding a second rule is a new rule class + config entry, no framework rework.
 
-  **Hints:** Convention plugins live in `build-logic/`; existing `.githooks/` has `commit-msg`. **Out of scope:** migrating the existing string violations — separate cleanup once the gate exists. **Version blocker (needs a human call before this is worker-pickable):** the repo is on Kotlin 2.3.21, but detekt 1.23.x bundles the 2.0.0 compiler and chokes on 2.3 metadata (detekt#8865) — only `dev.detekt` 2.0.0-alpha supports Kotlin 2.3, and gating CI + pre-push on an alpha risks reddening every build. Either pin a deliberate detekt-2-alpha version (then the framework + `verifyStrings` rule can land behind a baseline) or hold until detekt 2 stabilises.
+  **Blocker (needs a human call first):** repo is on Kotlin 2.3.21; detekt 1.23.x bundles the 2.0.0 compiler and chokes on 2.3 metadata (detekt#8865). Only `dev.detekt` 2.0.0-alpha supports Kotlin 2.3 — pin the alpha deliberately or hold until detekt 2 stabilises.
+
+  **Out of scope:** migrating existing string violations — separate cleanup once the gate exists.
 
 ### Billing
 

@@ -1,11 +1,9 @@
 package com.dangerfield.cards.libraries.cards.impl
 
-import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionEntity
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
-import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import io.ktor.client.HttpClient
@@ -23,7 +21,6 @@ import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.job
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -42,7 +39,9 @@ import kotlin.time.Instant
  *    the server's authoritative value.
  *  - Unknown outcome → row stays unsynced (a newer client retries).
  *  - Network failure → Result.failure, rows stay unsynced, total untouched.
- *  - onUserChanged(current != null) fires a sync; sign-out (current == null) does not.
+ *
+ * The event-trigger gating (which edges fire a sync) lives in
+ * [UserScopedSyncCoordinatorTest] now, not here.
  */
 class ProgressionRepositoryImplSyncTest : CoroutineTest() {
 
@@ -180,50 +179,16 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
-    fun onUserChanged_toAUser_launchesSync() = runUnitTest {
-        val xpDao = FakeXpEventDao()
-        val appScope = AppCoroutineScope(dispatchers)
-        var hits = 0
-        val repo = buildRepoWithScope(FakeProgressionDao(seedTotalXp = 0L), xpDao, appScope) {
-            hits++
-            respondJson("""{"schemaVersion":1,"totalXp":500,"results":[]}""")
-        }
-
-        repo.onUserChanged(AppEvent.UserChanged(previous = "old", current = "new"))
-        appScope.coroutineContext.job.children.toList().forEach { it.join() }
-
-        assertEquals(1, hits, "an incoming user hydrates XP")
-    }
-
-    @Test
-    fun onAccountClaimed_launchesSync() = runUnitTest {
-        val xpDao = FakeXpEventDao()
-        val appScope = AppCoroutineScope(dispatchers)
-        var hits = 0
-        val repo = buildRepoWithScope(FakeProgressionDao(seedTotalXp = 0L), xpDao, appScope) {
-            hits++
-            respondJson("""{"schemaVersion":1,"totalXp":500,"results":[]}""")
-        }
-
-        repo.onAccountClaimed(AppEvent.AccountClaimed(userId = "guest-1"))
-        appScope.coroutineContext.job.children.toList().forEach { it.join() }
-
-        assertEquals(1, hits, "a just-claimed account flushes XP without waiting for foreground")
-    }
-
-    @Test
-    fun degradedPlayDeltas_replayOnceOnClaim_andDoNotDoubleApply() = runUnitTest {
+    fun degradedPlayDeltas_replayOnceOnSync_andDoNotDoubleApply() = runUnitTest {
         // AUTH-2: while account creation is pending the user plays bots and
-        // accrues XP locally (pending rows, no auth to flush them). When the
-        // guest claims their account, onAccountClaimed flushes those rows
-        // exactly once and reconciles the local total to the server's
-        // authoritative value. A second claim/sync replays the same keys, the
-        // server reports AlreadyApplied, and the total must not double-count.
+        // accrues XP locally (pending rows, no auth to flush them). The first
+        // sync flushes those rows exactly once and reconciles the local total to
+        // the server's authoritative value. A second sync replays the same keys,
+        // the server reports AlreadyApplied, and the total must not double-count.
         val progressionDao = FakeProgressionDao(seedTotalXp = 70L)
         val xpDao = FakeXpEventDao(xpEvent("local-1", 30), xpEvent("local-2", 40))
-        val appScope = AppCoroutineScope(dispatchers)
         var hits = 0
-        val repo = buildRepoWithScope(progressionDao, xpDao, appScope) {
+        val repo = buildRepo(progressionDao, xpDao) {
             hits++
             when (hits) {
                 1 -> respondJson(
@@ -243,33 +208,16 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
             }
         }
 
-        repo.onAccountClaimed(AppEvent.AccountClaimed(userId = "guest-1"))
-        appScope.coroutineContext.job.children.toList().forEach { it.join() }
+        repo.sync()
 
-        assertEquals(1, hits, "the claim flushes the pending degraded-play deltas")
+        assertEquals(1, hits, "the first sync flushes the pending degraded-play deltas")
         assertTrue(xpDao.getUnsynced().isEmpty(), "applied degraded-play rows are marked synced")
         assertEquals(70L, progressionDao.getProgression()?.totalXp, "total reconciles to the server value")
 
-        repo.onAccountClaimed(AppEvent.AccountClaimed(userId = "guest-1"))
-        appScope.coroutineContext.job.children.toList().forEach { it.join() }
+        repo.sync()
 
-        assertEquals(2, hits, "a second claim re-posts (now an empty/replayed batch)")
+        assertEquals(2, hits, "a second sync re-posts (now an empty/replayed batch)")
         assertEquals(70L, progressionDao.getProgression()?.totalXp, "replay does not double-apply the deltas")
-    }
-
-    @Test
-    fun onUserChanged_toSignedOut_doesNotSync() = runUnitTest {
-        val appScope = AppCoroutineScope(dispatchers)
-        var hits = 0
-        val repo = buildRepoWithScope(FakeProgressionDao(seedTotalXp = 0L), FakeXpEventDao(), appScope) {
-            hits++
-            respondJson("""{"schemaVersion":1,"totalXp":0,"results":[]}""")
-        }
-
-        repo.onUserChanged(AppEvent.UserChanged(previous = "old", current = null))
-
-        assertEquals(0, hits, "sign-out has nothing to fetch")
-        assertTrue(appScope.coroutineContext.job.children.toList().isEmpty())
     }
 
     // ---------- Scaffolding ----------
@@ -277,14 +225,6 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
     private fun buildRepo(
         progressionDao: FakeProgressionDao,
         xpDao: FakeXpEventDao,
-        handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
-    ): ProgressionRepositoryImpl =
-        buildRepoWithScope(progressionDao, xpDao, AppCoroutineScope(dispatchers), handler)
-
-    private fun buildRepoWithScope(
-        progressionDao: FakeProgressionDao,
-        xpDao: FakeXpEventDao,
-        appScope: AppCoroutineScope,
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): ProgressionRepositoryImpl {
         val httpClient = HttpClient(MockEngine(handler)) {
@@ -303,7 +243,6 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
             progressionDao = progressionDao,
             xpEventDao = xpDao,
             networkClient = networkClient,
-            appScope = appScope,
             clock = FixedClock,
             xpBoostRepository = InactiveXpBoostRepository,
         )

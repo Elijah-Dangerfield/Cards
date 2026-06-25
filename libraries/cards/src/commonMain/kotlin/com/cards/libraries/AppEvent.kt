@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.cards
 
+import kotlinx.coroutines.flow.Flow
+
 sealed class AppEvent {
     data object ColdBoot : AppEvent()
     data object WarmBoot : AppEvent()
@@ -87,6 +89,14 @@ interface AppEventListener {
  */
 interface AppEventBus {
     fun dispatch(event: AppEvent)
+
+    /**
+     * The same events [dispatch] fans out to listeners, as a hot stream — for
+     * consumers that prefer to react reactively (filter, combine, carry state
+     * across events) instead of implementing [AppEventListener]. Inject [AppEvents]
+     * rather than depending on the bus directly.
+     */
+    fun eventStream(): Flow<AppEvent>
 }
 
 interface AppLifecycleObserver {

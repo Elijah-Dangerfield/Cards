@@ -190,7 +190,7 @@ private fun HomeScreenContent(
                     fadeOut(animationSpec = tween(140)),
             ) {
                 Column {
-                    VerticalSpacerD600()
+                    VerticalSpacerD800()
                     TutorialBanner(
                         onStart = onStartTutorial,
                         onDismiss = onDismissTutorialBanner,
@@ -207,7 +207,7 @@ private fun HomeScreenContent(
                 )
             }
 
-            VerticalSpacerD1100()
+            VerticalSpacerD800()
             SectionHeader(title = stringResource(Res.string.home_section_play))
             VerticalSpacerD600()
             // Rooms-forward home (SPEC §5): Public rooms is the hero (pick a

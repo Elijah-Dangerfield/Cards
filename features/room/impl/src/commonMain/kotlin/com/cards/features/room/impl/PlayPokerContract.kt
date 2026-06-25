@@ -307,6 +307,13 @@ sealed interface PlayPokerEvent {
 
     /** Rebuy rejected for insufficient wallet chips — the screen opens the quick-buy sheet. */
     data object RebuyInsufficientChips : PlayPokerEvent
+
+    /**
+     * The server rejected "next hand" because the table can't deal another one
+     * (heads-up, the opponent busted to 0 with no rebuy yet). The screen toasts
+     * a notice so the winner's tap isn't a silent no-op (MP-14).
+     */
+    data object NextHandUnavailable : PlayPokerEvent
 }
 
 enum class HapticKind { ActionTaken, HandWon, HandLost, Bust, LevelUp }

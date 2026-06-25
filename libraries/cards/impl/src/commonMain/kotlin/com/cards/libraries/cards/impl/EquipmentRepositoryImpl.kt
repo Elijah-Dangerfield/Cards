@@ -1,7 +1,5 @@
 package com.dangerfield.cards.libraries.cards.impl
 
-import com.dangerfield.cards.libraries.cards.AppEvent
-import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.EquipmentSyncState
@@ -13,7 +11,6 @@ import com.dangerfield.cards.libraries.cards.storage.db.EquipmentDao
 import com.dangerfield.cards.libraries.cards.storage.db.EquipmentEntity
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
-import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.authedCall
 import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
@@ -24,7 +21,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.tatarka.inject.annotations.Inject
@@ -47,14 +43,13 @@ import kotlin.time.Clock
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = EquipmentRepository::class)
-@ContributesBinding(AppScope::class, multibinding = true, boundType = AppEventListener::class)
+@ContributesBinding(AppScope::class, multibinding = true, boundType = UserScopedSyncer::class)
 @Inject
 class EquipmentRepositoryImpl(
     private val equipmentDao: EquipmentDao,
     private val networkClient: NetworkClient,
-    private val appScope: AppCoroutineScope,
     private val clock: Clock,
-) : EquipmentRepository, AppEventListener {
+) : EquipmentRepository, UserScopedSyncer {
 
     private val syncLogger = KLog.withTag("EquipmentSync")
     private val syncMutex = Mutex()
@@ -157,29 +152,6 @@ class EquipmentRepositoryImpl(
 
     override suspend fun deleteAll() {
         equipmentDao.deleteAll()
-    }
-
-    override fun onUserChanged(event: AppEvent.UserChanged) {
-        // A user just became active (cold-boot resolve, sign-in, or account
-        // switch). On a switch the prior owner's equipped state was just wiped,
-        // so re-hydrate the new user's loadout now rather than waiting for a
-        // foreground. Sign-out (current == null) has nothing to fetch.
-        if (event.current == null) return
-        appScope.launch { sync() }
-    }
-
-    override fun onAccountClaimed(event: AppEvent.AccountClaimed) {
-        // A guest just claimed their account (same user id, no UserChanged), so
-        // flush pending equipment ops + reconcile the loadout now instead of
-        // waiting for the next foreground.
-        appScope.launch { sync() }
-    }
-
-    override fun onForeground(event: AppEvent.OnForeground) {
-        // Cold-boot's initial sync is owned by [onUserChanged]; this handles
-        // the warm-resume reconcile only.
-        if (event.isColdBoot) return
-        appScope.launch { sync() }
     }
 
     override suspend fun sync(): Result<Unit> = syncMutex.withLock {

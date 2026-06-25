@@ -115,10 +115,11 @@ fun LobbyScreen(
     onAction: (LobbyAction) -> Unit,
     onBack: () -> Unit,
 ) {
-    // Leaving via the in-room Leave button notifies the server and drops
-    // the seat cleanly. Backing out (top-bar or OS back) used to do the
-    // same drop silently, so once seated we intercept back with a confirm
-    // and route the confirmed exit through Leave so the server is told.
+    // One leave path for every affordance: top-bar back, OS back, and the
+    // in-room Leave button all route through requestBack, which confirms then
+    // fires Leave (notifies the server) and onBack (navigates away). The Leave
+    // button used to fire Leave alone, which dropped the seat but left the user
+    // stranded on the now-idle lobby (ROOM-2).
     var confirmingLeave by remember { mutableStateOf(false) }
     val requestBack: () -> Unit = {
         if (state.isInRoom) confirmingLeave = true else onBack()
@@ -161,7 +162,7 @@ fun LobbyScreen(
             Spacer(modifier = Modifier.height(Dimension.D300))
 
             if (state.isInRoom) {
-                InRoomContent(state = state, onAction = onAction)
+                InRoomContent(state = state, onAction = onAction, onLeave = requestBack)
             } else {
                 // We only ever enter the lobby via Create (autoCreate) or Join
                 // (prefilledCode), so room == null means the create/join call
@@ -265,7 +266,11 @@ private fun CreateErrorContent(
 }
 
 @Composable
-private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
+private fun InRoomContent(
+    state: LobbyState,
+    onAction: (LobbyAction) -> Unit,
+    onLeave: () -> Unit,
+) {
     val room = state.room ?: return
     val clipboard = LocalClipboardManager.current
     val copiedMessage = stringResource(Res.string.lobby_in_room_code_copied)
@@ -375,22 +380,27 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     Spacer(modifier = Modifier.height(Dimension.D700))
 
     // Stakes / buy-in — the host's chosen values, carried on the room snapshot.
-    Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D400)) {
-        StakeCard(
-            label = stringResource(Res.string.lobby_in_room_stakes_label),
-            value = "${room.smallBlind} / ${room.bigBlind}",
-            showCoin = true,
-            modifier = Modifier.weight(1f),
-        )
-        StakeCard(
-            label = stringResource(Res.string.lobby_in_room_buyin_label),
-            value = formatChips(room.buyIn),
-            showCoin = false,
-            modifier = Modifier.weight(1f),
-        )
-    }
+    // A real game always has a non-zero buy-in; buyIn == 0 means we're rendering
+    // a not-yet-hydrated snapshot (the DTO defaults to 0), so suppress the whole
+    // row until the live values land rather than flash a meaningless "0".
+    if (room.buyIn > 0) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D400)) {
+            StakeCard(
+                label = stringResource(Res.string.lobby_in_room_stakes_label),
+                value = "${room.smallBlind} / ${room.bigBlind}",
+                showCoin = true,
+                modifier = Modifier.weight(1f),
+            )
+            StakeCard(
+                label = stringResource(Res.string.lobby_in_room_buyin_label),
+                value = formatChips(room.buyIn),
+                showCoin = false,
+                modifier = Modifier.weight(1f),
+            )
+        }
 
-    Spacer(modifier = Modifier.height(Dimension.D700))
+        Spacer(modifier = Modifier.height(Dimension.D700))
+    }
 
     // An Open-to-anyone table deals itself — nobody taps Start. A Private table
     // is host-dealt: the host runs the deal, others wait on them.
@@ -430,7 +440,7 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     }
 
     com.dangerfield.cards.libraries.ui.components.button.ButtonDanger(
-        onClick = { onAction(LobbyAction.Leave) },
+        onClick = onLeave,
         enabled = !state.leaving,
         style = ButtonStyle.Text,
         modifier = Modifier.fillMaxWidth(),

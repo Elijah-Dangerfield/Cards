@@ -2,7 +2,6 @@ package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.storage.db.EquipmentDao
 import com.dangerfield.cards.libraries.cards.storage.db.EquipmentEntity
-import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import io.ktor.client.HttpClient
@@ -390,7 +389,6 @@ class EquipmentRepositoryImplSyncTest : CoroutineTest() {
         return EquipmentRepositoryImpl(
             equipmentDao = dao,
             networkClient = networkClient,
-            appScope = AppCoroutineScope(dispatchers),
             clock = FixedClock,
         )
     }

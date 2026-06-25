@@ -776,6 +776,57 @@ class RemotePokerSessionTest : CoroutineTest() {
     }
 
     @Test
+    fun nextHandUnavailable_emits_whenServerRejectsNextHand() = runUnitTest {
+        // Heads-up bust: the server refuses the next hand because only one
+        // seat has chips. The winner's tap must surface a notice (MP-14)
+        // rather than vanishing silently.
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val unavailable = mutableListOf<Unit>()
+        val runJob = launch { session.run() }
+        val collectJob = launch { session.nextHandUnavailable.collect { unavailable += it } }
+        advanceUntilIdle()
+
+        session.requestNextHand()
+        runCurrent()
+        val frame = assertIs<ClientFrame.RequestNextHand>(handle.sent.single())
+        handle.pushFrame(
+            GameplayFrame.IntentAck(
+                clientNonce = frame.clientNonce,
+                accepted = false,
+                error = "not enough players with chips for next hand",
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(1, unavailable.size, "a rejected next-hand must fan out the unavailable notice")
+        runJob.cancel()
+        collectJob.cancel()
+    }
+
+    @Test
+    fun nextHandUnavailable_doesNotEmit_whenServerAcceptsNextHand() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val unavailable = mutableListOf<Unit>()
+        val runJob = launch { session.run() }
+        val collectJob = launch { session.nextHandUnavailable.collect { unavailable += it } }
+        advanceUntilIdle()
+
+        session.requestNextHand()
+        runCurrent()
+        val frame = assertIs<ClientFrame.RequestNextHand>(handle.sent.single())
+        handle.pushFrame(
+            GameplayFrame.IntentAck(clientNonce = frame.clientNonce, accepted = true, error = null),
+        )
+        advanceUntilIdle()
+
+        assertTrue(unavailable.isEmpty(), "an accepted next-hand must not fire the unavailable notice")
+        runJob.cancel()
+        collectJob.cancel()
+    }
+
+    @Test
     fun requestNextHand_canFire_repeatedlyOverTime() = runUnitTest {
         val handle = FakeRoomConnectionHandle()
         val session = RemotePokerSession(handle)

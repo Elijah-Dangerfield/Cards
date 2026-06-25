@@ -1,7 +1,5 @@
 package com.dangerfield.cards.libraries.cards.impl
 
-import com.dangerfield.cards.libraries.cards.AppEvent
-import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryItem
@@ -29,7 +27,6 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.tatarka.inject.annotations.Inject
@@ -53,7 +50,7 @@ import kotlin.time.Clock
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = InventoryRepository::class)
-@ContributesBinding(AppScope::class, multibinding = true, boundType = AppEventListener::class)
+@ContributesBinding(AppScope::class, multibinding = true, boundType = UserScopedSyncer::class)
 @Inject
 class InventoryRepositoryImpl(
     private val inventoryDao: InventoryDao,
@@ -62,7 +59,7 @@ class InventoryRepositoryImpl(
     private val networkClient: NetworkClient,
     private val appScope: AppCoroutineScope,
     private val clock: Clock,
-) : InventoryRepository, AppEventListener {
+) : InventoryRepository, UserScopedSyncer {
 
     private val syncLogger = KLog.withTag("InventorySync")
     // Single-flight gate. The mutex guards lookup/start of [inFlight];
@@ -164,29 +161,6 @@ class InventoryRepositoryImpl(
 
     override suspend fun deleteAll() {
         inventoryDao.deleteAll()
-    }
-
-    override fun onUserChanged(event: AppEvent.UserChanged) {
-        // A user just became active (cold-boot resolve, sign-in, or account
-        // switch). On a switch the prior owner's inventory was just wiped, so
-        // re-hydrate the new user's owned items now rather than waiting for a
-        // foreground. Sign-out (current == null) has nothing to fetch.
-        if (event.current == null) return
-        appScope.launch { sync() }
-    }
-
-    override fun onAccountClaimed(event: AppEvent.AccountClaimed) {
-        // A guest just claimed their account (same user id, no UserChanged), so
-        // flush pending inventory ops + reconcile owned items now instead of
-        // waiting for the next foreground.
-        appScope.launch { sync() }
-    }
-
-    override fun onForeground(event: AppEvent.OnForeground) {
-        // Cold-boot's initial sync is owned by [onUserChanged]; this handles
-        // the warm-resume reconcile only.
-        if (event.isColdBoot) return
-        appScope.launch { sync() }
     }
 
     override suspend fun sync(): Result<Unit> {

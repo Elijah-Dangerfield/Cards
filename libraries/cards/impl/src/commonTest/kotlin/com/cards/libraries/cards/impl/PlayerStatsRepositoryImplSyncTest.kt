@@ -6,7 +6,6 @@ import com.dangerfield.cards.libraries.cards.storage.db.PlayerStatEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.PlayerStatEventEntity
 import com.dangerfield.cards.libraries.cards.storage.db.PlayerStatsDao
 import com.dangerfield.cards.libraries.cards.storage.db.PlayerStatsEntity
-import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.networking.InternalNetworkingApi
 import com.dangerfield.cards.libraries.networking.NetworkClient
@@ -196,7 +195,6 @@ class PlayerStatsRepositoryImplSyncTest : CoroutineTest() {
             playerStatsDao = stats,
             playerStatEventDao = events,
             networkClient = networkClient,
-            appScope = AppCoroutineScope(dispatchers),
             clock = FixedClock,
         )
     }

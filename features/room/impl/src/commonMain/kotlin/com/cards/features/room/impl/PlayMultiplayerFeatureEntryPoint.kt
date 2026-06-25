@@ -37,6 +37,7 @@ import com.dangerfield.cards.libraries.navigation.serializableType
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_next_hand_unavailable
 import cards.libraries.resources.generated.resources.room_opponent_left
 import cards.libraries.resources.generated.resources.room_quick_buy_failed
 import cards.libraries.resources.generated.resources.room_quick_buy_store_unavailable
@@ -137,6 +138,10 @@ class PlayMultiplayerFeatureEntryPoint(
                         PlayPokerEvent.ClaimAccountRequired -> router.navigate(ClaimAccountRoute())
                         PlayPokerEvent.RebuyInsufficientChips ->
                             viewModel.takeAction(PlayPokerAction.OpenQuickBuy)
+                        PlayPokerEvent.NextHandUnavailable -> showSnackBar(
+                            message = getString(Res.string.room_next_hand_unavailable),
+                            emoji = "⏳",
+                        )
                         else -> Unit
                     }
                 }
