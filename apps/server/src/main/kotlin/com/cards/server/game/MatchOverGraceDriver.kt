@@ -109,7 +109,7 @@ class MatchOverGraceDriver(
         val bustedSeatIndex: Int,
     )
 
-    private companion object {
+    companion object {
         const val DEFAULT_GRACE_MILLIS = 60_000L
         private val log = LoggerFactory.getLogger(MatchOverGraceDriver::class.java)
     }

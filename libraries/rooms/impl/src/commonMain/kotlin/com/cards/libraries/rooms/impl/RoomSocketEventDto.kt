@@ -75,6 +75,23 @@ internal sealed interface RoomSocketEventDto {
         val seatIndex: Int,
         val emoji: String,
     ) : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("match_over_pending")
+    data class MatchOverPending(
+        val deadlineEpochMs: Long,
+        val bustedSeatIndex: Int,
+    ) : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("match_over_cleared")
+    data object MatchOverCleared : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("match_over_resolved")
+    data class MatchOverResolved(
+        val winnerUserId: String,
+    ) : RoomSocketEventDto
 }
 
 /**
@@ -101,6 +118,10 @@ internal fun RoomSocketEventDto.summary(): String = when (this) {
         "recv intent_ack accepted=$accepted nonce=$clientNonce" +
             (error?.let { " error=$it" } ?: "")
     is RoomSocketEventDto.EmojiBlast -> "recv emoji_blast seat=$seatIndex emoji=$emoji"
+    is RoomSocketEventDto.MatchOverPending ->
+        "recv match_over_pending busted=$bustedSeatIndex deadline=$deadlineEpochMs"
+    RoomSocketEventDto.MatchOverCleared -> "recv match_over_cleared"
+    is RoomSocketEventDto.MatchOverResolved -> "recv match_over_resolved winner=$winnerUserId"
 }
 
 private fun GameEvent.summary(): String = when (this) {

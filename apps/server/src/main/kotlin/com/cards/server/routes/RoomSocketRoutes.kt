@@ -12,6 +12,7 @@ import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.game.IntentResult
+import com.dangerfield.cards.server.game.MatchOverEvent
 import com.dangerfield.cards.server.game.SeatOccupant
 import com.dangerfield.cards.server.game.stackFor
 import java.util.UUID
@@ -39,6 +40,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -326,6 +328,41 @@ fun Route.roomSocketRoutes(
                                         link = null,
                                     )
                                 },
+                                // Heads-up match-over lifecycle (MP-14). On a
+                                // terminal resolve, flip the room finished so it
+                                // stops accepting new hands / joiners; the winner's
+                                // chips cash out via the normal leave/teardown path
+                                // when clients route off, so this path never touches
+                                // the wallet. Idempotent + per-subscriber, like the
+                                // member-left handler.
+                                session.matchOverEvents
+                                    .onEach { event ->
+                                        if (event is MatchOverEvent.Resolved) {
+                                            Catching { rooms.markFinished(code) }
+                                                .onFailure {
+                                                    LoggerFactory.getLogger("RoomSocket")
+                                                        .warn("markFinished failed for room=$code", it)
+                                                }
+                                        }
+                                    }
+                                    .map { event ->
+                                        OutboundGameFrame(
+                                            when (event) {
+                                                is MatchOverEvent.GraceStarted ->
+                                                    RoomSocketEventDto.MatchOverPending(
+                                                        deadlineEpochMs = event.deadlineEpochMs,
+                                                        bustedSeatIndex = event.bustedSeatIndex,
+                                                    )
+                                                MatchOverEvent.GraceCancelled ->
+                                                    RoomSocketEventDto.MatchOverCleared
+                                                is MatchOverEvent.Resolved ->
+                                                    RoomSocketEventDto.MatchOverResolved(
+                                                        winnerUserId = event.winnerUserId,
+                                                    )
+                                            },
+                                            link = null,
+                                        )
+                                    },
                             )
                         }
                         .collect { sendTraced(it.event, code, userIdString, link = it.link) }

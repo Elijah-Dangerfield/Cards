@@ -199,6 +199,10 @@ class DefaultGameSessionRegistry(
     // think-time (which can tank to several seconds). A scalar — not the driver's
     // delay function — so callers needn't see the bots types.
     private val botThinkDelayMsOverride: Long? = null,
+    // Rebuy-grace window before a heads-up bust resolves to a terminal match-over
+    // (MP-14). Defaulted to production; integration tests over the real wire shrink
+    // it so a bust-to-resolution test isn't gated on the real 60s.
+    private val matchOverGraceMillis: Long = MatchOverGraceDriver.DEFAULT_GRACE_MILLIS,
 ) : GameSessionRegistry {
     // StateFlow (not ConcurrentHashMap) so subscribers can observe the
     // moment a session for their code shows up. The mutex serializes
@@ -348,6 +352,7 @@ class DefaultGameSessionRegistry(
             session = session,
             scope = botDriverScope,
             clock = clock,
+            graceMillis = matchOverGraceMillis,
         ).also { it.start() }
         return session
     }
