@@ -246,18 +246,27 @@ fun Route.roomSocketRoutes(
                                 deltas.filterIsInstance<RoomSocketEventDto.MemberLeft>().forEach { left ->
                                     val leftUserId = runCatching { UserId(UUID.fromString(left.userId)) }.getOrNull()
                                     if (leftUserId != null) {
-                                        // Live seat stack if they're still seated; else the stack
-                                        // they settled with last hand (0 for a busted-and-dropped
-                                        // player) — never a full-escrow refund, which would mint
-                                        // their lost stake (MP-13). Null only when never dealt in.
                                         val session = gameSessions.peek(code)
-                                        val stack = session?.state?.value?.stackFor(leftUserId)
-                                            ?: session?.lastKnownStack(leftUserId.value.toString())
-                                        Catching { tableSessions.cashOut(leftUserId, stack) }
-                                            .onFailure { e ->
-                                                LoggerFactory.getLogger("RoomSocket")
-                                                    .warn("cashOut failed for room=$code user=${left.userId}", e)
-                                            }
+                                        // An all-in leaver keeps their showdown right (the engine never
+                                        // folds an all-in seat), so their committed chips are still live.
+                                        // Decided atomically against the hand: if they're all-in in a live
+                                        // hand, defer — cashing out their stackFor of 0 now would burn a
+                                        // pot they go on to win (MP-17); departedSettlements pays their
+                                        // resolved stack when the hand completes. Otherwise cash out now.
+                                        val deferred = session?.deferSettlementIfAllInLive(left.userId) ?: false
+                                        if (!deferred) {
+                                            // Live seat stack if they're still seated; else the stack
+                                            // they settled with last hand (0 for a busted-and-dropped
+                                            // player) — never a full-escrow refund, which would mint
+                                            // their lost stake (MP-13). Null only when never dealt in.
+                                            val stack = session?.state?.value?.stackFor(leftUserId)
+                                                ?: session?.lastKnownStack(leftUserId.value.toString())
+                                            Catching { tableSessions.cashOut(leftUserId, stack) }
+                                                .onFailure { e ->
+                                                    LoggerFactory.getLogger("RoomSocket")
+                                                        .warn("cashOut failed for room=$code user=${left.userId}", e)
+                                                }
+                                        }
                                     }
                                     // Drop them from the mid-hand-join queue if they
                                     // left while still waiting to be dealt in, so the
@@ -380,6 +389,33 @@ fun Route.roomSocketRoutes(
                 }
             }
 
+            // Deferred settlement for all-in leavers (MP-17): when a player who left
+            // while all-in has their committed hand resolve, the session emits their
+            // real end-of-hand stack here and we cash it out — the settlement their
+            // leave-time cash-out deferred (cashing out 0 then would burn a pot they
+            // won). Keyed/idempotent like every other cash-out, so the per-subscriber
+            // duplication across connected sockets settles exactly once.
+            val settlementSettler = launch {
+                try {
+                    gameSessions.observeSession(code)
+                        .flatMapLatest { session -> session?.departedSettlements ?: emptyFlow() }
+                        .collect { settlement ->
+                            val settledUserId = runCatching { UserId(UUID.fromString(settlement.userId)) }.getOrNull()
+                                ?: return@collect
+                            Catching { tableSessions.cashOut(settledUserId, settlement.resolvedStack) }
+                                .onFailure { e ->
+                                    LoggerFactory.getLogger("RoomSocket")
+                                        .warn("Deferred settlement cash-out failed for room=$code user=${settlement.userId}", e)
+                                }
+                        }
+                } catch (_: CancellationException) {
+                    // Expected on close.
+                } catch (e: Throwable) {
+                    LoggerFactory.getLogger("RoomSocket")
+                        .warn("Settlement settler for room=$code user=$userId died", e)
+                }
+            }
+
             // "Bots step aside for humans." On a public table that a searcher
             // rescued (now ≥2 humans), trim one bot at each hand boundary so the
             // table converges to an all-human game. Watches the session for the
@@ -472,6 +508,7 @@ fun Route.roomSocketRoutes(
             } finally {
                 publisher.cancel()
                 gamePublisher.cancel()
+                settlementSettler.cancel()
                 botTrimmer.cancel()
                 // A spectator holds no seat — there's nothing to mark
                 // disconnected and nothing to reap, so their socket simply

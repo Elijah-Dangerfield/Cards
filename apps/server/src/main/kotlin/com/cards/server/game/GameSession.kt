@@ -147,6 +147,61 @@ class GameSession internal constructor(
         _matchOverEvents.tryEmit(event)
     }
 
+    /**
+     * Deferred-settlement channel for players who left the room while **all-in**
+     * in a live hand. An all-in seat keeps its showdown right (the engine never
+     * folds it — see `GameEngine.forfeitSeat`), so we can't cash the leaver out at
+     * their leave-time stack of 0: their committed chips are still live and may win
+     * the pot. We instead defer — [markPendingSettlement] records them, and when
+     * the committed hand completes we emit their *resolved* stack here for the
+     * socket layer to cash out (it owns the wallet). Without this the won pot lands
+     * on a seat already cashed out at 0 and the chips burn (MP-17). Buffered like
+     * [matchOverEvents] so a settlement isn't dropped if a collector is momentarily
+     * slow; replay-less because a stale settlement must not re-fire on a new subscriber.
+     */
+    private val _departedSettlements = MutableSharedFlow<DepartedSettlement>(extraBufferCapacity = 8)
+    val departedSettlements: SharedFlow<DepartedSettlement> get() = _departedSettlements.asSharedFlow()
+
+    // Players who left while all-in in a live hand, awaiting their committed hand
+    // to resolve. Drained at every hand-completion site: each is emitted on
+    // [departedSettlements] with their resolved stack, then cleared. Guarded by the
+    // session mutex (mutated only inside withLock paths).
+    private val pendingSettlementIds = mutableSetOf<String>()
+
+    /**
+     * Decide, atomically against the live hand, how a leaving player settles. If
+     * they're all-in in a hand that hasn't completed, their committed chips are
+     * still live (the engine keeps an all-in seat in for its showdown right), so we
+     * **defer**: mark them for settlement and return true — the caller must NOT cash
+     * them out at their leave-time stack of 0, [drainPendingSettlements] pays their
+     * resolved stack when the hand finishes. Otherwise return false — the caller
+     * cashes them out normally (a folded leaver forfeits committed chips at
+     * stackFor; a leaver after the hand already completed reads their resolved
+     * stack). Taking the mutex serialises this against a concurrent completing
+     * action, closing the race where the opponent's call resolves the hand a beat
+     * before the leave is processed. Idempotent.
+     */
+    suspend fun deferSettlementIfAllInLive(userId: String): Boolean = mutex.withLock {
+        val state = _state.value ?: return@withLock false
+        if (state.street == BettingRound.Complete) return@withLock false
+        val seat = state.seats.firstOrNull { it.playerId == userId } ?: return@withLock false
+        if (seat.handParticipation != HandParticipation.AllIn) return@withLock false
+        pendingSettlementIds += userId
+        true
+    }
+
+    // Emit a settlement for every pending leaver now resolved in [finalState], then
+    // clear them. Called inside the mutex at each hand-completion site.
+    private fun drainPendingSettlements(finalState: GameState) {
+        if (pendingSettlementIds.isEmpty()) return
+        val drained = pendingSettlementIds.toList()
+        for (userId in drained) {
+            val seat = finalState.seats.firstOrNull { it.playerId == userId } ?: continue
+            pendingSettlementIds.remove(userId)
+            _departedSettlements.tryEmit(DepartedSettlement(userId = userId, resolvedStack = seat.stack))
+        }
+    }
+
     // Cached so requestNextHand can re-seed without the caller re-supplying.
     private var settings: RoomSettings = RoomSettings.Default
 
@@ -323,6 +378,7 @@ class GameSession internal constructor(
                         // hand in Loki and confirms settlement actually ran.
                         log.info("Hand ${current.handNumber} finished — session=$id")
                         recordLastKnownStacks(newState)
+                        drainPendingSettlements(newState)
                         onHandFinished(buildHandOutcome(newState, resolved.result.events))
                     }
                     resolved.result.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
@@ -536,6 +592,7 @@ class GameSession internal constructor(
         if (handJustFinished) {
             log.info("Hand ${current.handNumber} finished (seat $actorUserId forfeited) — session=$id")
             recordLastKnownStacks(newState)
+            drainPendingSettlements(newState)
             onHandFinished(buildHandOutcome(newState, step.events))
         }
         step.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
@@ -739,4 +796,16 @@ class GameSession internal constructor(
 data class SeatEmoji(
     val seatIndex: Int,
     val emoji: String,
+)
+
+/**
+ * A deferred cash-out for a player who left the room while all-in, emitted on
+ * [GameSession.departedSettlements] once their committed hand resolves. The socket
+ * layer credits [resolvedStack] (their real end-of-hand stack — the pot they won,
+ * or 0 if they lost) to the leaver's wallet, the settlement their leave-time
+ * cash-out deferred. See MP-17.
+ */
+data class DepartedSettlement(
+    val userId: String,
+    val resolvedStack: Long,
 )

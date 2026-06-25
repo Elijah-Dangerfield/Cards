@@ -58,23 +58,14 @@ class MatchOverEdgeCasesTest : IntegrationTest() {
     }
 
     @Test
-    @kotlin.test.Ignore(
-        "MP-17 KNOWN BUG (reproduces): an all-in player who leaves mid-hand has their " +
-            "committed chips burned. The leave handler cashes them out at stackFor = 0 " +
-            "(committed chips excluded), but the engine deliberately keeps an all-in seat " +
-            "live (forfeitAllInSeat_isNoOp — they keep their showdown right). If that all-in " +
-            "then wins, the pot lands on a seat already cashed out at 0 → ~5,050 chips burn " +
-            "(wallets settle at 14,950, not 20,000). Fix = deferred settlement: don't cash an " +
-            "all-in leaver out at 0; settle their real resolved stack when the committed hand " +
-            "completes (a hand-completion seam with wallet access). Folding them instead is " +
-            "wrong — it would rob a briefly-disconnected all-in player of a winning hand.",
-    )
-    fun allInPlayerLeavesMidHand_forfeitsThePot_chipsStillConserve() = integration {
+    fun allInWinnerLeavesMidHand_isSettledOnShowdown_chipsConserve() = integration {
         val table = seatTwoAndConnect()
-        // The leaver (seat 0, first to act heads-up) holds the *winning* hand. The
-        // skew this guards against: getting paid for a pot they walked away from.
-        // Forfeit must fold them out, so they lose despite the aces — and no chip
-        // is minted or lost in the process.
+        // The leaver (seat 0, first to act heads-up) holds the *winning* hand and
+        // shoves all-in, then abandons the table before the showdown. The engine
+        // keeps an all-in seat live (it can't be folded — it keeps its showdown
+        // right), so the leaver still wins. Their winnings must reach their wallet:
+        // before the fix they were cashed out at 0 on leave and the won pot burned
+        // (~5,050 chips, the table settling at 14,950 instead of 20,000).
         server.scriptDeck(
             table.code,
             stackedDeck(
@@ -87,16 +78,28 @@ class MatchOverEdgeCasesTest : IntegrationTest() {
         val dealt = table.hostGame.nextSnapshot { it.actingSeatIndex != null }
         val shover = dealt.actingSeatIndex!!
         val shoverClient = table.actingClient(dealt)
+        val stayer = table.other(shoverClient)
+        val stayerGame = table.gameOf(stayer)
+        val stayerSeat = dealt.seats.first { it.playerId == stayer.userId }.index
         table.gameForSeat(dealt, shover).submit(PlayerIntent.AllIn(seatIndex = shover))
 
-        // The all-in player abandons the table before the hand resolves.
+        // The all-in player leaves before the opponent responds. Their cash-out is
+        // deferred — their committed chips are still live.
         shoverClient.repository.leaveRoom(table.code)
-        table.other(shoverClient).repository.leaveRoom(table.code)
 
-        // Whatever the resolution, every chip is still accounted for: the leaver
-        // forfeits the committed pot to the opponent, no mint, no burn. (Before the
-        // fix the all-in leaver stayed live, "won" the pot they'd abandoned, and
-        // those chips stranded — the table burned ~5,050 chips, settling at 14,950.)
+        // The opponent (still connected) calls the all-in → the board runs out and
+        // the departed all-in winner is settled at their real resolved stack when
+        // the hand completes. Wait for the action to actually be on the stayer
+        // (the shove advances it off the shover) before calling.
+        stayerGame.nextSnapshot { it.actingSeatIndex == stayerSeat }
+        val callAck = stayerGame.submit(PlayerIntent.Call(seatIndex = stayerSeat))
+        check(callAck.accepted) { "stayer's call rejected: ${callAck.error}" }
+
+        // The busted opponent leaves too; chips conserve end-to-end — the leaver is
+        // paid the pot they won (settled when the showdown completed), the opponent
+        // cashes out their real 0. Before the fix the leaver's won pot burned and
+        // the table settled at 14,950.
+        stayer.repository.leaveRoom(table.code)
         awaitUntil(timeoutMs = 10_000) {
             val h = server.walletBalance(table.host.userId)
             val j = server.walletBalance(table.joiner.userId)
