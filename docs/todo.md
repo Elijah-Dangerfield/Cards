@@ -24,13 +24,13 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Progression & stats
 
-- `[P1]` **PROG-1 — Point the stats screen + achievement predicates at the server-authoritative player stats.** The client `PlayerStatsRepository` now lands (write-ahead outbox + sync, recorded per finished hand in `PlayPokerViewModel`, cached snapshot via `observeStats()`). What's left is making those numbers load-bearing: read the cumulative counters / no-bust streak / per-bot wins off `PlayerStatsRepository` in `StatsViewModel` instead of `AchievementProgress.customCounters`, and convert the achievement engine to predicates over the stats snapshot (read counter, record a `claimed_at_value` so they don't re-fire) rather than carrying their own per-id progress.
+- `[P1]` **PROG-1 — Convert the achievement engine to predicates over the server-authoritative player stats.** `StatsViewModel` now reads the no-bust streak off `PlayerStatsRepository.observeStats()`, but the achievement engine still carries its own per-id progress in `AchievementProgress.counters` / `customCounters`, accumulated locally in `AchievementRepositoryImpl.recordHand`. What's left: make the predicates read the cumulative counters / no-bust streak / per-bot wins off the `PlayerStats` snapshot, recording a `claimed_at_value` per achievement so they unlock once and don't re-fire.
 
   **Approach:** Stats are the source of truth; achievements become predicates over stats. This is the riskier half — it touches the live unlock path in `AchievementRepositoryImpl.recordHand`, so land it as its own commit with the existing achievement unlock tests green.
 
-  **Acceptance:** Sign in on a second device → correct stats + achievement progress after one sync. Stats screen and achievement bars agree. Adding a new achievement later points at an existing stat, no data migration.
+  **Acceptance:** Sign in on a second device → correct achievement progress after one sync. Stats screen and achievement bars agree. Adding a new achievement later points at an existing stat, no data migration.
 
-  **Hints:** Repo + DTOs: `PlayerStatsRepositoryImpl` / `dto/PlayerStatsDto.kt`. Endpoints are `/v1/me/player-stats` + `/v1/me/player-stats/sync`. `observeStats()` is already an offline-first `Flow<PlayerStats?>`. The no-bust streak the client sends is computed in `PlayerStatHandSummaryBuilder` (seeded from the cached snapshot).
+  **Hints:** Repo + DTOs: `PlayerStatsRepositoryImpl` / `dto/PlayerStatsDto.kt`. Endpoints are `/v1/me/player-stats` + `/v1/me/player-stats/sync`. `observeStats()` is already an offline-first `Flow<PlayerStats?>` and `StatsViewModel` already injects it (the no-bust streak tiles read from it). The streak the client sends is computed in `PlayerStatHandSummaryBuilder` (seeded from the cached snapshot).
 
 ### Auth & onboarding
 

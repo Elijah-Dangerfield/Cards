@@ -32,6 +32,7 @@ class StatsViewModelTest : CoroutineTest() {
             playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = NeverEmittingXpEventRepository,
             achievementRepository = NeverEmittingAchievementRepository,
+            playerStatsRepository = FakePlayerStatsRepository(),
             authRepository = FakeAuthRepository(),
             xpBoostRepository = FakeXpBoostRepository(),
             lifetimeStatsRepository = FakeLifetimeStatsRepository(),
@@ -67,6 +68,7 @@ class StatsViewModelTest : CoroutineTest() {
             playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = FakeXpEventRepository(initial = seedEvents),
             achievementRepository = FakeAchievementRepository(initial = seedAchievements),
+            playerStatsRepository = FakePlayerStatsRepository(),
             authRepository = FakeAuthRepository(),
             xpBoostRepository = FakeXpBoostRepository(),
             lifetimeStatsRepository = FakeLifetimeStatsRepository(),
@@ -93,6 +95,7 @@ class StatsViewModelTest : CoroutineTest() {
             playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
+            playerStatsRepository = FakePlayerStatsRepository(),
             authRepository = FakeAuthRepository(),
             xpBoostRepository = FakeXpBoostRepository(),
             lifetimeStatsRepository = FakeLifetimeStatsRepository(),
@@ -122,6 +125,7 @@ class StatsViewModelTest : CoroutineTest() {
             playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = events,
             achievementRepository = FakeAchievementRepository(),
+            playerStatsRepository = FakePlayerStatsRepository(),
             authRepository = FakeAuthRepository(),
             xpBoostRepository = FakeXpBoostRepository(),
             lifetimeStatsRepository = FakeLifetimeStatsRepository(),
@@ -160,6 +164,7 @@ class StatsViewModelTest : CoroutineTest() {
             playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
+            playerStatsRepository = FakePlayerStatsRepository(),
             authRepository = FakeAuthRepository(),
             xpBoostRepository = boost,
             lifetimeStatsRepository = FakeLifetimeStatsRepository(),
@@ -181,6 +186,7 @@ class StatsViewModelTest : CoroutineTest() {
             playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
+            playerStatsRepository = FakePlayerStatsRepository(),
             authRepository = FakeAuthRepository(initial = anonymousAuthState()),
             xpBoostRepository = FakeXpBoostRepository(),
             lifetimeStatsRepository = FakeLifetimeStatsRepository(),
@@ -200,6 +206,7 @@ class StatsViewModelTest : CoroutineTest() {
             playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
+            playerStatsRepository = FakePlayerStatsRepository(),
             authRepository = FakeAuthRepository(initial = claimedAuthState()),
             xpBoostRepository = FakeXpBoostRepository(),
             lifetimeStatsRepository = FakeLifetimeStatsRepository(),
@@ -217,6 +224,7 @@ class StatsViewModelTest : CoroutineTest() {
             playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
+            playerStatsRepository = FakePlayerStatsRepository(),
             authRepository = FakeAuthRepository(),
             xpBoostRepository = FakeXpBoostRepository(),
             lifetimeStatsRepository = FakeLifetimeStatsRepository(Result.success(23L)),
@@ -236,6 +244,7 @@ class StatsViewModelTest : CoroutineTest() {
             playStyleRepository = FakePlayStyleRepository(),
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
+            playerStatsRepository = FakePlayerStatsRepository(),
             authRepository = FakeAuthRepository(),
             xpBoostRepository = FakeXpBoostRepository(),
             lifetimeStatsRepository = FakeLifetimeStatsRepository(
@@ -243,6 +252,33 @@ class StatsViewModelTest : CoroutineTest() {
             ),
         )
         assertEquals(null, vm.state.distinctOpponentsPlayed)
+    }
+
+    @Test
+    fun playerStatsEmission_populatesNoBustStreak() = runUnitTest {
+        val playerStats = FakePlayerStatsRepository()
+        val vm = StatsViewModel(
+            progressionRepository = FakeProgressionRepository(),
+            playStyleRepository = FakePlayStyleRepository(),
+            xpEventRepository = FakeXpEventRepository(),
+            achievementRepository = FakeAchievementRepository(),
+            playerStatsRepository = playerStats,
+            authRepository = FakeAuthRepository(),
+            xpBoostRepository = FakeXpBoostRepository(),
+            lifetimeStatsRepository = FakeLifetimeStatsRepository(),
+        )
+        vm.stateFlow.test {
+            assertEquals(null, awaitItem().playerStats)
+            playerStats.stats.value = com.dangerfield.cards.libraries.cards.PlayerStats.Empty.copy(
+                currentNoBustStreak = 7,
+                bestNoBustStreak = 19,
+            )
+            var stats = awaitItem().playerStats
+            while (stats == null) stats = awaitItem().playerStats
+            assertEquals(7L, stats.currentNoBustStreak)
+            assertEquals(19L, stats.bestNoBustStreak)
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     /** Repositories whose Flows never emit — pin the pre-emission state. */

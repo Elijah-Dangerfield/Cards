@@ -6,6 +6,8 @@ import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.LifetimeStatsRepository
 import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.PlayStyleRepository
+import com.dangerfield.cards.libraries.cards.PlayerStats
+import com.dangerfield.cards.libraries.cards.PlayerStatsRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpBoostRepository
@@ -24,6 +26,7 @@ class StatsViewModel(
     playStyleRepository: PlayStyleRepository,
     xpEventRepository: XpEventRepository,
     achievementRepository: AchievementRepository,
+    playerStatsRepository: PlayerStatsRepository,
     authRepository: AuthRepository,
     xpBoostRepository: XpBoostRepository,
     private val lifetimeStatsRepository: LifetimeStatsRepository,
@@ -46,6 +49,11 @@ class StatsViewModel(
                 Triple(progression, events, achievements)
             }.collect { (progression, events, achievements) ->
                 takeAction(StatsAction.DataChanged(progression, events, achievements))
+            }
+        }
+        viewModelScope.launch {
+            playerStatsRepository.observeStats().collect { stats ->
+                takeAction(StatsAction.PlayerStatsChanged(stats))
             }
         }
         viewModelScope.launch {
@@ -90,6 +98,9 @@ class StatsViewModel(
             is StatsAction.DistinctOpponentsChanged -> action.updateState {
                 it.copy(distinctOpponentsPlayed = action.count)
             }
+            is StatsAction.PlayerStatsChanged -> action.updateState {
+                it.copy(playerStats = action.stats)
+            }
         }
     }
 
@@ -112,6 +123,9 @@ data class StatsState(
     /** Distinct multiplayer opponents played; null until the server stat lands
      *  (or stays null if the fetch fails — the tile self-hides). */
     val distinctOpponentsPlayed: Long? = null,
+    /** Server-authoritative player stats (no-bust streak, per-bot wins);
+     *  null until the first sync caches a snapshot. */
+    val playerStats: PlayerStats? = null,
 )
 
 sealed interface StatsEvent
@@ -130,4 +144,6 @@ sealed interface StatsAction {
     data class PlayStyleChanged(val playStyle: PlayStyleAxes?) : StatsAction
 
     data class DistinctOpponentsChanged(val count: Long) : StatsAction
+
+    data class PlayerStatsChanged(val stats: PlayerStats?) : StatsAction
 }

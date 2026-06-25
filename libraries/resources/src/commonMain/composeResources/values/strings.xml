@@ -534,6 +534,8 @@
     <string name="profile_settings_a11y">Settings</string>
     <string name="profile_header_joined">Joined %1$s %2$d</string>
     <string name="stats_lifetime_opponents_label">Players faced</string>
+    <string name="stats_lifetime_no_bust_streak_label">No-bust streak</string>
+    <string name="stats_lifetime_best_streak_label">Best streak</string>
     <string name="stats_play_style_section">Play style</string>
     <string name="stats_play_style_name">Tight-Aggressive</string>
     <string name="stats_play_style_blurb">You wait for strong hands, then bet them hard.</string>
