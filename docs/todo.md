@@ -30,6 +30,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** `PlayerStatsRepository` (server-backed, `observeStats(): Flow<PlayerStats?>`) is already wired into the stats screen. Touches the live unlock path — land as its own commit with achievement-unlock tests green.
 
+- `[P2]` **ITEM-1 — Profile screen doesn't show the default felt/card back as equipped.** The default cosmetics (`felt_default`, `cardback_default`) ship equipped, but the profile items grid never marks them equipped because "equipped" is derived purely from the equipment table — defaults are seeded into inventory with no equipment row, so `isEquipped` is false and no equipped badge renders.
+  **Acceptance:** A fresh account with no explicit equips shows the default felt and default card back as equipped on the profile screen; equipping a non-default item moves the badge correctly.
+  **Hints:** `MyItemsViewModel.ownedItems` sets `isEquipped = item.productId in equippedIds` (~L240) off `EquipmentRepositoryImpl.observeEquipped()` (`is_equipped = 1` rows only). Add an implicit-default fallback in the `ownedItems` join (treat a default as equipped when its slot has no explicit equip) — `Equipment.kt` (L6-14) already says each surface owns this rule; alternatively seed default equipment rows server-side. Badge gate is `ProfileScreen.kt` `OwnedCosmeticTile` (~L941). Case `docs/agent/feedback-cases/81df714ff436460a9c600809b9102b01.md`; Sentry CARDS-49 / CARDS-4A.
+
 ### Auth & onboarding
 
 - `[P2]` **AUTH-1 — Tune the device-verify banner placement.** Copy is refined; what's left is where the banner sits relative to the verify CTA on `VerifyEmailScreen` — eyeball the spacing/position against the screen and adjust.
