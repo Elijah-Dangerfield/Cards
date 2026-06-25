@@ -664,3 +664,15 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Action:** Decide whether to unify the two ceilings so a persistently failing handshake (e.g. server hard-down) also lands on a terminal state instead of looping forever, or keep them deliberately separate. Low urgency — the reported storm was the connected-then-dropped path, which is now fixed.
 
 **Status:** Backlog. Triage when next touching the reconnect loop.
+
+---
+
+## Stale / abandoned Compose UI-test harness in `:apps:compose` (MP-2)
+
+**Symptom:** `:apps:compose:testDebugUnitTest` fails to compile on a dirty build dir with `Unresolved reference 'TestAppComponent' / 'TestProfileRepository' / 'testUserId' / 'OnlineConnectivityObserver'`. The offenders live only in **generated KSP output** (`apps/compose/build/generated/ksp/android/androidUnitTestDebug/.../KotlinInjectTestAppComponent.kt` + `InjectKotlinInjectTestAppComponent.kt`) under package `com.cards.uitest.harness` — there are **no committed source files** for that harness. A `rm -rf apps/compose/build/generated/ksp/android/androidUnitTestDebug` clears it and the module's android unit tests go green.
+
+**Context:** Looks like a prior, incomplete Compose-UI-test scaffolding attempt (the kind MP-2's remaining sub-item calls for — `PlayPokerScreen` UI tests) that was started, partially generated, then deleted/uncommitted, leaving orphan KSP artifacts behind. The standing `apps/compose/androidUnitTest` source set is otherwise just `commonTest`.
+
+**Action:** When picking up MP-2's Compose UI-test sub-item, start from a clean `:apps:compose` build dir, and decide whether that `uitest.harness` shape (a kotlin-inject `TestAppComponent` for UI tests) is the intended foundation to revive or to discard. Either way the orphan generated artifacts shouldn't be relied on.
+
+**Status:** Backlog. Triage against MP-2's remaining Compose-UI-test work.

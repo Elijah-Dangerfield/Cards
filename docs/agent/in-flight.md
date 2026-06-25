@@ -64,3 +64,44 @@ this fake won't catch it; it's a client-session harness, not a server-contract
 test. `Rebuy` is acked-as-rejected (out of scope for turn cycles); emoji is
 attributed to the local seat. The deck is seeded `Random(42)` unless a
 `deckFactory`/`stackedDeck` is supplied.
+
+## feat(onboarding): one-time account-setup explainer dialog (AUTH-1)
+
+**Problem:** AUTH-1 sub-part (1) — when guest-account creation is left pending
+(signed up offline / network blip) the only surface is the thin
+`AccountSetupBanner`, which is easy to miss on first contact and doesn't explain
+that play is safe or what's paused.
+
+**Approach:** Added `AccountSetupExplainerDialog` (DS `Dialog`, single "Got it"
+CTA) hosted as a top-level overlay in `App.kt`, gated by a new pure
+`shouldShowAccountSetupExplainer(pending, hasSeenExplainer)` off the existing
+`rememberAccountSetupStatus` live status + a new device-scoped
+`AppData.accountSetupExplainerSeen` flag (mirrors `tutorialBannerDismissed` —
+not in `resetAccountScoped`; the pending state only arises during initial
+creation, so once-per-device is the right scope). Dismissing flips the flag so
+the dialog shows exactly once and the thin banner takes over thereafter. The
+gate is extracted as a pure fn so the show/suppress decision is unit-tested
+without Compose. Exposed `AppCache` on `AppComponent` to read/write the flag.
+**Directional call:** used the plain 3-arg `Dialog(title, description,
+primaryButtonText)` (no emoji bubble) — focused/calm reads better for a
+reassurance dialog than a celebratory accessory; reviewer can add `topAccessory`
+via the slotted overload if they want more warmth. Shipped sub-part (1) only;
+rewrote the AUTH-1 bullet to the remaining sub-part (2) (device-verify banner
+copy + placement), which needs Studio to eyeball placement.
+
+**Reviewer notes:** The explainer only fires after the *first* creation attempt
+has Failed (that's what `rememberAccountSetupStatus.pending` requires) — i.e. it
+won't flash during the happy Idle→InProgress→Succeeded path, only on a genuine
+degraded/offline signup. Couldn't run `:apps:compose:testDebugUnitTest` at first
+because stale KSP output from a deleted/uncommitted `uitest.harness` UI-test
+experiment under `build/generated/ksp/android/androidUnitTestDebug/` referenced
+missing `TestAppComponent`/`TestProfileRepository` types; a `rm -rf` of that
+stale dir cleared it and the module's android unit tests (incl. the new one) go
+green. That stale-artifact / abandoned-harness situation is filed in backlog —
+worth a look since it'll bite the next worker who runs that test task on a dirty
+build dir.
+
+**Deferred:** Found an abandoned/incomplete Compose UI-test harness
+(`com.cards.uitest.harness`, `TestAppComponent` etc.) that exists only as stale
+generated KSP output with no committed sources — likely a prior MP-2 UI-test
+attempt. Filed in `docs/backlog.md` for the reviewer to triage against MP-2.

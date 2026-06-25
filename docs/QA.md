@@ -91,8 +91,9 @@ Two variants, both must pass:
 1. Open app → "Get started" → "Continue as guest."
 2. Complete remaining onboarding screens.
 
-**Expected:** Lands on Home. Welcome grant dialog shows 10K chips. The "account-creation pending" banner (`AccountSetupBanner`) is visible at the top of Home. No crashes, no error spinners.
+**Expected:** Lands on Home. Welcome grant dialog shows 10K chips. The first time the pending state is hit, a one-time "Finishing your account" explainer dialog (`AccountSetupExplainerDialog`, AUTH-1) appears reassuring the user their play is saved and that multiplayer + purchases are paused; dismissing it ("Got it") reveals the standing thin "account-creation pending" banner (`AccountSetupBanner`) at the top of Home. No crashes, no error spinners.
 
+- The explainer dialog shows **once per device**: dismiss it, force-quit, relaunch offline → only the thin banner shows, not the dialog again.
 - While still offline, open Profile and Settings: each shows an in-page "Account setup unfinished" banner with a **Retry** button (`AccountSetupRetryBanner`, AUTH-1) above the "Save your progress" nudge. Tapping Retry while offline keeps it pending (shows "Retrying…"), not an error.
 
 **Then bring the device online:**

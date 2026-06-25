@@ -121,6 +121,17 @@ data class AppData(
     val tutorialBannerDismissed: Boolean = false,
 
     /**
+     * Whether the richer one-time "finishing your account" explainer dialog has
+     * been shown. False on a fresh install — the first time guest-account
+     * creation is left pending (signed up offline / network blip) the dialog
+     * surfaces once to reassure the user and explain what's on hold. Flips to
+     * true when they dismiss it, after which the thin `AccountSetupBanner` is the
+     * standing reminder. Device-scoped discoverability, like
+     * [tutorialBannerDismissed] — not account state.
+     */
+    val accountSetupExplainerSeen: Boolean = false,
+
+    /**
      * Epoch-ms of when the previous session backgrounded, or `null` if
      * the app has never been backgrounded on this install. Used as the
      * single source of truth for "is this a fresh install" — see

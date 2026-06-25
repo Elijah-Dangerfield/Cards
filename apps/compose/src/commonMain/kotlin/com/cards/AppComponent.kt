@@ -1,5 +1,6 @@
 package com.dangerfield.cards
 
+import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.InAppMessageManager
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
@@ -43,6 +44,7 @@ interface AppComponent {
     val appState: AppState
     val guestAccountCreator: GuestAccountCreator
     val progressionConfig: ProgressionConfig
+    val appCache: AppCache
 
     /**
      * Singletons that need to construct at app boot rather than lazily

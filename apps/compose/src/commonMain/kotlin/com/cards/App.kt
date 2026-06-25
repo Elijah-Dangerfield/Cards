@@ -274,6 +274,11 @@ fun App(appComponent: AppComponent) {
 
                 SplashGate()
 
+                AccountSetupExplainerDialog(
+                    creator = appComponent.guestAccountCreator,
+                    appCache = appComponent.appCache,
+                )
+
                 // The auth server rejected our session mid-run: push a blocking
                 // SessionExpired screen (kept on top, stack intact) that owns
                 // Retry (recover in place) + Logout (tear down to onboarding).
