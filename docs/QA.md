@@ -214,6 +214,31 @@ Two variants, both must pass:
 
 ---
 
+## Offline gating
+
+Every network-required surface follows one rule off a cached / fallback identity (no confirmed server session): **reads render cached content**, **server-mutating surfaces soft-gate** (visible, affordances stay tappable but failures surface as a connection error rather than success), and **money + multiplayer hard-gate**. The matrix below walks each surface once so a single offline pass confirms the whole app honors it (AUTH-5).
+
+---
+
+### `AUTH-5` ⚠️ 📱 Offline gating matrix across network-required surfaces
+
+**State:** a returning session on a cached / fallback profile, offline. Reach this via `ONB-10` (returning user, airplane mode, cold boot) or `ONB-6` (fresh guest, offline, account-creation still pending). Stay offline for every step.
+
+Walk each surface and confirm the column it lands in:
+
+1. **Home** — reads cached. Profile header, chip balance, level all render from cache. The "Connection issues" banner shows; no "account needed" dialog fires from navigating Home.
+2. **Shop** — reads cached (catalog grid renders the last-fetched offers). Chip-funded redeems still work (local spend + Pending row); tapping a **real-money** chip pack hard-gates with a connection / not-signed-in error snackbar, never a silent success.
+3. **Profile** — reads cached (equipped flair, stats, level all from cache).
+4. **Edit Profile** — soft-gates. The avatar picker falls back to the hardcoded starter list when the pack fetch never landed (`loadError` shown). A name change surfaces a connection error inline; an avatar-only save navigates back optimistically then surfaces a connection-error snackbar — never a silent drop.
+5. **Claim account** — hard-gates. Every link / sign-up path (email + OAuth) surfaces a clear no-connection error, not a hang or generic server error.
+6. **Inventory (My Items)** — reads cached; equip / unequip toggles apply optimistically (Pending) and reconcile on reconnect. No hard error from toggling offline.
+7. **Multiplayer** — hard-gates. Create / join surfaces a *connection* error ("Couldn't reach the server"), not the account-less "Sign in first" copy (cross-ref `ONB-10`).
+8. **Settings** — reads cached; the account-setup retry banner (if pending) shows "Retrying…" not an error when tapped offline (cross-ref `ONB-6`).
+
+**Expected:** No surface shows a success state for a write that didn't reach the server, no surface hangs, and no read-only surface blocks on the network. Money + multiplayer never proceed; everything else either renders cached or queues with an honest connection-error message.
+
+---
+
 ## Social gating
 
 Friends/social is descoped to V2 behind the `social.enabled` app-config flag (default off). These confirm the surfaces stay hidden in the shipped default (SOC-2).
