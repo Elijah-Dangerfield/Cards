@@ -5,6 +5,7 @@ import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.libraries.gameplay.Deck
 import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
 import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.game.RoomTeardownCoordinator
@@ -57,6 +58,11 @@ import kotlin.time.Instant
  */
 class InProcessServer(
     private val reaperGrace: Duration = DEFAULT_REAPER_GRACE,
+    // Heads-up match-over rebuy grace (MP-14). Short by default so a
+    // bust-to-match-over test resolves in-test rather than waiting the real 60s,
+    // but long enough that a rebuy test can fire its rebuy before the window
+    // closes. Safe because no passive-play test ever busts a seat to trigger it.
+    private val matchOverGraceMillis: Long = 1_500L,
 ) : AutoCloseable {
 
     /** Per-server wallet + escrow fakes, exposed so escrow tests can read balances. */
@@ -67,6 +73,13 @@ class InProcessServer(
     // [restart] so the registry built by the fresh engine can rehydrate a live
     // hand the dropped client reconnects to.
     private val snapshots = InMemorySessionSnapshotStore()
+
+    // Scripted decks per room (MP-18). Held on this instance (not the rebuilt
+    // registry) so a script survives [restart], and consulted by every engine's
+    // registry via the deckSource below. A test calls [scriptDeck] before the
+    // deal to force a deterministic outcome (a bust, a chop, a side pot);
+    // unscripted rooms fall back to a freshly shuffled deck.
+    private val deckScripts = ConcurrentHashMap<String, (Int) -> Deck>()
 
     // The live engine's registry. Rebuilt per engine ([buildEngine]) so a restart
     // drops the old engine's in-memory sessions; the durable [snapshots] is what
@@ -118,7 +131,23 @@ class InProcessServer(
         Clock.System,
         mixedNextHandDelayMs = 50,
         botThinkDelayMsOverride = 0,
+        matchOverGraceMillis = matchOverGraceMillis,
+        deckSource = { code, handNumber -> deckScripts[code]?.invoke(handNumber) },
     )
+
+    /**
+     * Force the cards a room is dealt (MP-18). Register before the deal — every
+     * hand in [code] draws [deck]. Build it with [stackedDeck] so a test can spell
+     * out "seat 0 gets AA, seat 1 gets KK, the board misses" and bust a player on
+     * purpose. Overload below scripts per hand number for multi-hand scenarios.
+     */
+    fun scriptDeck(code: String, deck: Deck) {
+        deckScripts[code] = { deck }
+    }
+
+    fun scriptDeck(code: String, deckByHand: (handNumber: Int) -> Deck) {
+        deckScripts[code] = deckByHand
+    }
 
     private fun buildEngine(
         registry: GameSessionRegistry,
@@ -189,6 +218,11 @@ class InProcessServer(
      * would itself re-create membership and keep the room alive.
      */
     fun roomExists(code: String): Boolean = runBlocking { rooms.find(code) != null }
+
+    /** Did the room reach the terminal Finished state (e.g. a heads-up match-over)? */
+    fun roomIsFinished(code: String): Boolean = runBlocking {
+        rooms.find(code)?.status == com.dangerfield.cards.server.domain.RoomStatus.Finished
+    }
 
     override fun close() {
         engine.stop(0, 0)

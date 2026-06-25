@@ -69,6 +69,14 @@ import kotlin.random.Random
 class GameSession internal constructor(
     private val random: Random = Random.Default,
     /**
+     * Source of the deck dealt each hand. Defaults to a freshly shuffled deck;
+     * the test harness injects a scripted deck (specific cards in order) to force
+     * a chosen outcome — a bust, a chop, a side pot — deterministically, which a
+     * shuffled deck can't. Keyed by hand number so a multi-hand scenario scripts
+     * each hand independently. See MP-18.
+     */
+    private val deckFactory: (handNumber: Int) -> Deck = { Deck.shuffled(random) },
+    /**
      * Stable identity for this session. Stamped at construction so the
      * registry's `code → session` map can stay string-keyed today while
      * the B0 `room_sessions` snapshot table keys rows by a stable UUID.
@@ -626,7 +634,7 @@ class GameSession internal constructor(
                 ?: sortedIndexes.first()
         }
 
-        val deck = Deck.shuffled(random)
+        val deck = deckFactory(handNumber)
         val result = GameEngine.startHand(
             settings = settings,
             seats = seats,

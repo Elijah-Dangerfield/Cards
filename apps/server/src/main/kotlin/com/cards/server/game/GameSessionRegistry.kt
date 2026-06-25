@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.game
 
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.gameplay.Deck
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
@@ -203,6 +204,10 @@ class DefaultGameSessionRegistry(
     // (MP-14). Defaulted to production; integration tests over the real wire shrink
     // it so a bust-to-resolution test isn't gated on the real 60s.
     private val matchOverGraceMillis: Long = MatchOverGraceDriver.DEFAULT_GRACE_MILLIS,
+    // Test seam (MP-18): resolves a scripted deck per (room, hand) so integration
+    // tests can force busts / chops / side pots over the real wire. Returns null
+    // in production → each hand deals a freshly shuffled deck.
+    private val deckSource: (code: String, handNumber: Int) -> Deck? = { _, _ -> null },
 ) : GameSessionRegistry {
     // StateFlow (not ConcurrentHashMap) so subscribers can observe the
     // moment a session for their code shows up. The mutex serializes
@@ -333,6 +338,7 @@ class DefaultGameSessionRegistry(
     private fun createSession(code: String, sessionId: UUID): GameSession {
         val session = GameSession(
             id = sessionId,
+            deckFactory = { handNumber -> deckSource(code, handNumber) ?: Deck.shuffled() },
             onStateChange = { state -> persist(code = code, sessionId = sessionId, state = state) },
             onHandFinished = { outcome -> recordHandsFinished(sessionId = sessionId, outcome = outcome) },
         )

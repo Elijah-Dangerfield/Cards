@@ -86,6 +86,13 @@ class GameplaySession(
 
     suspend fun requestNextHand() = handle.send(ClientFrame.RequestNextHand(clientNonce = newNonce()))
 
+    /** Send a Rebuy (refill a busted seat) and return the server's correlated ack. */
+    suspend fun rebuy(timeoutMs: Long = DEFAULT_TIMEOUT_MS): GameplayFrame.IntentAck {
+        val nonce = newNonce()
+        handle.send(ClientFrame.Rebuy(clientNonce = nonce))
+        return withTimeout(timeoutMs) { acks.first { it.clientNonce == nonce } }
+    }
+
     /**
      * The next game-state snapshot satisfying [predicate] that is strictly newer
      * than the last one returned (so repeated calls walk the hand forward).

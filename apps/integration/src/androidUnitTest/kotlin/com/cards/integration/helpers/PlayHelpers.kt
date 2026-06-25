@@ -162,6 +162,27 @@ suspend fun Table.playPassivelyToCompletion(maxActions: Int = 60): GameState {
     error("hand did not complete within $maxActions actions")
 }
 
+/**
+ * Drive a heads-up all-in to showdown: the first seat to act shoves all-in, the
+ * other calls, the board runs out. Pair with a scripted deck (`server.scriptDeck`
+ * + `stackedDeck`) to bust a chosen player deterministically — the only way to
+ * force a bust over the wire, since passive play never commits a full stack.
+ * Returns the completed snapshot. Generalises `WireAllInTest`'s inline shove.
+ */
+suspend fun Table.shoveAllInHeadsUp(): GameState {
+    val dealt = hostGame.nextSnapshot { it.actingSeatIndex != null }
+    val shover = dealt.actingSeatIndex!!
+    val shoveAck = gameForSeat(dealt, shover).submit(PlayerIntent.AllIn(seatIndex = shover))
+    check(shoveAck.accepted) { "all-in shove rejected: ${shoveAck.error}" }
+
+    val facing = hostGame.nextSnapshot { it.actingSeatIndex != null && it.actingSeatIndex != shover }
+    val caller = facing.actingSeatIndex!!
+    val callAck = gameForSeat(facing, caller).submit(PlayerIntent.Call(seatIndex = caller))
+    check(callAck.accepted) { "calling the shove rejected: ${callAck.error}" }
+
+    return hostGame.nextSnapshot { it.street == BettingRound.Complete }
+}
+
 private suspend fun Table.actPassively(state: GameState) {
     val seatIndex = state.actingSeatIndex!!
     val seat = state.seatAt(seatIndex)
