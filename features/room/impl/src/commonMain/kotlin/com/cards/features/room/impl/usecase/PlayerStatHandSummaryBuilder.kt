@@ -1,20 +1,20 @@
 package com.dangerfield.cards.features.room.impl.usecase
 
 import com.dangerfield.cards.libraries.cards.AchievementHandContext
+import com.dangerfield.cards.libraries.cards.HandCategoryGrade
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.PlayerStatHandSummary
 
 /**
  * Translates a finished hand ([HandResultSummary] + [AchievementHandContext])
  * into the [PlayerStatHandSummary] the server-authoritative stats outbox
- * accumulates.
+ * accumulates — the complete raw facts the server folds into every achievement
+ * counter, so nothing is lost on a reinstall and a future achievement can be
+ * back-filled from history.
  *
- * Stateful for one thing only: the no-bust streak. Streaks are order-dependent
- * (each hand's value is "prior + 1" or 0 on bust), so the server can't recompute
- * them from an unordered ledger — the client carries the running snapshot and
- * the server folds latest-current + running-max-best. [seedStreak] primes the
- * counter from the last synced snapshot so a session that starts mid-streak
- * keeps counting instead of restarting at 1.
+ * Still carries the running no-bust streak ([seedStreak] primes it from the last
+ * synced snapshot) for back-compat, but the server now derives the streak from
+ * the explicit [PlayerStatHandSummary.busted] fact.
  */
 internal class PlayerStatHandSummaryBuilder {
 
@@ -57,6 +57,21 @@ internal class PlayerStatHandSummaryBuilder {
             vsBot = vsBot,
             beatenBotId = beatenBotId,
             noBustStreak = noBustStreak,
+            busted = busted,
+            startStack = context.humanStartingStack,
+            endStack = context.humanEndingStack,
+            bigBlind = context.bigBlind,
+            potTotal = summary.totalPot,
+            wasAllIn = summary.humanWasAllIn,
+            wonByFold = summary.wonByFold,
+            bustsDealt = if (summary.wonPot) context.bustedOpponentCount else 0,
+            foldedWouldHaveLost = summary.foldedHandWouldHaveLost,
+            // Only a showdown reveals a category (folds leave it null); HighCard
+            // isn't a rewarded "show". The names match the server's ShownHand.
+            handStrengthShown = summary.handCategory
+                ?.takeIf { it != HandCategoryGrade.HighCard }
+                ?.name,
+            botDifficulty = context.botDifficulty,
         )
     }
 }

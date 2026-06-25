@@ -52,6 +52,41 @@ data class PlayerStatEventEntity(
     @ColumnInfo(name = "no_bust_streak")
     val noBustStreak: Long,
 
+    // Enriched raw facts (PROG-1) — the complete hand record the server folds
+    // into every achievement counter.
+    @ColumnInfo(name = "busted", defaultValue = "0")
+    val busted: Boolean = false,
+
+    @ColumnInfo(name = "start_stack", defaultValue = "0")
+    val startStack: Long = 0,
+
+    @ColumnInfo(name = "end_stack", defaultValue = "0")
+    val endStack: Long = 0,
+
+    @ColumnInfo(name = "big_blind", defaultValue = "0")
+    val bigBlind: Long = 0,
+
+    @ColumnInfo(name = "pot_total", defaultValue = "0")
+    val potTotal: Long = 0,
+
+    @ColumnInfo(name = "was_all_in", defaultValue = "0")
+    val wasAllIn: Boolean = false,
+
+    @ColumnInfo(name = "won_by_fold", defaultValue = "0")
+    val wonByFold: Boolean = false,
+
+    @ColumnInfo(name = "busts_dealt", defaultValue = "0")
+    val bustsDealt: Int = 0,
+
+    @ColumnInfo(name = "folded_would_have_lost", defaultValue = "0")
+    val foldedWouldHaveLost: Boolean = false,
+
+    @ColumnInfo(name = "hand_strength_shown")
+    val handStrengthShown: String? = null,
+
+    @ColumnInfo(name = "bot_difficulty")
+    val botDifficulty: String? = null,
+
     @ColumnInfo(name = "created_at_epoch_ms")
     val createdAtEpochMs: Long,
 )

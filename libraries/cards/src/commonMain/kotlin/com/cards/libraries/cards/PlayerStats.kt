@@ -37,13 +37,15 @@ data class PlayerStats(
 }
 
 /**
- * One finished hand's stat signals, from the human's perspective. The room
- * feature builds this at hand-end; [PlayerStatsRepository.recordHand] writes it
- * to the outbox to be flushed and accumulated into the server aggregate.
+ * One finished hand's raw facts, from the human's perspective. The room feature
+ * builds this at hand-end; [PlayerStatsRepository.recordHand] writes it to the
+ * outbox to be flushed, and the server folds these facts into every achievement
+ * counter (see `libraries:achievements`).
  *
- * [noBustStreak] is the client-computed streak length *after* this hand —
- * streaks are order-dependent so the client carries the snapshot and the server
- * folds latest-current + running-max-best.
+ * The server derives counters from these raw facts, not from client-computed
+ * progress — so a reinstall can't reset or clobber them. [noBustStreak] is kept
+ * for back-compat (the server reconstructs `busted` from it when needed), but
+ * [busted] is now sent explicitly.
  */
 data class PlayerStatHandSummary(
     val handId: String,
@@ -55,6 +57,21 @@ data class PlayerStatHandSummary(
     /** Bot beaten this hand, when [won] && [vsBot]; null otherwise. */
     val beatenBotId: String?,
     val noBustStreak: Long,
+    // Raw facts the server folds into achievement counters. Defaulted so the
+    // builder is the one place that must populate them; test/other callers opt in.
+    val busted: Boolean = false,
+    val startStack: Long = 0,
+    val endStack: Long = 0,
+    val bigBlind: Long = 0,
+    val potTotal: Long = 0,
+    val wasAllIn: Boolean = false,
+    val wonByFold: Boolean = false,
+    val bustsDealt: Int = 0,
+    val foldedWouldHaveLost: Boolean = false,
+    /** Best hand category shown at showdown (`Pair`…`RoyalFlush`); null if folded / high card. */
+    val handStrengthShown: String? = null,
+    /** Bot difficulty this hand ("Casual"/"Standard"/"Challenging"); null in multiplayer. */
+    val botDifficulty: String? = null,
 )
 
 /**

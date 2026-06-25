@@ -46,7 +46,7 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
         PlayerStatsEntity::class,
         PlayerStatEventEntity::class,
     ],
-    version = 20, // v20: player_stats + player_stat_events (server-authoritative stats outbox + cache)
+    version = 21, // v21: player_stat_events enriched with raw hand facts (PROG-1 achievement counters)
     exportSchema = true
 )
 @ConstructedBy(AppDatabaseConstructor::class)
