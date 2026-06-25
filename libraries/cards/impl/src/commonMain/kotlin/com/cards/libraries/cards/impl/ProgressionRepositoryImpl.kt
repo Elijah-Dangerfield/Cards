@@ -1,7 +1,5 @@
 package com.dangerfield.cards.libraries.cards.impl
 
-import com.dangerfield.cards.libraries.cards.AppEvent
-import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
@@ -19,7 +17,6 @@ import com.dangerfield.cards.libraries.cards.storage.db.ProgressionEntity
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
 import com.dangerfield.cards.libraries.core.logging.KLog
-import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.authedCall
 import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
@@ -30,7 +27,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.tatarka.inject.annotations.Inject
@@ -54,16 +50,15 @@ import kotlin.uuid.Uuid
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = ProgressionRepository::class)
-@ContributesBinding(AppScope::class, multibinding = true, boundType = AppEventListener::class)
+@ContributesBinding(AppScope::class, multibinding = true, boundType = UserScopedSyncer::class)
 @Inject
 class ProgressionRepositoryImpl(
     private val progressionDao: ProgressionDao,
     private val xpEventDao: XpEventDao,
     private val networkClient: NetworkClient,
-    private val appScope: AppCoroutineScope,
     private val clock: Clock,
     private val xpBoostRepository: XpBoostRepository,
-) : ProgressionRepository, AppEventListener {
+) : ProgressionRepository, UserScopedSyncer {
 
     private val logger = KLog.withTag("ProgressionRepository")
     private val syncLogger = KLog.withTag("ProgressionSync")
@@ -221,29 +216,6 @@ class ProgressionRepositoryImpl(
             }
             Unit
         }
-    }
-
-    override fun onUserChanged(event: AppEvent.UserChanged) {
-        // A user just became active (cold-boot resolve, sign-in, or account
-        // switch). On a switch the prior user's XP was just wiped, so
-        // re-hydrate the new user's authoritative total now rather than waiting
-        // for a foreground. Sign-out (current == null) has nothing to fetch.
-        if (event.current == null) return
-        appScope.launch { sync() }
-    }
-
-    override fun onAccountClaimed(event: AppEvent.AccountClaimed) {
-        // A guest just claimed their account (same user id, no UserChanged), so
-        // flush pending XP + reconcile the authoritative total now instead of
-        // waiting for the next foreground.
-        appScope.launch { sync() }
-    }
-
-    override fun onForeground(event: AppEvent.OnForeground) {
-        // Cold-boot's initial sync is owned by [onUserChanged]; this handles
-        // the warm-resume reconcile only.
-        if (event.isColdBoot) return
-        appScope.launch { sync() }
     }
 
     override suspend fun deleteAll() {

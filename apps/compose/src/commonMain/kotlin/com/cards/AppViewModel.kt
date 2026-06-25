@@ -6,6 +6,7 @@ import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.onboarding.OnboardingRoute
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.config.EnsureAppConfigLoaded
+import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
@@ -72,6 +73,8 @@ class AppViewModel(
     private val accessDeniedBus: AccessDeniedBus,
 ) : ViewModel() {
 
+    private val logger = KLog.withTag("AppNav")
+
     private val _startDestination = MutableStateFlow<Route?>(null)
     val startDestination: StateFlow<Route?> = _startDestination.asStateFlow()
 
@@ -121,9 +124,15 @@ class AppViewModel(
     val isBootComplete: StateFlow<Boolean> = _isBootComplete.asStateFlow()
 
     init {
+        // DEBUG (onboarding-bounce repro): this VM is @SingleIn(AppScope) so it's
+        // created once. A second "created" line means the app graph was rebuilt,
+        // which re-resolves the start destination and would restart onboarding at
+        // Welcome. Pair with the OnboardingFlow "VM created" line.
+        logger.d { "AppViewModel created (instance=${hashCode().toString(16)})" }
         viewModelScope.launch {
             val data = appCache.get()
             val onboarded = data.hasUserOnboarded
+            logger.d { "Resolving start destination: hasUserOnboarded=$onboarded → ${if (onboarded) "Home" else "Onboarding"}" }
             _startDestination.value = if (onboarded) HomeRoute() else OnboardingRoute()
             // Start destination resolved — release the platform splash; the
             // Compose boot gate now covers the rest of the wait.

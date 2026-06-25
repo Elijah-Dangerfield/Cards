@@ -9,6 +9,10 @@ import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.AppLifecycle
 import com.dangerfield.cards.libraries.cards.AppLifecycleObserver
 import kotlinx.coroutines.InternalCoroutinesApi
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.internal.SynchronizedObject
 import kotlinx.coroutines.internal.synchronized
 import me.tatarka.inject.annotations.Inject
@@ -35,14 +39,27 @@ class AppEventDispatcher(
     @Volatile
     private var hasDispatchedColdBoot = false
 
+    // replay = 1 so a collector that subscribes during boot (e.g. UserScopedSyncCoordinator)
+    // still catches the activation event that fired just before it attached — matching the
+    // no-miss guarantee the synchronous listener set already gives. Buffered + DROP_OLDEST so
+    // tryEmit never blocks the dispatch thread or a publisher.
+    private val events = MutableSharedFlow<AppEvent>(
+        replay = 1,
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
     init {
         appLifecycle.addObserver(lifecycleObserver)
     }
 
     override fun dispatch(event: AppEvent) {
         KLog.i("App Event: $event")
+        events.tryEmit(event)
         notifyListeners(event)
     }
+
+    override fun eventStream(): Flow<AppEvent> = events.asSharedFlow()
 
     @OptIn(InternalCoroutinesApi::class)
     private fun handleForegroundEntry() {

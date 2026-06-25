@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.LegalUrls
 import com.dangerfield.cards.libraries.core.isiOS
 import com.dangerfield.cards.libraries.core.logOnFailure
+import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
 import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
@@ -95,10 +96,21 @@ class OnboardingViewModel(
     },
 ) {
 
+    private val logger = KLog.withTag("OnboardingFlow")
+
     init {
+        // DEBUG (onboarding-bounce repro): one line per VM instance. The VM is
+        // scoped to the OnboardingRoute back-stack entry, so its initial step is
+        // Welcome. If this fires MORE THAN ONCE during a single onboarding run,
+        // the entry was destroyed and recreated (e.g. the NavHost rebuilt on a
+        // recomposition / start-destination change) — which silently resets the
+        // user to Welcome. That's the prime suspect for "sent back to the front".
+        logger.d { "VM created (instance=${hashCode().toString(16)})" }
         viewModelScope.launch {
             Catching {
-                if (appCache.get().hasUserOnboarded) {
+                val onboarded = appCache.get().hasUserOnboarded
+                logger.d { "Onboarded-guard: hasUserOnboarded=$onboarded" }
+                if (onboarded) {
                     sendEvent(OnboardingEvent.NavigateToHome)
                 }
             }.logOnFailure { "Onboarded-guard cache read failed" }
@@ -144,6 +156,7 @@ class OnboardingViewModel(
         // user commits their identity (PickIdentity → Continue). Tapping
         // "Continue as guest" just enters the identity step.
         recordLegalConsent()
+        logger.d { "step: Welcome → PickIdentity (Continue as guest)" }
         updateState { it.copy(authError = null, step = OnboardingStep.PickIdentity) }
     }
 
@@ -309,6 +322,7 @@ class OnboardingViewModel(
         )
         // Point of no return: advance and mark creation started so back is
         // blocked from here (the chosen name is now committed to creation).
+        logger.d { "step: PickIdentity → HowItWorks (creationStarted=true)" }
         updateState { it.copy(step = OnboardingStep.HowItWorks, saveError = null, creationStarted = true) }
 
         if (authRepository.current() is AuthState.Authenticated) {
@@ -336,6 +350,7 @@ class OnboardingViewModel(
         } else {
             // Guest path: mint the account in the background (app scope). The
             // final step joins on the result.
+            logger.d { "guest path: launching guest-account creation in background" }
             guestAccountCreator.start(identity)
         }
     }
@@ -344,6 +359,7 @@ class OnboardingViewModel(
      * Advances HowItWorks → StarterGrant and kicks off the grant reveal.
      */
     private suspend fun OnboardingAction.handleContinueFromHowItWorks() {
+        logger.d { "step: HowItWorks → StarterGrant" }
         updateState { it.copy(step = OnboardingStep.StarterGrant) }
         kickOffGrantReveal()
     }
@@ -426,11 +442,13 @@ class OnboardingViewModel(
         val alreadyAuthed = authRepository.current() is AuthState.Authenticated
         if (!alreadyAuthed && guestAccountCreator.state.value != AccountCreationState.Idle) {
             val terminal = guestAccountCreator.awaitTerminal()
+            logger.d { "finish: guest-creation terminal=${terminal::class.simpleName}" }
             if (terminal is AccountCreationState.Failed) {
                 updateState { it.copy(creationFailed = true) }
             }
         }
 
+        logger.d { "finish: persisting hasUserOnboarded=true → NavigateToHome (alreadyAuthed=$alreadyAuthed)" }
         appCache.update { it.copy(hasUserOnboarded = true) }
         updateState { it.copy(isFinishing = false) }
         sendEvent(OnboardingEvent.NavigateToHome)

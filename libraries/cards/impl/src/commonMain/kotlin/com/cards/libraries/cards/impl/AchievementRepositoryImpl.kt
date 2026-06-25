@@ -2,8 +2,6 @@ package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.AchievementGrantApi
-import com.dangerfield.cards.libraries.cards.AppEvent
-import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.AchievementHandContext
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AchievementProgress
@@ -67,7 +65,7 @@ import kotlin.time.Clock
 
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = AchievementRepository::class)
-@ContributesBinding(AppScope::class, multibinding = true, boundType = AppEventListener::class)
+@ContributesBinding(AppScope::class, multibinding = true, boundType = UserScopedSyncer::class)
 @Inject
 class AchievementRepositoryImpl(
     private val achievementDao: AchievementDao,
@@ -79,7 +77,7 @@ class AchievementRepositoryImpl(
     private val progressionConfig: ProgressionConfig,
     private val appScope: AppCoroutineScope,
     private val clock: Clock,
-) : AchievementRepository, AppEventListener {
+) : AchievementRepository, UserScopedSyncer {
 
     private val logger = KLog.withTag("AchievementRepository")
     private val syncLogger = KLog.withTag("AchievementSync")
@@ -307,29 +305,6 @@ class AchievementRepositoryImpl(
             }
             Unit
         }
-    }
-
-    override fun onUserChanged(event: AppEvent.UserChanged) {
-        // A user just became active (cold-boot resolve, sign-in, or account
-        // switch). On a switch the prior user's earned set was just wiped, so
-        // re-hydrate the new user's now. Sign-out (current == null) fetches
-        // nothing.
-        if (event.current == null) return
-        appScope.launch { sync() }
-    }
-
-    override fun onAccountClaimed(event: AppEvent.AccountClaimed) {
-        // A guest just claimed their account (same user id, no UserChanged), so
-        // reconcile the earned set now instead of waiting for the next
-        // foreground.
-        appScope.launch { sync() }
-    }
-
-    override fun onForeground(event: AppEvent.OnForeground) {
-        // Cold-boot's initial sync is owned by [onUserChanged]; this handles
-        // the warm-resume reconcile only.
-        if (event.isColdBoot) return
-        appScope.launch { sync() }
     }
 
     override suspend fun deleteAll() {

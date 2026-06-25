@@ -1,7 +1,6 @@
 package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.AchievementProgress
-import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
@@ -32,7 +31,6 @@ import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.job
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -109,48 +107,10 @@ class AchievementRepositoryImplSyncTest : CoroutineTest() {
         assertEquals(listOf("A"), dao.getUnsyncedEarned().map { it.achievementId }, "failed sync keeps rows pending")
     }
 
-    @Test
-    fun onUserChanged_toAUser_launchesSync() = runUnitTest {
-        val dao = FakeAchievementDao()
-        val appScope = AppCoroutineScope(dispatchers)
-        var hits = 0
-        val repo = buildRepoWithScope(dao, appScope) {
-            hits++
-            respondJson("""{"schemaVersion":1,"earned":[]}""")
-        }
-
-        repo.onUserChanged(AppEvent.UserChanged(previous = "old", current = "new"))
-        appScope.coroutineContext.job.children.toList().forEach { it.join() }
-
-        assertEquals(1, hits)
-    }
-
-    @Test
-    fun onUserChanged_toSignedOut_doesNotSync() = runUnitTest {
-        val dao = FakeAchievementDao()
-        val appScope = AppCoroutineScope(dispatchers)
-        var hits = 0
-        val repo = buildRepoWithScope(dao, appScope) {
-            hits++
-            respondJson("""{"schemaVersion":1,"earned":[]}""")
-        }
-
-        repo.onUserChanged(AppEvent.UserChanged(previous = "old", current = null))
-
-        assertEquals(0, hits)
-        assertTrue(appScope.coroutineContext.job.children.toList().isEmpty())
-    }
-
     // ---------- Scaffolding ----------
 
     private fun buildRepo(
         dao: FakeAchievementDao,
-        handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
-    ): AchievementRepositoryImpl = buildRepoWithScope(dao, AppCoroutineScope(dispatchers), handler)
-
-    private fun buildRepoWithScope(
-        dao: FakeAchievementDao,
-        appScope: AppCoroutineScope,
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): AchievementRepositoryImpl {
         val httpClient = HttpClient(MockEngine(handler)) {
@@ -171,7 +131,7 @@ class AchievementRepositoryImplSyncTest : CoroutineTest() {
             inventoryRepository = NoopInventory,
             networkClient = networkClient,
             progressionConfig = FakeProgressionConfig(),
-            appScope = appScope,
+            appScope = AppCoroutineScope(dispatchers),
             clock = FixedClock,
         )
     }

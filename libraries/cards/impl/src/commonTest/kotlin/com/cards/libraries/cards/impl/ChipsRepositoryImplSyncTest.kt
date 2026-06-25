@@ -1,13 +1,9 @@
 package com.dangerfield.cards.libraries.cards.impl
 
-import com.dangerfield.cards.libraries.cards.AppCache
-import com.dangerfield.cards.libraries.cards.AppData
-import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsEntity
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventEntity
-import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import io.ktor.client.HttpClient
@@ -28,11 +24,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.job
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -303,73 +297,6 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
-    fun onUserChanged_toAUser_launchesSync() = runUnitTest {
-        // A user became active (cold-boot resolve, sign-in, or account switch).
-        // We hydrate the new user's balance immediately — no foreground needed.
-        val chipsDao = FakeChipsDao(seedBalance = 0L)
-        val walletDao = FakeWalletEventDao()
-        var hitCount = 0
-        val appScope = AppCoroutineScope(dispatchers)
-        val repo = buildRepoWithScope(chipsDao, walletDao, appScope) {
-            hitCount++
-            respondJson("""{"schemaVersion":1,"balance":555,"results":[]}""")
-        }
-
-        repo.onUserChanged(AppEvent.UserChanged(previous = "old-user", current = "new-user"))
-        appScope.coroutineContext.job.children.toList().forEach { it.join() }
-
-        assertEquals(1, hitCount, "an incoming user should fire one sync POST")
-        assertEquals(555L, chipsDao.getChips()?.balance)
-    }
-
-    @Test
-    fun onUserChanged_toSignedOut_doesNotSync() = runUnitTest {
-        // Sign-out / delete (current == null) has no server data to fetch.
-        val chipsDao = FakeChipsDao(seedBalance = 0L)
-        val walletDao = FakeWalletEventDao()
-        var hitCount = 0
-        val appScope = AppCoroutineScope(dispatchers)
-        val repo = buildRepoWithScope(chipsDao, walletDao, appScope) {
-            hitCount++
-            respondJson("""{"schemaVersion":1,"balance":0,"results":[]}""")
-        }
-
-        repo.onUserChanged(AppEvent.UserChanged(previous = "old-user", current = null))
-
-        assertEquals(0, hitCount, "sign-out must not POST a sync")
-        assertTrue(
-            appScope.coroutineContext.job.children.toList().isEmpty(),
-            "no coroutine should have been launched",
-        )
-    }
-
-    @Test
-    fun onForeground_coldBoot_isNoOp_warmResume_syncs() = runUnitTest {
-        val chipsDao = FakeChipsDao(seedBalance = 0L)
-        val walletDao = FakeWalletEventDao()
-        var hitCount = 0
-        val appScope = AppCoroutineScope(dispatchers)
-        val repo = buildRepoWithScope(chipsDao, walletDao, appScope) {
-            hitCount++
-            respondJson("""{"schemaVersion":1,"balance":42,"results":[]}""")
-        }
-
-        // ColdBoot-flagged foreground defers to onUserChanged (which owns the
-        // initial per-user sync) — this hook returns synchronously without
-        // launching anything, so there's no scope work to join.
-        repo.onForeground(AppEvent.OnForeground(isColdBoot = true))
-        assertEquals(0, hitCount, "ColdBoot-flagged foreground must not POST")
-        assertTrue(
-            appScope.coroutineContext.job.children.toList().isEmpty(),
-            "no coroutine should have been launched",
-        )
-
-        repo.onForeground(AppEvent.OnForeground(isColdBoot = false))
-        appScope.coroutineContext.job.children.toList().forEach { it.join() }
-        assertEquals(1, hitCount, "Warm-resume foreground should fire a sync POST")
-    }
-
-    @Test
     fun concurrentSync_serializesThroughMutex_noOverlappingPosts() = runUnitTest {
         // Two parallel sync() callers must not have overlapping POSTs in
         // flight — the syncMutex serializes them. Without the mutex, the
@@ -408,18 +335,6 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
         chipsDao: FakeChipsDao,
         walletDao: FakeWalletEventDao,
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
-    ): ChipsRepositoryImpl = buildRepoWithScope(
-        chipsDao = chipsDao,
-        walletDao = walletDao,
-        appScope = AppCoroutineScope(dispatchers),
-        handler = handler,
-    )
-
-    private fun buildRepoWithScope(
-        chipsDao: FakeChipsDao,
-        walletDao: FakeWalletEventDao,
-        appScope: AppCoroutineScope,
-        handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): ChipsRepositoryImpl {
         val mockEngine = MockEngine(handler)
         val client = HttpClient(mockEngine) {
@@ -446,7 +361,6 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
             chipsDao = chipsDao,
             walletEventDao = walletDao,
             networkClient = networkClient,
-            appScope = appScope,
             clock = FixedClock,
         )
     }

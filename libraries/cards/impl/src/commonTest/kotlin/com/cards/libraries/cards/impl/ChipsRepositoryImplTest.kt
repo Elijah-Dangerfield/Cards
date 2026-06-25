@@ -7,7 +7,6 @@ import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsEntity
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventEntity
-import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.networking.InternalNetworkingApi
 import com.dangerfield.cards.libraries.networking.NetworkClient
@@ -319,7 +318,6 @@ class ChipsRepositoryImplTest : CoroutineTest() {
             chipsDao = chipsDao,
             walletEventDao = walletDao,
             networkClient = networkClient,
-            appScope = AppCoroutineScope(dispatchers),
             clock = FixedClock,
         )
     }

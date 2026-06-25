@@ -4,6 +4,8 @@ import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.AppLifecycle
 import com.dangerfield.cards.libraries.cards.AppLifecycleObserver
+import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import kotlinx.coroutines.launch
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -21,7 +23,7 @@ import kotlin.test.assertEquals
  * mirror that wiring. UserChanged is the path we explicitly call via
  * AppEventBus, so that's what's worth pinning.
  */
-class AppEventDispatcherTest {
+class AppEventDispatcherTest : CoroutineTest() {
 
     @Test
     fun userChanged_fansOutToEveryListener() {
@@ -53,6 +55,37 @@ class AppEventDispatcherTest {
         // set isn't part of the contract (Set is unordered), but
         // "every non-throwing listener fires" is.
         assertEquals(listOf("userChanged"), healthy.calls)
+    }
+
+    @Test
+    fun eventStream_emitsEachDispatchedEvent_inOrder() = runUnitTest {
+        val dispatcher = AppEventDispatcher(listeners = emptySet(), appLifecycle = NoopLifecycle)
+        val seen = mutableListOf<AppEvent>()
+        backgroundScope.launch { dispatcher.eventStream().collect { seen += it } }
+
+        dispatcher.dispatch(AppEvent.UserChanged(previous = "a", current = "b"))
+        dispatcher.dispatch(AppEvent.OnForeground(isColdBoot = false))
+
+        assertEquals(
+            listOf(
+                AppEvent.UserChanged(previous = "a", current = "b"),
+                AppEvent.OnForeground(isColdBoot = false),
+            ),
+            seen,
+        )
+    }
+
+    @Test
+    fun eventStream_and_listeners_seeTheSameEvent() = runUnitTest {
+        val listener = Recording()
+        val dispatcher = AppEventDispatcher(listeners = setOf(listener), appLifecycle = NoopLifecycle)
+        val seen = mutableListOf<AppEvent>()
+        backgroundScope.launch { dispatcher.eventStream().collect { seen += it } }
+
+        dispatcher.dispatch(AppEvent.UserChanged(previous = null, current = "u"))
+
+        assertEquals(listOf("userChanged"), listener.calls)
+        assertEquals(listOf<AppEvent>(AppEvent.UserChanged(previous = null, current = "u")), seen)
     }
 
     private class Recording : AppEventListener {
