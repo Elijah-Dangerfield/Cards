@@ -79,11 +79,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Out of scope:** Emulator-based UI tests (device-smoke checklist is the substitute) and hand-history regression fixtures (gated on a real production playtest).
 
-- `[P1]` **MP-6 — Surface bot-table chip settlement at the surprising moments.** Two disclosure surfaces remain on subsidized bot tables: (1) a post-leave confirmation (toast / Home summary) naming the credited amount + new wallet balance, so the balance change is never a silent surprise; (2) a sit-down disclosure when the player is near their daily subsidy cap, so they learn it before playing rather than from an "odd balance" afterward.
+- `[P1]` **MP-6 — Surface bot-table chip settlement at the surprising moments (client wiring).** Two disclosure surfaces remain on subsidized bot tables: (1) a post-leave confirmation (toast / Home summary) naming the credited amount + new wallet balance, so the balance change is never a silent surprise; (2) a near-cap disclosure before the bot-fallback opt-in, so the player learns the daily subsidy limit before playing rather than from an "odd balance" afterward.
 
   **Acceptance:** A player who wins on a subsidized table and leaves sees the credited amount confirmed; a player near their daily cap is told before they sit.
 
-  **Hints:** `DefaultTableSessionService.cashOut` credits `finalStack`; `SubsidyCapReached` (`SitDownResult`) is the cap gate. Sentry CARDS-2N / CARDS-2Y.
+  **Hints:** The near-cap data is now served by `GET /v1/matchmaking/subsidy-budget` (`grantedToday`/`cap`/`remaining`) — the client read + disclosure UI at the `play-bots` opt-in is what's left for part (2). For part (1), `DefaultTableSessionService.cashOut` returns `CashedOut(refunded, balanceAfter)` but the leave HTTP/socket path doesn't surface it to the client yet — needs the amount routed to a post-leave surface. Sentry CARDS-2N / CARDS-2Y.
 
 - `[P0]` **MP-7 — Private (human-vs-human) table winnings don't settle to the wallet on leave.** A player won a 500-chip pot in a private 2-player room (A5MEME), left, and their wallet showed nothing; a background/foreground later bumped the balance by +100, so the reconcile is not just missing but inconsistent. The server logs `Hand N finished` / seat-forfeit but emits no wallet-credit on leave for a private fake-chip room. Needs a product call on whether private fake-chip rooms move the wallet at all: if yes, this is a settlement bug (mirror the bots path's `cashOut` final-stack credit); if no, the table stack must stop being framed as the wallet balance. Either way "win 500 → wallet unchanged → +100 on resume" is broken and surprising.
 

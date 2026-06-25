@@ -62,7 +62,30 @@ interface TableSessionService {
      * excluded from the live stack), which is the correct poker semantics.
      */
     suspend fun cashOut(userId: UserId, finalStack: Long?): CashOutResult
+
+    /**
+     * The player's current disclosed-bot subsidy budget — how much of the
+     * rolling-window cap they've already drawn down and how much is left.
+     * Read-only; the client reads it before the bot-fallback opt-in so a
+     * near-cap player learns the limit *before* playing, not from a surprising
+     * balance afterward. [SubsidyBudget.remaining] hitting zero is the same gate
+     * [sitDown] enforces with [SitDownResult.SubsidyCapReached].
+     */
+    suspend fun subsidyBudget(userId: UserId): SubsidyBudget
 }
+
+/**
+ * Snapshot of a player's disclosed-bot subsidy draw-down for the current rolling
+ * window. [grantedToday] is the house-funded net already taken, [cap] the
+ * window's ceiling, [remaining] the headroom left (never negative). A win on a
+ * subsidised table can only be credited up to the cap at sit-down time, so
+ * [remaining] == 0 means the next bot table is gated.
+ */
+data class SubsidyBudget(
+    val grantedToday: Long,
+    val cap: Long,
+    val remaining: Long,
+)
 
 sealed interface SitDownResult {
     /** Real-stakes seat funded: [startingStack] moved wallet → table; [balanceAfter] is the post-debit wallet. */

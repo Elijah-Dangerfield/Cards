@@ -42,6 +42,10 @@ import io.ktor.server.routing.post
  *    seating no one and creating nothing. Powers the chooser flow where the user
  *    picks which table to join rather than being auto-seated by `find`. An empty
  *    list means no match — the client offers the disclosed-bot fallback.
+ *  - `GET /v1/matchmaking/subsidy-budget` — read-only: the caller's disclosed-bot
+ *    subsidy draw-down for the rolling window (`grantedToday` / `cap` / `remaining`).
+ *    The client reads it before the bot fallback so a near-cap player learns the
+ *    limit up front rather than from a surprising balance afterward.
  *  - `POST /v1/matchmaking/{code}/play-bots` — the searcher consented to the
  *    honest bot fallback ("we couldn't find enough players — play with bots").
  *    Fills the caller's public table with DISCLOSED bots (🤖, bot badge — never
@@ -286,6 +290,19 @@ fun Route.matchmakingRoutes(
                 call.respond(
                     HttpStatusCode.OK,
                     MatchmakingCandidatesResponse(rooms = candidates.map { it.toDto() }),
+                )
+            }
+
+            get("/v1/matchmaking/subsidy-budget") {
+                val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+                val budget = tableSessions.subsidyBudget(userId)
+                call.respond(
+                    HttpStatusCode.OK,
+                    SubsidyBudgetResponse(
+                        grantedToday = budget.grantedToday,
+                        cap = budget.cap,
+                        remaining = budget.remaining,
+                    ),
                 )
             }
         }

@@ -332,6 +332,8 @@ internal data class AppliedWalletCall(
 @OptIn(ExperimentalTime::class)
 internal class InMemoryTestTableSessionService(
     private val wallets: WalletRepository,
+    private val subsidyCap: Long = 25_000L,
+    private val subsidyGranted: Long = 0L,
 ) : com.dangerfield.cards.server.domain.TableSessionService {
     private val lock = Any()
     private data class Active(val id: java.util.UUID, val roomCode: String, val buyIn: Long, var rebuys: Int)
@@ -391,6 +393,13 @@ internal class InMemoryTestTableSessionService(
         val o = wallets.apply(userId, "table:${s.id}:cashout", refund, "mp_cashout") as ApplyOutcome.Applied
         return com.dangerfield.cards.server.domain.CashOutResult.CashedOut(refund, o.balance)
     }
+
+    override suspend fun subsidyBudget(userId: UserId): com.dangerfield.cards.server.domain.SubsidyBudget =
+        com.dangerfield.cards.server.domain.SubsidyBudget(
+            grantedToday = subsidyGranted,
+            cap = subsidyCap,
+            remaining = (subsidyCap - subsidyGranted).coerceAtLeast(0L),
+        )
 }
 
 /**
