@@ -246,7 +246,13 @@ fun Route.roomSocketRoutes(
                                 deltas.filterIsInstance<RoomSocketEventDto.MemberLeft>().forEach { left ->
                                     val leftUserId = runCatching { UserId(UUID.fromString(left.userId)) }.getOrNull()
                                     if (leftUserId != null) {
-                                        val stack = gameSessions.peek(code)?.state?.value?.stackFor(leftUserId)
+                                        // Live seat stack if they're still seated; else the stack
+                                        // they settled with last hand (0 for a busted-and-dropped
+                                        // player) — never a full-escrow refund, which would mint
+                                        // their lost stake (MP-13). Null only when never dealt in.
+                                        val session = gameSessions.peek(code)
+                                        val stack = session?.state?.value?.stackFor(leftUserId)
+                                            ?: session?.lastKnownStack(leftUserId.value.toString())
                                         Catching { tableSessions.cashOut(leftUserId, stack) }
                                             .onFailure { e ->
                                                 LoggerFactory.getLogger("RoomSocket")

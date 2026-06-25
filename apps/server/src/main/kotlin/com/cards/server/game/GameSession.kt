@@ -177,6 +177,14 @@ class GameSession internal constructor(
     // the seats that ever existed; never cleared (gone stays gone).
     private val removedPlayerIds = mutableSetOf<String>()
 
+    // Each player's stack as of the last hand they were seated for, kept even
+    // after they bust out and are dropped from the deal. The cash-out path reads
+    // this when a leaving player has no live seat (busted + dropped): without it,
+    // a seatless leaver falls through to a full-escrow refund and mints their lost
+    // stake (MP-13). A busted player's last entry is 0, so they're correctly
+    // refunded nothing. Never cleared — gone players keep their settled value.
+    private val lastKnownStacks = mutableMapOf<String, Long>()
+
     /**
      * Open a new hand. Caller supplies the current room occupants
      * (humans + bots) and the room's settings. Stacks carry over from
@@ -314,6 +322,7 @@ class GameSession internal constructor(
                         // Info: hand completion is a session milestone — bounds a
                         // hand in Loki and confirms settlement actually ran.
                         log.info("Hand ${current.handNumber} finished — session=$id")
+                        recordLastKnownStacks(newState)
                         onHandFinished(buildHandOutcome(newState, resolved.result.events))
                     }
                     resolved.result.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
@@ -526,6 +535,7 @@ class GameSession internal constructor(
         onStateChange(newState)
         if (handJustFinished) {
             log.info("Hand ${current.handNumber} finished (seat $actorUserId forfeited) — session=$id")
+            recordLastKnownStacks(newState)
             onHandFinished(buildHandOutcome(newState, step.events))
         }
         step.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
@@ -663,6 +673,18 @@ class GameSession internal constructor(
      * carries the authoritative `byFold` per winner, which the stack delta
      * can't distinguish from a showdown win.
      */
+    /**
+     * The stack [userId] settled with as of the last hand they were seated for, or
+     * null if they were never dealt in. Read by the leave / teardown cash-out as a
+     * fallback when the player holds no live seat, so a busted-and-dropped player is
+     * cashed out their real 0 stack rather than refunded their whole escrow (MP-13).
+     */
+    fun lastKnownStack(userId: String): Long? = lastKnownStacks[userId]
+
+    private fun recordLastKnownStacks(state: GameState) {
+        state.seats.forEach { seat -> seat.playerId?.let { lastKnownStacks[it] = seat.stack } }
+    }
+
     private fun buildHandOutcome(finalState: GameState, events: List<GameEvent>): HandOutcome {
         val potTotal = finalState.seats.sumOf { it.contributedThisHand }
         val bustedOpponentCount = finalState.seats.count { seat ->

@@ -43,10 +43,16 @@ class RoomTeardownCoordinator(
 
     override suspend fun onRoomClosed(room: Room) {
         // Read live stacks BEFORE ending the session (end() drops it).
-        val state = gameSessions.peek(room.code)?.state?.value
+        val session = gameSessions.peek(room.code)
+        val state = session?.state?.value
         for (member in room.members) {
             if (member.bot != null) continue
+            // Live seat stack, else the stack they settled with last hand (0 for a
+            // busted-and-dropped player). Falling through to a full-escrow refund
+            // would mint a busted player's lost stake (MP-13); null only when no
+            // hand was ever dealt.
             val stack = state?.stackFor(member.userId)
+                ?: session?.lastKnownStack(member.userId.value.toString())
             Catching { tableSessions.cashOut(member.userId, stack) }
                 .onFailure { log.warn("Teardown cash-out failed for ${member.userId.value} in room ${room.code}", it) }
         }

@@ -224,6 +224,15 @@ class InProcessServer(
         rooms.find(code)?.status == com.dangerfield.cards.server.domain.RoomStatus.Finished
     }
 
+    /**
+     * Does [userId] still hold an open table session (escrow not yet cashed out)?
+     * Lets a test wait for an async cash-out to actually fire before asserting the
+     * wallet — needed when the correct refund (0, for a busted player) leaves the
+     * balance unchanged, so the balance alone can't tell "not yet" from "settled".
+     */
+    fun hasActiveTableSession(userId: String): Boolean =
+        tableSessions.isActive(UserId(UUID.fromString(userId)))
+
     override fun close() {
         engine.stop(0, 0)
     }
@@ -383,6 +392,9 @@ class FakeTableSessions(
     private val lock = Any()
     private data class Active(val id: UUID, val roomCode: String, val buyIn: Long, var rebuys: Int)
     private val active = mutableMapOf<UserId, Active>()
+
+    /** Open session probe — true between sitDown and cashOut. */
+    fun isActive(userId: UserId): Boolean = synchronized(lock) { userId in active }
 
     override suspend fun sitDown(
         userId: UserId,
