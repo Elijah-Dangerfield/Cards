@@ -58,7 +58,7 @@ You may modify `docs/todo.md` in three cases: removing an item you fully shipped
 ## Per item
 
 1. Implement end-to-end per `AGENTS.md` + surrounding patterns.
-2. Add/update tests (`CoroutineTest` + Turbine where it fits). If genuinely untestable, say so in the in-flight note.
+2. Add/update tests (`CoroutineTest` + Turbine where it fits). **For a bug fix, write the failing test that reproduces the bug FIRST** (red), then make it pass (green) — it proves you found the real cause and leaves a regression guard. If you can't reproduce it in a test, the harness is missing something — build that before the fix. If genuinely untestable, say so in the in-flight note.
 3. Run locally before committing — `./gradlew :apps:compose:assembleDebug` for client, `./gradlew :apps:server:test` for server, plus targeted module tests.
 4. One logical commit per item, Conventional Commits subject under ~70 chars.
 5. **Remove the item from `docs/todo.md` in the same commit.** This is not optional. If you shipped the item end-to-end, the bullet must be gone from `docs/todo.md`. Partial slice → rewrite the bullet to describe what's left (the slicing rule above). Fully shipped → delete the bullet. A todo entry sitting in the file after its item shipped is the most common failure mode of this prompt — re-check before pushing.
