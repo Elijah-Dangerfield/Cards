@@ -30,12 +30,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** Land server schema + endpoint and the client conversion together, achievement-unlock tests green. Server: `apps/server/.../PlayerStatsRepository.kt`, `PlayerStatsDto.kt`, a migration. Client: `AchievementRepositoryImpl.kt`, `AchievementRegistry.kt`, `PlayerStats.kt`.
 
-### Auth & onboarding
-
-- `[P2]` **AUTH-1 — Tune the device-verify banner placement.** Copy is refined; what's left is where the banner sits relative to the verify CTA on `VerifyEmailScreen`. Move it directly above the "Check verification" button with `Dimension.D400` spacing so it reads as context for the action it gates.
-
-  **Hints:** `features/onboarding/impl/AuthScreens.kt` (`VerifyEmailScreen`, banner currently between body + the Check-verification button). Validate against a rendered preview/screenshot — no device required.
-
 ### Gameplay & table UX
 
 - `[P2]` **GAME-3 — Emote button glyph isn't optically centered.** The play-poker emote trigger ([`TopBarEmojiButton`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/EmojiTray.kt) → DS [`EmojiButton`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/icon/EmojiButton.kt)) centers its circular bounding box correctly, but the emoji glyph sits slightly up-and-left inside it — the text line-box midpoint ≠ the glyph's visual midpoint.

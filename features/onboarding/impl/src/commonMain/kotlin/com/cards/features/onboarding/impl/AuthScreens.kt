@@ -468,12 +468,12 @@ fun VerifyEmailScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        state.banner?.let { banner ->
-            Spacer(modifier = Modifier.height(Dimension.D500))
-            BannerText(banner)
-        }
-
         Spacer(modifier = Modifier.height(Dimension.D1000))
+
+        state.banner?.let { banner ->
+            BannerText(banner)
+            Spacer(modifier = Modifier.height(Dimension.D400))
+        }
 
         Button(
             onClick = { onAction(VerifyEmailAction.IClickedTheLink) },
