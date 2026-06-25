@@ -678,3 +678,13 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Action:** When picking up MP-2's Compose UI-test sub-item, start from a clean `:apps:compose` build dir, and decide whether that `uitest.harness` shape (a kotlin-inject `TestAppComponent` for UI tests) is the intended foundation to revive or to discard. Either way the orphan generated artifacts shouldn't be relied on.
 
 **Status:** Backlog. Triage against MP-2's remaining Compose-UI-test work.
+
+---
+
+## Extend the PlayPokerScreen Compose UI-test harness
+
+**Context:** The first host-side Compose UI-test harness now exists on `:features:room:impl` (Robolectric + `runComposeUiTest`), with a 12-test suite over `PlayPokerScreen`'s rendered states. By design it asserts only on screen-owned chrome (connection banner, dealing-in placeholder, back affordance), not the deep action-bar internals, to stay robust against DS churn.
+
+**Action:** Two follow-ons now the harness exists: (1) add per-action-button coverage (Fold/Call/Raise visible and tappable on the human's turn), accepting the brittleness tradeoff; (2) extend the same harness shape to other feature screens that warrant UI tests. Neither is filed elsewhere.
+
+**Status:** Backlog. Pull when extending UI-test coverage.
