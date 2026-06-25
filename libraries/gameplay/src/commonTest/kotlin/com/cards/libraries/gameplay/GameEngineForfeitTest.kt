@@ -113,6 +113,30 @@ class GameEngineForfeitTest {
     }
 
     @Test
+    fun forfeitFacingAllIn_headsUp_runsOutAndAwardsTheAllInPlayer() {
+        // Seat 0 shoves all-in; seat 1 (facing the shove) leaves instead of calling,
+        // so it's forfeited. Heads-up, the facing seat IS the acting seat, so folding
+        // it leaves no one to act and the street completes — the board runs out and
+        // the all-in seat 0 takes the pot at showdown. This is the path an over-the-
+        // wire deferred all-in settlement (MP-17) relies on: a leaver facing the
+        // shove must still resolve the hand so the all-in player is paid.
+        var state = startHand(seatCount = 2, button = 0)
+        state = GameEngine.applyIntent(state, PlayerIntent.AllIn(state.actingSeatIndex!!)).state
+        val allInSeat = state.seats.first { it.handParticipation == HandParticipation.AllIn }.index
+        val facing = state.actingSeatIndex!!
+
+        val result = GameEngine.forfeitSeat(state, facing)
+
+        assertEquals(BettingRound.Complete, result.state.street, "no one left to act → hand resolves")
+        assertEquals(null, result.state.actingSeatIndex)
+        assertEquals(HandParticipation.Folded, result.state.seatAt(facing).handParticipation)
+        assertTrue(
+            result.events.filterIsInstance<GameEvent.PotAwarded>().any { it.seatIndex == allInSeat },
+            "the all-in player is awarded the pot — never stranded",
+        )
+    }
+
+    @Test
     fun forfeitAllInSeat_isNoOp_theyKeepTheirShowdownRight() {
         // Drive a heads-up hand to where one seat is all-in, then try to forfeit
         // them — an all-in player is entitled to the showdown even if they leave.

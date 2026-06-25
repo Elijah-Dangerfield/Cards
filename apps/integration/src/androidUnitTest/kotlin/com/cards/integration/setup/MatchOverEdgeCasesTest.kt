@@ -57,6 +57,14 @@ class MatchOverEdgeCasesTest : IntegrationTest() {
         }
     }
 
+    // NOTE: the "both players leave during a live all-in" case is NOT covered here.
+    // When every client vanishes mid-hand there's no live socket to process the
+    // second leave's forfeit (which would resolve the hand) or to collect the
+    // departed all-in leaver's deferred settlement, so it falls to the boot-sweep
+    // backstop rather than settling in-session. Closing it cleanly means resolving
+    // the live hand + settling pending leavers from RoomTeardownCoordinator (which
+    // owns the wallet at room close) — tracked under MP-17.
+
     @Test
     fun allInWinnerLeavesMidHand_isSettledOnShowdown_chipsConserve() = integration {
         val table = seatTwoAndConnect()
