@@ -58,9 +58,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** With one eligible open room, `find` lands the searcher in it (members=2), never a new room; a freshly-opened room appears in `candidates` without delay. Covered by a test: A opens → B's find joins A's room.
   **Hints:** Server log shows `Matchmaking opened public room <new> …` (`InMemoryRoomService.findOrJoinPublic`, ~line 276) firing while an open room existed — join-existing must beat open-new; check the open-room eligibility/visibility filter and any in-memory registry race. Public matchmaking shipped in #67. Case `docs/agent/feedback-cases/cffeaf3aecbd49cd9aacb0ca1daa0155.md`; Sentry CARDS-3Z (+ CARDS-40, CARDS-45).
 
-- `[P1]` **MP-16 — Create-room buy-in defaults to 0 until the slider is touched.** Two testers independently created rooms with a $0 buy-in because the create-room buy-in slider starts at 0 — tapping Create without dragging it yields a meaningless $0 game (and likely feeds the wallet-conservation bug MP-13).
-  **Acceptance:** The create-room buy-in slider is seeded to a sensible non-zero default (lowest tier); Create is blocked at buy-in 0.
-  **Hints:** Create-room form / its slider initial value. Distinct from the backlog post-leave "$0 buy-in after sole-human-left rebound" symptom. Case `docs/agent/feedback-cases/a3b1fc7d414444b295669d047d173ff8.md`; Sentry CARDS-3X (+ CARDS-3N).
+- `[P1]` **MP-16 — Pin where the lobby's $0 buy-in snapshot leaks from.** The slider seed and the server buyIn=0 reject are already correct, and the lobby now suppresses the stakes/buy-in row while `room.buyIn == 0` so testers no longer see a flashed "$0". What's unconfirmed is *which* snapshot path stages a `buyIn == 0` room in the first place — every wire path (`POST /v1/rooms`, join, the socket `Snapshot`, the active-rooms list) carries the real buy-in via `Room.toDto()`, so the 0 must come from a partial/transient snapshot or a persisted-room restore (`PostgresRoomStore`) reading an unwritten column. Needs runtime traces from a repro to pin and fix at the source.
+  **Hints:** `RoomDto.buyIn` / `Room.buyIn` both default to 0. The display guard lives in `LobbyScreen.kt` `InRoomContent`. Case `docs/agent/feedback-cases/a3b1fc7d414444b295669d047d173ff8.md`; Sentry CARDS-3X (+ CARDS-3N).
 
 ---
 

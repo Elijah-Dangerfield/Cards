@@ -16,11 +16,13 @@
 
 **Reviewer notes:** Covered by the existing `RoomSeatPreview` (seat 0 is `isYou = true`). The component's sibling captions ("joining…", "up next") are still hardcoded literals predating this change — I only routed my new string through resources rather than migrating theirs (out of scope; would belong with ENG-2's `verifyStrings` cleanup).
 
-## MP-16 — investigated, not shipped (left in todo.md)
+## fix(lobby): hide lobby stakes row until buy-in hydrates (MP-16)
 
-**Finding:** The todo's stated fix ("seed the create-room buy-in slider to a non-zero default") is already in place — `PrivateCreateScreen` seeds `buyIn` to `RoomSettings.DEFAULT_BUY_IN` (5000) and clamps to `MIN_BUY_IN` (100); the slider can never reach 0 (seeded since #62, before the 2026-06-25 playtest). The server also already rejects buyIn=0 with a 400 `invalid_buy_in` (`RoomRoutes.kt:79`), and `Room.toDto()` echoes the real buy-in. So a $0 room cannot be persisted, and both reporters' `POST /v1/rooms` returned 200 (valid buy-in accepted).
+**Problem:** Testers saw a flashed "$0 buy-in" in the lobby even though the room was created with a real buy-in.
 
-The "$0 in the lobby" the testers saw is therefore a *display* artifact, not a persisted value — most likely the lobby briefly rendering `room.buyIn` (DTO default `= 0`) from a transient/partial snapshot before the live room snapshot lands. I could not pin the exact snapshot path without runtime traces, and a speculative fix to the buy-in display/snapshot risks churn. Left MP-16 in `docs/todo.md` unchanged rather than rewrite its premise on an unconfirmed theory — flagging for the human: the real gap is the lobby showing 0 from a default-valued snapshot, NOT the slider seed.
+**Approach:** Every wire path (`POST /v1/rooms`, join, the socket `Snapshot`, the active-rooms list) already carries the real buy-in via the server's `Room.toDto()`, and the slider seed + server `buyIn=0` reject are already correct (confirmed last cycle) — so a "$0" in the lobby is *always* a not-yet-hydrated snapshot (`RoomDto.buyIn`/`Room.buyIn` both default to 0), never a valid game. Rather than rearchitect snapshot hydration on an unconfirmed source (last cycle couldn't pin which path leaks the 0 without runtime traces), I guarded the display: `InRoomContent` now renders the stakes/buy-in Row only when `room.buyIn > 0`. Suppressing the whole Row (not just the buy-in card) keeps the two-card layout honest. The source-pinning work is the remaining MP-16 slice (kept in todo.md, rewritten).
+
+**Reviewer notes:** Not unit-tested below Compose (lobby states are verified via `@Preview`, matching the existing convention). Verified `:apps:compose:assembleDebug` builds. The smallBlind/bigBlind also default to 0 and ride the same Row, so they're covered by the same guard. Added QA MP-11.
 
 **Deferred:**
 - PROG-1 (achievement engine → PlayerStats predicates): a live-unlock-path refactor touching grants + a new `claimed_at_value` per achievement; only ~5 of ~25 counters have a `PlayerStats` equivalent, so a clean conversion is partial and a wrong call re-fires/wipes achievements. Needs a human design call before touching the grant path — left for the human / a dedicated cycle.

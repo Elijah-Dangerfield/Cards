@@ -381,3 +381,14 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 **Expected:** The Leave button behaves identically to the top back arrow every time — it shows the leave-confirm dialog, then notifies the server and navigates back out of the lobby. Device B never stays stranded on the now-empty lobby. Device A sees B drop from the seat list. (Covers todo ROOM-2.)
 
 - Each lobby seat shows the correct member. The local player's own seat carries a "you" caption under their name; no other seat does. The host badge is unaffected — a host who is also you shows both HOST and the "you" caption. (Covers todo ROOM-3.)
+
+---
+
+### `MP-11` ℹ️ 📱 Lobby never flashes a "$0" buy-in
+
+**State:** two devices; Device A creates a private room with a real buy-in, Device B joins by code.
+
+1. Device A: create a room (any tier).
+2. Device B: join by code and watch the lobby as it loads.
+
+**Expected:** Neither device ever shows a "$0" buy-in or "0 / 0" blinds in the lobby. The stakes/buy-in row either shows the real values or is absent while the room snapshot is still hydrating — it never renders a zero. (Covers todo MP-16, partial — the underlying zero-snapshot source is still being pinned.)
