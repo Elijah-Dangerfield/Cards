@@ -487,3 +487,38 @@ This makes Supabase feel like "managed Postgres + hosted auth" rather than "all-
 
 **Status:** Locked for V1.
 
+
+---
+
+## 2026-06-24 — Bounded room-socket reconnect on a healthy-session signal
+
+**Decision:** `ReconnectingRoomSocket` only resets its reconnect-attempt counter once a connected session is *healthy* — defined as having delivered at least one decodable frame. A session that completes the WS handshake but drops before delivering any frame no longer resets the counter, so repeated instant drops climb the exponential backoff. After `MAX_RECONNECT_ATTEMPTS` (6) consecutive frame-less drops the socket gives up with a new terminal `ClosedReason.ReconnectFailed` instead of looping forever.
+
+**Why:** A half-open server socket (left behind after the sole other human leaves a 2-player room) accepts the handshake and immediately drops it. The old loop reset `attempt` on every handshake success, so it spun connect→drop→reconnect at the 250ms floor with `attempt` stuck at 1 — an unbounded storm the user could only escape by mashing Back (CARDS-37). "Delivered a frame" is a clean, test-friendly health signal: a half-open socket delivers nothing, while a genuinely-working connection that blips once after minutes of play still resets fairly.
+
+**Alternatives considered:** (1) Time-based health (session up ≥ N ms) — needs an injected clock and is harder to virtualize in the existing `StandardTestDispatcher` tests. (2) Capping the handshake-retry path too — left out to preserve the existing `consecutiveFailures_incrementAttemptCounter` contract and because the reported failure is the connected-then-dropped path, not 5xx handshakes. Deferred as a follow-up.
+
+**Status:** Shipped.
+
+
+---
+
+## 2026-06-24 — Reconcile the wallet on leaving a real-chip MP table (MP-7)
+
+**Decision:** `PlayPokerViewModel` calls `chipsRepository.sync()` immediately after `session.leave()` whenever the table is a real-chip multiplayer table (`XpMode.MULTIPLAYER`). Both leave paths (`LeaveTable`, `LeaveGameFromBust`) route through one `leaveAndReconcileWallet()` helper on `appScope` so the sync outlives the screen pop. Solo/bots practice tables skip the sync (no escrow moves).
+
+**Why:** The server already cashes a leaver's final table stack back to the wallet on leave (`DefaultTableSessionService.cashOut`, keyed/idempotent — proven by `ChipEconomyPlayTest`). The bug was purely client-side reflection: the local wallet is a write-through cache that only hydrates on cold boot / warm foreground, so a player who won a pot and left saw their balance unchanged until the next foreground, when a partial resync surfaced a confusing phantom delta (CARDS-3C: "won 500, wallet unchanged, then +100 later"). Forcing a sync on leave lands the credited stack right away.
+
+**Alternatives considered:** (1) Route the server's `CashedOut(refunded, balanceAfter)` to the client over the socket and apply it optimistically — richer (enables a credited-amount toast, MP-6 part 1) but needs new protocol plumbing on a fan-out leave path with no request/response tie; deferred. (2) Push a server-authoritative balance frame on every leave — same plumbing cost. The sync-on-leave is the minimal correct fix; the existing single-flight mutex on `sync()` collapses any overlap with the foreground resync.
+
+**Status:** Shipped.
+
+## 2026-06-25 — Server-authoritative player stats, streak carried as a snapshot (PROG-1)
+
+**Decision:** Hand counters (played / won / folded / lost-at-showdown / bot hands), the no-bust streak (current + best), and the per-bot win map graduate to the server as a `user_player_stats` aggregate plus an append-only `player_stat_events` ledger keyed `(user_id, idempotency_key)` — the same Model-2 shape as play_style (V69) and wallets (V6). `GET /v1/me/player-stats` reads the snapshot; `POST /v1/me/player-stats/sync` flushes a batch of per-hand events the server folds idempotently (the `player-stats` namespace deconflicts from the pre-existing `/v1/me/stats` lifetime-opponents read). The summable counters and the per-bot map accumulate; the **streak is carried as a snapshot** on each event (the client's running no-bust streak after that hand), and the aggregate takes the latest applied value as `current_no_bust_streak` and the running max as `best_no_bust_streak`.
+
+**Why:** Stats were device-only, so account-switch / reinstall reset them and the stats screen + achievement progress bars read wrong on a second device. Making stats the source of truth lets achievements become predicates over them — a new achievement points at an existing counter with no data migration. Streaks are order-dependent, so they can't be re-derived by summing a ledger the way the counters can; sending the client's post-hand streak value and folding it latest-current / max-best keeps the ledger idempotent without the server replaying hand order.
+
+**Alternatives considered:** (1) Recompute the streak server-side from the ordered ledger — correct but forces the server to read+replay the whole event history on each sync and makes a mid-batch replay non-trivial; rejected for the snapshot fold. (2) Store per-bot wins as their own ledger/table rather than a JSONB map on the aggregate — heavier for a handful of keys; the map mirrors how small per-key state rides on an aggregate row elsewhere.
+
+**Status:** Server slice shipped (table + migration V72 + domain/Postgres repo + DTO + routes + DI + delete cascade + tests). Client half (write-ahead-cache repo mirroring `PlayStyleRepositoryImpl`, then re-point the stats screen + achievement predicates) remains under PROG-1.

@@ -90,6 +90,7 @@ import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.formatThousands
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -204,7 +205,7 @@ fun ProfileScreen(
     // rendered over the whole screen — the same animation as the poker table.
     var emojiBlast by remember { mutableStateOf<EmojiBlast?>(null) }
 
-    // Lighting a stashed boost burns 30 minutes starting immediately, so we
+    // Lighting a stashed boost burns 5 minutes starting immediately, so we
     // confirm first (and restate that it's hand XP only) rather than firing on
     // the banner's tap.
     val boostConfirmState = rememberDialogState(initiallyVisible = false)
@@ -734,7 +735,7 @@ private fun OwnedItemsSections(
         val id = pulseId ?: return@LaunchedEffect
         // Let the matching tile attach its requester before we scroll to it.
         delay(100)
-        runCatching { highlightRequester.bringIntoView() }
+        Catching { highlightRequester.bringIntoView() }
         delay(HighlightPulseDurationMillis)
         if (pulseId == id) pulseId = null
     }

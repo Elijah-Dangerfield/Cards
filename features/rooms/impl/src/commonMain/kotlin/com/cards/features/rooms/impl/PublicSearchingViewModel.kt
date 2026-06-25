@@ -17,6 +17,7 @@ import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.rooms.RoomStatus
+import com.dangerfield.cards.libraries.rooms.SubsidyBudgetOutcome
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -198,7 +199,7 @@ class PublicSearchingViewModel(
                                 updateState { it.copy(phase = SearchPhase.Searching, error = null) }
                                 beginSearch(backoff = true)
                             }
-                        ClosedReason.Rejected ->
+                        ClosedReason.Rejected, ClosedReason.ReconnectFailed ->
                             updateState { it.copy(error = SearchError.Connection) }
                         ClosedReason.Cancelled -> Unit // we tore it down ourselves
                     }
@@ -210,6 +211,22 @@ class PublicSearchingViewModel(
                 // table is dealing (or about to) and the offer would be wrong.
                 if (state.phase == SearchPhase.Searching && state.realPlayersFound == 0) {
                     updateState { it.copy(phase = SearchPhase.BotFallbackOffer) }
+                    // Read the disclosed-bot subsidy headroom so a near-cap player
+                    // learns the limit before sitting rather than from a surprising
+                    // balance afterward (MP-6). Best-effort: a failed read just omits
+                    // the disclosure, the offer still stands.
+                    viewModelScope.launch {
+                        takeAction(PublicSearchingAction.SubsidyBudgetLoaded(matchmaking.subsidyBudget()))
+                    }
+                }
+            }
+
+            is PublicSearchingAction.SubsidyBudgetLoaded -> action.run {
+                val budget = (action.outcome as? SubsidyBudgetOutcome.Success) ?: return@run
+                if (budget.remaining < budget.cap) {
+                    updateState {
+                        it.copy(subsidyNotice = SubsidyNotice(remaining = budget.remaining, cap = budget.cap))
+                    }
                 }
             }
 
@@ -249,7 +266,7 @@ class PublicSearchingViewModel(
             }
 
             PublicSearchingAction.KeepWaiting -> action.run {
-                updateState { it.copy(phase = SearchPhase.Searching, error = null) }
+                updateState { it.copy(phase = SearchPhase.Searching, error = null, subsidyNotice = null) }
                 armTimeout()
             }
 
@@ -440,6 +457,20 @@ data class PublicSearchingState(
     val minBuyIn: Long,
     val maxBuyIn: Long,
     val error: SearchError? = null,
+    /**
+     * Set on the bot-fallback offer when the player has already drawn down some of
+     * their daily disclosed-bot subsidy, so the offer can disclose the limit up
+     * front. Null when full headroom remains (no need to caveat) or unread.
+     */
+    val subsidyNotice: SubsidyNotice? = null,
+)
+
+/** The near-cap disclosure shown alongside the disclosed-bot offer. */
+data class SubsidyNotice(
+    /** House-funded bonus chips still available today (clamped >= 0). */
+    val remaining: Long,
+    /** The daily subsidy cap, for "X of Y left" framing. */
+    val cap: Long,
 )
 
 /** A single joinable table shown in the chooser. */
@@ -512,6 +543,9 @@ sealed interface PublicSearchingAction {
     data class FindFailed(val error: SearchError) : PublicSearchingAction
     data object SearchTimedOut : PublicSearchingAction
     data class PlayBotsResult(val outcome: PlayBotsOutcome) : PublicSearchingAction
+
+    /** Result of the near-cap subsidy-budget read taken when the offer appears. */
+    data class SubsidyBudgetLoaded(val outcome: SubsidyBudgetOutcome) : PublicSearchingAction
 
     /** Result of the initial candidates browse — drives chooser vs. fall-through. */
     data class CandidatesLoaded(val outcome: CandidatesOutcome) : PublicSearchingAction

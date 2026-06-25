@@ -5,8 +5,8 @@ import kotlinx.coroutines.flow.Flow
 /** Multiplier applied to every XP award while a boost is active. */
 const val XP_BOOST_MULTIPLIER: Int = 2
 
-/** Default boost window: 30 minutes. */
-const val XP_BOOST_DEFAULT_DURATION_MS: Long = 30L * 60L * 1000L
+/** Default boost window: 5 minutes. */
+const val XP_BOOST_DEFAULT_DURATION_MS: Long = 5L * 60L * 1000L
 
 /**
  * Catalog id + grant key for the chip-priced XP Boost shop product. The
@@ -59,7 +59,7 @@ data class XpBoostStatus(
  *
  * Buying or gifting a boost calls [grant] (it lands in the stash, **inactive**);
  * the user later lights one with [activate], which consumes one stashed boost and
- * opens the window. Boosts are a uniform 30-minute consumable — the stash is a
+ * opens the window. Boosts are a uniform 5-minute consumable — the stash is a
  * plain count, not a per-boost duration. Re-activating while active *extends* the
  * window rather than resetting it (though the UI blocks that path so a second
  * boost isn't burned while one's already running).

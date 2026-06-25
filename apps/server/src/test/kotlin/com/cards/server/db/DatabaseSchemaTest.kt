@@ -43,6 +43,8 @@ class DatabaseSchemaTest : DatabaseTest() {
             assertEquals(0, RecentlyPlayedWithTable.selectAll().count())
             assertEquals(0, UserPlayStyleAggregateTable.selectAll().count())
             assertEquals(0, PlayStyleEventsTable.selectAll().count())
+            assertEquals(0, UserPlayerStatsTable.selectAll().count())
+            assertEquals(0, PlayerStatEventsTable.selectAll().count())
         }
     }
 

@@ -644,3 +644,57 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Action:** repro fresh with the just-shipped inbound-WS-frame logs (the `recv game_state hand=… street=… …` lines now ride in feedback `session-log.txt`). Those will say exactly which `RoomStatus` and `buyIn` the client saw in the snapshot it rendered, which disambiguates the two hypotheses without another guess-and-check.
 
 **Status:** Backlog. Pull when next a similar report comes in; the new client-state.json attachment + frame logs should make it a one-pass triage.
+
+---
+
+## Flaky integration tests: multiplayer socket-lifecycle suite
+
+**Symptom:** Two `:apps:integration` tests time out (`TimeoutCancellationException`) intermittently on full-suite runs, while passing reliably in isolation — a real-time socket-timing race that surfaces under JVM load:
+- `LobbyLifecycleTest.hostLeaves_promotedMemberCanStart` — fails roughly 1-in-3 full-suite runs on a clean tree (reproduced by a worker on `origin/develop` with all in-flight changes stashed and the new server-restart test removed — still failed ~1/4).
+- `SetupJourneyTest.hostDropsAndReconnectsFast_bothClientsAgreeOnExactlyOneHost` — observed timing out alongside it on a CI run whose changes (offline lobby error copy, an AppData flag reset, verify-banner strings) don't touch the socket path.
+
+**Action:** Stabilise the host-leaves → promoted-member-can-start and host-drop → single-host-agreement paths — likely needs longer / polling awaits on the promotion-and-reconnect steps rather than one-shot assertions, matching the suite's "real time + generous timeouts, never fixed sleeps" convention. Not introduced by any current PR; first flagged during MP-2 review.
+
+**Status:** Backlog. Pull when stabilising the integration tier.
+
+---
+
+## Bound the room-socket handshake-retry path too
+
+**Context:** MP-8 bounded the *connected-then-dropped* reconnect path — a socket that completes the WS handshake but never delivers a frame now gives up after 6 attempts (`ClosedReason.ReconnectFailed`). The separate *handshake-retry* path (5xx responses / transport-level handshake failures, tracked by `consecutiveFailures` in `ReconnectingRoomSocket`) still retries unboundedly by design — those are treated as the server's transient problem.
+
+**Action:** Decide whether to unify the two ceilings so a persistently failing handshake (e.g. server hard-down) also lands on a terminal state instead of looping forever, or keep them deliberately separate. Low urgency — the reported storm was the connected-then-dropped path, which is now fixed.
+
+**Status:** Backlog. Triage when next touching the reconnect loop.
+
+---
+
+## Stale / abandoned Compose UI-test harness in `:apps:compose` (MP-2)
+
+**Symptom:** `:apps:compose:testDebugUnitTest` fails to compile on a dirty build dir with `Unresolved reference 'TestAppComponent' / 'TestProfileRepository' / 'testUserId' / 'OnlineConnectivityObserver'`. The offenders live only in **generated KSP output** (`apps/compose/build/generated/ksp/android/androidUnitTestDebug/.../KotlinInjectTestAppComponent.kt` + `InjectKotlinInjectTestAppComponent.kt`) under package `com.cards.uitest.harness` — there are **no committed source files** for that harness. A `rm -rf apps/compose/build/generated/ksp/android/androidUnitTestDebug` clears it and the module's android unit tests go green.
+
+**Context:** Looks like a prior, incomplete Compose-UI-test scaffolding attempt (the kind MP-2's remaining sub-item calls for — `PlayPokerScreen` UI tests) that was started, partially generated, then deleted/uncommitted, leaving orphan KSP artifacts behind. The standing `apps/compose/androidUnitTest` source set is otherwise just `commonTest`.
+
+**Action:** When picking up MP-2's Compose UI-test sub-item, start from a clean `:apps:compose` build dir, and decide whether that `uitest.harness` shape (a kotlin-inject `TestAppComponent` for UI tests) is the intended foundation to revive or to discard. Either way the orphan generated artifacts shouldn't be relied on.
+
+**Status:** Backlog. Triage against MP-2's remaining Compose-UI-test work.
+
+---
+
+## Extend the PlayPokerScreen Compose UI-test harness
+
+**Context:** The first host-side Compose UI-test harness now exists on `:features:room:impl` (Robolectric + `runComposeUiTest`), with a 12-test suite over `PlayPokerScreen`'s rendered states. By design it asserts only on screen-owned chrome (connection banner, dealing-in placeholder, back affordance), not the deep action-bar internals, to stay robust against DS churn.
+
+**Action:** Two follow-ons now the harness exists: (1) add per-action-button coverage (Fold/Call/Raise visible and tappable on the human's turn), accepting the brittleness tradeoff; (2) extend the same harness shape to other feature screens that warrant UI tests. Neither is filed elsewhere.
+
+**Status:** Backlog. Pull when extending UI-test coverage.
+
+---
+
+## Fold HandRankingsCheatSheet off the `BaseBottomSheet` escape hatch
+
+**Idea (raised 2026-06-25):** `HandRankingsCheatSheet.kt:249` uses `BaseBottomSheet` (the `@LowLevelDSComponent` raw layer) because the opinionated `BottomSheet` wrapper doesn't yet expose the content shape it needs (custom drag handle / full-bleed scrollable body). AGENTS.md flags this as an escape that "should resolve by extending `BottomSheet`, not entrenching" — extend the opinionated layer with the missing slot, then route the cheat sheet back through it.
+
+**Why it's backlog, not a worker one-liner:** the fix is a DS design call (what content/handle override to add to `BottomSheet`), not a mechanical swap. Do it when next touching the bottom-sheet primitive.
+
+**Status:** Backlog. Design judgment on the DS surface; AGENTS.md references it.

@@ -340,6 +340,46 @@ class MatchmakingRoutesTest {
         }
     }
 
+    @Test
+    fun subsidyBudget_freshPlayer_returnsTheFullCapAsRemaining() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms, subsidyCap = 25_000, subsidyGranted = 0) { client ->
+            val resp = client.subsidyBudget(jwt(UUID.randomUUID()))
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<SubsidyBudgetResponse>()
+            assertEquals(0, body.grantedToday)
+            assertEquals(25_000, body.cap)
+            assertEquals(25_000, body.remaining)
+        }
+    }
+
+    @Test
+    fun subsidyBudget_partlyDrawnDown_reportsTheRemainingHeadroom() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms, subsidyCap = 25_000, subsidyGranted = 18_000) { client ->
+            val body = client.subsidyBudget(jwt(UUID.randomUUID())).body<SubsidyBudgetResponse>()
+            assertEquals(18_000, body.grantedToday)
+            assertEquals(7_000, body.remaining)
+        }
+    }
+
+    @Test
+    fun subsidyBudget_atOrOverCap_clampsRemainingToZero() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms, subsidyCap = 25_000, subsidyGranted = 30_000) { client ->
+            val body = client.subsidyBudget(jwt(UUID.randomUUID())).body<SubsidyBudgetResponse>()
+            assertEquals(0, body.remaining, "draw-down past the cap never reports negative headroom")
+        }
+    }
+
+    @Test
+    fun subsidyBudget_withoutJwt_returns401() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            assertEquals(HttpStatusCode.Unauthorized, client.subsidyBudget(bearer = null).status)
+        }
+    }
+
     // --- harness ------------------------------------------------------------
 
     private suspend fun withApp(
@@ -348,6 +388,8 @@ class MatchmakingRoutesTest {
         // Effectively unlimited by default so buy-in tests exercise matchmaking,
         // not the affordability fence; the insufficient-balance test lowers it.
         walletBalance: Long = Long.MAX_VALUE,
+        subsidyCap: Long = 25_000L,
+        subsidyGranted: Long = 0L,
         block: suspend (io.ktor.client.HttpClient) -> Unit,
     ) {
         testApplication {
@@ -364,7 +406,7 @@ class MatchmakingRoutesTest {
                 routing {
                     matchmakingRoutes(
                         rooms, friends, StubProfiles, registry,
-                        InMemoryTestTableSessionService(wallets),
+                        InMemoryTestTableSessionService(wallets, subsidyCap, subsidyGranted),
                         StubEquipment, StubProgression,
                         wallets,
                     )
@@ -386,6 +428,11 @@ class MatchmakingRoutesTest {
 
     private suspend fun io.ktor.client.HttpClient.candidates(bearer: String?, min: Long, max: Long) =
         get("/v1/matchmaking/candidates?minBuyIn=$min&maxBuyIn=$max") {
+            bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+        }
+
+    private suspend fun io.ktor.client.HttpClient.subsidyBudget(bearer: String?) =
+        get("/v1/matchmaking/subsidy-budget") {
             bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
         }
 

@@ -170,6 +170,77 @@ class PlayPokerViewModelMpLeaveTest : CoroutineTest() {
         )
     }
 
+    @Test
+    fun leaveTable_onRealChipTable_syncsWalletSoCreditedStackLands() = runUnitTest {
+        // MP-7 / CARDS-3C: the server cashes the leaver's final stack back to the
+        // wallet on leave, but the client only sees the new balance after a sync.
+        // Leaving a real-chip MP table must trigger that sync so a won pot is not
+        // invisible until the next foreground.
+        val scenario = MpScenarioBuilder(this, dispatchers, LOCAL).start()
+        scenario.serverConnection(connected(humans = listOf(LOCAL, PEER)))
+        scenario.serverSnapshot(twoHumanTable(actingSeatIndex = 0))
+
+        scenario.vm.takeAction(PlayPokerAction.LeaveTable)
+        advanceUntilIdle()
+
+        assertEquals(
+            1,
+            scenario.chipsRepository.syncCount,
+            "leaving a real-chip MP table must reconcile the wallet exactly once",
+        )
+    }
+
+    @Test
+    fun leaveGameFromBust_onRealChipTable_syncsWallet() = runUnitTest {
+        val scenario = MpScenarioBuilder(this, dispatchers, LOCAL).start()
+        scenario.serverConnection(connected(humans = listOf(LOCAL, PEER)))
+        scenario.serverSnapshot(twoHumanTable(actingSeatIndex = 0))
+
+        scenario.vm.takeAction(PlayPokerAction.LeaveGameFromBust)
+        advanceUntilIdle()
+
+        assertEquals(1, scenario.chipsRepository.syncCount)
+    }
+
+    @Test
+    fun leaveTable_creditedStack_confirmsCreditWithAmountAndNewBalance() = runUnitTest {
+        // MP-6: leaving a real-chip table where the server cashed the seat
+        // stack back surfaces the credited amount + new balance, so the wallet
+        // bump on Home never reads as an unexplained glitch (CARDS-2N / 2Y).
+        val scenario = MpScenarioBuilder(this, dispatchers, LOCAL).start()
+        scenario.serverConnection(connected(humans = listOf(LOCAL, PEER)))
+        scenario.serverSnapshot(twoHumanTable(actingSeatIndex = 0))
+        scenario.chipsRepository.emit(900L)
+        scenario.chipsRepository.creditOnNextSync = 600L
+
+        scenario.vm.takeAction(PlayPokerAction.LeaveTable)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(FakeLeaveCashOutNotifier.Credit(credited = 600L, balanceAfter = 1_500L)),
+            scenario.leaveCashOutNotifier.credits,
+            "the credited delta and post-sync balance must reach the confirmation surface",
+        )
+    }
+
+    @Test
+    fun leaveTable_noCredit_doesNotConfirm() = runUnitTest {
+        // A leave that nets no credit (lost the stack / left empty) stays
+        // silent — no "+0 chips" noise.
+        val scenario = MpScenarioBuilder(this, dispatchers, LOCAL).start()
+        scenario.serverConnection(connected(humans = listOf(LOCAL, PEER)))
+        scenario.serverSnapshot(twoHumanTable(actingSeatIndex = 0))
+        scenario.chipsRepository.emit(900L)
+
+        scenario.vm.takeAction(PlayPokerAction.LeaveTable)
+        advanceUntilIdle()
+
+        assertTrue(
+            scenario.leaveCashOutNotifier.credits.isEmpty(),
+            "no confirmation when nothing was credited",
+        )
+    }
+
     // ---------- helpers ----------
 
     private fun twoHumanTable(actingSeatIndex: Int) = mpTable(

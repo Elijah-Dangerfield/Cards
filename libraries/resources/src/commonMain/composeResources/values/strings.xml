@@ -28,7 +28,7 @@
     <string name="shop_snackbar_redeem_auto_equipped_title">Equipped!</string>
     <string name="shop_snackbar_redeem_auto_equipped_message">%1$s is equipped and ready to use.</string>
     <string name="shop_snackbar_boost_purchased_title">XP Boost added</string>
-    <string name="shop_snackbar_boost_purchased_message">It's in your profile - activate it to earn double XP for 30 minutes.</string>
+    <string name="shop_snackbar_boost_purchased_message">It's in your profile - activate it to earn double XP for 5 minutes.</string>
     <string name="shop_snackbar_boost_purchased_action">Activate</string>
     <string name="shop_snackbar_already_owned_title">Already yours</string>
     <string name="shop_snackbar_already_owned_message">Look for %1$s in your items.</string>
@@ -197,6 +197,7 @@
     <string name="lobby_error_leave_server_not_notified">Couldn't tell the server we left. Your seat will free up.</string>
     <string name="lobby_error_room_was_closed">The room was closed.</string>
     <string name="lobby_error_connect_rejected">Couldn't connect - try rejoining.</string>
+    <string name="lobby_error_connection_lost">Lost connection to the room. Try rejoining.</string>
     <string name="lobby_error_start_coming_soon">Multiplayer gameplay launches with the next update - invite your friends and stand by.</string>
     <string name="lobby_error_bot_action_failed">Couldn't update the bots. Try again.</string>
 
@@ -225,6 +226,8 @@
     <!-- Passive consent shown under the Welcome buttons. "Terms of Service" and "Privacy Policy"
          must appear verbatim so buildClickableText can make each a tappable link. -->
     <string name="onboarding_welcome_consent">By continuing, you agree to our Terms of Service and Privacy Policy.</string>
+    <string name="onboarding_welcome_consent_terms_link">Terms of Service</string>
+    <string name="onboarding_welcome_consent_privacy_link">Privacy Policy</string>
     <string name="onboarding_step_progress">Step %1$d of %2$d</string>
 
     <!-- Onboarding - PickIdentity step (name + starter-pack avatar picker). -->
@@ -297,6 +300,9 @@
     <string name="public_searching_offer_play_bots">Play bots for real chips</string>
     <string name="public_searching_offer_keep_waiting">Keep waiting for players</string>
     <string name="public_searching_offer_try_later">Try again later</string>
+    <!-- Near-cap subsidy disclosure shown on the bot offer so the daily limit is never a surprise (MP-6). %1$s is the remaining bonus chip count. -->
+    <string name="public_searching_offer_subsidy_remaining">Heads up: you have %1$s in daily bonus chips left. You can still play, but winnings past that today won't be topped up.</string>
+    <string name="public_searching_offer_subsidy_exhausted">Heads up: you've used today's bonus chips. You can still play bots, but winnings won't be topped up until tomorrow.</string>
     <string name="public_searching_joining_bots_title">Setting up your table</string>
     <string name="public_searching_joining_bots_body">Seating your opponents and dealing you in…</string>
     <!-- Search failed (network / rate limit / rejected). -->
@@ -438,11 +444,11 @@
     <string name="auth_verify_email_confirm_button_progress">Checking with server…</string>
     <string name="auth_verify_email_resend_button">Resend email</string>
     <string name="auth_verify_email_resend_button_progress">Sending…</string>
-    <string name="auth_verify_email_banner_still_pending">Email not yet confirmed. Tap the link in your inbox first.</string>
-    <string name="auth_verify_email_banner_resend_sent">Verification email sent. Check your inbox.</string>
-    <string name="auth_verify_email_banner_resend_rate_limited">Too many resends in a row. Wait a minute and try again.</string>
-    <string name="auth_verify_email_banner_network_error">Couldn't reach the server. Check your connection.</string>
-    <string name="auth_verify_email_banner_generic_error">Something went wrong. Try again.</string>
+    <string name="auth_verify_email_banner_still_pending">We don't see it confirmed yet. Tap the link in your inbox, then check again.</string>
+    <string name="auth_verify_email_banner_resend_sent">Sent. The new link is in your inbox - tap it, then check again.</string>
+    <string name="auth_verify_email_banner_resend_rate_limited">That's a few in a row. Give it a minute before resending.</string>
+    <string name="auth_verify_email_banner_network_error">Couldn't reach the server. Check your connection and try again.</string>
+    <string name="auth_verify_email_banner_generic_error">Something went wrong on our end. Try again in a moment.</string>
 
     <!-- Profile - top-level sections + footer. -->
     <string name="profile_section_account">Account</string>
@@ -530,6 +536,8 @@
     <string name="profile_settings_a11y">Settings</string>
     <string name="profile_header_joined">Joined %1$s %2$d</string>
     <string name="stats_lifetime_opponents_label">Players faced</string>
+    <string name="stats_lifetime_no_bust_streak_label">No-bust streak</string>
+    <string name="stats_lifetime_best_streak_label">Best streak</string>
     <string name="stats_play_style_section">Play style</string>
     <string name="stats_play_style_name">Tight-Aggressive</string>
     <string name="stats_play_style_blurb">You wait for strong hands, then bet them hard.</string>
@@ -822,6 +830,9 @@
 
     <!-- Room - transient notice when a non-last opponent leaves a live table. %1$s is their display name. -->
     <string name="room_opponent_left">%1$s left the table</string>
+
+    <!-- Room - confirmation toast after leaving a real-chip table with a credited stack. %1$s is the credited amount, %2$s the new wallet balance. -->
+    <string name="room_leave_cashout_credited">%1$s chips from your seat went back to your wallet. New balance: %2$s.</string>
 
     <!-- Room - Achievement-unlocked callout (inline within hand-end dialogs in MP mode). -->
     <string name="room_achievement_callout_heading">Achievement unlocked</string>
@@ -1164,7 +1175,7 @@
 
     <!-- Profile - confirm dialog before lighting a stashed XP boost. -->
     <string name="profile_boost_confirm_title">Activate XP Boost?</string>
-    <string name="profile_boost_confirm_message">Your 30-minute window starts now - you\'ll earn double XP on every hand you play. (Achievement XP isn\'t boosted.)</string>
+    <string name="profile_boost_confirm_message">Your 5-minute window starts now - you'll earn double XP on every hand you play. (Achievement XP isn't boosted.)</string>
     <string name="profile_boost_confirm_activate">Activate</string>
     <string name="profile_boost_confirm_cancel">Not yet</string>
 
@@ -1202,6 +1213,13 @@
     <string name="account_setup_banner_retrying">Retrying…</string>
     <string name="account_setup_retry_banner_title">Account setup unfinished</string>
     <string name="account_setup_retry_banner_body">Your progress is saved here. We'll finish syncing it once you're back online.</string>
+    <!-- One-time explainer dialog shown the first time account creation is left
+         pending (the richer first-contact surface AccountSetupBanner falls back
+         to afterwards). Reassures the user their play is safe and tells them what
+         is on hold until setup finishes. -->
+    <string name="account_setup_explainer_title">Finishing your account</string>
+    <string name="account_setup_explainer_body">You can keep playing right now - your chips, XP, and progress are all saved on this device. We'll finish setting up your account in the background, and a few things like multiplayer and purchases stay paused until then.</string>
+    <string name="account_setup_explainer_confirm">Got it</string>
 
     <!-- Auth-gate sheet the router substitutes for a gated route. Three reasons,
          each with its own title / body / primary CTA. The "Not now" ghost button

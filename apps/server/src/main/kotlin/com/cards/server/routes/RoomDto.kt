@@ -168,6 +168,22 @@ data class MatchmakingCandidatesResponse(
     val rooms: List<RoomDto>,
 )
 
+/**
+ * GET /v1/matchmaking/subsidy-budget response — the caller's disclosed-bot
+ * subsidy draw-down for the current rolling window. The client reads it before
+ * offering the bot fallback so a near-cap player is told the limit up front
+ * ("you can still play, but winnings won't count toward the daily bonus")
+ * instead of discovering it from an unexpected balance afterward (MP-6).
+ * [remaining] == 0 means the next bot table is gated.
+ */
+@Serializable
+data class SubsidyBudgetResponse(
+    val schemaVersion: Int = 1,
+    val grantedToday: Long,
+    val cap: Long,
+    val remaining: Long,
+)
+
 @OptIn(ExperimentalTime::class)
 internal fun Room.toDto(): RoomDto = RoomDto(
     code = code,

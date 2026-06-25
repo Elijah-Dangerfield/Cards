@@ -7,6 +7,7 @@ import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
 import com.dangerfield.cards.features.room.impl.usecase.HandEndProgression
 import com.dangerfield.cards.features.room.impl.usecase.HandResultSummaryBuilder
 import com.dangerfield.cards.features.room.impl.usecase.PlayStyleHandSummaryBuilder
+import com.dangerfield.cards.features.room.impl.usecase.PlayerStatHandSummaryBuilder
 import com.dangerfield.cards.features.room.impl.usecase.WinOddsEngine
 
 import androidx.lifecycle.viewModelScope
@@ -22,7 +23,10 @@ import com.dangerfield.cards.libraries.cards.EmojiBlast
 import com.dangerfield.cards.libraries.cards.EmotePackCatalog
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.AchievementHandContext
+import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.PlayStyleRepository
+import com.dangerfield.cards.libraries.cards.PlayerStatsRepository
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpMode
@@ -74,6 +78,7 @@ class PlayPokerViewModel @Inject constructor(
     @Assisted private val sessionFactory: PokerSessionFactory,
     private val progressionRepository: ProgressionRepository,
     private val playStyleRepository: PlayStyleRepository,
+    private val playerStatsRepository: PlayerStatsRepository,
     private val progressionConfig: ProgressionConfig,
     private val achievementRepository: AchievementRepository,
     private val appCache: AppCache,
@@ -85,6 +90,7 @@ class PlayPokerViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val friendRepository: FriendRepository,
     private val reviewPromptCoordinator: ReviewPromptCoordinator,
+    private val leaveCashOutNotifier: LeaveCashOutNotifier,
     private val dispatcherProvider: DispatcherProvider,
     private val appScope: AppCoroutineScope,
     private val clock: Clock,
@@ -124,6 +130,14 @@ class PlayPokerViewModel @Inject constructor(
     // re-delivered HandEnded recording the same hand twice (the outbox feeds a
     // server aggregate, so a double-count silently skews the user's style).
     private var lastRecordedPlayStyleHand: Int? = null
+
+    // Builds the per-hand server-stats contribution; stateful for the
+    // order-dependent no-bust streak (seeded from the cached snapshot).
+    private val playerStatBuilder = PlayerStatHandSummaryBuilder()
+
+    // Hand number of the last player-stat row we recorded — same double-count
+    // guard as play-style; the outbox feeds the server's authoritative counters.
+    private var lastRecordedStatHand: Int? = null
 
     // Opponents we've already fired a friend request at this session — guards a
     // double-tap from sending twice (the inline button also flips to Sent).
@@ -426,6 +440,8 @@ class PlayPokerViewModel @Inject constructor(
                 if (total > 0) takeAction(PlayPokerAction.HandXpAwarded(total))
             }.onFailure { logger.w(it) { "Awarding XP failed for hand ${summary.handId}" } }
 
+            recordPlayerStat(summary, context)
+
             val earned = Catching {
                 achievementRepository.recordHand(summary, context)
             }.onFailure {
@@ -444,6 +460,30 @@ class PlayPokerViewModel @Inject constructor(
             // a silenced celebration shouldn't also suppress a review ask.
             maybeRequestReviewPrompt(priorLevel = priorLevel, earned = earned)
         }
+    }
+
+    /**
+     * Record this hand's contribution to the server-authoritative player stats.
+     * Guarded against a re-delivered HandEnded double-counting the hand (the
+     * outbox feeds the server's cumulative counters). The builder's no-bust
+     * streak is seeded from the last synced snapshot so a session that resumes
+     * mid-streak keeps counting.
+     */
+    private suspend fun recordPlayerStat(
+        summary: HandResultSummary,
+        context: AchievementHandContext,
+    ) {
+        val handNumber = summary.handId.toIntOrNull()
+        if (handNumber != null && handNumber == lastRecordedStatHand) return
+        Catching {
+            playerStatBuilder.seedStreak(
+                playerStatsRepository.getStats()?.currentNoBustStreak ?: 0L,
+            )
+            playerStatsRepository.recordHand(playerStatBuilder.build(summary, context))
+        }.onFailure {
+            logger.w(it) { "Player-stat recording failed for hand ${summary.handId}" }
+        }
+        if (handNumber != null) lastRecordedStatHand = handNumber
     }
 
     private suspend fun maybeRequestReviewPrompt(
@@ -469,6 +509,31 @@ class PlayPokerViewModel @Inject constructor(
                 }
             }
         }.onFailure { logger.w(it) { "Review prompt request failed" } }
+    }
+
+    private suspend fun leaveAndReconcileWallet() {
+        Catching { session.leave() }
+            .onFailure { e -> logger.w(e) { "room leave failed" } }
+        // On a real-chip table the server cashes the leaver's final stack back to
+        // the wallet, but the client only learns the new balance on the next
+        // sync. Without this the won pot stays invisible until the next cold
+        // boot / foreground (CARDS-3C: "won 500, wallet unchanged, +100 later").
+        if (sessionFactory.xpMode != XpMode.MULTIPLAYER) return
+
+        val balanceBefore = chipsRepository.getBalance()
+        Catching { chipsRepository.sync() }
+            .onFailure { e -> logger.w(e) { "wallet sync after leave failed" } }
+        // MP-6: the sync above reconciles the credited stack into the balance,
+        // but a silent number change reads as a glitch. Confirm the credit on
+        // the surface the player lands on so the wallet bump never surprises
+        // them (Sentry CARDS-2N / 2Y). Only fire on a real gain — a lost stack
+        // or empty leave stays quiet.
+        val balanceAfter = chipsRepository.getBalance()
+        if (balanceBefore == null || balanceAfter == null) return
+        val credited = balanceAfter - balanceBefore
+        if (credited > 0L) {
+            leaveCashOutNotifier.confirmCredit(credited = credited, balanceAfter = balanceAfter)
+        }
     }
 
     override suspend fun handleAction(action: PlayPokerAction) {
@@ -661,18 +726,12 @@ class PlayPokerViewModel @Inject constructor(
                 // On appScope, not viewModelScope: the screen pops this VM the
                 // instant it fires LeaveTable, but the leave must still reach the
                 // server. No-op for solo.
-                appScope.launch {
-                    Catching { session.leave() }
-                        .onFailure { e -> logger.w(e) { "room leave failed" } }
-                }
+                appScope.launch { leaveAndReconcileWallet() }
             }
             is PlayPokerAction.LeaveGameFromBust -> {
                 // Same teardown as LeaveTable, on appScope so it lands as the
                 // screen routes away.
-                appScope.launch {
-                    Catching { session.leave() }
-                        .onFailure { e -> logger.w(e) { "room leave failed" } }
-                }
+                appScope.launch { leaveAndReconcileWallet() }
             }
             is PlayPokerAction.OpenQuickBuy -> action.updateState { it.copy(quickBuyOpen = true) }
             is PlayPokerAction.DismissQuickBuy -> action.updateState { it.copy(quickBuyOpen = false) }

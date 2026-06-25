@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-24 · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-25 · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -24,39 +24,19 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Progression & stats
 
-- `[P1]` **PROG-1 — Graduate hand counters + achievement progress to the server (stats-first model).** Today, hand counters (hands played / won / folded / lost-at-showdown / bot hands) and achievement progress counters (no-bust streak, per-bot wins, …) live only on the device. Switch accounts or reinstall and they reset — the stats screen and achievement progress bars look wrong on a different device.
+- `[P1]` **PROG-1 — Convert the achievement engine to predicates over the server-authoritative player stats.** `StatsViewModel` now reads the no-bust streak off `PlayerStatsRepository.observeStats()`, but the achievement engine still carries its own per-id progress in `AchievementProgress.counters` / `customCounters`, accumulated locally in `AchievementRepositoryImpl.recordHand`. What's left: make the predicates read the cumulative counters / no-bust streak / per-bot wins off the `PlayerStats` snapshot, recording a `claimed_at_value` per achievement so they unlock once and don't re-fire.
 
-  **Approach:** Stats become the source of truth; achievements become predicates over stats. Server gets a `player_stats` table holding cumulative counters (hands_played / won / folded / lost_at_showdown, bot_hands_played), streak values (current no-bust streak + best), and small per-key maps (per-bot wins). Achievements stop carrying their own progress numbers — they read stats and record a `claimed_at_value` so they don't re-fire. The stats screen reads the same numbers achievements use.
+  **Approach:** Stats are the source of truth; achievements become predicates over stats. This is the riskier half — it touches the live unlock path in `AchievementRepositoryImpl.recordHand`, so land it as its own commit with the existing achievement unlock tests green.
 
-  **Acceptance:** Sign in on a second device → correct stats + achievement progress. Stats screen and achievement bars agree. Adding a new achievement later doesn't need a data migration — it just points at an existing stat.
+  **Acceptance:** Sign in on a second device → correct achievement progress after one sync. Stats screen and achievement bars agree. Adding a new achievement later points at an existing stat, no data migration.
 
-  **Hints:** Mirror the PlayStyle sync — new `GET/POST /v1/me/stats/sync`, delta-up + snapshot-down, idempotent per batch. Keep client counters as a write-ahead cache for offline play; server is authoritative on reconcile. Templates: `PlayStyleRoutes.kt`, `PlayStyleRepositoryImpl.sync`.
+  **Hints:** Repo + DTOs: `PlayerStatsRepositoryImpl` / `dto/PlayerStatsDto.kt`. Endpoints are `/v1/me/player-stats` + `/v1/me/player-stats/sync`. `observeStats()` is already an offline-first `Flow<PlayerStats?>` and `StatsViewModel` already injects it (the no-bust streak tiles read from it). The streak the client sends is computed in `PlayerStatHandSummaryBuilder` (seeded from the cached snapshot).
 
 ### Auth & onboarding
 
-- `[P2]` **AUTH-1 — Polish the "account-creation pending" UX.** When someone signs up but the server account hasn't created yet (offline / network blip), we show a thin banner and that's it. The state is safe — the user can keep playing locally — but the surface feels under-built. Two upgrades remain: (1) replace the thin `AccountSetupBanner` with a richer dialog when the user first hits it; (2) tighten the device-verify banner copy + placement.
+- `[P2]` **AUTH-1 — Tune the device-verify banner placement.** Copy is refined; what's left is where the banner sits relative to the verify CTA on `VerifyEmailScreen` — eyeball the spacing/position against the screen and adjust.
 
-  **Hints:** State lives at `GuestAccountCreator.state`; banner at `apps/compose/AccountSetupBanner.kt`. The in-page Retry mirror on Profile/Settings already shipped via the `AccountSetupRetryBanner` DS primitive + `LocalAccountSetupRetry`.
-
-- `[P1]` **AUTH-2 — Reconcile local bot-play progress when a degraded account is finally created.** While creation is pending (offline), the user plays bots and accrues XP/chips locally against `Profile.Fallback`. Degraded play stays purely local — it doesn't write to the server-bound ledger. When `GuestAccountCreator` succeeds the server is authoritative: replay the pending local deltas on top of the server balance **once**, and never re-grant the provisional starter (`OnboardingStarterGrant`).
-
-  **Hints:** `ChipsRepositoryImpl.sync` already replays pending `wallet_events`; progression/XP sync is the riskier half — same local-until-creation rule.
-
-- `[P2]` **AUTH-3 — Route new OAuth/email sign-ups through onboarding.** Deferred creation sends guests through onboarding, but a brand-new Apple/Google/email sign-up still goes straight to Home (returning sign-ins correctly skip). Routing new sign-ups through PickIdentity/grant needs a reliable new-vs-returning signal — `walletCreated` on first wallet sync, or a server "profile just created" flag.
-
-  **Hints:** OAuth/Apple paths in `OnboardingViewModel` (`handleOAuth` / `finishAppleSignIn`) set `hasUserOnboarded=true` → Home.
-
-- `[P2]` **AUTH-5 — Verify network-required surfaces honor the `Profile.Fallback` gating rule.** Walk Home / Shop / Profile / Edit Profile / Claim / Inventory / Multiplayer / Settings and confirm each matches the rule. Most already do — this is a verification pass, not a redesign.
-
-  **Acceptance:** Reads render cached content; server-mutating surfaces soft-gate (visible, affordances disabled with an offline hint); money + multiplayer hard-gate.
-
-  **Hints:** Network-required surfaces are multiplayer, real-money purchase, and account claim. Edit Profile's avatar picker falls back to a hardcoded starter list when the pack fetch never landed — confirm a `patchMe` from there surfaces errors cleanly.
-
-- `[P1]` **AUTH-6 — Cold-boot-offline load + fallback misbehaves.** A no-internet cold boot shows the "connection issues" banner correctly, but downstream is wrong: creating an MP room pops the "account needed" dialog (it should read as a connection problem off a cached profile, not as account-less), and sign-out → continue-as-guest skips the "new here" banner. Evaluate the load/fallback chain end-to-end: what we load, what we fall back on, how each fallback colors error copy + gating. Offline writes should queue and send on reconnect, not hard-error.
-
-  **Acceptance:** Offline MP entry reads as a connection problem (not "account needed"); a returning user offline uses their cached profile; sign-out → guest shows the "new here" banner.
-
-  **Hints:** Pairs with AUTH-5 and the session-expiry blocking screen. Open product call ("should MP require a real account?") is in [`developer-todo.md`](./developer-todo.md).
+  **Hints:** Verify surface is `features/onboarding/impl/AuthScreens.kt` (`VerifyEmailScreen`, banner sits between body + the Check-verification button). Needs Studio to eyeball.
 
 ### Gameplay & table UX
 
@@ -68,29 +48,7 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## B. Multiplayer hardening
-
-- `[P2]` **MP-1 — Orphaned-room policy — read-only spectator downgrade.** Seat-forfeit on grace expiry already lands (`forfeitSeat`); the remaining half is downgrading the forfeited member's WS subscription to **read-only spectator** instead of closing the socket, with `GET /v1/me/active-rooms` driving a Rejoin / Forfeit banner. The seatless-subscriber socket auth this needs already exists.
-
-- `[P0]` **MP-2 — Close the remaining multiplayer test gaps.** MP is the load-bearing feature of the app. The integration module + engine property tests + chaos suite are largely landed (see [`practices/testing.md`](./practices/testing.md)). Still open:
-
-  - **Compose UI tests for `PlayPokerScreen`** — ~15 tests across the screen's 6+ states (your turn, bot thinking, raise unavailable, showdown, fold-around, loading, connection lost). Wire `androidx.compose.ui.test` into `:features:room:impl`'s `androidUnitTest`.
-  - **Server restart mid-hand → full client reconnect.** Server-side hydration is pinned by `SessionHydrationTest`; the open part is the client-reconnect-after-restart end-to-end in `:apps:integration`.
-  - **`FakeRoomServer` for the integration tier.** A fake that responds to `StartHand` / `SubmitIntent` / `RequestNextHand` using a real `GameSession`, so client-side tests can cover full turn cycles without booting Ktor.
-
-  **Acceptance:** Each bullet lands as its own commit. The "test the seams in production order" rules in [`practices/testing.md`](./practices/testing.md) apply to every new test.
-
-  **Out of scope:** Emulator-based UI tests (device-smoke checklist is the substitute) and hand-history regression fixtures (gated on a real production playtest).
-
-- `[P1]` **MP-6 — Finish the bots-for-chips settlement disclosure (post-cashout + sit-down cap).** The leave-confirm dialog now names the exact stack returning to the wallet on a subsidized table; `cashOut` already credits the full final stack (confirmed: no accounting bug — the `bot_subsidy_payout` cap only limits how much counts against the *daily budget*, not what cashes out). Two disclosure surfaces remain: (1) a post-leave confirmation (toast / Home summary) that names the credited amount + the new wallet balance, so the balance change is never a silent surprise; (2) a sit-down-time disclosure when the player is near their daily subsidy cap, so they learn the cap before playing rather than inferring it from an "odd balance" afterward.
-
-  **Acceptance:** A player who wins on a subsidized bot table and leaves sees the credited amount confirmed after leaving; a player near their daily cap is told before they sit. The resulting balance is never surprising at any of the three moments (sit / leave-confirm / post-leave).
-
-  **Hints:** `DefaultTableSessionService.cashOut` credits `finalStack` in full; `SubsidyCapReached` (`SitDownResult`) is the cap gate. Leave-confirm slice landed in `LeaveBotsConfirmDialog`. Cases `docs/agent/feedback-cases/6dd1f1ffddb347fd9cf6c5909caa98d0.md` + `docs/agent/feedback-cases/a0e30df3e1f845e085a7b360e3e5a4c5.md`; Sentry CARDS-2N / CARDS-2Y.
-
----
-
-## C. Engineering
+## B. Engineering
 
 ### Lint / static analysis
 

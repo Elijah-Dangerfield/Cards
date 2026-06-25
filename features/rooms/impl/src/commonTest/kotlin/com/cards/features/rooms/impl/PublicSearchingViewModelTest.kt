@@ -33,6 +33,7 @@ import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.rooms.RoomStatus
+import com.dangerfield.cards.libraries.rooms.SubsidyBudgetOutcome
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -295,6 +296,68 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         testScheduler.runCurrent()
 
         assertEquals(SearchPhase.BotFallbackOffer, vm.state.phase, "alone at the window → honest bot offer")
+    }
+
+    @Test
+    fun offerAppears_nearCapBudget_setsSubsidyNotice() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            subsidyBudget = SubsidyBudgetOutcome.Success(grantedToday = 8_500, cap = 10_000, remaining = 1_500),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+
+        testScheduler.advanceTimeBy(61.seconds)
+        testScheduler.runCurrent()
+
+        assertEquals(SearchPhase.BotFallbackOffer, vm.state.phase)
+        assertEquals(1, mm.subsidyBudgetCalls, "the offer reads the subsidy headroom once")
+        assertEquals(SubsidyNotice(remaining = 1_500, cap = 10_000), vm.state.subsidyNotice)
+    }
+
+    @Test
+    fun offerAppears_fullHeadroom_omitsSubsidyNotice() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            subsidyBudget = SubsidyBudgetOutcome.Success(grantedToday = 0, cap = 10_000, remaining = 10_000),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+
+        testScheduler.advanceTimeBy(61.seconds)
+        testScheduler.runCurrent()
+
+        assertNull(vm.state.subsidyNotice, "full headroom needs no caveat")
+    }
+
+    @Test
+    fun offerAppears_subsidyReadFails_offerStillStands_withoutNotice() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            subsidyBudget = SubsidyBudgetOutcome.NetworkError(RuntimeException("blip")),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+
+        testScheduler.advanceTimeBy(61.seconds)
+        testScheduler.runCurrent()
+
+        assertEquals(SearchPhase.BotFallbackOffer, vm.state.phase, "a failed budget read never blocks the offer")
+        assertNull(vm.state.subsidyNotice)
+    }
+
+    @Test
+    fun keepWaiting_clearsTheSubsidyNotice() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            subsidyBudget = SubsidyBudgetOutcome.Success(grantedToday = 8_500, cap = 10_000, remaining = 1_500),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+        testScheduler.advanceTimeBy(61.seconds)
+        testScheduler.runCurrent()
+        assertEquals(SubsidyNotice(remaining = 1_500, cap = 10_000), vm.state.subsidyNotice)
+
+        vm.takeAction(PublicSearchingAction.KeepWaiting)
+        runCurrent()
+
+        assertNull(vm.state.subsidyNotice, "leaving the offer drops the disclosure")
     }
 
     @Test
@@ -618,12 +681,16 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         // each re-poll); once exhausted the last entry repeats. Lets a test
         // drive the chooser's live re-poll without a custom fake.
         private val candidatesSequence: List<CandidatesOutcome> = emptyList(),
+        private val subsidyBudget: SubsidyBudgetOutcome =
+            SubsidyBudgetOutcome.Success(grantedToday = 0, cap = 10_000, remaining = 10_000),
     ) : MatchmakingRepository {
         var findCalls: Int = 0
             private set
         var playBotsCalls: Int = 0
             private set
         var candidatesCalls: Int = 0
+            private set
+        var subsidyBudgetCalls: Int = 0
             private set
 
         override suspend fun findTable(minBuyIn: Long, maxBuyIn: Long): FindTableOutcome {
@@ -642,6 +709,11 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         override suspend fun playBots(code: String): PlayBotsOutcome {
             playBotsCalls += 1
             return playBots
+        }
+
+        override suspend fun subsidyBudget(): SubsidyBudgetOutcome {
+            subsidyBudgetCalls += 1
+            return subsidyBudget
         }
     }
 

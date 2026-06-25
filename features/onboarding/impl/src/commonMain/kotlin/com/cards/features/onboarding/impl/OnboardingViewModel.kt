@@ -39,7 +39,9 @@ import kotlin.time.Duration.Companion.milliseconds
  * Drives the four-step onboarding flow with **deferred account creation** —
  * no account exists on launch; one is minted only when the user commits.
  *   1. **Welcome** — "Continue as guest" advances to step 2 (no auth yet);
- *      "Apple"/"Google" sign-in straight to Home.
+ *      "Apple"/"Google" sign-in: a returning account goes straight to Home, a
+ *      brand-new one runs through the rest of onboarding (PickIdentity -> grant)
+ *      like a guest. New-vs-returning is read off the wallet-just-created signal.
  *   2. **PickIdentity** — edit display name (prefilled from the unauthed
  *      onboarding config or a client suggestion) + pick a starter-pack avatar.
  *      "Continue" kicks off guest-account creation **in the background**
@@ -167,9 +169,27 @@ class OnboardingViewModel(
         when (val outcome = authRepository.signInWithOAuth(provider)) {
             is SignInOutcome.Success -> {
                 recordLegalConsent()
-                appCache.update { it.copy(hasUserOnboarded = true) }
-                updateState { it.copy(oauthInFlight = null) }
-                sendEvent(OnboardingEvent.NavigateToHome)
+                if (isBrandNewAccount()) {
+                    // First-ever sign-in for this identity: run them through the
+                    // rest of onboarding (PickIdentity -> grant reveal) like a
+                    // guest, so they pick a name/avatar and see the starter grant
+                    // instead of landing cold on Home. Mirrors the Apple-link new
+                    // identity path. identityClaimed suppresses the back-to-Welcome
+                    // control (the sign-in options no longer apply).
+                    updateState {
+                        it.copy(
+                            oauthInFlight = null,
+                            step = OnboardingStep.PickIdentity,
+                            identityClaimed = true,
+                        )
+                    }
+                } else {
+                    // Returning account already has a profile + wallet — skip
+                    // onboarding straight to Home.
+                    appCache.update { it.copy(hasUserOnboarded = true) }
+                    updateState { it.copy(oauthInFlight = null) }
+                    sendEvent(OnboardingEvent.NavigateToHome)
+                }
             }
             SignInOutcome.Cancelled -> updateState { it.copy(oauthInFlight = null) }
             SignInOutcome.ProviderNotEnabled -> updateState {
@@ -185,6 +205,21 @@ class OnboardingViewModel(
                 it.copy(oauthInFlight = null, authError = OnboardingAuthError.OAuthFailed)
             }
         }
+    }
+
+    /**
+     * Whether the just-signed-in account is brand new (first-ever sign-in) vs.
+     * a returning one. The discriminator is [ChipsRepository.walletJustCreated]:
+     * the first wallet sync after a fresh account lazily creates the server
+     * wallet and flips the signal true; a returning account already has a
+     * wallet, so it stays false. Same signal the Home starter-grant gate keys
+     * on. We kick the sync here so the answer is ready before we branch; if the
+     * sync fails (offline) the signal stays false and we treat the user as
+     * returning (Home) rather than trapping them in onboarding.
+     */
+    private suspend fun isBrandNewAccount(): Boolean {
+        Catching { chipsRepository.sync() }.logOnFailure { "OAuth wallet sync failed" }
+        return chipsRepository.walletJustCreated.value
     }
 
     /**

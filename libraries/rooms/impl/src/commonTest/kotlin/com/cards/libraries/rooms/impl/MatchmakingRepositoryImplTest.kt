@@ -4,6 +4,7 @@ import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.rooms.CandidatesOutcome
 import com.dangerfield.cards.libraries.rooms.FindTableOutcome
 import com.dangerfield.cards.libraries.rooms.PlayBotsOutcome
+import com.dangerfield.cards.libraries.rooms.SubsidyBudgetOutcome
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -183,6 +184,37 @@ class MatchmakingRepositoryImplTest {
         assertIs<CandidatesOutcome.NotSignedIn>(repo.findCandidates(1_000, 5_000))
     }
 
+    // ---------- subsidyBudget ----------
+
+    @Test
+    fun subsidyBudget_200_returnsSuccess_withFields() = runTest {
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, SUBSIDY_BUDGET_PARTIAL) })
+        val success = assertIs<SubsidyBudgetOutcome.Success>(repo.subsidyBudget())
+        assertEquals(8_500, success.grantedToday)
+        assertEquals(10_000, success.cap)
+        assertEquals(1_500, success.remaining)
+    }
+
+    @Test
+    fun subsidyBudget_401_returnsNotSignedIn() = runTest {
+        val repo = newRepo(MockEngine { respondError(HttpStatusCode.Unauthorized) })
+        assertIs<SubsidyBudgetOutcome.NotSignedIn>(repo.subsidyBudget())
+    }
+
+    @Test
+    fun subsidyBudget_500_returnsUnknown() = runTest {
+        val repo = newRepo(MockEngine { respondError(HttpStatusCode.InternalServerError) })
+        assertIs<SubsidyBudgetOutcome.Unknown>(repo.subsidyBudget())
+    }
+
+    @Test
+    fun subsidyBudget_transportError_returnsNetworkError() = runTest {
+        val repo = newRepo(MockEngine { throw SimulatedNetworkError("offline") })
+        val outcome = repo.subsidyBudget()
+        val networkError = assertIs<SubsidyBudgetOutcome.NetworkError>(outcome)
+        assertTrue(networkError.cause is SimulatedNetworkError)
+    }
+
     // ---------- scaffolding ----------
 
     private class SimulatedNetworkError(message: String) : RuntimeException(message)
@@ -229,5 +261,7 @@ class MatchmakingRepositoryImplTest {
         private fun roomJson(code: String) = ROOM_JSON.replace("\"ABC123\"", "\"$code\"")
         private val CANDIDATES_RESPONSE =
             """{"schemaVersion":1,"rooms":[${roomJson("AAA111")},${roomJson("BBB222")}]}"""
+        private val SUBSIDY_BUDGET_PARTIAL =
+            """{"schemaVersion":1,"grantedToday":8500,"cap":10000,"remaining":1500}"""
     }
 }

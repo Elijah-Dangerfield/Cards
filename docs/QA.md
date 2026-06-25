@@ -62,7 +62,7 @@ Real-device checklist run by a human before each release. Organised by feature. 
 
 1. Same as `ONB-3`.
 
-**Expected:** Currently lands on Home **without** the welcome grant dialog. *(Known issue — todo `AUTH-3`: new OAuth sign-ups should route through PickIdentity / grant. Confirm current behaviour matches and flag if it changes.)*
+**Expected:** Routes through onboarding — PickIdentity (name + avatar) then the starter-grant reveal — and lands on Home with the welcome grant. The native Apple identity links to the fresh guest, so chips / XP carry through (AUTH-3).
 
 ---
 
@@ -79,8 +79,8 @@ Two variants, both must pass:
 2. Complete Google's sheet.
 
 **Expected:**
-- Variant A — same as `ONB-3` (no grant, prior profile loads).
-- Variant B — same as `ONB-4` (lands on Home without grant — same `AUTH-3` issue).
+- Variant A — same as `ONB-3` (no grant, prior profile loads, onboarding skipped).
+- Variant B — new account: routes through onboarding (PickIdentity then the starter-grant reveal) and lands on Home with the welcome grant, instead of landing cold on Home (AUTH-3).
 
 ---
 
@@ -91,8 +91,9 @@ Two variants, both must pass:
 1. Open app → "Get started" → "Continue as guest."
 2. Complete remaining onboarding screens.
 
-**Expected:** Lands on Home. Welcome grant dialog shows 10K chips. The "account-creation pending" banner (`AccountSetupBanner`) is visible at the top of Home. No crashes, no error spinners.
+**Expected:** Lands on Home. Welcome grant dialog shows 10K chips. The first time the pending state is hit, a one-time "Finishing your account" explainer dialog (`AccountSetupExplainerDialog`, AUTH-1) appears reassuring the user their play is saved and that multiplayer + purchases are paused; dismissing it ("Got it") reveals the standing thin "account-creation pending" banner (`AccountSetupBanner`) at the top of Home. No crashes, no error spinners.
 
+- The explainer dialog shows **once per device**: dismiss it, force-quit, relaunch offline → only the thin banner shows, not the dialog again.
 - While still offline, open Profile and Settings: each shows an in-page "Account setup unfinished" banner with a **Retry** button (`AccountSetupRetryBanner`, AUTH-1) above the "Save your progress" nudge. Tapping Retry while offline keeps it pending (shows "Retrying…"), not an error.
 
 **Then bring the device online:**
@@ -142,7 +143,7 @@ Two variants, both must pass:
 
 1. Open the app from the home screen.
 
-**Expected:** Skips onboarding. Lands on Home with cached profile + cached chip balance. "Connection issues" banner appears at the top. No "account needed" dialog when navigating Home surfaces. Tapping anything network-required (multiplayer, real-money purchase) reads as a *connection* problem — not as account-less. *(Verifies the path called out by `AUTH-6` in todo.md.)*
+**Expected:** Skips onboarding. Lands on Home with cached profile + cached chip balance. "Connection issues" banner appears at the top. No "account needed" dialog when navigating Home surfaces. Creating / joining a multiplayer room surfaces a *connection* error ("Couldn't reach the server"), not the account-less "Sign in first to create a room" copy. Real-money purchase still hard-gates. *(AUTH-6.)*
 
 ---
 
@@ -154,7 +155,7 @@ Two variants, both must pass:
 2. On returning to PickIdentity, tap "Continue as guest."
 3. Complete remaining onboarding screens.
 
-**Expected:** Onboarding shows the "new here" banner (or whatever guest-re-entry copy applies). A new guest identity is created. Lands on Home. *(Per `AUTH-6`, the "new here" banner currently does not show — confirm actual behaviour and flag if it changes.)*
+**Expected:** A new guest identity is created and lands on Home. The Home "new here?" tutorial banner shows again above the header — the previous account's dismissal does not carry across the sign-out (its dismissed flag is reset on the identity change). *(AUTH-6.)*
 
 ---
 
@@ -213,6 +214,31 @@ Two variants, both must pass:
 
 ---
 
+## Offline gating
+
+Every network-required surface follows one rule off a cached / fallback identity (no confirmed server session): **reads render cached content**, **server-mutating surfaces soft-gate** (visible, affordances stay tappable but failures surface as a connection error rather than success), and **money + multiplayer hard-gate**. The matrix below walks each surface once so a single offline pass confirms the whole app honors it (AUTH-5).
+
+---
+
+### `AUTH-5` ⚠️ 📱 Offline gating matrix across network-required surfaces
+
+**State:** a returning session on a cached / fallback profile, offline. Reach this via `ONB-10` (returning user, airplane mode, cold boot) or `ONB-6` (fresh guest, offline, account-creation still pending). Stay offline for every step.
+
+Walk each surface and confirm the column it lands in:
+
+1. **Home** — reads cached. Profile header, chip balance, level all render from cache. The "Connection issues" banner shows; no "account needed" dialog fires from navigating Home.
+2. **Shop** — reads cached (catalog grid renders the last-fetched offers). Chip-funded redeems still work (local spend + Pending row); tapping a **real-money** chip pack hard-gates with a connection / not-signed-in error snackbar, never a silent success.
+3. **Profile** — reads cached (equipped flair, stats, level all from cache).
+4. **Edit Profile** — soft-gates. The avatar picker falls back to the hardcoded starter list when the pack fetch never landed (`loadError` shown). A name change surfaces a connection error inline; an avatar-only save navigates back optimistically then surfaces a connection-error snackbar — never a silent drop.
+5. **Claim account** — hard-gates. Every link / sign-up path (email + OAuth) surfaces a clear no-connection error, not a hang or generic server error.
+6. **Inventory (My Items)** — reads cached; equip / unequip toggles apply optimistically (Pending) and reconcile on reconnect. No hard error from toggling offline.
+7. **Multiplayer** — hard-gates. Create / join surfaces a *connection* error ("Couldn't reach the server"), not the account-less "Sign in first" copy (cross-ref `ONB-10`).
+8. **Settings** — reads cached; the account-setup retry banner (if pending) shows "Retrying…" not an error when tapped offline (cross-ref `ONB-6`).
+
+**Expected:** No surface shows a success state for a write that didn't reach the server, no surface hangs, and no read-only surface blocks on the network. Money + multiplayer never proceed; everything else either renders cached or queues with an honest connection-error message.
+
+---
+
 ## Social gating
 
 Friends/social is descoped to V2 behind the `social.enabled` app-config flag (default off). These confirm the surfaces stay hidden in the shipped default (SOC-2).
@@ -260,6 +286,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Set a buy-in range that spans at least one open/public table, or let it fall through to the bot fallback.
 
 **Expected:** Either a chooser lists candidate tables (buy-in, seats taken / max, real-human count) and tapping one seats you at that table, or — on an empty result — the search waits and then seats you against bots. Finish line is sit-down: you have a stack at the table. The buy-in is reserved from your wallet (wallet drops by the buy-in, not spent).
+
+- When the bot-fallback offer appears and you've already drawn down some of today's house-funded subsidy, the offer shows a heads-up line naming the remaining bonus chips (or "you've used today's bonus chips" once exhausted). With full headroom no caveat shows. Tapping "Keep waiting" clears the line (MP-6).
 
 ---
 
@@ -317,6 +345,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - Variant A — Device B's seat is released immediately; its remaining stack returns to its wallet (wallet goes up by the cashed-out stack). Device A sees B leave and the hand continues / settles around the empty seat. Back navigation lands cleanly on Multiplayer with no stuck "Leaving…" state.
 - Variant B — Device B's seat shows disconnected and is swept after the grace window (not instantly); the stack still cashes back. Device A's game is not ended by B's drop.
 - On a **subsidized** bots-for-chips table (Variant A, mid-hand), the leave-confirm dialog names the exact stack returning to the wallet ("The N chips at your seat are real…") — the number matches the stack shown at the seat, and the wallet rises by that amount after leaving (MP-6).
+- After winning a pot on a real-chip table and leaving (Variant A), the Home/wallet balance reflects the credited stack **right away** — without backgrounding and foregrounding the app. No delayed phantom jump appears on the next resume (todo `MP-7`).
+- After leaving a real-chip table with chips at your seat (Variant A), a toast confirms the credit on the screen you land on ("N chips from your seat went back to your wallet. New balance: M.") — the amounts match the wallet change. Leaving with nothing credited (lost the stack, or a bots-only practice table) shows no toast (MP-6).
 
 ---
 
@@ -327,3 +357,14 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 1. Play a hand to where Device B's stack busts (call/shove and lose).
 
 **Expected:** Device B sees the bust dialog with re-buy options (move another buy-in from wallet, drop to a lower tier, or — if broke — soft-bust protection). Choosing re-buy moves a fresh buy-in wallet → stack and deals B back in on the next hand. Declining leaves the table cleanly. On a subsidized bots-for-chips table, the bust dialog reads "fresh stack on the house" and the chips stay real (cross-ref `MP-6` settlement). Wallet math is correct after the re-buy — no double debit.
+
+---
+
+### `MP-9` ⚠️ 📱 Sole opponent leaves a 2-player room — no reconnect storm
+
+**State:** a 2-player room (Device A + Device B), then Device B leaves so Device A is the only human left.
+
+1. Device B: leave (or force-quit) the room.
+2. Device A: stay on the play screen and watch for ~30s.
+
+**Expected:** Device A does not wedge into a tight connect→reconnect loop. If the socket half-opens and keeps dropping, reconnect attempts back off and the attempt counter climbs (1, 2, 3…), then after a bounded number of failures the screen lands on a terminal "lost connection / leave" state instead of looping forever. No rapid-fire "Room socket connected / reconnecting (attempt=1)" churn in the session log. (Covers todo MP-8.)

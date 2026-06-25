@@ -222,6 +222,47 @@ object PlayStyleEventsTable : Table("play_style_events") {
 }
 
 /**
+ * Server-authoritative player stats, one row per user. Cumulative hand
+ * counters + the no-bust streak (current + best) + a per-bot win map; the
+ * authoritative read for the stats screen and the source achievements read
+ * their progress from. See `V72__player_stats.sql`.
+ */
+object UserPlayerStatsTable : Table("user_player_stats") {
+    val userId = uuid("user_id")
+    val handsPlayed = long("hands_played")
+    val handsWon = long("hands_won")
+    val handsFolded = long("hands_folded")
+    val handsLostAtShowdown = long("hands_lost_at_showdown")
+    val botHandsPlayed = long("bot_hands_played")
+    val currentNoBustStreak = long("current_no_bust_streak")
+    val bestNoBustStreak = long("best_no_bust_streak")
+    val perBotWins = jsonb("per_bot_wins")
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(userId)
+}
+
+/**
+ * Append-only ledger of per-hand stat contributions. `(user_id,
+ * idempotency_key)` is the dedup boundary — a retried/reinstalled flush
+ * collapses to a single row, so the aggregate never double-counts a hand.
+ * See `V72__player_stats.sql`.
+ */
+object PlayerStatEventsTable : Table("player_stat_events") {
+    val userId = uuid("user_id")
+    val idempotencyKey = text("idempotency_key")
+    val mode = text("mode")
+    val won = bool("won")
+    val folded = bool("folded")
+    val lostAtShowdown = bool("lost_at_showdown")
+    val vsBot = bool("vs_bot")
+    val beatenBotId = text("beaten_bot_id").nullable()
+    val noBustStreak = long("no_bust_streak")
+    val appliedAt = timestamp("applied_at")
+    override val primaryKey = PrimaryKey(userId, idempotencyKey)
+}
+
+/**
  * Server-authoritative earned-achievement set. One row per (user,
  * achievement); first-write-wins on `earned_at`. The criteria engine +
  * progress counters stay client-local — only the earned set syncs. See

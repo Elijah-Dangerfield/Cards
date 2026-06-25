@@ -9,6 +9,9 @@ import com.dangerfield.cards.libraries.cards.LifetimeStatsRepository
 import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.PlayStyleHandSummary
 import com.dangerfield.cards.libraries.cards.PlayStyleRepository
+import com.dangerfield.cards.libraries.cards.PlayerStatHandSummary
+import com.dangerfield.cards.libraries.cards.PlayerStats
+import com.dangerfield.cards.libraries.cards.PlayerStatsRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpBoostRepository
@@ -75,6 +78,18 @@ internal class FakeXpEventRepository(
     val events = MutableStateFlow(initial)
     override fun observeRecent(limit: Int): Flow<List<XpEvent>> = events
     override fun observeSince(sinceEpochMs: Long): Flow<List<XpEvent>> = events
+}
+
+internal class FakePlayerStatsRepository(
+    initial: PlayerStats? = null,
+) : PlayerStatsRepository {
+    val stats = MutableStateFlow(initial)
+    override fun observeStats(): Flow<PlayerStats?> = stats
+    override suspend fun getStats(): PlayerStats? = stats.value
+    override suspend fun recordHand(summary: PlayerStatHandSummary) =
+        error("recordHand not used by the progression VMs")
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
+    override suspend fun deleteAll() { /* not used here */ }
 }
 
 internal class FakeLifetimeStatsRepository(

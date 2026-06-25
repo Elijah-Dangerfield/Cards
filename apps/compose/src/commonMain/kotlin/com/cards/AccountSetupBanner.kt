@@ -21,6 +21,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,15 +31,21 @@ import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.account_setup_banner_message
 import cards.libraries.resources.generated.resources.account_setup_banner_retry
 import cards.libraries.resources.generated.resources.account_setup_banner_retrying
+import cards.libraries.resources.generated.resources.account_setup_explainer_body
+import cards.libraries.resources.generated.resources.account_setup_explainer_confirm
+import cards.libraries.resources.generated.resources.account_setup_explainer_title
+import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
 import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -150,3 +157,48 @@ internal fun AccountSetupBannerContent(
         }
     }
 }
+
+/**
+ * The richer first-contact surface for the degraded-account state. The thin
+ * [AccountSetupBanner] is the *standing* reminder, but the first time creation
+ * is left pending it's easy to miss — so this one-time dialog explains what's
+ * happening (play is safe, setup continues in the background, MP + purchases are
+ * paused) before the banner takes over for the rest of the wait.
+ *
+ * Shown when [shouldShowAccountSetupExplainer] is true off the live pending
+ * status and the persisted `accountSetupExplainerSeen` flag. Dismissing sets the
+ * flag — so it only ever shows once per device — and leaves [AccountSetupBanner]
+ * in place to keep the state visible until creation succeeds.
+ */
+@Composable
+fun AccountSetupExplainerDialog(
+    creator: GuestAccountCreator,
+    appCache: AppCache,
+) {
+    val status = rememberAccountSetupStatus(creator)
+    val appData by appCache.updates.collectAsState(initial = null)
+    val seen = appData?.accountSetupExplainerSeen
+    val scope = rememberCoroutineScope()
+    if (seen != null && shouldShowAccountSetupExplainer(pending = status.pending, hasSeenExplainer = seen)) {
+        val dismiss: () -> Unit = {
+            scope.launch { appCache.update { it.copy(accountSetupExplainerSeen = true) } }
+        }
+        Dialog(
+            title = stringResource(Res.string.account_setup_explainer_title),
+            description = stringResource(Res.string.account_setup_explainer_body),
+            primaryButtonText = stringResource(Res.string.account_setup_explainer_confirm),
+            onDismissRequest = dismiss,
+            onPrimaryButtonClicked = dismiss,
+        )
+    }
+}
+
+/**
+ * Pure gate for the one-time explainer dialog: show it the first time account
+ * creation is left pending and the user hasn't already seen it. Extracted so the
+ * decision is unit-testable without Compose.
+ */
+internal fun shouldShowAccountSetupExplainer(
+    pending: Boolean,
+    hasSeenExplainer: Boolean,
+): Boolean = pending && !hasSeenExplainer

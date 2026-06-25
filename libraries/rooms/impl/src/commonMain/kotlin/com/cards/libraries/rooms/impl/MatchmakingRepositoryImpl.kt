@@ -4,6 +4,7 @@ import com.dangerfield.cards.libraries.rooms.CandidatesOutcome
 import com.dangerfield.cards.libraries.rooms.FindTableOutcome
 import com.dangerfield.cards.libraries.rooms.MatchmakingRepository
 import com.dangerfield.cards.libraries.rooms.PlayBotsOutcome
+import com.dangerfield.cards.libraries.rooms.SubsidyBudgetOutcome
 import io.ktor.client.call.body
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.HttpRequestTimeoutException
@@ -96,6 +97,26 @@ class MatchmakingRepositoryImpl(
         PlayBotsOutcome.Unknown(e)
     } catch (e: Throwable) {
         PlayBotsOutcome.NetworkError(e)
+    }
+
+    override suspend fun subsidyBudget(): SubsidyBudgetOutcome = try {
+        val body = api.subsidyBudget().body<SubsidyBudgetResponseDto>()
+        SubsidyBudgetOutcome.Success(
+            grantedToday = body.grantedToday,
+            cap = body.cap,
+            remaining = body.remaining,
+        )
+    } catch (e: ClientRequestException) {
+        when (e.response.status) {
+            HttpStatusCode.Unauthorized -> SubsidyBudgetOutcome.NotSignedIn(e)
+            else -> SubsidyBudgetOutcome.Unknown(e)
+        }
+    } catch (e: HttpRequestTimeoutException) {
+        SubsidyBudgetOutcome.NetworkError(e)
+    } catch (e: ServerResponseException) {
+        SubsidyBudgetOutcome.Unknown(e)
+    } catch (e: Throwable) {
+        SubsidyBudgetOutcome.NetworkError(e)
     }
 
     private suspend fun extractMessage(e: ClientRequestException): String? = try {

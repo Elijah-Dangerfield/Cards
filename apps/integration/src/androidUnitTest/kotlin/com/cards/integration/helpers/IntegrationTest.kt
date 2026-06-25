@@ -88,18 +88,27 @@ class Harness(val server: InProcessServer) {
     /** Background scope for session collectors; cancelled when the test ends. */
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
+    private val clients = mutableListOf<TestClient>()
+
     fun client(
         userId: String = randomUserId(),
         faulty: Boolean = false,
         latencyMs: Long? = null,
     ): TestClient =
         TestClient(serverUrl = server.baseUrl, userId = userId, faulty = faulty, latencyMs = latencyMs)
+            .also { clients += it }
 
     /** A gameplay view over a live connection handle (real socket). */
     fun gameplay(handle: RoomConnectionHandle): GameplaySession =
         GameplaySession(handle, scope)
 
-    internal fun close() = scope.cancel()
+    internal fun close() {
+        // Quiesce each client's reconnect loop before the server stops, so a test
+        // that bounced the server doesn't leave clients hammering the recycled
+        // port and tripping later tests in the same JVM.
+        clients.forEach { it.close() }
+        scope.cancel()
+    }
 }
 
 // ---- await helpers (real time + generous timeouts; never fixed sleeps) ----

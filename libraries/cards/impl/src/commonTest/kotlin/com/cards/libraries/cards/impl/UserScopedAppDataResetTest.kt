@@ -17,7 +17,7 @@ class UserScopedAppDataResetTest : CoroutineTest() {
             initial = AppData(
                 didSeeInitialGrantInOnboarding = true, // account-scoped → reset
                 hasUserOnboarded = true,               // device-scoped → kept
-                tutorialBannerDismissed = true,        // device-scoped → kept
+                tutorialBannerDismissed = true,        // identity-scoped → reset (AUTH-6)
             ),
         )
         val reset = UserScopedAppDataReset(appCache = cache)
@@ -27,7 +27,21 @@ class UserScopedAppDataResetTest : CoroutineTest() {
         val after = cache.get()
         assertFalse(after.didSeeInitialGrantInOnboarding, "account-scoped grant flag must reset")
         assertTrue(after.hasUserOnboarded, "device-scoped onboarding flag must survive")
-        assertTrue(after.tutorialBannerDismissed, "device-scoped UI flag must survive")
+    }
+
+    @Test
+    fun clear_resetsTutorialBanner_soAFreshGuestIsReOfferedTheWalkthrough() = runUnitTest {
+        // AUTH-6: sign-out -> continue-as-guest must show the "new here?" banner
+        // again. The dismissal is identity-scoped, so a user change clears it.
+        val cache = FakeAppCache(initial = AppData(tutorialBannerDismissed = true))
+        val reset = UserScopedAppDataReset(appCache = cache)
+
+        reset.clear(previousUserId = "user-1")
+
+        assertFalse(
+            cache.get().tutorialBannerDismissed,
+            "the new-here banner must re-show for the next identity",
+        )
     }
 
     private class FakeAppCache(initial: AppData = AppData()) : AppCache {

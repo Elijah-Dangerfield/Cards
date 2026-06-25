@@ -23,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.stats_lifetime_best_streak_label
+import cards.libraries.resources.generated.resources.stats_lifetime_no_bust_streak_label
 import cards.libraries.resources.generated.resources.stats_lifetime_opponents_label
 import cards.libraries.resources.generated.resources.stats_recent_xp_boosted_tag
 import cards.libraries.resources.generated.resources.stats_play_style_section
@@ -31,6 +33,7 @@ import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.ui.system.color.LevelProgressGradient
+import com.dangerfield.cards.libraries.cards.PlayerStats
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpMode
@@ -119,6 +122,7 @@ fun StatsScreen(
             LifetimeStatsGrid(
                 progression = state.progression,
                 distinctOpponentsPlayed = state.distinctOpponentsPlayed,
+                playerStats = state.playerStats,
             )
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -206,6 +210,7 @@ private fun XpHero(progress: LevelProgress) {
 private fun LifetimeStatsGrid(
     progression: Progression,
     distinctOpponentsPlayed: Long?,
+    playerStats: PlayerStats?,
 ) {
     val played = progression.handsPlayed
     val winRate = percentOf(progression.handsWon, played)
@@ -246,6 +251,22 @@ private fun LifetimeStatsGrid(
                 label = "Showdown losses",
                 value = formatThousands(progression.handsLostAtShowdown),
             )
+        }
+        // Server-authoritative no-bust streak — appears once the player-stats
+        // snapshot caches. Current + best pair naturally.
+        if (playerStats != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatTile(
+                    modifier = Modifier.weight(1f),
+                    label = stringResource(Res.string.stats_lifetime_no_bust_streak_label),
+                    value = formatThousands(playerStats.currentNoBustStreak),
+                )
+                StatTile(
+                    modifier = Modifier.weight(1f),
+                    label = stringResource(Res.string.stats_lifetime_best_streak_label),
+                    value = formatThousands(playerStats.bestNoBustStreak),
+                )
+            }
         }
         // Server-only MP stat — appears once the /v1/me/stats fetch lands. Full
         // width since it's a lone tile with no natural pair.
@@ -542,6 +563,10 @@ private fun StatsScreenPreview_Populated() {
                     XpEvent(id = 5, deltaXp = 2, source = XpSource.BASE, mode = XpMode.BOTS, handId = "40", createdAtEpochMs = now - 9L * dayMs),
                 ),
                 distinctOpponentsPlayed = 17,
+                playerStats = PlayerStats.Empty.copy(
+                    currentNoBustStreak = 12,
+                    bestNoBustStreak = 31,
+                ),
             ),
             onBack = {},
         )

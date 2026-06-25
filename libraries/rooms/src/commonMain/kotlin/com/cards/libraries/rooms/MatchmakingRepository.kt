@@ -41,6 +41,26 @@ interface MatchmakingRepository {
      * The client should drop the bot offer and stay in the real table.
      */
     suspend fun playBots(code: String): PlayBotsOutcome
+
+    /**
+     * Read the caller's house-funded disclosed-bot subsidy draw-down for the
+     * current rolling window. Read before offering the bot fallback so a player
+     * near their daily cap is told the limit up front instead of discovering it
+     * from a surprising balance afterward (MP-6). Idempotent.
+     */
+    suspend fun subsidyBudget(): SubsidyBudgetOutcome
+}
+
+sealed interface SubsidyBudgetOutcome {
+    /**
+     * The subsidy budget for the rolling window. [remaining] is clamped to >= 0;
+     * 0 means the next subsidized bot table earns no house-funded bonus.
+     */
+    data class Success(val grantedToday: Long, val cap: Long, val remaining: Long) : SubsidyBudgetOutcome
+
+    data class NotSignedIn(val cause: Throwable? = null) : SubsidyBudgetOutcome
+    data class NetworkError(val cause: Throwable) : SubsidyBudgetOutcome
+    data class Unknown(val cause: Throwable) : SubsidyBudgetOutcome
 }
 
 sealed interface CandidatesOutcome {

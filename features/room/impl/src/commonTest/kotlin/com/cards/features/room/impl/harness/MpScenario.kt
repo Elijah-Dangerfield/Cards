@@ -49,36 +49,73 @@ class MpScenarioBuilder(
     private val localUserId: String,
 ) {
     private var handle: FakeRoomConnectionHandle = FakeRoomConnectionHandle()
+    private var server: FakeRoomServer? = null
     private val friendRepository = FakeFriendRepository()
+    private val chipsRepository = FakeChipsRepository()
+    private val leaveCashOutNotifier = FakeLeaveCashOutNotifier()
 
     /** Pre-seed frames before the VM mounts (e.g. the subscribe-after-deal case). */
     internal suspend fun preSeed(block: suspend FakeRoomConnectionHandle.() -> Unit): MpScenarioBuilder = apply {
         handle.block()
     }
 
+    /**
+     * Back the scenario with a [FakeRoomServer] that drives a real [GameEngine],
+     * so the test can play full turn cycles (`iSubmit` runs the engine and the
+     * server fans real snapshots + events back) instead of hand-feeding every
+     * server frame. The local user must be one of [occupants].
+     */
+    fun withServer(
+        occupants: List<ServerSeat>,
+        settings: com.dangerfield.cards.libraries.gameplay.RoomSettings =
+            com.dangerfield.cards.libraries.gameplay.RoomSettings.Default,
+        deckFactory: ((handNumber: Int) -> com.dangerfield.cards.libraries.gameplay.Deck)? = null,
+        opponentPolicy: OpponentPolicy = OpponentPolicy.CheckOrCall,
+    ): MpScenarioBuilder = apply {
+        server = if (deckFactory != null) {
+            FakeRoomServer(
+                occupants = occupants,
+                settings = settings,
+                deckFactory = deckFactory,
+                localUserId = localUserId,
+                opponentPolicy = opponentPolicy,
+            )
+        } else {
+            FakeRoomServer(
+                occupants = occupants,
+                settings = settings,
+                localUserId = localUserId,
+                opponentPolicy = opponentPolicy,
+            )
+        }
+    }
+
     suspend fun start(): RunningMpScenario {
+        val connectionHandle: RoomConnectionHandle = server ?: handle
         val factory = RemotePokerSessionFactory(
             roomCode = "ABCDEF",
             localUserId = localUserId,
             isPublicTable = false,
-            roomRepository = HarnessRoomRepository(handle),
+            roomRepository = HarnessRoomRepository(connectionHandle),
             telemetry = HarnessTelemetry,
         )
         val vm = PlayPokerViewModel(
             sessionFactory = factory,
             progressionRepository = FakeProgressionRepository(),
             playStyleRepository = FakePlayStyleRepository(),
+            playerStatsRepository = FakePlayerStatsRepository(),
             progressionConfig = FakeProgressionConfig(),
             achievementRepository = FakeAchievementRepository(),
             appCache = FakeAppCache(),
             equipmentRepository = FakeEquipmentRepository(),
             inventoryRepository = FakeInventoryRepository(),
             productsRepository = FakeProductsRepository(),
-            chipsRepository = FakeChipsRepository(),
+            chipsRepository = chipsRepository,
             purchaseChipPack = FakePurchaseChipPackUseCase(),
             profileRepository = FakeProfileRepository(),
             friendRepository = friendRepository,
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
+            leaveCashOutNotifier = leaveCashOutNotifier,
             dispatcherProvider = dispatchers,
             appScope = AppCoroutineScope(dispatchers),
             clock = Clock.System,
@@ -86,7 +123,9 @@ class MpScenarioBuilder(
         )
         val recorder = EventRecorder().also { it.attach(scope.backgroundScope, vm) }
         scope.advanceUntilIdle()
-        return RunningMpScenario(vm, handle, recorder, scope, friendRepository)
+        return RunningMpScenario(
+            vm, handle, server, recorder, scope, friendRepository, chipsRepository, leaveCashOutNotifier,
+        )
     }
 }
 
@@ -99,9 +138,12 @@ class MpScenarioBuilder(
 class RunningMpScenario internal constructor(
     val vm: PlayPokerViewModel,
     internal val handle: FakeRoomConnectionHandle,
+    private val server: FakeRoomServer?,
     val events: EventRecorder,
     private val scope: TestScope,
     val friendRepository: FakeFriendRepository,
+    val chipsRepository: FakeChipsRepository,
+    val leaveCashOutNotifier: FakeLeaveCashOutNotifier,
 ) {
     private var seq: Long = 0L
 
@@ -110,6 +152,37 @@ class RunningMpScenario internal constructor(
             ?: error("table is ${vm.state.table::class.simpleName}, not Active yet")
 
     val connection: ConnectionState get() = vm.state.connection
+
+    /**
+     * Server-backed play: deal the opening hand by sending [ClientFrame.StartHand]
+     * through the [FakeRoomServer]. Only valid on a `withServer(...)` scenario.
+     */
+    suspend fun serverStartHand() {
+        requireServer()
+        vm.takeAction(PlayPokerAction.RequestNextHand)
+        scope.advanceUntilIdle()
+    }
+
+    /**
+     * Server-backed play: submit the local player's intent and let the
+     * [FakeRoomServer] run the real engine, fanning the resulting snapshot +
+     * events back. Only valid on a `withServer(...)` scenario.
+     */
+    suspend fun iSubmit(intent: PlayerIntent) {
+        requireServer()
+        vm.takeAction(PlayPokerAction.Submit(intent))
+        scope.advanceUntilIdle()
+    }
+
+    /** The server's authoritative [GameState]. Only valid on a `withServer(...)` scenario. */
+    val serverState: GameState
+        get() = requireServer().currentState ?: error("no hand dealt yet — call serverStartHand()")
+
+    /** Frames the session sent to the [FakeRoomServer]. Only valid on a `withServer(...)` scenario. */
+    fun serverReceived(): List<ClientFrame> = requireServer().received
+
+    private fun requireServer(): FakeRoomServer =
+        server ?: error("this scenario has no FakeRoomServer — build it with mpScenario().withServer(...)")
 
     suspend fun serverSnapshot(state: GameState) {
         handle.pushFrame(GameplayFrame.StateSnapshot(state))

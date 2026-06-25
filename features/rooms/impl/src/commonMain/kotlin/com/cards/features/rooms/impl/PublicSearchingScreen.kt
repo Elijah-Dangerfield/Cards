@@ -48,6 +48,8 @@ import cards.libraries.resources.generated.resources.public_searching_joining_bo
 import cards.libraries.resources.generated.resources.public_searching_offer_body
 import cards.libraries.resources.generated.resources.public_searching_offer_keep_waiting
 import cards.libraries.resources.generated.resources.public_searching_offer_play_bots
+import cards.libraries.resources.generated.resources.public_searching_offer_subsidy_exhausted
+import cards.libraries.resources.generated.resources.public_searching_offer_subsidy_remaining
 import cards.libraries.resources.generated.resources.public_searching_offer_title
 import cards.libraries.resources.generated.resources.public_searching_offer_try_later
 import cards.libraries.resources.generated.resources.public_searching_rotate_1
@@ -113,7 +115,7 @@ fun PublicSearchingScreen(
             when {
                 state.error != null -> ErrorContent(state.error, onAction)
                 state.phase == SearchPhase.Choosing -> ChoosingContent(state.candidates, onAction)
-                state.phase == SearchPhase.BotFallbackOffer -> BotFallbackContent(onAction)
+                state.phase == SearchPhase.BotFallbackOffer -> BotFallbackContent(state.subsidyNotice, onAction)
                 state.phase == SearchPhase.JoiningBots -> JoiningBotsContent()
                 else -> SearchingContent(state, onAction)
             }
@@ -283,7 +285,10 @@ private fun RotatingReassurance() {
 }
 
 @Composable
-private fun ColumnScope.BotFallbackContent(onAction: (PublicSearchingAction) -> Unit) {
+private fun ColumnScope.BotFallbackContent(
+    subsidyNotice: SubsidyNotice?,
+    onAction: (PublicSearchingAction) -> Unit,
+) {
     Spacer(Modifier.weight(1f))
     PublicHeroCard(
         title = stringResource(Res.string.public_searching_offer_title),
@@ -294,6 +299,10 @@ private fun ColumnScope.BotFallbackContent(onAction: (PublicSearchingAction) -> 
             }
         },
     )
+    if (subsidyNotice != null) {
+        Spacer(Modifier.height(Dimension.D500))
+        SubsidyNoticeCard(subsidyNotice)
+    }
     Spacer(Modifier.weight(1f))
 
     ButtonPrimary(
@@ -378,6 +387,26 @@ private fun ColumnScope.ErrorContent(
 }
 
 @Composable
+private fun SubsidyNoticeCard(notice: SubsidyNotice) {
+    Text(
+        text = if (notice.remaining <= 0) {
+            stringResource(Res.string.public_searching_offer_subsidy_exhausted)
+        } else {
+            stringResource(Res.string.public_searching_offer_subsidy_remaining, formatThousands(notice.remaining))
+        },
+        typography = AppTheme.typography.Body.B400,
+        color = AppTheme.colors.contentSecondary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(Radii.R700.shape)
+            .background(AppTheme.colors.surface.color)
+            .border(1.dp, AppTheme.colors.border.color, Radii.R700.shape)
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D400),
+    )
+}
+
+@Composable
 private fun BuyInRangeCard(minBuyIn: Long, maxBuyIn: Long) {
     Row(
         modifier = Modifier
@@ -440,6 +469,38 @@ private fun PublicSearchingOfferPreview() {
     PreviewContent {
         PublicSearchingScreen(
             state = PublicSearchingState(phase = SearchPhase.BotFallbackOffer, minBuyIn = 1_000, maxBuyIn = 25_000),
+            onAction = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun PublicSearchingOfferNearCapPreview() {
+    PreviewContent {
+        PublicSearchingScreen(
+            state = PublicSearchingState(
+                phase = SearchPhase.BotFallbackOffer,
+                minBuyIn = 1_000,
+                maxBuyIn = 25_000,
+                subsidyNotice = SubsidyNotice(remaining = 1_500, cap = 10_000),
+            ),
+            onAction = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun PublicSearchingOfferExhaustedPreview() {
+    PreviewContent {
+        PublicSearchingScreen(
+            state = PublicSearchingState(
+                phase = SearchPhase.BotFallbackOffer,
+                minBuyIn = 1_000,
+                maxBuyIn = 25_000,
+                subsidyNotice = SubsidyNotice(remaining = 0, cap = 10_000),
+            ),
             onAction = {},
         )
     }

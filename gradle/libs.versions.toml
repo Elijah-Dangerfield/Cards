@@ -47,6 +47,8 @@ opentelemetry = "1.45.0"
 # Instrumentation modules track a separate alpha train aligned with the
 # stable SDK release (`<sdk>-alpha`).
 opentelemetryInstrumentation = "2.11.0-alpha"
+robolectric = "4.14.1"
+androidxComposeUiTestManifest = "1.9.4"
 
 [libraries]
 anvil-compiler = { module = "software.amazon.lastmile.kotlin.inject.anvil:compiler", version.ref = "kotlinInjectAnvil" }
@@ -64,6 +66,9 @@ androidx-testExt-junit = { module = "androidx.test.ext:junit", version.ref = "an
 androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "androidx-espresso" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "androidx-appcompat" }
 compose-backhandler = { module = "org.jetbrains.compose.ui:ui-backhandler", version.ref = "composeMultiplatform" }
+compose-uiTest = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "composeMultiplatform" }
+compose-uiTestManifest = { module = "androidx.compose.ui:ui-test-manifest", version.ref = "androidxComposeUiTestManifest" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
 androidx-lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "androidx-lifecycle" }
 androidx-lifecycle-viewmodel-savedstate = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-savedstate", version.ref = "androidx-lifecycle" }

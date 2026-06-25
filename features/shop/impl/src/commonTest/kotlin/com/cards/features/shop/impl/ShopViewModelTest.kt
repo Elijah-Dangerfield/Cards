@@ -258,7 +258,7 @@ class ShopViewModelTest : CoroutineTest() {
 
         vm.takeAction(ShopAction.ConfirmPurchase(offer))
 
-        assertEquals(5_000L, chips.getBalance(), "chips debited by the boost cost")
+        assertEquals(9_000L, chips.getBalance(), "chips debited by the boost cost")
         assertEquals(1, boost.grantCalls.size, "one boost added to the stash")
         assertTrue(boost.activateCalls.isEmpty(), "buying must NOT light the boost")
         val event = received.firstOrNull { it is ShopEvent.BoostPurchased }
@@ -711,9 +711,9 @@ class ShopViewModelTest : CoroutineTest() {
                 Product.ChipOffer(
                     id = "boost_xp_2x",
                     title = "XP Boost",
-                    subtitle = "30 minutes",
+                    subtitle = "5 minutes",
                     iconEmoji = "⚡",
-                    costChips = 5_000,
+                    costChips = 1_000,
                     grantsKey = "boost.xp_2x",
                 ),
             ),

@@ -22,6 +22,9 @@ import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.PlayStyleHandSummary
 import com.dangerfield.cards.libraries.cards.PlayStyleRepository
+import com.dangerfield.cards.libraries.cards.PlayerStatHandSummary
+import com.dangerfield.cards.libraries.cards.PlayerStats
+import com.dangerfield.cards.libraries.cards.PlayerStatsRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
@@ -300,6 +303,26 @@ class FakePlayStyleRepository(initial: PlayStyleAxes? = null) : PlayStyleReposit
     fun emit(style: PlayStyleAxes?) { state.value = style }
 }
 
+// ---------- PlayerStatsRepository ----------
+
+class FakePlayerStatsRepository(initial: PlayerStats? = null) : PlayerStatsRepository {
+    private val state = MutableStateFlow(initial)
+    val recordedHands = mutableListOf<PlayerStatHandSummary>()
+
+    override fun observeStats(): Flow<PlayerStats?> = state
+    override suspend fun getStats(): PlayerStats? = state.value
+
+    override suspend fun recordHand(summary: PlayerStatHandSummary) {
+        recordedHands += summary
+    }
+
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
+
+    override suspend fun deleteAll() { state.value = null }
+
+    fun emit(stats: PlayerStats?) { state.value = stats }
+}
+
 // ---------- AchievementRepository ----------
 
 class FakeAchievementRepository(
@@ -512,6 +535,13 @@ class FakeChipsRepository(
     var syncCount: Int = 0
         private set
 
+    /**
+     * Credit applied to the balance on the next [sync], simulating the
+     * server cashing a leaver's seat stack back into the wallet. Consumed
+     * once, then reset to zero.
+     */
+    var creditOnNextSync: Long = 0L
+
     override val walletJustCreated: StateFlow<Boolean> = MutableStateFlow(false)
     override fun observeBalance(): Flow<Long?> = balance
     override suspend fun getBalance(): Long? = balance.value
@@ -525,9 +555,22 @@ class FakeChipsRepository(
     override suspend fun deleteAll() { balance.value = null }
     override suspend fun sync(): Result<Unit> {
         syncCount += 1
+        if (creditOnNextSync != 0L) {
+            balance.value = (balance.value ?: 0L) + creditOnNextSync
+            creditOnNextSync = 0L
+        }
         return Result.success(Unit)
     }
     fun emit(value: Long?) { balance.value = value }
+}
+
+/** Records leave-time cash-out confirmations so a test can assert the credited amount. */
+class FakeLeaveCashOutNotifier : LeaveCashOutNotifier {
+    data class Credit(val credited: Long, val balanceAfter: Long)
+    val credits = mutableListOf<Credit>()
+    override suspend fun confirmCredit(credited: Long, balanceAfter: Long) {
+        credits += Credit(credited, balanceAfter)
+    }
 }
 
 /**

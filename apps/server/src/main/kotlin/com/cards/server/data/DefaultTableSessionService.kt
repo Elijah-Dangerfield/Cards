@@ -241,6 +241,15 @@ class DefaultTableSessionService(
         return CashOutResult.CashedOut(refunded = refund, balanceAfter = outcome.balance)
     }
 
+    override suspend fun subsidyBudget(userId: UserId): com.dangerfield.cards.server.domain.SubsidyBudget {
+        val grantedToday = tableSessions.subsidyGrantedSince(userId, clock.now() - subsidyWindow)
+        return com.dangerfield.cards.server.domain.SubsidyBudget(
+            grantedToday = grantedToday,
+            cap = subsidyDailyCap,
+            remaining = (subsidyDailyCap - grantedToday).coerceAtLeast(0L),
+        )
+    }
+
     private fun ExposedSQLException.isUniqueViolation(): Boolean {
         val sqlState = (cause as? java.sql.SQLException)?.sqlState
             ?: (this as? java.sql.SQLException)?.sqlState
