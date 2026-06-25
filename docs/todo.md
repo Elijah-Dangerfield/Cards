@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-25 (feedback triage: CARDS-3N…47) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-25 (decisions pass: every item made worker-pickable; BILL-1 → developer-todo) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -24,17 +24,17 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Progression & stats
 
-- `[P1]` **PROG-1 — Convert the achievement engine to predicates over `PlayerStats`.** `AchievementRepositoryImpl` still accumulates its own per-id progress via `AchievementDao` counters, so achievement bars reset on account-switch / reinstall. Make the predicates read cumulative counters / no-bust streak / per-bot wins off the server-authoritative `PlayerStats` snapshot, recording a `claimed_at_value` per achievement so each unlocks once and doesn't re-fire.
+- `[P1]` **PROG-1 — Make the achievement engine server-authoritative over player stats.** `AchievementRepositoryImpl` accumulates its own per-id progress via local `AchievementDao` counters, so bars reset on account-switch / reinstall. Expand the server stats so it computes/stores every counter the predicates need (reshape `PlayerStatsDto` or add a dedicated achievements-stats endpoint — whichever is cleanest), convert the client predicates to read that snapshot, and record a `claimed_at_value` per achievement so each unlocks once. ~20 counters need server backing today (pot high-water marks, comeback/recovery, good-fold, all-in, doubles/triples, busts-dealt, the 9 hand-strength shows, level) — the rest (`handsPlayed`, no-bust streak, `perBotWins`) already exist on `PlayerStats`.
 
-  **Acceptance:** Sign in on a second device → correct achievement progress after one sync; achievement bars agree with the stats screen; a new achievement points at an existing stat with no data migration.
+  **Acceptance:** Sign in on a second device → correct progress after one sync; achievement bars agree with the stats screen.
 
-  **Hints:** `PlayerStatsRepository` (server-backed, `observeStats(): Flow<PlayerStats?>`) is already wired into the stats screen. Touches the live unlock path — land as its own commit with achievement-unlock tests green.
+  **Hints:** Land server schema + endpoint and the client conversion together, achievement-unlock tests green. Server: `apps/server/.../PlayerStatsRepository.kt`, `PlayerStatsDto.kt`, a migration. Client: `AchievementRepositoryImpl.kt`, `AchievementRegistry.kt`, `PlayerStats.kt`.
 
 ### Auth & onboarding
 
-- `[P2]` **AUTH-1 — Tune the device-verify banner placement.** Copy is refined; what's left is where the banner sits relative to the verify CTA on `VerifyEmailScreen` — eyeball the spacing/position against the screen and adjust.
+- `[P2]` **AUTH-1 — Tune the device-verify banner placement.** Copy is refined; what's left is where the banner sits relative to the verify CTA on `VerifyEmailScreen`. Move it directly above the "Check verification" button with `Dimension.D400` spacing so it reads as context for the action it gates.
 
-  **Hints:** Verify surface is `features/onboarding/impl/AuthScreens.kt` (`VerifyEmailScreen`, banner sits between body + the Check-verification button). Needs Studio to eyeball.
+  **Hints:** `features/onboarding/impl/AuthScreens.kt` (`VerifyEmailScreen`, banner currently between body + the Check-verification button). Validate against a rendered preview/screenshot — no device required.
 
 ### Gameplay & table UX
 
@@ -42,20 +42,21 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Acceptance:** The glyph reads optically centered in the circle at every `Size`.
 
-  **Hints:** The `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
+  **Hints:** The `Box`/`Text` in `EmojiButton.kt`; needs a glyph-vs-line-box `offset`, not just `Alignment.Center`. Validate against the `EmojiButtonPreview_Sizes` size-scale `@Preview` screenshot — no device required.
 
 ### Multiplayer & rooms
 
-- `[P0]` **MP-13 — MP wallet settlement doesn't conserve chips across a game.** Two humans played heads-up and the sum of their wallets *grew* (10k+10k → 22000, +2000 minted). Table chips are conserved; the wallet settlement is client-derived with no server-authoritative or test-enforced conservation invariant.
-  **Acceptance:** A full MP game settles wallets so `sum(wallets_after) == sum(wallets_before)`; an integration test plays a complete MP game and asserts conservation.
-  **Hints:** Make the server authoritative for MP buy-in debit + pot payout (one ledger entry per seat per game) rather than each client computing its own delta. Sentry CARDS-3V.
+- `[P0]` **MP-13 — MP wallet settlement doesn't conserve chips across a game.** Two humans played heads-up and the sum of their wallets *grew* (10k+10k → 22000, +2000 minted). The server is authoritative for sit-down debit + cash-out credit via the wallet ledger, but nothing enforces conservation, and the existing `fullHandThenBothLeave_conservesEveryChip` test passes — so the leak is in a multi-hand / rebuy path it doesn't cover.
+  **Acceptance:** A full MP game including rebuys settles wallets so `sum(after) == sum(before)` exactly (zero rake in V1); an integration test reproduces the +2000 and then asserts exact conservation.
+  **Hints:** `DefaultTableSessionService.kt` (sit/cash-out/rebuy ledger), `GameSession.kt` (settlement), `apps/integration/.../ChipEconomyPlayTest.kt`. A $0-buy-in seat is a contributor — the MP-16 buy-in floor shrinks this surface. Case `docs/agent/feedback-cases/7b9fada4e2364ed6971fffef505ec57b.md`; Sentry CARDS-3V.
 
-- `[P0]` **MP-14 — Heads-up bust needs a terminal match-over resolution.** If the busted player can't or won't rebuy, both players idle indefinitely on the "waiting for opponent to rebuy or leave" notice — there's no terminal path that resolves the table to a match-over (winner takes the table).
-  **Acceptance:** On a heads-up bust where the loser doesn't rebuy, the winner sees a match-over result and is routed off the dead table — no indefinite "waiting" loop.
-  **Hints:** Needs a product call on the resolution trigger (busted-player leave, a rebuy-grace timeout, or an explicit winner "end match") plus a server-driven match-over signal — no match-over concept exists today. Client already surfaces the rejection via `PokerSession.nextHandUnavailable`. Sentry CARDS-3S.
+- `[P0]` **MP-14 — Heads-up bust needs a terminal match-over resolution.** If the busted player can't or won't rebuy, both players idle indefinitely on the "waiting for opponent to rebuy or leave" notice — there's no terminal path that resolves the table to a match-over. Resolve via a rebuy-grace timeout (~60s).
+  **Acceptance:** Busted player sees a countdown ("Buy back in within Xs or you'll lose your seat"). Standing player sees "Waiting for your opponent to rebuy or leave" with the same countdown / auto-continue cue. On expiry, auto-forfeit the busted seat → standing player sees a match-over result and is routed off the dead table; winner can also end early. No indefinite "waiting" loop.
+  **Hints:** Set `RoomStatus.Finished` (defined in `Room.kt`, never set today). Build on server `forfeitSeat`/`removePlayer` in `GameSession.kt` + the grace timer; broadcast a match-over signal via `RoomSocketRoutes.kt`; client surfaces it in `RemotePokerSession.kt` (`nextHandUnavailable` already wired) + the waiting/match-over UI. Case `docs/agent/feedback-cases/e98cfac9d86545ad89083f7341e6f22a.md`; Sentry CARDS-3S.
 
-- `[P1]` **MP-16 — Pin where the lobby's $0 buy-in snapshot leaks from.** The lobby now suppresses the stakes row while `room.buyIn == 0`, so testers no longer see a flashed "$0" — but which snapshot path stages a `buyIn == 0` room is still unconfirmed. Every wire path carries the real buy-in via `Room.toDto()`, so the 0 likely comes from a partial/transient snapshot or a persisted-room restore (`PostgresRoomStore`) reading an unwritten column. Needs runtime traces from a repro to pin and fix at the source.
-  **Hints:** `RoomDto.buyIn` / `Room.buyIn` both default to 0. Sentry CARDS-3X.
+- `[P1]` **MP-16 — Make a $0 buy-in structurally impossible + fix the post-leave rebound.** The original create-form cause (slider defaulting to 0) already shipped in `0c4f28a9` — `PrivateCreateScreen` seeds `DEFAULT_BUY_IN` and `RoomSettings.forBuyIn` floors to `MIN_BUY_IN`. Two pieces remain: (1) a **server-side floor** that rejects/clamps room creation with `buyIn < MIN_BUY_IN` so no $0 room can ever exist (also defends MP-13); (2) the remaining user-visible $0 is a **stale snapshot re-staging `buyIn == 0` after the only other human leaves** — trace and fix at the snapshot source, then remove the `LobbyScreen` band-aid (`if (room.buyIn > 0)` at `LobbyScreen.kt:383`).
+  **Acceptance:** Server refuses to create/persist a sub-`MIN_BUY_IN` room; the post-leave lobby keeps showing the real stakes; the band-aid is gone.
+  **Hints:** Floor: `apps/server/.../RoomRoutes.kt` + room create service. Rebound: the room snapshot path after `MemberLeft`. Case `docs/agent/feedback-cases/a3b1fc7d414444b295669d047d173ff8.md`; Sentry CARDS-3X/CARDS-3N.
 
 ---
 
@@ -67,12 +68,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Acceptance:** `Text("Hello")` in a feature `:impl` fails both `./gradlew check` and pre-push; `stringResource(...)` passes; a suppress annotation clears a line; a second rule is just a new rule class + config entry.
 
-  **Blocker (needs a human call first):** repo is on Kotlin 2.3.21; detekt 1.23.x chokes on 2.3 metadata (detekt#8865). Only `dev.detekt` 2.0.0-alpha supports Kotlin 2.3 — pin the alpha deliberately or hold until detekt 2 stabilises.
+  **Hints:** Pin `dev.detekt` 2.0.0-alpha (the only line that supports Kotlin 2.3.21; it's a dev/CI-only build dependency, never shipped to users — contain blast radius behind a baseline). `gradle/libs.versions.toml`, a new `build-logic/` convention plugin, `.githooks/pre-push`.
 
   **Out of scope:** migrating existing string violations.
-
-### Billing
-
-- `[P0]` **BILL-1 — Server-side IAP receipt validation + server-authoritative purchase ledger.** Today `ShopAction.ConfirmPurchase` drives the local purchase use case and credits chips on success — the server never validates the receipt, so a forged receipt mints chips. Before any real-money sale: `POST /v1/billing/redeem` validates against the Apple App Store Server API / Google Play Developer API, then grants chips through the server wallet ledger, idempotent per store transaction id. **Gated on:** store IAP products + store API credentials existing (developer-todo).
-
-  **Hints:** Grant precedent is `ChipsRepository.addChips(idempotencyKey=…)` / the wallet ledger. Verify-before-credit — never trust the client for paid chips.
