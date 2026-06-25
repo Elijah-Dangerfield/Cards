@@ -26,6 +26,12 @@ data class PlayerStatsDto(
     val currentNoBustStreak: Long,
     val bestNoBustStreak: Long,
     val perBotWins: Map<String, Long> = emptyMap(),
+    /**
+     * The full materialized achievement-counter projection (`name -> value`).
+     * The client reads its progress bars from this rather than a local cache, so
+     * they survive reinstall / account switch. Defaulted for older clients.
+     */
+    val achievementCounters: Map<String, Long> = emptyMap(),
 )
 
 @Serializable

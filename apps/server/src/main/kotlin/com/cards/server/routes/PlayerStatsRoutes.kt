@@ -77,6 +77,7 @@ private fun PlayerStats.toDto() = PlayerStatsDto(
     currentNoBustStreak = currentNoBustStreak,
     bestNoBustStreak = bestNoBustStreak,
     perBotWins = perBotWins,
+    achievementCounters = counters.values,
 )
 
 private fun PlayerStatHandDto.toFacts() = HandFacts(
