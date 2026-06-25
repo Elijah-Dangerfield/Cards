@@ -13,7 +13,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,11 +26,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.text.CenteredGlyph
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.typography.TypographyResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -133,15 +132,10 @@ private data class AvatarContent(val text: String, val isEmoji: Boolean)
  */
 @Composable
 private fun AvatarGlyph(text: String, typography: TypographyResource) {
-    BasicText(
+    CenteredGlyph(
         text = text,
-        style = typography.style.copy(
-            color = AppTheme.colors.content.color,
-            lineHeightStyle = LineHeightStyle(
-                alignment = LineHeightStyle.Alignment.Center,
-                trim = LineHeightStyle.Trim.Both,
-            ),
-        ),
+        typography = typography,
+        color = AppTheme.colors.content.color,
     )
 }
 

@@ -12,12 +12,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton.Size
-import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.components.text.CenteredGlyph
 import com.dangerfield.cards.libraries.ui.system.LocalContentColor
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
@@ -31,19 +29,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * Surface shell, and radius so a cluster of icon buttons + emoji buttons
  * reads as one set of controls. The KMP material-icons bundle this
  * project pulls doesn't include face / emoji vectors, so emoji controls
- * render a literal glyph via [Text].
- *
- * Sizing note: EmojiButton's footprint is a few dp taller than the
- * matching [IconButton] at the same [Size] because emoji typography
- * uses a 1.25× line-height ratio (per LineHeightRatio.MODERATE) and
- * the glyph needs the full line box to sit centered on the baseline.
- * We use [defaultMinSize] to lock a minimum square footprint matching
- * IconButton's iconSize, then let the line box grow the bounds if it
- * needs more vertical room. Trying to clamp the inner box to exactly
- * iconSize.dp pushes emoji glyphs out the bottom of the layout (the
- * line-box midpoint sits above the glyph's visual midpoint for emoji,
- * even with PlatformTextStyle / LineHeightStyle tweaks), so we accept
- * the small footprint difference in exchange for proper centering.
+ * render a literal glyph via [CenteredGlyph], which trims the line box so
+ * the glyph sits optically centered (a plain centered Text floats it high).
+ * A [defaultMinSize] square keeps the footprint matching IconButton's iconSize.
  */
 @NonRestartableComposable
 @Composable
@@ -75,14 +63,10 @@ fun EmojiButton(
             ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
+            CenteredGlyph(
                 text = emoji,
                 typography = size.emojiTypography,
-                color = contentColor,
-                textAlign = TextAlign.Center,
-                softWrap = false,
-                overflow = TextOverflow.Visible,
-                maxLines = 1,
+                color = contentColor.color,
             )
         }
     }

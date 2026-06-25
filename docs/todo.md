@@ -30,14 +30,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** Land server schema + endpoint and the client conversion together, achievement-unlock tests green. Server: `apps/server/.../PlayerStatsRepository.kt`, `PlayerStatsDto.kt`, a migration. Client: `AchievementRepositoryImpl.kt`, `AchievementRegistry.kt`, `PlayerStats.kt`.
 
-### Gameplay & table UX
-
-- `[P2]` **GAME-3 — Emote button glyph isn't optically centered.** The play-poker emote trigger ([`TopBarEmojiButton`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/EmojiTray.kt) → DS [`EmojiButton`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/icon/EmojiButton.kt)) centers its circular bounding box correctly, but the emoji glyph sits slightly up-and-left inside it — the text line-box midpoint ≠ the glyph's visual midpoint.
-
-  **Acceptance:** The glyph reads optically centered in the circle at every `Size`.
-
-  **Hints:** The `Box`/`Text` in `EmojiButton.kt`; needs a glyph-vs-line-box `offset`, not just `Alignment.Center`. Validate against the `EmojiButtonPreview_Sizes` size-scale `@Preview` screenshot — no device required.
-
 ### Multiplayer & rooms
 
 - `[P0]` **MP-13 — MP wallet settlement doesn't conserve chips across a game.** Two humans played heads-up and the sum of their wallets *grew* (10k+10k → 22000, +2000 minted). The server is authoritative for sit-down debit + cash-out credit via the wallet ledger, but nothing enforces conservation, and the existing `fullHandThenBothLeave_conservesEveryChip` test passes — so the leak is in a multi-hand / rebuy path it doesn't cover.
