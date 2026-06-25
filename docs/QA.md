@@ -143,7 +143,7 @@ Two variants, both must pass:
 
 1. Open the app from the home screen.
 
-**Expected:** Skips onboarding. Lands on Home with cached profile + cached chip balance. "Connection issues" banner appears at the top. No "account needed" dialog when navigating Home surfaces. Tapping anything network-required (multiplayer, real-money purchase) reads as a *connection* problem — not as account-less. *(Verifies the path called out by `AUTH-6` in todo.md.)*
+**Expected:** Skips onboarding. Lands on Home with cached profile + cached chip balance. "Connection issues" banner appears at the top. No "account needed" dialog when navigating Home surfaces. Creating / joining a multiplayer room surfaces a *connection* error ("Couldn't reach the server"), not the account-less "Sign in first to create a room" copy. Real-money purchase still hard-gates. *(AUTH-6.)*
 
 ---
 
@@ -155,7 +155,7 @@ Two variants, both must pass:
 2. On returning to PickIdentity, tap "Continue as guest."
 3. Complete remaining onboarding screens.
 
-**Expected:** Onboarding shows the "new here" banner (or whatever guest-re-entry copy applies). A new guest identity is created. Lands on Home. *(Per `AUTH-6`, the "new here" banner currently does not show — confirm actual behaviour and flag if it changes.)*
+**Expected:** A new guest identity is created and lands on Home. The Home "new here?" tutorial banner shows again above the header — the previous account's dismissal does not carry across the sign-out (its dismissed flag is reset on the identity change). *(AUTH-6.)*
 
 ---
 

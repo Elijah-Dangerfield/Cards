@@ -112,11 +112,15 @@ data class AppData(
     val didSeeInitialGrantInOnboarding: Boolean = false,
 
     /**
-     * Whether the user has dismissed the Home-screen tutorial banner.
-     * False on a fresh install — the banner shows above the header
-     * inviting the user into the 2-minute scripted walkthrough. Flips
-     * to true the first time the user taps the X. The tutorial itself
-     * remains accessible from Settings → "How to play" regardless.
+     * Whether the user has dismissed the Home-screen "new here?" tutorial
+     * banner. False on a fresh install — the banner shows above the header
+     * inviting the user into the 2-minute scripted walkthrough. Flips to true
+     * the first time the user taps the X, and survives backgrounding for that
+     * same identity. Reset on an account change / sign-out (see
+     * [resetAccountScoped]) so a fresh continue-as-guest is re-offered the
+     * walkthrough rather than inheriting the previous user's dismissal. The
+     * tutorial itself remains accessible from Settings → "How to play"
+     * regardless.
      */
     val tutorialBannerDismissed: Boolean = false,
 
@@ -297,6 +301,12 @@ fun AppData.resetAccountScoped(): AppData = copy(
     // Unset sentinel so the next account silently seeds to its own level rather
     // than retro-granting level rewards on switch-in.
     highestLevelRewarded = 0,
+    // The "new here?" Home banner is a first-run teaching affordance. A full
+    // sign-out -> continue-as-guest is a deliberate fresh start, so the next
+    // identity should be re-offered the walkthrough rather than inheriting the
+    // previous user's dismissal (AUTH-6). Distinct from a within-account device
+    // persistence: the flag still survives backgrounding for the *same* user.
+    tutorialBannerDismissed = false,
 )
 
 interface AppCache : Cache<AppData>

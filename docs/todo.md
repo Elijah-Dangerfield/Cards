@@ -48,12 +48,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** Network-required surfaces are multiplayer, real-money purchase, and account claim. Edit Profile's avatar picker falls back to a hardcoded starter list when the pack fetch never landed — confirm a `patchMe` from there surfaces errors cleanly.
 
-- `[P1]` **AUTH-6 — Cold-boot-offline load + fallback misbehaves.** A no-internet cold boot shows the "connection issues" banner correctly, but downstream is wrong: creating an MP room pops the "account needed" dialog (it should read as a connection problem off a cached profile, not as account-less), and sign-out → continue-as-guest skips the "new here" banner. Evaluate the load/fallback chain end-to-end: what we load, what we fall back on, how each fallback colors error copy + gating. Offline writes should queue and send on reconnect, not hard-error.
-
-  **Acceptance:** Offline MP entry reads as a connection problem (not "account needed"); a returning user offline uses their cached profile; sign-out → guest shows the "new here" banner.
-
-  **Hints:** Pairs with AUTH-5 and the session-expiry blocking screen. Open product call ("should MP require a real account?") is in [`developer-todo.md`](./developer-todo.md).
-
 ### Gameplay & table UX
 
 - `[P2]` **GAME-3 — Emote button glyph isn't optically centered.** The play-poker emote trigger ([`TopBarEmojiButton`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/EmojiTray.kt) → DS [`EmojiButton`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/icon/EmojiButton.kt)) centers its circular bounding box correctly, but the emoji glyph sits slightly up-and-left inside it — the text line-box midpoint ≠ the glyph's visual midpoint.
