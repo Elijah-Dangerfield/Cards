@@ -125,6 +125,20 @@ class GameSession internal constructor(
     private val _emojiBlasts = MutableSharedFlow<SeatEmoji>(extraBufferCapacity = 32)
     val emojiBlasts: SharedFlow<SeatEmoji> get() = _emojiBlasts.asSharedFlow()
 
+    /**
+     * Match-over lifecycle channel — the heads-up grace countdown + terminal
+     * resolution, driven by [MatchOverGraceDriver] and forwarded by the socket
+     * fan-out. Like [emojiBlasts] it carries no engine state and isn't mutex-
+     * guarded; the driver `tryEmit`s onto it. A small buffer so a GraceStarted +
+     * its Resolved aren't dropped if a subscriber is momentarily slow.
+     */
+    private val _matchOverEvents = MutableSharedFlow<MatchOverEvent>(extraBufferCapacity = 8)
+    val matchOverEvents: SharedFlow<MatchOverEvent> get() = _matchOverEvents.asSharedFlow()
+
+    internal fun emitMatchOverEvent(event: MatchOverEvent) {
+        _matchOverEvents.tryEmit(event)
+    }
+
     // Cached so requestNextHand can re-seed without the caller re-supplying.
     private var settings: RoomSettings = RoomSettings.Default
 

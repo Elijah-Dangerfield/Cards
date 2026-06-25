@@ -213,6 +213,11 @@ class DefaultGameSessionRegistry(
     // for human seats. Same lifecycle as [botDrivers] — spawned in createSession,
     // cancelled in end. Mutated only under [mutex].
     private val turnTimerDrivers = mutableMapOf<String, TurnTimerDriver>()
+    // Parallel to [sessions], keyed by code. Resolves the heads-up dead-end (one
+    // player busted, no rebuy) to a terminal match-over. Same lifecycle as the
+    // other drivers — spawned in createSession, cancelled in end, mutated only
+    // under [mutex].
+    private val matchOverGraceDrivers = mutableMapOf<String, MatchOverGraceDriver>()
 
     override suspend fun startHand(
         code: String,
@@ -293,6 +298,7 @@ class DefaultGameSessionRegistry(
             sessions.value = sessions.value - code
             botDrivers.remove(code)?.cancel()
             turnTimerDrivers.remove(code)?.cancel()
+            matchOverGraceDrivers.remove(code)?.cancel()
         }
         Catching { snapshotStore.deleteByCode(code) }
             .onFailure { log.warn("Failed to delete snapshot for room {} during end()", code, it) }
@@ -337,6 +343,12 @@ class DefaultGameSessionRegistry(
         ).also { it.start() }
         turnTimerDrivers.remove(code)?.cancel()
         turnTimerDrivers[code] = TurnTimerDriver(session = session, scope = botDriverScope).also { it.start() }
+        matchOverGraceDrivers.remove(code)?.cancel()
+        matchOverGraceDrivers[code] = MatchOverGraceDriver(
+            session = session,
+            scope = botDriverScope,
+            clock = clock,
+        ).also { it.start() }
         return session
     }
 
