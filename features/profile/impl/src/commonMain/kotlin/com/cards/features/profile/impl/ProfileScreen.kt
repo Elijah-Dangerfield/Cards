@@ -90,6 +90,7 @@ import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.formatThousands
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -734,7 +735,7 @@ private fun OwnedItemsSections(
         val id = pulseId ?: return@LaunchedEffect
         // Let the matching tile attach its requester before we scroll to it.
         delay(100)
-        runCatching { highlightRequester.bringIntoView() }
+        Catching { highlightRequester.bringIntoView() }
         delay(HighlightPulseDurationMillis)
         if (pulseId == id) pulseId = null
     }
