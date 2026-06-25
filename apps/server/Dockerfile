@@ -39,6 +39,7 @@ COPY apps/server/ apps/server/
 COPY libraries/core/ libraries/core/
 COPY libraries/gameplay/ libraries/gameplay/
 COPY libraries/bots/ libraries/bots/
+COPY libraries/achievements/ libraries/achievements/
 
 # kotlin.compiler.execution.strategy=in-process: run the Kotlin compiler inside
 # the Gradle JVM instead of forking a separate Kotlin daemon. Otherwise the

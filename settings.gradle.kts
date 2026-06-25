@@ -52,6 +52,7 @@ include(":apps:server")
 include(":libraries:core")
 include(":libraries:gameplay")
 include(":libraries:bots")
+include(":libraries:achievements")
 
 if (!serverOnly) {
     include(":apps:compose")
