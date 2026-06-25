@@ -42,10 +42,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
   **Hints:** `ChipsRepositoryImpl.sync` already replays pending `wallet_events`; progression/XP sync is the riskier half — same local-until-creation rule.
 
-- `[P2]` **AUTH-3 — Route new OAuth/email sign-ups through onboarding.** Deferred creation sends guests through onboarding, but a brand-new Apple/Google/email sign-up still goes straight to Home (returning sign-ins correctly skip). Routing new sign-ups through PickIdentity/grant needs a reliable new-vs-returning signal — `walletCreated` on first wallet sync, or a server "profile just created" flag.
-
-  **Hints:** OAuth/Apple paths in `OnboardingViewModel` (`handleOAuth` / `finishAppleSignIn`) set `hasUserOnboarded=true` → Home.
-
 - `[P2]` **AUTH-5 — Verify network-required surfaces honor the `Profile.Fallback` gating rule.** Walk Home / Shop / Profile / Edit Profile / Claim / Inventory / Multiplayer / Settings and confirm each matches the rule. Most already do — this is a verification pass, not a redesign.
 
   **Acceptance:** Reads render cached content; server-mutating surfaces soft-gate (visible, affordances disabled with an offline hint); money + multiplayer hard-gate.

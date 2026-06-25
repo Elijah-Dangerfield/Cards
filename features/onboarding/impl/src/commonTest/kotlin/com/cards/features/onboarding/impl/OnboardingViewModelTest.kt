@@ -46,7 +46,8 @@ import kotlin.time.Instant
  *  - Finish joins on the in-flight creation: success or failure both go Home
  *    (failure flags the degraded state).
  *  - Back is blocked once creation has started.
- *  - SignInWithOAuth: success → onboarded + Home; cancel/failure handled.
+ *  - SignInWithOAuth: returning account → onboarded + Home; brand-new account
+ *    (wallet just created) → run through PickIdentity; cancel/failure handled.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class OnboardingViewModelTest : CoroutineTest() {
@@ -364,10 +365,13 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun signInWithOAuth_success_marksOnboardedAndNavigatesHome() = runUnitTest {
+    fun signInWithOAuth_returningAccount_marksOnboardedAndNavigatesHome() = runUnitTest {
+        // walletJustCreated stays false → the account already had a wallet, so
+        // it's a returning sign-in: skip onboarding straight to Home.
         val cache = FakeAppCache()
         val auth = FakeAuthRepository(oauthSignInOutcome = SignInOutcome.Success)
-        val vm = newVm(cache = cache, auth = auth)
+        val chips = FakeChipsRepository().apply { walletJustCreated.value = false }
+        val vm = newVm(cache = cache, auth = auth, chips = chips)
         val received = mutableListOf<OnboardingEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
 
@@ -378,6 +382,30 @@ class OnboardingViewModelTest : CoroutineTest() {
         assertTrue(cache.get().hasUserOnboarded)
         assertEquals(OnboardingEvent.NavigateToHome, received.firstOrNull())
         assertNull(vm.state.oauthInFlight)
+    }
+
+    @Test
+    fun signInWithOAuth_brandNewAccount_runsThroughOnboarding_notStraightToHome() = runUnitTest {
+        // walletJustCreated flips true on the first sync of a freshly-created
+        // wallet → brand-new account. It should enter PickIdentity (and finish
+        // the grant reveal) rather than landing cold on Home.
+        val cache = FakeAppCache()
+        val auth = FakeAuthRepository(oauthSignInOutcome = SignInOutcome.Success)
+        val chips = FakeChipsRepository().apply { walletJustCreated.value = true }
+        val vm = newVm(cache = cache, auth = auth, chips = chips)
+        val received = mutableListOf<OnboardingEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+
+        vm.takeAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google))
+        runCurrent()
+
+        assertEquals(OnboardingStep.PickIdentity, vm.state.step)
+        assertTrue(vm.state.identityClaimed)
+        assertFalse(cache.get().hasUserOnboarded, "brand-new sign-up isn't onboarded until they finish")
+        assertTrue(received.isEmpty(), "must not navigate Home from the brand-new path")
+        assertNull(vm.state.oauthInFlight)
+        // Legal consent is still stamped — proceeding off Welcome is acceptance.
+        assertEquals(LegalUrls.LEGAL_VERSION, cache.get().acceptedLegalVersion)
     }
 
     @Test

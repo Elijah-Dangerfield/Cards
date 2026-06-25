@@ -105,3 +105,40 @@ build dir.
 (`com.cards.uitest.harness`, `TestAppComponent` etc.) that exists only as stale
 generated KSP output with no committed sources — likely a prior MP-2 UI-test
 attempt. Filed in `docs/backlog.md` for the reviewer to triage against MP-2.
+
+## feat(onboarding): route brand-new OAuth sign-ups through onboarding (AUTH-3)
+
+**Problem:** Deferred creation runs guests through onboarding, but a brand-new
+Google / OAuth sign-up (`signInWithOAuth`) set `hasUserOnboarded = true` and
+jumped straight to Home — no name/avatar pick, no starter-grant reveal —
+whereas returning sign-ins correctly skip onboarding.
+
+**Approach:** `OnboardingViewModel.handleOAuth`, on a successful sign-in, now
+syncs the wallet and reads the live `ChipsRepository.walletJustCreated` signal —
+the exact new-vs-returning discriminator the Home starter-grant gate already
+keys on (the first sync of a freshly lazy-created wallet flips it true; a
+returning account already has a wallet so it stays false). Brand-new → route to
+PickIdentity with `identityClaimed = true` (mirrors the Apple-link new-identity
+path: from there the rest of onboarding patches the now-real profile and runs
+the grant reveal). Returning → unchanged (mark onboarded, NavigateToHome).
+**Directional call:** used the existing `walletJustCreated` signal rather than
+adding a server "profile just created" flag — it's already wired, already the
+gate the grant reveal trusts, and a second source of truth would risk the two
+disagreeing. If the wallet sync fails (offline), the signal stays false and we
+treat the user as returning (Home) rather than trapping them mid-onboarding with
+no account. The Apple button already fires the native `SignInWithApple` link
+path (correct before this change); email sign-up routes to verify-email (never
+"straight to Home") — so the OAuth path was the only real gap. Removed the
+`AUTH-3` known-issue framing from QA `ONB-4`/`ONB-5` and set their expected
+behaviour to the routed-through-onboarding flow.
+
+**Reviewer notes:** New-account detection hinges on `walletJustCreated` being
+true at the moment we read it post-`sync()` — the production `sync()` flips it
+synchronously inside the awaited call when the response carries `walletCreated`,
+so the read is ordered correctly. Worth an on-device confirm (Google new-user)
+that PickIdentity shows and the grant reveals once, not twice (the onboarding
+reveal sets `didSeeInitialGrantInOnboarding`, suppressing the Home dialog —
+same as the guest path). ONB-4 (Apple new user) was previously documented as
+"lands on Home without grant"; the native Apple-link path already routed to
+PickIdentity, so I corrected that QA expected value too even though no code in
+that path changed this commit.

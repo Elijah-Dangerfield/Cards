@@ -62,7 +62,7 @@ Real-device checklist run by a human before each release. Organised by feature. 
 
 1. Same as `ONB-3`.
 
-**Expected:** Currently lands on Home **without** the welcome grant dialog. *(Known issue — todo `AUTH-3`: new OAuth sign-ups should route through PickIdentity / grant. Confirm current behaviour matches and flag if it changes.)*
+**Expected:** Routes through onboarding — PickIdentity (name + avatar) then the starter-grant reveal — and lands on Home with the welcome grant. The native Apple identity links to the fresh guest, so chips / XP carry through (AUTH-3).
 
 ---
 
@@ -79,8 +79,8 @@ Two variants, both must pass:
 2. Complete Google's sheet.
 
 **Expected:**
-- Variant A — same as `ONB-3` (no grant, prior profile loads).
-- Variant B — same as `ONB-4` (lands on Home without grant — same `AUTH-3` issue).
+- Variant A — same as `ONB-3` (no grant, prior profile loads, onboarding skipped).
+- Variant B — new account: routes through onboarding (PickIdentity then the starter-grant reveal) and lands on Home with the welcome grant, instead of landing cold on Home (AUTH-3).
 
 ---
 
