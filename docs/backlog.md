@@ -644,3 +644,23 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Action:** repro fresh with the just-shipped inbound-WS-frame logs (the `recv game_state hand=… street=… …` lines now ride in feedback `session-log.txt`). Those will say exactly which `RoomStatus` and `buyIn` the client saw in the snapshot it rendered, which disambiguates the two hypotheses without another guess-and-check.
 
 **Status:** Backlog. Pull when next a similar report comes in; the new client-state.json attachment + frame logs should make it a one-pass triage.
+
+---
+
+## Flaky integration test: `LobbyLifecycleTest.hostLeaves_promotedMemberCanStart`
+
+**Symptom:** Fails roughly 1-in-3 full-suite runs of `:apps:integration` on a clean tree (reproduced by a worker on `origin/develop` with all in-flight changes stashed and the new server-restart test removed — still failed ~1/4). A real-time socket-timing race that surfaces under JVM load when the whole suite runs; the test passes reliably in isolation.
+
+**Action:** Stabilise the host-leaves → promoted-member-can-start path — likely needs a longer / polling await on the promotion-and-reconnect step rather than a one-shot assertion, matching the suite's "real time + generous timeouts, never fixed sleeps" convention. Not introduced by any current PR; flagged during MP-2 review.
+
+**Status:** Backlog. Pull when stabilising the integration tier.
+
+---
+
+## Bound the room-socket handshake-retry path too
+
+**Context:** MP-8 bounded the *connected-then-dropped* reconnect path — a socket that completes the WS handshake but never delivers a frame now gives up after 6 attempts (`ClosedReason.ReconnectFailed`). The separate *handshake-retry* path (5xx responses / transport-level handshake failures, tracked by `consecutiveFailures` in `ReconnectingRoomSocket`) still retries unboundedly by design — those are treated as the server's transient problem.
+
+**Action:** Decide whether to unify the two ceilings so a persistently failing handshake (e.g. server hard-down) also lands on a terminal state instead of looping forever, or keep them deliberately separate. Low urgency — the reported storm was the connected-then-dropped path, which is now fixed.
+
+**Status:** Backlog. Triage when next touching the reconnect loop.
