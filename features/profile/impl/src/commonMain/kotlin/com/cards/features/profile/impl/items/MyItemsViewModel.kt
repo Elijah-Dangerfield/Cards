@@ -9,6 +9,7 @@ import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
+import com.dangerfield.cards.libraries.cards.isDefaultCosmetic
 import com.dangerfield.cards.libraries.cards.tierForProductId
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -229,15 +230,25 @@ data class MyItemsState(
             // real name, emoji, and description instead of a bare "🎁".
             val productsById = (catalog.chipOffers + catalog.chipPacks + catalog.prestige)
                 .associateBy { it.id }
+            // Slots whose default cosmetic should render as equipped: a slot
+            // owns its default implicitly whenever nothing else in that slot
+            // carries an explicit equipment row. Defaults are seeded into
+            // inventory without an equipment row, so without this they'd never
+            // show the equipped badge.
+            val slotsWithExplicitEquip = equippedIds
+                .mapNotNull { cosmeticSlotFor(it) }
+                .toSet()
             return inventory.map { item ->
                 val product = productsById[item.productId]
+                val isDefaultEquipped = isDefaultCosmetic(item.productId) &&
+                    cosmeticSlotFor(item.productId)?.let { it !in slotsWithExplicitEquip } == true
                 OwnedItem(
                     productId = item.productId,
                     title = product?.title ?: prettifyMissingId(item.productId),
                     subtitle = product?.subtitle ?: "Owned item",
                     description = (product as? Product.ChipOffer)?.description,
                     iconEmoji = product?.iconEmoji ?: "🎁",
-                    isEquipped = item.productId in equippedIds,
+                    isEquipped = item.productId in equippedIds || isDefaultEquipped,
                     isEquippable = product?.isEquippable ?: false,
                     acquisitionSource = item.acquisitionSource,
                     tier = tierForProductId(item.productId),

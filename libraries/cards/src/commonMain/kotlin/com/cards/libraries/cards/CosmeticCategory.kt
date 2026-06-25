@@ -36,6 +36,28 @@ fun cosmeticSlotFor(productId: String): CosmeticSlot? = when {
 }
 
 /**
+ * Catalog ids of the always-granted default cosmetics — the felt and card
+ * back every account ships with (mirrors `StarterInventory` server-side).
+ * These are seeded into inventory but never get an explicit equipment row,
+ * so any surface that derives "equipped" purely from the equipment table
+ * must treat them as the implicit equip for their slot when nothing else in
+ * that slot is on. See [isDefaultCosmetic].
+ */
+val DEFAULT_COSMETIC_PRODUCT_IDS: Set<String> = setOf(
+    "felt_default",
+    "cardback_default",
+)
+
+/**
+ * Whether [productId] is one of the always-granted default cosmetics. A
+ * default occupies its slot implicitly: it renders as equipped whenever no
+ * other item in the same slot has an explicit equipment row, because the
+ * server seeds it into inventory without ever writing an equipment row.
+ */
+fun isDefaultCosmetic(productId: String): Boolean =
+    productId in DEFAULT_COSMETIC_PRODUCT_IDS
+
+/**
  * Whether a cosmetic is *only* rendered for the wearer (felt under the
  * cards, card back of your own hand, utility overlays like Win Odds) vs.
  * visible to the rest of the table (player titles, emote blasts).

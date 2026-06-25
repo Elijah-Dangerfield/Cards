@@ -395,3 +395,17 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Device B: join by code and watch the lobby as it loads.
 
 **Expected:** Neither device ever shows a "$0" buy-in or "0 / 0" blinds in the lobby. The stakes/buy-in row either shows the real values or is absent while the room snapshot is still hydrating — it never renders a zero. (Covers todo MP-16, partial — the underlying zero-snapshot source is still being pinned.)
+
+---
+
+## Profile & items
+
+### `PROF-1` ℹ️ 📱 Default felt + card back show as equipped on a fresh account
+
+**State:** a brand-new account that has never opened the shop or equipped anything (reach via `ONB-1` / `ONB-2`).
+
+1. Open Profile → My Items.
+2. Find the default felt and the default card back tiles.
+3. Equip a non-default felt (if one is owned), then re-check the default felt and the default card back.
+
+**Expected:** On the fresh account both the default felt and default card back render the "Equipped" badge even though the user never explicitly equipped them. Equipping a non-default felt moves the badge off the default felt; the default card back keeps its badge because its slot is untouched. (Covers todo ITEM-1.)
