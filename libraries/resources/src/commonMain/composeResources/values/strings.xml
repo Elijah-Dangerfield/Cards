@@ -442,11 +442,11 @@
     <string name="auth_verify_email_confirm_button_progress">Checking with server…</string>
     <string name="auth_verify_email_resend_button">Resend email</string>
     <string name="auth_verify_email_resend_button_progress">Sending…</string>
-    <string name="auth_verify_email_banner_still_pending">Email not yet confirmed. Tap the link in your inbox first.</string>
-    <string name="auth_verify_email_banner_resend_sent">Verification email sent. Check your inbox.</string>
-    <string name="auth_verify_email_banner_resend_rate_limited">Too many resends in a row. Wait a minute and try again.</string>
-    <string name="auth_verify_email_banner_network_error">Couldn't reach the server. Check your connection.</string>
-    <string name="auth_verify_email_banner_generic_error">Something went wrong. Try again.</string>
+    <string name="auth_verify_email_banner_still_pending">We don't see it confirmed yet. Tap the link in your inbox, then check again.</string>
+    <string name="auth_verify_email_banner_resend_sent">Sent. The new link is in your inbox - tap it, then check again.</string>
+    <string name="auth_verify_email_banner_resend_rate_limited">That's a few in a row. Give it a minute before resending.</string>
+    <string name="auth_verify_email_banner_network_error">Couldn't reach the server. Check your connection and try again.</string>
+    <string name="auth_verify_email_banner_generic_error">Something went wrong on our end. Try again in a moment.</string>
 
     <!-- Profile - top-level sections + footer. -->
     <string name="profile_section_account">Account</string>

@@ -11,3 +11,11 @@
 **Reviewer notes:** The "offline writes queue rather than hard-error" clause of AUTH-6 is already satisfied by existing infra (`UpdateProfileOutcome.Queued` + `ProfileRepository.flushPendingEdits`, and `ChipsRepositoryImpl.sync` replay), so no new work there — the two symptoms above were the actual gaps. Room create/join can't meaningfully queue (they need a live socket), which is why they surface a connection error instead. Tested: `LobbyViewModelTest` (3 new cases — fallback create→connection, real-account create→sign-in, fallback join→connection) and `UserScopedAppDataResetTest` (banner-reset case). Updated QA `ONB-10` + `ONB-11` to drop the "currently does not show" caveats.
 
 **Deferred:** AUTH-5 (gating verification pass) is adjacent and partly exercised by the QA edits here, but a full Home/Shop/Profile/Claim/Inventory/Settings walk wants device eyes — reviewer please triage whether the QA cross-references suffice or it needs its own commit.
+
+## chore(resources): refine device-verify banner copy (AUTH-1)
+
+**Problem:** The `auth_verify_email_banner_*` strings felt under-built / terse and didn't echo the verify screen's voice.
+
+**Approach:** Rewrote the five banner strings to match the screen's warm, second-person voice and to mirror its CTAs ("check again" echoes the "Check verification" button; "return here and we'll check with our server" body). No backslash escapes or em dashes (used hyphens). The pixel **placement** half of AUTH-1 stays deferred — it needs Studio to eyeball the banner's position relative to the verify CTA — so I rewrote the todo to describe only that remaining gap rather than removing AUTH-1.
+
+**Reviewer notes:** Copy-only; no logic change. Placement deferred by design (the todo item explicitly flags it as Studio-gated).

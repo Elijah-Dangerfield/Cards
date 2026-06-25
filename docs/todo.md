@@ -34,9 +34,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Auth & onboarding
 
-- `[P2]` **AUTH-1 — Tighten the device-verify banner copy + placement.** When someone signs up but the server account hasn't created yet (offline / network blip), the email/device-verify banner copy + placement still feel under-built. Refine the wording and where it sits relative to the verify CTA.
+- `[P2]` **AUTH-1 — Tune the device-verify banner placement.** Copy is refined; what's left is where the banner sits relative to the verify CTA on `VerifyEmailScreen` — eyeball the spacing/position against the screen and adjust.
 
-  **Hints:** Verify surface is `features/onboarding/impl/AuthScreens.kt` + the `auth_verify_email_banner_*` strings. Needs Studio to eyeball placement against the verify screen.
+  **Hints:** Verify surface is `features/onboarding/impl/AuthScreens.kt` (`VerifyEmailScreen`, banner sits between body + the Check-verification button). Needs Studio to eyeball.
 
 - `[P1]` **AUTH-2 — Reconcile local bot-play progress when a degraded account is finally created.** While creation is pending (offline), the user plays bots and accrues XP/chips locally against `Profile.Fallback`. Degraded play stays purely local — it doesn't write to the server-bound ledger. When `GuestAccountCreator` succeeds the server is authoritative: replay the pending local deltas on top of the server balance **once**, and never re-grant the provisional starter (`OnboardingStarterGrant`).
 
