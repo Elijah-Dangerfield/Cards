@@ -17,6 +17,8 @@ import io.ktor.client.statement.HttpResponse
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -527,6 +529,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
 
     private object NoOpEventBus : AppEventBus {
         override fun dispatch(event: AppEvent) = Unit
+        override fun eventStream(): Flow<AppEvent> = emptyFlow()
     }
 
     private class RecordingEventBus : AppEventBus {
@@ -534,6 +537,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         override fun dispatch(event: AppEvent) {
             dispatched += event
         }
+        override fun eventStream(): Flow<AppEvent> = emptyFlow()
     }
 
     private object UnusedProfileApi : ProfileApi {
