@@ -17,6 +17,10 @@ import com.dangerfield.cards.libraries.cards.storage.db.PlayStyleDao
 import com.dangerfield.cards.libraries.cards.storage.db.PlayStyleEntity
 import com.dangerfield.cards.libraries.cards.storage.db.PlayStyleEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.PlayStyleEventEntity
+import com.dangerfield.cards.libraries.cards.storage.db.PlayerStatEventDao
+import com.dangerfield.cards.libraries.cards.storage.db.PlayerStatEventEntity
+import com.dangerfield.cards.libraries.cards.storage.db.PlayerStatsDao
+import com.dangerfield.cards.libraries.cards.storage.db.PlayerStatsEntity
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionEntity
 import com.dangerfield.cards.libraries.cards.storage.db.UserMessageDao
@@ -39,8 +43,10 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
         UserMessageEntity::class,
         PlayStyleEntity::class,
         PlayStyleEventEntity::class,
+        PlayerStatsEntity::class,
+        PlayerStatEventEntity::class,
     ],
-    version = 19, // v19: play_style + play_style_events (human play-style outbox + cache)
+    version = 20, // v20: player_stats + player_stat_events (server-authoritative stats outbox + cache)
     exportSchema = true
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -49,6 +55,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun xpEventDao(): XpEventDao
     abstract fun playStyleDao(): PlayStyleDao
     abstract fun playStyleEventDao(): PlayStyleEventDao
+    abstract fun playerStatsDao(): PlayerStatsDao
+    abstract fun playerStatEventDao(): PlayerStatEventDao
     abstract fun chipsDao(): ChipsDao
     abstract fun achievementDao(): AchievementDao
     abstract fun inventoryDao(): InventoryDao

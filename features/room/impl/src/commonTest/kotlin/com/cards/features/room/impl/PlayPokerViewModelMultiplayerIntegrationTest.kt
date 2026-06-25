@@ -369,6 +369,7 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
             sessionFactory = factory,
             progressionRepository = FakeProgressionRepository(),
             playStyleRepository = FakePlayStyleRepository(),
+            playerStatsRepository = FakePlayerStatsRepository(),
             progressionConfig = FakeProgressionConfig(),
             achievementRepository = FakeAchievementRepository(),
             appCache = FakeAppCache(),

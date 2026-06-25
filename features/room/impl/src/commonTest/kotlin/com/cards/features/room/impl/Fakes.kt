@@ -22,6 +22,9 @@ import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.PlayStyleHandSummary
 import com.dangerfield.cards.libraries.cards.PlayStyleRepository
+import com.dangerfield.cards.libraries.cards.PlayerStatHandSummary
+import com.dangerfield.cards.libraries.cards.PlayerStats
+import com.dangerfield.cards.libraries.cards.PlayerStatsRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
@@ -298,6 +301,26 @@ class FakePlayStyleRepository(initial: PlayStyleAxes? = null) : PlayStyleReposit
     override suspend fun deleteAll() { state.value = null }
 
     fun emit(style: PlayStyleAxes?) { state.value = style }
+}
+
+// ---------- PlayerStatsRepository ----------
+
+class FakePlayerStatsRepository(initial: PlayerStats? = null) : PlayerStatsRepository {
+    private val state = MutableStateFlow(initial)
+    val recordedHands = mutableListOf<PlayerStatHandSummary>()
+
+    override fun observeStats(): Flow<PlayerStats?> = state
+    override suspend fun getStats(): PlayerStats? = state.value
+
+    override suspend fun recordHand(summary: PlayerStatHandSummary) {
+        recordedHands += summary
+    }
+
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
+
+    override suspend fun deleteAll() { state.value = null }
+
+    fun emit(stats: PlayerStats?) { state.value = stats }
 }
 
 // ---------- AchievementRepository ----------

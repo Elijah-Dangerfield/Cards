@@ -24,13 +24,13 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Progression & stats
 
-- `[P1]` **PROG-1 — Wire the client to the server-authoritative player-stats endpoints (stats-first model).** Server side is live: `GET /v1/me/stats` + `POST /v1/me/stats/sync` (idempotent per-hand batch → cumulative counters, no-bust streak current+best, per-bot wins map). What's left is the client half — a `PlayerStatsRepository` mirroring `PlayStyleRepositoryImpl` (local write-ahead cache for offline play, delta-up + snapshot-down on reconcile), then point the stats screen and achievement predicates at those numbers so they agree and survive account-switch / reinstall.
+- `[P1]` **PROG-1 — Point the stats screen + achievement predicates at the server-authoritative player stats.** The client `PlayerStatsRepository` now lands (write-ahead outbox + sync, recorded per finished hand in `PlayPokerViewModel`, cached snapshot via `observeStats()`). What's left is making those numbers load-bearing: read the cumulative counters / no-bust streak / per-bot wins off `PlayerStatsRepository` in `StatsViewModel` instead of `AchievementProgress.customCounters`, and convert the achievement engine to predicates over the stats snapshot (read counter, record a `claimed_at_value` so they don't re-fire) rather than carrying their own per-id progress.
 
-  **Approach:** Stats are the source of truth; achievements become predicates over stats (read counters, record a `claimed_at_value` so they don't re-fire) rather than carrying their own progress numbers.
+  **Approach:** Stats are the source of truth; achievements become predicates over stats. This is the riskier half — it touches the live unlock path in `AchievementRepositoryImpl.recordHand`, so land it as its own commit with the existing achievement unlock tests green.
 
-  **Acceptance:** Sign in on a second device → correct stats + achievement progress. Stats screen and achievement bars agree. Adding a new achievement later points at an existing stat, no data migration.
+  **Acceptance:** Sign in on a second device → correct stats + achievement progress after one sync. Stats screen and achievement bars agree. Adding a new achievement later points at an existing stat, no data migration.
 
-  **Hints:** Server contract: `PlayerStatsRoutes.kt` / `PlayerStatsDto.kt`. Client template: `PlayStyleRepositoryImpl.sync`. The per-hand event carries `won/folded/lostAtShowdown/vsBot/beatenBotId` plus the client-computed `noBustStreak` snapshot (streaks are order-dependent — server takes latest-current + running-max-best).
+  **Hints:** Repo + DTOs: `PlayerStatsRepositoryImpl` / `dto/PlayerStatsDto.kt`. Endpoints are `/v1/me/player-stats` + `/v1/me/player-stats/sync`. `observeStats()` is already an offline-first `Flow<PlayerStats?>`. The no-bust streak the client sends is computed in `PlayerStatHandSummaryBuilder` (seeded from the cached snapshot).
 
 ### Auth & onboarding
 
