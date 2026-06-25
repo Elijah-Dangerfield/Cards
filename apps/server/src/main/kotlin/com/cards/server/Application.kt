@@ -32,6 +32,7 @@ import com.dangerfield.cards.server.routes.messageRoutes
 import com.dangerfield.cards.server.routes.productsRoutes
 import com.dangerfield.cards.server.routes.profilesRoutes
 import com.dangerfield.cards.server.routes.playStyleRoutes
+import com.dangerfield.cards.server.routes.playerStatsRoutes
 import com.dangerfield.cards.server.routes.progressionRoutes
 import com.dangerfield.cards.server.routes.recentOpponentsRoutes
 import com.dangerfield.cards.server.routes.matchmakingRoutes
@@ -133,6 +134,7 @@ fun Application.installApp(
         )
         progressionRoutes(component.progressionRepository)
         playStyleRoutes(component.playStyleRepository)
+        playerStatsRoutes(component.playerStatsRepository)
         achievementsRoutes(component.achievementRepository)
         meRoutes(
             component.profileRepository,
@@ -141,6 +143,7 @@ fun Application.installApp(
             component.walletRepository,
             component.progressionRepository,
             component.playStyleRepository,
+            component.playerStatsRepository,
             component.achievementRepository,
             component.handsFinishedRepository,
             component.userMessageRepository,

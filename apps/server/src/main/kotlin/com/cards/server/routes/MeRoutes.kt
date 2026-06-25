@@ -11,6 +11,7 @@ import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OrphanInstallSweep
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.PlayStyleRepository
+import com.dangerfield.cards.server.domain.PlayerStatsRepository
 import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.RecentOpponentsRepository
 import com.dangerfield.cards.server.domain.RoomService
@@ -80,6 +81,7 @@ fun Route.meRoutes(
     wallet: WalletRepository,
     progression: ProgressionRepository,
     playStyle: PlayStyleRepository,
+    playerStats: PlayerStatsRepository,
     achievements: AchievementRepository,
     handsFinished: HandsFinishedRepository,
     messages: UserMessageRepository,
@@ -219,6 +221,7 @@ fun Route.meRoutes(
                         wallet.deleteAllForUser(userId)
                         progression.deleteAllForUser(userId)
                         playStyle.deleteAllForUser(userId)
+                        playerStats.deleteAllForUser(userId)
                         achievements.deleteAllForUser(userId)
                         handsFinished.deleteAllForUser(userId)
                         messages.deleteAllForUser(userId)

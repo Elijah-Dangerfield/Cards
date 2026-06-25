@@ -24,13 +24,13 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Progression & stats
 
-- `[P1]` **PROG-1 — Graduate hand counters + achievement progress to the server (stats-first model).** Today, hand counters (hands played / won / folded / lost-at-showdown / bot hands) and achievement progress counters (no-bust streak, per-bot wins, …) live only on the device. Switch accounts or reinstall and they reset — the stats screen and achievement progress bars look wrong on a different device.
+- `[P1]` **PROG-1 — Wire the client to the server-authoritative player-stats endpoints (stats-first model).** Server side is live: `GET /v1/me/stats` + `POST /v1/me/stats/sync` (idempotent per-hand batch → cumulative counters, no-bust streak current+best, per-bot wins map). What's left is the client half — a `PlayerStatsRepository` mirroring `PlayStyleRepositoryImpl` (local write-ahead cache for offline play, delta-up + snapshot-down on reconcile), then point the stats screen and achievement predicates at those numbers so they agree and survive account-switch / reinstall.
 
-  **Approach:** Stats become the source of truth; achievements become predicates over stats. Server gets a `player_stats` table holding cumulative counters (hands_played / won / folded / lost_at_showdown, bot_hands_played), streak values (current no-bust streak + best), and small per-key maps (per-bot wins). Achievements stop carrying their own progress numbers — they read stats and record a `claimed_at_value` so they don't re-fire. The stats screen reads the same numbers achievements use.
+  **Approach:** Stats are the source of truth; achievements become predicates over stats (read counters, record a `claimed_at_value` so they don't re-fire) rather than carrying their own progress numbers.
 
-  **Acceptance:** Sign in on a second device → correct stats + achievement progress. Stats screen and achievement bars agree. Adding a new achievement later doesn't need a data migration — it just points at an existing stat.
+  **Acceptance:** Sign in on a second device → correct stats + achievement progress. Stats screen and achievement bars agree. Adding a new achievement later points at an existing stat, no data migration.
 
-  **Hints:** Mirror the PlayStyle sync — new `GET/POST /v1/me/stats/sync`, delta-up + snapshot-down, idempotent per batch. Keep client counters as a write-ahead cache for offline play; server is authoritative on reconcile. Templates: `PlayStyleRoutes.kt`, `PlayStyleRepositoryImpl.sync`.
+  **Hints:** Server contract: `PlayerStatsRoutes.kt` / `PlayerStatsDto.kt`. Client template: `PlayStyleRepositoryImpl.sync`. The per-hand event carries `won/folded/lostAtShowdown/vsBot/beatenBotId` plus the client-computed `noBustStreak` snapshot (streaks are order-dependent — server takes latest-current + running-max-best).
 
 ### Auth & onboarding
 
