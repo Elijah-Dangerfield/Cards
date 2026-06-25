@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.data
 
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.StakeTier
 import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.db.TableSessionsTable
@@ -64,10 +65,20 @@ class DefaultTableSessionService(
     override suspend fun sitDown(
         userId: UserId,
         roomCode: String,
-        buyIn: Long,
+        requestedBuyIn: Long,
         enforceEntryBar: Boolean,
         subsidized: Boolean,
     ): SitDownResult {
+        // Charge exactly what the engine seats. A player's table stack is always
+        // `RoomSettings.forBuyIn(buyIn).startingStack`, which coerces into
+        // [MIN_BUY_IN]..[MAX_BUY_IN] — so a sub-floor (or absurd) room buy-in that
+        // ever slips past the HTTP create floor would otherwise seat a coerced
+        // stack against a raw debit and mint (or burn) the difference. Coercing
+        // here, at the money chokepoint, keeps wallet-debit == seated-stack no
+        // matter how the Room was constructed. This coerced value is the session's
+        // authoritative buy-in (stored, rebought, and refunded against).
+        val buyIn = requestedBuyIn.coerceIn(RoomSettings.MIN_BUY_IN, RoomSettings.MAX_BUY_IN)
+
         // Clean result for the common "already seated" / double-tap case; the
         // partial unique index below is the actual guarantee.
         tableSessions.findActiveForUser(userId)?.let {

@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.data
 
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.db.DatabaseTest
 import com.dangerfield.cards.server.db.TableSessionsTable
 import com.dangerfield.cards.server.db.WalletEventsTable
@@ -63,6 +64,31 @@ class TableSessionServiceTest : DatabaseTest() {
         val events = newWallets().recentEvents(user, 10)
         assertEquals(listOf("mp_buyin"), events.map { it.reason })
         assertEquals(-CASUAL_BUY_IN, events.single().delta)
+    }
+
+    @Test
+    fun sitDown_subFloorBuyIn_chargesTheCoercedStack_neverMintsTheDifference() = runTest {
+        val service = newService()
+        val user = newUser()
+
+        // A Room whose buy-in slipped below the floor (a future constructor or a
+        // matchmaking tier bypassing the HTTP create-route floor). The engine
+        // seats every player at RoomSettings.forBuyIn(buyIn).startingStack, which
+        // coerces up to MIN_BUY_IN — so the wallet must be debited that same
+        // coerced amount. Debiting the raw sub-floor value would seat a 100-chip
+        // stack against a 50-chip debit, minting the 50-chip difference.
+        val subFloor = RoomSettings.MIN_BUY_IN - 50
+        val result = service.sitDown(user, ROOM, requestedBuyIn = subFloor, enforceEntryBar = false)
+
+        assertTrue(result is SitDownResult.Funded, "expected Funded, was $result")
+        assertEquals(RoomSettings.MIN_BUY_IN, result.startingStack, "seated + charged at the floor")
+        assertEquals(Wallet.STARTER_GRANT - RoomSettings.MIN_BUY_IN, result.balanceAfter)
+        assertEquals(RoomSettings.MIN_BUY_IN, newTableSessions().findActiveForUser(user)?.buyIn, "row stores the charged amount")
+        assertEquals(
+            -RoomSettings.MIN_BUY_IN,
+            newWallets().recentEvents(user, 10).single { it.reason == "mp_buyin" }.delta,
+            "exactly the floor left the wallet — no minted chips",
+        )
     }
 
     @Test
