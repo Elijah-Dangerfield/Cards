@@ -226,6 +226,8 @@
     <!-- Passive consent shown under the Welcome buttons. "Terms of Service" and "Privacy Policy"
          must appear verbatim so buildClickableText can make each a tappable link. -->
     <string name="onboarding_welcome_consent">By continuing, you agree to our Terms of Service and Privacy Policy.</string>
+    <string name="onboarding_welcome_consent_terms_link">Terms of Service</string>
+    <string name="onboarding_welcome_consent_privacy_link">Privacy Policy</string>
     <string name="onboarding_step_progress">Step %1$d of %2$d</string>
 
     <!-- Onboarding - PickIdentity step (name + starter-pack avatar picker). -->

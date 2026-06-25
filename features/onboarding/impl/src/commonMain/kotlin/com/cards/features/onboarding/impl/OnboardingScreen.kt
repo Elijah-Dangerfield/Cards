@@ -125,6 +125,8 @@ import cards.libraries.resources.generated.resources.onboarding_identity_section
 import cards.libraries.resources.generated.resources.onboarding_identity_subtitle
 import cards.libraries.resources.generated.resources.onboarding_identity_title
 import cards.libraries.resources.generated.resources.onboarding_welcome_consent
+import cards.libraries.resources.generated.resources.onboarding_welcome_consent_privacy_link
+import cards.libraries.resources.generated.resources.onboarding_welcome_consent_terms_link
 import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest
 import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest_progress
 import cards.libraries.resources.generated.resources.onboarding_welcome_footer
@@ -429,9 +431,13 @@ private fun WelcomeStep(
             // email) funnels through this step, so one line covers all of them.
             // The two phrases are tappable links to the hosted documents.
             ClickableText(
-                text = buildClickableText(stringResource(Res.string.onboarding_welcome_consent)) {
-                    link("Terms of Service") { onOpenUrl(LegalUrls.TERMS_OF_SERVICE) }
-                    link("Privacy Policy") { onOpenUrl(LegalUrls.PRIVACY_POLICY) }
+                text = run {
+                    val termsLink = stringResource(Res.string.onboarding_welcome_consent_terms_link)
+                    val privacyLink = stringResource(Res.string.onboarding_welcome_consent_privacy_link)
+                    buildClickableText(stringResource(Res.string.onboarding_welcome_consent)) {
+                        link(termsLink) { onOpenUrl(LegalUrls.TERMS_OF_SERVICE) }
+                        link(privacyLink) { onOpenUrl(LegalUrls.PRIVACY_POLICY) }
+                    }
                 },
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.contentSecondary,
