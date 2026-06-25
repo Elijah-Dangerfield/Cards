@@ -135,6 +135,14 @@ internal class RemotePokerSession(
     private val _opponentLeft = MutableSharedFlow<String>(extraBufferCapacity = 8)
     override val opponentLeft: SharedFlow<String> = _opponentLeft.asSharedFlow()
 
+    /**
+     * `replay = 0` — a live notice; a late collector must not re-fire a stale
+     * rejection. Emitted when a [requestNextHand] frame is rejected (heads-up
+     * bust with no rebuy yet, MP-14).
+     */
+    private val _nextHandUnavailable = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+    override val nextHandUnavailable: SharedFlow<Unit> = _nextHandUnavailable.asSharedFlow()
+
     // Last observed human (non-bot) room members, keyed by user id → display
     // name. Null until the first snapshot establishes a baseline, so the first
     // snapshot never reads as a "drop."
@@ -283,8 +291,36 @@ internal class RemotePokerSession(
 
     private suspend fun pumpNextHandSignals() {
         for (signal in nextHandSignal) {
-            Catching { handle.send(ClientFrame.RequestNextHand(newNonce())) }
+            sendNextHand()
+        }
+    }
+
+    private suspend fun sendNextHand() {
+        val nonce = newNonce()
+        val deferred = CompletableDeferred<GameplayFrame.IntentAck>()
+        pendingAcksMutex.withLock { pendingAcks[nonce] = deferred }
+        try {
+            val sent = Catching { handle.send(ClientFrame.RequestNextHand(nonce)) }
                 .onFailure { e -> logger.w(e) { "requestNextHand send failed" } }
+                .isSuccess
+            if (!sent) return
+            // Unlike submit()/rebuy() this stays fire-and-forget to the caller,
+            // but we still watch the ack so a server "no" (heads-up bust: the
+            // table can't deal another hand) surfaces as a notice instead of the
+            // winner's tap vanishing silently (MP-14). A missing ack just times
+            // out quietly — the prior behaviour.
+            val ack = try {
+                withTimeout(INTENT_TIMEOUT_MS) { deferred.await() }
+            } catch (e: TimeoutCancellationException) {
+                logger.w { "requestNextHand timed out after ${INTENT_TIMEOUT_MS}ms (nonce=$nonce)" }
+                return
+            }
+            if (!ack.accepted) {
+                logger.i { "requestNextHand rejected: ${ack.error ?: "unspecified"} (nonce=$nonce)" }
+                _nextHandUnavailable.tryEmit(Unit)
+            }
+        } finally {
+            pendingAcksMutex.withLock { pendingAcks.remove(nonce) }
         }
     }
 

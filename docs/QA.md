@@ -358,6 +358,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Device B sees the bust dialog with re-buy options (move another buy-in from wallet, drop to a lower tier, or — if broke — soft-bust protection). Choosing re-buy moves a fresh buy-in wallet → stack and deals B back in on the next hand. Declining leaves the table cleanly. On a subsidized bots-for-chips table, the bust dialog reads "fresh stack on the house" and the chips stay real (cross-ref `MP-6` settlement). Wallet math is correct after the re-buy — no double debit.
 
+- **Heads-up:** while Device B sits on the bust dialog (hasn't rebought), Device A (the winner) taps "next hand". A is not left with a dead button — a notice toasts ("waiting for your opponent to rebuy or leave") instead of the tap silently doing nothing. (Covers todo MP-14, partial — the terminal match-over routing is still pending.)
+
 ---
 
 ### `MP-9` ⚠️ 📱 Sole opponent leaves a 2-player room — no reconnect storm

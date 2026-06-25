@@ -213,6 +213,13 @@ class PlayPokerViewModel @Inject constructor(
                 sendEvent(PlayPokerEvent.OpponentLeft(displayName))
             }
         }
+        // Server refused the next hand (heads-up bust, no rebuy yet) — surface
+        // it so the winner's tap isn't a silent no-op. Never fires for solo bots.
+        viewModelScope.launch {
+            session.nextHandUnavailable.collect {
+                sendEvent(PlayPokerEvent.NextHandUnavailable)
+            }
+        }
         // XP mirror
         viewModelScope.launch {
             progressionRepository.observeProgression().collect { progression ->
