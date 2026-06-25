@@ -54,10 +54,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** On a heads-up bust where the loser doesn't rebuy, the winner sees a match-over result and is routed off the dead table — no indefinite "waiting" loop.
   **Hints:** Needs a product call on the resolution trigger (busted-player leave, a rebuy-grace timeout, or an explicit winner "end match") plus a server-driven match-over signal — no match-over concept exists today. Client already surfaces the rejection via `PokerSession.nextHandUnavailable`. Sentry CARDS-3S.
 
-- `[P1]` **MP-15 — Public matchmaking opens a fresh room instead of joining an existing open one.** Player A opens a public room; Player B's "Find a Room" spins up a brand-new empty room and strands B on the "searching" screen instead of seating them with A.
-  **Acceptance:** With one eligible open room, `find` lands the searcher in it (members=2), never a new room. Covered by a test: A opens → B's find joins A's room.
-  **Hints:** `InMemoryRoomService.findOrJoinPublic` logs `Matchmaking opened public room …` while an open room exists — join-existing must beat open-new; check the open-room eligibility/visibility filter and any in-memory registry race. Sentry CARDS-3Z.
-
 - `[P1]` **MP-16 — Pin where the lobby's $0 buy-in snapshot leaks from.** The lobby now suppresses the stakes row while `room.buyIn == 0`, so testers no longer see a flashed "$0" — but which snapshot path stages a `buyIn == 0` room is still unconfirmed. Every wire path carries the real buy-in via `Room.toDto()`, so the 0 likely comes from a partial/transient snapshot or a persisted-room restore (`PostgresRoomStore`) reading an unwritten column. Needs runtime traces from a repro to pin and fix at the source.
   **Hints:** `RoomDto.buyIn` / `Room.buyIn` both default to 0. Sentry CARDS-3X.
 

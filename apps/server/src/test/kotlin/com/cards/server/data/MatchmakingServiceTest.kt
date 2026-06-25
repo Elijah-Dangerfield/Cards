@@ -237,14 +237,38 @@ class MatchmakingServiceTest {
     }
 
     @Test
-    fun buyInTier_within_snapsIntoRange_andClampsWhenRangeStraddlesNone() {
+    fun buyInTier_within_snapsToACanonicalTierInRange_elseClampsTheNearestIntoRange() {
         // Range covering the default tier (5,000) picks it.
         assertEquals(5_000, BuyInTier.within(1_000, 100_000))
         // Range above the default picks the lowest in-range canonical.
         assertEquals(25_000, BuyInTier.within(25_000, 100_000))
-        // Range below all canonical tiers clamps to the nearest (1,000).
-        assertEquals(1_000, BuyInTier.within(100, 500))
-        // Every result is a canonical tier.
-        assertTrue(BuyInTier.within(3_000, 4_000) in BuyInTier.Canonical)
+        // Range straddling no canonical tier clamps the nearest INTO the range,
+        // never outside it — a table created below all tiers must still sit at a
+        // buy-in the searcher's own range accepts, or no later searcher with the
+        // same range could ever join it (MP-15).
+        assertEquals(500, BuyInTier.within(100, 500))
+        assertEquals(4_000, BuyInTier.within(3_000, 4_000))
+        // The result is always inside the requested range.
+        listOf(100L to 500L, 3_000L to 4_000L, 6_000L to 9_000L, 1_000L to 100_000L).forEach { (min, max) ->
+            assertTrue(BuyInTier.within(min, max) in min..max, "within($min, $max) lands inside the range")
+        }
+    }
+
+    @Test
+    fun twoSearchers_withAnIdenticalRangeStraddlingNoTier_convergeOnOneTable() = runTest {
+        // MP-15 repro: a range that brackets no canonical tier (3,000..4,000)
+        // used to mint a table snapped to 5,000 — outside the range — so the
+        // second searcher's `buyIn in min..max` filter rejected it and opened a
+        // fresh empty table, stranding both. The clamp keeps the created buy-in
+        // inside the range so the second searcher seats with the first.
+        val svc = service()
+        val first = assertIs<MatchmakingResult.Created>(svc.findOrJoinPublic(user(), "Alice", 3_000, 4_000, noBlocks))
+        assertTrue(first.room.buyIn in 3_000..4_000, "created table sits inside the searcher's own range")
+
+        val second = svc.findOrJoinPublic(user(), "Bob", 3_000, 4_000, noBlocks)
+
+        val joined = assertIs<MatchmakingResult.Joined>(second)
+        assertEquals(first.room.code, joined.room.code, "the second searcher joins the first's table, not a new one")
+        assertEquals(2, joined.room.members.size)
     }
 }

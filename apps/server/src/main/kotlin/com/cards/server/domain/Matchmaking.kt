@@ -38,15 +38,25 @@ object BuyInTier {
     /**
      * The buy-in a freshly-created public table should use for a searcher's
      * `[min, max]` range. Prefers the canonical tier inside the range closest to
-     * the default stake (so overlapping ranges cluster on the popular tier); if
-     * the range straddles no canonical tier, clamps to the nearest one.
+     * the default stake (so overlapping ranges cluster on the popular tier).
+     *
+     * The result is always inside `[min, max]`. When the range straddles a
+     * canonical tier we return that tier; when it straddles none we take the
+     * nearest canonical and clamp it into the range. Staying in-range is the
+     * load-bearing property for convergence: the candidate filter matches an
+     * existing room by `room.buyIn in min..max`, so a created table whose buy-in
+     * fell *outside* the searcher's own range could never be re-joined by the
+     * next searcher with that same range — both would keep minting fresh tables
+     * (MP-15). A clamped buy-in is always a legal stake because the range itself
+     * is validated to `RoomSettings.MIN_BUY_IN..MAX_BUY_IN` before we get here.
      */
     fun within(min: Long, max: Long): Long {
         val inRange = Canonical.filter { it in min..max }
         if (inRange.isNotEmpty()) {
             return inRange.minByOrNull { abs(it - RoomSettings.DEFAULT_BUY_IN) }!!
         }
-        return Canonical.minByOrNull { minOf(abs(it - min), abs(it - max)) }!!
+        val nearest = Canonical.minByOrNull { minOf(abs(it - min), abs(it - max)) }!!
+        return nearest.coerceIn(min, max)
     }
 }
 
