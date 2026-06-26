@@ -40,6 +40,11 @@ import cards.libraries.resources.generated.resources.room_mp_bust_buy_chips_butt
 import cards.libraries.resources.generated.resources.room_mp_bust_leave_button
 import cards.libraries.resources.generated.resources.room_mp_bust_rebuy_button
 import cards.libraries.resources.generated.resources.room_mp_bust_title
+import cards.libraries.resources.generated.resources.room_match_over_result_button
+import cards.libraries.resources.generated.resources.room_match_over_result_loss_body
+import cards.libraries.resources.generated.resources.room_match_over_result_loss_title
+import cards.libraries.resources.generated.resources.room_match_over_result_win_body
+import cards.libraries.resources.generated.resources.room_match_over_result_win_title
 import cards.libraries.resources.generated.resources.room_showdown_board_label
 import cards.libraries.resources.generated.resources.room_showdown_next_hand_button
 import cards.libraries.resources.generated.resources.room_showdown_outcome_showdown
@@ -390,6 +395,73 @@ internal fun MultiplayerBustDialog(
 }
 
 /**
+ * Heads-up match-over result (MP-14). Shown when the rebuy grace expired and the
+ * match ended — terminal, so it replaces the old silent pop with an explicit
+ * outcome. [localPlayerWon] picks the copy: the winner kept the table, the busted
+ * player is out. Single "Done" CTA routes the player off the dead table. Both
+ * dismissal paths are locked so a stray scrim-tap can't skip the result.
+ */
+@Composable
+internal fun MatchOverResultDialog(
+    localPlayerWon: Boolean,
+    onDismiss: () -> Unit,
+) {
+    val goldText = AppTheme.colors.poker.chipGold
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = ModalDialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+        ),
+        topAccessory = topAccessoryEmoji(emoji = if (localPlayerWon) "🏆" else "🃏"),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = stringResource(
+                        if (localPlayerWon) {
+                            Res.string.room_match_over_result_win_title
+                        } else {
+                            Res.string.room_match_over_result_loss_title
+                        },
+                    ),
+                    typography = AppTheme.typography.Heading.H700,
+                    color = if (localPlayerWon) goldText else AppTheme.colors.content,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = stringResource(
+                        if (localPlayerWon) {
+                            Res.string.room_match_over_result_win_body
+                        } else {
+                            Res.string.room_match_over_result_loss_body
+                        },
+                    ),
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.contentSecondary,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            ButtonPrimary(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = stringResource(Res.string.room_match_over_result_button))
+            }
+        }
+    }
+}
+
+/**
  * Per-achievement unlock celebration shown in the hand-end dialogs. Renders
  * as a horizontal card with the achievement's icon + name + reward summary.
  * Multiple achievements stack vertically.
@@ -616,6 +688,22 @@ private fun ShowdownDialogPreview_BotWinsByFold() {
             xpMode = XpMode.BOTS,
             onNextHand = {},
         )
+    }
+}
+
+@Preview
+@Composable
+private fun MatchOverResultDialogPreview_Won() {
+    PreviewContent {
+        MatchOverResultDialog(localPlayerWon = true, onDismiss = {})
+    }
+}
+
+@Preview
+@Composable
+private fun MatchOverResultDialogPreview_Lost() {
+    PreviewContent {
+        MatchOverResultDialog(localPlayerWon = false, onDismiss = {})
     }
 }
 

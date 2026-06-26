@@ -43,6 +43,9 @@ import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_connection_lost_banner
 import cards.libraries.resources.generated.resources.room_loading_dealing_in
+import cards.libraries.resources.generated.resources.room_match_over_busted_rebuy_button
+import cards.libraries.resources.generated.resources.room_match_over_busted_title
+import cards.libraries.resources.generated.resources.room_match_over_winner_label
 import cards.libraries.resources.generated.resources.room_practice_tier_bots_present
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
@@ -64,6 +67,10 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.BadgeDetailSheet
 import com.dangerfield.cards.libraries.ui.components.LevelPill
 import com.dangerfield.cards.libraries.ui.components.PlayerBadge
+import com.dangerfield.cards.libraries.ui.components.formatBoostCountdown
+import com.dangerfield.cards.libraries.ui.components.rememberBoostRemainingMs
+import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.resolvePlayerBadges
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
@@ -286,6 +293,16 @@ fun PlayPokerScreen(
 
                 if (active?.waitingToBeDealtIn == true) {
                     WaitingToBeDealtInLabel()
+                }
+
+                // Heads-up match-over rebuy countdown (MP-14). Hidden once the
+                // result overlay takes over (the grace resolved). Busted player
+                // gets a rebuy CTA; the winner just sees the auto-continue cue.
+                state.matchOverCountdown?.takeIf { state.matchOverResult == null }?.let { countdown ->
+                    MatchOverCountdownBanner(
+                        countdown = countdown,
+                        onRebuy = { onAction(PlayPokerAction.Rebuy) },
+                    )
                 }
 
                 if (active == null) {
@@ -633,6 +650,19 @@ fun PlayPokerScreen(
             )
         }
 
+        // Heads-up match-over result (MP-14). Terminal — replaces the silent pop
+        // with a win/loss result naming the outcome, then routes the player off
+        // the dead table on dismiss (same teardown as a bust-leave).
+        state.matchOverResult?.let { result ->
+            MatchOverResultDialog(
+                localPlayerWon = result.localPlayerWon,
+                onDismiss = {
+                    onAction(PlayPokerAction.LeaveGameFromBust)
+                    onBack()
+                },
+            )
+        }
+
         // Sits last in the Box so the flying tokens draw over the table after
         // the result overlays have cleared.
         HandRewardParticleOverlay(
@@ -695,6 +725,60 @@ private fun WaitingToBeDealtInLabel() {
                 .background(AppTheme.colors.surface.color)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
         )
+    }
+}
+
+/**
+ * Heads-up match-over rebuy countdown (MP-14). When the loser busts to 0 with no
+ * rebuy yet, the server opens a grace window; both roles render a live countdown
+ * to the deadline. The busted player ([MatchOverCountdown.localPlayerIsBusted])
+ * sees "rebuy in Ns or lose your seat" + a Rebuy CTA so the recovery is one tap
+ * away; the winner sees "auto-continues in Ns" so the wait reads as bounded, not
+ * a stuck table. Reuses the DS countdown ticker ([rememberBoostRemainingMs]).
+ */
+@Composable
+private fun MatchOverCountdownBanner(
+    countdown: com.dangerfield.cards.features.room.impl.session.MatchOverCountdown,
+    onRebuy: () -> Unit,
+) {
+    val remainingMs = rememberBoostRemainingMs(countdown.deadlineEpochMs)
+    val formatted = formatBoostCountdown(remainingMs)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp)
+            .clip(Radii.Callout.shape)
+            .background(AppTheme.colors.surfaceRaised.color)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (countdown.localPlayerIsBusted) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = stringResource(Res.string.room_match_over_busted_title, formatted),
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.content,
+                    modifier = Modifier.weight(1f),
+                )
+                ButtonPrimary(
+                    onClick = onRebuy,
+                    size = ButtonSize.Small,
+                ) {
+                    Text(text = stringResource(Res.string.room_match_over_busted_rebuy_button))
+                }
+            }
+        } else {
+            Text(
+                text = stringResource(Res.string.room_match_over_winner_label, formatted),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.contentSecondary,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -1349,6 +1433,68 @@ private fun PlayPokerScreenPreview_BustDialog() {
                     handResult = result,
                 ),
                 lastHandXpAwarded = 12,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_MatchOverBustedCountdown() {
+    // MP-14: the local player busted heads-up and is on the rebuy clock — the
+    // banner shows the live countdown + a Rebuy CTA so the recovery is one tap.
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(),
+                xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER,
+                matchOverCountdown = com.dangerfield.cards.features.room.impl.session.MatchOverCountdown(
+                    deadlineEpochMs = Long.MAX_VALUE,
+                    localPlayerIsBusted = true,
+                ),
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_MatchOverWinnerCountdown() {
+    // MP-14: the local player won the hand and the opponent busted — they wait
+    // out the opponent's rebuy grace with an "auto-continues in Ns" cue.
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(),
+                xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER,
+                matchOverCountdown = com.dangerfield.cards.features.room.impl.session.MatchOverCountdown(
+                    deadlineEpochMs = Long.MAX_VALUE,
+                    localPlayerIsBusted = false,
+                ),
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_MatchOverResultWon() {
+    // MP-14: the rebuy grace expired — the local player won the match and sees a
+    // result overlay before routing off the dead table.
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(),
+                xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER,
+                matchOverResult = com.dangerfield.cards.features.room.impl.MatchOverResult(
+                    localPlayerWon = true,
+                ),
             ),
             onAction = {},
             onBack = {},

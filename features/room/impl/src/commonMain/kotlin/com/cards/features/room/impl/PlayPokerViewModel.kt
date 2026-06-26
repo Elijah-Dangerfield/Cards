@@ -44,6 +44,7 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.products.ProductsRepository
+import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.ui.components.resolvePlayerBadges
 import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import com.dangerfield.cards.libraries.ui.components.poker.badgeEmojiForProductId
@@ -193,10 +194,20 @@ class PlayPokerViewModel @Inject constructor(
             }
         }
         // Terminal room-close → one-shot exit (Disconnected alone can't be told
-        // from a transient drop); the entry point pops the screen.
+        // from a transient drop); the entry point pops the screen. A heads-up
+        // match-over (MP-14) is terminal too, but routes through a result overlay
+        // first instead of a silent pop — resolve the win/loss role here and surface
+        // it; the screen routes off when the player dismisses the result.
         viewModelScope.launch {
             session.roomClosed.collect { reason ->
-                sendEvent(PlayPokerEvent.RoomClosed(reason))
+                when (reason) {
+                    is ClosedReason.MatchOver -> takeAction(
+                        PlayPokerAction.MatchOverResolved(
+                            localPlayerWon = reason.winnerUserId == localPlayerId(),
+                        ),
+                    )
+                    else -> sendEvent(PlayPokerEvent.RoomClosed(reason))
+                }
             }
         }
         // Last human standing — distinct from roomClosed (the room still exists);
@@ -218,6 +229,14 @@ class PlayPokerViewModel @Inject constructor(
         viewModelScope.launch {
             session.nextHandUnavailable.collect {
                 sendEvent(PlayPokerEvent.NextHandUnavailable)
+            }
+        }
+        // Heads-up match-over grace countdown (MP-14) → on-table banner. Opens on
+        // a bust dead-end, clears on a rebuy; a terminal expiry routes off via
+        // roomClosed above. Never fires for solo bots.
+        viewModelScope.launch {
+            session.matchOverCountdown.collect { countdown ->
+                takeAction(PlayPokerAction.MatchOverCountdownChanged(countdown))
             }
         }
         // XP mirror
@@ -518,6 +537,17 @@ class PlayPokerViewModel @Inject constructor(
         }.onFailure { logger.w(it) { "Review prompt request failed" } }
     }
 
+    /**
+     * The local player's user id, resolved from the last game state via the
+     * factory's seat mapping. Used to decide the match-over win/loss role (MP-14).
+     * Null if the local seat hasn't resolved yet (no snapshot, or seatless joiner).
+     */
+    private fun localPlayerId(): String? {
+        val state = lastGameState ?: return null
+        val seatIndex = sessionFactory.humanSeatIndex(state)
+        return state.seats.firstOrNull { it.index == seatIndex }?.playerId
+    }
+
     private suspend fun leaveAndReconcileWallet() {
         Catching { session.leave() }
             .onFailure { e -> logger.w(e) { "room leave failed" } }
@@ -724,6 +754,9 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.ConnectionChanged -> action.updateState {
                 it.copy(connection = action.connection)
             }
+            is PlayPokerAction.MatchOverCountdownChanged -> action.updateState {
+                it.copy(matchOverCountdown = action.countdown)
+            }
             is PlayPokerAction.LeaveTable -> {
                 if (sessionFactory.xpMode == XpMode.BOTS) {
                     Catching {
@@ -739,6 +772,15 @@ class PlayPokerViewModel @Inject constructor(
                 // Same teardown as LeaveTable, on appScope so it lands as the
                 // screen routes away.
                 appScope.launch { leaveAndReconcileWallet() }
+            }
+            is PlayPokerAction.MatchOverResolved -> action.updateState {
+                // The match ended — surface the result and drop the now-stale
+                // countdown. The screen routes off (firing LeaveGameFromBust) when
+                // the player dismisses the result overlay.
+                it.copy(
+                    matchOverResult = MatchOverResult(localPlayerWon = action.localPlayerWon),
+                    matchOverCountdown = null,
+                )
             }
             is PlayPokerAction.OpenQuickBuy -> action.updateState { it.copy(quickBuyOpen = true) }
             is PlayPokerAction.DismissQuickBuy -> action.updateState { it.copy(quickBuyOpen = false) }

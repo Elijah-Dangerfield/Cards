@@ -39,6 +39,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -273,7 +274,7 @@ class RemotePokerSessionTest : CoroutineTest() {
         handle.pushConnection(RoomConnection.Closed(ClosedReason.RoomDeleted))
         advanceUntilIdle()
 
-        assertEquals(listOf(ClosedReason.RoomDeleted), closes)
+        assertEquals(listOf<ClosedReason>(ClosedReason.RoomDeleted), closes)
         // Still collapses to Disconnected for the banner.
         assertEquals(ConnectionState.Disconnected, session.connectionState.value)
         runJob.cancel()
@@ -292,7 +293,7 @@ class RemotePokerSessionTest : CoroutineTest() {
         handle.pushConnection(RoomConnection.Closed(ClosedReason.Rejected))
         advanceUntilIdle()
 
-        assertEquals(listOf(ClosedReason.Rejected), closes)
+        assertEquals(listOf<ClosedReason>(ClosedReason.Rejected), closes)
         runJob.cancel()
         collectJob.cancel()
     }
@@ -317,12 +318,72 @@ class RemotePokerSessionTest : CoroutineTest() {
         advanceUntilIdle()
 
         assertEquals(
-            listOf(ClosedReason.RoomDeleted),
+            listOf<ClosedReason>(ClosedReason.RoomDeleted),
             closes,
             "a collector attaching after the terminal close must replay the reason",
         )
         runJob.cancel()
         collectJob.cancel()
+    }
+
+    // ===================================================================
+    // matchOverCountdown — heads-up rebuy grace (MP-14)
+    // ===================================================================
+
+    @Test
+    fun matchOverPending_derivesBustedRole_fromLocalSeat() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle, localUserId = "local-user")
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+
+        // Seed the table so the session knows the local seat (seat 0 = local-user).
+        handle.pushFrame(GameplayFrame.StateSnapshot(sampleGameStateWithSeats(handNumber = 1)))
+        advanceUntilIdle()
+
+        // The busted seat IS the local seat → busted role.
+        handle.pushFrame(GameplayFrame.MatchOverPending(deadlineEpochMs = 42L, bustedSeatIndex = 0))
+        advanceUntilIdle()
+
+        val countdown = session.matchOverCountdown.value
+        assertEquals(42L, countdown?.deadlineEpochMs)
+        assertTrue(countdown?.localPlayerIsBusted == true)
+        runJob.cancel()
+    }
+
+    @Test
+    fun matchOverPending_derivesWinnerRole_whenBustedSeatIsOpponent() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle, localUserId = "local-user")
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+        handle.pushFrame(GameplayFrame.StateSnapshot(sampleGameStateWithSeats(handNumber = 1)))
+        advanceUntilIdle()
+
+        // The busted seat is the opponent (seat 1) → winner role for the local player.
+        handle.pushFrame(GameplayFrame.MatchOverPending(deadlineEpochMs = 42L, bustedSeatIndex = 1))
+        advanceUntilIdle()
+
+        assertFalse(session.matchOverCountdown.value?.localPlayerIsBusted == true)
+        runJob.cancel()
+    }
+
+    @Test
+    fun matchOverCleared_resetsCountdownToNull() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle, localUserId = "local-user")
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+        handle.pushFrame(GameplayFrame.StateSnapshot(sampleGameStateWithSeats(handNumber = 1)))
+        handle.pushFrame(GameplayFrame.MatchOverPending(deadlineEpochMs = 42L, bustedSeatIndex = 0))
+        advanceUntilIdle()
+        assertTrue(session.matchOverCountdown.value != null)
+
+        handle.pushFrame(GameplayFrame.MatchOverCleared)
+        advanceUntilIdle()
+
+        assertEquals(null, session.matchOverCountdown.value)
+        runJob.cancel()
     }
 
     @Test

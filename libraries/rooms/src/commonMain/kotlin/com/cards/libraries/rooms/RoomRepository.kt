@@ -162,18 +162,30 @@ sealed interface RoomConnection {
     data class Closed(val reason: ClosedReason) : RoomConnection
 }
 
-enum class ClosedReason {
+sealed interface ClosedReason {
     /** Server signalled `room_closed` (last member left / GC'd). */
-    RoomDeleted,
+    data object RoomDeleted : ClosedReason
+
     /** Server rejected the upgrade (not a member, unknown code, etc.) — terminal. */
-    Rejected,
+    data object Rejected : ClosedReason
+
     /**
      * The socket connected then dropped repeatedly without ever becoming
      * healthy (no frames delivered) for [too many][RoomConnection] attempts —
      * usually a half-open server socket. Terminal: the client gives up rather
      * than looping forever, and the user should leave / re-enter the room.
      */
-    ReconnectFailed,
+    data object ReconnectFailed : ClosedReason
+
     /** The user cancelled the observe call themselves. */
-    Cancelled,
+    data object Cancelled : ClosedReason
+
+    /**
+     * The heads-up match ended: the busted player let the rebuy grace window
+     * expire, so [winnerUserId] took the table (MP-14). Terminal and distinct
+     * from [RoomDeleted] so the client can show a match-over result rather than
+     * a silent pop — the winner sees who won, the busted player sees they're
+     * out.
+     */
+    data class MatchOver(val winnerUserId: String) : ClosedReason
 }

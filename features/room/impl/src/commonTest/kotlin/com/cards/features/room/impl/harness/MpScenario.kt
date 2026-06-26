@@ -200,6 +200,40 @@ class RunningMpScenario internal constructor(
     }
 
     /**
+     * Server opens the heads-up rebuy-grace window (MP-14): the busted seat has
+     * until [deadlineEpochMs] to rebuy. Mirrors the `MatchOverPending` wire frame.
+     */
+    suspend fun serverMatchOverPending(deadlineEpochMs: Long, bustedSeatIndex: Int) {
+        handle.pushFrame(
+            GameplayFrame.MatchOverPending(
+                deadlineEpochMs = deadlineEpochMs,
+                bustedSeatIndex = bustedSeatIndex,
+            ),
+        )
+        scope.advanceUntilIdle()
+    }
+
+    /** Server clears the grace window — the busted seat rebought, play resumes. */
+    suspend fun serverMatchOverCleared() {
+        handle.pushFrame(GameplayFrame.MatchOverCleared)
+        scope.advanceUntilIdle()
+    }
+
+    /**
+     * Server resolves the match-over: the grace expired, [winnerUserId] took the
+     * table. Arrives as a terminal connection close (the socket layer maps the
+     * `MatchOverResolved` wire frame to [ClosedReason.MatchOver]).
+     */
+    suspend fun serverMatchOverResolved(winnerUserId: String) {
+        handle.pushConnection(
+            RoomConnection.Closed(
+                com.dangerfield.cards.libraries.rooms.ClosedReason.MatchOver(winnerUserId),
+            ),
+        )
+        scope.advanceUntilIdle()
+    }
+
+    /**
      * Apply an opponent action: emit the [GameEvent.ActionTaken] (drives the
      * pill) then the resulting [GameState] snapshot (drives legal actions /
      * acting seat), the way the server fans both out.

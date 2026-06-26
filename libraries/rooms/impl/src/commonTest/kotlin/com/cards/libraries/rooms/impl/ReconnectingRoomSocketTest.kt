@@ -181,6 +181,52 @@ class ReconnectingRoomSocketTest : CoroutineTest() {
         }
     }
 
+    @Test
+    fun matchOverPendingAndCleared_surfaceAsGameplayFrames() = runUnitTest {
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        val session = transport.primeSuccess()
+        val handle = socket.connect("ABC123")
+
+        handle.gameplayFrames.test {
+            val connJob = launch { handle.connection.collect { } }
+            advanceUntilIdle()
+
+            session.receive(
+                RoomSocketEventDto.MatchOverPending(deadlineEpochMs = 60_000L, bustedSeatIndex = 1),
+            )
+            val pending = assertIs<GameplayFrame.MatchOverPending>(awaitItem())
+            assertEquals(60_000L, pending.deadlineEpochMs)
+            assertEquals(1, pending.bustedSeatIndex)
+
+            session.receive(RoomSocketEventDto.MatchOverCleared)
+            assertIs<GameplayFrame.MatchOverCleared>(awaitItem())
+
+            connJob.cancel()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun matchOverResolvedFrame_emits_Closed_MatchOver_withWinner_andStopsLoop() = runUnitTest {
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        val session = transport.primeSuccess()
+
+        socket.connect("ABC123").connection.test {
+            assertEquals(RoomConnection.Connecting, awaitItem())
+            session.receive(RoomSocketEventDto.MatchOverResolved(winnerUserId = "winner-1"))
+            val closed = assertIs<RoomConnection.Closed>(awaitItem())
+            val reason = assertIs<ClosedReason.MatchOver>(closed.reason)
+            assertEquals("winner-1", reason.winnerUserId)
+            // Terminal, like RoomClosed — the loop must not reopen.
+            advanceTimeBy(60_000)
+            runCurrent()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, transport.openCalls, "loop must not reopen after match-over resolved")
+    }
+
     // ===================================================================
     // Sharing across handles
     // ===================================================================

@@ -271,6 +271,123 @@ class PokerScenarioMpTest : PokerScenarioTest() {
     }
 
     @Test
+    fun matchOverPending_bustedRole_setsBustedCountdown() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        // Local human (seat 0) busted heads-up; the peer (seat 1) has the chips.
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 0),
+                    mpSeat(1, playerId = "peer", stack = 2_000),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+
+        s.serverMatchOverPending(deadlineEpochMs = 60_000L, bustedSeatIndex = 0)
+
+        val countdown = s.vm.state.matchOverCountdown
+        assertEquals(60_000L, countdown?.deadlineEpochMs)
+        assertTrue(countdown?.localPlayerIsBusted == true, "local player is the busted seat")
+    }
+
+    @Test
+    fun matchOverPending_winnerRole_setsWinnerCountdown() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        // Local human (seat 0) won; the peer (seat 1) busted.
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 2_000),
+                    mpSeat(1, playerId = "peer", stack = 0),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+
+        s.serverMatchOverPending(deadlineEpochMs = 60_000L, bustedSeatIndex = 1)
+
+        val countdown = s.vm.state.matchOverCountdown
+        assertEquals(60_000L, countdown?.deadlineEpochMs)
+        assertFalse(countdown?.localPlayerIsBusted == true, "local player is the winner, not busted")
+    }
+
+    @Test
+    fun matchOverCleared_afterRebuy_clearsCountdown() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 0),
+                    mpSeat(1, playerId = "peer", stack = 2_000),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+        s.serverMatchOverPending(deadlineEpochMs = 60_000L, bustedSeatIndex = 0)
+        assertTrue(s.vm.state.matchOverCountdown != null)
+
+        // The busted player rebought inside the window — the server clears it.
+        s.serverMatchOverCleared()
+
+        assertEquals(null, s.vm.state.matchOverCountdown, "a rebuy clears the countdown")
+    }
+
+    @Test
+    fun matchOverResolved_winner_surfacesWonResult_notSilentClose() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 2_000),
+                    mpSeat(1, playerId = "peer", stack = 0),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+
+        s.serverMatchOverResolved(winnerUserId = MP_LOCAL_USER)
+
+        assertTrue(
+            s.vm.state.matchOverResult?.localPlayerWon == true,
+            "the winner sees a won result overlay, not a silent pop; got ${s.vm.state.matchOverResult}",
+        )
+        // A match-over routes through the result overlay, NOT the generic
+        // RoomClosed exit (which would pop silently).
+        assertFalse(
+            s.events.events.any { it is PlayPokerEvent.RoomClosed },
+            "match-over must not fire the generic RoomClosed exit; got ${s.events.events}",
+        )
+    }
+
+    @Test
+    fun matchOverResolved_loser_surfacesLostResult() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 0),
+                    mpSeat(1, playerId = "peer", stack = 2_000),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+
+        s.serverMatchOverResolved(winnerUserId = "peer")
+
+        assertEquals(
+            false,
+            s.vm.state.matchOverResult?.localPlayerWon,
+            "the busted player sees a lost result; got ${s.vm.state.matchOverResult}",
+        )
+    }
+
+    @Test
     fun staleSnapshot_fromAnEarlierHand_isDropped() = runUnitTest {
         val s = mpScenario(localUserId = MP_LOCAL_USER).start()
         val seats = listOf(mpSeat(0, playerId = MP_LOCAL_USER), mpSeat(1, playerId = "peer"))

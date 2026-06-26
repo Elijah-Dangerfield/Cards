@@ -58,10 +58,13 @@ import kotlin.math.pow
  * one coordinator + two SharedFlows per code the user ever visited.
  *
  * Reconnect policy: exponential backoff starting at 250ms, doubling
- * per attempt, capped at 16s. Stops reconnecting on three terminal
+ * per attempt, capped at 16s. Stops reconnecting on these terminal
  * signals:
  *  - The server sends `room_closed` (no point reconnecting to a dead
  *    room).
+ *  - The server sends `match_over_resolved` — the heads-up rebuy grace
+ *    expired (MP-14). Surfaces as [ClosedReason.MatchOver] so the screen
+ *    shows a result naming the winner, then routes off.
  *  - The server returns a 4xx on the handshake — usually means the
  *    user isn't a member of the room. Surfaces as
  *    [ClosedReason.Rejected]; the collector should call POST /join +
@@ -397,21 +400,29 @@ class ReconnectingRoomSocket @Inject constructor(
                                         emoji = event.emoji,
                                     ),
                                 )
-                            // Match-over grace countdown (MP-14). Rendering the
-                            // live rebuy countdown + the busted-seat rebuy prompt
-                            // is the remaining UX stage; tolerated as no-ops until
-                            // then so the bounded server-side resolution still works.
-                            is RoomSocketEventDto.MatchOverPending,
-                            RoomSocketEventDto.MatchOverCleared,
-                                -> Unit
-                            // Terminal: grace expired, the match is over. Route the
-                            // client off the dead table (the winner's chips cash out
-                            // via the normal leave path). A dedicated match-over
-                            // result screen + a distinct ClosedReason is the
-                            // remaining MP-14 stage; routing off here is what turns
-                            // the old infinite freeze into a clean exit.
+                            // Match-over grace countdown (MP-14). Surfaced as
+                            // gameplay frames so the play VM can render the live
+                            // rebuy countdown for both roles and clear it on a rebuy.
+                            is RoomSocketEventDto.MatchOverPending ->
+                                _gameplayFrames.emit(
+                                    GameplayFrame.MatchOverPending(
+                                        deadlineEpochMs = event.deadlineEpochMs,
+                                        bustedSeatIndex = event.bustedSeatIndex,
+                                    ),
+                                )
+                            RoomSocketEventDto.MatchOverCleared ->
+                                _gameplayFrames.emit(GameplayFrame.MatchOverCleared)
+                            // Terminal: grace expired, the match is over. Close as
+                            // ClosedReason.MatchOver (not RoomDeleted) so the screen
+                            // shows a match-over result naming the winner instead of
+                            // a silent pop, then routes off (the winner's chips cash
+                            // out via the normal leave path).
                             is RoomSocketEventDto.MatchOverResolved -> {
-                                _connection.emit(RoomConnection.Closed(ClosedReason.RoomDeleted))
+                                _connection.emit(
+                                    RoomConnection.Closed(
+                                        ClosedReason.MatchOver(winnerUserId = event.winnerUserId),
+                                    ),
+                                )
                                 terminal = true
                                 throw TerminalFrameMarker
                             }

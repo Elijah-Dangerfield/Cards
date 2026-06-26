@@ -27,6 +27,18 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-25 — Match-over result is a play-screen dialog, not a new nav screen (MP-14)
+
+**Decision:** The heads-up match-over "result screen" (MP-14) is a `MatchOverResultDialog` overlay rendered on the existing play screen, sequenced like the bust/showdown dialogs, not a new navigation route. The terminal `match_over_resolved` wire frame closes the socket as a new `ClosedReason.MatchOver(winnerUserId)` (the enum was promoted to a sealed interface to carry the winner id); the VM resolves the local win/loss role and surfaces `PlayPokerState.matchOverResult`, and the dialog's Done CTA fires the same `LeaveGameFromBust` teardown + route-off the bust dialog uses. The live countdown is likewise an on-table banner, not a screen.
+
+**Why:** Every other hand-end result in this feature (showdown, solo bust, MP bust) is a dialog overlay on the play screen with the table visible underneath, and they share the leave/reconcile teardown. A standalone match-over route would fork that established pattern, need its own nav wiring + back-stack reasoning, and lose the "table still behind the scrim" continuity for no user benefit — the match-over is just one more terminal hand-end shape. Keeping it a dialog reuses the rebuy action, the leave-and-reconcile path, and the dialog DS primitives.
+
+**Alternatives considered:**
+- **Dedicated `MatchOverRoute` screen.** Real nav target, own VM. Rejected: heavier than the moment warrants, forks the hand-end-result pattern, and the AGENTS bottom-sheet/dialog guidance points the other way for transient terminal overlays.
+- **Keep `ClosedReason` an enum, pass the winner id out-of-band.** Would need a parallel channel for the winner id alongside the close reason. Rejected: the reason is exactly where "who won" belongs; a sealed interface carries it cleanly and the other reasons stay data objects.
+
+**Status:** Locked.
+
 ## 2026-06-24 — `DELETE /v1/rooms/{code}/me` (leave) is idempotent: 204 across the board
 
 **Decision:** Leaving a room returns 204 whether the caller is a current member, was never a member, or the room is already gone. The route no longer maps `LeaveResult.RoomNotFound`→404 or `LeaveResult.NotInRoom`→409; the service still returns those distinct results, only the HTTP projection collapses them.
