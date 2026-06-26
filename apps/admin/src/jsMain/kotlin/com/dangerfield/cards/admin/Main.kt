@@ -47,19 +47,29 @@ private fun App() {
     fun resolveNow() {
         val a = api ?: return
         scope.launch {
+            // Resolve/manifest are best-effort: an older server without these
+            // endpoints shouldn't error the whole screen.
             runCatching {
                 val req = target.toRequest()
                 resolvedByPath = a.resolve(req).associateBy { it.path }
                 manifestByPath = a.getManifest(req.buildNumber).entries.associateBy { it.path }
-            }.onFailure { setStatus(Status(false, it.message ?: "Resolve failed")) }
+            }.onFailure { setStatus(Status(false, "Resolve unavailable: ${it.message}")) }
         }
     }
 
     fun reloadAll() {
         val a = api ?: return
         scope.launch {
-            runCatching {
-                flags = a.listFlags()
+            // The flag list is the core capability — it must succeed.
+            val loaded = runCatching { a.listFlags() }
+                .onFailure { setStatus(Status(false, it.message ?: "Failed to load flags")) }
+                .getOrNull() ?: return@launch
+            flags = loaded
+
+            // The version manifest + per-target resolve are newer endpoints; if
+            // the connected server predates them, keep the flag editor working
+            // and just note the degraded mode rather than blanking the screen.
+            val enriched = runCatching {
                 manifestVersions = a.listManifestVersions()
                 if (target.buildNumber.isBlank()) {
                     manifestVersions.firstOrNull()?.let {
@@ -70,8 +80,10 @@ private fun App() {
                 val req = target.toRequest()
                 resolvedByPath = a.resolve(req).associateBy { it.path }
                 manifestByPath = a.getManifest(req.buildNumber).entries.associateBy { it.path }
-                setStatus(Status(true, "Loaded ${flags.size} flag(s)"))
-            }.onFailure { setStatus(Status(false, it.message ?: "Failed to load")) }
+            }.isSuccess
+            setStatus(
+                Status(true, "Loaded ${flags.size} flag(s)" + if (enriched) "" else " — resolve/manifest unavailable on this server"),
+            )
         }
     }
 

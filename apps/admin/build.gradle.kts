@@ -51,6 +51,7 @@ val generateAdminEnv = tasks.register("generateAdminEnv") {
                 val baseUrl: String,
                 val token: String,
             ) {
+                Local("local", "http://localhost:8080", "${token("local")}"),
                 Dev("dev", "https://cards-server-dev.fly.dev", "${token("dev")}"),
                 Prod("prod", "https://cards-server-prod.fly.dev", "${token("prod")}"),
             }
