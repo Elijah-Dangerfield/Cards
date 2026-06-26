@@ -10,7 +10,6 @@ import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.AchievementGrantApi
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.InventoryRepository
-import com.dangerfield.cards.libraries.cards.storage.db.AchievementCounterEntity
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementDao
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementEarnedEntity
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
@@ -125,6 +124,7 @@ class AchievementRepositoryImplSyncTest : CoroutineTest() {
         }
         return AchievementRepositoryImpl(
             achievementDao = dao,
+            playerStatsRepository = NoopPlayerStats,
             progressionRepository = NoopProgression,
             chipsRepository = NoopChips,
             grantApi = NoopGrantApi,
@@ -170,13 +170,18 @@ class AchievementRepositoryImplSyncTest : CoroutineTest() {
             flow.value = earned.values.toList()
         }
         override suspend fun deleteAllEarned() { earned.clear(); flow.value = emptyList() }
+    }
 
-        override fun observeCounters(): Flow<List<AchievementCounterEntity>> = MutableStateFlow(emptyList())
-        override suspend fun getCounters(): List<AchievementCounterEntity> = emptyList()
-        override suspend fun getCounter(key: String): Int? = null
-        override suspend fun incrementCounter(key: String, delta: Int) = Unit
-        override suspend fun setCounter(entity: AchievementCounterEntity) = Unit
-        override suspend fun deleteAllCounters() = Unit
+    private object NoopPlayerStats : com.dangerfield.cards.libraries.cards.PlayerStatsRepository {
+        override fun observeStats(): Flow<com.dangerfield.cards.libraries.cards.PlayerStats?> = MutableStateFlow(null)
+        override suspend fun getStats(): com.dangerfield.cards.libraries.cards.PlayerStats? = null
+        override fun observeEffectiveCounters(): Flow<Map<String, Long>> = MutableStateFlow(emptyMap())
+        override suspend fun effectiveCounters(): Map<String, Long> = emptyMap()
+        override suspend fun recordHand(
+            summary: com.dangerfield.cards.libraries.cards.PlayerStatHandSummary,
+        ) = Unit
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
+        override suspend fun deleteAll() = Unit
     }
 
     private object NoopProgression : ProgressionRepository {

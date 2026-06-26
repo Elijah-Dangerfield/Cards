@@ -10,7 +10,6 @@ import com.dangerfield.cards.libraries.cards.PlayerStats
 import com.dangerfield.cards.libraries.cards.PlayerStatsRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
-import com.dangerfield.cards.libraries.cards.withServerCounters
 import com.dangerfield.cards.libraries.cards.XpBoostRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpEventRepository
@@ -127,18 +126,7 @@ data class StatsState(
     /** Server-authoritative player stats (no-bust streak, per-bot wins);
      *  null until the first sync caches a snapshot. */
     val playerStats: PlayerStats? = null,
-) {
-    /**
-     * Achievement progress with the bar counters re-sourced from the server's
-     * authoritative projection (so they survive reinstall / account switch),
-     * keeping the synced earned set. Falls back to the local progress until the
-     * first stats sync lands. Screens render from this, not [achievements].
-     */
-    val achievementsDisplay: AchievementProgress
-        get() = playerStats?.achievementCounters
-            ?.let { achievements.withServerCounters(it) }
-            ?: achievements
-}
+)
 
 sealed interface StatsEvent
 

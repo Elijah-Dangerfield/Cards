@@ -4,13 +4,16 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * The earned-achievement ledger. Progress counters are NOT stored here anymore —
+ * they're derived from the server-authoritative effective counters (server
+ * snapshot + unsynced player-stats outbox; see `PlayerStatsRepository`), so this
+ * DAO owns only which achievements have been earned (synced to the server).
+ */
 @Dao
 interface AchievementDao : ClearableDao {
-
-    // ----- earned ledger -----
 
     @Query("SELECT * FROM achievement_earned")
     fun observeEarned(): Flow<List<AchievementEarnedEntity>>
@@ -32,39 +35,5 @@ interface AchievementDao : ClearableDao {
     @Query("DELETE FROM achievement_earned")
     suspend fun deleteAllEarned()
 
-    // ----- counters (per-achievement + custom) -----
-
-    @Query("SELECT * FROM achievement_counter")
-    fun observeCounters(): Flow<List<AchievementCounterEntity>>
-
-    @Query("SELECT * FROM achievement_counter")
-    suspend fun getCounters(): List<AchievementCounterEntity>
-
-    @Query("SELECT value FROM achievement_counter WHERE key = :key")
-    suspend fun getCounter(key: String): Int?
-
-    /**
-     * Idempotent +N for a counter. Inserts if missing, accumulates if
-     * present. Room's UPSERT pattern with COALESCE.
-     */
-    @Query(
-        """
-        INSERT INTO achievement_counter (key, value) VALUES (:key, :delta)
-        ON CONFLICT(key) DO UPDATE SET value = value + :delta
-        """
-    )
-    suspend fun incrementCounter(key: String, delta: Int)
-
-    /** Set the counter to an absolute value (used by streak resets). */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun setCounter(entity: AchievementCounterEntity)
-
-    @Query("DELETE FROM achievement_counter")
-    suspend fun deleteAllCounters()
-
-    @Transaction
-    override suspend fun deleteAll() {
-        deleteAllEarned()
-        deleteAllCounters()
-    }
+    override suspend fun deleteAll() = deleteAllEarned()
 }

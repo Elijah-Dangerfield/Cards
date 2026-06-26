@@ -28,18 +28,3 @@ data class AchievementEarnedEntity(
     @ColumnInfo(name = "synced")
     val synced: Boolean = false,
 )
-
-/**
- * Generic key → integer counter. Used for both per-achievement progress
- * (key = [AchievementId.name]) and custom cross-hand counters (key =
- * something like `no_bust_streak`, `wins_vs_bot_Jane`).
- */
-@Entity(tableName = "achievement_counter")
-data class AchievementCounterEntity(
-    @PrimaryKey
-    @ColumnInfo(name = "key")
-    val key: String,
-
-    @ColumnInfo(name = "value", defaultValue = "0")
-    val value: Int,
-)

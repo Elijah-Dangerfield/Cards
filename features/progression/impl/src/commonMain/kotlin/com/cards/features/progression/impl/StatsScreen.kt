@@ -145,7 +145,7 @@ fun StatsScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             AchievementsHighlights(
-                progress = state.achievementsDisplay,
+                progress = state.achievements,
                 onSeeAll = onSeeAllAchievements,
             )
             Spacer(modifier = Modifier.height(24.dp))

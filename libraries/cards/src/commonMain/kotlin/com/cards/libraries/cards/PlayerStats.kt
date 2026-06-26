@@ -94,6 +94,18 @@ interface PlayerStatsRepository {
 
     suspend fun getStats(): PlayerStats?
 
+    /**
+     * The live achievement-counter projection: the server snapshot folded with
+     * the unsynced outbox (optimistic delta), keyed `name -> value`. This is the
+     * single source both the progress bars and the unlock engine read, so they
+     * agree, work offline, and survive reinstall (a fresh client folds an empty
+     * outbox onto the server snapshot → exact server truth).
+     */
+    fun observeEffectiveCounters(): Flow<Map<String, Long>>
+
+    /** One-shot read of [observeEffectiveCounters] — used at unlock-detection time. */
+    suspend fun effectiveCounters(): Map<String, Long>
+
     /** Append one finished hand's signals to the outbox. */
     suspend fun recordHand(summary: PlayerStatHandSummary)
 
