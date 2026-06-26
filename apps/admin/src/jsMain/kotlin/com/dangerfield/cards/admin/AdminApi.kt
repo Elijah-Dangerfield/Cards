@@ -6,6 +6,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.engine.js.Js
@@ -28,6 +29,10 @@ data class RuleConditions(
     val platforms: Set<String>? = null,
     val minVersionCode: Int? = null,
     val maxVersionCode: Int? = null,
+    val minAppVersion: String? = null,
+    val minAppVersionInclusive: Boolean = true,
+    val maxAppVersion: String? = null,
+    val maxAppVersionInclusive: Boolean = true,
     val countries: Set<String>? = null,
     val locales: Set<String>? = null,
     val userAllow: Set<String>? = null,
@@ -84,6 +89,64 @@ data class ConfigAuditDto(
 @Serializable
 private data class AuditListResponse(val entries: List<ConfigAuditDto>)
 
+// ---------- Manifest (per-version in-code defaults) ----------
+
+@Serializable
+data class ManifestEntryDto(
+    val path: String,
+    val type: String,
+    val default: JsonElement,
+    val description: String? = null,
+    val allowedValues: JsonElement? = null,
+)
+
+@Serializable
+data class ManifestVersionDto(
+    val versionCode: Int,
+    val appVersion: String? = null,
+    val capturedAtEpochMs: Long,
+    val flagCount: Int,
+)
+
+@Serializable
+private data class ManifestVersionsResponse(val versions: List<ManifestVersionDto>)
+
+@Serializable
+data class ManifestResponse(
+    val versionCode: Int? = null,
+    val appVersion: String? = null,
+    val entries: List<ManifestEntryDto>,
+)
+
+// ---------- Resolve (per-target preview) ----------
+
+@Serializable
+data class ResolveRequest(
+    val platform: String? = null,
+    val appVersion: String? = null,
+    val buildNumber: Int? = null,
+    val countryCode: String? = null,
+    val locale: String? = null,
+    val userId: String? = null,
+    val installId: String? = null,
+)
+
+@Serializable
+data class MatchedRuleDto(val id: String, val priority: Int, val description: String? = null)
+
+@Serializable
+data class ResolvedFlagDto(
+    val path: String,
+    val type: String? = null,
+    val default: JsonElement? = null,
+    val base: JsonElement? = null,
+    val matchedRule: MatchedRuleDto? = null,
+    val resolved: JsonElement? = null,
+)
+
+@Serializable
+private data class ResolveResponse(val flags: List<ResolvedFlagDto>)
+
 val adminJson: Json = Json {
     ignoreUnknownKeys = true
     encodeDefaults = true
@@ -138,6 +201,22 @@ class AdminApi(
         return client.get("$base/v1/admin/config/audit$suffix") { auth() }
             .require<AuditListResponse>().entries
     }
+
+    suspend fun listManifestVersions(): List<ManifestVersionDto> =
+        client.get("$base/v1/admin/config/manifest/versions") { auth() }
+            .require<ManifestVersionsResponse>().versions
+
+    suspend fun getManifest(versionCode: Int?): ManifestResponse {
+        val suffix = if (versionCode == null) "" else "?version=$versionCode"
+        return client.get("$base/v1/admin/config/manifest$suffix") { auth() }.require()
+    }
+
+    suspend fun resolve(request: ResolveRequest): List<ResolvedFlagDto> =
+        client.post("$base/v1/admin/config/resolve") {
+            auth()
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.require<ResolveResponse>().flags
 
     private fun io.ktor.client.request.HttpRequestBuilder.auth() {
         header("X-Admin-Token", token)

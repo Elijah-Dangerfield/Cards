@@ -1,0 +1,249 @@
+package com.dangerfield.cards.admin
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import org.jetbrains.compose.web.attributes.placeholder
+import org.jetbrains.compose.web.dom.Button
+import org.jetbrains.compose.web.dom.CheckboxInput
+import org.jetbrains.compose.web.dom.Code
+import org.jetbrains.compose.web.dom.Div
+import org.jetbrains.compose.web.dom.H2
+import org.jetbrains.compose.web.dom.Label
+import org.jetbrains.compose.web.dom.P
+import org.jetbrains.compose.web.dom.Span
+import org.jetbrains.compose.web.dom.Text
+import org.jetbrains.compose.web.dom.TextInput
+
+/** One flag merged from the live DB rows, the resolve preview, and the manifest. */
+internal data class FlagRow(
+    val path: String,
+    val type: String?,
+    val default: JsonElement?,
+    val allowedValues: List<String>?,
+    val description: String?,
+    val base: JsonElement?,
+    val rules: List<ConfigRuleDto>,
+    val matchedRule: MatchedRuleDto?,
+    val resolved: JsonElement?,
+    val inDb: Boolean,
+)
+
+private fun JsonElement?.allowedStrings(): List<String>? =
+    (this as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content }?.takeIf { it.isNotEmpty() }
+
+internal fun buildFlagRows(
+    flags: List<ConfigFlagDto>,
+    resolvedByPath: Map<String, ResolvedFlagDto>,
+    manifestByPath: Map<String, ManifestEntryDto>,
+): List<FlagRow> {
+    val dbByPath = flags.associateBy { it.path }
+    val paths = (dbByPath.keys + manifestByPath.keys + resolvedByPath.keys).distinct().sorted()
+    return paths.map { path ->
+        val flag = dbByPath[path]
+        val entry = manifestByPath[path]
+        val resolved = resolvedByPath[path]
+        FlagRow(
+            path = path,
+            type = entry?.type ?: resolved?.type,
+            default = entry?.default ?: resolved?.default,
+            allowedValues = entry?.allowedValues.allowedStrings(),
+            description = entry?.description,
+            base = flag?.value ?: resolved?.base,
+            rules = flag?.rules.orEmpty(),
+            matchedRule = resolved?.matchedRule,
+            resolved = resolved?.resolved ?: flag?.value ?: entry?.default,
+            inDb = flag != null,
+        )
+    }
+}
+
+@Composable
+internal fun FlagsView(
+    flags: List<ConfigFlagDto>,
+    resolvedByPath: Map<String, ResolvedFlagDto>,
+    manifestByPath: Map<String, ManifestEntryDto>,
+    target: TargetState,
+    api: AdminApi,
+    scope: CoroutineScope,
+    setStatus: (Status) -> Unit,
+    reload: () -> Unit,
+) {
+    val rows = buildFlagRows(flags, resolvedByPath, manifestByPath)
+    H2 { Text("Flags · resolved for the target above") }
+    if (rows.isEmpty()) {
+        P(attrs = { classes("muted") }) { Text("No flags yet. Add one below, or upload a version manifest.") }
+    }
+    rows.forEach { row -> FlagCard(row, target, api, scope, setStatus, reload) }
+    NewFlagForm(api, scope, setStatus, reload)
+}
+
+@Composable
+private fun FlagCard(
+    row: FlagRow,
+    target: TargetState,
+    api: AdminApi,
+    scope: CoroutineScope,
+    setStatus: (Status) -> Unit,
+    reload: () -> Unit,
+) {
+    var open by remember(row.path) { mutableStateOf(false) }
+    val drift = row.resolved.inline() != row.default.inline()
+
+    Div(attrs = { classes("panel", "flag") }) {
+        Div(attrs = { classes("flag-head"); onClick { open = !open } }) {
+            Span(attrs = { classes("flag-path") }) { Text(row.path) }
+            row.type?.let { Span(attrs = { classes("tag") }) { Text(it) } }
+            Span(attrs = { classes("muted") }) { Text(if (open) "▾" else "▸") }
+            Div(attrs = { classes("spacer") }) {}
+            Span(attrs = { classes("muted") }) { Text("resolves to") }
+            Span(attrs = { classes(if (drift) "val-drift" else "val") }) { Text(row.resolved.inline()) }
+            row.matchedRule?.let {
+                Span(attrs = { classes("chip") }) { Text("rule #${it.priority}") }
+            }
+        }
+        if (open) FlagDetail(row, target, api, scope, setStatus, reload)
+    }
+}
+
+@Composable
+private fun FlagDetail(
+    row: FlagRow,
+    target: TargetState,
+    api: AdminApi,
+    scope: CoroutineScope,
+    setStatus: (Status) -> Unit,
+    reload: () -> Unit,
+) {
+    row.description?.takeIf { it.isNotBlank() }?.let {
+        P(attrs = { classes("muted"); style { property("margin", "4px 0 8px") } }) { Text(it) }
+    }
+
+    // The three-layer story: in-code default → DB base → resolved-for-target.
+    Div(attrs = { classes("layers") }) {
+        Layer("in-code default", row.default.inline(), "what the build shipped with")
+        Layer("DB base value", if (row.inDb) row.base.inline() else "(no override)", "served when no rule matches")
+        Layer("resolved", row.resolved.inline(), "for the current target")
+    }
+
+    // Base value editor (creates the DB flag if it doesn't exist yet).
+    var baseDraft by remember(row.path, row.base) {
+        mutableStateOf((row.base ?: row.default).inline().takeUnless { it == "—" } ?: "null")
+    }
+    Div(attrs = { classes("row"); style { property("margin-top", "8px") } }) {
+        Label { Text("base value") }
+        TextInput(baseDraft) { onInput { baseDraft = it.value } }
+        Button(attrs = {
+            classes("primary")
+            onClick {
+                val element = parseJsonOrNull(baseDraft)
+                if (element == null) { setStatus(Status(false, "Base value must be valid JSON")); return@onClick }
+                scope.launchOp(setStatus, reload, "Saved base value for ${row.path}") {
+                    api.upsertFlag(row.path, element)
+                }
+            }
+        }) { Text(if (row.inDb) "Save base" else "Create override") }
+        if (row.inDb) {
+            Button(attrs = {
+                classes("danger")
+                onClick { scope.launchOp(setStatus, reload, "Deleted ${row.path}") { api.deleteFlag(row.path) } }
+            }) { Text("Delete flag") }
+        }
+    }
+
+    // Targeting rules.
+    Div(attrs = { style { property("margin-top", "12px") } }) {
+        Span(attrs = { classes("muted") }) { Text("Targeting rules — first match wins, in priority order") }
+        if (row.rules.isEmpty()) {
+            P(attrs = { classes("muted") }) { Text("No rules. Everyone gets the base value.") }
+        }
+        row.rules.forEach { rule -> RuleRow(rule, api, scope, setStatus, reload) }
+    }
+
+    RuleEditor(row, target, api, scope, setStatus, reload)
+}
+
+@Composable
+private fun Layer(label: String, value: String, hint: String) {
+    Div(attrs = { classes("layer") }) {
+        Span(attrs = { classes("muted") }) { Text(label) }
+        Span(attrs = { classes("val") }) { Text(value) }
+        Span(attrs = { classes("muted", "hint") }) { Text(hint) }
+    }
+}
+
+@Composable
+private fun RuleRow(
+    rule: ConfigRuleDto,
+    api: AdminApi,
+    scope: CoroutineScope,
+    setStatus: (Status) -> Unit,
+    reload: () -> Unit,
+) {
+    Div(attrs = { classes("rule", if (rule.enabled) "on" else "off") }) {
+        Div(attrs = { classes("row") }) {
+            Span(attrs = { classes("muted") }) { Text("#${rule.priority}") }
+            Span { Text("When "); Code { Text(conditionsSentence(rule.conditions)) }; Text(" → "); Code { Text(rule.value.inline()) } }
+            Div(attrs = { classes("spacer") }) {}
+            Button(attrs = {
+                onClick {
+                    val request = UpsertRuleRequest(
+                        flagPath = rule.flagPath,
+                        priority = rule.priority,
+                        value = rule.value,
+                        conditions = rule.conditions,
+                        enabled = !rule.enabled,
+                        description = rule.description,
+                    )
+                    scope.launchOp(setStatus, reload, if (rule.enabled) "Disabled rule" else "Enabled rule") {
+                        api.upsertRule(rule.id, request)
+                    }
+                }
+            }) { Text(if (rule.enabled) "Disable" else "Enable") }
+            Button(attrs = {
+                classes("danger")
+                onClick { scope.launchOp(setStatus, reload, "Deleted rule") { api.deleteRule(rule.id) } }
+            }) { Text("Delete") }
+        }
+        rule.description?.takeIf { it.isNotBlank() }?.let {
+            Div(attrs = { classes("muted") }) { Text(it) }
+        }
+    }
+}
+
+@Composable
+private fun NewFlagForm(
+    api: AdminApi,
+    scope: CoroutineScope,
+    setStatus: (Status) -> Unit,
+    reload: () -> Unit,
+) {
+    var path by remember { mutableStateOf("") }
+    var value by remember { mutableStateOf("false") }
+
+    H2 { Text("Add a brand-new flag") }
+    Div(attrs = { classes("panel") }) {
+        Div(attrs = { classes("row") }) {
+            TextInput(path) { onInput { path = it.value }; placeholder("dotted.path e.g. social.enabled") }
+            TextInput(value) { onInput { value = it.value }; placeholder("JSON value e.g. false, 6, \"off\"") }
+            Button(attrs = {
+                classes("primary")
+                onClick {
+                    val element = parseJsonOrNull(value)
+                    if (path.isBlank() || element == null) {
+                        setStatus(Status(false, "Path required and value must be valid JSON")); return@onClick
+                    }
+                    val newPath = path.trim()
+                    scope.launchOp(setStatus, reload, "Saved $newPath") { api.upsertFlag(newPath, element) }
+                    path = ""
+                }
+            }) { Text("Add") }
+        }
+    }
+}
