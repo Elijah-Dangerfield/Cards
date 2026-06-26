@@ -723,3 +723,43 @@ Today they're client-side, which is the right default: the client needs a bundle
 Adjacent, also deferred (not blocking): **server-validated reward granting** — the server re-deriving each crossing and granting chips exactly-once (it already does this for *multiplayer* achievements). Skipped because chips are freemium (no cash-out), so a cheated/double-granted reward is in-game inflation, not lost money.
 
 **Status:** Backlog. A future product/ops call, not a gap. See `docs/wiki/achievements.md` for the as-built design + rationale.
+
+## Private-room host sets the table's cosmetics (card face, felt, …)
+
+**Idea (raised 2026-06-26):** Let the host of a private room theme the table for everyone seated — card face / card back, felt, and other table cosmetics — drawn only from cosmetics the host personally owns. Today cosmetics are per-viewer (each player sees their own equipped felt/card back); this flips a private room to a host-chosen shared look.
+
+**Sketch directions when revisiting:**
+- Room snapshot carries a host-chosen `tableCosmetics` block (felt id, card-face id, …); clients render the room's cosmetics instead of their own equipped set while seated.
+- Gate the picker to the host's owned inventory only — validate ownership server-side on set, don't trust the client's list.
+- Decide the default (host's own equipped cosmetics) and whether guests can locally override back to their own look or are pinned to the host's choice.
+
+**Tradeoff:** Reuses the existing cosmetic catalog + equip plumbing, but introduces room-scoped cosmetic state and a server-side ownership check on set — more than a one-line change. Pairs with the felt/card-back cosmetic work already in the catalog.
+
+**Status:** Backlog. Owner flagged it as a backlog feature on capture.
+
+## Pin a room to one machine (room→machine affinity) before scaling the server out
+
+**Idea (raised 2026-06-26):** Live game state is held **in-memory per machine** in [`DefaultGameSessionRegistry`](../apps/server/src/main/kotlin/com/cards/server/game/GameSessionRegistry.kt) (`MutableStateFlow<Map<code, GameSession>>`), with a Postgres snapshot (`room_sessions` via `SessionSnapshotStore`) written through on every mutation for server-restart recovery. WS clients attach to the live session via `observeSession`. This is correct on **one** machine. `apps/server/fly.toml` keeps `min_machines_running = 1` with `auto_stop`/`auto_start`, so today there's effectively a single warm machine and the model holds.
+
+**The hazard the owner flagged ("misses"):** the moment a second machine runs concurrently (Fly autoscaling under load), two players in the same room can land on different machines. Each machine hydrates its *own* `GameSession` from the snapshot; an intent applied on machine A never reaches machine B's subscribers in real time — the snapshot store is a restart-recovery store, not a cross-node bus. Result: dropped/stale frames and divergent table state.
+
+**Two ways to fix (design call when scale-out is on the table — they're alternatives):**
+- **(a) Room→machine affinity.** Route every socket *and* HTTP intent for a room code to the single machine that owns its session — Fly's `fly-replay` (reply with `fly-replay: instance=<id>`) or a consistent-hash on the room code. Keeps the in-memory + snapshot model intact; one machine owns a room for its lifetime, and the snapshot gives failover if that machine dies. Smaller change.
+- **(b) Shared real-time bus.** Back the session fan-out with Redis pub/sub (or Postgres `LISTEN/NOTIFY`) so any machine can serve any room and broadcasts cross nodes. Removes the single-owner constraint; more infra.
+
+**Recommendation:** No action at current scale — one warm machine is correct as-is, so this isn't a V1 gap. Treat affinity (option a) as the **hard gate before enabling horizontal scale-out** (>1 concurrent machine); it's the smaller change and fits the existing architecture.
+
+**Status:** Backlog. Not needed today (single instance); revisit before raising `min_machines_running` / letting Fly run multiple machines concurrently.
+
+## Surface MP winnings on leave (toast or result dialog), not just a silently-updated balance
+
+**Idea (raised 2026-06-26):** A tester (QuickJack56, Sentry CARDS-4F) noted that after a heads-up game auto-ends, the only feedback is the chip balance changing — they suggested we "toast when they leave how much they won or even a dedicated dialog." The MP-21 fix (PR #74) already makes the balance reconcile correctly on the opponent-left / auto-end path, so the *number* is now right; this is the missing **acknowledgement** of the result. Today a player who wins (or loses) on an auto-end is routed Home with no "you won N" moment.
+
+**Sketch directions when revisiting:**
+- On the auto-terminal MP paths (opponentsLeft, match-over, settled hand), show a transient "You won N chips" / "You lost N chips" toast or a small result dialog before/while routing off the table.
+- Reuse the existing chips-delta the reconcile already computes; don't recompute settlement client-side.
+- Decide toast vs. dialog by weight: a pure win/loss number is a toast; the heads-up match-over already has `MatchOverResultDialog` (MP-14) — make sure this doesn't double up with it.
+
+**Tradeoff:** Small, additive UX polish on top of an already-fixed data path. Pairs with MP-14's match-over dialog and the backlog "per-game result record" item.
+
+**Status:** Backlog. Enhancement, not a defect — the underlying stale-balance bug (MP-21) is already fixed. Captured from feedback case `docs/agent/feedback-cases/8d2185b9834542e9abc2be52afdded2d.md`.
