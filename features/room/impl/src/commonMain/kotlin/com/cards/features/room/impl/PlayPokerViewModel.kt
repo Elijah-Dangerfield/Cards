@@ -200,6 +200,11 @@ class PlayPokerViewModel @Inject constructor(
         // it; the screen routes off when the player dismisses the result.
         viewModelScope.launch {
             session.roomClosed.collect { reason ->
+                // A terminal close is an auto-end: the server has cashed the
+                // finished stack back to the wallet, so reconcile here too — the
+                // user never tapped Leave (MP-21). On appScope so it lands even as
+                // the screen pops.
+                appScope.launch { reconcileWalletAfterGame() }
                 when (reason) {
                     is ClosedReason.MatchOver -> takeAction(
                         PlayPokerAction.MatchOverResolved(
@@ -214,6 +219,10 @@ class PlayPokerViewModel @Inject constructor(
         // the entry point routes by room kind. Never fires for solo bots.
         viewModelScope.launch {
             session.opponentsLeft.collect {
+                // Auto-end: reconcile the settled wallet before the entry point
+                // routes Home, so the balance isn't stale until the next
+                // foreground (MP-21 / CARDS-4B). On appScope so it survives the pop.
+                appScope.launch { reconcileWalletAfterGame() }
                 sendEvent(PlayPokerEvent.OpponentsLeft)
             }
         }
@@ -551,15 +560,32 @@ class PlayPokerViewModel @Inject constructor(
     private suspend fun leaveAndReconcileWallet() {
         Catching { session.leave() }
             .onFailure { e -> logger.w(e) { "room leave failed" } }
-        // On a real-chip table the server cashes the leaver's final stack back to
-        // the wallet, but the client only learns the new balance on the next
-        // sync. Without this the won pot stays invisible until the next cold
-        // boot / foreground (CARDS-3C: "won 500, wallet unchanged, +100 later").
+        reconcileWalletAfterGame()
+    }
+
+    // Latches so the wallet syncs at most once per session-end. A user-initiated
+    // leave and an auto-terminal signal can both fire (e.g. the player taps Leave
+    // as the room closes); the credit confirmation is one-shot, so a second sync
+    // would re-confirm a now-zero delta or double a real one.
+    private var walletReconciled = false
+
+    /**
+     * Reconcile the wallet after the table ends — whether the player left, busted
+     * out, the last opponent left, the heads-up match resolved, or the room
+     * closed. On a real-chip table the server cashes the finished stack back to
+     * the wallet, but the client only learns the new balance on the next sync.
+     * Without this the settled balance stays invisible until the next cold boot /
+     * foreground (CARDS-3C / CARDS-4B: "lost a game but the balance didn't update
+     * until I backgrounded and foregrounded"). No-op for solo bots.
+     */
+    private suspend fun reconcileWalletAfterGame() {
         if (sessionFactory.xpMode != XpMode.MULTIPLAYER) return
+        if (walletReconciled) return
+        walletReconciled = true
 
         val balanceBefore = chipsRepository.getBalance()
         Catching { chipsRepository.sync() }
-            .onFailure { e -> logger.w(e) { "wallet sync after leave failed" } }
+            .onFailure { e -> logger.w(e) { "wallet sync after game-end failed" } }
         // MP-6: the sync above reconciles the credited stack into the balance,
         // but a silent number change reads as a glitch. Confirm the credit on
         // the surface the player lands on so the wallet bump never surprises
