@@ -21,7 +21,7 @@ import org.slf4j.MDC
  * `environment` and `release` give us per-env filtering ("issues in dev"
  * vs "issues in prod") and "this issue was fixed in release X" attribution.
  * V1 reads them straight from the env so the host owns the values; in
- * production, Fly sets `FLY_APP_NAME=cards-server-dev|cards-server` and
+ * production, Fly sets `FLY_APP_NAME=cards-server-dev|cards-server-prod` and
  * the deploy workflow can derive `SENTRY_RELEASE` from the git SHA.
  *
  * **Never log [SentryConfig.dsn] verbatim.** It encodes a project secret
