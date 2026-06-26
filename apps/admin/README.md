@@ -66,10 +66,19 @@ resolved tree for about 30 seconds).
 
 The admin tool can show the **in-code defaults a given app version shipped
 with** — the baseline a remote override replaces. Those defaults live in the
-client's `ConfiguredValue` classes, which the JS admin module can't read, so CI
-uploads them per release.
+client's `ConfiguredValue` classes, which the JS admin module can't read, so the
+build exports them and uploads them per deploy.
 
-Generate the manifest for the current build and upload it:
+**This is automated.** The `Upload config manifest` step in the server-deploy
+workflows ([`server-deploy.yml`](../../.github/workflows/server-deploy.yml) for
+dev, [`server-deploy-prod.yml`](../../.github/workflows/server-deploy-prod.yml)
+for prod) runs `exportConfigManifest` and PUTs the result after each deploy,
+using the `CARDS_ADMIN_API_TOKEN_{DEV,PROD}` secret. It's stamped from
+`versions.properties` and idempotent (re-uploading a version replaces its rows),
+and it skips without failing the deploy if the token secret isn't set (prod
+isn't fully wired yet).
+
+To do it by hand (e.g. to backfill a version):
 
 ```bash
 ./gradlew :apps:admin:exportConfigManifest
@@ -80,9 +89,6 @@ curl -X PUT "$SERVER_BASE_URL/v1/admin/config/manifest" \
   -H "Content-Type: application/json" \
   --data @apps/admin/build/config-manifest.json
 ```
-
-Run this as a release-pipeline step (after the version bump) so each shipped
-build records its registry.
 
 > **Keep the registry in sync.** The exported entries are a maintained list in
 > `apps/admin/build.gradle.kts` (`exportConfigManifest`). When you add, remove,

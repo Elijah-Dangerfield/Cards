@@ -69,3 +69,28 @@ jobs:
                --max-time 20 \
                https://cards-server-prod.fly.dev/_health
           echo
+
+      # Record this build's in-code config defaults (see the dev workflow). Skips
+      # without failing the deploy until CARDS_ADMIN_API_TOKEN_PROD is created —
+      # prod's admin surface isn't fully wired yet.
+      - name: Upload config manifest
+        env:
+          ADMIN_TOKEN: ${{ secrets.CARDS_ADMIN_API_TOKEN_PROD }}
+        run: |
+          if [ -z "$ADMIN_TOKEN" ]; then
+            echo "::warning::CARDS_ADMIN_API_TOKEN_PROD not set — skipping manifest upload"
+            exit 0
+          fi
+          ./gradlew :apps:admin:exportConfigManifest
+          status=$(curl --silent --show-error --max-time 30 \
+            -o /tmp/manifest-response.json -w "%{http_code}" \
+            -X PUT https://cards-server-prod.fly.dev/v1/admin/config/manifest \
+            -H "X-Admin-Token: $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data @apps/admin/build/config-manifest.json)
+          echo "Manifest upload → HTTP $status"
+          cat /tmp/manifest-response.json; echo
+          if [ "$status" != "200" ]; then
+            echo "::error::Config manifest upload failed (HTTP $status)"
+            exit 1
+          fi
