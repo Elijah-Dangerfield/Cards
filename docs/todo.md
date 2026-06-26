@@ -31,8 +31,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - Acceptance: Run the `unslop-text` skill over product descriptions and other DB text, apply the rewrites to dev, mirror the same final copy to prod so the two stay in sync.
 - Hint: Treat the prod write as sensitive — review the dev diff before mirroring.
 
-**AUTH-7 — Thorough Terms/Privacy review, finish the Cards→Dealt rename, refresh the logo** `[P1]`
-- Problem: [`pages/terms.html`](../pages/terms.html) + [`pages/privacy.html`](../pages/privacy.html) want a careful content review. The rename to "Dealt" is half-done — those two pages already say "Dealt", but [`pages/index.html`](../pages/index.html) still titles/headers "Cards" (title, `<h1>`, `alt`, meta description), and the `app-icon.png` / `favicon.png` / `apple-touch-icon.png` assets are the old mark.
-- Acceptance: Review + update both legal docs; finish Cards→Dealt across everything under `pages/`; swap the logo/icon assets to the Dealt mark.
-- Hint: A material content change should bump [`LegalUrls.LEGAL_VERSION`](../libraries/core/src/commonMain/kotlin/com/cards/libraries/core/LegalUrls.kt) (currently `1`) so the planned "Terms changed, re-accept" gate fires.
+**AUTH-7 — Thorough Terms/Privacy review + refresh the logo assets** `[P1]`
+- Problem: [`pages/terms.html`](../pages/terms.html) + [`pages/privacy.html`](../pages/privacy.html) want a careful content review, and the `app-icon.png` / `favicon.png` / `apple-touch-icon.png` assets are still the old "Cards" mark. (The Cards→Dealt text rename across `pages/` is done.)
+- Acceptance: Review + update both legal docs; swap the logo/icon assets to the Dealt mark.
+- Hint: A material content change to the legal docs should bump [`LegalUrls.LEGAL_VERSION`](../libraries/core/src/commonMain/kotlin/com/cards/libraries/core/LegalUrls.kt) (currently `1`) so the planned "Terms changed, re-accept" gate fires.
 
