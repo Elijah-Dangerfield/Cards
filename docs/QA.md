@@ -278,6 +278,17 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
+### `MP-1B` ⚠️ 📱 Share an invite link and deep-link join
+
+**State:** two devices, both signed in, online. Device A is in a room's lobby (any visibility — private, open, or public). (Covers todo ROOM-7.)
+
+1. Device A: in the lobby, tap "Share invite". Send the message (e.g. via Messages / Notes) to Device B.
+2. Device B: open the shared message and tap the `cards://join/...` link.
+
+**Expected:** The shared text reads naturally and contains the room code plus a `cards://join/CODE` link. Tapping it on Device B opens the app straight into that room's lobby (code pre-filled, auto-joins), no manual code entry. Both devices then show both members seated. The "Copy code" button still copies the bare code for paste-anywhere use.
+
+---
+
 ### `MP-2` ⚠️ 📱 Find a public game via matchmaking
 
 **State:** one device, signed in, online, wallet funded above the tier's buy-in.

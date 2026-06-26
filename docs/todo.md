@@ -24,12 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## B. Rooms & matchmaking
-
-**ROOM-7 — Let a player invite a friend into a public game (shareable room code / link)** `[P2]`
-- Problem: A player who lands in a public game has no way to pull in a friend. Open question: should public games also expose a room code so people can find them directly?
-- Recommendation: Give *every* room a shareable code / invite link regardless of visibility; "public" just means it's *also* surfaced in Find a Table. The in-game share affordance then works the same in public and private rooms. Confirm the direction, then ship the share affordance + deep-link join.
-
 ## C. Content & data
 
 **ENG-3 — Run the unslop-text pass on DB product copy, keep prod and dev in sync** `[P1]`

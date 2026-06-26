@@ -27,6 +27,21 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-26 — Room invites share a deep link via a platform `ShareLauncher`, code as a path segment (ROOM-7)
+
+**Decision:** Sharing a room invite goes through a new `ShareLauncher` capability in `:libraries:navigation` (sibling to `WebLinkLauncher`), surfaced as `Router.shareText(text)` and backed by per-platform impls (Android `ACTION_SEND` chooser, iOS `UIActivityViewController`, JVM unsupported). The invite link is `cards://join/{prefilledCode}` — the code is a **path segment**, not a query param — built from one source of truth, `RoomInvite.linkForCode`, which the lobby deep-link registration also references so the share URL and the registered deep link can't drift. Every room already carries a shareable code regardless of visibility, so the affordance is identical for private/open/public rooms; "public" only adds Find-a-Table discovery on top.
+
+**Why:** A share sheet is a fire-and-forget platform side effect with the exact shape of `openWebLink`, so it belongs on `Router` next to it rather than as a one-off in the lobby screen — any future invite surface (friends, achievements) reuses it. A path-segment code keeps the shared URL human-readable (`cards://join/ABC123`) versus a query string, and centralising the link string means the deep-link basePath and the share builder are provably the same.
+
+**Alternatives considered:**
+- **Build the share string + call platform APIs inline in `LobbyScreen`.** Rejected: composables don't own platform side effects here (clipboard is the lone exception, and even that is borderline); a share sheet needs the root view controller on iOS, which only the DI-wired impl can reach.
+- **Query-param code (`cards://join?prefilledCode=ABC123`).** Works (Navigation matches it), but the shared link reads as machine output. Path segment is friendlier and still resolves through `routeDeepLink<LobbyRoute>`.
+- **Server-issued short links / Universal Links (https://).** Deferred — needs an assetlinks.json / apple-app-site-association host and a link-shortening service. The custom `cards://` scheme is already wired on both platforms and ships today.
+
+**Status:** Locked.
+
+---
+
 ## 2026-06-25 — Placeholder ($0) room snapshots are dropped in the data layer, not the UI (MP-16)
 
 **Decision:** The "don't show a $0 buy-in" rule lives as one domain invariant, `Room.preferRealOver(previous)` (backed by `Room.isPlaceholder`, i.e. `buyIn <= 0`), applied at every repo staging boundary: `RoomRepositoryImpl.upsertActiveRoom` (HTTP create/join/addBot) and `ReconnectingRoomSocket`'s `Snapshot` emission (the live lobby path). A placeholder snapshot never regresses a known-good room — the repo retains the last real one. The `LobbyScreen` `if (room.buyIn > 0)` band-aid was removed; the UI no longer defends against an impossible state.

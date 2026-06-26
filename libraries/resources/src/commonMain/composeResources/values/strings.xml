@@ -153,6 +153,7 @@
     <string name="lobby_in_room_start_button_waiting">Waiting for players…</string>
     <string name="lobby_in_room_copy_button">Copy code</string>
     <string name="lobby_in_room_share_button">Share invite</string>
+    <string name="lobby_in_room_share_message">Join my poker game on Dealt. Room code %1$s: %2$s</string>
     <string name="lobby_in_room_code_copied">Room code copied</string>
     <string name="lobby_in_room_deal_button">Deal hand · %1$d players</string>
     <string name="lobby_in_room_ready_to_deal">Ready to deal</string>
