@@ -17,3 +17,9 @@
 **Problem:** The finding-a-table and private-room screens showed a top-right Public/Invite-only chip that wasn't earning its space.
 **Approach:** Removed the right = { VisTag(...) } slot from the RoomHeader on PublicSearchingScreen, PublicFindScreen, and PrivateCreateScreen, plus dead imports. right is already optional on RoomHeader, so this is a clean removal. (The PublicSearchingScreen removal rode along in the ROOM-4 commit since both edits touched that one file; this commit carries PublicFindScreen + PrivateCreateScreen.)
 **Reviewer notes:** The todo named "finding-a-table and the private-room screen" (two screens). I also removed it from PublicFindScreen (the public buy-in setup screen in the same flow), since the same redundant chip + rationale applies there: judgement call, easy to revert one line if you disagree. Left the VisTag in PrivateChooseSheet (it's an in-list label, a different context, not a header chip) and kept the VisTag DS component itself.
+
+## refactor(ui): render the lobby "You" marker as a chip (ROOM-6)
+
+**Problem:** The lobby seat list rendered the local player's "You" label as plain caption text, out of step with the row's badge visual language (HOST/BOT pills).
+**Approach:** Swapped the plain Text for the existing StatusPill DS primitive with accentSecondary background (the documented "under-avatar pill" shape), keeping the accent-secondary color it already used. Reused the primitive rather than hand-rolling a pill.
+**Reviewer notes:** None.

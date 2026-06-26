@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,6 +30,7 @@ import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_seat_you_label
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
+import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.dashedBorder
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
@@ -164,10 +166,12 @@ private fun FilledSeat(
                 typography = AppTheme.typography.Caption.C300,
                 color = AppTheme.colors.accentPrimary,
             )
-            player.isYou -> Text(
+            player.isYou -> StatusPill(
                 text = stringResource(Res.string.room_seat_you_label),
-                typography = AppTheme.typography.Caption.C300,
-                color = AppTheme.colors.accentSecondary,
+                background = AppTheme.colors.accentSecondary,
+                foreground = AppTheme.colors.onAccentSecondary,
+                typography = AppTheme.typography.Caption.C200.SemiBold,
+                contentPadding = PaddingValues(horizontal = Dimension.D300, vertical = 1.dp),
             )
         }
     }

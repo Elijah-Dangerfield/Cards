@@ -26,10 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## A. UX gaps
 
-**ROOM-6 — Lobby: style the "You" marker as a chip** `[P2]`
-- Problem: The lobby seat list renders the local player's "You" label as plain text, out of step with the rest of the row's visual language.
-- Acceptance: Render "You" as a chip.
-
 **GAME-6 — Add a game-speed setting with an "instant" option** `[P2]`
 - Problem: A tester asked to be able to speed the table up — specifically an "instant" mode that skips/shortens the deal, chip, and reveal animations. There's no speed control today; everything plays at one fixed pace.
 - Recommendation: Add a play-speed preference (e.g. Normal / Fast / Instant) that scales or skips the card-deal, chip-move, and result animations. "Instant" should collapse the cosmetic delays so action resolves immediately. Confirm the option set, then wire it through the play-screen animation timings.
