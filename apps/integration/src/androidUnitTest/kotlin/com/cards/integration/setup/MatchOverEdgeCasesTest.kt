@@ -57,6 +57,51 @@ class MatchOverEdgeCasesTest : IntegrationTest() {
         }
     }
 
+    // After seat 2 leaves, seats 0 and 1 remain (index order); seat 0 holds aces
+    // and the board pairs them, busting seat 1 on the one all-in → a single survivor.
+    private fun seat0BustsSeat1HeadsUpDeck() = stackedDeck(
+        holeBySeat = listOf(cards("As Ad"), cards("2c 7d")),
+        board = cards("Ah 9c 4s Kd 6h"),
+    )
+
+    @Test
+    fun stagedCollapse_threeToTwoToOne_resolvesMatchOver_andConservesChips() = integration {
+        // The collapse arrives one seat at a time, not in a single multi-way bust:
+        // 3 members → a leave drops it to 2 → an all-in busts one to a lone survivor.
+        // Each transition must settle cleanly (no wedge on the intermediate 2-handed
+        // table, a clean match-over on the final bust) with every chip conserved.
+        val room = seatPrivate(humanCount = 3, maxSeats = 3)
+        server.scriptDeck(room.code, seat0BustsSeat1HeadsUpDeck())
+
+        // Stage 1 (3 → 2): the third player leaves before any hand is dealt. Their
+        // untouched buy-in cashes back; the table is now heads-up.
+        val leaver = room.clients[2]
+        leaver.repository.leaveRoom(room.code)
+        room.hostGame.awaitRoom(timeoutMs = 10_000) { it.members.size == 2 }
+
+        // Stage 2 (2 → 1): the remaining two jam; the scripted board busts seat 1,
+        // leaving seat 0 as the sole survivor.
+        room.hostGame.startHand()
+        val done = room.driveActions { seat, _ -> PlayerIntent.AllIn(seatIndex = seat) }
+        assertEquals(
+            1,
+            done.seats.count { it.stack == 0L },
+            "the heads-up all-in busts exactly one of the two remaining players",
+        )
+
+        // One survivor + one busted human = terminal heads-up match-over. The grace
+        // expires with no rebuy and the room flips finished.
+        awaitUntil(timeoutMs = 10_000) { server.roomIsFinished(room.code) }
+
+        // Everyone leaves; chips conserve across the whole game (3 starter grants of
+        // 10,000 = 30,000 across the three wallets, regardless of who won the pot).
+        room.clients.forEach { it.repository.leaveRoom(room.code) }
+        awaitUntil(timeoutMs = 10_000) {
+            val balances = room.clients.map { server.walletBalance(it.userId) }
+            balances.all { it != null } && balances.filterNotNull().sum() == 30_000L
+        }
+    }
+
     @Test
     fun bothPlayersLeaveDuringAllIn_settledAtTeardown_chipsConserve() = integration {
         // Seat 0 shoves all-in, then BOTH players abandon the table — the shover
