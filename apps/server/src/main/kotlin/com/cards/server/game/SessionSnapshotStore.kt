@@ -42,6 +42,16 @@ data class SessionSnapshot(
     val sessionId: UUID,
     val code: String,
     val state: GameState,
+    /**
+     * Each player's stack as of the last hand they were seated for, kept even
+     * after they bust out and are dropped from the deal — the durable mirror of
+     * [GameSession]'s in-memory `lastKnownStacks`. The boot recovery sweep reads
+     * this when a session's user holds no live seat in [state] (busted + dropped):
+     * without it the sweep falls through to a full-escrow refund and mints the
+     * lost stake (MP-13). Defaults empty so a pre-MP-13 snapshot round-trips
+     * safely — an absent entry just means "no recorded last-known stack."
+     */
+    val lastKnownStacks: Map<String, Long> = emptyMap(),
     val updatedAt: Instant,
 )
 

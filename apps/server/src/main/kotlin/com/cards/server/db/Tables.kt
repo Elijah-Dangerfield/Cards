@@ -318,6 +318,11 @@ object RoomSessionsTable : Table("room_sessions") {
     val sessionId = uuid("session_id")
     val roomCode = text("room_code").uniqueIndex("room_sessions_room_code_uq")
     val stateJsonb = jsonb("state_jsonb")
+    // `{playerId -> stack}` retained even after a player busts + is dropped, so
+    // the crash-recovery sweep cashes a busted-and-dropped player out their real
+    // 0 instead of refunding their escrow (MP-13). Defaulted so pre-V74 rows read
+    // as an empty map. See V74.
+    val lastKnownStacksJsonb = jsonb("last_known_stacks_jsonb").default("{}")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(sessionId)
 }

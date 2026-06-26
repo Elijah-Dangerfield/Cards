@@ -38,9 +38,16 @@ class DefaultTableSessionRecoverySweep(
         var settled = 0
         for (session in active) {
             Catching {
-                // No snapshot seat (never played a hand, or no snapshot) →
-                // null lets cashOut refund the full funded amount.
-                val finalStack = snapshots.readByCode(session.roomCode)?.state?.stackFor(session.userId)
+                // Live seat in the snapshot → its stack. No live seat but a
+                // persisted last-known stack (a busted-and-dropped player) → that,
+                // so a busted leaver is cashed out their real 0 rather than refunded
+                // their escrow (MP-13 — the in-memory map is gone after a crash, the
+                // snapshot's persisted copy is all the sweep has). Neither (never
+                // played a hand, or a pre-MP-13 snapshot) → null, so cashOut refunds
+                // the full funded amount.
+                val snapshot = snapshots.readByCode(session.roomCode)
+                val finalStack = snapshot?.state?.stackFor(session.userId)
+                    ?: snapshot?.lastKnownStacks?.get(session.userId.value.toString())
                 tableSessionService.cashOut(session.userId, finalStack)
                 settled++
             }.onFailure {
