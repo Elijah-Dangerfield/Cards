@@ -11,3 +11,9 @@
 **Problem:** The finding-a-table screen kept a permanent "Still looking for players" text line *and* the rotating reassurance copy — two views doing one job.
 **Approach:** Removed the persistent second line; the existing RotatingReassurance already opens on "Looking for real players at your buy-in..." and rotates every 5s, which satisfies "open with looking-for-players, then rotate after ~5-10s". Deleted the now-orphan public_searching_alone / public_searching_joined strings + imports.
 **Reviewer notes:** Dropping the line also drops the transient "A player joined. Dealing you in." message. In practice the room flips to Playing and navigates to the live table almost immediately once a human joins, so that line was barely seen, but flag if you want a brief join confirmation kept.
+
+## refactor(rooms): drop the Public/Invite-only header chip (ROOM-5)
+
+**Problem:** The finding-a-table and private-room screens showed a top-right Public/Invite-only chip that wasn't earning its space.
+**Approach:** Removed the right = { VisTag(...) } slot from the RoomHeader on PublicSearchingScreen, PublicFindScreen, and PrivateCreateScreen, plus dead imports. right is already optional on RoomHeader, so this is a clean removal. (The PublicSearchingScreen removal rode along in the ROOM-4 commit since both edits touched that one file; this commit carries PublicFindScreen + PrivateCreateScreen.)
+**Reviewer notes:** The todo named "finding-a-table and the private-room screen" (two screens). I also removed it from PublicFindScreen (the public buy-in setup screen in the same flow), since the same redundant chip + rationale applies there: judgement call, easy to revert one line if you disagree. Left the VisTag in PrivateChooseSheet (it's an in-list label, a different context, not a header chip) and kept the VisTag DS component itself.

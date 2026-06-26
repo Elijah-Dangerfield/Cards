@@ -26,10 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## A. UX gaps
 
-**ROOM-5 — Remove the Public / Invite-only chip from finding-a-table and the private-room screen** `[P2]`
-- Problem: Both screens show a top-right chip reading "Public" or "Invite only" that isn't earning its space.
-- Acceptance: Remove the chip from both screens.
-
 **ROOM-6 — Lobby: style the "You" marker as a chip** `[P2]`
 - Problem: The lobby seat list renders the local player's "You" label as plain text, out of step with the rest of the row's visual language.
 - Acceptance: Render "You" as a chip.
