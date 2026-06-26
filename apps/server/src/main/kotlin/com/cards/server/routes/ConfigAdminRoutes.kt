@@ -73,7 +73,7 @@ fun Route.configAdminRoutes(
 
         put("/rules/{id}") {
             if (!call.requireAdmin(config)) return@put
-            val id = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+            val id = call.parameters["id"]?.toUuidOrNull()
                 ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_id", "id must be a UUID.")
             val body = call.receiveOrNull<UpsertRuleRequest>()
                 ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_body", "Malformed rule body.")
@@ -97,7 +97,7 @@ fun Route.configAdminRoutes(
 
         delete("/rules/{id}") {
             if (!call.requireAdmin(config)) return@delete
-            val id = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+            val id = call.parameters["id"]?.toUuidOrNull()
                 ?: return@delete call.respondProblem(HttpStatusCode.BadRequest, "invalid_id", "id must be a UUID.")
             if (repository.deleteRule(id, call.actor())) {
                 call.respond(HttpStatusCode.OK, OkResponse())
@@ -128,6 +128,12 @@ private suspend fun ApplicationCall.requireAdmin(config: AdminConfig): Boolean {
 
 private fun ApplicationCall.actor(): String =
     request.header("X-Admin-Actor")?.takeUnless { it.isBlank() } ?: "admin"
+
+private fun String.toUuidOrNull(): UUID? = try {
+    UUID.fromString(this)
+} catch (_: IllegalArgumentException) {
+    null
+}
 
 private suspend fun ApplicationCall.respondProblem(status: HttpStatusCode, code: String, message: String) =
     respond(status, problemEnvelope(code, message))
