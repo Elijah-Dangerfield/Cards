@@ -90,10 +90,22 @@ curl -X PUT "$SERVER_BASE_URL/v1/admin/config/manifest" \
   --data @apps/admin/build/config-manifest.json
 ```
 
-> **Keep the registry in sync.** The exported entries are a maintained list in
-> `apps/admin/build.gradle.kts` (`exportConfigManifest`). When you add, remove,
-> or change a scalar `ConfiguredValue`'s default, update that list. Composite
-> (`JsonConfigValue`) flags are intentionally omitted.
+### Keeping the registry honest
+
+The registry is a committed, reviewable file: `apps/admin/config-manifest-registry.json`
+(the live `ConfiguredValue` multibinding is Android/iOS-only, so neither this JS
+module nor a JVM build task can read it directly). Two guards keep it from drifting:
+
+- `exportConfigManifest` **structurally validates** it (valid types, unique paths,
+  each default matches its declared type, enum defaults ∈ allowed values) and fails
+  the build on any inconsistency.
+- `ConfigManifestDriftTest` (in `:apps:integration`, runs in CI) instantiates the
+  **real** scalar `ConfiguredValue` classes and fails if the registry's path / type
+  / default / allowed-values have drifted from the code.
+
+So: when you add, remove, or change a scalar `ConfiguredValue`, update
+`config-manifest-registry.json` — the drift test will tell you if you forget.
+Composite (`JsonConfigValue`) flags are intentionally omitted.
 
 ## Why this exists / scope
 
