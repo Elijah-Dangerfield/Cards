@@ -33,8 +33,7 @@ private data class Status(val ok: Boolean, val message: String)
 
 @Composable
 private fun App() {
-    var serverUrl by remember { mutableStateOf("http://localhost:8080") }
-    var token by remember { mutableStateOf("") }
+    var selectedEnv by remember { mutableStateOf(AdminEnv.Dev) }
     var actor by remember { mutableStateOf("admin") }
     var api by remember { mutableStateOf<AdminApi?>(null) }
     var flags by remember { mutableStateOf<List<ConfigFlagDto>>(emptyList()) }
@@ -54,15 +53,26 @@ private fun App() {
 
     H1 { Text("Cards · Remote Config Admin") }
     P(attrs = { classes("sub") }) {
-        Text("Run locally, edit flags, kill it. No token is stored anywhere.")
+        Text("Pick an environment and connect. Tokens are baked in at build time from the gitignored admin-tokens.local.properties — no pasting.")
     }
 
     Div(attrs = { classes("panel") }) {
-        Div(attrs = { classes("grid") }) {
-            Label { Text("Server URL") }
-            TextInput(serverUrl) { onInput { serverUrl = it.value } }
-            Label { Text("Admin token") }
-            TextInput(token) { onInput { token = it.value }; placeholder("ADMIN_API_TOKEN") }
+        Div(attrs = { classes("row") }) {
+            Label { Text("Environment") }
+            AdminEnv.entries.forEach { env ->
+                Button(attrs = {
+                    classes(if (env == selectedEnv) "primary" else "")
+                    onClick { selectedEnv = env }
+                }) { Text(env.displayName.uppercase()) }
+            }
+            Span(attrs = { classes("muted") }) { Text(selectedEnv.baseUrl) }
+        }
+        if (selectedEnv.token.isBlank()) {
+            Div(attrs = { classes("status", "err") }) {
+                Text("No token for ${selectedEnv.displayName} — add `${selectedEnv.displayName}=...` to apps/admin/admin-tokens.local.properties and rebuild.")
+            }
+        }
+        Div(attrs = { classes("grid"); style { property("margin-top", "8px") } }) {
             Label { Text("Actor") }
             TextInput(actor) { onInput { actor = it.value }; placeholder("your name (audited)") }
         }
@@ -70,7 +80,12 @@ private fun App() {
             Button(attrs = {
                 classes("primary")
                 onClick {
-                    api = AdminApi(serverUrl, token.trim(), actor.trim().ifBlank { "admin" })
+                    val env = selectedEnv
+                    if (env.token.isBlank()) {
+                        setStatus(Status(false, "No token configured for ${env.displayName}."))
+                        return@onClick
+                    }
+                    api = AdminApi(env.baseUrl, env.token, actor.trim().ifBlank { "admin" })
                     reload()
                 }
             }) { Text("Connect / Reload") }

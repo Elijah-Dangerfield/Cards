@@ -28,3 +28,6 @@ node_modules/
 apps/server/.env
 apps/server/.env.local
 apps/server/.env.*.local
+
+# Admin tool: local-only dev/prod admin tokens (baked into the bundle at build time)
+apps/admin/admin-tokens.local.properties
