@@ -94,7 +94,7 @@ private fun WhatXpDoesCard() {
         SheetBullet("Drives your level pill and seat-level badge across the app")
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Multiplayer hands will earn 2× when it ships.",
+            text = "Multiplayer hands earn 2× the XP of bot hands.",
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.contentSecondary,
         )

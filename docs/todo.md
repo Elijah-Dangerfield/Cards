@@ -56,11 +56,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - Acceptance: Run the `unslop-text` skill over product descriptions and other DB text, apply the rewrites to dev, mirror the same final copy to prod so the two stay in sync.
 - Hint: Treat the prod write as sensitive — review the dev diff before mirroring.
 
-**PROG-3 — Drop the stale "Multiplayer hands will earn 2× when it ships" copy + comb for similar** `[P1]`
-- Problem: [`StatsExplainersSheet.kt:97`](../features/progression/impl/src/commonMain/kotlin/com/cards/features/progression/impl/StatsExplainersSheet.kt) still frames MP 2× XP as unshipped — it's shipped. The same file's line 75 already treats multiplayer as live, so the sheet contradicts itself.
-- Acceptance: Rewrite the line in present tense (e.g. "Multiplayer hands earn 2× XP."), then comb the rest of the app for other "when it ships / coming soon" copy describing things that are now live and fix any found.
-- Hint: The legit "coming soon" hits are tournaments (`HomeFeatureEntryPoint`, `PlayCards`) — those are genuinely V2, leave them.
-
 **AUTH-7 — Thorough Terms/Privacy review, finish the Cards→Dealt rename, refresh the logo** `[P1]`
 - Problem: [`pages/terms.html`](../pages/terms.html) + [`pages/privacy.html`](../pages/privacy.html) want a careful content review. The rename to "Dealt" is half-done — those two pages already say "Dealt", but [`pages/index.html`](../pages/index.html) still titles/headers "Cards" (title, `<h1>`, `alt`, meta description), and the `app-icon.png` / `favicon.png` / `apple-touch-icon.png` assets are the old mark.
 - Acceptance: Review + update both legal docs; finish Cards→Dealt across everything under `pages/`; swap the logo/icon assets to the Dealt mark.
