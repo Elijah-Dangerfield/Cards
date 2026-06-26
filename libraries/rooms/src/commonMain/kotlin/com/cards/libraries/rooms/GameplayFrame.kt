@@ -16,6 +16,11 @@ import com.dangerfield.cards.libraries.gameplay.GameState
  *  - [EmojiBlast] — a table emote another seat blasted, fanned out to
  *    every socket in the room. Ephemeral (no replay): a late subscriber
  *    must not re-fire a stale reaction.
+ *  - [MatchOverPending] / [MatchOverCleared] — the heads-up rebuy-grace
+ *    countdown opening / clearing (MP-14). The terminal resolve isn't a
+ *    gameplay frame: it closes the connection as
+ *    [ClosedReason.MatchOver] so the screen routes off, same path as any
+ *    other terminal close.
  *
  * The lobby-shaped concerns (member presence, room snapshot, room
  * closed) flow on [RoomConnectionHandle.connection] instead — the two
@@ -40,4 +45,18 @@ sealed interface GameplayFrame {
         val seatIndex: Int,
         val emoji: String,
     ) : GameplayFrame
+
+    /**
+     * The heads-up rebuy-grace window opened: the busted seat has until
+     * [deadlineEpochMs] to rebuy or lose the table. Both roles render a live
+     * countdown — the busted seat ([bustedSeatIndex]) sees a rebuy CTA, the
+     * winner sees "auto-continues in Ns".
+     */
+    data class MatchOverPending(
+        val deadlineEpochMs: Long,
+        val bustedSeatIndex: Int,
+    ) : GameplayFrame
+
+    /** The grace window cleared without a match-over (the busted seat rebought). */
+    data object MatchOverCleared : GameplayFrame
 }

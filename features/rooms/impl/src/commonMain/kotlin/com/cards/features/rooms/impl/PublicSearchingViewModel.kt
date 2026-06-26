@@ -191,7 +191,9 @@ class PublicSearchingViewModel(
                         // dead, so re-find a fresh table rather than chase a ghost —
                         // capped + backed off so a flapping server can't spin a tight
                         // re-find loop on the app's busiest screen.
-                        ClosedReason.RoomDeleted ->
+                        // MatchOver (MP-14) is a play-screen terminal; if it reaches
+                        // the search socket the table's gone, so re-find like a GC.
+                        ClosedReason.RoomDeleted, is ClosedReason.MatchOver ->
                             if (reFindAttempts >= MAX_REFINDS) {
                                 updateState { it.copy(error = SearchError.Network) }
                             } else {

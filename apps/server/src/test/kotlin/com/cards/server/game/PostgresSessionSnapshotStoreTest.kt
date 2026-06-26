@@ -98,6 +98,42 @@ class PostgresSessionSnapshotStoreTest : DatabaseTest() {
     }
 
     @Test
+    fun upsert_thenReadByCode_roundTripsLastKnownStacks() = runTest {
+        val store = PostgresSessionSnapshotStore(database)
+        val registry = DefaultGameSessionRegistry(snapshotStore = store, clock = Clock.System)
+        registry.startHand("ROOM_LKS", listOf(alice, bob), settings)
+
+        val snapshot = store.readByCode("ROOM_LKS")
+        assertNotNull(snapshot)
+        // startHand records each dealt seat's current stack into lastKnownStacks
+        // (post-blinds), persisted alongside the state so the crash-recovery sweep
+        // reads it post-restart (MP-13). The persisted map mirrors the live seats.
+        val seatStacks = snapshot.state.seats.associate { it.playerId to it.stack }
+        assertEquals(seatStacks["alice"], snapshot.lastKnownStacks["alice"])
+        assertEquals(seatStacks["bob"], snapshot.lastKnownStacks["bob"])
+    }
+
+    @Test
+    fun readByCode_defaultsLastKnownStacksToEmpty_forPreV74Row() = runTest {
+        // A row written before V74 has the new column at its DB default '{}'. Write a
+        // normal snapshot (valid state), then force the column back to that default
+        // via raw SQL to mimic a pre-migration row, and prove the read falls back to
+        // an empty map rather than throwing on a missing field.
+        val store = PostgresSessionSnapshotStore(database)
+        DefaultGameSessionRegistry(snapshotStore = store, clock = Clock.System)
+            .startHand("ROOM_OLD", listOf(alice, bob), settings)
+        database.blockingTransaction {
+            org.jetbrains.exposed.sql.transactions.TransactionManager.current().exec(
+                "UPDATE room_sessions SET last_known_stacks_jsonb = '{}'::jsonb WHERE room_code = 'ROOM_OLD'",
+            )
+        }
+
+        val snapshot = store.readByCode("ROOM_OLD")
+        assertNotNull(snapshot)
+        assertEquals(emptyMap(), snapshot.lastKnownStacks)
+    }
+
+    @Test
     fun deleteByCode_removesRow() = runTest {
         val store = PostgresSessionSnapshotStore(database)
         val registry = DefaultGameSessionRegistry(snapshotStore = store, clock = Clock.System)

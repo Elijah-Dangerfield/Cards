@@ -834,6 +834,24 @@
     <!-- Room - notice when "next hand" is refused because the table can't deal another (heads-up, opponent busted with no rebuy). -->
     <string name="room_next_hand_unavailable">Waiting for your opponent to rebuy or leave</string>
 
+    <!-- Room - transient notice when a submitted action got no server ack in time (the action did not land; the player can retry). -->
+    <string name="room_intent_timed_out">That didn't send. Check your connection and try again</string>
+    <!-- Room - transient notice when the server refused a submitted action (not your turn / illegal move). -->
+    <string name="room_intent_rejected">That move wasn't allowed</string>
+
+    <!-- Room - heads-up match-over rebuy countdown (MP-14). Shown to the busted player. %1$s is a m:ss countdown. -->
+    <string name="room_match_over_busted_title">Rebuy in %1$s or lose your seat</string>
+    <string name="room_match_over_busted_rebuy_button">Rebuy now</string>
+    <!-- Room - match-over countdown shown to the winner while they wait out the busted player's rebuy grace. %1$s is a m:ss countdown. -->
+    <string name="room_match_over_winner_label">Opponent busted. Auto-continues in %1$s</string>
+
+    <!-- Room - match-over result shown when the rebuy grace expired and the match ended. -->
+    <string name="room_match_over_result_win_title">You won the match</string>
+    <string name="room_match_over_result_win_body">Your opponent ran out of chips and didn't rebuy. The table's all yours.</string>
+    <string name="room_match_over_result_loss_title">Match over</string>
+    <string name="room_match_over_result_loss_body">You ran out of chips and the rebuy window closed. Better luck next time.</string>
+    <string name="room_match_over_result_button">Done</string>
+
     <!-- Room - confirmation toast after leaving a real-chip table with a credited stack. %1$s is the credited amount, %2$s the new wallet balance. -->
     <string name="room_leave_cashout_credited">%1$s chips from your seat went back to your wallet. New balance: %2$s.</string>
 

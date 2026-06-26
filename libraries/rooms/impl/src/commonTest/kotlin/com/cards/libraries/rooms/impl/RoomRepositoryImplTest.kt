@@ -269,6 +269,33 @@ class RoomRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
+    fun observeActiveRooms_placeholderSnapshotDoesNotRegressKnownGoodRoom() = runUnitTest {
+        // A $0 buy-in is structurally impossible for a real room (create
+        // form seeds DEFAULT_BUY_IN, the server rejects out-of-range
+        // buy-ins), so a buyIn==0 snapshot provably means "not a real
+        // snapshot" — the placeholder rebound that arrives after the sole
+        // other human leaves. Staging it over a known-good room is the
+        // post-leave $0 rebound (MP-16). The repo must keep the real one.
+        var call = 0
+        val repo = newRepo(MockEngine {
+            call++
+            if (call == 1) {
+                respondJson(HttpStatusCode.OK, REAL_BUYIN_ROOM_RESPONSE_JSON)
+            } else {
+                respondJson(HttpStatusCode.OK, PLACEHOLDER_BUYIN_JOIN_RESPONSE_JSON)
+            }
+        })
+        repo.createRoom()
+        assertEquals(1000, repo.observeActiveRooms().first().single().buyIn)
+        repo.joinRoom("ABC123")
+        assertEquals(
+            1000,
+            repo.observeActiveRooms().first().single().buyIn,
+            "a placeholder \$0 snapshot must not overwrite the known-good stakes",
+        )
+    }
+
+    @Test
     fun onForeground_warm_refreshesActiveRoomsFromServer() = runUnitTest {
         val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, ACTIVE_ROOMS_ONE_ROOM_JSON) })
         repo.observeActiveRooms().test {
@@ -406,6 +433,31 @@ class RoomRepositoryImplTest : CoroutineTest() {
               "visibility":"Open"
             }
         """.trimIndent()
+        private val REAL_BUYIN_ROOM_JSON_HOST = """
+            {
+              "code":"ABC123",
+              "hostUserId":"11111111-1111-1111-1111-111111111111",
+              "createdAtEpochMs":1700000000000,
+              "maxSeats":4,
+              "status":"Lobby",
+              "buyIn":1000,
+              "smallBlind":5,
+              "bigBlind":10,
+              "members":[
+                {
+                  "userId":"11111111-1111-1111-1111-111111111111",
+                  "displayName":"Host",
+                  "seatIndex":0,
+                  "joinedAtEpochMs":1700000000000,
+                  "isConnected":true
+                }
+              ]
+            }
+        """.trimIndent()
+        private val REAL_BUYIN_ROOM_RESPONSE_JSON =
+            """{"schemaVersion":1,"room":$REAL_BUYIN_ROOM_JSON_HOST}"""
+        private val PLACEHOLDER_BUYIN_JOIN_RESPONSE_JSON =
+            """{"schemaVersion":1,"alreadyJoined":true,"room":$ROOM_JSON_HOST}"""
         private val JOIN_RESPONSE_JSON_FRESH =
             """{"schemaVersion":1,"alreadyJoined":false,"room":$ROOM_JSON_HOST}"""
         private val JOIN_RESPONSE_JSON_REJOIN =

@@ -27,6 +27,33 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-25 — Placeholder ($0) room snapshots are dropped in the data layer, not the UI (MP-16)
+
+**Decision:** The "don't show a $0 buy-in" rule lives as one domain invariant, `Room.preferRealOver(previous)` (backed by `Room.isPlaceholder`, i.e. `buyIn <= 0`), applied at every repo staging boundary: `RoomRepositoryImpl.upsertActiveRoom` (HTTP create/join/addBot) and `ReconnectingRoomSocket`'s `Snapshot` emission (the live lobby path). A placeholder snapshot never regresses a known-good room — the repo retains the last real one. The `LobbyScreen` `if (room.buyIn > 0)` band-aid was removed; the UI no longer defends against an impossible state.
+
+**Why:** A $0 room is structurally impossible (create form seeds a default, server rejects out-of-range buy-ins), so `buyIn == 0` provably means "not a real snapshot" — the stale rebound that arrives after the sole other human leaves. The invariant belongs where snapshots are staged, not at each render site: the lobby `room` actually flows through the socket `Snapshot` path, so a repo-only guard would have left the band-aid load-bearing. Putting the rule once in the data layer means the band-aid (and any future render site) needs no `buyIn > 0` defense.
+
+**Altitude:** Chose "don't regress a real room to a placeholder" over "drop $0 snapshots at one boundary." The narrower framing (guard only `upsertActiveRoom`) misses the real rebound path (the socket), and a guard scattered per-callsite is the band-aid we're removing. The general rule, expressed as a pure `Room` function and applied at both staging points, keeps the invariant in one greppable place.
+
+**Alternatives considered:**
+- **Guard only `upsertActiveRoom`.** What the todo literally pointed at. Rejected: the lobby's `room` is fed by the socket `Snapshot` emission, not `upsertActiveRoom`, so this alone wouldn't satisfy the acceptance and the band-aid would have to stay.
+- **Keep the `LobbyScreen` guard.** Rejected: pushes an impossible-state defense into the UI; every future room-rendering surface would need to repeat it.
+- **`distinctUntilChanged` on the snapshot flow.** Rejected: a placeholder isn't a duplicate, it's a regression; dedup wouldn't catch the real to $0 transition.
+
+**Status:** Locked.
+
+## 2026-06-25 — Match-over result is a play-screen dialog, not a new nav screen (MP-14)
+
+**Decision:** The heads-up match-over "result screen" (MP-14) is a `MatchOverResultDialog` overlay rendered on the existing play screen, sequenced like the bust/showdown dialogs, not a new navigation route. The terminal `match_over_resolved` wire frame closes the socket as a new `ClosedReason.MatchOver(winnerUserId)` (the enum was promoted to a sealed interface to carry the winner id); the VM resolves the local win/loss role and surfaces `PlayPokerState.matchOverResult`, and the dialog's Done CTA fires the same `LeaveGameFromBust` teardown + route-off the bust dialog uses. The live countdown is likewise an on-table banner, not a screen.
+
+**Why:** Every other hand-end result in this feature (showdown, solo bust, MP bust) is a dialog overlay on the play screen with the table visible underneath, and they share the leave/reconcile teardown. A standalone match-over route would fork that established pattern, need its own nav wiring + back-stack reasoning, and lose the "table still behind the scrim" continuity for no user benefit — the match-over is just one more terminal hand-end shape. Keeping it a dialog reuses the rebuy action, the leave-and-reconcile path, and the dialog DS primitives.
+
+**Alternatives considered:**
+- **Dedicated `MatchOverRoute` screen.** Real nav target, own VM. Rejected: heavier than the moment warrants, forks the hand-end-result pattern, and the AGENTS bottom-sheet/dialog guidance points the other way for transient terminal overlays.
+- **Keep `ClosedReason` an enum, pass the winner id out-of-band.** Would need a parallel channel for the winner id alongside the close reason. Rejected: the reason is exactly where "who won" belongs; a sealed interface carries it cleanly and the other reasons stay data objects.
+
+**Status:** Locked.
+
 ## 2026-06-24 — `DELETE /v1/rooms/{code}/me` (leave) is idempotent: 204 across the board
 
 **Decision:** Leaving a room returns 204 whether the caller is a current member, was never a member, or the room is already gone. The route no longer maps `LeaveResult.RoomNotFound`→404 or `LeaveResult.NotInRoom`→409; the service still returns those distinct results, only the HTTP projection collapses them.
@@ -522,3 +549,14 @@ This makes Supabase feel like "managed Postgres + hosted auth" rather than "all-
 **Alternatives considered:** (1) Recompute the streak server-side from the ordered ledger — correct but forces the server to read+replay the whole event history on each sync and makes a mid-batch replay non-trivial; rejected for the snapshot fold. (2) Store per-bot wins as their own ledger/table rather than a JSONB map on the aggregate — heavier for a handful of keys; the map mirrors how small per-key state rides on an aggregate row elsewhere.
 
 **Status:** Server slice shipped (table + migration V72 + domain/Postgres repo + DTO + routes + DI + delete cascade + tests). Client half (write-ahead-cache repo mirroring `PlayStyleRepositoryImpl`, then re-point the stats screen + achievement predicates) remains under PROG-1.
+
+
+## 2026-06-25 — Persist last-known stacks in the session snapshot, not the table_sessions row (MP-13)
+
+**Decision:** The per-player `lastKnownStacks` map a `GameSession` keeps (each player's stack as of the last hand they were seated for, retained after they bust + are dropped) is now persisted in the `room_sessions` snapshot — a new `last_known_stacks_jsonb` column (V74) carried on `SessionSnapshot` alongside the serialized `GameState`. The boot recovery sweep (`DefaultTableSessionRecoverySweep`) reads the live seat's stack first, then falls back to this persisted map before refunding the full escrow, so a busted-and-dropped player swept after a crash is cashed out their real 0 rather than minted their whole stake.
+
+**Why:** The live-leave mint was already fixed in-memory via `GameSession.lastKnownStack`, but that map died with the process. After a crash the sweep rehydrated only the snapshot's `GameState`, which has no seat for a busted-dropped player, and fell through to a full-escrow refund — the same mint, one path over. The snapshot is the natural home: it is already written per-mutation inside the per-session mutex, already hydrated on restart, and the sweep already reads it via `snapshots.readByCode`. Co-locating the last-known stacks with the state means one durable write keeps both in step and the sweep needs no second lookup.
+
+**Alternatives considered:** (1) Persist the last-known stack on the `table_sessions` row instead. Rejected: that row is per-user lifecycle bookkeeping written on sit-down / status flips, not on every hand boundary, so it would need a new write path on the gameplay hot loop and a second source of truth for "what did this player walk away with"; the snapshot already mutates at exactly the right cadence. (2) Recompute the stack from the snapshot's event history — there is no durable event log (snapshot-only state, see 2026-05-29), so nothing to replay. Round-trip safety: the column is `NOT NULL DEFAULT '{}'`, so pre-V74 rows and any insert that omits it read back as an empty map (no recorded stack → the sweep falls back to a full refund, the prior behaviour) rather than failing to deserialize.
+
+**Status:** Shipped. Red/green proven by `Mp13CrashRecoveryConservationTest` (harness `restart()` + sweep); `PostgresSessionSnapshotStoreTest` pins the round-trip + the pre-V74 empty-map fallback.

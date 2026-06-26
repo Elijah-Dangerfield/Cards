@@ -11,6 +11,7 @@ import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
+import com.dangerfield.cards.libraries.rooms.preferRealOver
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
@@ -219,7 +220,8 @@ class RoomRepositoryImpl(
     override fun connect(code: String): RoomConnectionHandle = socket.connect(code)
 
     private fun upsertActiveRoom(room: Room) = activeRooms.update { current ->
-        current.filterNot { it.code == room.code } + room
+        val previous = current.firstOrNull { it.code == room.code }
+        current.filterNot { it.code == room.code } + room.preferRealOver(previous)
     }
 
     private fun removeActiveRoom(code: String) = activeRooms.update { current ->

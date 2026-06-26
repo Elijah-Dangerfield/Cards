@@ -6,6 +6,8 @@ import com.dangerfield.cards.server.db.RoomSessionsTable
 import com.dangerfield.cards.server.db.toJavaInstant
 import com.dangerfield.cards.server.db.toKotlinInstant
 import com.dangerfield.cards.server.di.ServerScope
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import me.tatarka.inject.annotations.Inject
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
@@ -37,15 +39,18 @@ class PostgresSessionSnapshotStore(
 ) : SessionSnapshotStore {
 
     private val json: Json = Json
+    private val lastKnownStacksSerializer = MapSerializer(String.serializer(), Long.serializer())
 
     override suspend fun upsert(snapshot: SessionSnapshot) {
         val encoded = json.encodeToString(GameState.serializer(), snapshot.state)
+        val encodedStacks = json.encodeToString(lastKnownStacksSerializer, snapshot.lastKnownStacks)
         val javaUpdatedAt = snapshot.updatedAt.toJavaInstant()
         database.transaction {
             val rowsUpdated = RoomSessionsTable.update(
                 { RoomSessionsTable.sessionId eq snapshot.sessionId },
             ) {
                 it[stateJsonb] = encoded
+                it[lastKnownStacksJsonb] = encodedStacks
                 it[updatedAt] = javaUpdatedAt
             }
             if (rowsUpdated == 0) {
@@ -53,6 +58,7 @@ class PostgresSessionSnapshotStore(
                     it[sessionId] = snapshot.sessionId
                     it[roomCode] = snapshot.code
                     it[stateJsonb] = encoded
+                    it[lastKnownStacksJsonb] = encodedStacks
                     it[updatedAt] = javaUpdatedAt
                 }
             }
@@ -71,6 +77,10 @@ class PostgresSessionSnapshotStore(
                     state = json.decodeFromString(
                         GameState.serializer(),
                         row[RoomSessionsTable.stateJsonb],
+                    ),
+                    lastKnownStacks = json.decodeFromString(
+                        lastKnownStacksSerializer,
+                        row[RoomSessionsTable.lastKnownStacksJsonb],
                     ),
                     updatedAt = row[RoomSessionsTable.updatedAt].toKotlinInstant(),
                 )

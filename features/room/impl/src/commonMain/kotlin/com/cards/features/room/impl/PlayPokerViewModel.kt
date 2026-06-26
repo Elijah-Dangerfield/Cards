@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.features.room.impl.session.IntentRejectedException
+import com.dangerfield.cards.features.room.impl.session.IntentTimeoutException
 import com.dangerfield.cards.features.room.impl.session.PokerSession
 import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
 import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
@@ -44,6 +45,7 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.products.ProductsRepository
+import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.ui.components.resolvePlayerBadges
 import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import com.dangerfield.cards.libraries.ui.components.poker.badgeEmojiForProductId
@@ -193,16 +195,35 @@ class PlayPokerViewModel @Inject constructor(
             }
         }
         // Terminal room-close → one-shot exit (Disconnected alone can't be told
-        // from a transient drop); the entry point pops the screen.
+        // from a transient drop); the entry point pops the screen. A heads-up
+        // match-over (MP-14) is terminal too, but routes through a result overlay
+        // first instead of a silent pop — resolve the win/loss role here and surface
+        // it; the screen routes off when the player dismisses the result.
         viewModelScope.launch {
             session.roomClosed.collect { reason ->
-                sendEvent(PlayPokerEvent.RoomClosed(reason))
+                // A terminal close is an auto-end: the server has cashed the
+                // finished stack back to the wallet, so reconcile here too — the
+                // user never tapped Leave (MP-21). On appScope so it lands even as
+                // the screen pops.
+                appScope.launch { reconcileWalletAfterGame() }
+                when (reason) {
+                    is ClosedReason.MatchOver -> takeAction(
+                        PlayPokerAction.MatchOverResolved(
+                            localPlayerWon = reason.winnerUserId == localPlayerId(),
+                        ),
+                    )
+                    else -> sendEvent(PlayPokerEvent.RoomClosed(reason))
+                }
             }
         }
         // Last human standing — distinct from roomClosed (the room still exists);
         // the entry point routes by room kind. Never fires for solo bots.
         viewModelScope.launch {
             session.opponentsLeft.collect {
+                // Auto-end: reconcile the settled wallet before the entry point
+                // routes Home, so the balance isn't stale until the next
+                // foreground (MP-21 / CARDS-4B). On appScope so it survives the pop.
+                appScope.launch { reconcileWalletAfterGame() }
                 sendEvent(PlayPokerEvent.OpponentsLeft)
             }
         }
@@ -218,6 +239,14 @@ class PlayPokerViewModel @Inject constructor(
         viewModelScope.launch {
             session.nextHandUnavailable.collect {
                 sendEvent(PlayPokerEvent.NextHandUnavailable)
+            }
+        }
+        // Heads-up match-over grace countdown (MP-14) → on-table banner. Opens on
+        // a bust dead-end, clears on a rebuy; a terminal expiry routes off via
+        // roomClosed above. Never fires for solo bots.
+        viewModelScope.launch {
+            session.matchOverCountdown.collect { countdown ->
+                takeAction(PlayPokerAction.MatchOverCountdownChanged(countdown))
             }
         }
         // XP mirror
@@ -518,18 +547,46 @@ class PlayPokerViewModel @Inject constructor(
         }.onFailure { logger.w(it) { "Review prompt request failed" } }
     }
 
+    /**
+     * The local player's user id, resolved from the last game state via the
+     * factory's seat mapping. Used to decide the match-over win/loss role (MP-14).
+     * Null if the local seat hasn't resolved yet (no snapshot, or seatless joiner).
+     */
+    private fun localPlayerId(): String? {
+        val state = lastGameState ?: return null
+        val seatIndex = sessionFactory.humanSeatIndex(state)
+        return state.seats.firstOrNull { it.index == seatIndex }?.playerId
+    }
+
     private suspend fun leaveAndReconcileWallet() {
         Catching { session.leave() }
             .onFailure { e -> logger.w(e) { "room leave failed" } }
-        // On a real-chip table the server cashes the leaver's final stack back to
-        // the wallet, but the client only learns the new balance on the next
-        // sync. Without this the won pot stays invisible until the next cold
-        // boot / foreground (CARDS-3C: "won 500, wallet unchanged, +100 later").
+        reconcileWalletAfterGame()
+    }
+
+    // Latches so the wallet syncs at most once per session-end. A user-initiated
+    // leave and an auto-terminal signal can both fire (e.g. the player taps Leave
+    // as the room closes); the credit confirmation is one-shot, so a second sync
+    // would re-confirm a now-zero delta or double a real one.
+    private var walletReconciled = false
+
+    /**
+     * Reconcile the wallet after the table ends — whether the player left, busted
+     * out, the last opponent left, the heads-up match resolved, or the room
+     * closed. On a real-chip table the server cashes the finished stack back to
+     * the wallet, but the client only learns the new balance on the next sync.
+     * Without this the settled balance stays invisible until the next cold boot /
+     * foreground (CARDS-3C / CARDS-4B: "lost a game but the balance didn't update
+     * until I backgrounded and foregrounded"). No-op for solo bots.
+     */
+    private suspend fun reconcileWalletAfterGame() {
         if (sessionFactory.xpMode != XpMode.MULTIPLAYER) return
+        if (walletReconciled) return
+        walletReconciled = true
 
         val balanceBefore = chipsRepository.getBalance()
         Catching { chipsRepository.sync() }
-            .onFailure { e -> logger.w(e) { "wallet sync after leave failed" } }
+            .onFailure { e -> logger.w(e) { "wallet sync after game-end failed" } }
         // MP-6: the sync above reconciles the credited stack into the balance,
         // but a silent number change reads as a glitch. Confirm the credit on
         // the surface the player lands on so the wallet bump never surprises
@@ -629,7 +686,18 @@ class PlayPokerViewModel @Inject constructor(
                         Catching { session.submit(action.intent) }
                             .onFailure { e ->
                                 logger.w(e) { "submit failed for ${action.intent}" }
+                                // Clear the dedupe token so a corrected resubmit goes
+                                // through, and surface a transient hint — a timeout
+                                // ("didn't send") or a rejection ("not allowed") would
+                                // otherwise be a dead pause then silence (MP-20).
                                 if (submittedTurnToken == turnToken) submittedTurnToken = null
+                                when (e) {
+                                    is IntentTimeoutException ->
+                                        sendEvent(PlayPokerEvent.IntentFeedback(IntentFeedbackKind.TimedOut))
+                                    is IntentRejectedException ->
+                                        sendEvent(PlayPokerEvent.IntentFeedback(IntentFeedbackKind.Rejected))
+                                    else -> Unit
+                                }
                             }
                     }
                 }
@@ -724,6 +792,9 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.ConnectionChanged -> action.updateState {
                 it.copy(connection = action.connection)
             }
+            is PlayPokerAction.MatchOverCountdownChanged -> action.updateState {
+                it.copy(matchOverCountdown = action.countdown)
+            }
             is PlayPokerAction.LeaveTable -> {
                 if (sessionFactory.xpMode == XpMode.BOTS) {
                     Catching {
@@ -739,6 +810,15 @@ class PlayPokerViewModel @Inject constructor(
                 // Same teardown as LeaveTable, on appScope so it lands as the
                 // screen routes away.
                 appScope.launch { leaveAndReconcileWallet() }
+            }
+            is PlayPokerAction.MatchOverResolved -> action.updateState {
+                // The match ended — surface the result and drop the now-stale
+                // countdown. The screen routes off (firing LeaveGameFromBust) when
+                // the player dismisses the result overlay.
+                it.copy(
+                    matchOverResult = MatchOverResult(localPlayerWon = action.localPlayerWon),
+                    matchOverCountdown = null,
+                )
             }
             is PlayPokerAction.OpenQuickBuy -> action.updateState { it.copy(quickBuyOpen = true) }
             is PlayPokerAction.DismissQuickBuy -> action.updateState { it.copy(quickBuyOpen = false) }

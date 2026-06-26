@@ -379,28 +379,22 @@ private fun InRoomContent(
 
     Spacer(modifier = Modifier.height(Dimension.D700))
 
-    // Stakes / buy-in — the host's chosen values, carried on the room snapshot.
-    // A real game always has a non-zero buy-in; buyIn == 0 means we're rendering
-    // a not-yet-hydrated snapshot (the DTO defaults to 0), so suppress the whole
-    // row until the live values land rather than flash a meaningless "0".
-    if (room.buyIn > 0) {
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D400)) {
-            StakeCard(
-                label = stringResource(Res.string.lobby_in_room_stakes_label),
-                value = "${room.smallBlind} / ${room.bigBlind}",
-                showCoin = true,
-                modifier = Modifier.weight(1f),
-            )
-            StakeCard(
-                label = stringResource(Res.string.lobby_in_room_buyin_label),
-                value = formatChips(room.buyIn),
-                showCoin = false,
-                modifier = Modifier.weight(1f),
-            )
-        }
-
-        Spacer(modifier = Modifier.height(Dimension.D700))
+    Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D400)) {
+        StakeCard(
+            label = stringResource(Res.string.lobby_in_room_stakes_label),
+            value = "${room.smallBlind} / ${room.bigBlind}",
+            showCoin = true,
+            modifier = Modifier.weight(1f),
+        )
+        StakeCard(
+            label = stringResource(Res.string.lobby_in_room_buyin_label),
+            value = formatChips(room.buyIn),
+            showCoin = false,
+            modifier = Modifier.weight(1f),
+        )
     }
+
+    Spacer(modifier = Modifier.height(Dimension.D700))
 
     // An Open-to-anyone table deals itself — nobody taps Start. A Private table
     // is host-dealt: the host runs the deal, others wait on them.

@@ -37,6 +37,8 @@ import com.dangerfield.cards.libraries.navigation.serializableType
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_intent_rejected
+import cards.libraries.resources.generated.resources.room_intent_timed_out
 import cards.libraries.resources.generated.resources.room_next_hand_unavailable
 import cards.libraries.resources.generated.resources.room_opponent_left
 import cards.libraries.resources.generated.resources.room_quick_buy_failed
@@ -142,6 +144,16 @@ class PlayMultiplayerFeatureEntryPoint(
                             message = getString(Res.string.room_next_hand_unavailable),
                             emoji = "⏳",
                         )
+                        is PlayPokerEvent.IntentFeedback -> when (event.kind) {
+                            IntentFeedbackKind.TimedOut -> showSnackBar(
+                                message = getString(Res.string.room_intent_timed_out),
+                                level = SnackbarLevel.Error,
+                            )
+                            IntentFeedbackKind.Rejected -> showSnackBar(
+                                message = getString(Res.string.room_intent_rejected),
+                                level = SnackbarLevel.Error,
+                            )
+                        }
                         else -> Unit
                     }
                 }

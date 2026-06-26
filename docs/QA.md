@@ -359,7 +359,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Device B sees the bust dialog with re-buy options (move another buy-in from wallet, drop to a lower tier, or — if broke — soft-bust protection). Choosing re-buy moves a fresh buy-in wallet → stack and deals B back in on the next hand. Declining leaves the table cleanly. On a subsidized bots-for-chips table, the bust dialog reads "fresh stack on the house" and the chips stay real (cross-ref `MP-6` settlement). Wallet math is correct after the re-buy — no double debit.
 
-- **Heads-up:** while Device B sits on the bust dialog (hasn't rebought), Device A (the winner) taps "next hand". A is not left with a dead button — a notice toasts ("waiting for your opponent to rebuy or leave") instead of the tap silently doing nothing. (Covers todo MP-14, partial — the terminal match-over routing is still pending.)
+- **Heads-up:** while Device B sits on the bust dialog (hasn't rebought), Device A (the winner) taps "next hand". A is not left with a dead button — a notice toasts ("waiting for your opponent to rebuy or leave") instead of the tap silently doing nothing. (Cross-ref `MP-12` for the full match-over countdown + result.)
 
 ---
 
@@ -395,6 +395,22 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Device B: join by code and watch the lobby as it loads.
 
 **Expected:** Neither device ever shows a "$0" buy-in or "0 / 0" blinds in the lobby. The stakes/buy-in row either shows the real values or is absent while the room snapshot is still hydrating — it never renders a zero. (Covers todo MP-16, partial — the underlying zero-snapshot source is still being pinned.)
+
+---
+
+### `MP-12` ⚠️ 📱 Heads-up match-over countdown + result
+
+**State:** a 2-player (heads-up) real-chips room, a hand that busts Device B to 0.
+
+1. Play a hand to where Device B busts heads-up (B's stack hits 0, A wins the pot).
+2. Both devices: watch the table without acting.
+3. **Rebuy path** — Device B taps "Rebuy now" on the countdown banner before it expires.
+4. **Expiry path** — replay the bust and let the countdown run to 0 without rebuying.
+
+**Expected:**
+- Both devices show a live countdown ticking down (~60s). Device B (busted) sees "Rebuy in N or lose your seat" + a Rebuy CTA; Device A (winner) sees "Opponent busted. Auto-continues in N".
+- **Rebuy path:** B's rebuy clears the countdown on both devices and play resumes — A is not routed off, no result screen shows.
+- **Expiry path:** when the window expires, A sees a "You won the match" result (not a silent pop) and B sees "Match over"; tapping Done routes each off the dead table cleanly. A's wallet reflects the cashed-out stack on the surface they land on. (Covers todo MP-14.)
 
 ---
 

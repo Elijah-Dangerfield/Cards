@@ -271,6 +271,123 @@ class PokerScenarioMpTest : PokerScenarioTest() {
     }
 
     @Test
+    fun matchOverPending_bustedRole_setsBustedCountdown() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        // Local human (seat 0) busted heads-up; the peer (seat 1) has the chips.
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 0),
+                    mpSeat(1, playerId = "peer", stack = 2_000),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+
+        s.serverMatchOverPending(deadlineEpochMs = 60_000L, bustedSeatIndex = 0)
+
+        val countdown = s.vm.state.matchOverCountdown
+        assertEquals(60_000L, countdown?.deadlineEpochMs)
+        assertTrue(countdown?.localPlayerIsBusted == true, "local player is the busted seat")
+    }
+
+    @Test
+    fun matchOverPending_winnerRole_setsWinnerCountdown() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        // Local human (seat 0) won; the peer (seat 1) busted.
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 2_000),
+                    mpSeat(1, playerId = "peer", stack = 0),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+
+        s.serverMatchOverPending(deadlineEpochMs = 60_000L, bustedSeatIndex = 1)
+
+        val countdown = s.vm.state.matchOverCountdown
+        assertEquals(60_000L, countdown?.deadlineEpochMs)
+        assertFalse(countdown?.localPlayerIsBusted == true, "local player is the winner, not busted")
+    }
+
+    @Test
+    fun matchOverCleared_afterRebuy_clearsCountdown() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 0),
+                    mpSeat(1, playerId = "peer", stack = 2_000),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+        s.serverMatchOverPending(deadlineEpochMs = 60_000L, bustedSeatIndex = 0)
+        assertTrue(s.vm.state.matchOverCountdown != null)
+
+        // The busted player rebought inside the window — the server clears it.
+        s.serverMatchOverCleared()
+
+        assertEquals(null, s.vm.state.matchOverCountdown, "a rebuy clears the countdown")
+    }
+
+    @Test
+    fun matchOverResolved_winner_surfacesWonResult_notSilentClose() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 2_000),
+                    mpSeat(1, playerId = "peer", stack = 0),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+
+        s.serverMatchOverResolved(winnerUserId = MP_LOCAL_USER)
+
+        assertTrue(
+            s.vm.state.matchOverResult?.localPlayerWon == true,
+            "the winner sees a won result overlay, not a silent pop; got ${s.vm.state.matchOverResult}",
+        )
+        // A match-over routes through the result overlay, NOT the generic
+        // RoomClosed exit (which would pop silently).
+        assertFalse(
+            s.events.events.any { it is PlayPokerEvent.RoomClosed },
+            "match-over must not fire the generic RoomClosed exit; got ${s.events.events}",
+        )
+    }
+
+    @Test
+    fun matchOverResolved_loser_surfacesLostResult() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 0),
+                    mpSeat(1, playerId = "peer", stack = 2_000),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+
+        s.serverMatchOverResolved(winnerUserId = "peer")
+
+        assertEquals(
+            false,
+            s.vm.state.matchOverResult?.localPlayerWon,
+            "the busted player sees a lost result; got ${s.vm.state.matchOverResult}",
+        )
+    }
+
+    @Test
     fun staleSnapshot_fromAnEarlierHand_isDropped() = runUnitTest {
         val s = mpScenario(localUserId = MP_LOCAL_USER).start()
         val seats = listOf(mpSeat(0, playerId = MP_LOCAL_USER), mpSeat(1, playerId = "peer"))
@@ -345,6 +462,125 @@ class PokerScenarioMpTest : PokerScenarioTest() {
         s.vm.takeAction(PlayPokerAction.AddFriend("peer"))
 
         assertEquals(listOf("peer"), s.friendRepository.sentTo)
+    }
+
+    @Test
+    fun submitThatGetsNoAck_surfacesTimedOutHint_notSilentPause() = runUnitTest {
+        val s = mpScenario().start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(mpSeat(0, playerId = MP_LOCAL_USER), mpSeat(1, playerId = "peer")),
+                actingSeatIndex = 0,
+                currentBetThisStreet = 10,
+            ),
+        )
+
+        // The server never acks — the submit times out after INTENT_TIMEOUT_MS.
+        s.iSubmitAndLetTimeOut(PlayerIntent.Fold(seatIndex = 0))
+
+        assertTrue(
+            s.events.events.contains(PlayPokerEvent.IntentFeedback(IntentFeedbackKind.TimedOut)),
+            "a submit that never acks must surface a timed-out hint, not a dead pause; got ${s.events.events}",
+        )
+    }
+
+    @Test
+    fun submitRejectedByServer_surfacesRejectedHint() = runUnitTest {
+        val s = mpScenario().start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(mpSeat(0, playerId = MP_LOCAL_USER), mpSeat(1, playerId = "peer")),
+                actingSeatIndex = 0,
+                currentBetThisStreet = 10,
+            ),
+        )
+
+        s.iSubmitAndAck(PlayerIntent.Fold(seatIndex = 0), accepted = false, error = "not your turn")
+
+        assertTrue(
+            s.events.events.contains(PlayPokerEvent.IntentFeedback(IntentFeedbackKind.Rejected)),
+            "a rejected submit must surface a not-allowed hint; got ${s.events.events}",
+        )
+    }
+
+    @Test
+    fun nextHandRefused_emitsNextHandUnavailable() = runUnitTest {
+        val s = mpScenario().start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 2_000),
+                    mpSeat(1, playerId = "peer", stack = 0),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+
+        // Heads-up, the opponent busted to 0 with no rebuy — the server refuses
+        // the winner's "next hand" tap.
+        s.serverRefusesNextHand(error = "cannot deal: opponent busted")
+
+        assertTrue(
+            s.events.events.contains(PlayPokerEvent.NextHandUnavailable),
+            "a refused next-hand must surface NextHandUnavailable so the tap isn't a silent no-op; got ${s.events.events}",
+        )
+    }
+
+    @Test
+    fun reconnectFailed_isTerminal_firesRoomClosedExit() = runUnitTest {
+        val s = mpScenario().start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(mpSeat(0, playerId = MP_LOCAL_USER), mpSeat(1, playerId = "peer")),
+                actingSeatIndex = 1,
+            ),
+        )
+
+        // The socket gave up after repeated half-open reconnects — terminal, the
+        // screen must pop rather than spin on the reconnecting banner forever.
+        s.serverConnection(RoomConnection.Closed(ClosedReason.ReconnectFailed))
+
+        assertTrue(
+            s.events.events.contains(PlayPokerEvent.RoomClosed(ClosedReason.ReconnectFailed)),
+            "ReconnectFailed is terminal and must fan out a RoomClosed exit; got ${s.events.events}",
+        )
+    }
+
+    @Test
+    fun midGameJoiner_waitsToBeDealtIn_thenSeatsOnNextHandSnapshot() = runUnitTest {
+        val s = mpScenario(localUserId = "joiner").start()
+
+        // Joined mid-hand: the snapshot has no seat for the local user, so they
+        // spectate with a "dealt in next hand" notice rather than waiting forever.
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(mpSeat(0, playerId = "p1"), mpSeat(1, playerId = "p2")),
+                actingSeatIndex = 0,
+            ),
+        )
+        assertTrue(
+            s.table.waitingToBeDealtIn,
+            "a seatless mid-game joiner must show the waiting-to-be-dealt-in notice",
+        )
+
+        // The next-hand snapshot seats them — the notice clears and it's a real seat.
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = "p1"),
+                    mpSeat(1, playerId = "p2"),
+                    mpSeat(2, playerId = "joiner"),
+                ),
+                actingSeatIndex = 2,
+                handNumber = 2,
+            ),
+        )
+        assertFalse(
+            s.table.waitingToBeDealtIn,
+            "once dealt in, the joiner is seated and the notice clears",
+        )
+        assertEquals(2, s.table.seats.single { it.isHuman }.index)
     }
 
     private fun member(userId: String, isBot: Boolean = false): RoomMember = RoomMember(

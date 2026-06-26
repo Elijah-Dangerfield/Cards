@@ -2,7 +2,11 @@ package com.cards.integration.setup
 
 import com.cards.integration.helpers.IntegrationTest
 import com.cards.integration.helpers.awaitUntil
+import com.cards.integration.helpers.cards
 import com.cards.integration.helpers.seatTwoAndConnect
+import com.cards.integration.helpers.stackedDeck
+import com.dangerfield.cards.libraries.gameplay.BettingRound
+import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import kotlin.test.Test
@@ -100,6 +104,60 @@ class ReaperGraceExpiryPlayTest : IntegrationTest() {
             "a reaped member can rejoin and is seated again",
         )
     }
+
+    @Test
+    fun allInPlayer_reapedMidHand_isSettledAtShowdown_chipsConserve() =
+        integration(reaperGrace = 400.milliseconds) {
+            // The other reaper tests free a seat / migrate the host, but never reap a
+            // player who is committed all-in in a live hand. That seat can't simply be
+            // folded out (an all-in player keeps their showdown right), so the reaper's
+            // MemberLeft must route through the SAME deferred-settlement path an explicit
+            // leave uses: defer while the hand is live, pay the resolved stack when it
+            // completes. Cashing them out at 0 on reap would burn the pot they win.
+            val table = seatTwoAndConnect()
+            // The first-to-act seat (the shover) holds the winning hand, so the deferred
+            // settlement owes them the whole pot — the case where a wrong cash-out hurts.
+            server.scriptDeck(
+                table.code,
+                stackedDeck(
+                    holeBySeat = listOf(cards("As Ad"), cards("2c 7d")),
+                    board = cards("Ah 9c 4s Kd 6h"),
+                ),
+            )
+
+            table.hostGame.startHand()
+            val dealt = table.hostGame.nextSnapshot { it.actingSeatIndex != null }
+            val shover = dealt.actingSeatIndex!!
+            val shoverClient = table.actingClient(dealt)
+            val stayer = table.other(shoverClient)
+            val stayerGame = table.gameOf(stayer)
+            val stayerSeat = dealt.seats.first { it.playerId == stayer.userId }.index
+            table.gameForSeat(dealt, shover).submit(PlayerIntent.AllIn(seatIndex = shover))
+
+            // The all-in player drops and stays down past the grace window. The reaper
+            // fires MemberLeft for them; because they're all-in in a live hand the
+            // settlement is deferred, not cashed out at their live stack of 0.
+            shoverClient.faults!!.dropAndBlock()
+            stayerGame.awaitRoom(timeoutMs = 10_000) { it.members.size == 1 }
+
+            // The opponent (still connected) calls the reaped player's shove; the board
+            // runs out and the departed all-in winner is settled at their resolved stack.
+            stayerGame.nextSnapshot { it.actingSeatIndex == stayerSeat }
+            val callAck = stayerGame.submit(PlayerIntent.Call(seatIndex = stayerSeat))
+            check(callAck.accepted) { "stayer's call rejected: ${callAck.error}" }
+            stayerGame.nextSnapshot { it.street == BettingRound.Complete }
+
+            // Chips conserve end-to-end: the reaped player is paid the pot they won
+            // (settled when the showdown completed), the busted opponent leaves and
+            // cashes out their real 0. Burning the reaped winner's pot would settle the
+            // table below 20,000.
+            stayer.repository.leaveRoom(table.code)
+            awaitUntil(timeoutMs = 10_000) {
+                val h = server.walletBalance(table.host.userId)
+                val j = server.walletBalance(table.joiner.userId)
+                h != null && j != null && h + j == 20_000L
+            }
+        }
 
     @Test
     fun soleMember_pastGrace_roomIsReapedAndClosed() = integration(reaperGrace = 400.milliseconds) {

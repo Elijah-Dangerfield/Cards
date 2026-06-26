@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.GameplayFrame
+import com.dangerfield.cards.libraries.rooms.preferRealOver
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
@@ -58,10 +59,13 @@ import kotlin.math.pow
  * one coordinator + two SharedFlows per code the user ever visited.
  *
  * Reconnect policy: exponential backoff starting at 250ms, doubling
- * per attempt, capped at 16s. Stops reconnecting on three terminal
+ * per attempt, capped at 16s. Stops reconnecting on these terminal
  * signals:
  *  - The server sends `room_closed` (no point reconnecting to a dead
  *    room).
+ *  - The server sends `match_over_resolved` — the heads-up rebuy grace
+ *    expired (MP-14). Surfaces as [ClosedReason.MatchOver] so the screen
+ *    shows a result naming the winner, then routes off.
  *  - The server returns a 4xx on the handshake — usually means the
  *    user isn't a member of the room. Surfaces as
  *    [ClosedReason.Rejected]; the collector should call POST /join +
@@ -199,6 +203,14 @@ class ReconnectingRoomSocket @Inject constructor(
          */
         val gameplayFrames: Flow<GameplayFrame> =
             merge(_latestGameState.filterNotNull(), _gameplayFrames)
+
+        /**
+         * Last known-good (non-placeholder) lobby snapshot for this code.
+         * Confined to the single-threaded session collector, so a plain var
+         * is safe. Lets a placeholder rebound fall back to the real room
+         * rather than emit a $0 frame the UI would have to defend against.
+         */
+        private var lastRealRoom: Room? = null
 
         private val coordinatorJob: Job = appScope.launch { runCoordinator() }
 
@@ -364,7 +376,14 @@ class ReconnectingRoomSocket @Inject constructor(
                         logger.d { event.summary() }
                         when (event) {
                             is RoomSocketEventDto.Snapshot -> {
-                                val room: Room = event.room.toDomain()
+                                // A $0 buy-in snapshot is a placeholder, not a
+                                // real room (see Room.isPlaceholder) — the
+                                // rebound that lands after the sole other human
+                                // leaves. Refuse to regress the known-good room
+                                // to it so the lobby keeps showing real stakes
+                                // (MP-16).
+                                val room = event.room.toDomain().preferRealOver(lastRealRoom)
+                                if (!room.isPlaceholder) lastRealRoom = room
                                 _connection.emit(RoomConnection.Connected(room))
                             }
                             // Lobby-side deltas don't carry full state;
@@ -397,21 +416,29 @@ class ReconnectingRoomSocket @Inject constructor(
                                         emoji = event.emoji,
                                     ),
                                 )
-                            // Match-over grace countdown (MP-14). Rendering the
-                            // live rebuy countdown + the busted-seat rebuy prompt
-                            // is the remaining UX stage; tolerated as no-ops until
-                            // then so the bounded server-side resolution still works.
-                            is RoomSocketEventDto.MatchOverPending,
-                            RoomSocketEventDto.MatchOverCleared,
-                                -> Unit
-                            // Terminal: grace expired, the match is over. Route the
-                            // client off the dead table (the winner's chips cash out
-                            // via the normal leave path). A dedicated match-over
-                            // result screen + a distinct ClosedReason is the
-                            // remaining MP-14 stage; routing off here is what turns
-                            // the old infinite freeze into a clean exit.
+                            // Match-over grace countdown (MP-14). Surfaced as
+                            // gameplay frames so the play VM can render the live
+                            // rebuy countdown for both roles and clear it on a rebuy.
+                            is RoomSocketEventDto.MatchOverPending ->
+                                _gameplayFrames.emit(
+                                    GameplayFrame.MatchOverPending(
+                                        deadlineEpochMs = event.deadlineEpochMs,
+                                        bustedSeatIndex = event.bustedSeatIndex,
+                                    ),
+                                )
+                            RoomSocketEventDto.MatchOverCleared ->
+                                _gameplayFrames.emit(GameplayFrame.MatchOverCleared)
+                            // Terminal: grace expired, the match is over. Close as
+                            // ClosedReason.MatchOver (not RoomDeleted) so the screen
+                            // shows a match-over result naming the winner instead of
+                            // a silent pop, then routes off (the winner's chips cash
+                            // out via the normal leave path).
                             is RoomSocketEventDto.MatchOverResolved -> {
-                                _connection.emit(RoomConnection.Closed(ClosedReason.RoomDeleted))
+                                _connection.emit(
+                                    RoomConnection.Closed(
+                                        ClosedReason.MatchOver(winnerUserId = event.winnerUserId),
+                                    ),
+                                )
                                 terminal = true
                                 throw TerminalFrameMarker
                             }

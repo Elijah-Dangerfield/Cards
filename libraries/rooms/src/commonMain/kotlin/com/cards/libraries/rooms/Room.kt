@@ -37,7 +37,26 @@ data class Room(
 
     /** Server-dealt (no host Start): Open + Public. Private waits for the host. */
     val isServerDealt: Boolean get() = visibility == RoomVisibility.Open || visibility == RoomVisibility.Public
+
+    /**
+     * A real room always carries a non-zero host-chosen [buyIn]: the create
+     * form seeds a default and the server rejects out-of-range buy-ins. So
+     * [buyIn] == 0 provably means "not a real snapshot" — a stale / placeholder
+     * frame (e.g. the rebound that arrives after the sole other human leaves),
+     * which must never overwrite a known-good room.
+     */
+    val isPlaceholder: Boolean get() = buyIn <= 0
 }
+
+/**
+ * Pick the snapshot to keep when [next] arrives over [previous] for the same
+ * room. A placeholder [next] ([Room.isPlaceholder]) never regresses a real
+ * [previous] — we retain the last known-good snapshot. This is the single
+ * data-layer invariant behind MP-16: the UI never has to defend against an
+ * impossible $0 room because the repo refuses to stage one.
+ */
+fun Room.preferRealOver(previous: Room?): Room =
+    if (isPlaceholder && previous?.isPlaceholder == false) previous else this
 
 data class RoomMember(
     val userId: String,

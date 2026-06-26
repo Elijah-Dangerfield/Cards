@@ -280,6 +280,17 @@ class LobbyViewModel(
                             ClosedReason.Cancelled -> it.copy(
                                 connectionStatus = ConnectionStatus.Disconnected,
                             )
+                            // A heads-up match-over (MP-14) is handled on the play
+                            // screen; if it ever reaches the lobby's socket the room
+                            // is gone, so treat it like RoomDeleted.
+                            is ClosedReason.MatchOver -> it.copy(
+                                room = null,
+                                connectionStatus = ConnectionStatus.Disconnected,
+                                error = LobbyError.RoomWasClosed,
+                                creating = false,
+                                joining = false,
+                                leaving = false,
+                            )
                         }
                     }.also { appliedState = it }
                 }

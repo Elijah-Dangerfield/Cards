@@ -293,7 +293,7 @@ class DefaultGameSessionRegistry(
         return mutex.withLock {
             sessions.value[code]?.let { return@withLock it }
             val hydrated = createSession(code = code, sessionId = snapshot.sessionId)
-            hydrated.hydrate(snapshot.state)
+            hydrated.hydrate(snapshot.state, snapshot.lastKnownStacks)
             sessions.value = sessions.value + (code to hydrated)
             hydrated
         }
@@ -322,7 +322,7 @@ class DefaultGameSessionRegistry(
             sessions.value[code] ?: run {
                 val fresh = if (snapshot != null) {
                     createSession(code = code, sessionId = snapshot.sessionId)
-                        .also { it.hydrate(snapshot.state) }
+                        .also { it.hydrate(snapshot.state, snapshot.lastKnownStacks) }
                 } else {
                     createSession(code = code, sessionId = UUID.randomUUID())
                 }
@@ -339,7 +339,9 @@ class DefaultGameSessionRegistry(
         val session = GameSession(
             id = sessionId,
             deckFactory = { handNumber -> deckSource(code, handNumber) ?: Deck.shuffled() },
-            onStateChange = { state -> persist(code = code, sessionId = sessionId, state = state) },
+            onStateChange = { state, lastKnownStacks ->
+                persist(code = code, sessionId = sessionId, state = state, lastKnownStacks = lastKnownStacks)
+            },
             onHandFinished = { outcome -> recordHandsFinished(sessionId = sessionId, outcome = outcome) },
         )
         botDrivers.remove(code)?.cancel()
@@ -424,13 +426,19 @@ class DefaultGameSessionRegistry(
         }
     }
 
-    private suspend fun persist(code: String, sessionId: UUID, state: GameState) {
+    private suspend fun persist(
+        code: String,
+        sessionId: UUID,
+        state: GameState,
+        lastKnownStacks: Map<String, Long>,
+    ) {
         Catching {
             snapshotStore.upsert(
                 SessionSnapshot(
                     sessionId = sessionId,
                     code = code,
                     state = state,
+                    lastKnownStacks = lastKnownStacks,
                     updatedAt = clock.now(),
                 ),
             )

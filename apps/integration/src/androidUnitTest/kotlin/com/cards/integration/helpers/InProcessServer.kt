@@ -1,5 +1,6 @@
 package com.cards.integration.helpers
 
+import com.dangerfield.cards.server.data.DefaultTableSessionRecoverySweep
 import com.dangerfield.cards.server.data.InMemoryRoomService
 import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
@@ -233,6 +234,25 @@ class InProcessServer(
     fun hasActiveTableSession(userId: String): Boolean =
         tableSessions.isActive(UserId(UUID.fromString(userId)))
 
+    /**
+     * Run the production boot recovery sweep ([DefaultTableSessionRecoverySweep])
+     * over this server's durable state — the open sessions in [tableSessions] and
+     * the session snapshots in [snapshots] that survive a [restart]. Models the
+     * once-at-boot sweep `Application.module` fires after a crash: every still-open
+     * session is cashed out from its room's last durable snapshot. Returns the
+     * count settled. The crash-recovery test bounces the process via [restart] (so
+     * the in-memory registry + its `lastKnownStacks` are gone, exactly like a real
+     * crash), then drives this sweep to prove a busted-and-dropped player is cashed
+     * out 0 from the persisted snapshot rather than refunded their escrow (MP-13).
+     */
+    fun sweepAbandonedSessions(): Int = runBlocking {
+        DefaultTableSessionRecoverySweep(
+            tableSessions = HarnessTableSessionRepository(tableSessions),
+            tableSessionService = tableSessions,
+            snapshots = snapshots,
+        ).sweepAbandonedSessions()
+    }
+
     override fun close() {
         engine.stop(0, 0)
     }
@@ -396,6 +416,28 @@ class FakeTableSessions(
     /** Open session probe — true between sitDown and cashOut. */
     fun isActive(userId: UserId): Boolean = synchronized(lock) { userId in active }
 
+    /**
+     * Every still-open session as a [com.dangerfield.cards.server.domain.TableSession]
+     * row — the harness mirror of `TableSessionRepository.listActive()` the boot
+     * recovery sweep fans out over. Lets a crash-recovery test drive the REAL
+     * [com.dangerfield.cards.server.data.DefaultTableSessionRecoverySweep] over this
+     * fake rather than re-deriving its logic (MP-13).
+     */
+    fun listActiveSessions(): List<com.dangerfield.cards.server.domain.TableSession> =
+        synchronized(lock) { active.toMap() }.map { (userId, a) ->
+            com.dangerfield.cards.server.domain.TableSession(
+                sessionId = a.id,
+                userId = userId,
+                roomCode = a.roomCode,
+                stakeTier = "casual",
+                buyIn = a.buyIn,
+                rebuyCount = a.rebuys,
+                status = com.dangerfield.cards.server.domain.TableSessionStatus.Open,
+                openedAt = Instant.fromEpochMilliseconds(0),
+                closedAt = null,
+            )
+        }
+
     override suspend fun sitDown(
         userId: UserId,
         roomCode: String,
@@ -466,6 +508,31 @@ class FakeTableSessions(
     private companion object {
         const val SUBSIDY_CAP = 25_000L
     }
+}
+
+/**
+ * Thin [com.dangerfield.cards.server.domain.TableSessionRepository] over
+ * [FakeTableSessions] — only [listActive] is real, the rest are unused by the
+ * recovery sweep and error if touched. Lets the harness feed the production
+ * [DefaultTableSessionRecoverySweep] its open-session list (MP-13).
+ */
+private class HarnessTableSessionRepository(
+    private val sessions: FakeTableSessions,
+) : com.dangerfield.cards.server.domain.TableSessionRepository {
+    override suspend fun listActive(): List<com.dangerfield.cards.server.domain.TableSession> =
+        sessions.listActiveSessions()
+
+    override suspend fun find(sessionId: UUID) = error("unused in the integration harness")
+    override suspend fun findActiveForUser(userId: UserId) = error("unused in the integration harness")
+    override suspend fun findActiveByRoom(roomCode: String) = error("unused in the integration harness")
+    override suspend fun markClosing(sessionId: UUID) = error("unused in the integration harness")
+    override suspend fun markClosed(sessionId: UUID) = error("unused in the integration harness")
+    override suspend fun incrementRebuy(sessionId: UUID) = error("unused in the integration harness")
+    override suspend fun recordSubsidyGranted(sessionId: UUID, amount: Long) =
+        error("unused in the integration harness")
+    override suspend fun subsidyGrantedSince(userId: UserId, since: Instant) =
+        error("unused in the integration harness")
+    override suspend fun deleteAllForUser(userId: UserId) = error("unused in the integration harness")
 }
 
 /** No-op progression source — the integration harness doesn't seat opponent levels. */

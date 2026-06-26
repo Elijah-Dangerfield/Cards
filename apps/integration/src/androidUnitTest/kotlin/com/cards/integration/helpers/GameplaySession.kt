@@ -45,6 +45,8 @@ class GameplaySession(
                     is GameplayFrame.IntentAck -> acks.emit(frame)
                     is GameplayFrame.EmojiBlast -> emotes.emit(frame)
                     is GameplayFrame.Event -> Unit
+                    is GameplayFrame.MatchOverPending -> Unit
+                    is GameplayFrame.MatchOverCleared -> Unit
                 }
             }
         }

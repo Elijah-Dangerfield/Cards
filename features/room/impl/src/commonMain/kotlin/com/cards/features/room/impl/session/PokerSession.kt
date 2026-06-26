@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -48,12 +49,15 @@ interface PokerSession {
     val connectionState: StateFlow<ConnectionState>
 
     /**
-     * Terminal room-close signal. Emits exactly once when the server tells us the room
-     * is gone ([ClosedReason.RoomDeleted]) or refused the subscription
-     * ([ClosedReason.Rejected]) — both unrecoverable, so the play screen pops on it
-     * instead of spinning on the generic "reconnecting" banner forever. The user-
-     * initiated [ClosedReason.Cancelled] case never emits: that close is our own
-     * teardown when the player is already leaving.
+     * Terminal room-close signal. Emits exactly once on any unrecoverable close —
+     * the room is gone ([ClosedReason.RoomDeleted]), the subscription was refused
+     * ([ClosedReason.Rejected]), the socket gave up reconnecting
+     * ([ClosedReason.ReconnectFailed]), or the heads-up match resolved
+     * ([ClosedReason.MatchOver]) — so the play screen routes off it instead of
+     * spinning on the generic "reconnecting" banner forever. MatchOver routes
+     * through a result overlay first; the rest pop directly. The user-initiated
+     * [ClosedReason.Cancelled] case never emits: that close is our own teardown
+     * when the player is already leaving.
      *
      * Local-bots sessions can't lose their room, so this never emits for solo.
      */
@@ -92,6 +96,17 @@ interface PokerSession {
      * test fakes don't have to override it.
      */
     val nextHandUnavailable: SharedFlow<Unit> get() = NeverEmits
+
+    /**
+     * The live heads-up rebuy-grace countdown (MP-14), or null when no match-over
+     * is pending. Set when the server opens the grace window, cleared when the
+     * busted player rebuys (the table resumes) or the match resolves (a terminal
+     * close routes the screen off). Both roles render a countdown to
+     * [MatchOverCountdown.deadlineEpochMs]; the busted role
+     * ([MatchOverCountdown.localPlayerIsBusted]) also gets a rebuy CTA. Defaults
+     * to a constant-null flow so solo sessions and test fakes don't override it.
+     */
+    val matchOverCountdown: StateFlow<MatchOverCountdown?> get() = NoMatchOver
 
     /**
      * Submit the local player's intent. Suspends because the local-bots implementation
@@ -137,6 +152,18 @@ interface PokerSession {
 }
 
 private val NeverEmits: SharedFlow<Nothing> = MutableSharedFlow()
+private val NoMatchOver: StateFlow<MatchOverCountdown?> = MutableStateFlow(null)
+
+/**
+ * The live state of a heads-up rebuy-grace window (MP-14). [deadlineEpochMs] is
+ * when the window expires; the screen ticks a countdown against the clock to it.
+ * [localPlayerIsBusted] splits the role: the busted player sees "rebuy in Ns or
+ * lose your seat" + a rebuy CTA, the winner sees "auto-continues in Ns".
+ */
+data class MatchOverCountdown(
+    val deadlineEpochMs: Long,
+    val localPlayerIsBusted: Boolean,
+)
 
 /**
  * A table emote received from another seat over the wire. [seatIndex]

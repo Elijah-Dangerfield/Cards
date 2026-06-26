@@ -101,6 +101,28 @@ class ReconnectingRoomSocketTest : CoroutineTest() {
     }
 
     @Test
+    fun connection_placeholderSnapshotDoesNotRegressKnownGoodRoom() = runUnitTest {
+        // The $0 rebound that lands after the sole other human leaves must
+        // not overwrite the real stakes the lobby is already showing (MP-16).
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        val session = transport.primeSuccess()
+
+        socket.connect("ABC123").connection.test {
+            assertEquals(RoomConnection.Connecting, awaitItem())
+            session.receive(RoomSocketEventDto.Snapshot(sampleRoomDto("ABC123", buyIn = 1000)))
+            assertEquals(1000, assertIs<RoomConnection.Connected>(awaitItem()).room.buyIn)
+            session.receive(RoomSocketEventDto.Snapshot(sampleRoomDto("ABC123", buyIn = 0)))
+            assertEquals(
+                1000,
+                assertIs<RoomConnection.Connected>(awaitItem()).room.buyIn,
+                "a placeholder \$0 snapshot retains the last known-good stakes",
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun connection_doesNotEmit_onGameplayFrames() = runUnitTest {
         val transport = FakeRoomSocketTransport()
         val socket = newSocket(transport)
@@ -179,6 +201,52 @@ class ReconnectingRoomSocketTest : CoroutineTest() {
             connJob.cancel()
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun matchOverPendingAndCleared_surfaceAsGameplayFrames() = runUnitTest {
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        val session = transport.primeSuccess()
+        val handle = socket.connect("ABC123")
+
+        handle.gameplayFrames.test {
+            val connJob = launch { handle.connection.collect { } }
+            advanceUntilIdle()
+
+            session.receive(
+                RoomSocketEventDto.MatchOverPending(deadlineEpochMs = 60_000L, bustedSeatIndex = 1),
+            )
+            val pending = assertIs<GameplayFrame.MatchOverPending>(awaitItem())
+            assertEquals(60_000L, pending.deadlineEpochMs)
+            assertEquals(1, pending.bustedSeatIndex)
+
+            session.receive(RoomSocketEventDto.MatchOverCleared)
+            assertIs<GameplayFrame.MatchOverCleared>(awaitItem())
+
+            connJob.cancel()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun matchOverResolvedFrame_emits_Closed_MatchOver_withWinner_andStopsLoop() = runUnitTest {
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        val session = transport.primeSuccess()
+
+        socket.connect("ABC123").connection.test {
+            assertEquals(RoomConnection.Connecting, awaitItem())
+            session.receive(RoomSocketEventDto.MatchOverResolved(winnerUserId = "winner-1"))
+            val closed = assertIs<RoomConnection.Closed>(awaitItem())
+            val reason = assertIs<ClosedReason.MatchOver>(closed.reason)
+            assertEquals("winner-1", reason.winnerUserId)
+            // Terminal, like RoomClosed — the loop must not reopen.
+            advanceTimeBy(60_000)
+            runCurrent()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, transport.openCalls, "loop must not reopen after match-over resolved")
     }
 
     // ===================================================================
@@ -772,12 +840,13 @@ class ReconnectingRoomSocketTest : CoroutineTest() {
     private fun newSocket(transport: FakeRoomSocketTransport): ReconnectingRoomSocket =
         ReconnectingRoomSocket(transport = transport, appScope = appScope)
 
-    private fun sampleRoomDto(code: String) = RoomDto(
+    private fun sampleRoomDto(code: String, buyIn: Long = 0L) = RoomDto(
         code = code,
         hostUserId = "host-user",
         createdAtEpochMs = 0L,
         maxSeats = 6,
         status = RoomStatusDto.Lobby,
+        buyIn = buyIn,
         members = listOf(sampleMemberDto("host-user")),
     )
 

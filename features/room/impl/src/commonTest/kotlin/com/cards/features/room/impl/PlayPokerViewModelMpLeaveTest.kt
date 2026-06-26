@@ -2,6 +2,7 @@ package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.rooms.ClientFrame
+import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomMember
@@ -200,6 +201,69 @@ class PlayPokerViewModelMpLeaveTest : CoroutineTest() {
         advanceUntilIdle()
 
         assertEquals(1, scenario.chipsRepository.syncCount)
+    }
+
+    @Test
+    fun opponentsLeftAutoEnd_onRealChipTable_syncsWallet() = runUnitTest {
+        // MP-21 / CARDS-4B: when the last opponent leaves, the game auto-ends and
+        // the entry point routes Home off OpponentsLeft. The server has already
+        // cashed the finished stack back to the wallet, so the auto-end path must
+        // reconcile too — otherwise Home shows a stale balance until the next
+        // foreground ("lost a game but the balance didn't update until I
+        // backgrounded and foregrounded").
+        val scenario = MpScenarioBuilder(this, dispatchers, LOCAL).start()
+        scenario.serverConnection(connected(humans = listOf(LOCAL, PEER)))
+        scenario.serverSnapshot(twoHumanTable(actingSeatIndex = 0))
+
+        scenario.serverConnection(connected(humans = listOf(LOCAL)))
+        advanceUntilIdle()
+
+        assertEquals(
+            1,
+            scenario.chipsRepository.syncCount,
+            "an opponents-left auto-end must reconcile the wallet exactly once",
+        )
+    }
+
+    @Test
+    fun matchOverResolvedAutoEnd_onRealChipTable_syncsWallet() = runUnitTest {
+        // The MP-14 match-over result path is terminal too: the grace window
+        // expired and the server took the table. The wallet must reconcile when
+        // the match resolves, not only if/when the player later dismisses the
+        // result overlay.
+        val scenario = MpScenarioBuilder(this, dispatchers, LOCAL).start()
+        scenario.serverConnection(connected(humans = listOf(LOCAL, PEER)))
+        scenario.serverSnapshot(twoHumanTable(actingSeatIndex = 0))
+
+        scenario.serverConnection(
+            RoomConnection.Closed(ClosedReason.MatchOver(winnerUserId = LOCAL)),
+        )
+        advanceUntilIdle()
+
+        assertEquals(
+            1,
+            scenario.chipsRepository.syncCount,
+            "a match-over auto-end must reconcile the wallet exactly once",
+        )
+    }
+
+    @Test
+    fun roomClosedAutoEnd_onRealChipTable_syncsWallet() = runUnitTest {
+        // A terminal room close (host deleted the room, server tore it down) is
+        // an auto-end too — any chips the player had on the table are cashed back
+        // server-side, so the wallet must reconcile before Home renders.
+        val scenario = MpScenarioBuilder(this, dispatchers, LOCAL).start()
+        scenario.serverConnection(connected(humans = listOf(LOCAL, PEER)))
+        scenario.serverSnapshot(twoHumanTable(actingSeatIndex = 0))
+
+        scenario.serverConnection(RoomConnection.Closed(ClosedReason.RoomDeleted))
+        advanceUntilIdle()
+
+        assertEquals(
+            1,
+            scenario.chipsRepository.syncCount,
+            "a terminal room close must reconcile the wallet exactly once",
+        )
     }
 
     @Test

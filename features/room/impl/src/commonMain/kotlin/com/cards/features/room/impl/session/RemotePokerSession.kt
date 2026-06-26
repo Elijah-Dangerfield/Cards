@@ -143,6 +143,16 @@ internal class RemotePokerSession(
     private val _nextHandUnavailable = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
     override val nextHandUnavailable: SharedFlow<Unit> = _nextHandUnavailable.asSharedFlow()
 
+    /**
+     * Live heads-up rebuy-grace countdown (MP-14). Set on a `MatchOverPending`
+     * frame, cleared on `MatchOverCleared` (the busted player rebought, the table
+     * resumes). A terminal resolve closes the connection instead, so the screen
+     * routes off — it never lands here.
+     */
+    private val _matchOverCountdown = MutableStateFlow<MatchOverCountdown?>(null)
+    override val matchOverCountdown: StateFlow<MatchOverCountdown?> =
+        _matchOverCountdown.asStateFlow()
+
     // Last observed human (non-bot) room members, keyed by user id → display
     // name. Null until the first snapshot establishes a baseline, so the first
     // snapshot never reads as a "drop."
@@ -267,6 +277,15 @@ internal class RemotePokerSession(
                 is GameplayFrame.IntentAck -> resolvePendingAck(frame)
                 is GameplayFrame.EmojiBlast ->
                     _emoteBlasts.tryEmit(RemoteEmote(seatIndex = frame.seatIndex, emoji = frame.emoji))
+                is GameplayFrame.MatchOverPending -> {
+                    val localSeat = _gameStateFlow.value.seats
+                        .firstOrNull { it.playerId == localUserId }?.index
+                    _matchOverCountdown.value = MatchOverCountdown(
+                        deadlineEpochMs = frame.deadlineEpochMs,
+                        localPlayerIsBusted = localSeat != null && localSeat == frame.bustedSeatIndex,
+                    )
+                }
+                GameplayFrame.MatchOverCleared -> _matchOverCountdown.value = null
             }
         }
     }
@@ -443,6 +462,9 @@ private fun GameplayFrame.summary(): String = when (this) {
         "IntentAck accepted=$accepted nonce=$clientNonce" +
             (error?.let { " error=$it" } ?: "")
     is GameplayFrame.EmojiBlast -> "EmojiBlast seat=$seatIndex emoji=$emoji"
+    is GameplayFrame.MatchOverPending ->
+        "MatchOverPending busted=$bustedSeatIndex deadline=$deadlineEpochMs"
+    GameplayFrame.MatchOverCleared -> "MatchOverCleared"
 }
 
 /**

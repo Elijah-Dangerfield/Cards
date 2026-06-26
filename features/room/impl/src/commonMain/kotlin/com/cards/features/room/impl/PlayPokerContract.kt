@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.MatchOverCountdown
 import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
 import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
 import com.dangerfield.cards.features.room.impl.usecase.WinOddsEngine
@@ -135,6 +136,21 @@ data class PlayPokerState(
      * to share.
      */
     val roomCode: String? = null,
+    /**
+     * Live heads-up rebuy-grace countdown (MP-14), or null when no match-over is
+     * pending. Drives the on-table countdown banner: the busted player sees
+     * "rebuy in Ns or lose your seat" + a rebuy CTA, the winner sees
+     * "auto-continues in Ns". Cleared on a rebuy; a terminal expiry routes the
+     * screen off instead. Always null for solo / bot sessions.
+     */
+    val matchOverCountdown: MatchOverCountdown? = null,
+    /**
+     * Set when the heads-up match resolved (the rebuy grace expired) — drives the
+     * match-over result overlay (MP-14). The screen shows a win/loss result, then
+     * routes off when the player dismisses it. Null until the terminal resolve;
+     * always null for solo / bot sessions.
+     */
+    val matchOverResult: MatchOverResult? = null,
 ) {
     /**
      * Real-chips multiplayer (MP xpMode, not bots-only practice). Gates the bust
@@ -206,6 +222,14 @@ sealed interface PlayPokerAction {
     data class ConnectionChanged(val connection: ConnectionState) : PlayPokerAction
 
     /**
+     * Fired by the session's match-over countdown subscription (MP-14). Null
+     * clears the on-table countdown banner (rebuy landed); non-null opens it.
+     */
+    data class MatchOverCountdownChanged(
+        val countdown: com.dangerfield.cards.features.room.impl.session.MatchOverCountdown?,
+    ) : PlayPokerAction
+
+    /**
      * User-initiated clean exit (back / confirmed leave). Fires
      * [ReviewTrigger.SessionEnd] in bot mode; navigation is the screen's job.
      */
@@ -213,6 +237,13 @@ sealed interface PlayPokerAction {
 
     /** "Leave game" on the MP bust dialog — same teardown as [LeaveTable]. */
     data object LeaveGameFromBust : PlayPokerAction
+
+    /**
+     * Internal — the heads-up match resolved (rebuy grace expired). Surfaces the
+     * match-over result overlay (MP-14); the screen routes off when the player
+     * dismisses it.
+     */
+    data class MatchOverResolved(val localPlayerWon: Boolean) : PlayPokerAction
 
     /** "Buy chips" on the MP bust dialog — opens the in-game quick-buy sheet. */
     data object OpenQuickBuy : PlayPokerAction
@@ -314,7 +345,30 @@ sealed interface PlayPokerEvent {
      * a notice so the winner's tap isn't a silent no-op (MP-14).
      */
     data object NextHandUnavailable : PlayPokerEvent
+
+    /**
+     * A submitted action didn't go through — the server either never acked it in
+     * time ([IntentFeedbackKind.TimedOut]) or refused it
+     * ([IntentFeedbackKind.Rejected]). Without this the player taps and gets a
+     * dead pause then silence (MP-20). The entry point toasts a kind-specific
+     * hint. MP only — solo submits never throw.
+     */
+    data class IntentFeedback(val kind: IntentFeedbackKind) : PlayPokerEvent
 }
+
+/**
+ * Why a submitted intent didn't land, splitting the transient hint copy:
+ * [TimedOut] = no server ack ("didn't send"), [Rejected] = server refused it
+ * ("not allowed").
+ */
+enum class IntentFeedbackKind { TimedOut, Rejected }
 
 enum class HapticKind { ActionTaken, HandWon, HandLost, Bust, LevelUp }
 enum class SoundKind { CardFlick, ChipClick, Showdown }
+
+/**
+ * The outcome of a heads-up match-over (MP-14): the rebuy grace expired and the
+ * match ended. [localPlayerWon] picks the result copy — the winner kept the
+ * table, the busted player is out.
+ */
+data class MatchOverResult(val localPlayerWon: Boolean)

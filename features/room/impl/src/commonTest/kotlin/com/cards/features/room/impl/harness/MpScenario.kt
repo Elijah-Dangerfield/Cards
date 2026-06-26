@@ -200,6 +200,40 @@ class RunningMpScenario internal constructor(
     }
 
     /**
+     * Server opens the heads-up rebuy-grace window (MP-14): the busted seat has
+     * until [deadlineEpochMs] to rebuy. Mirrors the `MatchOverPending` wire frame.
+     */
+    suspend fun serverMatchOverPending(deadlineEpochMs: Long, bustedSeatIndex: Int) {
+        handle.pushFrame(
+            GameplayFrame.MatchOverPending(
+                deadlineEpochMs = deadlineEpochMs,
+                bustedSeatIndex = bustedSeatIndex,
+            ),
+        )
+        scope.advanceUntilIdle()
+    }
+
+    /** Server clears the grace window — the busted seat rebought, play resumes. */
+    suspend fun serverMatchOverCleared() {
+        handle.pushFrame(GameplayFrame.MatchOverCleared)
+        scope.advanceUntilIdle()
+    }
+
+    /**
+     * Server resolves the match-over: the grace expired, [winnerUserId] took the
+     * table. Arrives as a terminal connection close (the socket layer maps the
+     * `MatchOverResolved` wire frame to [ClosedReason.MatchOver]).
+     */
+    suspend fun serverMatchOverResolved(winnerUserId: String) {
+        handle.pushConnection(
+            RoomConnection.Closed(
+                com.dangerfield.cards.libraries.rooms.ClosedReason.MatchOver(winnerUserId),
+            ),
+        )
+        scope.advanceUntilIdle()
+    }
+
+    /**
      * Apply an opponent action: emit the [GameEvent.ActionTaken] (drives the
      * pill) then the resulting [GameState] snapshot (drives legal actions /
      * acting seat), the way the server fans both out.
@@ -223,6 +257,34 @@ class RunningMpScenario internal constructor(
         val sent = handle.sent.filterIsInstance<ClientFrame.SubmitIntent>().last()
         handle.pushFrame(
             GameplayFrame.IntentAck(clientNonce = sent.clientNonce, accepted = accepted, error = error),
+        )
+        scope.advanceUntilIdle()
+    }
+
+    /**
+     * Submit an intent and never ack it, then drain virtual time past the
+     * session's intent timeout — the submit coroutine throws
+     * [com.dangerfield.cards.features.room.impl.session.IntentTimeoutException]
+     * and the VM surfaces the timed-out hint. Mirrors a server that went silent
+     * mid-submit (MP-20).
+     */
+    suspend fun iSubmitAndLetTimeOut(intent: PlayerIntent) {
+        vm.takeAction(PlayPokerAction.Submit(intent))
+        scope.advanceUntilIdle()
+    }
+
+    /**
+     * Server refuses a [requestNextHand] — fans an unaccepted ack for the
+     * outbound [ClientFrame.RequestNextHand] frame, the way the server signals
+     * "can't deal another hand" (heads-up bust, no rebuy yet). Drives
+     * [PlayPokerEvent.NextHandUnavailable].
+     */
+    suspend fun serverRefusesNextHand(error: String? = null) {
+        vm.takeAction(PlayPokerAction.RequestNextHand)
+        scope.runCurrent()
+        val sent = handle.sent.filterIsInstance<ClientFrame.RequestNextHand>().last()
+        handle.pushFrame(
+            GameplayFrame.IntentAck(clientNonce = sent.clientNonce, accepted = false, error = error),
         )
         scope.advanceUntilIdle()
     }

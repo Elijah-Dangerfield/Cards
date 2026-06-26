@@ -86,13 +86,16 @@ class GameSession internal constructor(
      * Called inside the per-session mutex after every state mutation
      * (start hand, apply intent, request next hand, hydrate). The
      * registry wires this to the snapshot store so durable state stays
-     * in step with the in-memory cache. Suspends with the mutex held —
-     * the snapshot write must complete (or fail loudly) before the
-     * mutation returns, so a concurrent intent can't observe out-of-
-     * order durable state. Defaults to no-op for tests / unit code that
-     * doesn't need persistence.
+     * in step with the in-memory cache. Carries the current
+     * [lastKnownStacks] alongside the [GameState] so the durable snapshot
+     * mirrors the in-memory cash-out fallback — the crash-recovery sweep
+     * reads it for a busted-and-dropped player who has no live seat
+     * (MP-13). Suspends with the mutex held — the snapshot write must
+     * complete (or fail loudly) before the mutation returns, so a
+     * concurrent intent can't observe out-of-order durable state.
+     * Defaults to no-op for tests / unit code that doesn't need persistence.
      */
-    private val onStateChange: suspend (GameState) -> Unit = {},
+    private val onStateChange: suspend (state: GameState, lastKnownStacks: Map<String, Long>) -> Unit = { _, _ -> },
     /**
      * Called inside the per-session mutex the moment a hand transitions
      * into [BettingRound.Complete], carrying the [HandOutcome] for the
@@ -372,12 +375,16 @@ class GameSession internal constructor(
                         newState.street == BettingRound.Complete
                     _state.value = newState
                     _tracedState.value = TracedState(newState, origin)
-                    onStateChange(newState)
+                    // Record before persist so the snapshot the sweep reads carries
+                    // this hand's final stacks — a seat busted to 0 here is dropped
+                    // from the next deal, and its persisted last-known 0 is what
+                    // keeps the crash-recovery sweep from minting (MP-13).
+                    if (handJustFinished) recordLastKnownStacks(newState)
+                    onStateChange(newState, lastKnownStacks.toMap())
                     if (handJustFinished) {
                         // Info: hand completion is a session milestone — bounds a
                         // hand in Loki and confirms settlement actually ran.
                         log.info("Hand ${current.handNumber} finished — session=$id")
-                        recordLastKnownStacks(newState)
                         drainPendingSettlements(newState)
                         onHandFinished(buildHandOutcome(newState, resolved.result.events))
                     }
@@ -429,17 +436,24 @@ class GameSession internal constructor(
     }
 
     /**
-     * Restart-time loader. Pushes a previously-persisted [GameState]
+     * Restart-time loader. Pushes a previously-persisted [GameState] —
+     * plus the [persistedLastKnownStacks] that rode the same snapshot —
      * into the session without re-running the engine. Intended only for
      * the registry's hydration path — application code that wants a
      * mutation goes through [startHand] / [applyIntent] / [requestNextHand].
      * No `onStateChange` callback fires here: the snapshot is already
      * durable, and re-writing it the moment we read it would be
-     * pointless I/O.
+     * pointless I/O. Restoring [lastKnownStacks] is what lets a leave /
+     * teardown / sweep after a crash still cash a busted-and-dropped
+     * player out their real 0 rather than refunding their escrow (MP-13).
      */
-    suspend fun hydrate(state: GameState) = mutex.withLock {
+    suspend fun hydrate(
+        state: GameState,
+        persistedLastKnownStacks: Map<String, Long> = emptyMap(),
+    ) = mutex.withLock {
         _state.value = state
         _tracedState.value = TracedState(state, Span.current().spanContext)
+        lastKnownStacks.putAll(persistedLastKnownStacks)
     }
 
     /**
@@ -588,10 +602,10 @@ class GameSession internal constructor(
             newState.street == BettingRound.Complete
         _state.value = newState
         _tracedState.value = TracedState(newState, origin)
-        onStateChange(newState)
+        if (handJustFinished) recordLastKnownStacks(newState)
+        onStateChange(newState, lastKnownStacks.toMap())
         if (handJustFinished) {
             log.info("Hand ${current.handNumber} finished (seat $actorUserId forfeited) — session=$id")
-            recordLastKnownStacks(newState)
             drainPendingSettlements(newState)
             onHandFinished(buildHandOutcome(newState, step.events))
         }
@@ -646,7 +660,8 @@ class GameSession internal constructor(
             val origin = Span.current().spanContext
             _state.value = refilled
             _tracedState.value = TracedState(refilled, origin)
-            onStateChange(refilled)
+            recordLastKnownStacks(refilled)
+            onStateChange(refilled, lastKnownStacks.toMap())
             log.info("Seat $actorUserId rebought for ${settings.startingStack} — session=$id")
             IntentResult.Accepted
         }
@@ -715,7 +730,8 @@ class GameSession internal constructor(
         handStartStacks = result.state.seats
             .filter { it.playerId != null }
             .associate { it.playerId!! to it.stack }
-        onStateChange(result.state)
+        recordLastKnownStacks(result.state)
+        onStateChange(result.state, lastKnownStacks.toMap())
         result.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
         return IntentResult.Accepted
     }
