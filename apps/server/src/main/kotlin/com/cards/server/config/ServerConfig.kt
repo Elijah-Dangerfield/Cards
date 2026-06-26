@@ -15,6 +15,7 @@ data class ServerConfig(
     val admin: AdminConfig,
     val accessControl: AccessControlConfig,
     val observability: ObservabilityConfig,
+    val configChange: ConfigChangeConfig,
 ) {
     companion object {
         fun fromEnv(env: Env = Env()): ServerConfig = ServerConfig(
@@ -25,6 +26,22 @@ data class ServerConfig(
             admin = AdminConfig.fromEnv(env),
             accessControl = AccessControlConfig.fromEnv(env),
             observability = ObservabilityConfig.fromEnv(env),
+            configChange = ConfigChangeConfig.fromEnv(env),
+        )
+    }
+}
+
+/**
+ * Where to announce config changes. [webhookUrl] is a Slack-compatible incoming
+ * webhook; null/blank disables notifications (the default). Set
+ * `CONFIG_CHANGE_WEBHOOK_URL` to turn it on.
+ */
+data class ConfigChangeConfig(
+    val webhookUrl: String?,
+) {
+    companion object {
+        fun fromEnv(env: Env): ConfigChangeConfig = ConfigChangeConfig(
+            webhookUrl = env["CONFIG_CHANGE_WEBHOOK_URL"]?.takeIf { it.isNotBlank() },
         )
     }
 }

@@ -4,6 +4,7 @@ import com.dangerfield.cards.server.config.SupabaseConfig
 import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.domain.AchievementRepository
 import com.dangerfield.cards.server.domain.AppConfigAdminRepository
+import com.dangerfield.cards.server.domain.AppConfigManifestRepository
 import com.dangerfield.cards.server.domain.AppConfigSource
 import com.dangerfield.cards.server.domain.EquipmentRepository
 import com.dangerfield.cards.server.domain.FriendRepository
@@ -61,6 +62,7 @@ abstract class ServerComponent(
 ) {
     abstract val appConfigSource: AppConfigSource
     abstract val appConfigAdminRepository: AppConfigAdminRepository
+    abstract val appConfigManifestRepository: AppConfigManifestRepository
     abstract val productCatalogSource: ProductCatalogSource
     abstract val profileRepository: ProfileRepository
     abstract val moderationRepository: ModerationRepository

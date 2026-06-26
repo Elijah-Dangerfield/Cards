@@ -493,3 +493,23 @@ object AppConfigAuditTable : Table("app_config_audit") {
     override val primaryKey = PrimaryKey(id)
 }
 
+/**
+ * The in-code config registry captured per app version: every `ConfiguredValue`
+ * the build ships with, its type, in-code default, and (for enum-like flags)
+ * allowed values. Uploaded by CI at release time (one row per flag per
+ * `version_code`); the admin tool reads it to answer "what did 1.0.1 ship with"
+ * and to show the baseline a remote override would replace. See
+ * `V77__app_config_manifest.sql`.
+ */
+object AppConfigManifestTable : Table("app_config_manifest") {
+    val versionCode = integer("version_code")
+    val appVersion = text("app_version").nullable()
+    val path = text("path")
+    val type = text("type")
+    val defaultJsonb = jsonb("default_jsonb")
+    val description = text("description").nullable()
+    val allowedValuesJsonb = jsonb("allowed_values_jsonb").nullable()
+    val capturedAt = timestamp("captured_at")
+    override val primaryKey = PrimaryKey(versionCode, path)
+}
+

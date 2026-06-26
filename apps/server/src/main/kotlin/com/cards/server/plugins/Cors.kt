@@ -10,5 +10,12 @@ fun Application.installCors() {
         allowHeader("Content-Type")
         allowHeader("Authorization")
         allowHeader("X-Request-Id")
+        // The config admin web GUI is a browser app on localhost that calls the
+        // deployed server cross-origin with these custom headers. Without them in
+        // the allow-list the CORS preflight is rejected with 403 before the
+        // request is even authenticated. CORS isn't the security boundary here —
+        // the admin token is — so allowing the header names is safe.
+        allowHeader("X-Admin-Token")
+        allowHeader("X-Admin-Actor")
     }
 }

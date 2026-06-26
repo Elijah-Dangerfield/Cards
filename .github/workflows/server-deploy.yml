@@ -71,3 +71,29 @@ jobs:
                --max-time 20 \
                https://cards-server-dev.fly.dev/_health
           echo
+
+      # Record this build's in-code config defaults so the admin tool can answer
+      # "what did version X ship with". Runs after deploy so the V77 manifest
+      # table exists; re-uploading the same version is idempotent (upsert).
+      # Skips (without failing the deploy) when the admin token secret is absent.
+      - name: Upload config manifest
+        env:
+          ADMIN_TOKEN: ${{ secrets.CARDS_ADMIN_API_TOKEN_DEV }}
+        run: |
+          if [ -z "$ADMIN_TOKEN" ]; then
+            echo "::warning::CARDS_ADMIN_API_TOKEN_DEV not set — skipping manifest upload"
+            exit 0
+          fi
+          ./gradlew :apps:admin:exportConfigManifest
+          status=$(curl --silent --show-error --max-time 30 \
+            -o /tmp/manifest-response.json -w "%{http_code}" \
+            -X PUT https://cards-server-dev.fly.dev/v1/admin/config/manifest \
+            -H "X-Admin-Token: $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data @apps/admin/build/config-manifest.json)
+          echo "Manifest upload → HTTP $status"
+          cat /tmp/manifest-response.json; echo
+          if [ "$status" != "200" ]; then
+            echo "::error::Config manifest upload failed (HTTP $status)"
+            exit 1
+          fi

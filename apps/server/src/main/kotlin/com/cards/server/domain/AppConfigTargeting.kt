@@ -15,6 +15,12 @@ import java.util.UUID
  *  - [platforms] — `"android"` / `"ios"` / `"other"` (lowercased [ClientContext.Platform]).
  *  - [minVersionCode] / [maxVersionCode] — inclusive build-number range; a
  *    client that doesn't send a build number fails a set bound.
+ *  - [minAppVersion] / [maxAppVersion] — **semantic-version** bounds (e.g.
+ *    `"1.0.1"`) compared by SemVer precedence against the client's `appVersion`.
+ *    The `*Inclusive` flags pick `≥`/`>` and `≤`/`<`, so "version `> 1.0.1`" is
+ *    `minAppVersion = "1.0.1", minAppVersionInclusive = false`, and an exact
+ *    match is `min == max` both inclusive. A client that doesn't send an app
+ *    version fails a set bound (same fail-closed rule as the version code).
  *  - [countries] — ISO 3166-1 alpha-2, uppercase (matches `X-Country-Code`).
  *  - [locales] — primary language subtags, lowercase (`"en"`, `"es"`); matches
  *    if any of the client's preferred locales shares a primary subtag.
@@ -29,6 +35,10 @@ data class RuleConditions(
     val platforms: Set<String>? = null,
     val minVersionCode: Int? = null,
     val maxVersionCode: Int? = null,
+    val minAppVersion: String? = null,
+    val minAppVersionInclusive: Boolean = true,
+    val maxAppVersion: String? = null,
+    val maxAppVersionInclusive: Boolean = true,
     val countries: Set<String>? = null,
     val locales: Set<String>? = null,
     val userAllow: Set<String>? = null,
