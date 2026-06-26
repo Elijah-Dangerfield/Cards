@@ -3,6 +3,8 @@ package com.dangerfield.cards.server
 import com.dangerfield.cards.server.config.AccessControlConfig
 import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.config.ServerConfig
+import com.dangerfield.cards.server.data.WebhookConfigChangeNotifier
+import com.dangerfield.cards.server.domain.ConfigChangeNotifier
 import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.di.ServerComponent
 import com.dangerfield.cards.server.di.create
@@ -79,6 +81,11 @@ fun Application.module(config: ServerConfig) {
         verification = JwtVerification.Jwks(config.supabase.jwksUrl, config.supabase.expectedIssuer),
         adminConfig = config.admin,
         accessControl = config.accessControl,
+        configChangeNotifier = WebhookConfigChangeNotifier(
+            webhookUrl = config.configChange.webhookUrl,
+            environment = config.observability.environment,
+            scope = component.provideServerCoroutineScope(),
+        ),
     )
 
     // Boot recovery: after a restart every in-memory room is gone, so any
@@ -111,6 +118,7 @@ fun Application.installApp(
     verification: JwtVerification,
     adminConfig: AdminConfig,
     accessControl: AccessControlConfig,
+    configChangeNotifier: ConfigChangeNotifier = ConfigChangeNotifier {},
 ) {
     installSerialization()
     installCors()
@@ -203,6 +211,7 @@ fun Application.installApp(
             config = adminConfig,
             repository = component.appConfigAdminRepository,
             manifestRepository = component.appConfigManifestRepository,
+            notifier = configChangeNotifier,
         )
     }
 }

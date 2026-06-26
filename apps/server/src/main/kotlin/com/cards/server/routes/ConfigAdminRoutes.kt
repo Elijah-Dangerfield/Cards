@@ -2,9 +2,13 @@ package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.data.AppConfigTargetingEngine
+import com.dangerfield.cards.server.data.ConfigSchema
+import com.dangerfield.cards.server.data.validateRuleConditions
 import com.dangerfield.cards.server.domain.AppConfigAdminRepository
 import com.dangerfield.cards.server.domain.AppConfigManifestRepository
 import com.dangerfield.cards.server.domain.ConfigAuditRecord
+import com.dangerfield.cards.server.domain.ConfigChangeEvent
+import com.dangerfield.cards.server.domain.ConfigChangeNotifier
 import com.dangerfield.cards.server.domain.ConfigFlagRecord
 import com.dangerfield.cards.server.domain.ManifestEntry
 import com.dangerfield.cards.server.domain.ManifestVersion
@@ -51,6 +55,7 @@ fun Route.configAdminRoutes(
     config: AdminConfig,
     repository: AppConfigAdminRepository,
     manifestRepository: AppConfigManifestRepository,
+    notifier: ConfigChangeNotifier = ConfigChangeNotifier {},
 ) {
     val engine = AppConfigTargetingEngine()
 
@@ -70,7 +75,11 @@ fun Route.configAdminRoutes(
                 ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_path", "path is required.")
             val body = call.receiveOrNull<UpsertFlagRequest>()
                 ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_body", "Malformed flag body.")
+            schema(manifestRepository).validateValue(path, body.value)?.let {
+                return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_value", it)
+            }
             val record = repository.upsertFlag(path, body.value, call.actor())
+            notifier.changed(ConfigChangeEvent(call.actor(), "update_flag", path, body.value.toString()))
             call.respond(HttpStatusCode.OK, record.toDto())
         }
 
@@ -79,6 +88,7 @@ fun Route.configAdminRoutes(
             val path = call.parameters["path"]?.takeUnless { it.isBlank() }
                 ?: return@delete call.respondProblem(HttpStatusCode.BadRequest, "invalid_path", "path is required.")
             if (repository.deleteFlag(path, call.actor())) {
+                notifier.changed(ConfigChangeEvent(call.actor(), "delete_flag", path, null))
                 call.respond(HttpStatusCode.OK, OkResponse())
             } else {
                 call.respondProblem(HttpStatusCode.NotFound, "not_found", "No such flag.")
@@ -91,6 +101,12 @@ fun Route.configAdminRoutes(
                 ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_id", "id must be a UUID.")
             val body = call.receiveOrNull<UpsertRuleRequest>()
                 ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_body", "Malformed rule body.")
+            validateRuleConditions(body.conditions)?.let {
+                return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_conditions", it)
+            }
+            schema(manifestRepository).validateValue(body.flagPath, body.value)?.let {
+                return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_value", it)
+            }
             val rule = TargetingRule(
                 id = id,
                 flagPath = body.flagPath,
@@ -106,6 +122,7 @@ fun Route.configAdminRoutes(
                     "unknown_flag",
                     "Rule references a flag that doesn't exist: ${body.flagPath}",
                 )
+            notifier.changed(ConfigChangeEvent(call.actor(), "update_rule", body.flagPath, body.value.toString()))
             call.respond(HttpStatusCode.OK, saved.toDto())
         }
 
@@ -114,6 +131,7 @@ fun Route.configAdminRoutes(
             val id = call.parameters["id"]?.toUuidOrNull()
                 ?: return@delete call.respondProblem(HttpStatusCode.BadRequest, "invalid_id", "id must be a UUID.")
             if (repository.deleteRule(id, call.actor())) {
+                notifier.changed(ConfigChangeEvent(call.actor(), "delete_rule", null, "rule $id"))
                 call.respond(HttpStatusCode.OK, OkResponse())
             } else {
                 call.respondProblem(HttpStatusCode.NotFound, "not_found", "No such rule.")
@@ -229,6 +247,10 @@ private fun parsePlatform(raw: String?): ClientContext.Platform = when (raw?.low
     "android" -> ClientContext.Platform.Android
     else -> ClientContext.Platform.Other
 }
+
+/** Build the type/allowed-values schema from the latest captured manifest. */
+private suspend fun schema(manifestRepository: AppConfigManifestRepository): ConfigSchema =
+    ConfigSchema.from(manifestRepository.getManifest(null))
 
 private const val DEFAULT_AUDIT_LIMIT = 100
 

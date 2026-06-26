@@ -79,16 +79,25 @@ class ConfigAdminRoutesTest {
     private fun testApp(
         repo: AppConfigAdminRepository,
         manifest: AppConfigManifestRepository = FakeManifestRepo(),
+        notifier: com.dangerfield.cards.server.domain.ConfigChangeNotifier =
+            com.dangerfield.cards.server.domain.ConfigChangeNotifier {},
         block: suspend (io.ktor.client.HttpClient) -> Unit,
     ) =
         testApplication {
             application {
                 installSerialization()
                 installStatusPages()
-                routing { configAdminRoutes(adminConfig, repo, manifest) }
+                routing { configAdminRoutes(adminConfig, repo, manifest, notifier) }
             }
             block(createClient { })
         }
+
+    /** A manifest seeded with social.enabled (boolean) so writes can be type-checked. */
+    private fun schemaManifest() = FakeManifestRepo().apply {
+        byVersion[1] = listOf(
+            ManifestEntry("social.enabled", "boolean", JsonPrimitive(false), null, null),
+        )
+    }
 
     @Test
     fun list_withoutToken_is401() = runTest {
@@ -204,6 +213,54 @@ class ConfigAdminRoutesTest {
             assertEquals("true", resolved("es").content)
             assertEquals("false", resolved("en").content)
         }
+    }
+
+    @Test
+    fun upsertFlag_rejectsWrongType_acceptsRightType() = runTest {
+        testApp(FakeRepo(), schemaManifest()) { client ->
+            val bad = client.put("/v1/admin/config/flags/social.enabled") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"value": 6}""")
+            }
+            assertEquals(HttpStatusCode.BadRequest, bad.status)
+
+            val ok = client.put("/v1/admin/config/flags/social.enabled") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"value": true}""")
+            }
+            assertEquals(HttpStatusCode.OK, ok.status)
+        }
+    }
+
+    @Test
+    fun upsertRule_rejectsOutOfRangeRollout() = runTest {
+        val repo = FakeRepo().apply {
+            flags += ConfigFlagRecord("social.enabled", JsonPrimitive(false), 0, emptyList())
+        }
+        testApp(repo, schemaManifest()) { client ->
+            val resp = client.put("/v1/admin/config/rules/${UUID.randomUUID()}") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"flagPath":"social.enabled","priority":0,"value":true,"conditions":{"rolloutPercent":150}}""")
+            }
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+        }
+    }
+
+    @Test
+    fun upsertFlag_notifiesOnSuccess() = runTest {
+        var notified: String? = null
+        val notifier = com.dangerfield.cards.server.domain.ConfigChangeNotifier { notified = it.flagPath }
+        testApp(FakeRepo(), schemaManifest(), notifier) { client ->
+            client.put("/v1/admin/config/flags/social.enabled") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"value": true}""")
+            }
+        }
+        assertEquals("social.enabled", notified)
     }
 
     @Test
