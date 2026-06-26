@@ -17,6 +17,10 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(projects.libraries.cards)
+            // Shared per-hand fact model + the achievement-counter fold — the
+            // client folds its unsynced outbox facts onto the server snapshot
+            // with the same code the server runs (PROG-1).
+            implementation(projects.libraries.achievements)
 
             implementation(projects.libraries.core)
             implementation(libs.kermit)

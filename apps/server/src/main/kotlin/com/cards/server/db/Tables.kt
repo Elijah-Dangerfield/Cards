@@ -237,6 +237,8 @@ object UserPlayerStatsTable : Table("user_player_stats") {
     val currentNoBustStreak = long("current_no_bust_streak")
     val bestNoBustStreak = long("best_no_bust_streak")
     val perBotWins = jsonb("per_bot_wins")
+    /** Materialized achievement-counter projection: keyed `name -> value` (see V73). */
+    val achievementCounters = jsonb("achievement_counters")
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(userId)
@@ -258,6 +260,19 @@ object PlayerStatEventsTable : Table("player_stat_events") {
     val vsBot = bool("vs_bot")
     val beatenBotId = text("beaten_bot_id").nullable()
     val noBustStreak = long("no_bust_streak")
+    // Enriched raw facts (V73) — the complete hand record the counter fold reads.
+    // Nullable/defaulted so pre-V73 rows and older clients keep applying.
+    val busted = bool("busted")
+    val startStack = long("start_stack")
+    val endStack = long("end_stack")
+    val bigBlind = long("big_blind")
+    val potTotal = long("pot_total")
+    val wasAllIn = bool("was_all_in")
+    val wonByFold = bool("won_by_fold")
+    val bustsDealt = integer("busts_dealt")
+    val foldedWouldHaveLost = bool("folded_would_have_lost")
+    val handStrengthShown = text("hand_strength_shown").nullable()
+    val botDifficulty = text("bot_difficulty").nullable()
     val appliedAt = timestamp("applied_at")
     override val primaryKey = PrimaryKey(userId, idempotencyKey)
 }

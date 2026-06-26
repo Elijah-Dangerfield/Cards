@@ -84,8 +84,11 @@ internal class FakePlayerStatsRepository(
     initial: PlayerStats? = null,
 ) : PlayerStatsRepository {
     val stats = MutableStateFlow(initial)
+    val effectiveCounters = MutableStateFlow<Map<String, Long>>(emptyMap())
     override fun observeStats(): Flow<PlayerStats?> = stats
     override suspend fun getStats(): PlayerStats? = stats.value
+    override fun observeEffectiveCounters(): Flow<Map<String, Long>> = effectiveCounters
+    override suspend fun effectiveCounters(): Map<String, Long> = effectiveCounters.value
     override suspend fun recordHand(summary: PlayerStatHandSummary) =
         error("recordHand not used by the progression VMs")
     override suspend fun sync(): Result<Unit> = Result.success(Unit)

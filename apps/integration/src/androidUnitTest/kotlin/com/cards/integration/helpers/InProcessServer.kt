@@ -5,6 +5,7 @@ import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.libraries.gameplay.Deck
 import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
 import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.game.RoomTeardownCoordinator
@@ -57,6 +58,11 @@ import kotlin.time.Instant
  */
 class InProcessServer(
     private val reaperGrace: Duration = DEFAULT_REAPER_GRACE,
+    // Heads-up match-over rebuy grace (MP-14). Short by default so a
+    // bust-to-match-over test resolves in-test rather than waiting the real 60s,
+    // but long enough that a rebuy test can fire its rebuy before the window
+    // closes. Safe because no passive-play test ever busts a seat to trigger it.
+    private val matchOverGraceMillis: Long = 1_500L,
 ) : AutoCloseable {
 
     /** Per-server wallet + escrow fakes, exposed so escrow tests can read balances. */
@@ -67,6 +73,13 @@ class InProcessServer(
     // [restart] so the registry built by the fresh engine can rehydrate a live
     // hand the dropped client reconnects to.
     private val snapshots = InMemorySessionSnapshotStore()
+
+    // Scripted decks per room (MP-18). Held on this instance (not the rebuilt
+    // registry) so a script survives [restart], and consulted by every engine's
+    // registry via the deckSource below. A test calls [scriptDeck] before the
+    // deal to force a deterministic outcome (a bust, a chop, a side pot);
+    // unscripted rooms fall back to a freshly shuffled deck.
+    private val deckScripts = ConcurrentHashMap<String, (Int) -> Deck>()
 
     // The live engine's registry. Rebuilt per engine ([buildEngine]) so a restart
     // drops the old engine's in-memory sessions; the durable [snapshots] is what
@@ -118,7 +131,23 @@ class InProcessServer(
         Clock.System,
         mixedNextHandDelayMs = 50,
         botThinkDelayMsOverride = 0,
+        matchOverGraceMillis = matchOverGraceMillis,
+        deckSource = { code, handNumber -> deckScripts[code]?.invoke(handNumber) },
     )
+
+    /**
+     * Force the cards a room is dealt (MP-18). Register before the deal — every
+     * hand in [code] draws [deck]. Build it with [stackedDeck] so a test can spell
+     * out "seat 0 gets AA, seat 1 gets KK, the board misses" and bust a player on
+     * purpose. Overload below scripts per hand number for multi-hand scenarios.
+     */
+    fun scriptDeck(code: String, deck: Deck) {
+        deckScripts[code] = { deck }
+    }
+
+    fun scriptDeck(code: String, deckByHand: (handNumber: Int) -> Deck) {
+        deckScripts[code] = deckByHand
+    }
 
     private fun buildEngine(
         registry: GameSessionRegistry,
@@ -189,6 +218,20 @@ class InProcessServer(
      * would itself re-create membership and keep the room alive.
      */
     fun roomExists(code: String): Boolean = runBlocking { rooms.find(code) != null }
+
+    /** Did the room reach the terminal Finished state (e.g. a heads-up match-over)? */
+    fun roomIsFinished(code: String): Boolean = runBlocking {
+        rooms.find(code)?.status == com.dangerfield.cards.server.domain.RoomStatus.Finished
+    }
+
+    /**
+     * Does [userId] still hold an open table session (escrow not yet cashed out)?
+     * Lets a test wait for an async cash-out to actually fire before asserting the
+     * wallet — needed when the correct refund (0, for a busted player) leaves the
+     * balance unchanged, so the balance alone can't tell "not yet" from "settled".
+     */
+    fun hasActiveTableSession(userId: String): Boolean =
+        tableSessions.isActive(UserId(UUID.fromString(userId)))
 
     override fun close() {
         engine.stop(0, 0)
@@ -350,13 +393,19 @@ class FakeTableSessions(
     private data class Active(val id: UUID, val roomCode: String, val buyIn: Long, var rebuys: Int)
     private val active = mutableMapOf<UserId, Active>()
 
+    /** Open session probe — true between sitDown and cashOut. */
+    fun isActive(userId: UserId): Boolean = synchronized(lock) { userId in active }
+
     override suspend fun sitDown(
         userId: UserId,
         roomCode: String,
-        buyIn: Long,
+        requestedBuyIn: Long,
         enforceEntryBar: Boolean,
         subsidized: Boolean,
     ): com.dangerfield.cards.server.domain.SitDownResult {
+        // The harness only ever sits valid (≥ floor) buy-ins, so unlike the real
+        // service this fake skips the MIN_BUY_IN coercion and charges as-requested.
+        val buyIn = requestedBuyIn
         synchronized(lock) { active[userId] }?.let {
             return com.dangerfield.cards.server.domain.SitDownResult.AlreadyAtTable(it.roomCode)
         }
@@ -401,6 +450,9 @@ class FakeTableSessions(
             as com.dangerfield.cards.server.domain.ApplyOutcome.Applied
         return com.dangerfield.cards.server.domain.CashOutResult.CashedOut(refund, o.balance)
     }
+
+    override suspend fun activeUsersInRoom(roomCode: String): List<UserId> =
+        synchronized(lock) { active.filterValues { it.roomCode == roomCode }.keys.toList() }
 
     override suspend fun subsidyBudget(
         userId: UserId,

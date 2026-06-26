@@ -536,8 +536,9 @@ class InMemoryRoomService(
     override suspend fun markFinished(code: String): Room? = mutex.withLock {
         val state = rooms[code] ?: return@withLock null
         val current = state.room
+        // A room that never left the lobby has no match to finish — leave it be.
         if (current.status == RoomStatus.Lobby) return@withLock current
-        val next = current.copy(status = RoomStatus.Lobby)
+        val next = current.copy(status = RoomStatus.Finished)
         state.update(next)
         persist(next)
         next

@@ -25,6 +25,8 @@ There is **no separate grant mechanism for level-ups** — they reuse the existi
 
 ## Achievements
 
+> **Progress is server-authoritative (PROG-1, done).** Progress used to live only on the device, so it reset on reinstall / account-switch. The client now reports the raw facts of each hand and the server folds them into every counter; the bars read that server projection. Definitions + unlock/reward stay client-side by design. See **[achievements.md](achievements.md)** for the as-built system + the deliberate scoping decisions.
+
 Achievements live in `libraries/cards/Achievement.kt`. Criteria are modeled as a sealed class — per-hand counters, custom cross-hand counters, etc. The engine evaluator picks them up automatically.
 
 ### V1 sharp edges (known and intentionally shipped)

@@ -12,6 +12,7 @@ import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.game.IntentResult
+import com.dangerfield.cards.server.game.MatchOverEvent
 import com.dangerfield.cards.server.game.SeatOccupant
 import com.dangerfield.cards.server.game.stackFor
 import java.util.UUID
@@ -39,6 +40,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -244,12 +246,27 @@ fun Route.roomSocketRoutes(
                                 deltas.filterIsInstance<RoomSocketEventDto.MemberLeft>().forEach { left ->
                                     val leftUserId = runCatching { UserId(UUID.fromString(left.userId)) }.getOrNull()
                                     if (leftUserId != null) {
-                                        val stack = gameSessions.peek(code)?.state?.value?.stackFor(leftUserId)
-                                        Catching { tableSessions.cashOut(leftUserId, stack) }
-                                            .onFailure { e ->
-                                                LoggerFactory.getLogger("RoomSocket")
-                                                    .warn("cashOut failed for room=$code user=${left.userId}", e)
-                                            }
+                                        val session = gameSessions.peek(code)
+                                        // An all-in leaver keeps their showdown right (the engine never
+                                        // folds an all-in seat), so their committed chips are still live.
+                                        // Decided atomically against the hand: if they're all-in in a live
+                                        // hand, defer — cashing out their stackFor of 0 now would burn a
+                                        // pot they go on to win (MP-17); departedSettlements pays their
+                                        // resolved stack when the hand completes. Otherwise cash out now.
+                                        val deferred = session?.deferSettlementIfAllInLive(left.userId) ?: false
+                                        if (!deferred) {
+                                            // Live seat stack if they're still seated; else the stack
+                                            // they settled with last hand (0 for a busted-and-dropped
+                                            // player) — never a full-escrow refund, which would mint
+                                            // their lost stake (MP-13). Null only when never dealt in.
+                                            val stack = session?.state?.value?.stackFor(leftUserId)
+                                                ?: session?.lastKnownStack(leftUserId.value.toString())
+                                            Catching { tableSessions.cashOut(leftUserId, stack) }
+                                                .onFailure { e ->
+                                                    LoggerFactory.getLogger("RoomSocket")
+                                                        .warn("cashOut failed for room=$code user=${left.userId}", e)
+                                                }
+                                        }
                                     }
                                     // Drop them from the mid-hand-join queue if they
                                     // left while still waiting to be dealt in, so the
@@ -326,6 +343,41 @@ fun Route.roomSocketRoutes(
                                         link = null,
                                     )
                                 },
+                                // Heads-up match-over lifecycle (MP-14). On a
+                                // terminal resolve, flip the room finished so it
+                                // stops accepting new hands / joiners; the winner's
+                                // chips cash out via the normal leave/teardown path
+                                // when clients route off, so this path never touches
+                                // the wallet. Idempotent + per-subscriber, like the
+                                // member-left handler.
+                                session.matchOverEvents
+                                    .onEach { event ->
+                                        if (event is MatchOverEvent.Resolved) {
+                                            Catching { rooms.markFinished(code) }
+                                                .onFailure {
+                                                    LoggerFactory.getLogger("RoomSocket")
+                                                        .warn("markFinished failed for room=$code", it)
+                                                }
+                                        }
+                                    }
+                                    .map { event ->
+                                        OutboundGameFrame(
+                                            when (event) {
+                                                is MatchOverEvent.GraceStarted ->
+                                                    RoomSocketEventDto.MatchOverPending(
+                                                        deadlineEpochMs = event.deadlineEpochMs,
+                                                        bustedSeatIndex = event.bustedSeatIndex,
+                                                    )
+                                                MatchOverEvent.GraceCancelled ->
+                                                    RoomSocketEventDto.MatchOverCleared
+                                                is MatchOverEvent.Resolved ->
+                                                    RoomSocketEventDto.MatchOverResolved(
+                                                        winnerUserId = event.winnerUserId,
+                                                    )
+                                            },
+                                            link = null,
+                                        )
+                                    },
                             )
                         }
                         .collect { sendTraced(it.event, code, userIdString, link = it.link) }
@@ -334,6 +386,33 @@ fun Route.roomSocketRoutes(
                 } catch (e: Throwable) {
                     LoggerFactory.getLogger("RoomSocket")
                         .warn("Game publisher for room=$code user=$userId died", e)
+                }
+            }
+
+            // Deferred settlement for all-in leavers (MP-17): when a player who left
+            // while all-in has their committed hand resolve, the session emits their
+            // real end-of-hand stack here and we cash it out — the settlement their
+            // leave-time cash-out deferred (cashing out 0 then would burn a pot they
+            // won). Keyed/idempotent like every other cash-out, so the per-subscriber
+            // duplication across connected sockets settles exactly once.
+            val settlementSettler = launch {
+                try {
+                    gameSessions.observeSession(code)
+                        .flatMapLatest { session -> session?.departedSettlements ?: emptyFlow() }
+                        .collect { settlement ->
+                            val settledUserId = runCatching { UserId(UUID.fromString(settlement.userId)) }.getOrNull()
+                                ?: return@collect
+                            Catching { tableSessions.cashOut(settledUserId, settlement.resolvedStack) }
+                                .onFailure { e ->
+                                    LoggerFactory.getLogger("RoomSocket")
+                                        .warn("Deferred settlement cash-out failed for room=$code user=${settlement.userId}", e)
+                                }
+                        }
+                } catch (_: CancellationException) {
+                    // Expected on close.
+                } catch (e: Throwable) {
+                    LoggerFactory.getLogger("RoomSocket")
+                        .warn("Settlement settler for room=$code user=$userId died", e)
                 }
             }
 
@@ -429,6 +508,7 @@ fun Route.roomSocketRoutes(
             } finally {
                 publisher.cancel()
                 gamePublisher.cancel()
+                settlementSettler.cancel()
                 botTrimmer.cancel()
                 // A spectator holds no seat — there's nothing to mark
                 // disconnected and nothing to reap, so their socket simply

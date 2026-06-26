@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.achievements.AchievementCounters
+import com.dangerfield.cards.libraries.achievements.HandFacts
 import com.dangerfield.cards.libraries.cards.PlayerStatHandSummary
 import com.dangerfield.cards.libraries.cards.PlayerStats
 import com.dangerfield.cards.libraries.cards.PlayerStatsRepository
@@ -23,6 +25,7 @@ import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -70,6 +73,51 @@ class PlayerStatsRepositoryImpl(
 
     override suspend fun getStats(): PlayerStats? = playerStatsDao.get()?.toDomain()
 
+    override fun observeEffectiveCounters(): Flow<Map<String, Long>> =
+        combine(
+            playerStatsDao.observe(),
+            playerStatEventDao.observeUnsynced(),
+        ) { snapshot, unsynced -> effective(snapshot, unsynced) }
+
+    override suspend fun effectiveCounters(): Map<String, Long> =
+        effective(playerStatsDao.get(), playerStatEventDao.getUnsynced())
+
+    /**
+     * The server snapshot's counter projection with the unsynced outbox folded on
+     * top, in apply order — the same `AchievementCounters.fold` the server runs.
+     * A fresh client (empty snapshot, empty outbox) yields empty; after a hydrate
+     * sync it's exact server truth; offline it's server-last-known + this
+     * session's hands.
+     */
+    private fun effective(
+        snapshot: PlayerStatsEntity?,
+        unsynced: List<PlayerStatEventEntity>,
+    ): Map<String, Long> {
+        val base = AchievementCounters(decodePerBotWins(snapshot?.achievementCountersJson ?: "{}"))
+        return unsynced.fold(base) { acc, row -> acc.fold(row.toHandFacts()) }.values
+    }
+
+    private fun PlayerStatEventEntity.toHandFacts(): HandFacts = HandFacts(
+        idempotencyKey = idempotencyKey,
+        mode = mode,
+        won = won,
+        folded = folded,
+        lostAtShowdown = lostAtShowdown,
+        vsBot = vsBot,
+        beatenBotId = beatenBotId,
+        botDifficulty = botDifficulty,
+        busted = busted,
+        startStack = startStack,
+        endStack = endStack,
+        bigBlind = bigBlind,
+        potTotal = potTotal,
+        wasAllIn = wasAllIn,
+        wonByFold = wonByFold,
+        bustsDealt = bustsDealt,
+        foldedWouldHaveLost = foldedWouldHaveLost,
+        handStrengthShown = handStrengthShown,
+    )
+
     override suspend fun recordHand(summary: PlayerStatHandSummary) {
         val now = clock.now().toEpochMilliseconds()
         playerStatEventDao.insertAll(
@@ -83,6 +131,17 @@ class PlayerStatsRepositoryImpl(
                     vsBot = summary.vsBot,
                     beatenBotId = summary.beatenBotId,
                     noBustStreak = summary.noBustStreak,
+                    busted = summary.busted,
+                    startStack = summary.startStack,
+                    endStack = summary.endStack,
+                    bigBlind = summary.bigBlind,
+                    potTotal = summary.potTotal,
+                    wasAllIn = summary.wasAllIn,
+                    wonByFold = summary.wonByFold,
+                    bustsDealt = summary.bustsDealt,
+                    foldedWouldHaveLost = summary.foldedWouldHaveLost,
+                    handStrengthShown = summary.handStrengthShown,
+                    botDifficulty = summary.botDifficulty,
                     createdAtEpochMs = now,
                 ),
             ),
@@ -142,6 +201,7 @@ class PlayerStatsRepositoryImpl(
                 currentNoBustStreak = stats.currentNoBustStreak,
                 bestNoBustStreak = stats.bestNoBustStreak,
                 perBotWinsJson = statsJson.encodeToString(PER_BOT_WINS_SERIALIZER, stats.perBotWins),
+                achievementCountersJson = statsJson.encodeToString(PER_BOT_WINS_SERIALIZER, stats.achievementCounters),
                 updatedAtEpochMs = clock.now().toEpochMilliseconds(),
             ),
         )
@@ -156,6 +216,17 @@ class PlayerStatsRepositoryImpl(
         vsBot = vsBot,
         beatenBotId = beatenBotId,
         noBustStreak = noBustStreak,
+        busted = busted,
+        botDifficulty = botDifficulty,
+        startStack = startStack,
+        endStack = endStack,
+        bigBlind = bigBlind,
+        potTotal = potTotal,
+        wasAllIn = wasAllIn,
+        wonByFold = wonByFold,
+        bustsDealt = bustsDealt,
+        foldedWouldHaveLost = foldedWouldHaveLost,
+        handStrengthShown = handStrengthShown,
     )
 
     private fun PlayerStatsEntity.toDomain(): PlayerStats = PlayerStats(
@@ -167,6 +238,7 @@ class PlayerStatsRepositoryImpl(
         currentNoBustStreak = currentNoBustStreak,
         bestNoBustStreak = bestNoBustStreak,
         perBotWins = decodePerBotWins(perBotWinsJson),
+        achievementCounters = decodePerBotWins(achievementCountersJson),
     )
 
     private fun decodePerBotWins(json: String): Map<String, Long> =

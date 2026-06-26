@@ -3,6 +3,7 @@ package com.dangerfield.cards.libraries.cards.storage.db
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PlayerStatEventDao : ClearableDao {
@@ -19,6 +20,17 @@ interface PlayerStatEventDao : ClearableDao {
         """
     )
     suspend fun getUnsynced(): List<PlayerStatEventEntity>
+
+    /** Observe the unsynced outbox (oldest first) — the optimistic delta folded
+     *  onto the server snapshot for live, offline-correct achievement counters. */
+    @Query(
+        """
+        SELECT * FROM player_stat_events
+        WHERE user_id = 'user' AND synced = 0
+        ORDER BY created_at_epoch_ms ASC, id ASC
+        """
+    )
+    fun observeUnsynced(): Flow<List<PlayerStatEventEntity>>
 
     /** Mark rows synced once the server has acked them (by idempotency key). */
     @Query("UPDATE player_stat_events SET synced = 1 WHERE idempotency_key IN (:keys)")

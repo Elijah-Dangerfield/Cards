@@ -23,9 +23,12 @@ import java.util.UUID
 interface TableSessionService {
 
     /**
-     * Reserve a seat in [roomCode] for [userId], moving [buyIn] from wallet →
+     * Reserve a seat in [roomCode] for [userId], moving the buy-in from wallet →
      * table stack. Bots never call this — they have no wallet, only an engine
-     * stack. When [enforceEntryBar] the wallet must hold ≥ 4 × [buyIn] to sit.
+     * stack. The charged buy-in is [requestedBuyIn] coerced into
+     * `RoomSettings.MIN_BUY_IN..MAX_BUY_IN` so the wallet debit always equals the
+     * stack the engine seats; when [enforceEntryBar] the wallet must hold ≥ 4× the
+     * charged buy-in to sit.
      *
      * [subsidized] marks a disclosed-bot table (public, lone human vs bots),
      * where a win is house-funded. Sitting at one is gated by the per-user daily
@@ -35,7 +38,7 @@ interface TableSessionService {
     suspend fun sitDown(
         userId: UserId,
         roomCode: String,
-        buyIn: Long,
+        requestedBuyIn: Long,
         enforceEntryBar: Boolean = true,
         subsidized: Boolean = false,
     ): SitDownResult
@@ -72,6 +75,15 @@ interface TableSessionService {
      * [sitDown] enforces with [SitDownResult.SubsidyCapReached].
      */
     suspend fun subsidyBudget(userId: UserId): SubsidyBudget
+
+    /**
+     * Every user with an open (non-closed) table session in [roomCode] — everyone
+     * still holding escrowed chips for this room, whether they're a seated member
+     * or a player who left mid-hand all-in and is awaiting deferred settlement.
+     * The room-teardown cashes each of these out so no escrow is orphaned when the
+     * room closes (MP-17).
+     */
+    suspend fun activeUsersInRoom(roomCode: String): List<UserId>
 }
 
 /**

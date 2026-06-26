@@ -22,6 +22,8 @@ internal data class PlayerStatsDto(
     val currentNoBustStreak: Long,
     val bestNoBustStreak: Long,
     val perBotWins: Map<String, Long> = emptyMap(),
+    /** Full achievement-counter projection (`name -> value`); progress bars read this. */
+    val achievementCounters: Map<String, Long> = emptyMap(),
 )
 
 @Serializable
@@ -45,6 +47,18 @@ internal data class PlayerStatHandDto(
     val vsBot: Boolean,
     val beatenBotId: String? = null,
     val noBustStreak: Long,
+    // Enriched raw facts (PROG-1) — the server folds these into every counter.
+    val busted: Boolean? = null,
+    val botDifficulty: String? = null,
+    val startStack: Long = 0,
+    val endStack: Long = 0,
+    val bigBlind: Long = 0,
+    val potTotal: Long = 0,
+    val wasAllIn: Boolean = false,
+    val wonByFold: Boolean = false,
+    val bustsDealt: Int = 0,
+    val foldedWouldHaveLost: Boolean = false,
+    val handStrengthShown: String? = null,
 )
 
 @Serializable

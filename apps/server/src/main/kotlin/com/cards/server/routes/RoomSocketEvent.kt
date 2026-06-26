@@ -90,4 +90,29 @@ sealed interface RoomSocketEventDto {
         val seatIndex: Int,
         val emoji: String,
     ) : RoomSocketEventDto
+
+    /**
+     * Heads-up match-over lifecycle (MP-14). [MatchOverPending] opens the
+     * rebuy-grace window: clients tick a live countdown to [deadlineEpochMs]
+     * and prompt the busted seat to rebuy. [MatchOverCleared] fires if the
+     * window resolves without a match-over (the busted player rebought).
+     * [MatchOverResolved] is terminal — [winnerUserId] took the table, clients
+     * route to a result and leave.
+     */
+    @Serializable
+    @SerialName("match_over_pending")
+    data class MatchOverPending(
+        val deadlineEpochMs: Long,
+        val bustedSeatIndex: Int,
+    ) : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("match_over_cleared")
+    data object MatchOverCleared : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("match_over_resolved")
+    data class MatchOverResolved(
+        val winnerUserId: String,
+    ) : RoomSocketEventDto
 }

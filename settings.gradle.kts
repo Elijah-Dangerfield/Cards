@@ -52,6 +52,7 @@ include(":apps:server")
 include(":libraries:core")
 include(":libraries:gameplay")
 include(":libraries:bots")
+include(":libraries:achievements")
 
 if (!serverOnly) {
     include(":apps:compose")
@@ -109,4 +110,9 @@ if (!serverOnly) {
     include(":libraries:review")
     include(":libraries:review:impl")
     include(":libraries:ui")
+
+    // Custom detekt rules (ENG-2) — a standalone JVM jar detekt loads via
+    // `detektPlugins`. Dev/CI tooling only, never shipped; gated out of the
+    // server-only Docker build like every other client module.
+    include(":detekt-rules")
 }

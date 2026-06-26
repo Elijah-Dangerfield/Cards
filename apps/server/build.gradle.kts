@@ -107,6 +107,9 @@ dependencies {
     // libraries/{gameplay,bots}/build.gradle.kts for the jvm() target.
     implementation(projects.libraries.gameplay)
     implementation(projects.libraries.bots)
+    // Shared per-hand fact model + the achievement-counter fold — one source of
+    // truth the server (authority) and client (optimistic display) both run.
+    implementation(projects.libraries.achievements)
     // `Catching {}` from :libraries:core — AGENTS.md mandates Catching over
     // runCatching across the repo. Pulled in transitively via gameplay/bots
     // today, but a direct dep is the honest declaration.

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Runs the detekt lint gate before every push so convention violations —
+# e.g. inline user-facing string literals, enforced by the custom `cards`
+# ruleset in :detekt-rules (ENG-2) — never reach the remote.
+#
+# Bypass in an emergency with: SKIP_DETEKT=1 git push
+set -euo pipefail
+
+if [ "${SKIP_DETEKT:-}" = "1" ]; then
+  echo "pre-push: SKIP_DETEKT=1 set — skipping detekt." >&2
+  exit 0
+fi
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+echo "pre-push: running detekt…" >&2
+if ! ./gradlew detekt --console=plain; then
+  echo "" >&2
+  echo "pre-push: detekt failed — fix the findings above, suppress a line with" >&2
+  echo "          @Suppress(\"VerifyStrings\"), or bypass with: SKIP_DETEKT=1 git push" >&2
+  exit 1
+fi

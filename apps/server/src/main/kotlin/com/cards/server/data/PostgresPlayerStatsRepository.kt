@@ -6,12 +6,13 @@ import com.dangerfield.cards.server.db.UserPlayerStatsTable
 import com.dangerfield.cards.server.db.toJavaInstant
 import com.dangerfield.cards.server.db.toKotlinInstant
 import com.dangerfield.cards.server.di.ServerScope
+import com.dangerfield.cards.libraries.achievements.AchievementCounters
+import com.dangerfield.cards.libraries.achievements.HandFacts
 import com.dangerfield.cards.server.domain.ApplyPlayerStatOutcome
-import com.dangerfield.cards.server.domain.PlayerStatHand
 import com.dangerfield.cards.server.domain.PlayerStats
 import com.dangerfield.cards.server.domain.PlayerStatsRepository
 import com.dangerfield.cards.server.domain.UserId
-import com.dangerfield.cards.server.domain.applying
+import com.dangerfield.cards.server.domain.perBotWins
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -56,26 +57,40 @@ class PostgresPlayerStatsRepository(
         read(userId)
     }
 
-    override suspend fun applyHand(userId: UserId, hand: PlayerStatHand): ApplyPlayerStatOutcome =
+    override suspend fun applyHand(userId: UserId, facts: HandFacts): ApplyPlayerStatOutcome =
         database.transaction {
             val stats = read(userId) ?: create(userId, clock.now())
 
-            if (eventExists(userId, hand.idempotencyKey)) {
+            if (eventExists(userId, facts.idempotencyKey)) {
                 return@transaction ApplyPlayerStatOutcome(wasAlreadyApplied = true)
             }
 
+            val nextCounters = stats.counters.fold(facts)
             val now = clock.now()
             try {
                 PlayerStatEventsTable.insert {
                     it[PlayerStatEventsTable.userId] = userId.value
-                    it[idempotencyKey] = hand.idempotencyKey
-                    it[mode] = hand.mode
-                    it[won] = hand.won
-                    it[folded] = hand.folded
-                    it[lostAtShowdown] = hand.lostAtShowdown
-                    it[vsBot] = hand.vsBot
-                    it[beatenBotId] = hand.beatenBotId
-                    it[noBustStreak] = hand.noBustStreak
+                    it[idempotencyKey] = facts.idempotencyKey
+                    it[mode] = facts.mode
+                    it[won] = facts.won
+                    it[folded] = facts.folded
+                    it[lostAtShowdown] = facts.lostAtShowdown
+                    it[vsBot] = facts.vsBot
+                    it[beatenBotId] = facts.beatenBotId
+                    // Derived current streak after this hand — back-compat only;
+                    // the counter fold is the authority now.
+                    it[noBustStreak] = nextCounters[AchievementCounters.NO_BUST_STREAK]
+                    it[busted] = facts.busted
+                    it[startStack] = facts.startStack
+                    it[endStack] = facts.endStack
+                    it[bigBlind] = facts.bigBlind
+                    it[potTotal] = facts.potTotal
+                    it[wasAllIn] = facts.wasAllIn
+                    it[wonByFold] = facts.wonByFold
+                    it[bustsDealt] = facts.bustsDealt
+                    it[foldedWouldHaveLost] = facts.foldedWouldHaveLost
+                    it[handStrengthShown] = facts.handStrengthShown
+                    it[botDifficulty] = facts.botDifficulty
                     it[appliedAt] = now.toJavaInstant()
                 }
             } catch (e: ExposedSQLException) {
@@ -85,16 +100,18 @@ class PostgresPlayerStatsRepository(
                 throw e
             }
 
-            val next = stats.applying(hand)
+            // The fold is the single projection; the eight headline columns are a
+            // denormalized view of its well-known keys, kept for the stats DTO.
             UserPlayerStatsTable.update({ UserPlayerStatsTable.userId eq userId.value }) {
-                it[handsPlayed] = next.handsPlayed
-                it[handsWon] = next.handsWon
-                it[handsFolded] = next.handsFolded
-                it[handsLostAtShowdown] = next.handsLostAtShowdown
-                it[botHandsPlayed] = next.botHandsPlayed
-                it[currentNoBustStreak] = next.currentNoBustStreak
-                it[bestNoBustStreak] = next.bestNoBustStreak
-                it[perBotWins] = encodePerBotWins(next.perBotWins)
+                it[handsPlayed] = nextCounters[AchievementCounters.HANDS_PLAYED]
+                it[handsWon] = nextCounters[AchievementCounters.HANDS_WON]
+                it[handsFolded] = nextCounters[AchievementCounters.HANDS_FOLDED]
+                it[handsLostAtShowdown] = nextCounters[AchievementCounters.HANDS_LOST_AT_SHOWDOWN]
+                it[botHandsPlayed] = nextCounters[AchievementCounters.BOT_HANDS_PLAYED]
+                it[currentNoBustStreak] = nextCounters[AchievementCounters.NO_BUST_STREAK]
+                it[bestNoBustStreak] = nextCounters[AchievementCounters.BEST_NO_BUST_STREAK]
+                it[perBotWins] = encodePerBotWins(nextCounters.perBotWins())
+                it[achievementCounters] = encodeCounters(nextCounters)
                 it[updatedAt] = now.toJavaInstant()
             }
 
@@ -127,6 +144,7 @@ class PostgresPlayerStatsRepository(
                 it[currentNoBustStreak] = 0
                 it[bestNoBustStreak] = 0
                 it[perBotWins] = encodePerBotWins(emptyMap())
+                it[achievementCounters] = encodeCounters(AchievementCounters.EMPTY)
                 it[createdAt] = javaNow
                 it[updatedAt] = javaNow
             }
@@ -157,6 +175,7 @@ class PostgresPlayerStatsRepository(
         currentNoBustStreak = this[UserPlayerStatsTable.currentNoBustStreak],
         bestNoBustStreak = this[UserPlayerStatsTable.bestNoBustStreak],
         perBotWins = decodePerBotWins(this[UserPlayerStatsTable.perBotWins]),
+        counters = decodeCounters(this[UserPlayerStatsTable.achievementCounters]),
         createdAt = this[UserPlayerStatsTable.createdAt].toKotlinInstant(),
         updatedAt = this[UserPlayerStatsTable.updatedAt].toKotlinInstant(),
     )
@@ -166,6 +185,13 @@ class PostgresPlayerStatsRepository(
 
     private fun decodePerBotWins(raw: String): Map<String, Long> =
         if (raw.isBlank()) emptyMap() else json.decodeFromString(perBotWinsSerializer, raw)
+
+    private fun encodeCounters(counters: AchievementCounters): String =
+        json.encodeToString(perBotWinsSerializer, counters.values)
+
+    private fun decodeCounters(raw: String): AchievementCounters =
+        if (raw.isBlank()) AchievementCounters.EMPTY
+        else AchievementCounters(json.decodeFromString(perBotWinsSerializer, raw))
 
     private fun ExposedSQLException.isUniqueViolation(): Boolean {
         val sqlState = (cause as? java.sql.SQLException)?.sqlState

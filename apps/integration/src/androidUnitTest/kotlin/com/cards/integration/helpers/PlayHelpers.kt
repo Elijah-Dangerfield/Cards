@@ -92,6 +92,34 @@ class SeatedRoom(
         included.associate { it.userId to gameOf(it) }
 }
 
+/** The session owning the seat at [seatIndex] in [state]. */
+fun SeatedRoom.gameForSeat(state: GameState, seatIndex: Int): GameplaySession {
+    val playerId = state.seatAt(seatIndex).playerId
+    return games[clients.indexOfFirst { it.userId == playerId }]
+}
+
+/**
+ * Drive a hand to completion by submitting an explicit per-seat action each turn
+ * — [action] is consulted with the acting seat + current state and returns that
+ * seat's intent. Generalises [driveToCompletion]'s passive line to scripted ones
+ * (shove here, fold there), which a scripted deck needs to force a chosen bust.
+ * Returns the completed snapshot.
+ */
+suspend fun SeatedRoom.driveActions(
+    maxActions: Int = 80,
+    action: (seatIndex: Int, state: GameState) -> PlayerIntent,
+): GameState {
+    var guard = 0
+    while (guard++ < maxActions) {
+        val s = hostGame.nextSnapshot { it.street == BettingRound.Complete || it.actingSeatIndex != null }
+        if (s.street == BettingRound.Complete) return s
+        val acting = s.actingSeatIndex!!
+        val ack = gameForSeat(s, acting).submit(action(acting, s))
+        check(ack.accepted) { "scripted action at seat $acting (${s.street}) rejected: ${ack.error}" }
+    }
+    error("hand did not complete within $maxActions actions")
+}
+
 /**
  * Two seated, connected clients and their gameplay sessions — the standard
  * heads-up table. Both are fault-capable so chaos tests can drop either.
@@ -160,6 +188,27 @@ suspend fun Table.playPassivelyToCompletion(maxActions: Int = 60): GameState {
         actPassively(s)
     }
     error("hand did not complete within $maxActions actions")
+}
+
+/**
+ * Drive a heads-up all-in to showdown: the first seat to act shoves all-in, the
+ * other calls, the board runs out. Pair with a scripted deck (`server.scriptDeck`
+ * + `stackedDeck`) to bust a chosen player deterministically — the only way to
+ * force a bust over the wire, since passive play never commits a full stack.
+ * Returns the completed snapshot. Generalises `WireAllInTest`'s inline shove.
+ */
+suspend fun Table.shoveAllInHeadsUp(): GameState {
+    val dealt = hostGame.nextSnapshot { it.actingSeatIndex != null }
+    val shover = dealt.actingSeatIndex!!
+    val shoveAck = gameForSeat(dealt, shover).submit(PlayerIntent.AllIn(seatIndex = shover))
+    check(shoveAck.accepted) { "all-in shove rejected: ${shoveAck.error}" }
+
+    val facing = hostGame.nextSnapshot { it.actingSeatIndex != null && it.actingSeatIndex != shover }
+    val caller = facing.actingSeatIndex!!
+    val callAck = gameForSeat(facing, caller).submit(PlayerIntent.Call(seatIndex = caller))
+    check(callAck.accepted) { "calling the shove rejected: ${callAck.error}" }
+
+    return hostGame.nextSnapshot { it.street == BettingRound.Complete }
 }
 
 private suspend fun Table.actPassively(state: GameState) {

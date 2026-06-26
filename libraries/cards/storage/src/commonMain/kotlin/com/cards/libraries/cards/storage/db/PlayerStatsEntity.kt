@@ -44,6 +44,10 @@ data class PlayerStatsEntity(
     @ColumnInfo(name = "per_bot_wins_json", defaultValue = "{}")
     val perBotWinsJson: String = "{}",
 
+    /** Full achievement-counter projection as a JSON object (`{"counter": value}`). */
+    @ColumnInfo(name = "achievement_counters_json", defaultValue = "{}")
+    val achievementCountersJson: String = "{}",
+
     @ColumnInfo(name = "updated_at_epoch_ms", defaultValue = "0")
     val updatedAtEpochMs: Long = 0,
 )

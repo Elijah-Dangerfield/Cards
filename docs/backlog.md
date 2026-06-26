@@ -698,3 +698,28 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Why it's backlog, not a worker one-liner:** the fix is a DS design call (what content/handle override to add to `BottomSheet`), not a mechanical swap. Do it when next touching the bottom-sheet primitive.
 
 **Status:** Backlog. Design judgment on the DS surface; AGENTS.md references it.
+
+## Burn down the VerifyStrings baseline (extract hardcoded copy to resources)
+
+**Idea (2026-06-25, ENG-2 follow-up):** Standing up the detekt `VerifyStrings` rule baselined 42 existing inline user-facing string literals (`Text("Claim")`, `Text("BUSTED")`, `Text("Report to developers")`, …) in `config/detekt/baseline.xml`. New code is gated, but the baselined ones are real localization/i18n debt frozen in place. Sweep them into `:libraries:resources` (`stringResource(...)`) and shrink the baseline toward empty — each extraction removes its baseline entry. Mechanical but spans many files; do it as a focused sweep, not piecemeal.
+
+**Status:** Backlog. Engineering hygiene, not V1-blocking (the app is English-only for V1); pull when localization or a UI-copy pass comes up.
+
+## Audit follow-ups (lower priority, 2026-06-25)
+
+**Idea (client/lifecycle audit):** Two lower-impact findings from the MP audit, parked rather than filed as todos:
+
+- **Solo Showdown/Bust dialogs dismiss on scrim-tap → silently advance.** `ShowdownDialog` (`onDismissRequest = onNextHand`) and `BustDialog` (`onDealMeIn`) in `HandResultDialogs.kt` advance the hand on a stray outside-tap. Lower harm than the MP real-chips ejection (already fixed) — for solo it may even be intended "tap to continue." Decide whether to lock them with `ModalDialogProperties(dismissOnClickOutside = false)` or keep the convenience.
+- **`AccessDeniedScreen` with no appeal URL is a dead end.** `AccessDeniedScreen.kt` blocks back (`BackHandler { }`) and only shows an "Appeal" button when `appealUrl != null`; a banned user with no appeal URL configured has text and no actionable control, and the route is `NavigableWhileBlocked` so it can't be popped until auth state changes. Not MP-specific; an auth/ban-path edge. Ensure an appeal URL is always configured, or give a fallback action.
+
+**Status:** Backlog. Both are real but low-frequency; pull when touching the dialogs or the ban gate.
+
+## Backend-driven achievement definitions (PROG-1 — future consideration)
+
+**Idea (2026-06-25):** PROG-1 is done — progress, unlock, celebration, and earning are all server-authoritative and offline-correct (one effective-counter source = server snapshot + unsynced outbox, shared fold; the legacy device-only counter DB is retired). The **only** open consideration is whether achievement *definitions* (the catalog: id, criterion, threshold, reward, display) should eventually be **backend-driven** rather than hardcoded in the client.
+
+Today they're client-side, which is the right default: the client needs a bundled catalog for offline anyway, and a genuinely new achievement usually needs new icon/copy → an app release regardless. Backend-driven definitions would only buy release-free *retunes* (a threshold/reward number) or *hot-adds that reuse existing visuals* (seasonal/event achievements) — and because facts are stored, a hot-added one would back-fill from history. If pursued, it slots into the existing app-config mechanism (a `progression.achievements` value with a bundled default, same shape as the level-rewards table), and the server would then also evaluate that catalog if/when reward-granting moves server-side.
+
+Adjacent, also deferred (not blocking): **server-validated reward granting** — the server re-deriving each crossing and granting chips exactly-once (it already does this for *multiplayer* achievements). Skipped because chips are freemium (no cash-out), so a cheated/double-granted reward is in-game inflation, not lost money.
+
+**Status:** Backlog. A future product/ops call, not a gap. See `docs/wiki/achievements.md` for the as-built design + rationale.

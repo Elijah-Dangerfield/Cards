@@ -288,6 +288,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 **Expected:** Either a chooser lists candidate tables (buy-in, seats taken / max, real-human count) and tapping one seats you at that table, or — on an empty result — the search waits and then seats you against bots. Finish line is sit-down: you have a stack at the table. The buy-in is reserved from your wallet (wallet drops by the buy-in, not spent).
 
 - When the bot-fallback offer appears and you've already drawn down some of today's house-funded subsidy, the offer shows a heads-up line naming the remaining bonus chips (or "you've used today's bonus chips" once exhausted). With full headroom no caveat shows. Tapping "Keep waiting" clears the line (MP-6).
+- Two devices, same buy-in range (including a tight range that falls between the round stakes, e.g. 3k-4k): Device A searches first and opens a table; Device B searches the same range and is seated *with A* (two members at one table), never stranded on its own empty table (MP-15).
 
 ---
 
@@ -394,3 +395,17 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Device B: join by code and watch the lobby as it loads.
 
 **Expected:** Neither device ever shows a "$0" buy-in or "0 / 0" blinds in the lobby. The stakes/buy-in row either shows the real values or is absent while the room snapshot is still hydrating — it never renders a zero. (Covers todo MP-16, partial — the underlying zero-snapshot source is still being pinned.)
+
+---
+
+## Profile & items
+
+### `PROF-1` ℹ️ 📱 Default felt + card back show as equipped on a fresh account
+
+**State:** a brand-new account that has never opened the shop or equipped anything (reach via `ONB-1` / `ONB-2`).
+
+1. Open Profile → My Items.
+2. Find the default felt and the default card back tiles.
+3. Equip a non-default felt (if one is owned), then re-check the default felt and the default card back.
+
+**Expected:** On the fresh account both the default felt and default card back render the "Equipped" badge even though the user never explicitly equipped them. Equipping a non-default felt moves the badge off the default felt; the default card back keeps its badge because its slot is untouched. (Covers todo ITEM-1.)

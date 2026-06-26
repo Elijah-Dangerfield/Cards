@@ -4,7 +4,6 @@ import androidx.room.ConstructedBy
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.RoomDatabaseConstructor
-import com.dangerfield.cards.libraries.cards.storage.db.AchievementCounterEntity
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementDao
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementEarnedEntity
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
@@ -36,7 +35,6 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
         XpEventEntity::class,
         ChipsEntity::class,
         AchievementEarnedEntity::class,
-        AchievementCounterEntity::class,
         InventoryEntity::class,
         EquipmentEntity::class,
         WalletEventEntity::class,
@@ -46,7 +44,7 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
         PlayerStatsEntity::class,
         PlayerStatEventEntity::class,
     ],
-    version = 20, // v20: player_stats + player_stat_events (server-authoritative stats outbox + cache)
+    version = 22, // v22: retire achievement_counter (progress now derived from server effective counters)
     exportSchema = true
 )
 @ConstructedBy(AppDatabaseConstructor::class)

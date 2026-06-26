@@ -309,8 +309,13 @@ class FakePlayerStatsRepository(initial: PlayerStats? = null) : PlayerStatsRepos
     private val state = MutableStateFlow(initial)
     val recordedHands = mutableListOf<PlayerStatHandSummary>()
 
+    private val effective = MutableStateFlow<Map<String, Long>>(emptyMap())
+
     override fun observeStats(): Flow<PlayerStats?> = state
     override suspend fun getStats(): PlayerStats? = state.value
+
+    override fun observeEffectiveCounters(): Flow<Map<String, Long>> = effective
+    override suspend fun effectiveCounters(): Map<String, Long> = effective.value
 
     override suspend fun recordHand(summary: PlayerStatHandSummary) {
         recordedHands += summary
@@ -321,6 +326,7 @@ class FakePlayerStatsRepository(initial: PlayerStats? = null) : PlayerStatsRepos
     override suspend fun deleteAll() { state.value = null }
 
     fun emit(stats: PlayerStats?) { state.value = stats }
+    fun emitCounters(counters: Map<String, Long>) { effective.value = counters }
 }
 
 // ---------- AchievementRepository ----------

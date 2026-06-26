@@ -397,6 +397,24 @@ class ReconnectingRoomSocket @Inject constructor(
                                         emoji = event.emoji,
                                     ),
                                 )
+                            // Match-over grace countdown (MP-14). Rendering the
+                            // live rebuy countdown + the busted-seat rebuy prompt
+                            // is the remaining UX stage; tolerated as no-ops until
+                            // then so the bounded server-side resolution still works.
+                            is RoomSocketEventDto.MatchOverPending,
+                            RoomSocketEventDto.MatchOverCleared,
+                                -> Unit
+                            // Terminal: grace expired, the match is over. Route the
+                            // client off the dead table (the winner's chips cash out
+                            // via the normal leave path). A dedicated match-over
+                            // result screen + a distinct ClosedReason is the
+                            // remaining MP-14 stage; routing off here is what turns
+                            // the old infinite freeze into a clean exit.
+                            is RoomSocketEventDto.MatchOverResolved -> {
+                                _connection.emit(RoomConnection.Closed(ClosedReason.RoomDeleted))
+                                terminal = true
+                                throw TerminalFrameMarker
+                            }
                             RoomSocketEventDto.RoomClosed -> {
                                 _connection.emit(RoomConnection.Closed(ClosedReason.RoomDeleted))
                                 terminal = true

@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.data
 
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.db.DatabaseTest
 import com.dangerfield.cards.server.db.TableSessionsTable
 import com.dangerfield.cards.server.db.WalletEventsTable
@@ -7,6 +8,7 @@ import com.dangerfield.cards.server.db.WalletsTable
 import com.dangerfield.cards.server.domain.CashOutResult
 import com.dangerfield.cards.server.domain.RebuyResult
 import com.dangerfield.cards.server.domain.SitDownResult
+import com.dangerfield.cards.server.domain.TableSessionRepository
 import com.dangerfield.cards.server.domain.TableSessionStatus
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.Wallet
@@ -62,6 +64,31 @@ class TableSessionServiceTest : DatabaseTest() {
         val events = newWallets().recentEvents(user, 10)
         assertEquals(listOf("mp_buyin"), events.map { it.reason })
         assertEquals(-CASUAL_BUY_IN, events.single().delta)
+    }
+
+    @Test
+    fun sitDown_subFloorBuyIn_chargesTheCoercedStack_neverMintsTheDifference() = runTest {
+        val service = newService()
+        val user = newUser()
+
+        // A Room whose buy-in slipped below the floor (a future constructor or a
+        // matchmaking tier bypassing the HTTP create-route floor). The engine
+        // seats every player at RoomSettings.forBuyIn(buyIn).startingStack, which
+        // coerces up to MIN_BUY_IN — so the wallet must be debited that same
+        // coerced amount. Debiting the raw sub-floor value would seat a 100-chip
+        // stack against a 50-chip debit, minting the 50-chip difference.
+        val subFloor = RoomSettings.MIN_BUY_IN - 50
+        val result = service.sitDown(user, ROOM, requestedBuyIn = subFloor, enforceEntryBar = false)
+
+        assertTrue(result is SitDownResult.Funded, "expected Funded, was $result")
+        assertEquals(RoomSettings.MIN_BUY_IN, result.startingStack, "seated + charged at the floor")
+        assertEquals(Wallet.STARTER_GRANT - RoomSettings.MIN_BUY_IN, result.balanceAfter)
+        assertEquals(RoomSettings.MIN_BUY_IN, newTableSessions().findActiveForUser(user)?.buyIn, "row stores the charged amount")
+        assertEquals(
+            -RoomSettings.MIN_BUY_IN,
+            newWallets().recentEvents(user, 10).single { it.reason == "mp_buyin" }.delta,
+            "exactly the floor left the wallet — no minted chips",
+        )
     }
 
     @Test
@@ -274,6 +301,65 @@ class TableSessionServiceTest : DatabaseTest() {
     }
 
     @Test
+    fun subsidizedCashOut_resumedAfterCrash_recordsTheWinExactlyOnce() = runTest {
+        // Crash window: the cash-out credited the wallet but the process died
+        // before `markClosed`, so the boot sweep re-runs cash-out over a still-
+        // `closing` session. The wallet credit is keyed (idempotent), but the
+        // subsidy record + `bot_subsidy_payout` telemetry must NOT fire a second
+        // time — else the Grafana budget dashboard double-counts the same win.
+        val recordingRepo = RecordCountingTableSessions(
+            delegate = PostgresTableSessionRepository(database, Clock.System),
+            swallowFirstMarkClosed = true, // simulate the crash before the first close
+        )
+        val service = DefaultTableSessionService(
+            database = database,
+            tableSessions = recordingRepo,
+            wallets = newWallets(),
+            clock = Clock.System,
+        )
+        val user = newUser()
+        service.sitDown(user, ROOM, CASUAL_BUY_IN, subsidized = true)
+
+        // First cash-out credits the win but "crashes" before markClosed → the
+        // session stays active (`closing`), so the sweep can re-run it.
+        service.cashOut(user, finalStack = CASUAL_BUY_IN + 2_500)
+        // Boot-sweep resume: same keyed credit (already applied), close for real.
+        service.cashOut(user, finalStack = CASUAL_BUY_IN + 2_500)
+
+        assertEquals(
+            1,
+            recordingRepo.recordSubsidyCalls,
+            "the subsidy win is recorded once, not re-counted on the crash-resumed cash-out",
+        )
+        // The player still keeps every chip; only the bookkeeping/telemetry is guarded.
+        assertEquals(Wallet.STARTER_GRANT + 2_500, newWallets().findOrCreate(user).balance)
+    }
+
+    /**
+     * Wraps the real repo to (a) count `recordSubsidyGranted` calls and (b)
+     * optionally swallow the first `markClosed` so a cash-out leaves the session
+     * `closing` — reproducing the crash-before-close window the boot sweep resumes.
+     */
+    private class RecordCountingTableSessions(
+        private val delegate: TableSessionRepository,
+        private val swallowFirstMarkClosed: Boolean,
+    ) : TableSessionRepository by delegate {
+        var recordSubsidyCalls = 0
+            private set
+        private var markClosedCalls = 0
+
+        override suspend fun recordSubsidyGranted(sessionId: java.util.UUID, amount: Long) {
+            recordSubsidyCalls++
+            delegate.recordSubsidyGranted(sessionId, amount)
+        }
+
+        override suspend fun markClosed(sessionId: java.util.UUID): Boolean {
+            if (swallowFirstMarkClosed && markClosedCalls++ == 0) return false
+            return delegate.markClosed(sessionId)
+        }
+    }
+
+    @Test
     fun subsidizedWin_overTheDailyCap_paysOutInFull_nothingClawedBack() = runTest {
         // The cap is 2,000 but the player wins 10,000 against the bots (some of it
         // possibly after a human joined). We never rob them: the cash-out credits
@@ -309,6 +395,22 @@ class TableSessionServiceTest : DatabaseTest() {
         // …but a normal (non-subsidised) table still funds — only the subsidy is gated.
         val realTable = service.sitDown(user, "ROOM3", CASUAL_BUY_IN, subsidized = false)
         assertTrue(realTable is SitDownResult.Funded, "the cap gates only bot tables, was $realTable")
+    }
+
+    @Test
+    fun incrementRebuy_returnsMonotonicPostIncrementCounts_andPersists() = runTest {
+        // The rebuy ledger key (`table:{id}:rebuy:{n}`) needs a distinct, gap-free
+        // n per top-up. The atomic UPDATE computes `rebuy_count + 1` server-side
+        // off the live row — no read-then-write window — and hands back the new
+        // count. (True concurrent contention can't be reproduced at this layer:
+        // the suspended-transaction harness serializes, and production serializes
+        // rebuys through the game mutex regardless; this pins the value contract.)
+        val repo = newTableSessions()
+        val user = newUser()
+        val funded = newService().sitDown(user, ROOM, CASUAL_BUY_IN) as SitDownResult.Funded
+
+        assertEquals(listOf(1, 2, 3), (1..3).map { repo.incrementRebuy(funded.sessionId) })
+        assertEquals(3, repo.find(funded.sessionId)!!.rebuyCount, "the last write persists")
     }
 
     private fun newWallets(clock: Clock = Clock.System) = PostgresWalletRepository(database, clock)

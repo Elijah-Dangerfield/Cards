@@ -57,11 +57,11 @@
     <string name="session_expired_guest_logout_confirm">Log out anyway</string>
     <!-- App - access denied (server returned the locked 403 envelope). Copy is keyed off `reason`; the wire never carries copy. -->
     <string name="access_denied_banned_title">Account blocked</string>
-    <string name="access_denied_banned_message">Your account is blocked from Cards. Open an appeal if you think this is a mistake.</string>
+    <string name="access_denied_banned_message">Your account is blocked from Dealt. Open an appeal if you think this is a mistake.</string>
     <string name="access_denied_suspended_title">Account suspended</string>
     <string name="access_denied_suspended_message">Your account is temporarily suspended. Open an appeal if you think this is a mistake.</string>
     <string name="access_denied_default_title">Access blocked</string>
-    <string name="access_denied_default_message">Cards is not available for this account right now.</string>
+    <string name="access_denied_default_message">Dealt is not available for this account right now.</string>
     <string name="access_denied_appeal">Open appeal</string>
     <string name="shop_snackbar_insufficient_chips_title">Not enough chips</string>
     <string name="shop_snackbar_insufficient_chips_message">You need more chips to grab %1$s.</string>
@@ -214,7 +214,7 @@
     <string name="onboarding_save_error_invalid_display_name">Try a different name. Letters and numbers only.</string>
 
     <!-- Onboarding - Welcome step (entry screen). -->
-    <string name="onboarding_welcome_title">Cards</string>
+    <string name="onboarding_welcome_title">Dealt</string>
     <string name="onboarding_welcome_subtitle">Poker with your friends.\nPractice with bots when they're busy.</string>
     <string name="onboarding_welcome_continue_guest">Continue as guest</string>
     <string name="onboarding_welcome_continue_guest_progress">One moment…</string>
@@ -527,7 +527,7 @@
     <!-- Settings - screen reached from the Profile gear. -->
     <string name="settings_title">Settings</string>
     <string name="settings_section_account_support">Account &amp; support</string>
-    <string name="settings_about_headline">About Cards</string>
+    <string name="settings_about_headline">About Dealt</string>
     <string name="settings_legal_footer">Play money only · no real-money gambling</string>
     <string name="settings_responsible_play_headline">Responsible play</string>
     <string name="settings_responsible_play_supporting">Get help with problem gambling</string>
@@ -686,7 +686,7 @@
 
     <!-- Onboarding - HowItWorks step (explainer). -->
     <string name="onboarding_how_eyebrow">ALMOST THERE</string>
-    <string name="onboarding_how_title">How Cards works.</string>
+    <string name="onboarding_how_title">How Dealt works.</string>
     <string name="onboarding_how_card_play_title">Play three ways</string>
     <string name="onboarding_how_card_play_subtitle">Bots, strangers, or friends.</string>
     <string name="onboarding_how_card_chips_title">Chips fund the table</string>
@@ -1197,7 +1197,7 @@
          server's minimum supported version. Body is generic so it covers both
          App Store and Play Store; the CTA opens the user's platform store. -->
     <string name="upgrade_required_title">Time to update</string>
-    <string name="upgrade_required_body">A new version of Cards is ready, and you'll need it to keep playing.</string>
+    <string name="upgrade_required_body">A new version of Dealt is ready, and you'll need it to keep playing.</string>
     <string name="upgrade_required_cta">Update now</string>
     <!-- Reassurance under the CTA so the update doesn't read as risky. -->
     <string name="upgrade_required_reassurance">Your chips, level, and progress are safe.</string>

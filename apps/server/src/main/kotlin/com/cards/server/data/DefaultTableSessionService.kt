@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.data
 
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.StakeTier
 import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.db.TableSessionsTable
@@ -64,10 +65,20 @@ class DefaultTableSessionService(
     override suspend fun sitDown(
         userId: UserId,
         roomCode: String,
-        buyIn: Long,
+        requestedBuyIn: Long,
         enforceEntryBar: Boolean,
         subsidized: Boolean,
     ): SitDownResult {
+        // Charge exactly what the engine seats. A player's table stack is always
+        // `RoomSettings.forBuyIn(buyIn).startingStack`, which coerces into
+        // [MIN_BUY_IN]..[MAX_BUY_IN] — so a sub-floor (or absurd) room buy-in that
+        // ever slips past the HTTP create floor would otherwise seat a coerced
+        // stack against a raw debit and mint (or burn) the difference. Coercing
+        // here, at the money chokepoint, keeps wallet-debit == seated-stack no
+        // matter how the Room was constructed. This coerced value is the session's
+        // authoritative buy-in (stored, rebought, and refunded against).
+        val buyIn = requestedBuyIn.coerceIn(RoomSettings.MIN_BUY_IN, RoomSettings.MAX_BUY_IN)
+
         // Clean result for the common "already seated" / double-tap case; the
         // partial unique index below is the actual guarantee.
         tableSessions.findActiveForUser(userId)?.let {
@@ -207,11 +218,14 @@ class DefaultTableSessionService(
         )
 
         // Disclosed-bot subsidy: record the net house-funded win (final stack over
-        // everything the player put in) so it counts against their daily cap. Set,
-        // not added — deterministic from the row, so a crash-resumed cash-out
-        // records the same value. Only a positive net is house-funded; a losing
-        // session granted nothing.
-        if (session.subsidized) {
+        // everything the player put in) so it counts against their daily cap. Only
+        // run this when the credit actually landed *this* call — a crash-resumed
+        // cash-out re-applies the keyed credit as a no-op (`wasAlreadyApplied`), and
+        // re-recording (harmless, it's a `set`) but re-emitting `bot_subsidy_payout`
+        // would double-count the win on the Grafana budget dashboard. Only a
+        // positive net is house-funded; a losing session granted nothing.
+        val creditJustApplied = (outcome as? ApplyOutcome.Applied)?.wasAlreadyApplied == false
+        if (session.subsidized && creditJustApplied) {
             val funded = session.buyIn * (1 + session.rebuyCount)
             val net = (refund - funded).coerceAtLeast(0L)
             if (net > 0) {
@@ -240,6 +254,9 @@ class DefaultTableSessionService(
         tableSessions.markClosed(session.sessionId)
         return CashOutResult.CashedOut(refunded = refund, balanceAfter = outcome.balance)
     }
+
+    override suspend fun activeUsersInRoom(roomCode: String): List<UserId> =
+        tableSessions.findActiveByRoom(roomCode).map { it.userId }
 
     override suspend fun subsidyBudget(userId: UserId): com.dangerfield.cards.server.domain.SubsidyBudget {
         val grantedToday = tableSessions.subsidyGrantedSince(userId, clock.now() - subsidyWindow)

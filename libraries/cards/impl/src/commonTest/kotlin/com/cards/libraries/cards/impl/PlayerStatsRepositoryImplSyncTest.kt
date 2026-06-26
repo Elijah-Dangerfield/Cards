@@ -228,6 +228,8 @@ class PlayerStatsRepositoryImplSyncTest : CoroutineTest() {
         private val rows = seed.toMutableList()
         override suspend fun insertAll(events: List<PlayerStatEventEntity>) { rows += events }
         override suspend fun getUnsynced(): List<PlayerStatEventEntity> = rows.filter { !it.synced }
+        override fun observeUnsynced(): kotlinx.coroutines.flow.Flow<List<PlayerStatEventEntity>> =
+            kotlinx.coroutines.flow.flowOf(rows.filter { !it.synced })
         override suspend fun markSynced(keys: List<String>) {
             val set = keys.toSet()
             for (i in rows.indices) if (rows[i].idempotencyKey in set) rows[i] = rows[i].copy(synced = true)

@@ -70,6 +70,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
+import com.dangerfield.cards.libraries.ui.components.dialog.ModalDialogProperties
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryChipBubble
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
@@ -319,6 +320,13 @@ internal fun MultiplayerBustDialog(
     val canAffordRebuy = chipBalance != null && chipBalance >= buyIn
     Dialog(
         onDismissRequest = onLeaveGame,
+        // Real-chips bust: require an explicit choice (rebuy or leave). A stray
+        // scrim-tap or back-press must not silently leave the table and reconcile
+        // the wallet, so both dismissal paths are locked.
+        properties = ModalDialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+        ),
         topAccessory = topAccessoryChipBubble(),
     ) {
         Column(

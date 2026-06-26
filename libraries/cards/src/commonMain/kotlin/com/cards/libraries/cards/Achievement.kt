@@ -224,3 +224,61 @@ fun Achievement.currentProgress(progress: AchievementProgress): Int {
     }
     return raw.coerceAtMost(criterion.target)
 }
+
+/** True when the player's [progress] meets this achievement's threshold. */
+fun Achievement.isMet(progress: AchievementProgress): Boolean =
+    currentProgress(progress) >= criterion.target
+
+/**
+ * Build the display + unlock [AchievementProgress] from the player's **effective
+ * achievement counters** (the server snapshot folded with the unsynced outbox —
+ * see `PlayerStatsRepository.observeEffectiveCounters`) plus the synced [earned]
+ * set and the current [level].
+ *
+ * This is the single source both the progress bars and the unlock engine read,
+ * so they always agree, work offline, and survive reinstall. The server folds
+ * its counters under the *same* keys the registry's [Criterion] uses
+ * (`no_bust_streak`, `max_pot_seen`, `wins_vs_bot_<name>`, …) — that alignment is
+ * the contract (PROG-1; the shared `:libraries:achievements` fold produces them).
+ *
+ * Counters that aren't folded from hand facts are supplied here: `current_level`
+ * from [level] (XP-derived), and the bot-whisperer capstone derived from the
+ * per-bot win family. Tutorial + multiplayer achievements have no fact counter,
+ * so their bars read 0 until earned — correct, since they're tracked by the
+ * earned set (tutorial) / granted server-side (MP).
+ */
+fun achievementProgressFrom(
+    counters: Map<String, Long>,
+    earned: Map<AchievementId, Long>,
+    level: Int,
+): AchievementProgress {
+    fun clampInt(v: Long): Int = v.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
+    val ints = counters.mapValues { clampInt(it.value) }
+
+    val perAchievement = AllAchievements.mapNotNull { a ->
+        when (val c = a.criterion) {
+            is Criterion.HandsPlayed -> ints[SERVER_HANDS_PLAYED]
+            is Criterion.HandsWon -> ints[SERVER_HANDS_WON]
+            is Criterion.ShowAtLeast -> ints["$SERVER_SHOW_PREFIX${c.category.name}"]
+            is Criterion.Custom -> null
+        }?.let { a.id to it }
+    }.toMap()
+
+    val custom = ints.toMutableMap().apply {
+        put(CURRENT_LEVEL, level)
+        put(
+            BOT_WHISPERER_BOTS_BEATEN,
+            counters.count { (k, v) -> k.startsWith(winsVsBotKey("")) && v >= BOT_MASTERY_WINS },
+        )
+    }
+
+    return AchievementProgress(earned = earned, counters = perAchievement, customCounters = custom)
+}
+
+/** Server counter keys the per-achievement criteria map onto (match the server fold). */
+private const val SERVER_HANDS_PLAYED = "hands_played"
+private const val SERVER_HANDS_WON = "hands_won"
+private const val SERVER_SHOW_PREFIX = "show_"
+
+/** Per-bot win threshold that counts toward the bot-whisperer capstone (matches BEAT_*_10). */
+private const val BOT_MASTERY_WINS = 10L

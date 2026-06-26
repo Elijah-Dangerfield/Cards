@@ -1,6 +1,6 @@
 package com.dangerfield.cards.server.routes
 
-import com.dangerfield.cards.server.domain.PlayerStatHand
+import com.dangerfield.cards.libraries.achievements.HandFacts
 import com.dangerfield.cards.server.domain.PlayerStats
 import com.dangerfield.cards.server.domain.PlayerStatsRepository
 import com.dangerfield.cards.server.plugins.PROGRESSION_WRITE_LIMIT
@@ -47,7 +47,7 @@ fun Route.playerStatsRoutes(repository: PlayerStatsRepository) {
                 val body = call.receive<PlayerStatsSyncRequest>()
 
                 val results = body.events.map { event ->
-                    val outcome = repository.applyHand(userId, event.toDomain())
+                    val outcome = repository.applyHand(userId, event.toFacts())
                     PlayerStatEventResultDto(
                         idempotencyKey = event.idempotencyKey,
                         outcome = if (outcome.wasAlreadyApplied) {
@@ -77,9 +77,10 @@ private fun PlayerStats.toDto() = PlayerStatsDto(
     currentNoBustStreak = currentNoBustStreak,
     bestNoBustStreak = bestNoBustStreak,
     perBotWins = perBotWins,
+    achievementCounters = counters.values,
 )
 
-private fun PlayerStatHandDto.toDomain() = PlayerStatHand(
+private fun PlayerStatHandDto.toFacts() = HandFacts(
     idempotencyKey = idempotencyKey,
     mode = mode,
     won = won,
@@ -87,5 +88,17 @@ private fun PlayerStatHandDto.toDomain() = PlayerStatHand(
     lostAtShowdown = lostAtShowdown,
     vsBot = vsBot,
     beatenBotId = beatenBotId,
-    noBustStreak = noBustStreak,
+    // A client that doesn't send `busted` still drives the streak correctly:
+    // its no-bust streak resets to 0 exactly on a bust.
+    busted = busted ?: (noBustStreak == 0L),
+    botDifficulty = botDifficulty,
+    startStack = startStack,
+    endStack = endStack,
+    bigBlind = bigBlind,
+    potTotal = potTotal,
+    wasAllIn = wasAllIn,
+    wonByFold = wonByFold,
+    bustsDealt = bustsDealt,
+    foldedWouldHaveLost = foldedWouldHaveLost,
+    handStrengthShown = handStrengthShown,
 )

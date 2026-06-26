@@ -85,17 +85,23 @@ class PostgresTableSessionRepository(
     }
 
     override suspend fun incrementRebuy(sessionId: UUID): Int = database.transaction {
-        // Rebuys for a given session are serialized by the game session's
-        // mutex upstream, so a plain read-then-write is race-free here.
-        val current = TableSessionsTable
-            .selectAll()
+        // Single atomic increment — the UPDATE takes the row lock and computes
+        // `rebuy_count + 1` server-side, so there's no read-then-write window to
+        // lose. Rebuys for a session are already serialized by the game mutex
+        // upstream; this removes the dependence on that mutex for correctness
+        // (and under REPEATABLE READ a genuinely concurrent second writer aborts
+        // with a serialization failure rather than silently clobbering the count).
+        // Re-read in the same transaction to return the post-increment value the
+        // rebuy ledger key needs.
+        TableSessionsTable.update({ TableSessionsTable.sessionId eq sessionId }) {
+            with(org.jetbrains.exposed.sql.SqlExpressionBuilder) {
+                it[TableSessionsTable.rebuyCount] = TableSessionsTable.rebuyCount + 1
+            }
+        }
+        TableSessionsTable
+            .select(TableSessionsTable.rebuyCount)
             .where { TableSessionsTable.sessionId eq sessionId }
             .single()[TableSessionsTable.rebuyCount]
-        val next = current + 1
-        TableSessionsTable.update({ TableSessionsTable.sessionId eq sessionId }) {
-            it[TableSessionsTable.rebuyCount] = next
-        }
-        next
     }
 
     override suspend fun listActive(): List<TableSession> = database.transaction {

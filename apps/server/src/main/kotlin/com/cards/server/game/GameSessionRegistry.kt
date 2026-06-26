@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.game
 
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.gameplay.Deck
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
@@ -199,6 +200,14 @@ class DefaultGameSessionRegistry(
     // think-time (which can tank to several seconds). A scalar — not the driver's
     // delay function — so callers needn't see the bots types.
     private val botThinkDelayMsOverride: Long? = null,
+    // Rebuy-grace window before a heads-up bust resolves to a terminal match-over
+    // (MP-14). Defaulted to production; integration tests over the real wire shrink
+    // it so a bust-to-resolution test isn't gated on the real 60s.
+    private val matchOverGraceMillis: Long = MatchOverGraceDriver.DEFAULT_GRACE_MILLIS,
+    // Test seam (MP-18): resolves a scripted deck per (room, hand) so integration
+    // tests can force busts / chops / side pots over the real wire. Returns null
+    // in production → each hand deals a freshly shuffled deck.
+    private val deckSource: (code: String, handNumber: Int) -> Deck? = { _, _ -> null },
 ) : GameSessionRegistry {
     // StateFlow (not ConcurrentHashMap) so subscribers can observe the
     // moment a session for their code shows up. The mutex serializes
@@ -213,6 +222,11 @@ class DefaultGameSessionRegistry(
     // for human seats. Same lifecycle as [botDrivers] — spawned in createSession,
     // cancelled in end. Mutated only under [mutex].
     private val turnTimerDrivers = mutableMapOf<String, TurnTimerDriver>()
+    // Parallel to [sessions], keyed by code. Resolves the heads-up dead-end (one
+    // player busted, no rebuy) to a terminal match-over. Same lifecycle as the
+    // other drivers — spawned in createSession, cancelled in end, mutated only
+    // under [mutex].
+    private val matchOverGraceDrivers = mutableMapOf<String, MatchOverGraceDriver>()
 
     override suspend fun startHand(
         code: String,
@@ -293,6 +307,7 @@ class DefaultGameSessionRegistry(
             sessions.value = sessions.value - code
             botDrivers.remove(code)?.cancel()
             turnTimerDrivers.remove(code)?.cancel()
+            matchOverGraceDrivers.remove(code)?.cancel()
         }
         Catching { snapshotStore.deleteByCode(code) }
             .onFailure { log.warn("Failed to delete snapshot for room {} during end()", code, it) }
@@ -323,6 +338,7 @@ class DefaultGameSessionRegistry(
     private fun createSession(code: String, sessionId: UUID): GameSession {
         val session = GameSession(
             id = sessionId,
+            deckFactory = { handNumber -> deckSource(code, handNumber) ?: Deck.shuffled() },
             onStateChange = { state -> persist(code = code, sessionId = sessionId, state = state) },
             onHandFinished = { outcome -> recordHandsFinished(sessionId = sessionId, outcome = outcome) },
         )
@@ -337,6 +353,13 @@ class DefaultGameSessionRegistry(
         ).also { it.start() }
         turnTimerDrivers.remove(code)?.cancel()
         turnTimerDrivers[code] = TurnTimerDriver(session = session, scope = botDriverScope).also { it.start() }
+        matchOverGraceDrivers.remove(code)?.cancel()
+        matchOverGraceDrivers[code] = MatchOverGraceDriver(
+            session = session,
+            scope = botDriverScope,
+            clock = clock,
+            graceMillis = matchOverGraceMillis,
+        ).also { it.start() }
         return session
     }
 

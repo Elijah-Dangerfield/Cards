@@ -158,11 +158,12 @@ class InMemoryRoomServiceTest {
     }
 
     @Test
-    fun join_afterHandFinishes_succeeds() = runTest {
-        // markFinished returns the room to Lobby (Finished is sketched-in but
-        // never actually set by today's hand pipeline). A joiner arriving in
-        // the lull between hands gets seated immediately. Sibling to the
-        // mid-hand-join test — together they cover all live-room join windows.
+    fun join_afterMatchOver_isRejectedAsNotJoinable() = runTest {
+        // markFinished now flips a room to the terminal Finished status (the
+        // heads-up match-over resolution, MP-14) — not back to Lobby. A finished
+        // match is over, so a late joiner is turned away rather than seated into a
+        // dead table. (Joining the lull *between* hands stays a Playing-status join,
+        // covered by the mid-hand-join test.)
         val service = newService()
         val room = service.createOrFail(host, "Host")
         service.markPlaying(room.code)
@@ -170,8 +171,8 @@ class InMemoryRoomServiceTest {
 
         val outcome = service.join(room.code, alice, "Alice")
 
-        assertIs<JoinResult.Success>(outcome)
-        assertEquals(RoomStatus.Lobby, service.find(room.code)!!.status)
+        assertIs<JoinResult.NotJoinable>(outcome)
+        assertEquals(RoomStatus.Finished, service.find(room.code)!!.status)
     }
 
     @Test

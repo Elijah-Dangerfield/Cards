@@ -112,6 +112,46 @@ class MyItemsViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun ownedItems_defaultCosmetic_isEquippedWhenSlotHasNoExplicitEquip() = runUnitTest {
+        // Fresh account: defaults are seeded into inventory but the server
+        // never writes an equipment row for them, so equippedIds is empty.
+        // The items grid must still mark them equipped.
+        val inventory = FakeInventoryRepository(
+            initial = listOf(
+                inventoryItem("felt_default", AcquisitionSource.Earned),
+                inventoryItem("cardback_default", AcquisitionSource.Earned),
+            ),
+        )
+        val vm = buildVm(inventoryRepository = inventory)
+
+        val owned = vm.state.ownedItems.associateBy { it.productId }
+        assertTrue(owned.getValue("felt_default").isEquipped)
+        assertTrue(owned.getValue("cardback_default").isEquipped)
+    }
+
+    @Test
+    fun ownedItems_defaultCosmetic_isNotEquippedWhenSlotHasExplicitEquip() = runUnitTest {
+        // The user equipped a non-default felt: the default felt loses the
+        // badge, but the default card back (its slot untouched) keeps it.
+        val inventory = FakeInventoryRepository(
+            initial = listOf(
+                inventoryItem("felt_default", AcquisitionSource.Earned),
+                inventoryItem("felt_royal_red", AcquisitionSource.Purchased),
+                inventoryItem("cardback_default", AcquisitionSource.Earned),
+            ),
+        )
+        val equipment = FakeEquipmentRepository(
+            initial = listOf(equippedEntry("felt_royal_red")),
+        )
+        val vm = buildVm(inventoryRepository = inventory, equipmentRepository = equipment)
+
+        val owned = vm.state.ownedItems.associateBy { it.productId }
+        assertTrue(owned.getValue("felt_royal_red").isEquipped)
+        assertTrue(!owned.getValue("felt_default").isEquipped, "explicit felt equip retires the default felt badge")
+        assertTrue(owned.getValue("cardback_default").isEquipped, "untouched slot keeps its default equipped")
+    }
+
+    @Test
     fun toggleEquipped_nonSlotProduct_doesNotTouchOtherEquipment() = runUnitTest {
         // Tools / avatar packs / emote packs don't claim a slot — the
         // user can have several on at once.

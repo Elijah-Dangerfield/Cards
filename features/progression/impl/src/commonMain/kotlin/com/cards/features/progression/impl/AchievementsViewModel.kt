@@ -15,6 +15,9 @@ class AchievementsViewModel(
 ) {
 
     init {
+        // `observeProgress` is already server-authoritative — its counters are the
+        // effective projection (server snapshot + unsynced outbox), so the bars
+        // survive reinstall and the earned set still drives unlocked badges.
         viewModelScope.launch {
             achievementRepository.observeProgress().collect { progress ->
                 takeAction(AchievementsAction.ProgressChanged(progress))

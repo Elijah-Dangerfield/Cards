@@ -1,8 +1,12 @@
 # TODO
 
-**Last reviewed:** 2026-06-25 (feedback triage: CARDS-3N…47) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-25 (decisions pass: every item made worker-pickable; BILL-1 → developer-todo) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
+
+**Build the best thing, not the smallest change.** This is a greenfield, unshipped codebase — the goal is scalable, maintainable, production-ready systems. When you pick an item up, take a step back and ask what's genuinely best for the project and the user, then build that, even if it means restructuring or rebuilding something already here. Don't stack a minimal patch on top of what exists. Full rule: AGENTS.md → Coding Guidelines and [`docs/agent/worker-prompt.md`](agent/worker-prompt.md) → Picking work.
+
+**Fixing a bug? Reproduce it with a failing test first.** Red (the test fails *because of the bug*), then green (the fix makes it pass). It proves you found the real cause, not a guess, and leaves a permanent regression guard. Can't reproduce it in a test? The harness is missing something — build that first. See AGENTS.md → Coding Guidelines.
 
 **Minimum viable context.** Every item is one bold title + at most ~3 short lines (Problem / Acceptance / Hints). No status archaeology — don't narrate what already shipped, what's "locked," or which sub-part landed when. If a sub-part ships, delete that clause. A bullet a human can't skim in five seconds is too long.
 
@@ -22,64 +26,22 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## A. UX gaps
 
-### Progression & stats
-
-- `[P1]` **PROG-1 — Convert the achievement engine to predicates over `PlayerStats`.** The achievement engine still accumulates its own per-id progress in `AchievementRepositoryImpl.recordHand` (`counters` / `customCounters`), so achievement bars reset on account-switch / reinstall. Make the predicates read cumulative counters / no-bust streak / per-bot wins off the server-authoritative `PlayerStats` snapshot, recording a `claimed_at_value` per achievement so each unlocks once and doesn't re-fire.
-
-  **Acceptance:** Sign in on a second device → correct achievement progress after one sync; stats screen and achievement bars agree; a new achievement points at an existing stat with no data migration.
-
-  **Hints:** `PlayerStats` is already an offline-first `observeStats(): Flow<PlayerStats?>` (`PlayerStatsRepositoryImpl`). Touches the live unlock path — land as its own commit with the achievement-unlock tests green.
-
-### Auth & onboarding
-
-- `[P2]` **AUTH-1 — Tune the device-verify banner placement.** Copy is refined; what's left is where the banner sits relative to the verify CTA on `VerifyEmailScreen` — eyeball the spacing/position against the screen and adjust.
-
-  **Hints:** Verify surface is `features/onboarding/impl/AuthScreens.kt` (`VerifyEmailScreen`, banner sits between body + the Check-verification button). Needs Studio to eyeball.
-
-### Gameplay & table UX
-
-- `[P2]` **GAME-3 — Emote button glyph isn't optically centered.** The play-poker emote trigger ([`TopBarEmojiButton`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/EmojiTray.kt) → DS [`EmojiButton`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/icon/EmojiButton.kt)) centers its circular bounding box correctly, but the emoji glyph sits slightly up-and-left inside it — the text line-box midpoint ≠ the glyph's visual midpoint.
-
-  **Acceptance:** The glyph reads optically centered in the circle at every `Size`.
-
-  **Hints:** The `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
-
 ### Multiplayer & rooms
 
-- `[P0]` **MP-13 — MP wallet settlement doesn't conserve chips across a game.** Two humans each started a heads-up game and the sum of their wallets *grew* (10k+10k → 12450+9550 = 22000, +2000 minted). The table-chip side is conserved; the wallet settlement is client-derived with no server-authoritative or test-enforced conservation invariant.
-  **Acceptance:** A full MP game settles wallets so `sum(wallets_after) == sum(wallets_before)`; an integration test plays a complete MP game and asserts conservation.
-  **Hints:** MP chip escrow/settlement shipped in #67; make the server authoritative for MP buy-in debit + pot payout (one ledger entry per seat per game) rather than each client computing its own delta. Likely interacts with the $0-buy-in bug (MP-16). Case `docs/agent/feedback-cases/7b9fada4e2364ed6971fffef505ec57b.md`; Sentry CARDS-3V.
+- `[P1]` **MP-13 — Persist last-known stack so the crash-recovery sweep can't mint.** The live mint is fixed: a busted-and-dropped player who leaves (or is torn down) is now cashed out their real 0 via `GameSession.lastKnownStack`, not refunded their escrow — and because the leave + teardown paths now derive the same value, the concurrent-cashout race resolves correctly too (`Mp13ConservationTest` proves it over the wire). One edge remains: `lastKnownStacks` is in-memory, so after a server crash the boot recovery sweep (`DefaultTableSessionRecoverySweep`) rehydrates only the snapshot — which has no seat for a busted-dropped player — and still falls through to a full-escrow refund. Persist the last-known stack in the session snapshot (or the `table_sessions` row) so the sweep reads it too.
+  **Acceptance:** a crash mid-game with a busted-and-dropped player, then the boot sweep, cashes them out 0 (no mint). Test via the harness `restart()` + the sweep.
+  **Hints:** `DefaultTableSessionRecoverySweep` (reads `snapshots.readByCode`), `SessionSnapshot` (persist `lastKnownStacks` alongside the `GameState`), `GameSession`. Was P0 (the live mint); demoted now the common path is fixed + tested. Case `docs/agent/feedback-cases/7b9fada4e2364ed6971fffef505ec57b.md`; Sentry CARDS-3V.
 
-- `[P0]` **MP-14 — Heads-up bust needs a terminal match-over resolution.** The winner's rejected "next hand" no longer no-ops silently (it now toasts "waiting for your opponent to rebuy or leave"), and the busted player already has the rebuy/buy/leave dialog. What's missing is the *terminal* path: if the busted player can't or won't rebuy, the table should resolve to a match-over (winner takes the table) rather than both players idling indefinitely on the "waiting" notice.
-  **Acceptance:** On a heads-up bust where the loser doesn't rebuy, the winner sees a match-over result and is routed off the dead table — no indefinite "waiting" loop.
-  **Hints:** Needs a product call on the resolution trigger (busted-player leave, a rebuy-grace timeout, or an explicit winner "end match" action) and a server-driven match-over signal — there's no match-over concept today. The client already surfaces the rejection via `PlayPokerEvent.NextHandUnavailable` / `PokerSession.nextHandUnavailable`. Case `docs/agent/feedback-cases/e98cfac9d86545ad89083f7341e6f22a.md`; Sentry CARDS-3S.
+- `[P2]` **MP-17 — Remaining MP terminal edge cases (the all-in-leaver chip burn is fixed).** Shipped + tested: an all-in player who leaves mid-hand is settled at their real resolved stack, never burned — whether the opponent stays (`deferSettlementIfAllInLive` + `departedSettlements` on showdown) or both vanish (`RoomTeardownCoordinator` resolves the live hand + cashes out every open session via `activeUsersInRoom`). Covered by `MatchOverEdgeCasesTest` (single-leaver, both-leave, multi-way bust) + `GameEngineForfeitTest.forfeitFacingAllIn…`. **Still untested (lower priority):** 3→2→1 staged collapse, reaper grace expiring mid-hand. Demoted to P2 — the money-losing cases are closed; these remaining ones are lifecycle-correctness checks expected to already pass.
+  **Hints:** `MatchOverEdgeCasesTest` is the template (`driveActions` + `stackedDeck` for multi-way).
 
-- `[P1]` **MP-15 — Public matchmaking opens a fresh room instead of joining an existing open one.** Player A opens a public room; Player B's "Find a Room" spins up a brand-new empty room and leaves B stuck on the "searching" screen. B only got in by leaving and joining A's room by code.
-  **Acceptance:** With one eligible open room, `find` lands the searcher in it (members=2), never a new room; a freshly-opened room appears in `candidates` without delay. Covered by a test: A opens → B's find joins A's room.
-  **Hints:** Server log shows `Matchmaking opened public room <new> …` (`InMemoryRoomService.findOrJoinPublic`, ~line 276) firing while an open room existed — join-existing must beat open-new; check the open-room eligibility/visibility filter and any in-memory registry race. Public matchmaking shipped in #67. Case `docs/agent/feedback-cases/cffeaf3aecbd49cd9aacb0ca1daa0155.md`; Sentry CARDS-3Z (+ CARDS-40, CARDS-45).
+- `[P2]` **MP-20 — Client MP feedback + routing gaps (audit).** A submitted action that times out (10s, no ack) or is rejected surfaces **nothing** — the player sees a dead pause then silence, no "didn't send / not allowed" hint (`RemotePokerSession.submit` throws, the VM swallows with a log). Add a transient hint on `IntentTimeoutException` / `IntentRejectedException`. Also untested (regression risk): the `NextHandUnavailable` snackbar wiring, the `ReconnectFailed` terminal close (the `roomClosed` KDoc only names RoomDeleted/Rejected), the public-table `OpponentsLeft` routing, and the mid-game-joiner "dealt in next hand" → seated transition (a joiner never seated waits forever).
+  **Hints:** `PlayPokerViewModel` submit handler (~628), `PlayMultiplayerFeatureEntryPoint`, `RemotePokerSession`.
 
-- `[P1]` **MP-16 — Pin where the lobby's $0 buy-in snapshot leaks from.** The slider seed and the server buyIn=0 reject are already correct, and the lobby now suppresses the stakes/buy-in row while `room.buyIn == 0` so testers no longer see a flashed "$0". What's unconfirmed is *which* snapshot path stages a `buyIn == 0` room in the first place — every wire path (`POST /v1/rooms`, join, the socket `Snapshot`, the active-rooms list) carries the real buy-in via `Room.toDto()`, so the 0 must come from a partial/transient snapshot or a persisted-room restore (`PostgresRoomStore`) reading an unwritten column. Needs runtime traces from a repro to pin and fix at the source.
-  **Hints:** `RoomDto.buyIn` / `Room.buyIn` both default to 0. The display guard lives in `LobbyScreen.kt` `InRoomContent`. Case `docs/agent/feedback-cases/a3b1fc7d414444b295669d047d173ff8.md`; Sentry CARDS-3X (+ CARDS-3N).
+- `[P0]` **MP-14 — Live countdown UI + match-over result screen (stages 1-2 shipped).** The freeze is fixed: the server resolves the heads-up bust dead-end (`MatchOverGraceDriver` → `Resolved` → room flips `Finished`) and the client routes off, so the old infinite "waiting" is now a bounded ~60s exit. What's left is the UX. Render the live rebuy countdown both roles from the `MatchOverPending(deadlineEpochMs, bustedSeatIndex)` wire event (busted: "rebuy in Ns or lose your seat" + a rebuy CTA; winner: "auto-continues in Ns"); clear it on `MatchOverCleared`; and replace the current route-off-as-`RoomDeleted` with a dedicated match-over **result screen** + a distinct `ClosedReason.MatchOver(winnerUserId)`. The events already arrive at the client socket (currently no-ops for Pending/Cleared).
+  **Acceptance:** Busted player sees a live countdown + rebuy CTA; winner sees the same countdown / "auto-continues" cue; on expiry the winner sees a match-over result (not a silent pop) and is routed off; a rebuy inside the window clears the countdown and resumes play.
+  **Hints:** Surface the match-over events out of `ReconnectingRoomSocket` (~line 365, currently `-> Unit`) through `GameplayFrame` → `RemotePokerSession` → the play VM. `MatchOverGraceDriverTest` covers the server resolution. Sentry CARDS-3S.
 
----
-
-## B. Engineering
-
-### Lint / static analysis
-
-- `[P1]` **ENG-2 — Stand up detekt as the custom-rule framework, gated in CI + pre-push.** Give the build a growable way to mechanically enforce AGENTS.md conventions. Land the framework + the first rule; later rules (`Catching` over `runCatching`, `DispatcherProvider` over direct `Dispatchers.*`, raw `Color(0xFF…)` for semantic surfaces) are cheap follow-on items.
-
-  - **Framework:** add detekt to `gradle/libs.versions.toml` + a `build-logic/` convention plugin, wire it into `check` and a new `.githooks/pre-push`, behind a baseline so the gate is green day one.
-  - **Rule #1 — `verifyStrings`:** fail on inline user-facing string literals (`Text("…")`, `placeholder = "…"`, VM copy) outside `:libraries:resources`, allowlisting glyph-only / preview / server-supplied strings.
-
-  **Acceptance:** `Text("Hello")` in a feature `:impl` fails both `./gradlew check` and pre-push; `stringResource(...)` passes; a suppress annotation clears a line; adding a second rule is a new rule class + config entry, no framework rework.
-
-  **Blocker (needs a human call first):** repo is on Kotlin 2.3.21; detekt 1.23.x bundles the 2.0.0 compiler and chokes on 2.3 metadata (detekt#8865). Only `dev.detekt` 2.0.0-alpha supports Kotlin 2.3 — pin the alpha deliberately or hold until detekt 2 stabilises.
-
-  **Out of scope:** migrating existing string violations — separate cleanup once the gate exists.
-
-### Billing
-
-- `[P0]` **BILL-1 — Server-side IAP receipt validation + server-authoritative purchase ledger.** Today `ShopViewModel.ConfirmPendingPurchase` drives `billingClient.purchase(...)` and credits chips locally on success — the server never validates the receipt, so a forged receipt mints chips. Before any real-money sale: `POST /v1/billing/redeem` validates against the Apple App Store Server API / Google Play Developer API, then grants chips through the server wallet ledger, idempotent per store transaction id. **Gated on:** store IAP products + store API credentials existing (developer-todo).
-
-  **Hints:** Grant precedent is `ChipsRepository.addChips(idempotencyKey=…)` / the wallet ledger. Verify-before-credit — never trust the client for paid chips.
+- `[P1]` **MP-16 — Fix the post-leave $0 buy-in rebound.** A $0 room is already structurally impossible: the create-form slider seeds `DEFAULT_BUY_IN` (`0c4f28a9`) and the server rejects out-of-range buy-ins (`RoomRoutes.kt` create floor). So the remaining user-visible $0 — sole human routed back to the in-room lobby after the other player leaves — is a **stale/placeholder client `Room` snapshot**, not a real room state. Since `buyIn == 0` now provably means "not a real snapshot," make the client refuse to render/stage it (retain the last known-good room rather than overwrite with a $0 one), then remove the `LobbyScreen` band-aid (`if (room.buyIn > 0)` at `LobbyScreen.kt:383`).
+  **Acceptance:** After the opponent leaves, the sole-human lobby keeps showing the real stakes; no $0 ever renders; the band-aid is gone.
+  **Hints:** Client room state flows through `RoomRepositoryImpl.upsertActive` → lobby state; the rebound snapshot arrives after `MemberLeft`. See backlog "$0 buy-in … after sole-human-left rebound". Case `docs/agent/feedback-cases/a3b1fc7d414444b295669d047d173ff8.md`; Sentry CARDS-3X/CARDS-3N.
