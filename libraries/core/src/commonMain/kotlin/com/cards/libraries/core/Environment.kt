@@ -37,10 +37,11 @@ enum class Environment(
         displayName = "prod",
         baseUrl = "https://cards-server-prod.fly.dev",
         supabaseProjectRef = "kzohlyvmnnvyabspzpbb",
-        // TODO(prod-anon-key): paste the kzohlyvmnnvyabspzpbb project's anon
-        // (public) key here. Left empty so a prod-targeted build fails Supabase
-        // auth loudly instead of silently hitting the wrong project.
-        supabaseAnonKey = "",
+        // Project's anon (public) API key. Public by design — gated by RLS.
+        supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." +
+            "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6b2hseXZtbm52eWFic3B6cGJiIiwi" +
+            "cm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMDgwODcsImV4cCI6MjA5NDY4NDA4N30." +
+            "rw8i_Hu6FsONRM3yhZmVutbDz_c6yK63x-1c9Io2kGw",
     ),
     ;
 
