@@ -61,6 +61,12 @@ if (!serverOnly) {
     // modules + :apps:server, so it's gated out of the server-only build.
     include(":apps:integration")
 
+    // Local-only Compose Multiplatform (web) admin GUI for remote config —
+    // the on-demand "run it, edit flags, kill it" tool. Dev tooling, never
+    // shipped and never deployed, so it's gated out of the server-only build
+    // like the rest of the client graph. The first (and only) JS target.
+    include(":apps:admin")
+
     // Features
     include(":features:home")
     include(":features:home:impl")
