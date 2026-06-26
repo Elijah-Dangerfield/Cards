@@ -8,6 +8,26 @@ This template ships to the App Store and Play Store with no human clicks after o
 
 ---
 
+## Two release tracks: app vs server
+
+There are **two independent release tracks**, and most of this doc is about the first one:
+
+1. **The mobile app** — a *versioned artifact* shipped to the App Store / Play Store via release-please + [release.yml](../.github/workflows/release.yml). Store review, staged rollout, slow rollback. This is the "Cutting a release" flow below.
+2. **The server** (`cards-server-dev` / `cards-server-prod` on Fly) — a *continuously-deployed service*, **not** in release-please and **not** tied to the app version. Fly deploys are instant and reversible.
+
+**Why decoupled:** the server must serve every app version in the wild (that's what version-targeted config is for), and the two have opposite cadence/rollback shapes. Coupling them would block server hotfixes on store review, or block app releases on server deploys. **Coordinate a breaking client⇄server change with config flags, not a lockstep deploy** — ship the backward-compatible server first, release the app, then flip the flag once enough clients have updated.
+
+**Server deploy model:**
+
+| | When it deploys |
+| --- | --- |
+| **dev** (`cards-server-dev`) | Auto on every push to `main` (server-affecting paths). See [server-deploy.yml](../.github/workflows/server-deploy.yml). |
+| **prod** (`cards-server-prod`) | Auto-**queued** on push to `main`, then **paused for approval** on the `production` GitHub Environment. Approve it in **Actions → the run → "Review deployments"** (one click) once dev looks good. A `workflow_dispatch` break-glass path also exists. See [server-deploy-prod.yml](../.github/workflows/server-deploy-prod.yml). |
+
+So a server change lands in prod when a human approves the auto-queued deploy — deliberate, audited, and one click, with no "did anyone remember to deploy?" toil. Ops details (secrets, standing up prod) live in [`apps/server/DEPLOY.md`](../../apps/server/DEPLOY.md).
+
+---
+
 ## Cutting a release (for humans)
 
 > TL;DR: merge the "release" PR. That's it.

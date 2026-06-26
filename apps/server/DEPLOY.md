@@ -13,17 +13,24 @@ one are invisible to the other.
 | | Fly app | Supabase project | Config | Deploy |
 | --- | --- | --- | --- | --- |
 | **dev** | `cards-server-dev` | `yuqrfhdoejonclgbixlw` | `fly.toml` | auto on push to `main` |
-| **prod** | `cards-server-prod` | `kzohlyvmnnvyabspzpbb` | `fly.prod.toml` | **manual** dispatch (`server-deploy-prod.yml`) |
+| **prod** | `cards-server-prod` | `kzohlyvmnnvyabspzpbb` | `fly.prod.toml` | auto-queued on push to `main`, **1-click approval** (`server-deploy-prod.yml`) |
 
 The client picks an environment by build type: **debug → dev, release → prod**
 (`Environment.current`). Override locally with `cards.targetEnv=dev|prod` in
 `local.properties` (CI-guarded). Each env has its **own** `ADMIN_API_TOKEN`, so
 the config admin tool manages whichever one you point it at.
 
-Prod deploys are deliberate: dev ships on every merge; prod ships when you run
-the prod workflow (or `fly deploy --config apps/server/fly.prod.toml`) after
-dev looks good. The schema needs no manual work — Flyway runs every migration
-on first boot and `V5__products.sql` seeds the catalog, on either database.
+Prod deploys are deliberate but low-toil: dev ships on every merge; the same
+merge **auto-queues** a prod deploy that pauses on the `production` GitHub
+Environment for a one-click approval (**Actions → the run → "Review
+deployments"**). Approve it once dev looks good. The `workflow_dispatch` path is
+still there as a break-glass / redeploy button (type `prod` to confirm), as is
+`fly deploy --config apps/server/fly.prod.toml` locally. The server is
+deliberately **decoupled from the mobile app release** — see
+[`docs/practices/release.md`](../../docs/practices/release.md) →
+"Two release tracks". The schema needs no manual work — Flyway runs every
+migration on first boot and `V5__products.sql` seeds the catalog, on either
+database.
 
 ### Standing up prod (one-time)
 ```
