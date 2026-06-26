@@ -27,6 +27,21 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-25 — Placeholder ($0) room snapshots are dropped in the data layer, not the UI (MP-16)
+
+**Decision:** The "don't show a $0 buy-in" rule lives as one domain invariant, `Room.preferRealOver(previous)` (backed by `Room.isPlaceholder`, i.e. `buyIn <= 0`), applied at every repo staging boundary: `RoomRepositoryImpl.upsertActiveRoom` (HTTP create/join/addBot) and `ReconnectingRoomSocket`'s `Snapshot` emission (the live lobby path). A placeholder snapshot never regresses a known-good room — the repo retains the last real one. The `LobbyScreen` `if (room.buyIn > 0)` band-aid was removed; the UI no longer defends against an impossible state.
+
+**Why:** A $0 room is structurally impossible (create form seeds a default, server rejects out-of-range buy-ins), so `buyIn == 0` provably means "not a real snapshot" — the stale rebound that arrives after the sole other human leaves. The invariant belongs where snapshots are staged, not at each render site: the lobby `room` actually flows through the socket `Snapshot` path, so a repo-only guard would have left the band-aid load-bearing. Putting the rule once in the data layer means the band-aid (and any future render site) needs no `buyIn > 0` defense.
+
+**Altitude:** Chose "don't regress a real room to a placeholder" over "drop $0 snapshots at one boundary." The narrower framing (guard only `upsertActiveRoom`) misses the real rebound path (the socket), and a guard scattered per-callsite is the band-aid we're removing. The general rule, expressed as a pure `Room` function and applied at both staging points, keeps the invariant in one greppable place.
+
+**Alternatives considered:**
+- **Guard only `upsertActiveRoom`.** What the todo literally pointed at. Rejected: the lobby's `room` is fed by the socket `Snapshot` emission, not `upsertActiveRoom`, so this alone wouldn't satisfy the acceptance and the band-aid would have to stay.
+- **Keep the `LobbyScreen` guard.** Rejected: pushes an impossible-state defense into the UI; every future room-rendering surface would need to repeat it.
+- **`distinctUntilChanged` on the snapshot flow.** Rejected: a placeholder isn't a duplicate, it's a regression; dedup wouldn't catch the real to $0 transition.
+
+**Status:** Locked.
+
 ## 2026-06-25 — Match-over result is a play-screen dialog, not a new nav screen (MP-14)
 
 **Decision:** The heads-up match-over "result screen" (MP-14) is a `MatchOverResultDialog` overlay rendered on the existing play screen, sequenced like the bust/showdown dialogs, not a new navigation route. The terminal `match_over_resolved` wire frame closes the socket as a new `ClosedReason.MatchOver(winnerUserId)` (the enum was promoted to a sealed interface to carry the winner id); the VM resolves the local win/loss role and surfaces `PlayPokerState.matchOverResult`, and the dialog's Done CTA fires the same `LeaveGameFromBust` teardown + route-off the bust dialog uses. The live countdown is likewise an on-table banner, not a screen.

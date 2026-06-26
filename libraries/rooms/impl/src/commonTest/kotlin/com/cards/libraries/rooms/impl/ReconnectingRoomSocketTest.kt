@@ -101,6 +101,28 @@ class ReconnectingRoomSocketTest : CoroutineTest() {
     }
 
     @Test
+    fun connection_placeholderSnapshotDoesNotRegressKnownGoodRoom() = runUnitTest {
+        // The $0 rebound that lands after the sole other human leaves must
+        // not overwrite the real stakes the lobby is already showing (MP-16).
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        val session = transport.primeSuccess()
+
+        socket.connect("ABC123").connection.test {
+            assertEquals(RoomConnection.Connecting, awaitItem())
+            session.receive(RoomSocketEventDto.Snapshot(sampleRoomDto("ABC123", buyIn = 1000)))
+            assertEquals(1000, assertIs<RoomConnection.Connected>(awaitItem()).room.buyIn)
+            session.receive(RoomSocketEventDto.Snapshot(sampleRoomDto("ABC123", buyIn = 0)))
+            assertEquals(
+                1000,
+                assertIs<RoomConnection.Connected>(awaitItem()).room.buyIn,
+                "a placeholder \$0 snapshot retains the last known-good stakes",
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun connection_doesNotEmit_onGameplayFrames() = runUnitTest {
         val transport = FakeRoomSocketTransport()
         val socket = newSocket(transport)
@@ -818,12 +840,13 @@ class ReconnectingRoomSocketTest : CoroutineTest() {
     private fun newSocket(transport: FakeRoomSocketTransport): ReconnectingRoomSocket =
         ReconnectingRoomSocket(transport = transport, appScope = appScope)
 
-    private fun sampleRoomDto(code: String) = RoomDto(
+    private fun sampleRoomDto(code: String, buyIn: Long = 0L) = RoomDto(
         code = code,
         hostUserId = "host-user",
         createdAtEpochMs = 0L,
         maxSeats = 6,
         status = RoomStatusDto.Lobby,
+        buyIn = buyIn,
         members = listOf(sampleMemberDto("host-user")),
     )
 

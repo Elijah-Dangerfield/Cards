@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.GameplayFrame
+import com.dangerfield.cards.libraries.rooms.preferRealOver
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
@@ -203,6 +204,14 @@ class ReconnectingRoomSocket @Inject constructor(
         val gameplayFrames: Flow<GameplayFrame> =
             merge(_latestGameState.filterNotNull(), _gameplayFrames)
 
+        /**
+         * Last known-good (non-placeholder) lobby snapshot for this code.
+         * Confined to the single-threaded session collector, so a plain var
+         * is safe. Lets a placeholder rebound fall back to the real room
+         * rather than emit a $0 frame the UI would have to defend against.
+         */
+        private var lastRealRoom: Room? = null
+
         private val coordinatorJob: Job = appScope.launch { runCoordinator() }
 
         suspend fun send(frame: ClientFrame) {
@@ -367,7 +376,14 @@ class ReconnectingRoomSocket @Inject constructor(
                         logger.d { event.summary() }
                         when (event) {
                             is RoomSocketEventDto.Snapshot -> {
-                                val room: Room = event.room.toDomain()
+                                // A $0 buy-in snapshot is a placeholder, not a
+                                // real room (see Room.isPlaceholder) — the
+                                // rebound that lands after the sole other human
+                                // leaves. Refuse to regress the known-good room
+                                // to it so the lobby keeps showing real stakes
+                                // (MP-16).
+                                val room = event.room.toDomain().preferRealOver(lastRealRoom)
+                                if (!room.isPlaceholder) lastRealRoom = room
                                 _connection.emit(RoomConnection.Connected(room))
                             }
                             // Lobby-side deltas don't carry full state;
