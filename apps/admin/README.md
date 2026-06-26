@@ -62,6 +62,33 @@ databases.
 Edits go live on the client's next config refresh (the server caches the
 resolved tree for about 30 seconds).
 
+## Per-version defaults manifest (what a build shipped with)
+
+The admin tool can show the **in-code defaults a given app version shipped
+with** — the baseline a remote override replaces. Those defaults live in the
+client's `ConfiguredValue` classes, which the JS admin module can't read, so CI
+uploads them per release.
+
+Generate the manifest for the current build and upload it:
+
+```bash
+./gradlew :apps:admin:exportConfigManifest
+# writes apps/admin/build/config-manifest.json, stamped from versions.properties
+
+curl -X PUT "$SERVER_BASE_URL/v1/admin/config/manifest" \
+  -H "X-Admin-Token: $ADMIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data @apps/admin/build/config-manifest.json
+```
+
+Run this as a release-pipeline step (after the version bump) so each shipped
+build records its registry.
+
+> **Keep the registry in sync.** The exported entries are a maintained list in
+> `apps/admin/build.gradle.kts` (`exportConfigManifest`). When you add, remove,
+> or change a scalar `ConfiguredValue`'s default, update that list. Composite
+> (`JsonConfigValue`) flags are intentionally omitted.
+
 ## Why this exists / scope
 
 We decided on an in-house tool over a hosted flag service; see

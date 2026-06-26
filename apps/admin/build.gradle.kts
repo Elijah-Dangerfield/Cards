@@ -59,6 +59,52 @@ val generateAdminEnv = tasks.register("generateAdminEnv") {
     }
 }
 
+// ── Export the in-code config registry as a manifest CI uploads at release ────
+// The admin tool's "what did 1.0.1 ship with" view reads a per-version manifest
+// of the app's in-code config defaults. This task emits that manifest for the
+// CURRENT build (version stamped from versions.properties); CI PUTs it to
+// `/v1/admin/config/manifest` after a release build (see README).
+//
+// The client DI graph that owns the live `Set<ConfiguredValue<*>>` is Android/
+// iOS-only, so it can't be enumerated from this JS module. Instead this is a
+// maintained registry of the scalar (targetable) flags — KEEP IN SYNC with:
+//   libraries/social/.../SocialConfigValues.kt
+//   libraries/identity/.../IdentityConfigValues.kt
+//   libraries/identity/.../OnboardingConfigValues.kt
+//   features/upgrade/.../UpgradeConfigValues.kt
+// Composite (JsonConfigValue) flags are intentionally omitted — they aren't
+// targeted per version/locale and their defaults are large objects.
+val exportConfigManifest = tasks.register("exportConfigManifest") {
+    description = "Write the per-version config manifest CI uploads to /v1/admin/config/manifest."
+    val versionsFile = rootProject.file("versions.properties")
+    val outFile = layout.buildDirectory.file("config-manifest.json")
+    // Locals (not script properties) so the closure is configuration-cache safe.
+    val entries = listOf(
+        """{"path":"social.enabled","type":"boolean","default":false,"description":"Social features master switch"}""",
+        """{"path":"identity.googleSignInEnabled","type":"boolean","default":false,"description":"Show Google sign-in"}""",
+        """{"path":"identity.appleSignInEnabled","type":"boolean","default":true,"description":"Show Apple sign-in"}""",
+        """{"path":"upgrade.minSupportedVersionCode","type":"int","default":1,"description":"Below this build code, force upgrade"}""",
+        """{"path":"upgrade.maintenanceMode","type":"string","default":"off","description":"Maintenance gate","allowedValues":["off","banner","blocking"]}""",
+        """{"path":"upgrade.maintenanceMessage","type":"string","default":"We're updating the servers, back in a moment.","description":"Maintenance banner/blocking copy"}""",
+        """{"path":"onboarding.starterGrant","type":"long","default":0,"description":"Starter coin grant (0 = unknown sentinel)"}""",
+        """{"path":"onboarding.suggestedName","type":"string","default":"","description":"Suggested display name (empty = none)"}""",
+    )
+    inputs.file(versionsFile)
+    outputs.file(outFile)
+    doLast {
+        val props = Properties().apply { versionsFile.inputStream().use { load(it) } }
+        val versionCode = props.getProperty("versionCode", "0").trim()
+        val versionName = props.getProperty("versionName", "").trim()
+        val out = outFile.get().asFile
+        out.parentFile.mkdirs()
+        out.writeText(
+            """{"versionCode":$versionCode,"appVersion":"$versionName",""" +
+                """"entries":[${entries.joinToString(",")}]}""" + "\n",
+        )
+        logger.lifecycle("Wrote config manifest for v$versionName ($versionCode) → $out")
+    }
+}
+
 kotlin {
     js(IR) {
         browser {
