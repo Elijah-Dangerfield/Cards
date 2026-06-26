@@ -45,6 +45,10 @@ class DatabaseSchemaTest : DatabaseTest() {
             assertEquals(0, PlayStyleEventsTable.selectAll().count())
             assertEquals(0, UserPlayerStatsTable.selectAll().count())
             assertEquals(0, PlayerStatEventsTable.selectAll().count())
+            // V75 seeds the parity set the old in-memory source returned
+            // (upgrade.* ×3 + social.enabled). Non-empty proves the seed ran
+            // AND the Exposed projection lines up with the JSONB schema.
+            assertEquals(4, AppConfigValuesTable.selectAll().count())
         }
     }
 

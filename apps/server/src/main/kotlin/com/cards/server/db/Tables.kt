@@ -445,3 +445,16 @@ object UserMessagesTable : Table("user_messages") {
     override val primaryKey = PrimaryKey(id)
 }
 
+/**
+ * DB-backed remote-config base values. One row per `ConfiguredValue.path`
+ * the server overrides; `value_jsonb` is the value served when no targeting
+ * rule matches. Backs [com.dangerfield.cards.server.data.PostgresAppConfigSource].
+ * See `V75__app_config.sql`.
+ */
+object AppConfigValuesTable : Table("app_config_values") {
+    val path = text("path")
+    val valueJsonb = jsonb("value_jsonb")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(path)
+}
+
