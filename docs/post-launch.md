@@ -61,9 +61,16 @@ the config table. Ship in slices:
   app version, user-id allow/deny, location, locale, OS version, release channel, account type,
   install/cohort date, device class. Deterministic % bucketing (`hash(userId + flagKey) % 100`) for
   ramps + A/B. Change audit log.
-- **Phase 3 — local admin UI:** the on-demand local web app — lists every flag (from the
-  `ConfiguredValue` registry), shows the value served per app version / audience, and edits values +
-  rules + rollout %.
+- **Phase 3 — local admin UI (Compose Multiplatform web):** an on-demand, locally-run web app built
+  with **Compose Multiplatform for Web** — a new CMP web module/target, kept out of the shipped
+  Android/iOS apps. Lean toward **Compose HTML (DOM)** over the wasm/canvas renderer: the tool is a
+  form-heavy flag editor (lists, value inputs, rule/rollout fields), where DOM is lighter, more
+  accessible, and a better fit than canvas-rendered Compose widgets. Reuses the `ConfiguredValue`
+  registry (common Kotlin) to enumerate every flag, shows the value served per app version /
+  audience, and edits values + rules + rollout %. Run flow: start it locally, edit against the
+  config table, kill it when done — **never a published/hosted site for V1**. Future option: publish
+  it behind a VPN (or similar gate) once on-demand local editing becomes a bottleneck; out of scope
+  for the initial build.
 
 The seam already exists: `AppConfigSource` (server) + `ConfiguredValue` / `AppConfigMap` (client);
 some eval inputs live in `ClientHeaders` (install id, platform, app version) + the JWT.
