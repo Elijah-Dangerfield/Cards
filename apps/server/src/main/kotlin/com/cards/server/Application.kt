@@ -23,6 +23,7 @@ import com.dangerfield.cards.server.routes.achievementsRoutes
 import com.dangerfield.cards.server.routes.adminRoutes
 import com.dangerfield.cards.server.routes.appConfigRoutes
 import com.dangerfield.cards.server.routes.avatarRoutes
+import com.dangerfield.cards.server.routes.configAdminRoutes
 import com.dangerfield.cards.server.routes.equipmentRoutes
 import com.dangerfield.cards.server.routes.friendsRoutes
 import com.dangerfield.cards.server.routes.grantsRoutes
@@ -197,6 +198,10 @@ fun Application.installApp(
             wallets = component.walletRepository,
             messages = component.userMessageRepository,
             clock = component.provideClock(),
+        )
+        configAdminRoutes(
+            config = adminConfig,
+            repository = component.appConfigAdminRepository,
         )
     }
 }
