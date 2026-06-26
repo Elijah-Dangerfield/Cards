@@ -25,12 +25,13 @@ class AppConfigTargetingEngineTest {
     private fun ctx(
         platform: ClientContext.Platform = ClientContext.Platform.Android,
         buildNumber: Int? = 100,
+        appVersion: String? = "1.0.0",
         locales: List<String> = listOf("en-US"),
         country: String? = "US",
         installId: String? = "install-1",
     ) = ClientContext(
         platform = platform,
-        appVersion = "1.0.0",
+        appVersion = appVersion,
         buildNumber = buildNumber,
         preferredLocales = locales,
         countryCode = country,
@@ -84,6 +85,46 @@ class AppConfigTargetingEngineTest {
         assertEquals(base, resolve(rules, ctx(buildNumber = 151)))
         // No build number sent → a set bound fails closed.
         assertEquals(base, resolve(rules, ctx(buildNumber = null)))
+    }
+
+    @Test
+    fun appVersion_greaterThan_isExclusiveAtTheBound() {
+        // "app version > 1.0.1"
+        val rules = listOf(
+            rule(RuleConditions(minAppVersion = "1.0.1", minAppVersionInclusive = false)),
+        )
+        assertEquals(base, resolve(rules, ctx(appVersion = "1.0.0")))
+        assertEquals(base, resolve(rules, ctx(appVersion = "1.0.1")))
+        assertEquals(JsonPrimitive("on"), resolve(rules, ctx(appVersion = "1.0.2")))
+        assertEquals(JsonPrimitive("on"), resolve(rules, ctx(appVersion = "1.1.0")))
+        assertEquals(JsonPrimitive("on"), resolve(rules, ctx(appVersion = "2.0.0")))
+        // No app version sent → a set bound fails closed.
+        assertEquals(base, resolve(rules, ctx(appVersion = null)))
+    }
+
+    @Test
+    fun appVersion_range_isInclusiveAtBothEnds() {
+        // 1.0.0 ≤ version ≤ 2.0.0
+        val rules = listOf(rule(RuleConditions(minAppVersion = "1.0.0", maxAppVersion = "2.0.0")))
+        assertEquals(JsonPrimitive("on"), resolve(rules, ctx(appVersion = "1.0.0")))
+        assertEquals(JsonPrimitive("on"), resolve(rules, ctx(appVersion = "1.5.3")))
+        assertEquals(JsonPrimitive("on"), resolve(rules, ctx(appVersion = "2.0.0")))
+        assertEquals(base, resolve(rules, ctx(appVersion = "0.9.9")))
+        assertEquals(base, resolve(rules, ctx(appVersion = "2.0.1")))
+    }
+
+    @Test
+    fun appVersion_preReleaseRanksBelowRelease() {
+        assertTrue(SemVer.compare("1.0.0-rc1", "1.0.0") < 0)
+        assertTrue(SemVer.compare("1.0.0", "1.0.0") == 0)
+        assertTrue(SemVer.compare("1.2.0", "1.10.0") < 0) // numeric, not lexical
+        assertTrue(SemVer.compare("1.0.0-rc2", "1.0.0-rc1") > 0)
+        // A "> 1.0.0" bound excludes the 1.0.0 pre-releases too.
+        val rules = listOf(
+            rule(RuleConditions(minAppVersion = "1.0.0", minAppVersionInclusive = false)),
+        )
+        assertEquals(base, resolve(rules, ctx(appVersion = "1.0.0-rc1")))
+        assertEquals(JsonPrimitive("on"), resolve(rules, ctx(appVersion = "1.0.1")))
     }
 
     @Test

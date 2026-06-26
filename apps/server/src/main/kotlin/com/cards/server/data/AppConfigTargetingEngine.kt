@@ -25,14 +25,23 @@ class AppConfigTargetingEngine {
         context: ClientContext,
         userId: UserId?,
         flagPath: String,
-    ): JsonElement? {
-        val match = rules
-            .asSequence()
-            .filter { it.enabled }
-            .sortedBy { it.priority }
-            .firstOrNull { matches(it.conditions, context, userId, flagPath) }
-        return match?.value ?: base
-    }
+    ): JsonElement? = firstMatchingRule(rules, context, userId, flagPath)?.value ?: base
+
+    /**
+     * The enabled rule that wins for this caller (lowest priority whose
+     * conditions match), or null if none do. Exposed so the admin "resolve"
+     * preview can show *which* rule decided a value, not just the value.
+     */
+    fun firstMatchingRule(
+        rules: List<TargetingRule>,
+        context: ClientContext,
+        userId: UserId?,
+        flagPath: String,
+    ): TargetingRule? = rules
+        .asSequence()
+        .filter { it.enabled }
+        .sortedBy { it.priority }
+        .firstOrNull { matches(it.conditions, context, userId, flagPath) }
 
     private fun matches(
         conditions: RuleConditions,
@@ -50,6 +59,16 @@ class AppConfigTargetingEngine {
         conditions.maxVersionCode?.let { max ->
             val build = context.buildNumber ?: return false
             if (build > max) return false
+        }
+        conditions.minAppVersion?.let { min ->
+            val version = context.appVersion ?: return false
+            val cmp = SemVer.compare(version, min)
+            if (if (conditions.minAppVersionInclusive) cmp < 0 else cmp <= 0) return false
+        }
+        conditions.maxAppVersion?.let { max ->
+            val version = context.appVersion ?: return false
+            val cmp = SemVer.compare(version, max)
+            if (if (conditions.maxAppVersionInclusive) cmp > 0 else cmp >= 0) return false
         }
         conditions.countries?.let { allowed ->
             val country = context.countryCode ?: return false
