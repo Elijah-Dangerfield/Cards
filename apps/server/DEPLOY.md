@@ -26,13 +26,17 @@ changes under `apps/server/**` triggers an auto-deploy via GitHub Actions
 4. **Set secrets** (from the repo root):
    ```
    fly secrets set \
-     DATABASE_URL='postgresql://postgres:nD58ubv82mzv%24EV@db.yuqrfhdoejonclgbixlw.supabase.co:5432/postgres' \
+     DATABASE_URL='postgresql://postgres:<URL-ENCODED-DB-PASSWORD>@db.yuqrfhdoejonclgbixlw.supabase.co:5432/postgres' \
      SUPABASE_URL='https://yuqrfhdoejonclgbixlw.supabase.co' \
      -a cards-server-dev
    ```
+   Get `<URL-ENCODED-DB-PASSWORD>` from Supabase → Project Settings → Database.
+   **Never commit the real value** — it's a secret; it only ever lives in `fly
+   secrets` and the gitignored `apps/server/.env`.
+
    Notes:
    - `DATABASE_URL` uses Supabase's **direct connection** host (works from Fly because Fly has IPv6 outbound).
-   - The `$` in the password is URL-encoded as `%24`.
+   - URL-encode special characters in the password (e.g. `$` → `%24`).
    - `SUPABASE_URL` is enough on its own: the server fetches the project's public JWT signing keys from `<SUPABASE_URL>/auth/v1/.well-known/jwks.json` at runtime. No shared JWT secret is stored anywhere.
    - For account deletion, add `SUPABASE_SERVICE_ROLE_KEY` here (Project Settings → API → service_role key, treat like a root password).
 
