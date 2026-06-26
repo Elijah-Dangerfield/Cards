@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Server deploy to Fly.io — PRODUCTION (cards-server-prod).
+#
+# Fires on:    manual dispatch only. Prod deploys are deliberate — unlike dev
+#              (which auto-deploys on every push to main), prod ships when you
+#              ask it to, after dev has been exercised.
+# Auth:        FLY_API_TOKEN_PROD secret, created via
+#                `fly tokens create deploy -a cards-server-prod --expiry 8760h`
+#              and pasted into Repo Settings → Secrets and variables → Actions.
+#
+# See apps/server/DEPLOY.md for the two-environment setup walkthrough.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy server (prod)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "prod" to confirm you mean to deploy production.'
+        required: true
+        default: ''
+
+concurrency:
+  group: server-deploy-prod
+  cancel-in-progress: false  # never cancel a prod deploy mid-flight
+
+jobs:
+  deploy:
+    name: Deploy to Fly (prod)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Guard — require explicit confirmation
+        if: ${{ inputs.confirm != 'prod' }}
+        run: |
+          echo "Refusing to deploy: type 'prod' in the confirm input to proceed."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      # Same belt-and-suspenders as dev: run the suite and refuse to deploy on
+      # failure. Postgres comes up via testcontainers, so Docker is required.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run server tests
+        run: ./gradlew :apps:server:test
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy
+        run: |
+          flyctl deploy \
+            --config apps/server/fly.prod.toml \
+            --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_PROD }}
+
+      - name: Smoke test
+        run: |
+          sleep 5
+          curl --fail --silent --show-error \
+               --max-time 20 \
+               https://cards-server-prod.fly.dev/_health
+          echo

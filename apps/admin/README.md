@@ -22,7 +22,10 @@ Gradle prints the localhost URL it's serving on. In the page, fill in three
 fields and click the Connect / Reload button:
 
 1. **Server URL.** Defaults to `http://localhost:8080` (a local `:apps:server`).
-   Point it at any environment you hold the admin token for.
+   Point it at any environment you hold the admin token for. Dev is
+   `https://cards-server-dev.fly.dev`; prod is `https://cards-server-prod.fly.dev`.
+   Each environment has its own admin token and its own flags (separate
+   databases), so a change here only affects the one you're pointed at.
 2. **Admin token.** The server's `ADMIN_API_TOKEN`, sent as the `X-Admin-Token`
    header. It's never persisted. See "Getting a token" below.
 3. **Actor.** Your name. It's recorded on every change in the audit log.
