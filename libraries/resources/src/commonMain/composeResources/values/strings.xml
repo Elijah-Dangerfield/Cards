@@ -834,6 +834,11 @@
     <!-- Room - notice when "next hand" is refused because the table can't deal another (heads-up, opponent busted with no rebuy). -->
     <string name="room_next_hand_unavailable">Waiting for your opponent to rebuy or leave</string>
 
+    <!-- Room - transient notice when a submitted action got no server ack in time (the action did not land; the player can retry). -->
+    <string name="room_intent_timed_out">That didn't send. Check your connection and try again</string>
+    <!-- Room - transient notice when the server refused a submitted action (not your turn / illegal move). -->
+    <string name="room_intent_rejected">That move wasn't allowed</string>
+
     <!-- Room - heads-up match-over rebuy countdown (MP-14). Shown to the busted player. %1$s is a m:ss countdown. -->
     <string name="room_match_over_busted_title">Rebuy in %1$s or lose your seat</string>
     <string name="room_match_over_busted_rebuy_button">Rebuy now</string>

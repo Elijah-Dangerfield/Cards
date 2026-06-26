@@ -464,6 +464,125 @@ class PokerScenarioMpTest : PokerScenarioTest() {
         assertEquals(listOf("peer"), s.friendRepository.sentTo)
     }
 
+    @Test
+    fun submitThatGetsNoAck_surfacesTimedOutHint_notSilentPause() = runUnitTest {
+        val s = mpScenario().start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(mpSeat(0, playerId = MP_LOCAL_USER), mpSeat(1, playerId = "peer")),
+                actingSeatIndex = 0,
+                currentBetThisStreet = 10,
+            ),
+        )
+
+        // The server never acks — the submit times out after INTENT_TIMEOUT_MS.
+        s.iSubmitAndLetTimeOut(PlayerIntent.Fold(seatIndex = 0))
+
+        assertTrue(
+            s.events.events.contains(PlayPokerEvent.IntentFeedback(IntentFeedbackKind.TimedOut)),
+            "a submit that never acks must surface a timed-out hint, not a dead pause; got ${s.events.events}",
+        )
+    }
+
+    @Test
+    fun submitRejectedByServer_surfacesRejectedHint() = runUnitTest {
+        val s = mpScenario().start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(mpSeat(0, playerId = MP_LOCAL_USER), mpSeat(1, playerId = "peer")),
+                actingSeatIndex = 0,
+                currentBetThisStreet = 10,
+            ),
+        )
+
+        s.iSubmitAndAck(PlayerIntent.Fold(seatIndex = 0), accepted = false, error = "not your turn")
+
+        assertTrue(
+            s.events.events.contains(PlayPokerEvent.IntentFeedback(IntentFeedbackKind.Rejected)),
+            "a rejected submit must surface a not-allowed hint; got ${s.events.events}",
+        )
+    }
+
+    @Test
+    fun nextHandRefused_emitsNextHandUnavailable() = runUnitTest {
+        val s = mpScenario().start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 2_000),
+                    mpSeat(1, playerId = "peer", stack = 0),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+
+        // Heads-up, the opponent busted to 0 with no rebuy — the server refuses
+        // the winner's "next hand" tap.
+        s.serverRefusesNextHand(error = "cannot deal: opponent busted")
+
+        assertTrue(
+            s.events.events.contains(PlayPokerEvent.NextHandUnavailable),
+            "a refused next-hand must surface NextHandUnavailable so the tap isn't a silent no-op; got ${s.events.events}",
+        )
+    }
+
+    @Test
+    fun reconnectFailed_isTerminal_firesRoomClosedExit() = runUnitTest {
+        val s = mpScenario().start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(mpSeat(0, playerId = MP_LOCAL_USER), mpSeat(1, playerId = "peer")),
+                actingSeatIndex = 1,
+            ),
+        )
+
+        // The socket gave up after repeated half-open reconnects — terminal, the
+        // screen must pop rather than spin on the reconnecting banner forever.
+        s.serverConnection(RoomConnection.Closed(ClosedReason.ReconnectFailed))
+
+        assertTrue(
+            s.events.events.contains(PlayPokerEvent.RoomClosed(ClosedReason.ReconnectFailed)),
+            "ReconnectFailed is terminal and must fan out a RoomClosed exit; got ${s.events.events}",
+        )
+    }
+
+    @Test
+    fun midGameJoiner_waitsToBeDealtIn_thenSeatsOnNextHandSnapshot() = runUnitTest {
+        val s = mpScenario(localUserId = "joiner").start()
+
+        // Joined mid-hand: the snapshot has no seat for the local user, so they
+        // spectate with a "dealt in next hand" notice rather than waiting forever.
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(mpSeat(0, playerId = "p1"), mpSeat(1, playerId = "p2")),
+                actingSeatIndex = 0,
+            ),
+        )
+        assertTrue(
+            s.table.waitingToBeDealtIn,
+            "a seatless mid-game joiner must show the waiting-to-be-dealt-in notice",
+        )
+
+        // The next-hand snapshot seats them — the notice clears and it's a real seat.
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = "p1"),
+                    mpSeat(1, playerId = "p2"),
+                    mpSeat(2, playerId = "joiner"),
+                ),
+                actingSeatIndex = 2,
+                handNumber = 2,
+            ),
+        )
+        assertFalse(
+            s.table.waitingToBeDealtIn,
+            "once dealt in, the joiner is seated and the notice clears",
+        )
+        assertEquals(2, s.table.seats.single { it.isHuman }.index)
+    }
+
     private fun member(userId: String, isBot: Boolean = false): RoomMember = RoomMember(
         userId = userId,
         displayName = userId,

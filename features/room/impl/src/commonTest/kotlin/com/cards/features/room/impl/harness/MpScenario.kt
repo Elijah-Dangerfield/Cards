@@ -260,6 +260,34 @@ class RunningMpScenario internal constructor(
         )
         scope.advanceUntilIdle()
     }
+
+    /**
+     * Submit an intent and never ack it, then drain virtual time past the
+     * session's intent timeout — the submit coroutine throws
+     * [com.dangerfield.cards.features.room.impl.session.IntentTimeoutException]
+     * and the VM surfaces the timed-out hint. Mirrors a server that went silent
+     * mid-submit (MP-20).
+     */
+    suspend fun iSubmitAndLetTimeOut(intent: PlayerIntent) {
+        vm.takeAction(PlayPokerAction.Submit(intent))
+        scope.advanceUntilIdle()
+    }
+
+    /**
+     * Server refuses a [requestNextHand] — fans an unaccepted ack for the
+     * outbound [ClientFrame.RequestNextHand] frame, the way the server signals
+     * "can't deal another hand" (heads-up bust, no rebuy yet). Drives
+     * [PlayPokerEvent.NextHandUnavailable].
+     */
+    suspend fun serverRefusesNextHand(error: String? = null) {
+        vm.takeAction(PlayPokerAction.RequestNextHand)
+        scope.runCurrent()
+        val sent = handle.sent.filterIsInstance<ClientFrame.RequestNextHand>().last()
+        handle.pushFrame(
+            GameplayFrame.IntentAck(clientNonce = sent.clientNonce, accepted = false, error = error),
+        )
+        scope.advanceUntilIdle()
+    }
 }
 
 // ---------- MP snapshot builders ----------

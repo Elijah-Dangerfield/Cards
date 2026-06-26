@@ -345,7 +345,23 @@ sealed interface PlayPokerEvent {
      * a notice so the winner's tap isn't a silent no-op (MP-14).
      */
     data object NextHandUnavailable : PlayPokerEvent
+
+    /**
+     * A submitted action didn't go through — the server either never acked it in
+     * time ([IntentFeedbackKind.TimedOut]) or refused it
+     * ([IntentFeedbackKind.Rejected]). Without this the player taps and gets a
+     * dead pause then silence (MP-20). The entry point toasts a kind-specific
+     * hint. MP only — solo submits never throw.
+     */
+    data class IntentFeedback(val kind: IntentFeedbackKind) : PlayPokerEvent
 }
+
+/**
+ * Why a submitted intent didn't land, splitting the transient hint copy:
+ * [TimedOut] = no server ack ("didn't send"), [Rejected] = server refused it
+ * ("not allowed").
+ */
+enum class IntentFeedbackKind { TimedOut, Rejected }
 
 enum class HapticKind { ActionTaken, HandWon, HandLost, Bust, LevelUp }
 enum class SoundKind { CardFlick, ChipClick, Showdown }

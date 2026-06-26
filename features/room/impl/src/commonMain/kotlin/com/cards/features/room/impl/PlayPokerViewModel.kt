@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.features.room.impl.session.IntentRejectedException
+import com.dangerfield.cards.features.room.impl.session.IntentTimeoutException
 import com.dangerfield.cards.features.room.impl.session.PokerSession
 import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
 import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
@@ -685,7 +686,18 @@ class PlayPokerViewModel @Inject constructor(
                         Catching { session.submit(action.intent) }
                             .onFailure { e ->
                                 logger.w(e) { "submit failed for ${action.intent}" }
+                                // Clear the dedupe token so a corrected resubmit goes
+                                // through, and surface a transient hint — a timeout
+                                // ("didn't send") or a rejection ("not allowed") would
+                                // otherwise be a dead pause then silence (MP-20).
                                 if (submittedTurnToken == turnToken) submittedTurnToken = null
+                                when (e) {
+                                    is IntentTimeoutException ->
+                                        sendEvent(PlayPokerEvent.IntentFeedback(IntentFeedbackKind.TimedOut))
+                                    is IntentRejectedException ->
+                                        sendEvent(PlayPokerEvent.IntentFeedback(IntentFeedbackKind.Rejected))
+                                    else -> Unit
+                                }
                             }
                     }
                 }

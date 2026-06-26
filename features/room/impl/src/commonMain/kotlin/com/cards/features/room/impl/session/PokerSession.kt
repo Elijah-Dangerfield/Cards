@@ -49,12 +49,15 @@ interface PokerSession {
     val connectionState: StateFlow<ConnectionState>
 
     /**
-     * Terminal room-close signal. Emits exactly once when the server tells us the room
-     * is gone ([ClosedReason.RoomDeleted]) or refused the subscription
-     * ([ClosedReason.Rejected]) — both unrecoverable, so the play screen pops on it
-     * instead of spinning on the generic "reconnecting" banner forever. The user-
-     * initiated [ClosedReason.Cancelled] case never emits: that close is our own
-     * teardown when the player is already leaving.
+     * Terminal room-close signal. Emits exactly once on any unrecoverable close —
+     * the room is gone ([ClosedReason.RoomDeleted]), the subscription was refused
+     * ([ClosedReason.Rejected]), the socket gave up reconnecting
+     * ([ClosedReason.ReconnectFailed]), or the heads-up match resolved
+     * ([ClosedReason.MatchOver]) — so the play screen routes off it instead of
+     * spinning on the generic "reconnecting" banner forever. MatchOver routes
+     * through a result overlay first; the rest pop directly. The user-initiated
+     * [ClosedReason.Cancelled] case never emits: that close is our own teardown
+     * when the player is already leaving.
      *
      * Local-bots sessions can't lose their room, so this never emits for solo.
      */
