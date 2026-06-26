@@ -283,8 +283,6 @@
     <string name="public_searching_rotate_2">Every seat at your table is a real person.</string>
     <string name="public_searching_rotate_3">A good table is worth the wait. Hang tight.</string>
     <string name="public_searching_rotate_4">Got friends who play? They make tables fill faster.</string>
-    <string name="public_searching_alone">Still looking for players</string>
-    <string name="public_searching_joined">A player joined. Dealing you in.</string>
     <!-- Chooser - the qualifying tables the user can pick from (SPEC §2). -->
     <string name="public_searching_choose_title">Tables you can join</string>
     <string name="public_searching_choose_subtitle">Pick a table to take a seat. Joining buys you in at that table's stakes.</string>

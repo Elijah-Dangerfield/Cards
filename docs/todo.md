@@ -26,10 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## A. UX gaps
 
-**ROOM-4 — Finding-a-table: drop the persistent "Still looking for players" line** `[P2]`
-- Problem: The finding-a-table screen keeps a permanent "Still looking for players" text view *and* the rotating status copy — two views doing one job.
-- Acceptance: Open with "Looking for players", then start rotating the status messages after ~5–10s. Remove the persistent second line entirely.
-
 **ROOM-5 — Remove the Public / Invite-only chip from finding-a-table and the private-room screen** `[P2]`
 - Problem: Both screens show a top-right chip reading "Public" or "Invite only" that isn't earning its space.
 - Acceptance: Remove the chip from both screens.
