@@ -153,6 +153,26 @@ class OfflineFirstAppConfigRepositoryTest : CoroutineTest() {
     }
 
     @Test
+    fun zeroThrottleFromConfig_refetchesOnEveryForeground() = runUnitTest {
+        // The throttle is itself a config value; 0 means "refetch every foreground".
+        val zeroConfig = MapAppConfig(mapOf("config" to mapOf("refreshThrottleMs" to 0)))
+        val cache = FakeConfigCache().apply { seed(configJson = """{"config":{"refreshThrottleMs":0}}""") }
+        val source = FakeRemoteDataSource(response = zeroConfig)
+        val events = FakeAppEvents()
+        val clock = FakeClock(nowMs = 0L)
+        newRepo(source = source, cache = cache, events = events, clock = clock)
+
+        events.foreground(isColdBoot = true)
+        runCurrent()
+        assertEquals(1, source.callCount)
+
+        clock.nowMs += 10 // far inside the default 5-min window, but throttle is 0
+        events.foreground(isColdBoot = false)
+        runCurrent()
+        assertEquals(2, source.callCount, "a 0 throttle should refetch on every foreground")
+    }
+
+    @Test
     fun overrides_apply_onTopOfCachedConfig() = runUnitTest {
         val source = FakeRemoteDataSource(response = MapAppConfig(mapOf("foo" to "bar")))
         val overrides = FakeConfigOverrideRepository()

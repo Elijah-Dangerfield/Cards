@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.cards.AppEvents
 import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.config.AppConfigRepository
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
+import com.dangerfield.cards.libraries.config.impl.ConfigRefreshThrottleMs
 import com.dangerfield.cards.libraries.config.impl.applyOverrides
 import com.dangerfield.cards.libraries.config.impl.data.ConfigCache
 import com.dangerfield.cards.libraries.config.impl.data.RemoteConfigDataSource
@@ -39,28 +40,22 @@ import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import kotlin.time.Clock
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 private val ConfigRefreshTimeout = 5.seconds
-
-/**
- * How long must pass since the last config fetch before a foreground triggers
- * another one. Short enough that the kill-switch / maintenance / forced-upgrade
- * flags propagate to a returning user promptly; long enough that quick
- * app-switching doesn't fetch on every resume.
- */
-private val ConfigRefreshThrottle = 5.minutes
 
 /**
  * Disk-backed, **throttled-foreground** app config.
  *
  * Config carries the time-sensitive levers (kill switch, maintenance, forced
  * upgrade), so unlike the other session-aware caches it refreshes on **every app
- * foreground** — gated only by [ConfigRefreshThrottle] so a quick app-switch
- * doesn't refetch. Cold boot always fetches (no prior fetch this process, and
- * [AppEvent.OnForeground] fires on cold boot too). A user who returns after a few
- * minutes gets fresh flags instead of waiting for a session rollover.
+ * foreground** — gated by [ConfigRefreshThrottleMs] so a quick app-switch doesn't
+ * refetch. The throttle is itself a config value (meta, but it works): the
+ * in-code default is 5 minutes and the dev database sets it to 0 so flag changes
+ * show up on the next foreground while testing. Cold boot always fetches (no prior
+ * fetch this process, and [AppEvent.OnForeground] fires on cold boot too). A user
+ * who returns after the throttle window gets fresh flags instead of waiting for a
+ * session rollover.
  *
  * Note this is a *transition* trigger: a user who keeps the app foregrounded
  * uninterrupted never re-fetches mid-session — that would need polling, which we
@@ -107,6 +102,12 @@ class OfflineFirstAppConfigRepository @Inject constructor(
             replay = 1,
         )
 
+    // The refresh throttle is itself a config value, read from this repo's own
+    // current snapshot. Constructed (not injected) against [config] to avoid the
+    // cycle a ConfiguredValue → AppConfigMap → AppConfigRepository injection
+    // would create. Resolves live: each read sees the latest merged config.
+    private val refreshThrottleMs = ConfigRefreshThrottleMs(config())
+
     init {
         observeForegroundForRefresh()
     }
@@ -123,14 +124,15 @@ class OfflineFirstAppConfigRepository @Inject constructor(
     }
 
     /**
-     * Refresh on app foreground, at most once per [ConfigRefreshThrottle]. The
+     * Refresh on app foreground, at most once per [ConfigRefreshThrottleMs]. The
      * timestamp is stamped at the *attempt*, so a failed fetch doesn't retry on
-     * every rapid resume — the next foreground past the window does.
+     * every rapid resume — the next foreground past the window does. A throttle of
+     * 0 (the dev default) means every foreground refetches.
      */
     private suspend fun maybeRefreshOnForeground() {
         val now = clock.now().toEpochMilliseconds()
         val last = lastFetchAtMs
-        if (last != null && now - last < ConfigRefreshThrottle.inWholeMilliseconds) {
+        if (last != null && now - last < refreshThrottleMs.value) {
             logger.d { "Foreground within throttle window — skipping config refresh" }
             return
         }
