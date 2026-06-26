@@ -536,6 +536,7 @@
     <string name="stats_lifetime_opponents_label">Players faced</string>
     <string name="stats_lifetime_no_bust_streak_label">No-bust streak</string>
     <string name="stats_lifetime_best_streak_label">Best streak</string>
+    <string name="stats_explainer_mp_xp">Multiplayer hands earn 2× the XP of bot hands.</string>
     <string name="stats_play_style_section">Play style</string>
     <string name="stats_play_style_name">Tight-Aggressive</string>
     <string name="stats_play_style_blurb">You wait for strong hands, then bet them hard.</string>

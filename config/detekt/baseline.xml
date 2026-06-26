@@ -41,7 +41,6 @@
     <ID>VerifyStrings:RoomSeat.kt:"up next"</ID>
     <ID>VerifyStrings:StatsExplainersSheet.kt:"Bot hands earn at half the rate of multiplayer. XP never depends on whether you win or lose — just on how engaged the hand was."</ID>
     <ID>VerifyStrings:StatsExplainersSheet.kt:"How XP works"</ID>
-    <ID>VerifyStrings:StatsExplainersSheet.kt:"Multiplayer hands will earn 2× when it ships."</ID>
     <ID>VerifyStrings:StatsExplainersSheet.kt:"XP is your lifetime engagement score — it never goes down. Every session adds to it whether you stack chips or bust out."</ID>
     <ID>VerifyStrings:StatsScreen.kt:"Achievements"</ID>
   </CurrentIssues>
