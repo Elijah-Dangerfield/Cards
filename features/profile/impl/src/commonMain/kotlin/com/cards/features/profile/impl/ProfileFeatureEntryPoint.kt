@@ -202,6 +202,7 @@ class ProfileFeatureEntryPoint(
                     xp = progression.totalXp,
                     isAnonymous = isAnon,
                     botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
+                    gameSpeed = com.dangerfield.cards.libraries.cards.GameSpeed.Normal,
                     turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
                     appVersion = "0.1.0",
                     unreadNotificationCount = unreadNotificationCount,
@@ -290,6 +291,7 @@ class ProfileFeatureEntryPoint(
                     xp = 0,
                     isAnonymous = isAnon,
                     botSpeed = appData.botSpeed,
+                    gameSpeed = appData.gameSpeed,
                     turnFeedback = appData.turnFeedback,
                     showAchievementPopups = appData.showAchievementPopups,
                     appVersion = "0.1.0",
@@ -301,6 +303,9 @@ class ProfileFeatureEntryPoint(
                 onOpenNotifications = { router.navigate(NotificationsRoute()) },
                 onBotSpeedChange = { speed ->
                     scope.launch { appCache.update { it.copy(botSpeed = speed) } }
+                },
+                onGameSpeedChange = { speed ->
+                    scope.launch { appCache.update { it.copy(gameSpeed = speed) } }
                 },
                 onTurnFeedbackChange = { feedback ->
                     scope.launch { appCache.update { it.copy(turnFeedback = feedback) } }

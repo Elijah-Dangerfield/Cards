@@ -8,6 +8,7 @@ import com.dangerfield.cards.features.room.impl.usecase.WinOddsEngine
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.EmojiBlast
+import com.dangerfield.cards.libraries.cards.GameSpeed
 import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.TurnFeedback
 import com.dangerfield.cards.libraries.cards.XpMode
@@ -42,6 +43,8 @@ data class PlayPokerState(
      */
     val awaitingHandEndAchievements: Boolean = false,
     val turnFeedback: TurnFeedback = TurnFeedback.Vibrate,
+    /** AppData-derived play-screen pacing; scales the deal/reveal animations. */
+    val gameSpeed: GameSpeed = GameSpeed.Normal,
     /**
      * AppData-derived: show the "you can turn these off in Settings" footer on
      * the celebration sheet. True only for the first few celebrations (capped
@@ -179,6 +182,7 @@ sealed interface PlayPokerAction {
     // Settings mirrors (cache flow → state)
     data class XpChanged(val totalXp: Long) : PlayPokerAction
     data class TurnFeedbackChanged(val value: TurnFeedback) : PlayPokerAction
+    data class GameSpeedChanged(val value: GameSpeed) : PlayPokerAction
     data class XpBoostChanged(val expiresAtEpochMs: Long?) : PlayPokerAction
 
     // Hand-end transients (internal — fired by hand-end callback)

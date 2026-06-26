@@ -425,3 +425,13 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 3. Equip a non-default felt (if one is owned), then re-check the default felt and the default card back.
 
 **Expected:** On the fresh account both the default felt and default card back render the "Equipped" badge even though the user never explicitly equipped them. Equipping a non-default felt moves the badge off the default felt; the default card back keeps its badge because its slot is untouched. (Covers todo ITEM-1.)
+
+### `PROF-2` ℹ️ 📱 Table speed setting scales the deal/reveal animations
+
+**State:** any account; Settings → Gameplay shows the "Table speed" picker (Normal / Fast / Instant).
+
+1. Set Table speed to **Normal**, start a bot game, deal a hand and watch the flop/turn/river.
+2. Back out, set Table speed to **Fast**, start a new hand — the same cards should fly in and flip noticeably quicker.
+3. Set Table speed to **Instant**, start a new hand and reach showdown.
+
+**Expected:** Normal plays the calibrated pacing. Fast roughly halves the deal-in and reveal timing. Instant snaps hole cards and community cards straight to settled face-up with no fly/flip animation — action resolves immediately. The setting persists across app restarts and applies on both bot and multiplayer tables. (Covers todo GAME-6.)

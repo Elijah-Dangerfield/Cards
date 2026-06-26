@@ -23,6 +23,16 @@ enum class BotSpeed(val label: String, val multiplier: Double) {
 }
 
 @Serializable
+enum class GameSpeed(val label: String, val animationScale: Double) {
+    /** Default pacing — cards deal and reveal at the calibrated poker tempo. */
+    Normal(label = "Normal", animationScale = 1.0),
+    /** Halves every cosmetic deal/reveal delay so hands resolve quicker. */
+    Fast(label = "Fast", animationScale = 0.5),
+    /** Collapses the cosmetic delays so action resolves immediately. */
+    Instant(label = "Instant", animationScale = 0.0),
+}
+
+@Serializable
 enum class TurnFeedback(val label: String) {
     /** No cue when it becomes the user's turn. */
     Mute(label = "Mute"),
@@ -47,6 +57,13 @@ data class AppData(
 
     /** How fast the bots act. Multiplies all bot think/action delays. */
     val botSpeed: BotSpeed = BotSpeed.Normal,
+
+    /**
+     * How fast the table animates — scales the cosmetic card-deal, reveal, and
+     * result timings on the play screen. "Instant" collapses them so action
+     * resolves immediately. Independent of [botSpeed], which paces bot thinking.
+     */
+    val gameSpeed: GameSpeed = GameSpeed.Normal,
 
     /** Cue played when it becomes the user's turn during a hand. */
     val turnFeedback: TurnFeedback = TurnFeedback.Vibrate,

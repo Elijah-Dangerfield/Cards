@@ -260,6 +260,7 @@ class PlayPokerViewModel @Inject constructor(
             appCache.updates.collect { data ->
                 latestBotSpeed = data.botSpeed
                 takeAction(PlayPokerAction.TurnFeedbackChanged(data.turnFeedback))
+                takeAction(PlayPokerAction.GameSpeedChanged(data.gameSpeed))
                 takeAction(PlayPokerAction.SwipeFoldAckChanged(data.swipeFoldGestureAck))
                 takeAction(PlayPokerAction.WinOddsFlipHintSeenChanged(data.winOddsFlipHintSeen))
                 takeAction(PlayPokerAction.MutedEmojiPlayersChanged(data.mutedEmojiPlayerKeys))
@@ -740,6 +741,9 @@ class PlayPokerViewModel @Inject constructor(
             }
             is PlayPokerAction.TurnFeedbackChanged -> action.updateState {
                 it.copy(turnFeedback = action.value)
+            }
+            is PlayPokerAction.GameSpeedChanged -> action.updateState {
+                it.copy(gameSpeed = action.value)
             }
             is PlayPokerAction.XpBoostChanged -> action.updateState {
                 it.copy(xpBoostExpiresAtEpochMs = action.expiresAtEpochMs)

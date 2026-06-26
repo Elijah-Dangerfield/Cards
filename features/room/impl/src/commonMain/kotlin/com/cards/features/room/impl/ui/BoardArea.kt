@@ -109,19 +109,22 @@ private fun BoardWell(width: androidx.compose.ui.unit.Dp, height: androidx.compo
 private fun BoardCard(card: Card, revealDelayMs: Int, size: PlayingCardSize) {
     // Compose previews don't drive animations to completion — without this the
     // card would render mid-flight (translated up, half-flipped). In preview,
-    // jump straight to the settled face-up state.
+    // jump straight to the settled face-up state. "Instant" game speed does the
+    // same so the board fills with no cosmetic delay.
     val inPreview = LocalInspectionMode.current
+    val tempo = LocalTableTempo.current
+    val skip = inPreview || tempo.isInstant
     key(card) {
-        var arrived by remember { mutableStateOf(inPreview) }
-        var revealed by remember { mutableStateOf(inPreview) }
-        var settled by remember { mutableStateOf(inPreview) }
-        if (!inPreview) {
+        var arrived by remember { mutableStateOf(skip) }
+        var revealed by remember { mutableStateOf(skip) }
+        var settled by remember { mutableStateOf(skip) }
+        if (!skip) {
             LaunchedEffect(Unit) {
-                delay(revealDelayMs.toLong())
+                delay(tempo.delay(revealDelayMs))
                 arrived = true
-                delay(340)
+                delay(tempo.delay(340))
                 revealed = true
-                delay(420)
+                delay(tempo.delay(420))
                 settled = true
             }
         }
@@ -133,12 +136,12 @@ private fun BoardCard(card: Card, revealDelayMs: Int, size: PlayingCardSize) {
             val flightPx = with(LocalDensity.current) { flightDp.dp.toPx() }
             val translationY by animateFloatAsState(
                 targetValue = if (arrived) 0f else flightPx,
-                animationSpec = tween(340, easing = FastOutSlowInEasing),
+                animationSpec = tween(tempo.duration(340), easing = FastOutSlowInEasing),
                 label = "board-fly",
             )
             val rotation by animateFloatAsState(
                 targetValue = if (revealed) 180f else 0f,
-                animationSpec = tween(380),
+                animationSpec = tween(tempo.duration(380)),
                 label = "board-flip",
             )
             Box(

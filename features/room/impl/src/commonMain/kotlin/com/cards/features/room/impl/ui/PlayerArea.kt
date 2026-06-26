@@ -399,17 +399,19 @@ private fun HoleCardSlot(
         return
     }
     val inPreview = LocalInspectionMode.current
+    val tempo = LocalTableTempo.current
+    val skip = inPreview || tempo.isInstant
     key(card) {
-        var arrived by remember { mutableStateOf(inPreview) }
-        var revealed by remember { mutableStateOf(inPreview) }
-        var settled by remember { mutableStateOf(inPreview) }
-        if (!inPreview) {
+        var arrived by remember { mutableStateOf(skip) }
+        var revealed by remember { mutableStateOf(skip) }
+        var settled by remember { mutableStateOf(skip) }
+        if (!skip) {
             LaunchedEffect(Unit) {
-                delay(dealDelayMs.toLong())
+                delay(tempo.delay(dealDelayMs))
                 arrived = true
-                delay(320)
+                delay(tempo.delay(320))
                 revealed = true
-                delay(420)
+                delay(tempo.delay(420))
                 settled = true
             }
         }
@@ -449,12 +451,12 @@ private fun HoleCardSlot(
             val flightPx = with(LocalDensity.current) { flightDp.dp.toPx() }
             val translationY by animateFloatAsState(
                 targetValue = if (arrived) 0f else flightPx,
-                animationSpec = tween(360, easing = FastOutSlowInEasing),
+                animationSpec = tween(tempo.duration(360), easing = FastOutSlowInEasing),
                 label = "hole-fly",
             )
             val rotation by animateFloatAsState(
                 targetValue = if (revealed) 180f else 0f,
-                animationSpec = tween(380),
+                animationSpec = tween(tempo.duration(380)),
                 label = "hole-flip",
             )
             Box(

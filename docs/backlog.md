@@ -763,3 +763,13 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Tradeoff:** Small, additive UX polish on top of an already-fixed data path. Pairs with MP-14's match-over dialog and the backlog "per-game result record" item.
 
 **Status:** Backlog. Enhancement, not a defect — the underlying stale-balance bug (MP-21) is already fixed. Captured from feedback case `docs/agent/feedback-cases/8d2185b9834542e9abc2be52afdded2d.md`.
+
+## Scale chip-stack and pot count-up animations with the Table speed setting
+
+**Idea (raised 2026-06-26):** GAME-6 added a "Table speed" preference (Normal / Fast / Instant) that scales the play-screen card-deal and reveal animations via `LocalTableTempo` (`features/room/impl/.../ui/TableTempo.kt`). The tester's request named the deal, *chip*, and reveal animations; the deal + reveal are done, but the chip-stack odometer roll (`ChipCoinAmount(animated = true)` → `AnimatedNumberText`) and the pot pill still animate at their fixed pace regardless of the setting.
+
+**Sketch:** The count-up animators live in `:libraries:ui` DS primitives (identity-bearing content the DS deliberately animates), so the scaling has to be threaded into those primitives rather than the play screen — either read an optional speed/tempo from a composition local with a Normal default, or pass a duration-scale param. "Instant" should snap the stack/pot to the final number. Keep the Normal feel byte-identical so non-instant players see no change.
+
+**Tradeoff:** Small polish completing the GAME-6 request; touches a shared DS animator used beyond the table, so it needs a default that leaves every other surface untouched.
+
+**Status:** Backlog. GAME-6's core ask (speed up / instant-skip the deal + reveal) shipped; this is the remaining chip-move sub-part.
