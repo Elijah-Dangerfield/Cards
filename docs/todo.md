@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-25 (decisions pass: every item made worker-pickable; BILL-1 → developer-todo) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-26 (reconcile: MP-22 removed — public matchmaking shipped server + client) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -48,10 +48,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 **ROOM-7 — Let a player invite a friend into a public game (shareable room code / link)** `[P2]`
 - Problem: A player who lands in a public game has no way to pull in a friend. Open question: should public games also expose a room code so people can find them directly?
 - Recommendation: Give *every* room a shareable code / invite link regardless of visibility; "public" just means it's *also* surfaced in Find a Table. The in-game share affordance then works the same in public and private rooms. Confirm the direction, then ship the share affordance + deep-link join.
-
-**MP-22 — Pair two waiting players when no open game exists** `[P2]`
-- Problem: If there are no joinable games but two players are independently searching, do we match them into one room or leave both waiting? Today public matchmaking is an unbuilt shell.
-- Recommendation: The matchmaker should turn the first searcher's session into a joinable room that the second searcher lands in (rather than each waiting in isolation). Define this as the intended matchmaking behavior and build the slice.
 
 ## C. Content & data
 
