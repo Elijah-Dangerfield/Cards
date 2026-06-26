@@ -96,7 +96,7 @@ class SmallRoutesTest {
         testApplication {
             application {
                 installSerialization()
-                routing { appConfigRoutes(source = AppConfigSource { tree }) }
+                routing { appConfigRoutes(source = AppConfigSource { _, _ -> tree }) }
             }
             val resp = createClient { }.get("/v1/app-config")
             assertEquals(HttpStatusCode.OK, resp.status)
@@ -115,7 +115,7 @@ class SmallRoutesTest {
         testApplication {
             application {
                 installSerialization()
-                routing { appConfigRoutes(source = AppConfigSource { JsonObject(emptyMap()) }) }
+                routing { appConfigRoutes(source = AppConfigSource { _, _ -> JsonObject(emptyMap()) }) }
             }
             val resp = createClient { }.get("/v1/app-config")
             assertEquals(HttpStatusCode.OK, resp.status)

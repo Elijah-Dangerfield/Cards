@@ -28,9 +28,9 @@ class ParsedPostgresUrlTest {
         // string. The driver gets the decoded value via Hikari's password
         // setter, not via the URL.
         val parsed = ParsedPostgresUrl.parse(
-            "postgresql://postgres:nD58ubv82mzv%24EV@db.example.supabase.co:5432/postgres",
+            "postgresql://postgres:t3stp4ss%24word@db.example.supabase.co:5432/postgres",
         )
-        assertEquals("nD58ubv82mzv\$EV", parsed.password)
+        assertEquals("t3stp4ss\$word", parsed.password)
     }
 
     @Test

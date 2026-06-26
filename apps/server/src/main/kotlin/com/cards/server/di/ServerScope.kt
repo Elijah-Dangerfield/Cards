@@ -11,7 +11,7 @@ package com.dangerfield.cards.server.di
  * @SingleIn(ServerScope::class)
  * @ContributesBinding(ServerScope::class)
  * @Inject
- * class InMemoryAppConfigSource : AppConfigSource { ... }
+ * class PostgresAppConfigSource(...) : AppConfigSource { ... }
  * ```
  */
 abstract class ServerScope private constructor()

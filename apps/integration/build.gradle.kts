@@ -36,6 +36,14 @@ kotlin {
             implementation(projects.libraries.core)
             implementation(projects.libraries.gameplay)
 
+            // ConfigManifestDriftTest: the real ConfiguredValue classes + their
+            // base types, so the test can check the admin manifest registry
+            // against the in-code defaults.
+            implementation(projects.libraries.config)
+            implementation(projects.libraries.social)
+            implementation(projects.features.upgrade)
+            implementation(libs.kotlinx.serialization.json)
+
             // Boot a real server on an ephemeral port + verify HS256 test JWTs.
             implementation(libs.ktor.serverCore)
             implementation(libs.ktor.serverNetty)
@@ -51,4 +59,12 @@ kotlin {
             implementation(libs.turbine)
         }
     }
+}
+
+// ConfigManifestDriftTest reads the manifest registry at runtime, so declare it
+// as a test input — otherwise editing only the JSON leaves the test up-to-date
+// and Gradle skips the drift check.
+tasks.withType<Test>().configureEach {
+    inputs.file(rootProject.file("apps/admin/config-manifest-registry.json"))
+        .withPropertyName("configManifestRegistry")
 }

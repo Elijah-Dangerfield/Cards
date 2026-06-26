@@ -8,3 +8,7 @@ cards:
   active: true
   VerifyStrings:
     active: true
+    # The config admin tool (:apps:admin) is a local-only, English-only dev
+    # utility with no :libraries:resources dependency — the i18n rule doesn't
+    # apply. Its `Text(...)` is Compose HTML's, not the DS composable anyway.
+    excludes: ['**/apps/admin/**']

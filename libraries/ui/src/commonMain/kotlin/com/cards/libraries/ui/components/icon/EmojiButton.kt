@@ -5,15 +5,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.NonRestartableComposable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Surface
+import com.dangerfield.cards.libraries.ui.components.avatarEmojiTypographyFor
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton.Size
 import com.dangerfield.cards.libraries.ui.components.text.CenteredGlyph
 import com.dangerfield.cards.libraries.ui.system.LocalContentColor
@@ -21,7 +23,6 @@ import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
-import com.dangerfield.cards.system.typography.TypographyResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -31,7 +32,13 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * project pulls doesn't include face / emoji vectors, so emoji controls
  * render a literal glyph via [CenteredGlyph], which trims the line box so
  * the glyph sits optically centered (a plain centered Text floats it high).
- * A [defaultMinSize] square keeps the footprint matching IconButton's iconSize.
+ *
+ * The button's footprint matches IconButton's (iconSize + padding on each
+ * side), and the emoji is sized to that full circle via the same
+ * [avatarEmojiTypographyFor] ratio the avatars use. Sizing the glyph to the
+ * inner iconSize box instead made the emoji — which renders ~1.25× its font
+ * size — fill and overflow that box, so the emote button read oversized and
+ * clipped next to its icon-button siblings.
  */
 @NonRestartableComposable
 @Composable
@@ -45,9 +52,10 @@ fun EmojiButton(
     enabled: Boolean = true,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
+    val diameter = size.iconSize.dp + size.padding * 2
     Surface(
         modifier = modifier,
-        contentPadding = PaddingValues(size.padding),
+        contentPadding = PaddingValues(0.dp),
         color = backgroundColor,
         contentColor = contentColor,
         radius = Radii.IconButton,
@@ -57,30 +65,17 @@ fun EmojiButton(
         interactionSource = interactionSource,
     ) {
         Box(
-            modifier = Modifier.defaultMinSize(
-                minWidth = size.iconSize.dp,
-                minHeight = size.iconSize.dp,
-            ),
+            modifier = Modifier.size(diameter),
             contentAlignment = Alignment.Center,
         ) {
             CenteredGlyph(
                 text = emoji,
-                typography = size.emojiTypography,
+                typography = avatarEmojiTypographyFor(diameter),
                 color = contentColor.color,
             )
         }
     }
 }
-
-private val Size.emojiTypography: TypographyResource
-    @Composable
-    get() = when (this) {
-        Size.Smallest -> AppTheme.typography.Heading.H700
-        Size.Small -> AppTheme.typography.Heading.H800
-        Size.Medium -> AppTheme.typography.Heading.H900
-        Size.Large -> AppTheme.typography.Heading.H1000
-        Size.Largest -> AppTheme.typography.Heading.H1100
-    }
 
 @Preview
 @Composable
@@ -91,7 +86,7 @@ private fun EmojiButtonPreview_Sizes() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Size.entries.forEach { size ->
-                EmojiButton(emoji = "🔥", size = size, onClick = {})
+                EmojiButton(emoji = "🙁", size = size, onClick = {})
             }
         }
     }

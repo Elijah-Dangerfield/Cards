@@ -15,6 +15,7 @@ data class ServerConfig(
     val admin: AdminConfig,
     val accessControl: AccessControlConfig,
     val observability: ObservabilityConfig,
+    val configChange: ConfigChangeConfig,
 ) {
     companion object {
         fun fromEnv(env: Env = Env()): ServerConfig = ServerConfig(
@@ -25,6 +26,22 @@ data class ServerConfig(
             admin = AdminConfig.fromEnv(env),
             accessControl = AccessControlConfig.fromEnv(env),
             observability = ObservabilityConfig.fromEnv(env),
+            configChange = ConfigChangeConfig.fromEnv(env),
+        )
+    }
+}
+
+/**
+ * Where to announce config changes. [webhookUrl] is a Slack-compatible incoming
+ * webhook; null/blank disables notifications (the default). Set
+ * `CONFIG_CHANGE_WEBHOOK_URL` to turn it on.
+ */
+data class ConfigChangeConfig(
+    val webhookUrl: String?,
+) {
+    companion object {
+        fun fromEnv(env: Env): ConfigChangeConfig = ConfigChangeConfig(
+            webhookUrl = env["CONFIG_CHANGE_WEBHOOK_URL"]?.takeIf { it.isNotBlank() },
         )
     }
 }
@@ -186,11 +203,12 @@ data class SentryConfig(
     companion object {
         fun fromEnv(env: Env): SentryConfig = SentryConfig(
             dsn = env["SENTRY_DSN"],
-            // Fly sets FLY_APP_NAME; we map cards-server → prod, anything
-            // else → dev. Override with SENTRY_ENVIRONMENT when needed.
+            // Fly sets FLY_APP_NAME; we map cards-server-prod → prod, anything
+            // else (cards-server-dev, local) → dev. Override with
+            // SENTRY_ENVIRONMENT when needed.
             environment = env["SENTRY_ENVIRONMENT"]
                 ?: when (env["FLY_APP_NAME"]) {
-                    "cards-server" -> "prod"
+                    "cards-server-prod" -> "prod"
                     else -> "dev"
                 },
             release = env["SENTRY_RELEASE"],
@@ -237,7 +255,7 @@ data class ObservabilityConfig(
             environment = env["OTEL_DEPLOYMENT_ENVIRONMENT"]
                 ?: env["SENTRY_ENVIRONMENT"]
                 ?: when (env["FLY_APP_NAME"]) {
-                    "cards-server" -> "prod"
+                    "cards-server-prod" -> "prod"
                     else -> "dev"
                 },
             release = env["OTEL_SERVICE_VERSION"] ?: env["SENTRY_RELEASE"],

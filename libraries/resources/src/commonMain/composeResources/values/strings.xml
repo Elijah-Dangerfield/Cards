@@ -696,7 +696,7 @@
     <string name="onboarding_how_continue_button">Continue</string>
 
     <!-- Onboarding - StarterGrant step (final celebratory chip-grant reveal). -->
-    <string name="onboarding_grant_eyebrow">WELCOME TO CARDS</string>
+    <string name="onboarding_grant_eyebrow">WELCOME TO DEALT</string>
     <string name="onboarding_grant_chips_label">chips</string>
     <string name="onboarding_grant_subtitle">Chips are the currency you play with. Here's a starter stack, on us.</string>
     <string name="onboarding_grant_offline_subtitle">Your starter chips land the moment you're back online.</string>

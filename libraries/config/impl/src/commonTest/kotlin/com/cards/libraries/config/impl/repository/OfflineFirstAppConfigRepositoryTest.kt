@@ -1,16 +1,15 @@
 package com.dangerfield.cards.libraries.config.impl.repository
 
 import app.cash.turbine.test
-import com.dangerfield.cards.libraries.cards.Session
-import com.dangerfield.cards.libraries.cards.SessionStartReason
-import com.dangerfield.cards.libraries.cards.SessionTracker
+import com.dangerfield.cards.libraries.cards.AppEvent
+import com.dangerfield.cards.libraries.cards.AppEventBus
+import com.dangerfield.cards.libraries.cards.AppEvents
 import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.config.ConfigOverride
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.config.impl.data.ConfigCache
 import com.dangerfield.cards.libraries.config.impl.data.ConfigCacheSnapshot
 import com.dangerfield.cards.libraries.config.impl.data.RemoteConfigDataSource
-import com.dangerfield.cards.libraries.config.impl.model.BasicMapAppConfig
 import com.dangerfield.cards.libraries.config.impl.model.FallbackConfigMap
 import com.dangerfield.cards.libraries.config.impl.serialization.ConfigJsonConverter
 import com.dangerfield.cards.libraries.core.Catching
@@ -18,35 +17,43 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, ExperimentalTime::class)
 class OfflineFirstAppConfigRepositoryTest : CoroutineTest() {
 
+    private val throttleMs = 5 * 60 * 1000L
+
     @Test
-    fun init_coldBootWithEmptyCache_triggersRefreshAndEmits() = runUnitTest {
+    fun coldBootForeground_withEmptyCache_triggersRefreshAndEmits() = runUnitTest {
         val source = FakeRemoteDataSource(response = MapAppConfig(mapOf("feature.x" to true)))
-        val repo = newRepo(source = source)
+        val events = FakeAppEvents()
+        val repo = newRepo(source = source, events = events)
+        events.foreground(isColdBoot = true)
         runCurrent()
 
-        assertEquals(1, source.callCount, "cold-boot session emission should trigger one refresh")
-        val emitted = repo.configStream().first()
-        assertEquals(true, emitted.map["feature.x"])
+        assertEquals(1, source.callCount, "cold-boot foreground should trigger one refresh")
+        assertEquals(true, repo.configStream().first().map["feature.x"])
     }
 
     @Test
     fun refresh_failureWithNoCachedConfig_persistsFallback() = runUnitTest {
         val fallback = TestFallbackConfigMap(map = mapOf("fallback" to "yes"))
         val source = FakeRemoteDataSource().apply { failNext = RuntimeException("server down") }
-        val repo = newRepo(source = source, fallback = fallback)
+        val events = FakeAppEvents()
+        val repo = newRepo(source = source, fallback = fallback, events = events)
+        events.foreground(isColdBoot = true)
         runCurrent()
 
         val emitted = repo.configStream().first()
@@ -59,7 +66,9 @@ class OfflineFirstAppConfigRepositoryTest : CoroutineTest() {
         cache.seed(configJson = """{"existing":"value"}""")
         val source = FakeRemoteDataSource().apply { failNext = RuntimeException("server down") }
         val fallback = TestFallbackConfigMap(map = mapOf("fallback" to "yes"))
-        val repo = newRepo(source = source, cache = cache, fallback = fallback)
+        val events = FakeAppEvents()
+        val repo = newRepo(source = source, cache = cache, fallback = fallback, events = events)
+        events.foreground(isColdBoot = true)
         runCurrent()
 
         val emitted = repo.configStream().first()
@@ -72,72 +81,104 @@ class OfflineFirstAppConfigRepositoryTest : CoroutineTest() {
         val cache = FakeConfigCache()
         cache.seed(configJson = """{"hydrated":"from-disk"}""")
         val source = FakeRemoteDataSource(response = MapAppConfig(mapOf("hydrated" to "from-server")))
-        val repo = newRepo(source = source, cache = cache)
+        val events = FakeAppEvents()
+        val repo = newRepo(source = source, cache = cache, events = events)
 
         repo.configStream().test {
-            // The first emission depends on whether hydration or refresh
-            // lands first under the unconfined dispatcher. Pin: at least
-            // one emission appears, and after runCurrent the server
-            // response is reflected.
             val initial = awaitItem()
             assertTrue(initial.map["hydrated"] in listOf("from-disk", "from-server"))
+            events.foreground(isColdBoot = true)
             runCurrent()
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
-    fun sessionRollover_triggersRefetch() = runUnitTest {
+    fun foregroundAfterThrottle_refetches() = runUnitTest {
         val source = FakeRemoteDataSource(response = MapAppConfig(mapOf("k" to "v")))
-        val sessions = FakeSessionTracker(initial = coldBootSession(id = 1L))
-        val repo = newRepo(source = source, sessions = sessions)
-        runCurrent()
-        assertEquals(1, source.callCount, "init session emission")
+        val events = FakeAppEvents()
+        val clock = FakeClock(nowMs = 0L)
+        newRepo(source = source, events = events, clock = clock)
 
-        sessions.roll(toId = 2L)
+        events.foreground(isColdBoot = true)
         runCurrent()
-        assertEquals(2, source.callCount, "rollover to session 2 should re-fetch")
+        assertEquals(1, source.callCount, "cold boot fetches")
+
+        clock.nowMs += throttleMs + 1
+        events.foreground(isColdBoot = false)
+        runCurrent()
+        assertEquals(2, source.callCount, "foreground past the throttle window should re-fetch")
     }
 
     @Test
-    fun sameSessionReplay_doesNotRefetch() = runUnitTest {
+    fun foregroundWithinThrottle_doesNotRefetch() = runUnitTest {
         val source = FakeRemoteDataSource(response = MapAppConfig(mapOf("k" to "v")))
-        val sessions = FakeSessionTracker(initial = coldBootSession(id = 1L))
-        val repo = newRepo(source = source, sessions = sessions)
+        val events = FakeAppEvents()
+        val clock = FakeClock(nowMs = 0L)
+        newRepo(source = source, events = events, clock = clock)
+
+        events.foreground(isColdBoot = true)
         runCurrent()
         assertEquals(1, source.callCount)
 
-        sessions.republish() // emit current session again
+        clock.nowMs += throttleMs - 1 // still inside the window
+        events.foreground(isColdBoot = false)
         runCurrent()
-        assertEquals(1, source.callCount, "same session id must short-circuit")
+        assertEquals(1, source.callCount, "foreground within the throttle window must not re-fetch")
     }
 
     @Test
-    fun sessionRollover_afterFailure_nextRolloverRetries() = runUnitTest {
+    fun foregroundAfterFailure_nextForegroundPastThrottleRetries() = runUnitTest {
         val source = FakeRemoteDataSource(response = MapAppConfig(mapOf("k" to "v")))
-        val sessions = FakeSessionTracker(initial = coldBootSession(id = 1L))
-        val repo = newRepo(source = source, sessions = sessions)
+        val events = FakeAppEvents()
+        val clock = FakeClock(nowMs = 0L)
+        newRepo(source = source, events = events, clock = clock)
+
+        source.failNext = RuntimeException("cold boot fetch failed")
+        events.foreground(isColdBoot = true)
         runCurrent()
         assertEquals(1, source.callCount)
 
-        // Session 2: server fails. lastFetchSessionId stays at 1 so the
-        // next rollover still crosses the gate.
-        source.failNext = RuntimeException("rollover fetch failed")
-        sessions.roll(toId = 2L)
+        // Within the window: no retry even though the last fetch failed.
+        clock.nowMs += throttleMs - 1
+        events.foreground(isColdBoot = false)
         runCurrent()
-        assertEquals(2, source.callCount)
+        assertEquals(1, source.callCount, "a failed fetch still respects the throttle")
 
-        // Session 3: next rollover must retry.
-        sessions.roll(toId = 3L)
+        // Past the window: retry.
+        clock.nowMs += 2
+        events.foreground(isColdBoot = false)
         runCurrent()
-        assertEquals(3, source.callCount, "next rollover must retry after a failed refresh")
+        assertEquals(2, source.callCount, "foreground past the throttle retries after a failure")
+    }
+
+    @Test
+    fun zeroThrottleFromConfig_refetchesOnEveryForeground() = runUnitTest {
+        // The throttle is itself a config value; 0 means "refetch every foreground".
+        val zeroConfig = MapAppConfig(mapOf("config" to mapOf("refreshThrottleMs" to 0)))
+        val cache = FakeConfigCache().apply { seed(configJson = """{"config":{"refreshThrottleMs":0}}""") }
+        val source = FakeRemoteDataSource(response = zeroConfig)
+        val events = FakeAppEvents()
+        val clock = FakeClock(nowMs = 0L)
+        newRepo(source = source, cache = cache, events = events, clock = clock)
+
+        events.foreground(isColdBoot = true)
+        runCurrent()
+        assertEquals(1, source.callCount)
+
+        clock.nowMs += 10 // far inside the default 5-min window, but throttle is 0
+        events.foreground(isColdBoot = false)
+        runCurrent()
+        assertEquals(2, source.callCount, "a 0 throttle should refetch on every foreground")
     }
 
     @Test
     fun overrides_apply_onTopOfCachedConfig() = runUnitTest {
         val source = FakeRemoteDataSource(response = MapAppConfig(mapOf("foo" to "bar")))
         val overrides = FakeConfigOverrideRepository()
-        val repo = newRepo(source = source, overrides = overrides)
+        val events = FakeAppEvents()
+        val repo = newRepo(source = source, overrides = overrides, events = events)
+        events.foreground(isColdBoot = true)
         runCurrent()
 
         assertEquals("bar", repo.configStream().first().map["foo"])
@@ -154,7 +195,8 @@ class OfflineFirstAppConfigRepositoryTest : CoroutineTest() {
         cache: FakeConfigCache = FakeConfigCache(),
         fallback: TestFallbackConfigMap = TestFallbackConfigMap(),
         overrides: FakeConfigOverrideRepository = FakeConfigOverrideRepository(),
-        sessions: FakeSessionTracker = FakeSessionTracker(initial = coldBootSession(id = 1L)),
+        events: FakeAppEvents = FakeAppEvents(),
+        clock: FakeClock = FakeClock(nowMs = 0L),
     ): OfflineFirstAppConfigRepository {
         val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
         val converter = ConfigJsonConverter(json)
@@ -165,17 +207,30 @@ class OfflineFirstAppConfigRepositoryTest : CoroutineTest() {
             converter = converter,
             fallbackConfig = fallback,
             configOverrideRepository = overrides,
-            sessionTracker = sessions,
+            appEvents = events.appEvents,
+            clock = clock,
             appScope = AppCoroutineScope(dispatchers),
         )
     }
 
-    private fun coldBootSession(id: Long): Session = Session(
-        id = id,
-        startedAtMs = 0L,
-        reason = SessionStartReason.ColdBoot,
-        uuid = "session-$id",
-    )
+    private class FakeClock(var nowMs: Long) : Clock {
+        override fun now(): Instant = Instant.fromEpochMilliseconds(nowMs)
+    }
+
+    /** Emits [AppEvent.OnForeground] into the repo's [AppEvents] stream on demand. */
+    private class FakeAppEvents {
+        private val flow = MutableSharedFlow<AppEvent>(replay = 1, extraBufferCapacity = 16)
+        val appEvents = AppEvents(bus = NoOpBus, backingFlow = flow)
+
+        fun foreground(isColdBoot: Boolean) {
+            flow.tryEmit(AppEvent.OnForeground(isColdBoot = isColdBoot))
+        }
+
+        private object NoOpBus : AppEventBus {
+            override fun dispatch(event: AppEvent) {}
+            override fun eventStream(): Flow<AppEvent> = MutableSharedFlow()
+        }
+    }
 
     private class FakeRemoteDataSource(
         var response: AppConfigMap = MapAppConfig(emptyMap<String, Any?>()),
@@ -205,29 +260,6 @@ class OfflineFirstAppConfigRepositoryTest : CoroutineTest() {
     private class TestFallbackConfigMap(
         override val map: Map<String, *> = emptyMap<String, Any?>(),
     ) : FallbackConfigMap(converter = ConfigJsonConverter(Json.Default))
-
-    private class FakeSessionTracker(initial: Session) : SessionTracker {
-        private val flow = MutableStateFlow(initial)
-        override val current: Session get() = flow.value
-        override fun observe(): Flow<Session> = flow
-
-        fun roll(toId: Long) {
-            flow.value = flow.value.copy(
-                id = toId,
-                reason = SessionStartReason.BackgroundRollover(
-                    backgroundedForMs = SessionTracker.BACKGROUND_ROLLOVER_MS,
-                ),
-            )
-        }
-
-        fun republish() {
-            // Emit the same Session again — distinctUntilChangedBy { id }
-            // in the production observer should collapse this, so callers
-            // assert that no refresh fired.
-            val current = flow.value
-            flow.value = current.copy(startedAtMs = current.startedAtMs + 1)
-        }
-    }
 
     private class FakeConfigOverrideRepository : ConfigOverrideRepository {
         private val flow = MutableStateFlow<List<ConfigOverride<Any>>>(emptyList())

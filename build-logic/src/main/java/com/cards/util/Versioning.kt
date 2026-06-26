@@ -21,24 +21,22 @@ data class VersionMetadata(
     val releaseDisplay: String = "$versionName ($buildNumber)"
 }
 
-data class SupabaseMetadata(
-    val projectId: String,
-    val anonKey: String
-) {
-    val url: String = projectId.takeIf { it.isNotBlank() }
-        ?.let { "https://$it.supabase.co" }
-        ?: ""
-}
-
 data class ServerMetadata(
     /**
      * Per-dev toggle: when true, the client points at the dev's own
      * machine, choosing `http://localhost:8080` on iOS or
      * `http://10.0.2.2:8080` on Android at runtime. When false, the
-     * client uses hardcoded dev/prod URLs picked by build type (see
+     * client uses the [AppEnvironment] URL picked by build type (see
      * `DefaultNetworkConfig`).
      */
     val useLocal: Boolean,
+    /**
+     * Build-time environment override: `""` (default — pick by build type,
+     * debug→dev / release→prod), `"dev"`, or `"prod"`. Emitted as
+     * `CardsBuildConfig.TARGET_ENV` and read by `AppEnvironment.current`.
+     * CI-guarded so an override can't land on a shared branch.
+     */
+    val targetEnv: String,
 )
 
 fun Project.loadVersionMetadata(): VersionMetadata {
@@ -77,52 +75,27 @@ fun BuildConfigExtension.writeCommonMetadata(metadata: VersionMetadata) {
     buildConfigField("Int", "BUILD_NUMBER", metadata.buildNumber.toString())
 }
 
-fun Project.loadSupabaseMetadata(): SupabaseMetadata {
-    val properties = Properties()
-    val localProperties = rootProject.file("local.properties")
-    if (localProperties.exists()) {
-        FileInputStream(localProperties).use(properties::load)
-    }
-
-    fun env(key: String): String? = System.getenv(key)?.takeIf { it.isNotBlank() }
-
-    val projectId = properties.stringOrNull("supabase.projectId")
-        ?: env("SUPABASE_PROJECT_ID")
-        ?: "mfozvowjsxdwrslyoyrf"
-    val anonKey = properties.stringOrNull("supabase.anonKey")
-        ?: env("SUPABASE_ANON_KEY")
-        ?: ""
-
-    return SupabaseMetadata(
-        projectId = projectId,
-        anonKey = anonKey
-    )
-}
-
-fun BuildConfigExtension.writeSupabaseMetadata(metadata: SupabaseMetadata) {
-    buildConfigField("String", "SUPABASE_PROJECT_ID", "\"${metadata.projectId}\"")
-    buildConfigField("String", "SUPABASE_URL", "\"${metadata.url}\"")
-    buildConfigField("String", "SUPABASE_ANON_KEY", "\"${metadata.anonKey}\"")
-}
-
 /**
- * Resolves whether the client should point at the dev's local Ktor
- * server instead of the baked-in dev/prod URLs.
+ * Resolves the client's environment plumbing: the `server.useLocal` local
+ * override and the `cards.targetEnv` dev/prod override. Both are read from
+ * `local.properties` first (per-dev, uncommitted), falling through to
+ * `gradle.properties` project properties.
  *
- * `server.useLocal` (boolean) — checked in to `gradle.properties` as
- * `false` (the documented default), overridable per-dev via
- * `local.properties` for ad-hoc local backend work. When true, the
- * client picks `http://localhost:8080` on iOS or `http://10.0.2.2:8080`
- * on Android at runtime based on `BuildInfo.platform`.
+ * `server.useLocal` (boolean, default false) — when true the client points at
+ * the dev's own machine (`localhost:8080` iOS / `10.0.2.2:8080` Android).
  *
- * CI guard: if `CI=true` in the environment and `useLocal` is true, the
- * build fails configuration immediately. This makes accidentally
- * committing `server.useLocal=true` to gradle.properties a loud, fast
- * failure rather than a silent shipped-bug.
+ * `cards.targetEnv` (`""` | `"dev"` | `"prod"`, default `""`) — forces the
+ * backend environment regardless of build type. Empty means "pick by build
+ * type" (debug→dev, release→prod), which is what `AppEnvironment.current` does.
  *
- * Typical dev flow: drop `server.useLocal=true` into `local.properties`,
- * resync Gradle, `./gradlew :apps:server:run`. Remove the line to go
- * back to the dev/prod URL.
+ * CI guard: if `CI=true` and either override is set, the build fails
+ * configuration immediately. This makes an accidentally-committed
+ * `server.useLocal=true` or `cards.targetEnv=…` a loud, fast failure rather
+ * than a silently mis-targeted shipped build.
+ *
+ * Typical dev flow: drop `server.useLocal=true` (or `cards.targetEnv=prod`)
+ * into `local.properties`, resync Gradle. Remove the line to go back to the
+ * build-type default.
  */
 fun Project.loadServerMetadata(): ServerMetadata {
     val properties = Properties()
@@ -131,13 +104,13 @@ fun Project.loadServerMetadata(): ServerMetadata {
         FileInputStream(localProperties).use(properties::load)
     }
 
-    // local.properties wins; otherwise fall through to gradle.properties
-    // (auto-loaded as project properties by Gradle).
-    val useLocalRaw = properties.stringOrNull("server.useLocal")
-        ?: (findProperty("server.useLocal") as? String)?.takeIf { it.isNotBlank() }
-    val useLocal = useLocalRaw?.equals("true", ignoreCase = true) ?: false
+    fun resolve(key: String): String? = properties.stringOrNull(key)
+        ?: (findProperty(key) as? String)?.takeIf { it.isNotBlank() }
 
-    if (useLocal && System.getenv("CI")?.equals("true", ignoreCase = true) == true) {
+    val isCi = System.getenv("CI")?.equals("true", ignoreCase = true) == true
+
+    val useLocal = resolve("server.useLocal")?.equals("true", ignoreCase = true) ?: false
+    if (useLocal && isCi) {
         error(
             "server.useLocal=true is set but the build is running in CI " +
                 "(CI=true). Local-server builds must never land on a shared " +
@@ -146,11 +119,25 @@ fun Project.loadServerMetadata(): ServerMetadata {
         )
     }
 
-    return ServerMetadata(useLocal = useLocal)
+    val targetEnv = resolve("cards.targetEnv")?.trim()?.lowercase().orEmpty()
+    if (targetEnv !in setOf("", "dev", "prod")) {
+        error("cards.targetEnv must be unset, 'dev', or 'prod' (got '$targetEnv').")
+    }
+    if (targetEnv.isNotEmpty() && isCi) {
+        error(
+            "cards.targetEnv=$targetEnv is set but the build is running in CI " +
+                "(CI=true). Env overrides must never land on a shared branch — a " +
+                "release build already picks prod by build type. Unset " +
+                "cards.targetEnv and rerun."
+        )
+    }
+
+    return ServerMetadata(useLocal = useLocal, targetEnv = targetEnv)
 }
 
 fun BuildConfigExtension.writeServerMetadata(metadata: ServerMetadata) {
     buildConfigField("Boolean", "SERVER_USE_LOCAL", metadata.useLocal.toString())
+    buildConfigField("String", "TARGET_ENV", "\"${metadata.targetEnv}\"")
 }
 
 private fun Properties.stringOrNull(key: String): String? =

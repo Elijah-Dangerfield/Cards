@@ -3,11 +3,14 @@ package com.dangerfield.cards.server
 import com.dangerfield.cards.server.config.AccessControlConfig
 import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.config.ServerConfig
+import com.dangerfield.cards.server.data.WebhookConfigChangeNotifier
+import com.dangerfield.cards.server.domain.ConfigChangeNotifier
 import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.di.ServerComponent
 import com.dangerfield.cards.server.di.create
 import com.dangerfield.cards.server.plugins.BanGate
 import com.dangerfield.cards.server.plugins.JwtVerification
+import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.installAuthentication
 import com.dangerfield.cards.server.plugins.installCors
 import com.dangerfield.cards.server.plugins.installHttpServerTracing
@@ -22,6 +25,7 @@ import com.dangerfield.cards.server.routes.achievementsRoutes
 import com.dangerfield.cards.server.routes.adminRoutes
 import com.dangerfield.cards.server.routes.appConfigRoutes
 import com.dangerfield.cards.server.routes.avatarRoutes
+import com.dangerfield.cards.server.routes.configAdminRoutes
 import com.dangerfield.cards.server.routes.equipmentRoutes
 import com.dangerfield.cards.server.routes.friendsRoutes
 import com.dangerfield.cards.server.routes.grantsRoutes
@@ -41,6 +45,7 @@ import com.dangerfield.cards.server.routes.roomSocketRoutes
 import com.dangerfield.cards.server.routes.walletRoutes
 import com.dangerfield.cards.libraries.core.Catching
 import io.ktor.server.application.Application
+import io.ktor.server.auth.authenticate
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
@@ -76,6 +81,11 @@ fun Application.module(config: ServerConfig) {
         verification = JwtVerification.Jwks(config.supabase.jwksUrl, config.supabase.expectedIssuer),
         adminConfig = config.admin,
         accessControl = config.accessControl,
+        configChangeNotifier = WebhookConfigChangeNotifier(
+            webhookUrl = config.configChange.webhookUrl,
+            environment = config.observability.environment,
+            scope = component.provideServerCoroutineScope(),
+        ),
     )
 
     // Boot recovery: after a restart every in-memory room is gone, so any
@@ -108,6 +118,7 @@ fun Application.installApp(
     verification: JwtVerification,
     adminConfig: AdminConfig,
     accessControl: AccessControlConfig,
+    configChangeNotifier: ConfigChangeNotifier = ConfigChangeNotifier {},
 ) {
     installSerialization()
     installCors()
@@ -124,7 +135,13 @@ fun Application.installApp(
 
     routing {
         healthRoutes()
-        appConfigRoutes(component.appConfigSource)
+        // Optional auth: the config fetch must work pre-session (it carries the
+        // kill-switch / forced-upgrade flags), but when the client does present
+        // a Supabase JWT we resolve the user id so per-user targeting + rollout
+        // bucketing key off it. No token → principal null → still served.
+        authenticate(SUPABASE_JWT_AUTH, optional = true) {
+            appConfigRoutes(component.appConfigSource)
+        }
         productsRoutes(component.productCatalogSource)
         inventoryRoutes(component.inventoryRepository)
         walletRoutes(
@@ -189,6 +206,12 @@ fun Application.installApp(
             wallets = component.walletRepository,
             messages = component.userMessageRepository,
             clock = component.provideClock(),
+        )
+        configAdminRoutes(
+            config = adminConfig,
+            repository = component.appConfigAdminRepository,
+            manifestRepository = component.appConfigManifestRepository,
+            notifier = configChangeNotifier,
         )
     }
 }

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cards · Remote Config Admin</title>
+    <style>
+        :root {
+            --bg: #14110e;
+            --panel: #1d1a16;
+            --panel-2: #262119;
+            --line: #3a332a;
+            --text: #ece4d6;
+            --muted: #9a8f7d;
+            --accent: #c8a15a;
+            --danger: #c2554a;
+            --ok: #6f9a5a;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font: 14px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+        }
+        #root { max-width: 920px; margin: 0 auto; padding: 24px 20px 80px; }
+        h1 { font-size: 18px; letter-spacing: .04em; margin: 0 0 2px; }
+        h2 { font-size: 14px; color: var(--muted); margin: 28px 0 10px; font-weight: 600; }
+        .sub { color: var(--muted); margin: 0 0 20px; }
+        .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+        .flag-path { color: var(--accent); font-weight: 600; }
+        .rule { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
+        .rule.off { opacity: .5; }
+        .muted { color: var(--muted); }
+        label { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+        input[type=text], input[type=number], textarea {
+            background: #100d0a; color: var(--text); border: 1px solid var(--line);
+            border-radius: 6px; padding: 6px 8px; font: inherit;
+        }
+        input[type=text] { min-width: 120px; }
+        button {
+            background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+            border-radius: 6px; padding: 6px 12px; font: inherit; cursor: pointer;
+        }
+        button:hover { border-color: var(--accent); }
+        button.primary { background: var(--accent); color: #1a140a; border-color: var(--accent); font-weight: 600; }
+        button.danger { color: var(--danger); }
+        .status { min-height: 20px; margin: 8px 0; }
+        .status.err { color: var(--danger); }
+        .status.ok { color: var(--ok); }
+        .grid { display: grid; grid-template-columns: 140px 1fr; gap: 6px 10px; align-items: center; }
+        code { background: #100d0a; padding: 1px 5px; border-radius: 4px; }
+        pre { background: #100d0a; border: 1px solid var(--line); border-radius: 6px; padding: 8px; overflow:auto; margin: 4px 0; }
+
+        /* tabs */
+        .tabs { display: flex; gap: 6px; margin: 18px 0 12px; }
+        .tabs button.active { background: var(--accent); color: #1a140a; border-color: var(--accent); font-weight: 600; }
+
+        /* target lens */
+        .target { border-color: var(--accent); }
+
+        /* flag cards */
+        .flag-head { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+        .spacer { flex: 1 1 auto; }
+        .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; text-transform: uppercase; letter-spacing: .04em; }
+        .chip { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 10px; padding: 0 8px; }
+        .val { color: var(--text); }
+        .val-drift { color: var(--accent); font-weight: 600; }
+        .hint { font-size: 11px; }
+
+        /* the default → base → resolved story */
+        .layers { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+        .layer { background: #100d0a; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 170px; }
+
+        /* rules */
+        .rule.editing { border-color: var(--accent); }
+        .op { min-width: 36px; font-weight: 600; }
+
+        /* version manifest */
+        .manifest-row { display: flex; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script src="cards-config-admin.js"></script>
+</body>
+</html>
