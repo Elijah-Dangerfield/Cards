@@ -458,3 +458,38 @@ object AppConfigValuesTable : Table("app_config_values") {
     override val primaryKey = PrimaryKey(path)
 }
 
+/**
+ * Per-flag targeting rules. One row per rule; evaluated in ascending `priority`
+ * with first-match-wins, falling back to the [AppConfigValuesTable] base value.
+ * `conditions_jsonb` is the serialized predicate (platform / version-code range
+ * / country / locale / user-id allow-deny / rollout bucket). FK-cascaded off the
+ * flag's base value so deleting a flag drops its rules. See `V76__app_config_targeting.sql`.
+ */
+object AppConfigRulesTable : Table("app_config_rules") {
+    val id = uuid("id")
+    val flagPath = text("flag_path")
+    val priority = integer("priority")
+    val valueJsonb = jsonb("value_jsonb")
+    val conditionsJsonb = jsonb("conditions_jsonb")
+    val enabled = bool("enabled")
+    val description = text("description").nullable()
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
+}
+
+/**
+ * Append-only audit log of every config mutation made through the admin API.
+ * `before_jsonb` / `after_jsonb` capture the changed row's state for diffing.
+ * See `V76__app_config_targeting.sql`.
+ */
+object AppConfigAuditTable : Table("app_config_audit") {
+    val id = uuid("id")
+    val at = timestamp("at")
+    val actor = text("actor")
+    val action = text("action")
+    val flagPath = text("flag_path").nullable()
+    val beforeJsonb = jsonb("before_jsonb").nullable()
+    val afterJsonb = jsonb("after_jsonb").nullable()
+    override val primaryKey = PrimaryKey(id)
+}
+

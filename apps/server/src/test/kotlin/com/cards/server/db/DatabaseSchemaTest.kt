@@ -49,6 +49,9 @@ class DatabaseSchemaTest : DatabaseTest() {
             // (upgrade.* ×3 + social.enabled). Non-empty proves the seed ran
             // AND the Exposed projection lines up with the JSONB schema.
             assertEquals(4, AppConfigValuesTable.selectAll().count())
+            // V76 targeting tables ship empty.
+            assertEquals(0, AppConfigRulesTable.selectAll().count())
+            assertEquals(0, AppConfigAuditTable.selectAll().count())
         }
     }
 

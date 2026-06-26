@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.data
 
+import com.dangerfield.cards.server.db.AppConfigRulesTable
 import com.dangerfield.cards.server.db.AppConfigValuesTable
 import com.dangerfield.cards.server.db.DatabaseTest
 import com.dangerfield.cards.server.http.ClientContext
@@ -10,6 +11,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.update
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Clock
@@ -34,13 +36,17 @@ class PostgresAppConfigSourceTest : DatabaseTest() {
         override fun now(): Instant = instant
     }
 
-    private val context = ClientContext(
+    private val androidContext = ClientContext(
         platform = ClientContext.Platform.Android,
         appVersion = "1.0.0",
         buildNumber = 1,
         preferredLocales = listOf("en"),
         countryCode = null,
     )
+    private val iosContext = androidContext.copy(platform = ClientContext.Platform.iOS)
+
+    // Default context used by the cache/assembly tests.
+    private val context = androidContext
 
     @Test
     fun read_assemblesSeededTree_nestedByPath() = runTest {
@@ -81,6 +87,33 @@ class PostgresAppConfigSourceTest : DatabaseTest() {
         }
     }
 
+    @Test
+    fun read_appliesTargetingRule_byPlatform() = runTest {
+        val path = "qa.targeted_${System.nanoTime()}"
+        val leaf = path.substringAfter('.')
+        val source = PostgresAppConfigSource(database, Clock.System)
+        try {
+            upsert(path, "\"base\"")
+            insertRule(
+                flagPath = path,
+                priority = 0,
+                valueJson = "\"ios-only\"",
+                conditionsJson = """{"platforms":["ios"]}""",
+            )
+
+            val androidValue = source.read(androidContext, userId = null)
+                .getValue("qa").jsonObject.getValue(leaf).jsonPrimitive.content
+            assertEquals("base", androidValue, "android caller doesn't match the iOS rule → base value")
+
+            val iosValue = PostgresAppConfigSource(database, Clock.System)
+                .read(iosContext, userId = null)
+                .getValue("qa").jsonObject.getValue(leaf).jsonPrimitive.content
+            assertEquals("ios-only", iosValue, "iOS caller matches the rule → rule value")
+        } finally {
+            delete(path) // FK-cascade drops the rule
+        }
+    }
+
     private suspend fun PostgresAppConfigSource.flag(leaf: String): Boolean =
         read(context, null).getValue("qa").jsonObject.getValue(leaf).jsonPrimitive.content.toBoolean()
 
@@ -95,6 +128,24 @@ class PostgresAppConfigSourceTest : DatabaseTest() {
     private suspend fun setValue(path: String, valueJson: String) = database.transaction {
         AppConfigValuesTable.update({ AppConfigValuesTable.path eq path }) {
             it[valueJsonb] = valueJson
+            it[updatedAt] = java.time.Instant.now()
+        }
+    }
+
+    private suspend fun insertRule(
+        flagPath: String,
+        priority: Int,
+        valueJson: String,
+        conditionsJson: String,
+    ) = database.transaction {
+        AppConfigRulesTable.insert {
+            it[id] = UUID.randomUUID()
+            it[AppConfigRulesTable.flagPath] = flagPath
+            it[AppConfigRulesTable.priority] = priority
+            it[valueJsonb] = valueJson
+            it[conditionsJsonb] = conditionsJson
+            it[enabled] = true
+            it[description] = null
             it[updatedAt] = java.time.Instant.now()
         }
     }
