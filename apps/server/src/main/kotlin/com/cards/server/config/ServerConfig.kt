@@ -186,11 +186,12 @@ data class SentryConfig(
     companion object {
         fun fromEnv(env: Env): SentryConfig = SentryConfig(
             dsn = env["SENTRY_DSN"],
-            // Fly sets FLY_APP_NAME; we map cards-server → prod, anything
-            // else → dev. Override with SENTRY_ENVIRONMENT when needed.
+            // Fly sets FLY_APP_NAME; we map cards-server-prod → prod, anything
+            // else (cards-server-dev, local) → dev. Override with
+            // SENTRY_ENVIRONMENT when needed.
             environment = env["SENTRY_ENVIRONMENT"]
                 ?: when (env["FLY_APP_NAME"]) {
-                    "cards-server" -> "prod"
+                    "cards-server-prod" -> "prod"
                     else -> "dev"
                 },
             release = env["SENTRY_RELEASE"],
@@ -237,7 +238,7 @@ data class ObservabilityConfig(
             environment = env["OTEL_DEPLOYMENT_ENVIRONMENT"]
                 ?: env["SENTRY_ENVIRONMENT"]
                 ?: when (env["FLY_APP_NAME"]) {
-                    "cards-server" -> "prod"
+                    "cards-server-prod" -> "prod"
                     else -> "dev"
                 },
             release = env["OTEL_SERVICE_VERSION"] ?: env["SENTRY_RELEASE"],

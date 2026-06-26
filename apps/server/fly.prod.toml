@@ -1,0 +1,56 @@
+# Fly.io configuration for the Cards PRODUCTION server.
+#
+# Mirror of fly.toml (the dev server) — same Dockerfile, region, JVM tuning,
+# and always-warm machine — diverging only in the app name and the Supabase
+# project it points at (set via secrets, never in this file).
+#
+# Workflow:
+#   - Deploy:    fly deploy --config apps/server/fly.prod.toml
+#   - Secrets:   fly secrets set KEY=VALUE -a cards-server-prod
+#   - Live logs: fly logs -a cards-server-prod
+#   - Console:   fly ssh console -a cards-server-prod
+#   - Status:    fly status -a cards-server-prod
+#
+# Required secrets (set separately, see apps/server/DEPLOY.md):
+#   DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ADMIN_API_TOKEN,
+#   and optionally SENTRY_DSN. Env (SENTRY_ENVIRONMENT / OTel) derives `prod`
+#   automatically from this app name.
+
+app = 'cards-server-prod'
+primary_region = 'iad'   # US East — closest to Supabase's default `aws-0-us-east-1` pool.
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  SERVER_HOST = '0.0.0.0'
+  SERVER_PORT = '8080'
+  LOG_LEVEL = 'INFO'
+  # Prod runs on a 1GB machine (vs dev's 512MB): it holds live per-room game
+  # state in RAM under real traffic, where dev's tight 256m heap would thrash /
+  # OOM. 512m heap + 96m metaspace cap leaves ~400MB for the ~150-200MB off-heap
+  # floor (Netty/OkHttp direct buffers, thread stacks, JIT) + OS headroom. Keep
+  # SerialGC for now (single small machine); revisit (G1) if pause times bite.
+  JAVA_OPTS = '-Xms128m -Xmx512m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC -XX:+UnlockExperimentalVMOptions'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Keep one machine warm 24/7 — prod must never pay the JVM cold-start tax
+  # (6+s) on a user's first request. Idle machines past the first still
+  # auto-stop, so we pay only for the always-warm baseline.
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/_health'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '1024mb'

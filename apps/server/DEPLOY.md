@@ -1,8 +1,46 @@
-# Deploying `cards-server-dev` to Fly.io
+# Deploying the Cards server to Fly.io
 
 The first deploy is a one-time setup. After that, merging to `main` with
-changes under `apps/server/**` triggers an auto-deploy via GitHub Actions
-(see `.github/workflows/server-deploy.yml`).
+changes under `apps/server/**` triggers an auto-deploy of **dev** via GitHub
+Actions (see `.github/workflows/server-deploy.yml`).
+
+## Environments (dev + prod)
+
+There are two independent environments — separate Fly apps backed by separate
+Supabase projects (separate databases), so config flags, wallets, and users in
+one are invisible to the other.
+
+| | Fly app | Supabase project | Config | Deploy |
+| --- | --- | --- | --- | --- |
+| **dev** | `cards-server-dev` | `yuqrfhdoejonclgbixlw` | `fly.toml` | auto on push to `main` |
+| **prod** | `cards-server-prod` | `kzohlyvmnnvyabspzpbb` | `fly.prod.toml` | **manual** dispatch (`server-deploy-prod.yml`) |
+
+The client picks an environment by build type: **debug → dev, release → prod**
+(`Environment.current`). Override locally with `cards.targetEnv=dev|prod` in
+`local.properties` (CI-guarded). Each env has its **own** `ADMIN_API_TOKEN`, so
+the config admin tool manages whichever one you point it at.
+
+Prod deploys are deliberate: dev ships on every merge; prod ships when you run
+the prod workflow (or `fly deploy --config apps/server/fly.prod.toml`) after
+dev looks good. The schema needs no manual work — Flyway runs every migration
+on first boot and `V5__products.sql` seeds the catalog, on either database.
+
+### Standing up prod (one-time)
+```
+fly apps create cards-server-prod
+fly secrets set \
+  DATABASE_URL='postgresql://postgres:<dev-password>@db.kzohlyvmnnvyabspzpbb.supabase.co:5432/postgres' \
+  SUPABASE_URL='https://kzohlyvmnnvyabspzpbb.supabase.co' \
+  SUPABASE_SERVICE_ROLE_KEY='<prod service_role key>' \
+  ADMIN_API_TOKEN="$(openssl rand -hex 32)" \
+  -a cards-server-prod
+fly deploy --config apps/server/fly.prod.toml
+fly tokens create deploy -a cards-server-prod --expiry 8760h   # → GH secret FLY_API_TOKEN_PROD
+```
+Set the prod project's DB password to match dev (so only the project ref
+differs), set `CARDS_ADMIN_API_TOKEN_PROD` in GitHub to the prod
+`ADMIN_API_TOKEN`, and put the prod anon key into `Environment.Prod` in
+`libraries/core/.../Environment.kt`.
 
 ## One-time setup
 
@@ -26,13 +64,17 @@ changes under `apps/server/**` triggers an auto-deploy via GitHub Actions
 4. **Set secrets** (from the repo root):
    ```
    fly secrets set \
-     DATABASE_URL='postgresql://postgres:nD58ubv82mzv%24EV@db.yuqrfhdoejonclgbixlw.supabase.co:5432/postgres' \
+     DATABASE_URL='postgresql://postgres:<URL-ENCODED-DB-PASSWORD>@db.yuqrfhdoejonclgbixlw.supabase.co:5432/postgres' \
      SUPABASE_URL='https://yuqrfhdoejonclgbixlw.supabase.co' \
      -a cards-server-dev
    ```
+   Get `<URL-ENCODED-DB-PASSWORD>` from Supabase → Project Settings → Database.
+   **Never commit the real value** — it's a secret; it only ever lives in `fly
+   secrets` and the gitignored `apps/server/.env`.
+
    Notes:
    - `DATABASE_URL` uses Supabase's **direct connection** host (works from Fly because Fly has IPv6 outbound).
-   - The `$` in the password is URL-encoded as `%24`.
+   - URL-encode special characters in the password (e.g. `$` → `%24`).
    - `SUPABASE_URL` is enough on its own: the server fetches the project's public JWT signing keys from `<SUPABASE_URL>/auth/v1/.well-known/jwks.json` at runtime. No shared JWT secret is stored anywhere.
    - For account deletion, add `SUPABASE_SERVICE_ROLE_KEY` here (Project Settings → API → service_role key, treat like a root password).
 

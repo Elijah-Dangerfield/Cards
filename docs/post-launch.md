@@ -45,25 +45,31 @@ deletes someone's progress.
 
 ## App platform
 
-### Remote config / feature flags (in-house, local admin GUI)
-Today app config is hardcoded server-side (`InMemoryAppConfigSource`) — every change is a redeploy,
-and a value is all-or-nothing for every user. Decided (2026-06-19) to **build this in-house** (no
-hosted service like PostHog / Statsig / LaunchDarkly) with a **locally-run admin web GUI** that edits
-DB config values directly — never a published/hosted site, just a GUI Elijah runs on demand against
-the config table. Ship in slices:
-- **Phase 1 — DB-backed source:** `PostgresAppConfigSource` (drops in for `InMemoryAppConfigSource`
-  via the same `@ContributesBinding`), reads a `key → value` tree from Postgres with a short TTL
-  cache. Editable in the Supabase table editor → flags flip with **no redeploy**, live on the next
-  client config refresh. (Cheap + high value — could be pulled forward pre-launch if redeploy pain
-  bites.)
-- **Phase 2 — targeting + rollout:** per-flag rules evaluated server-side in `GET /v1/app-config`
-  (endpoint already returns *resolved* values, so the client model is untouched). Axes: platform,
-  app version, user-id allow/deny, location, locale, OS version, release channel, account type,
-  install/cohort date, device class. Deterministic % bucketing (`hash(userId + flagKey) % 100`) for
-  ramps + A/B. Change audit log.
-- **Phase 3 — local admin UI:** the on-demand local web app — lists every flag (from the
-  `ConfiguredValue` registry), shows the value served per app version / audience, and edits values +
-  rules + rollout %.
+### Remote config / feature flags (in-house, local admin GUI) — IMPLEMENTED (2026-06-26)
+Decided (2026-06-19) to **build this in-house** (no hosted service like PostHog / Statsig /
+LaunchDarkly) with a **locally-run admin web GUI** that edits DB config values directly — never a
+published/hosted site, just a GUI run on demand against the config table. Built across three slices:
+- **Phase 1 — DB-backed source (done):** `PostgresAppConfigSource` replaced `InMemoryAppConfigSource`
+  via the same `@ContributesBinding`. Flags live in `app_config_values` (V75), keyed by
+  `ConfiguredValue.path`, with a 30s TTL cache — editable in the Supabase table editor (or the admin
+  UI) → flags flip with **no redeploy**, live on the next client config refresh.
+- **Phase 2 — targeting + rollout (done):** per-flag rules in `app_config_rules` (V76), evaluated
+  server-side first-match-wins by `AppConfigTargetingEngine`; the endpoint still returns *resolved*
+  values so the client model is untouched. Axes shipped: platform, version-code range, country,
+  locale, user-id allow/deny, and deterministic FNV-1a % rollout bucketed on user-id-or-install-id
+  (monotonic ramps). The config route is now optionally JWT-authed so user-id targeting works while
+  the kill-switch still loads pre-session; the client attaches its bearer best-effort. Change audit
+  log in `app_config_audit`. *(Remaining axes from the original sketch — OS version, release channel,
+  account type, cohort/install date, device class — are not yet wired; add to `RuleConditions` +
+  `AppConfigTargetingEngine` when needed.)*
+- **Phase 3 — local admin UI (done):** `:apps:admin` — a Compose HTML / DOM web app (the repo's first
+  `js` target), run via `./gradlew :apps:admin:jsBrowserDevelopmentRun`. Connects with server URL +
+  `ADMIN_API_TOKEN` + actor, edits flag base values + targeting rules + rollout %, and shows the
+  audit log, all over the token-gated `/v1/admin/config` API. **Local-only**; publishing behind a VPN
+  stays a future option. *(It lists flags that exist in the DB + free-form "add by path"; it does
+  **not** enumerate the client's full `ConfiguredValue` registry — that's client common code this web
+  target deliberately doesn't depend on. Wire that later if discoverability matters.)*
 
-The seam already exists: `AppConfigSource` (server) + `ConfiguredValue` / `AppConfigMap` (client);
-some eval inputs live in `ClientHeaders` (install id, platform, app version) + the JWT.
+Code: server — `PostgresAppConfigSource`, `AppConfigTargetingEngine`, `AppConfigAdminRepository`,
+`ConfigAdminRoutes`, migrations `V75`/`V76`; client — `RemoteConfigRemoteDataSource` (best-effort
+bearer); admin — `apps/admin` (see its `README.md`).

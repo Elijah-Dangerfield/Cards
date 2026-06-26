@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.networking.impl
 
 import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.Environment
 import com.dangerfield.cards.libraries.core.Platform
 import com.dangerfield.cards.libraries.core.ServerInfo
 import com.dangerfield.cards.libraries.networking.NetworkConfig
@@ -16,12 +17,11 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  *     the dev's own machine, choosing the right loopback for the running
  *     platform (`localhost:8080` on iOS sim, `10.0.2.2:8080` on Android
  *     emulator).
- *  2. Otherwise, pick by build type:
- *       - debug → [ServerInfo.DEV_BASE_URL]
- *       - release → [ServerInfo.PROD_BASE_URL]
+ *  2. Otherwise, use the resolved [Environment] base URL (debug → dev,
+ *     release → prod, overridable via `cards.targetEnv`).
  *
- * See `ServerInfo` and `Versioning.kt#loadServerMetadata` for the
- * property plumbing and CI guard.
+ * See `ServerInfo`, `Environment`, and `Versioning.kt#loadServerMetadata`
+ * for the property plumbing and CI guard.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
@@ -32,7 +32,6 @@ class DefaultNetworkConfig : NetworkConfig {
             Platform.iOS -> ServerInfo.LOCAL_URL_IOS
             Platform.Android -> ServerInfo.LOCAL_URL_ANDROID
         }
-        BuildInfo.isDebug -> ServerInfo.DEV_BASE_URL
-        else -> ServerInfo.PROD_BASE_URL
+        else -> Environment.current.baseUrl
     }
 }
