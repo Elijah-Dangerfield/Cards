@@ -53,7 +53,7 @@ private fun App() {
 
     H1 { Text("Cards · Remote Config Admin") }
     P(attrs = { classes("sub") }) {
-        Text("Pick an environment and connect. Tokens are baked in at build time from the gitignored admin-tokens.local.properties — no pasting.")
+        Text("Pick an environment, then view and edit its flags.")
     }
 
     Div(attrs = { classes("panel") }) {
@@ -69,7 +69,7 @@ private fun App() {
         }
         if (selectedEnv.token.isBlank()) {
             Div(attrs = { classes("status", "err") }) {
-                Text("No token for ${selectedEnv.displayName} — add `${selectedEnv.displayName}=...` to apps/admin/admin-tokens.local.properties and rebuild.")
+                Text("No token set for ${selectedEnv.displayName}. Add it to admin-tokens.local.properties and rebuild.")
             }
         }
         Div(attrs = { classes("grid"); style { property("margin-top", "8px") } }) {
