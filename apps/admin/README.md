@@ -24,8 +24,39 @@ fields and click the Connect / Reload button:
 1. **Server URL.** Defaults to `http://localhost:8080` (a local `:apps:server`).
    Point it at any environment you hold the admin token for.
 2. **Admin token.** The server's `ADMIN_API_TOKEN`, sent as the `X-Admin-Token`
-   header. It's never persisted.
+   header. It's never persisted. See "Getting a token" below.
 3. **Actor.** Your name. It's recorded on every change in the audit log.
+
+## Getting a token
+
+The token is just the target server's `ADMIN_API_TOKEN` env var. There's no
+central authority and no registration: you mint a random string and set it on
+whichever server you want to manage. The two cases are separate.
+
+**A local server.** Add a token to `apps/server/.env`, then restart the server.
+The admin API fails closed, so without this it returns 401.
+
+```bash
+echo "ADMIN_API_TOKEN=$(openssl rand -hex 32)" >> apps/server/.env
+```
+
+Point the tool's Server URL at `http://localhost:8080` and paste that same value.
+
+**A deployed server (Fly).** The dev server already has a token, but Fly secrets
+are write-only so you can't read the current one back. Rotate to a fresh value
+you'll know, keeping the Fly secret and the GitHub secret (the cron sweeps use
+it) in sync. From the repo root:
+
+```bash
+NEW_TOKEN="$(openssl rand -hex 32)"
+fly secrets set ADMIN_API_TOKEN="$NEW_TOKEN" -a cards-server-dev
+gh secret set CARDS_ADMIN_API_TOKEN_DEV --body "$NEW_TOKEN"
+echo "$NEW_TOKEN"   # paste into the tool, then clear your scrollback
+```
+
+`fly secrets set` triggers a redeploy. Don't rotate a server's token while
+something else (the sweeps) is authenticating against it without updating both
+places. Full rotation notes live in [`apps/server/DEPLOY.md`](../server/DEPLOY.md).
 
 ## What you can do
 
