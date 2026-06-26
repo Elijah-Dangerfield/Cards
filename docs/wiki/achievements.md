@@ -31,25 +31,31 @@ agnostic of achievements."
 
 ```
 Each hand ─▶ client appends raw FACTS to the local outbox ─▶ batched flush
-                                                                  │
-                                          POST /v1/me/player-stats/sync
-                                          server folds facts → counters,
-                                          returns the authoritative snapshot
-Stats / Achievements screen
-   • earned badges   ← synced earned set (already cross-device)
-   • progress bars   ← server counters (AchievementProgress.withServerCounters)
-   • unlock + chips  ← local engine, optimistically, offline-instant
+                  │                                              │
+   EFFECTIVE COUNTERS = server snapshot              POST /v1/me/player-stats/sync
+   folded with the unsynced outbox                   server folds facts → counters,
+   (shared AchievementCounters.fold)                 returns the authoritative snapshot
+        │                    │
+   progress bars        unlock + chips  ← one source, optimistic, offline-instant
+   earned badges        ← synced earned set (already cross-device)
 ```
 
-- **Progress bars** read the server's counter projection (overlaid onto the
-  local base by `withServerCounters`), so they survive reinstall / account
-  switch. The counters the server doesn't fold from hand facts keep their local
-  value: `current_level` (XP-derived, and XP is separately server-reconciled),
-  `tutorial_complete`, and the always-zero multiplayer keys.
+- **One source — the effective counters.** `PlayerStatsRepository.observeEffectiveCounters`
+  folds the unsynced outbox facts onto the cached server snapshot with the *same*
+  `AchievementCounters.fold` the server runs. Both the progress bars and the
+  unlock engine read it (`achievementProgressFrom`), so they always agree, work
+  offline (server-last-known + this session's hands), and survive reinstall (a
+  fresh client folds an empty outbox onto the hydrated snapshot → exact server
+  truth). The old device-only counter table is gone.
+- Counters the server doesn't fold from hand facts are supplied at read time:
+  `current_level` (XP-derived, XP is separately server-reconciled) and the
+  bot-whisperer capstone (derived from the per-bot win family). Tutorial + MP
+  achievements have no fact counter, so their bars read 0 until earned — correct,
+  since they're tracked by the earned set / granted server-side.
 - **The contract:** the server folds counters under the *same* string keys the
   client's `Criterion` uses (`no_bust_streak`, `max_pot_seen`, `wins_vs_bot_*`,
-  …). Today that alignment is maintained by hand across the two modules; a future
-  unification onto the shared module's keys would make it compiler-enforced.
+  …). Today that alignment is maintained by hand across the two modules; moving
+  the registry's keys onto the shared module would make it compiler-enforced.
 
 ## Two things we deliberately did NOT make server-driven
 
@@ -75,26 +81,22 @@ double-granted achievement reward is in-game inflation, not lost money. For that
 stake it isn't worth moving the bot-mode grant off the existing client-optimistic
 path right now.
 
-## Known limitation (the cost of deferring #2)
-
-Progress **display** is server-authoritative, but the client's **unlock engine**
-still reads local counters that reset on reinstall. So immediately after a
-reinstall, a player who was mid-progress and crosses a threshold may see the bar
-at ~100% (server) while the unlock celebration lags until their *local* count
-re-accumulates. The earned set is synced, so already-earned achievements never
-re-fire or get lost — only an in-flight unlock can be delayed in that narrow
-window. Closing this is the backlog item below (reconcile the local engine's
-counters from the server snapshot, or move granting server-side).
-
-→ Backlog: **server-authoritative achievement granting + local-counter reconciliation.**
-
-## Implementation status (PROG-1 — complete for the reset bug)
+## Implementation status (PROG-1 — done)
 
 - **Phase 1 — done.** Server event-sources raw `HandFacts`; `AchievementCounters.fold`
   (shared module) materializes every counter on `user_player_stats`; exposed on the
   read endpoint. Streak derived from a bust fact, never a client snapshot.
 - **Phase 2a — done.** Client sends the full per-hand facts so the rich counters populate.
-- **Phase 2b — done.** Progress bars render from the server counters
-  (`withServerCounters`), surviving reinstall / account switch.
-- **Phase 3 — not doing now (backlog).** Server-served definitions and
-  server-validated granting, per the two decisions above.
+- **Phase 2b — done.** Progress bars render from the server counters.
+- **Unification — done.** Both display and unlock read one effective-counter
+  source (server snapshot + unsynced outbox, shared fold); the legacy device-only
+  counter table is retired. So the unlock engine is server-truthful too — after a
+  reinstall a mid-progress achievement unlocks correctly off server history, not a
+  reset local tally. Progress, celebration, and earning all work offline and are
+  fully retained across reinstall / account switch.
+
+The one open question, **not** part of fixing the reset bug, is parked in the
+backlog: whether achievement **definitions** should eventually be backend-driven
+(hot-add without an app release) rather than hardcoded in the client. Today
+they're client-side, which is the right default (the client needs a bundled
+catalog for offline anyway, and new achievements usually ship with assets).
