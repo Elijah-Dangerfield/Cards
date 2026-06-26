@@ -49,10 +49,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - Acceptance: Review + update both legal docs; finish Cards→Dealt across everything under `pages/`; swap the logo/icon assets to the Dealt mark.
 - Hint: A material content change should bump [`LegalUrls.LEGAL_VERSION`](../libraries/core/src/commonMain/kotlin/com/cards/libraries/core/LegalUrls.kt) (currently `1`) so the planned "Terms changed, re-accept" gate fires.
 
-## D. Config admin
-
-**ENG-5 — Config admin: stop presenting the shipped default as a freely-editable "base value"** `[P1]`
-- Problem: The site shows three layers (in-code default → DB base value → resolved) but makes editing the "base value" a primary action. Owner's read: the app *ships* the base/default; the site should mainly do *targeting*, not own the base.
-- Recommendation: Keep the server-override capability — changing a default without an app release is genuinely useful (remote retunes) — but reframe the UX: render the shipped in-code default **read-only** ("what the app ships with") and relabel the editable layer as an explicit, optional **"global override (all targets)"**. (The server-side lazy-seed so a flag can carry rules without a hand-minted base already shipped under ENG-4.)
-- Hint: Layers + base editor at [`FlagsView.kt:128-159`](../apps/admin/src/jsMain/kotlin/com/dangerfield/cards/admin/FlagsView.kt); resolve order `rule → base → in-code default` in the `/resolve` endpoint of [`ConfigAdminRoutes.kt`](../apps/server/src/main/kotlin/com/cards/server/routes/ConfigAdminRoutes.kt).
-
