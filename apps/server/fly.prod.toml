@@ -26,13 +26,12 @@ primary_region = 'iad'   # US East — closest to Supabase's default `aws-0-us-e
   SERVER_HOST = '0.0.0.0'
   SERVER_PORT = '8080'
   LOG_LEVEL = 'INFO'
-  # JVM heap tuned for a 512MB machine. The Ktor + Exposed + Hikari +
-  # OkHttp/OTel dependency set has a ~150-200MB off-heap floor (metaspace,
-  # thread stacks, JIT code cache, Netty/OkHttp direct buffers) before the
-  # heap is counted at all — so 256MB total OOM-killed the JVM in a restart
-  # loop (observed 2026-05-30). 256m heap + 96m metaspace cap leaves ~150MB
-  # for off-heap + OS on the 512MB box.
-  JAVA_OPTS = '-Xms64m -Xmx256m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC -XX:+UnlockExperimentalVMOptions'
+  # Prod runs on a 1GB machine (vs dev's 512MB): it holds live per-room game
+  # state in RAM under real traffic, where dev's tight 256m heap would thrash /
+  # OOM. 512m heap + 96m metaspace cap leaves ~400MB for the ~150-200MB off-heap
+  # floor (Netty/OkHttp direct buffers, thread stacks, JIT) + OS headroom. Keep
+  # SerialGC for now (single small machine); revisit (G1) if pause times bite.
+  JAVA_OPTS = '-Xms128m -Xmx512m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC -XX:+UnlockExperimentalVMOptions'
 
 [http_service]
   internal_port = 8080
@@ -54,4 +53,4 @@ primary_region = 'iad'   # US East — closest to Supabase's default `aws-0-us-e
 
 [[vm]]
   size = 'shared-cpu-1x'
-  memory = '512mb'
+  memory = '1024mb'
