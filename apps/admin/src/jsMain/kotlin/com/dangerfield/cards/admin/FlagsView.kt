@@ -144,6 +144,7 @@ private fun FlagDetail(
             onClick {
                 val element = parseJsonOrNull(baseDraft)
                 if (element == null) { setStatus(Status(false, "Base value must be valid JSON")); return@onClick }
+                dangerousWarning(row.path, baseDraft)?.let { if (!confirmDialog(it)) return@onClick }
                 scope.launchOp(setStatus, reload, "Saved base value for ${row.path}") {
                     api.upsertFlag(row.path, element)
                 }

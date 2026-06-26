@@ -154,6 +154,7 @@ internal fun RuleEditor(
                     if (element == null || priorityInt == null) {
                         setStatus(Status(false, "Priority must be an int and value valid JSON")); return@onClick
                     }
+                    dangerousWarning(row.path, current.value)?.let { if (!confirmDialog(it)) return@onClick }
                     val request = UpsertRuleRequest(
                         flagPath = row.path,
                         priority = priorityInt,

@@ -33,6 +33,28 @@ internal fun csvSet(raw: String): Set<String>? =
 
 internal fun randomUuid(): String = js("crypto.randomUUID()") as String
 
+/**
+ * A confirm prompt for values that hit every user hard — locking them out or
+ * forcing an upgrade. Returns the warning to show, or null when the change is
+ * routine. Keyed on (path, value) because the danger is value-specific
+ * (`maintenanceMode = "blocking"` is a lockout; `"off"` is harmless).
+ */
+internal fun dangerousWarning(path: String, value: String): String? {
+    val v = value.trim()
+    return when {
+        path == "upgrade.maintenanceMode" && v == "\"blocking\"" ->
+            "This sets maintenance mode to BLOCKING — it locks ALL users out of the app. Continue?"
+        path == "upgrade.maintenanceMode" && v == "\"banner\"" ->
+            "This shows a maintenance banner to ALL users. Continue?"
+        path == "upgrade.minSupportedVersionCode" ->
+            "Raising the minimum supported version force-upgrades every user below it. Double-check the number. Continue?"
+        else -> null
+    }
+}
+
+/** Browser confirm dialog. Returns true when the operator confirms. */
+internal fun confirmDialog(message: String): Boolean = js("window.confirm(message)") as Boolean
+
 /** Compact, human-readable rendering of a JSON value for tables (no pretty-print). */
 internal fun JsonElement?.inline(): String = this?.toString() ?: "—"
 
