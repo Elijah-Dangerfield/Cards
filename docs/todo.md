@@ -26,10 +26,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## C. Content & data
 
-**ENG-3 — Mirror the unslopped product copy to prod + unslop the unlock-only reward copy** `[P1]`
-- Problem: The shop-visible product copy was unslopped on dev (V78); prod still holds the old em-dash-heavy copy, and the unlock-only achievement-reward descriptions (emote packs, earned titles, founding badge) were left untouched because they carry achievement-criteria wording.
-- Acceptance: Mirror dev's V78 final copy to prod so the two stay identical; run the same unslop pass over the unlock-only reward descriptions, preserving every criterion claim verbatim.
-- Hint: Treat the prod write as sensitive — review the dev diff before mirroring. Unlock-only rows are served via `readById`, not the shop list, so they need a `git grep description_by_locale` over the V20/V25-V45 migrations to enumerate.
+**ENG-3 — Mirror the unslopped product copy to prod** `[P1]`
+- Problem: The product copy was unslopped on dev across V78 (shop-visible rows) and V79 (unlock-only achievement-reward rows); prod still holds the old em-dash-heavy copy.
+- Acceptance: Mirror dev's V78 + V79 final copy to prod so the two databases stay identical.
+- Hint: Treat the prod write as sensitive — review the dev diff before mirroring. Needs prod DB creds.
 
 **AUTH-7 — Thorough Terms/Privacy review + refresh the logo assets** `[P1]`
 - Problem: [`pages/terms.html`](../pages/terms.html) + [`pages/privacy.html`](../pages/privacy.html) want a careful content review, and the `app-icon.png` / `favicon.png` / `apple-touch-icon.png` assets are still the old "Cards" mark. (The Cards→Dealt text rename across `pages/` is done.)
