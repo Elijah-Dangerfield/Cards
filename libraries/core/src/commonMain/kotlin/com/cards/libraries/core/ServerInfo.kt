@@ -3,33 +3,17 @@ package com.dangerfield.cards.libraries.core
 import com.dangerfield.cards.buildinfo.CardsBuildConfig
 
 /**
- * Where the Cards client points its Ktor calls. Two concerns live here:
+ * Local-dev server override. The normal dev/prod targets live in [Environment]
+ * (picked by build type); this only governs the `server.useLocal` escape hatch
+ * that points the client at the developer's own machine.
  *
- *  - Build-type URLs: [DEV_BASE_URL] / [PROD_BASE_URL] are the
- *    hardcoded targets the client uses in normal operation, switched by
- *    `BuildInfo.isDebug` in `DefaultNetworkConfig`. Editing one of these
- *    URLs is a code change — that's deliberate, so changing where
- *    release builds talk to goes through review.
- *
- *  - Local-dev override: [useLocal] mirrors the `server.useLocal`
- *    gradle property (default false, flippable per-dev via
- *    local.properties). When true, the client ignores the build-type
- *    URLs and targets the dev's own machine using a platform-aware
- *    loopback ([LOCAL_URL_IOS] / [LOCAL_URL_ANDROID]).
- *
- * See `Versioning.kt#loadServerMetadata` for the property resolution.
+ * [useLocal] mirrors the `server.useLocal` gradle property (default false,
+ * flippable per-dev via local.properties). When true, the client ignores the
+ * [Environment] base URL and targets a platform-aware loopback
+ * ([LOCAL_URL_IOS] / [LOCAL_URL_ANDROID]). See `Versioning.kt#loadServerMetadata`
+ * for the property resolution and CI guard.
  */
 object ServerInfo {
-    /** Debug builds talk here. */
-    const val DEV_BASE_URL: String = "https://cards-server-dev.fly.dev"
-
-    /**
-     * Release builds talk here. TODO: spin up a real prod Fly app and
-     * point this at it; for now it matches the dev URL so release builds
-     * still work end-to-end.
-     */
-    const val PROD_BASE_URL: String = "https://cards-server-dev.fly.dev"
-
     /** iOS sim → host. Used when [useLocal] is true on iOS. */
     const val LOCAL_URL_IOS: String = "http://localhost:8080"
 

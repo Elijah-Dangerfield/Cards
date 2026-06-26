@@ -8,13 +8,11 @@ import com.dangerfield.cards.util.configureKotlinInject
 import com.dangerfield.cards.util.configureKotlinMultiplatform
 import com.dangerfield.cards.util.enforceModuleBoundaries
 import com.dangerfield.cards.util.libs
-import com.dangerfield.cards.util.loadSupabaseMetadata
 import com.dangerfield.cards.util.verifyGitHooksInstalled
 import com.dangerfield.cards.util.loadVersionMetadata
 import com.dangerfield.cards.util.optInKotlinMarkers
 import com.dangerfield.cards.util.VersionMetadata
 import com.dangerfield.cards.util.writeCommonMetadata
-import com.dangerfield.cards.util.writeSupabaseMetadata
 import com.github.gmazzo.buildconfig.BuildConfigExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -108,7 +106,6 @@ class ApplicationConventionPlugin : Plugin<Project> {
     }
 
     private fun Project.configureAppBuildConfig(metadata: VersionMetadata) {
-        val supabaseMetadata = loadSupabaseMetadata()
         extensions.configure(BuildConfigExtension::class.java) {
             packageName("${metadata.applicationId}.appconfig")
             className("AppBuildConfig")
@@ -116,7 +113,6 @@ class ApplicationConventionPlugin : Plugin<Project> {
                 internalVisibility = false
             }
             writeCommonMetadata(metadata)
-            writeSupabaseMetadata(supabaseMetadata)
         }
     }
 }
