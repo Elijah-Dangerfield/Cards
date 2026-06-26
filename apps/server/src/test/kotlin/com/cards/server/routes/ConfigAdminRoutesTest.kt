@@ -2,14 +2,19 @@ package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.domain.AppConfigAdminRepository
+import com.dangerfield.cards.server.domain.AppConfigManifestRepository
 import com.dangerfield.cards.server.domain.ConfigAuditRecord
 import com.dangerfield.cards.server.domain.ConfigFlagRecord
+import com.dangerfield.cards.server.domain.ManifestEntry
+import com.dangerfield.cards.server.domain.ManifestVersion
+import com.dangerfield.cards.server.domain.RuleConditions
 import com.dangerfield.cards.server.domain.TargetingRule
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -55,12 +60,32 @@ class ConfigAdminRoutesTest {
         override suspend fun listAudit(flagPath: String?, limit: Int): List<ConfigAuditRecord> = emptyList()
     }
 
-    private fun testApp(repo: AppConfigAdminRepository, block: suspend (io.ktor.client.HttpClient) -> Unit) =
+    private class FakeManifestRepo : AppConfigManifestRepository {
+        val byVersion = mutableMapOf<Int, List<ManifestEntry>>()
+        override suspend fun upsertManifest(versionCode: Int, appVersion: String?, entries: List<ManifestEntry>): Int {
+            byVersion[versionCode] = entries
+            return entries.size
+        }
+        override suspend fun listVersions(): List<ManifestVersion> =
+            byVersion.entries.sortedByDescending { it.key }.map { (vc, entries) ->
+                ManifestVersion(vc, "0.$vc.0", capturedAtEpochMs = 0, flagCount = entries.size)
+            }
+        override suspend fun getManifest(versionCode: Int?): List<ManifestEntry> {
+            val target = versionCode ?: byVersion.keys.maxOrNull() ?: return emptyList()
+            return byVersion[target].orEmpty()
+        }
+    }
+
+    private fun testApp(
+        repo: AppConfigAdminRepository,
+        manifest: AppConfigManifestRepository = FakeManifestRepo(),
+        block: suspend (io.ktor.client.HttpClient) -> Unit,
+    ) =
         testApplication {
             application {
                 installSerialization()
                 installStatusPages()
-                routing { configAdminRoutes(adminConfig, repo) }
+                routing { configAdminRoutes(adminConfig, repo, manifest) }
             }
             block(createClient { })
         }
@@ -117,6 +142,78 @@ class ConfigAdminRoutesTest {
                 header("X-Admin-Token", token)
             }
             assertEquals(HttpStatusCode.NotFound, resp.status)
+        }
+    }
+
+    @Test
+    fun manifest_uploadThenRead_roundTrips() = runTest {
+        val repo = FakeRepo()
+        val manifest = FakeManifestRepo()
+        testApp(repo, manifest) { client ->
+            val upload = client.put("/v1/admin/config/manifest") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """
+                    {"versionCode": 42, "appVersion": "1.0.1", "entries": [
+                      {"path": "social.enabled", "type": "boolean", "default": false}
+                    ]}
+                    """.trimIndent(),
+                )
+            }
+            assertEquals(HttpStatusCode.OK, upload.status)
+
+            val read = client.get("/v1/admin/config/manifest?version=42") { header("X-Admin-Token", token) }
+            val entries = Json.parseToJsonElement(read.bodyAsText()).jsonObject["entries"]!!.jsonArray
+            assertEquals("social.enabled", (entries.single().jsonObject["path"] as JsonPrimitive).content)
+            assertEquals("boolean", (entries.single().jsonObject["type"] as JsonPrimitive).content)
+        }
+    }
+
+    @Test
+    fun resolve_picksRuleForMatchingTarget_andFallsBackOtherwise() = runTest {
+        // social.enabled base=false, with a rule "locale es → true".
+        val esRule = TargetingRule(
+            id = UUID.randomUUID(),
+            flagPath = "social.enabled",
+            priority = 0,
+            value = JsonPrimitive(true),
+            conditions = RuleConditions(locales = setOf("es")),
+            enabled = true,
+            description = "Spanish beta",
+        )
+        val repo = FakeRepo().apply {
+            flags += ConfigFlagRecord("social.enabled", JsonPrimitive(false), 0, listOf(esRule))
+        }
+        testApp(repo) { client ->
+            fun resolveBody(locale: String) = """{"platform": "android", "locale": "$locale"}"""
+            suspend fun resolved(locale: String): JsonPrimitive {
+                val resp = client.post("/v1/admin/config/resolve") {
+                    header("X-Admin-Token", token)
+                    contentType(ContentType.Application.Json)
+                    setBody(resolveBody(locale))
+                }
+                assertEquals(HttpStatusCode.OK, resp.status)
+                val flag = Json.parseToJsonElement(resp.bodyAsText())
+                    .jsonObject["flags"]!!.jsonArray
+                    .single { (it.jsonObject["path"] as JsonPrimitive).content == "social.enabled" }
+                    .jsonObject
+                return flag["resolved"] as JsonPrimitive
+            }
+
+            assertEquals("true", resolved("es").content)
+            assertEquals("false", resolved("en").content)
+        }
+    }
+
+    @Test
+    fun resolve_requiresToken() = runTest {
+        testApp(FakeRepo()) { client ->
+            val resp = client.post("/v1/admin/config/resolve") {
+                contentType(ContentType.Application.Json)
+                setBody("""{"platform": "ios"}""")
+            }
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
         }
     }
 }

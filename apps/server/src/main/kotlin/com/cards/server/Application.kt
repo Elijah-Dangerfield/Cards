@@ -202,6 +202,7 @@ fun Application.installApp(
         configAdminRoutes(
             config = adminConfig,
             repository = component.appConfigAdminRepository,
+            manifestRepository = component.appConfigManifestRepository,
         )
     }
 }

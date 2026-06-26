@@ -1,11 +1,17 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.config.AdminConfig
+import com.dangerfield.cards.server.data.AppConfigTargetingEngine
 import com.dangerfield.cards.server.domain.AppConfigAdminRepository
+import com.dangerfield.cards.server.domain.AppConfigManifestRepository
 import com.dangerfield.cards.server.domain.ConfigAuditRecord
 import com.dangerfield.cards.server.domain.ConfigFlagRecord
+import com.dangerfield.cards.server.domain.ManifestEntry
+import com.dangerfield.cards.server.domain.ManifestVersion
 import com.dangerfield.cards.server.domain.RuleConditions
 import com.dangerfield.cards.server.domain.TargetingRule
+import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.http.ClientContext
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.plugins.BadRequestException
@@ -15,6 +21,7 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
+import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
@@ -32,6 +39,10 @@ import java.util.UUID
  *  - `PUT    /v1/admin/config/rules/{id}`   — upsert a targeting rule
  *  - `DELETE /v1/admin/config/rules/{id}`   — delete a rule
  *  - `GET    /v1/admin/config/audit`        — change log (newest first)
+ *  - `PUT    /v1/admin/config/manifest`     — upload a build's in-code registry
+ *  - `GET    /v1/admin/config/manifest/versions` — captured versions
+ *  - `GET    /v1/admin/config/manifest`     — one version's defaults (latest if unset)
+ *  - `POST   /v1/admin/config/resolve`      — preview how flags resolve for a target
  *
  * The optional `X-Admin-Actor` header is recorded on every mutation's audit
  * row so a shared token can still attribute who made a change.
@@ -39,7 +50,10 @@ import java.util.UUID
 fun Route.configAdminRoutes(
     config: AdminConfig,
     repository: AppConfigAdminRepository,
+    manifestRepository: AppConfigManifestRepository,
 ) {
+    val engine = AppConfigTargetingEngine()
+
     route("/v1/admin/config") {
 
         get {
@@ -115,7 +129,105 @@ fun Route.configAdminRoutes(
                 AuditListResponse(repository.listAudit(flag, limit).map { it.toDto() }),
             )
         }
+
+        put("/manifest") {
+            if (!call.requireAdmin(config)) return@put
+            val body = call.receiveOrNull<UploadManifestRequest>()
+                ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_body", "Malformed manifest body.")
+            val count = manifestRepository.upsertManifest(
+                versionCode = body.versionCode,
+                appVersion = body.appVersion,
+                entries = body.entries.map { it.toDomain() },
+            )
+            call.respond(HttpStatusCode.OK, UploadManifestResponse(versionCode = body.versionCode, flagCount = count))
+        }
+
+        get("/manifest/versions") {
+            if (!call.requireAdmin(config)) return@get
+            call.respond(
+                HttpStatusCode.OK,
+                ManifestVersionsResponse(manifestRepository.listVersions().map { it.toDto() }),
+            )
+        }
+
+        get("/manifest") {
+            if (!call.requireAdmin(config)) return@get
+            val requested = call.parameters["version"]?.toIntOrNull()
+            val versions = manifestRepository.listVersions()
+            val target = requested ?: versions.firstOrNull()?.versionCode
+            val meta = versions.firstOrNull { it.versionCode == target }
+            val entries = manifestRepository.getManifest(target)
+            call.respond(
+                HttpStatusCode.OK,
+                ManifestResponse(
+                    versionCode = target,
+                    appVersion = meta?.appVersion,
+                    entries = entries.map { it.toDto() },
+                ),
+            )
+        }
+
+        post("/resolve") {
+            if (!call.requireAdmin(config)) return@post
+            val body = call.receiveOrNull<ResolveRequest>()
+                ?: return@post call.respondProblem(HttpStatusCode.BadRequest, "invalid_body", "Malformed resolve body.")
+            call.respond(HttpStatusCode.OK, resolveFlags(body, repository, manifestRepository, engine))
+        }
     }
+}
+
+/**
+ * Evaluate every known flag against a synthetic target. The flag set is the
+ * union of the live DB flags and the requested version's manifest, so a flag
+ * that only exists in code (no DB row yet) still shows up with its in-code
+ * default. For each flag we report the in-code default, the DB base, which rule
+ * (if any) won, and the resolved value.
+ */
+private suspend fun resolveFlags(
+    request: ResolveRequest,
+    repository: AppConfigAdminRepository,
+    manifestRepository: AppConfigManifestRepository,
+    engine: AppConfigTargetingEngine,
+): ResolveResponse {
+    val context = ClientContext(
+        platform = parsePlatform(request.platform),
+        appVersion = request.appVersion?.takeUnless { it.isBlank() },
+        buildNumber = request.buildNumber,
+        // An empty locale list means "no locale preference", so locale-scoped
+        // rules simply won't match — the honest preview when none is supplied.
+        preferredLocales = request.locale?.takeUnless { it.isBlank() }?.let { listOf(it) }.orEmpty(),
+        countryCode = request.countryCode?.takeUnless { it.isBlank() }?.uppercase(),
+        installId = request.installId?.takeUnless { it.isBlank() },
+    )
+    val userId = request.userId?.takeUnless { it.isBlank() }
+        ?.let { runCatching { UserId(UUID.fromString(it)) }.getOrNull() }
+
+    val dbByPath = repository.listFlags().associateBy { it.path }
+    val manifestByPath = manifestRepository.getManifest(request.buildNumber).associateBy { it.path }
+
+    val paths = (dbByPath.keys + manifestByPath.keys).toSortedSet()
+    val flags = paths.map { path ->
+        val flag = dbByPath[path]
+        val entry = manifestByPath[path]
+        val rules = flag?.rules.orEmpty()
+        val match = engine.firstMatchingRule(rules, context, userId, path)
+        val base = flag?.value
+        ResolvedFlagDto(
+            path = path,
+            type = entry?.type,
+            default = entry?.default,
+            base = base,
+            matchedRule = match?.let { MatchedRuleDto(it.id.toString(), it.priority, it.description) },
+            resolved = match?.value ?: base ?: entry?.default,
+        )
+    }
+    return ResolveResponse(flags)
+}
+
+private fun parsePlatform(raw: String?): ClientContext.Platform = when (raw?.lowercase()) {
+    "ios" -> ClientContext.Platform.iOS
+    "android" -> ClientContext.Platform.Android
+    else -> ClientContext.Platform.Other
 }
 
 private const val DEFAULT_AUDIT_LIMIT = 100
@@ -200,6 +312,97 @@ private data class ConfigAuditDto(
 
 @Serializable
 private data class OkResponse(val ok: Boolean = true)
+
+// ---------- Manifest DTOs ----------
+
+@Serializable
+private data class ManifestEntryDto(
+    val path: String,
+    val type: String,
+    val default: JsonElement,
+    val description: String? = null,
+    val allowedValues: JsonElement? = null,
+)
+
+@Serializable
+private data class UploadManifestRequest(
+    val versionCode: Int,
+    val appVersion: String? = null,
+    val entries: List<ManifestEntryDto>,
+)
+
+@Serializable
+private data class UploadManifestResponse(val versionCode: Int, val flagCount: Int)
+
+@Serializable
+private data class ManifestVersionDto(
+    val versionCode: Int,
+    val appVersion: String?,
+    val capturedAtEpochMs: Long,
+    val flagCount: Int,
+)
+
+@Serializable
+private data class ManifestVersionsResponse(val versions: List<ManifestVersionDto>)
+
+@Serializable
+private data class ManifestResponse(
+    val versionCode: Int?,
+    val appVersion: String?,
+    val entries: List<ManifestEntryDto>,
+)
+
+// ---------- Resolve DTOs ----------
+
+@Serializable
+private data class ResolveRequest(
+    val platform: String? = null,
+    val appVersion: String? = null,
+    val buildNumber: Int? = null,
+    val countryCode: String? = null,
+    val locale: String? = null,
+    val userId: String? = null,
+    val installId: String? = null,
+)
+
+@Serializable
+private data class MatchedRuleDto(val id: String, val priority: Int, val description: String?)
+
+@Serializable
+private data class ResolvedFlagDto(
+    val path: String,
+    val type: String?,
+    val default: JsonElement?,
+    val base: JsonElement?,
+    val matchedRule: MatchedRuleDto?,
+    val resolved: JsonElement?,
+)
+
+@Serializable
+private data class ResolveResponse(val flags: List<ResolvedFlagDto>)
+
+private fun ManifestEntryDto.toDomain() = ManifestEntry(
+    path = path,
+    type = type,
+    default = default,
+    description = description,
+    allowedValues = allowedValues,
+)
+
+private fun ManifestEntry.toDto() = ManifestEntryDto(
+    path = path,
+    type = type,
+    default = default,
+    description = description,
+    allowedValues = allowedValues,
+)
+
+private fun ManifestVersion.toDto() = ManifestVersionDto(
+    versionCode = versionCode,
+    appVersion = appVersion,
+    capturedAtEpochMs = capturedAtEpochMs,
+    flagCount = flagCount,
+)
 
 private fun ConfigFlagRecord.toDto() = ConfigFlagDto(
     path = path,
