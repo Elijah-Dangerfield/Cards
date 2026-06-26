@@ -3,13 +3,13 @@ package com.dangerfield.cards.libraries.core
 import com.dangerfield.cards.buildinfo.CardsBuildConfig
 
 /**
- * Local-dev server override. The normal dev/prod targets live in [Environment]
+ * Local-dev server override. The normal dev/prod targets live in [AppEnvironment]
  * (picked by build type); this only governs the `server.useLocal` escape hatch
  * that points the client at the developer's own machine.
  *
  * [useLocal] mirrors the `server.useLocal` gradle property (default false,
  * flippable per-dev via local.properties). When true, the client ignores the
- * [Environment] base URL and targets a platform-aware loopback
+ * [AppEnvironment] base URL and targets a platform-aware loopback
  * ([LOCAL_URL_IOS] / [LOCAL_URL_ANDROID]). See `Versioning.kt#loadServerMetadata`
  * for the property resolution and CI guard.
  */

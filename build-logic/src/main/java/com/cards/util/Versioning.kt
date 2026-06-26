@@ -26,14 +26,14 @@ data class ServerMetadata(
      * Per-dev toggle: when true, the client points at the dev's own
      * machine, choosing `http://localhost:8080` on iOS or
      * `http://10.0.2.2:8080` on Android at runtime. When false, the
-     * client uses the [Environment] URL picked by build type (see
+     * client uses the [AppEnvironment] URL picked by build type (see
      * `DefaultNetworkConfig`).
      */
     val useLocal: Boolean,
     /**
      * Build-time environment override: `""` (default — pick by build type,
      * debug→dev / release→prod), `"dev"`, or `"prod"`. Emitted as
-     * `CardsBuildConfig.TARGET_ENV` and read by `Environment.current`.
+     * `CardsBuildConfig.TARGET_ENV` and read by `AppEnvironment.current`.
      * CI-guarded so an override can't land on a shared branch.
      */
     val targetEnv: String,
@@ -86,7 +86,7 @@ fun BuildConfigExtension.writeCommonMetadata(metadata: VersionMetadata) {
  *
  * `cards.targetEnv` (`""` | `"dev"` | `"prod"`, default `""`) — forces the
  * backend environment regardless of build type. Empty means "pick by build
- * type" (debug→dev, release→prod), which is what `Environment.current` does.
+ * type" (debug→dev, release→prod), which is what `AppEnvironment.current` does.
  *
  * CI guard: if `CI=true` and either override is set, the build fails
  * configuration immediately. This makes an accidentally-committed

@@ -17,8 +17,12 @@ import com.dangerfield.cards.buildinfo.CardsBuildConfig
  * Anon keys are public by design (Postgres RLS is the real guard, not secrecy),
  * so embedding both here is fine — same reasoning that kept the dev key in
  * source before this consolidation.
+ *
+ * Named `AppEnvironment` rather than `Environment`: this is a public type exported
+ * into the iOS framework, and a bare `Environment` collides with `SwiftUI.Environment`
+ * in any Swift file that imports both — breaking `@Environment` property wrappers.
  */
-enum class Environment(
+enum class AppEnvironment(
     val displayName: String,
     val baseUrl: String,
     val supabaseProjectRef: String,
@@ -50,7 +54,7 @@ enum class Environment(
 
     companion object {
         /** The environment this build resolves to. See the class kdoc for the rules. */
-        val current: Environment = when (CardsBuildConfig.TARGET_ENV.lowercase()) {
+        val current: AppEnvironment = when (CardsBuildConfig.TARGET_ENV.lowercase()) {
             "dev" -> Dev
             "prod" -> Prod
             else -> if (BuildInfo.isDebug) Dev else Prod
