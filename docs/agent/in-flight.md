@@ -1,0 +1,7 @@
+# In-flight
+
+## fix(progression): award XP + player-stats for MP hands (PROG-4)
+
+**Problem:** A finished multiplayer hand granted zero XP and recorded no player-stat; only server-pulled achievements appeared. `RemotePokerSession` never fired the VM's `onHandEnded` callback — the only path into `awardForHand` / `recordPlayerStat` / the hand-end celebration. Solo bots worked because `LocalBotsSession` invokes it directly.
+**Approach:** Wired `onHandEnded` through `RemotePokerSessionFactory.create` into `RemotePokerSession`, which now fires it on each `GameEvent.HandEnded` off the same wire the table-projection collector already sees (mirrors `LocalBotsSession`). The session captures the human's stack at each hand-start snapshot for the achievement context's start-vs-end stack, and falls back to the last non-empty snapshot if a HandEnded races ahead of its settling snapshot. Chose firing from the session (matching the solo contract) over calling `handleHandEnded` from the VM's `GameEventReceived` branch — keeps one progression path for both session types instead of splitting it.
+**Reviewer notes:** The MP event flow can re-deliver a HandEnded (replay-16 SharedFlow / resync), which would have double-awarded XP and re-fired the celebration — `handleHandEnded` previously had no per-hand guard (only player-stat/play-style did). Added a `lastCreditedHand` guard at the top of `handleHandEnded`; solo never re-delivers so it's a no-op there. Tests cover both the credit firing and the double-delivery dedupe (red confirmed by stashing the session wiring).

@@ -75,6 +75,16 @@ internal class RemotePokerSession(
      * `RoomRepository` + the room code, which only the factory holds.
      */
     private val onLeave: suspend () -> Unit = {},
+    /**
+     * Fired once per finished hand with the terminating [GameEvent.HandEnded],
+     * the latest [GameState], and the local human's stack at the start of that
+     * hand — the same contract [LocalBotsSession] honours. The VM's
+     * `handleHandEnded` is the only caller of `awardForHand` / `recordPlayerStat`
+     * / the hand-end celebration, so without this MP hands silently award no XP
+     * and record no player-stat (PROG-4). Defaults to a no-op for tests that
+     * don't exercise progression.
+     */
+    private val onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit = { _, _, _ -> },
 ) : PokerSession {
 
     private val logger = KLog.withTag("RemotePokerSession")
@@ -159,6 +169,20 @@ internal class RemotePokerSession(
     // snapshot never reads as a "drop."
     private var previousHumans: Map<String, String>? = null
     private var opponentsAlreadyLeft: Boolean = false
+
+    // The local human's stack as of the most recently observed hand-start
+    // snapshot, fed to [onHandEnded] so the hand-end achievement context can
+    // tell start-vs-end stack (e.g. "doubled up"). Captured when a snapshot
+    // for a not-yet-seen hand lands — by then the engine has reset stacks for
+    // the new hand, so it reflects the true starting stack.
+    private var humanStackAtHandStart: Long = 0L
+    private var humanStackHand: Int = 0
+
+    // Snapshot of the table the last time we observed a hand in progress, so a
+    // HandEnded event that races ahead of (or arrives without) a fresh snapshot
+    // still resolves the human's seat + stacks. The live [_gameStateFlow] is the
+    // source of truth; this just guarantees onHandEnded never sees empty seats.
+    private var lastNonEmptyState: GameState = emptyGameState
 
     private val pendingAcks: MutableMap<String, CompletableDeferred<GameplayFrame.IntentAck>> =
         mutableMapOf()
@@ -264,6 +288,10 @@ internal class RemotePokerSession(
                         // is debug.
                         val wasLoading = _gameStateFlow.value.seats.isEmpty()
                         _gameStateFlow.value = frame.state
+                        if (frame.state.seats.isNotEmpty()) {
+                            lastNonEmptyState = frame.state
+                            captureHandStartStack(frame.state)
+                        }
                         if (wasLoading && frame.state.seats.isNotEmpty()) {
                             logger.i {
                                 "Game state ready: hand=${frame.state.handNumber}, " +
@@ -274,6 +302,18 @@ internal class RemotePokerSession(
                 }
                 is GameplayFrame.Event -> {
                     _events.tryEmit(frame.event)
+                    // The VM's progression path (XP award, player-stat record,
+                    // hand-end celebration) only runs through onHandEnded; the
+                    // GameEventReceived collector projects the table but never
+                    // calls it. Fire it here off the same wire HandEnded the
+                    // collector sees, so MP hands credit like solo bots (PROG-4).
+                    val event = frame.event
+                    if (event is GameEvent.HandEnded) {
+                        val state = currentEndOfHandState()
+                        if (state.seats.isNotEmpty()) {
+                            onHandEnded(event, state, humanStackAtHandStart)
+                        }
+                    }
                 }
                 is GameplayFrame.IntentAck -> resolvePendingAck(frame)
                 is GameplayFrame.EmojiBlast ->
@@ -308,6 +348,32 @@ internal class RemotePokerSession(
         incoming.handNumber < current.handNumber ||
             (incoming.handNumber == current.handNumber &&
                 incoming.lastSequence < current.lastSequence)
+
+    /**
+     * Record the local human's stack the first time we see a snapshot for a new
+     * hand. The server resets stacks at hand-start, so the earliest snapshot of
+     * a hand carries the true starting stack. Keyed on [GameState.handNumber] so
+     * later in-hand snapshots (post-bet) don't overwrite it.
+     */
+    private fun captureHandStartStack(state: GameState) {
+        if (state.handNumber <= humanStackHand) return
+        humanStackHand = state.handNumber
+        humanStackAtHandStart = state.seats
+            .firstOrNull { it.playerId == localUserId }?.stack ?: 0L
+    }
+
+    /**
+     * The best available end-of-hand state for [onHandEnded]: the live snapshot
+     * when it carries seats, else the last non-empty one we saw. Event and
+     * snapshot frames ride independent flows with no ordering guarantee, so a
+     * HandEnded can arrive a tick before its settling snapshot — falling back to
+     * the prior snapshot keeps the human's seat resolvable rather than handing
+     * the VM empty seats (which it reads as "spectator", crediting nothing).
+     */
+    private fun currentEndOfHandState(): GameState {
+        val live = _gameStateFlow.value
+        return if (live.seats.isNotEmpty()) live else lastNonEmptyState
+    }
 
     private suspend fun pumpNextHandSignals() {
         for (signal in nextHandSignal) {

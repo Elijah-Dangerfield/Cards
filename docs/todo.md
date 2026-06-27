@@ -32,14 +32,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ---
 
-## C. Progression, XP & stats
-
-- `[P1]` **PROG-4 — Multiplayer hands award no XP (and skip player-stats + the hand-end celebration).** A finished MP hand grants zero XP and records no player-stat; only achievements appear (they're pulled server-side). `RemotePokerSessionFactory.create` builds `RemotePokerSession` without wiring the VM's `onHandEnded` callback, and the MP `GameEventReceived` branch never calls `handleHandEnded` — the only caller of `awardForHand` / `recordPlayerStat`. Solo bots work because `LocalBotsSession` invokes `onHandEnded` directly.
-  **Acceptance:** a finished MP hand awards XP (MULTIPLAYER 1.0 multiplier) and records the player-stat, proven by a failing-then-passing test that plays an MP `HandEnded` and asserts progression + player-stats advanced. The hand-end celebration also fires for MP.
-  **Hints:** [RemotePokerSessionFactory.kt](features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/session/RemotePokerSessionFactory.kt):74-89 (the unwired `onHandEnded`); `handleHandEnded` / `awardForHand` in [PlayPokerViewModel.kt](features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayPokerViewModel.kt); mirror `LocalBotsSession.kt`:454. Distinct from PROG-3 (celebration UI). Case `docs/agent/feedback-cases/1b7364a79e5e44b6aa97e7a821152225.md`, Sentry [CARDS-5D](https://elijah-dangerfield.sentry.io/issues/CARDS-5D).
-
----
-
 ## D. Multiplayer hardening
 
 - `[P1]` **MP-23 — Wallet doesn't reconcile when the host leaves via the back button (only on next foreground).** A real-chip MP balance stays at the escrowed value after leaving via the top back-arrow / system back; the settled balance only appears on the next app foreground — the exact symptom `reconcileWalletAfterGame` was built to kill (CARDS-3C/4B). The in-screen Leave action reconciles; the back-button leave path bypasses it (VM popped before the reconcile runs).

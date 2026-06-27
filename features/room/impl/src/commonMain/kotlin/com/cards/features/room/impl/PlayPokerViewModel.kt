@@ -142,6 +142,12 @@ class PlayPokerViewModel @Inject constructor(
     // guard as play-style; the outbox feeds the server's authoritative counters.
     private var lastRecordedStatHand: Int? = null
 
+    // Hand number of the last hand we ran the full hand-end credit path for
+    // (XP award + achievement reveal + feedback). Solo fires onHandEnded exactly
+    // once per hand, but the MP event flow can re-deliver a HandEnded (replay /
+    // resync), which would otherwise double-award XP and re-fire the celebration.
+    private var lastCreditedHand: Int? = null
+
     // Hand number of the last hole-card render projection we logged (GAME-8).
     // Guards the once-per-hand "what the table projected for my seat" line so it
     // fires once cards are dealt, never per snapshot/frame.
@@ -483,6 +489,11 @@ class PlayPokerViewModel @Inject constructor(
         state: GameState,
         humanStartingStack: Long,
     ) {
+        // Credit each hand at most once even if HandEnded is re-delivered (the
+        // MP event flow replays). Without this a resync double-awards XP and
+        // re-fires the celebration. Solo never re-delivers, so it's a no-op there.
+        if (state.handNumber == lastCreditedHand) return
+        lastCreditedHand = state.handNumber
         // Resolve the human's seat from live state (MP seats vary) so the hand
         // is attributed to the right player.
         val humanSeatIndex = sessionFactory.humanSeatIndex(state)

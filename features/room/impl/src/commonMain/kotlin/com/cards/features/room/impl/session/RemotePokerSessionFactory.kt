@@ -77,14 +77,16 @@ class RemotePokerSessionFactory @Inject constructor(
         onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit,
     ): PokerSession {
         // gameSpeedProvider + humanSeatIndex are bot-mode hints; remote
-        // sessions don't act on them. onHandEnded fires through the
-        // VM's normal GameEvent collector → handleHandEnded path
-        // (achievement detection still works there).
+        // sessions don't act on them. onHandEnded is wired through to the
+        // session so a server HandEnded runs the VM's progression path (XP,
+        // player-stats, hand-end celebration) — the VM's GameEvent collector
+        // only projects the table, it never calls handleHandEnded (PROG-4).
         handle = roomRepository.connect(roomCode)
         return RemotePokerSession(
             handle = handle,
             localUserId = localUserId,
             onLeave = { roomRepository.leaveRoom(roomCode) },
+            onHandEnded = onHandEnded,
         )
     }
 
