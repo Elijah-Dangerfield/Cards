@@ -346,7 +346,7 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
         val factory = factory(rooms = FactoryRoomRepository(handle = handle))
         val session = factory.create(
             humanSeatIndex = 0,
-            botSpeedProvider = { error("bot speed is unused for remote sessions") },
+            gameSpeedProvider = { error("game speed is unused for remote sessions") },
             onHandEnded = { _, _, _ -> },
         )
 
@@ -406,7 +406,7 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
         val rooms = FactoryRoomRepository()
         val session = factory(rooms = rooms).create(
             humanSeatIndex = 0,
-            botSpeedProvider = { error("bot speed is unused for remote sessions") },
+            gameSpeedProvider = { error("game speed is unused for remote sessions") },
             onHandEnded = { _, _, _ -> },
         )
 

@@ -30,9 +30,6 @@ import cards.libraries.resources.generated.resources.profile_about_terms
 import cards.libraries.resources.generated.resources.profile_account_notifications_headline
 import cards.libraries.resources.generated.resources.profile_account_notifications_supporting_default
 import cards.libraries.resources.generated.resources.profile_account_notifications_supporting_unread
-import cards.libraries.resources.generated.resources.profile_bot_speed_fast
-import cards.libraries.resources.generated.resources.profile_bot_speed_normal
-import cards.libraries.resources.generated.resources.profile_bot_speed_slow
 import cards.libraries.resources.generated.resources.profile_debug_qa_headline
 import cards.libraries.resources.generated.resources.profile_debug_qa_supporting
 import cards.libraries.resources.generated.resources.profile_delete_account_button
@@ -41,8 +38,6 @@ import cards.libraries.resources.generated.resources.profile_game_speed_instant
 import cards.libraries.resources.generated.resources.profile_game_speed_normal
 import cards.libraries.resources.generated.resources.profile_gameplay_achievement_popups_headline
 import cards.libraries.resources.generated.resources.profile_gameplay_achievement_popups_supporting
-import cards.libraries.resources.generated.resources.profile_gameplay_bot_speed_headline
-import cards.libraries.resources.generated.resources.profile_gameplay_bot_speed_supporting
 import cards.libraries.resources.generated.resources.profile_gameplay_game_speed_headline
 import cards.libraries.resources.generated.resources.profile_gameplay_game_speed_supporting
 import cards.libraries.resources.generated.resources.profile_gameplay_turn_feedback_headline
@@ -114,7 +109,6 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onClaimAccount: () -> Unit,
     onOpenNotifications: () -> Unit,
-    onBotSpeedChange: (com.dangerfield.cards.libraries.cards.BotSpeed) -> Unit,
     onGameSpeedChange: (com.dangerfield.cards.libraries.cards.GameSpeed) -> Unit,
     onTurnFeedbackChange: (com.dangerfield.cards.libraries.cards.TurnFeedback) -> Unit,
     onShowAchievementPopupsChange: (Boolean) -> Unit,
@@ -164,11 +158,9 @@ fun SettingsScreen(
             }
 
             GameplaySection(
-                botSpeed = settings.botSpeed,
                 gameSpeed = settings.gameSpeed,
                 turnFeedback = settings.turnFeedback,
                 showAchievementPopups = settings.showAchievementPopups,
-                onBotSpeedChange = onBotSpeedChange,
                 onGameSpeedChange = onGameSpeedChange,
                 onTurnFeedbackChange = onTurnFeedbackChange,
                 onShowAchievementPopupsChange = onShowAchievementPopupsChange,
@@ -379,17 +371,14 @@ private fun com.dangerfield.cards.libraries.cards.TurnFeedback.pickerDisplayValu
 
 @Composable
 private fun GameplaySection(
-    botSpeed: com.dangerfield.cards.libraries.cards.BotSpeed,
     gameSpeed: com.dangerfield.cards.libraries.cards.GameSpeed,
     turnFeedback: com.dangerfield.cards.libraries.cards.TurnFeedback,
     showAchievementPopups: Boolean,
-    onBotSpeedChange: (com.dangerfield.cards.libraries.cards.BotSpeed) -> Unit,
     onGameSpeedChange: (com.dangerfield.cards.libraries.cards.GameSpeed) -> Unit,
     onTurnFeedbackChange: (com.dangerfield.cards.libraries.cards.TurnFeedback) -> Unit,
     onShowAchievementPopupsChange: (Boolean) -> Unit,
     onOpenTutorial: () -> Unit = {},
 ) {
-    var botSpeedExpanded by remember { mutableStateOf(false) }
     var gameSpeedExpanded by remember { mutableStateOf(false) }
     var turnFeedbackExpanded by remember { mutableStateOf(false) }
 
@@ -401,25 +390,6 @@ private fun GameplaySection(
                 supportingText = stringResource(Res.string.profile_gameplay_tutorial_supporting),
                 leadingContent = { EmojiLeading("🃏") },
                 onClick = onOpenTutorial,
-            ),
-            ListSectionItem(
-                headlineText = stringResource(Res.string.profile_gameplay_bot_speed_headline),
-                supportingText = stringResource(Res.string.profile_gameplay_bot_speed_supporting),
-                leadingContent = { EmojiLeading("⚡") },
-                accessory = ListItemAccessory.Custom {
-                    DropdownAccessory(
-                        text = stringResource(botSpeed.labelResource()),
-                        expanded = botSpeedExpanded,
-                        onDismiss = { botSpeedExpanded = false },
-                        options = com.dangerfield.cards.libraries.cards.BotSpeed.entries.toList(),
-                        label = { stringResource(it.labelResource()) },
-                        onSelect = {
-                            botSpeedExpanded = false
-                            onBotSpeedChange(it)
-                        },
-                    )
-                },
-                onClick = { botSpeedExpanded = true },
             ),
             ListSectionItem(
                 headlineText = stringResource(Res.string.profile_gameplay_game_speed_headline),
@@ -475,13 +445,6 @@ private fun GameplaySection(
     )
 }
 
-private fun com.dangerfield.cards.libraries.cards.BotSpeed.labelResource(): StringResource =
-    when (this) {
-        com.dangerfield.cards.libraries.cards.BotSpeed.Slow -> Res.string.profile_bot_speed_slow
-        com.dangerfield.cards.libraries.cards.BotSpeed.Normal -> Res.string.profile_bot_speed_normal
-        com.dangerfield.cards.libraries.cards.BotSpeed.Fast -> Res.string.profile_bot_speed_fast
-    }
-
 private fun com.dangerfield.cards.libraries.cards.GameSpeed.labelResource(): StringResource =
     when (this) {
         com.dangerfield.cards.libraries.cards.GameSpeed.Normal -> Res.string.profile_game_speed_normal
@@ -535,7 +498,6 @@ private fun SettingsScreenPreview_Guest() {
                 rank = 0,
                 xp = 340,
                 isAnonymous = true,
-                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
                 gameSpeed = com.dangerfield.cards.libraries.cards.GameSpeed.Normal,
                 turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
                 appVersion = "0.1.0",
@@ -545,7 +507,6 @@ private fun SettingsScreenPreview_Guest() {
             onBack = {},
             onClaimAccount = {},
             onOpenNotifications = {},
-            onBotSpeedChange = {},
             onGameSpeedChange = {},
             onTurnFeedbackChange = {},
             onShowAchievementPopupsChange = {},

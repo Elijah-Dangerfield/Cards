@@ -5,7 +5,7 @@ import com.dangerfield.cards.features.room.impl.ui.label
 
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
-import com.dangerfield.cards.libraries.cards.BotSpeed
+import com.dangerfield.cards.libraries.cards.GameSpeed
 import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
@@ -57,7 +57,7 @@ class SoloBotsPokerSessionFactory @Inject constructor(
 
     override fun create(
         humanSeatIndex: Int,
-        botSpeedProvider: () -> BotSpeed,
+        gameSpeedProvider: () -> GameSpeed,
         onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit,
     ): PokerSession {
         this.humanSeatIndex = humanSeatIndex
@@ -74,7 +74,7 @@ class SoloBotsPokerSessionFactory @Inject constructor(
             humanSeatIndex = humanSeatIndex,
             botPersonalities = botPersonalities,
             settings = stakeTier.toRoomSettings(),
-            botSpeedProvider = botSpeedProvider,
+            gameSpeedProvider = gameSpeedProvider,
             onHandEnded = onHandEnded,
             dispatchers = dispatchers,
         )

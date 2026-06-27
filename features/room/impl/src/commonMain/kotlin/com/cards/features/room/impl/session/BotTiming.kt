@@ -2,7 +2,7 @@ package com.dangerfield.cards.features.room.impl.session
 
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.bots.BotThought
-import com.dangerfield.cards.libraries.cards.BotSpeed
+import com.dangerfield.cards.libraries.cards.GameSpeed
 import kotlin.math.abs
 
 /**
@@ -45,7 +45,7 @@ internal object BotTiming {
         personality: BotPersonality,
         thought: BotThought,
         userPaceMs: Long?,
-        speed: BotSpeed = BotSpeed.Normal,
+        speed: GameSpeed = GameSpeed.Normal,
     ): Long {
         // Tight bots slow down (deliberation = caution); aggressive bots
         // speed up (action = confidence). Each axis contributes ±0.2, so the
@@ -69,15 +69,16 @@ internal object BotTiming {
             0.75 + 0.25 * normalized
         } else 1.0
 
-        // User-chosen speed scales the whole thing AFTER clamping. The Fast
-        // multiplier (0.55) can dip below the normal MIN floor — that's the
-        // explicit user preference, so we honor it rather than re-clamping.
+        // The chosen Game speed scales the whole thing AFTER clamping. The Fast
+        // scale (0.55) can dip below the normal MIN floor — that's the explicit
+        // user preference, so we honor it rather than re-clamping. Instant's
+        // 0.0 scale collapses to the hard fast floor so bots snap.
         val base = (BASE_THINK_MS * personalityFactor * complexityFactor * userBlend)
             .toLong()
             .coerceIn(MIN_THINK_MS, MAX_THINK_MS)
-        return (base * speed.multiplier).toLong().coerceAtLeast(MIN_THINK_FAST_MS)
+        return (base * speed.botThinkScale).toLong().coerceAtLeast(MIN_THINK_FAST_MS)
     }
 
-    /** Hard floor even for Fast speed — anything quicker reads as a glitch. */
+    /** Hard floor even for Fast / Instant speed — anything quicker reads as a glitch. */
     private const val MIN_THINK_FAST_MS: Long = 250L
 }

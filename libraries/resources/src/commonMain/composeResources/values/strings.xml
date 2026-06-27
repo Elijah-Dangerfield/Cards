@@ -473,17 +473,12 @@
     <!-- Profile - Gameplay section rows + picker option labels. -->
     <string name="profile_gameplay_tutorial_headline">How to play</string>
     <string name="profile_gameplay_tutorial_supporting">Replay the 2-minute poker tutorial</string>
-    <string name="profile_gameplay_bot_speed_headline">Bot speed</string>
-    <string name="profile_gameplay_bot_speed_supporting">How fast the bots think and act</string>
-    <string name="profile_gameplay_game_speed_headline">Table speed</string>
-    <string name="profile_gameplay_game_speed_supporting">How fast cards deal and reveal. Instant skips the animations.</string>
+    <string name="profile_gameplay_game_speed_headline">Game speed</string>
+    <string name="profile_gameplay_game_speed_supporting">How fast hands play — bot pace and card animations. Instant snaps the action.</string>
     <string name="profile_gameplay_turn_feedback_headline">Your turn feedback</string>
     <string name="profile_gameplay_turn_feedback_supporting">Cue when it becomes your turn</string>
     <string name="profile_gameplay_achievement_popups_headline">Achievement pop-ups</string>
     <string name="profile_gameplay_achievement_popups_supporting">Celebrate unlocks with a pop-up. They're still earned when off.</string>
-    <string name="profile_bot_speed_slow">Slow</string>
-    <string name="profile_bot_speed_normal">Normal</string>
-    <string name="profile_bot_speed_fast">Fast</string>
     <string name="profile_game_speed_normal">Normal</string>
     <string name="profile_game_speed_fast">Fast</string>
     <string name="profile_game_speed_instant">Instant</string>

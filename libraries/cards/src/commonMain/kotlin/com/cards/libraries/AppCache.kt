@@ -12,24 +12,28 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 /**
  * In-memory + persistent cache for app-wide state that doesn't need to be in the database.
  */
+/**
+ * The single "Game speed" control. One tier scales *both* halves of how fast a
+ * hand plays so the user never has to reason about "table vs bots":
+ *
+ *  - [animationScale] paces the cosmetic card deal / reveal / result timings.
+ *  - [botThinkScale] multiplies how long bots "think" before acting.
+ *
+ * Instant collapses the animations to zero and snaps bots to their hard floor,
+ * so the whole hand resolves with no waiting.
+ */
 @Serializable
-enum class BotSpeed(val label: String, val multiplier: Double) {
-    /** Bots take their time. Use for learning / coaching mode. */
-    Slow(label = "Slow", multiplier = 1.5),
-    /** Default — calibrated for poker pacing. */
-    Normal(label = "Normal", multiplier = 1.0),
-    /** Bots snap. Use to grind volume. */
-    Fast(label = "Fast", multiplier = 0.55),
-}
-
-@Serializable
-enum class GameSpeed(val label: String, val animationScale: Double) {
-    /** Default pacing — cards deal and reveal at the calibrated poker tempo. */
-    Normal(label = "Normal", animationScale = 1.0),
-    /** Halves every cosmetic deal/reveal delay so hands resolve quicker. */
-    Fast(label = "Fast", animationScale = 0.5),
-    /** Collapses the cosmetic delays so action resolves immediately. */
-    Instant(label = "Instant", animationScale = 0.0),
+enum class GameSpeed(
+    val label: String,
+    val animationScale: Double,
+    val botThinkScale: Double,
+) {
+    /** Default pacing — calibrated poker tempo for cards and bots alike. */
+    Normal(label = "Normal", animationScale = 1.0, botThinkScale = 1.0),
+    /** Halves the cosmetic delays and the bot think time so hands move quicker. */
+    Fast(label = "Fast", animationScale = 0.5, botThinkScale = 0.55),
+    /** Skips the animations and snaps bots to their floor — no waiting. */
+    Instant(label = "Instant", animationScale = 0.0, botThinkScale = 0.0),
 }
 
 @Serializable
@@ -55,13 +59,11 @@ data class AppData(
     val feedbacksGiven: Int = 0,
     val bugsReported: Int = 0,
 
-    /** How fast the bots act. Multiplies all bot think/action delays. */
-    val botSpeed: BotSpeed = BotSpeed.Normal,
-
     /**
-     * How fast the table animates — scales the cosmetic card-deal, reveal, and
-     * result timings on the play screen. "Instant" collapses them so action
-     * resolves immediately. Independent of [botSpeed], which paces bot thinking.
+     * The single "Game speed" setting — paces both the cosmetic card-deal /
+     * reveal / result timings on the play screen *and* how long bots think
+     * before acting. "Instant" collapses the animations and snaps the bots so a
+     * hand resolves with no waiting. See [GameSpeed].
      */
     val gameSpeed: GameSpeed = GameSpeed.Normal,
 

@@ -215,7 +215,7 @@ class ServerBotDriver(
  * bots a human reads as a real opponent — a metronome gives them away.
  *
  * A deliberately simpler cousin of the client's `BotTiming`; kept standalone to
- * avoid pulling the client's `BotSpeed` plumbing onto the server. (Mirroring the
+ * avoid pulling the client's `GameSpeed` plumbing onto the server. (Mirroring the
  * table's actual pace — speeding up when humans are snappy — is a future lift.)
  */
 internal fun serverThinkDelayMs(

@@ -84,7 +84,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
  * Profile + every sub-route reachable from it (edit profile, my items,
- * delete account, claim account, feedback, bug report, QA menu). Bot speed
+ * delete account, claim account, feedback, bug report, QA menu). Game speed
  * + turn-feedback toggles live inline on [ProfileScreen] — no sub-route.
  * Privacy + terms hand off to the system browser via [Router.openWebLink].
  */
@@ -201,7 +201,6 @@ class ProfileFeatureEntryPoint(
                     rank = if (isAnon) 0 else 1200,
                     xp = progression.totalXp,
                     isAnonymous = isAnon,
-                    botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
                     gameSpeed = com.dangerfield.cards.libraries.cards.GameSpeed.Normal,
                     turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
                     appVersion = "0.1.0",
@@ -290,7 +289,6 @@ class ProfileFeatureEntryPoint(
                     rank = if (isAnon) 0 else 1200,
                     xp = 0,
                     isAnonymous = isAnon,
-                    botSpeed = appData.botSpeed,
                     gameSpeed = appData.gameSpeed,
                     turnFeedback = appData.turnFeedback,
                     showAchievementPopups = appData.showAchievementPopups,
@@ -301,9 +299,6 @@ class ProfileFeatureEntryPoint(
                 onBack = { router.goBack() },
                 onClaimAccount = { router.navigate(ClaimAccountRoute()) },
                 onOpenNotifications = { router.navigate(NotificationsRoute()) },
-                onBotSpeedChange = { speed ->
-                    scope.launch { appCache.update { it.copy(botSpeed = speed) } }
-                },
                 onGameSpeedChange = { speed ->
                     scope.launch { appCache.update { it.copy(gameSpeed = speed) } }
                 },
