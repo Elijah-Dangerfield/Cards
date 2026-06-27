@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.cards.XpBoostRepository
 import com.dangerfield.cards.libraries.config.AppConfigFlow
 import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.core.AutoInit
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.config.EnsureAppConfigLoaded
@@ -42,6 +43,7 @@ interface AppComponent {
     val xpBoostRepository: XpBoostRepository
     val inAppMessageManager: InAppMessageManager
     val appState: AppState
+    val authRepository: AuthRepository
     val guestAccountCreator: GuestAccountCreator
     val progressionConfig: ProgressionConfig
     val appCache: AppCache

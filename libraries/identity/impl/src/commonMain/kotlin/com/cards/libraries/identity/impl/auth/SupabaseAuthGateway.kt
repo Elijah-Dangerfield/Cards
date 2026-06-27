@@ -60,8 +60,30 @@ interface SupabaseAuthGateway {
      */
     suspend fun linkOAuthIdentity(provider: OAuthProvider)
 
-    /** Switch sessions to an existing OAuth account. Throws on failure. */
+    /**
+     * Launch the browser OAuth flow for [provider]. This only *opens* the
+     * system browser — the session doesn't exist yet when this returns. The
+     * provider redirects back to `cards://login-callback`, which the app feeds
+     * to [completeOAuthRedirect]. Throws if the browser can't be launched.
+     */
     suspend fun signInWithOAuth(provider: OAuthProvider)
+
+    /**
+     * Finish a browser OAuth sign-in from the redirect deep link. [url] is the
+     * full `cards://login-callback#access_token=…` URL the provider handed back.
+     * Parses the session tokens out of the URL fragment (IMPLICIT flow) and
+     * imports them into supabase-kt so [currentSession] reflects the new user.
+     * Throws if the URL carries no valid session (e.g. the user cancelled).
+     */
+    suspend fun completeOAuthRedirect(url: String)
+
+    /**
+     * Whether [url] is the OAuth redirect deep link this gateway expects
+     * (`cards://login-callback`). Lets the deep-link collector route auth
+     * callbacks here and everything else to the nav graph, without the app
+     * layer hardcoding the scheme/host.
+     */
+    fun isOAuthRedirect(url: String): Boolean
 
     /**
      * Native Sign in with Apple — exchange the Apple id token (+ the raw nonce

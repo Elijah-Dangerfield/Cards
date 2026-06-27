@@ -397,6 +397,63 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         )
     }
 
+    // ---------- completeOAuthRedirect (browser OAuth return trip) ----------
+
+    @Test
+    fun completeOAuthRedirect_importsSession_andEmitsAuthenticated() = runUnitTest {
+        // The browser OAuth flow lands back via cards://login-callback. The repo
+        // hands the URL to the gateway (which parses + imports the session) and
+        // then emits the new Authenticated state.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+            onCompleteOAuthRedirect = {
+                advanceToAuthenticated(claimedSession(userId = "oauth-1", email = "g@b.com"))
+            },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val outcome = repo.completeOAuthRedirect("cards://login-callback#access_token=t&refresh_token=r")
+
+        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Success>(outcome)
+        val state = assertIs<AuthState.Authenticated>(repo.current())
+        assertEquals("oauth-1", state.userId)
+        assertEquals(false, state.isAnonymous)
+    }
+
+    @Test
+    fun completeOAuthRedirect_withNoTokens_returnsCancelled() = runUnitTest {
+        // A redirect carrying no session (user backed out / error redirect)
+        // surfaces IllegalArgumentException from the parser → Cancelled, with no
+        // state change.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+            onCompleteOAuthRedirect = { throw IllegalArgumentException("No access token found") },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val outcome = repo.completeOAuthRedirect("cards://login-callback#error=access_denied")
+
+        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Cancelled>(outcome)
+        assertIs<AuthState.Unauthenticated>(repo.current())
+    }
+
+    @Test
+    fun isOAuthRedirect_matchesCallbackUrl_only() = runUnitTest {
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        assertTrue(repo.isOAuthRedirect("cards://login-callback#access_token=t"))
+        assertEquals(false, repo.isOAuthRedirect("cards://profile"))
+    }
+
     // ---------- refreshSession ----------
 
     @Test
@@ -573,6 +630,9 @@ internal class FakeSupabaseAuthGateway(
     var onSignInWithOAuth: suspend FakeSupabaseAuthGateway.(OAuthProvider) -> Unit = {
         error("signInWithOAuth not stubbed for this test")
     },
+    var onCompleteOAuthRedirect: suspend FakeSupabaseAuthGateway.(String) -> Unit = {
+        error("completeOAuthRedirect not stubbed for this test")
+    },
 ) : SupabaseAuthGateway {
 
     private var status: AuthGatewayStatus = initialStatus
@@ -656,6 +716,13 @@ internal class FakeSupabaseAuthGateway(
     override suspend fun signInWithOAuth(provider: OAuthProvider) {
         onSignInWithOAuth(provider)
     }
+
+    override suspend fun completeOAuthRedirect(url: String) {
+        onCompleteOAuthRedirect(url)
+    }
+
+    override fun isOAuthRedirect(url: String): Boolean =
+        url.startsWith("cards://login-callback")
 
     override suspend fun signInWithAppleIdToken(idToken: String, nonce: String): Unit =
         error("signInWithAppleIdToken not stubbed for these tests")

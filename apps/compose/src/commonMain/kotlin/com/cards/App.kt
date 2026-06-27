@@ -175,12 +175,23 @@ fun App(appComponent: AppComponent) {
         }
     }
 
-    LaunchedEffect(navController, deepLinkBridge) {
+    val authRepository = remember { appComponent.authRepository }
+    LaunchedEffect(navController, deepLinkBridge, authRepository) {
         deepLinkBridge.urls.collect { url ->
-            Catching {
-                val request = NavDeepLinkRequest.Builder.fromUri(NavUri(url)).build()
-                navController.handleDeepLink(request)
-            }.logOnFailure { "Failed to handle deep link: $url" }
+            // The browser OAuth return trip (`cards://login-callback#...`) carries
+            // a Supabase session in its fragment, not a navigable destination —
+            // hand it to supabase-kt to import instead of the nav graph. Every
+            // other `cards://` link routes as before. The repo emits the new
+            // AuthState on success, which the app's auth gate reacts to.
+            if (authRepository.isOAuthRedirect(url)) {
+                Catching { authRepository.completeOAuthRedirect(url) }
+                    .logOnFailure { "Failed to complete OAuth redirect" }
+            } else {
+                Catching {
+                    val request = NavDeepLinkRequest.Builder.fromUri(NavUri(url)).build()
+                    navController.handleDeepLink(request)
+                }.logOnFailure { "Failed to handle deep link: $url" }
+            }
         }
     }
 

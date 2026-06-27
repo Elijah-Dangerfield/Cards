@@ -558,6 +558,34 @@ class SupabaseAuthRepositoryImpl(
             )
         }
 
+    override fun isOAuthRedirect(url: String): Boolean = gateway.isOAuthRedirect(url)
+
+    override suspend fun completeOAuthRedirect(url: String): SignInOutcome =
+        mutex.withLock {
+            logger.d { "completeOAuthRedirect: importing session from redirect" }
+            Catching {
+                gateway.completeOAuthRedirect(url)
+                emitAuthenticatedFromGatewayLocked()
+            }.fold(
+                onSuccess = {
+                    logger.i { "completeOAuthRedirect: Success" }
+                    SignInOutcome.Success
+                },
+                onFailure = { e ->
+                    val outcome = when (e) {
+                        is RestException -> mapOAuthSignInRestException(e)
+                        is HttpRequestException -> SignInOutcome.NetworkError(e)
+                        // No tokens in the fragment — the user backed out of the
+                        // consent screen, or the provider sent an error redirect.
+                        is IllegalArgumentException -> SignInOutcome.Cancelled
+                        else -> SignInOutcome.Unknown(e)
+                    }
+                    logger.w(e) { "completeOAuthRedirect: ${outcome::class.simpleName}" }
+                    outcome
+                },
+            )
+        }
+
     override suspend fun signInWithApple(credential: AppleSignInCredential): SignInOutcome =
         mutex.withLock {
             logger.d { "signInWithApple: attempting" }
