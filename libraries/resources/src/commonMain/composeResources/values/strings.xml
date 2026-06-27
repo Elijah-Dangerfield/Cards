@@ -221,9 +221,13 @@
     <string name="onboarding_welcome_continue_guest_progress">One moment…</string>
     <string name="onboarding_welcome_oauth_apple">Continue with Apple</string>
     <string name="onboarding_welcome_oauth_google">Continue with Google</string>
-    <string name="onboarding_welcome_oauth_in_flight">One moment…</string>
-    <string name="onboarding_welcome_footer">No account required to play.\nSign in later if you want to save your progress.</string>
-    <string name="onboarding_welcome_sign_in">Sign in with email</string>
+    <!-- Compact label for the side-by-side OAuth row, where the full "Continue
+         with Google" won't fit at half width. -->
+    <string name="onboarding_welcome_oauth_google_short">Google</string>
+    <!-- Inline sign-in prompt under the Welcome buttons. "Sign in" must appear
+         verbatim so buildClickableText can make it a tappable link. -->
+    <string name="onboarding_welcome_footer">Already have an account? Sign in</string>
+    <string name="onboarding_welcome_sign_in">Sign in</string>
     <!-- Passive consent shown under the Welcome buttons. "Terms of Service" and "Privacy Policy"
          must appear verbatim so buildClickableText can make each a tappable link. -->
     <string name="onboarding_welcome_consent">By continuing, you agree to our Terms of Service and Privacy Policy.</string>
