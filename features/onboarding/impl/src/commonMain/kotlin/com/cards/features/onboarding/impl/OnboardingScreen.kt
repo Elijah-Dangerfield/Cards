@@ -62,13 +62,13 @@ import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.Card
 import com.dangerfield.cards.libraries.ui.components.CardsFan
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
+import com.dangerfield.cards.libraries.ui.components.GoogleSignInButton
 import com.dangerfield.cards.libraries.ui.components.RotatingDial
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.XpBadge
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
-import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
@@ -133,7 +133,6 @@ import cards.libraries.resources.generated.resources.onboarding_welcome_footer
 import cards.libraries.resources.generated.resources.onboarding_welcome_sign_in
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_apple
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_google
-import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_in_flight
 import cards.libraries.resources.generated.resources.onboarding_welcome_subtitle
 import cards.libraries.resources.generated.resources.onboarding_welcome_title
 import cards.libraries.resources.generated.resources.ui_top_bar_back_a11y
@@ -381,18 +380,13 @@ private fun WelcomeStep(
                 Spacer(modifier = Modifier.height(Dimension.D400))
             }
             if (state.googleEnabled) {
-                ButtonSecondary(
+                GoogleSignInButton(
+                    text = stringResource(Res.string.onboarding_welcome_oauth_google),
                     onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
                     enabled = !oauthBusy,
+                    isLoading = state.oauthInFlight == OAuthProvider.Google,
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        stringResource(
-                            if (state.oauthInFlight == OAuthProvider.Google) Res.string.onboarding_welcome_oauth_in_flight
-                            else Res.string.onboarding_welcome_oauth_google,
-                        ),
-                    )
-                }
+                )
                 Spacer(modifier = Modifier.height(Dimension.D400))
             }
 
