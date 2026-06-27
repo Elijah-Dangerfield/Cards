@@ -31,8 +31,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - Acceptance: Mirror dev's V78 + V79 final copy to prod so the two databases stay identical.
 - Hint: Treat the prod write as sensitive — review the dev diff before mirroring. Needs prod DB creds.
 
-**AUTH-7 — Swap the logo/icon assets to the Dealt mark** `[P1]`
-- Problem: `pages/app-icon.png` (1024×1024) / `pages/apple-touch-icon.png` (180×180) / `pages/favicon.png` (64×64) are still the old "Cards" mark. (The Terms/Privacy content rewrite shipped 2026-06-27 — 18+ age gate, arbitration + class-action waiver, sub-processor disclosure, privacy-rights section; `LEGAL_VERSION` bumped to `2`. A lawyer should review the arbitration clause before launch — that review is human work, tracked in developer-todo.)
-- Acceptance: Replace the three PNGs with the Dealt mark at the same dimensions.
-- Hint: Needs the Dealt brand art as a high-res source (1024×1024+ or SVG); resize/export from there. Human-blocked on the source asset.
-
