@@ -773,3 +773,23 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Tradeoff:** Small polish completing the GAME-6 request; touches a shared DS animator used beyond the table, so it needs a default that leaves every other surface untouched.
 
 **Status:** Backlog. GAME-6's core ask (speed up / instant-skip the deal + reveal) shipped; this is the remaining chip-move sub-part.
+
+---
+
+## Cross-version backwards compatibility for game/state objects
+
+**Idea (owner feedback 2026-06-26, Sentry [CARDS-4S](https://elijah-dangerfield.sentry.io/issues/CARDS-4S)):** We should decide how the app handles game/state objects across client versions before launch — e.g. can a user on app version 1 join a game created by someone on version 2? What happens if not, and how do we degrade gracefully? Owner asks for a recommendation + an implemented system while we're still pre-launch and free to set conventions.
+
+**Threads to weigh:** a min-supported-version / schema-version field on rooms and on the wire frames; server-side gating that refuses (with a clear "update your app" message) rather than letting a stale client misread a newer object; forward-compatible (additive-only) serialization conventions so most version skew is tolerated without a hard gate; and where the version line is drawn (room create, room join, or per-frame). Pairs with the existing app-integrity / min-version thinking in `docs/decisions.md`.
+
+**Status:** Backlog. Needs a design pass + a recommendation before it's worker-pickable — owner explicitly invited a proposal. Good to settle pre-launch.
+
+---
+
+## Evaluate / eliminate empty-body POST requests
+
+**Idea (owner feedback 2026-06-26, Sentry [CARDS-4K](https://elijah-dangerfield.sentry.io/issues/CARDS-4K)):** A number of client→server POSTs send an empty body (the session logs are full of `POST … request_body_size=2` sync calls — equipment, play-style, progression, achievements, inventory, etc.). Owner suggests we evaluate those: some may be redundant round-trips that could be collapsed, batched, made GETs, or dropped entirely.
+
+**Sketch direction when revisiting:** inventory the empty-body POST endpoints, classify each as (a) genuinely needed write/sync, (b) collapsible into a single batched sync call, or (c) removable; then trim. Pairs with the existing "Offline-aware retry / deferred queue" and the per-sync-coordinator design — a batched sync envelope would address several at once.
+
+**Status:** Backlog. Fuzzy/evaluative ("maybe we should evaluate those") — scope it with an endpoint inventory first, not a blind change.
