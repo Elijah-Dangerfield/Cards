@@ -72,7 +72,7 @@ class DefaultPurchaseChipPackUseCase(
         alreadyOwned: Boolean,
     ): IapPurchaseOutcome {
         if (realPurchasesEnabled()) {
-            return when (val redeem = billingRepository.redeem(transaction)) {
+            return when (val redeem = billingRepository.redeem(pack.id, transaction)) {
                 is RedeemOutcome.Granted -> {
                     chipsRepository.setBalance(redeem.balance)
                     billingClient.acknowledge(transaction.purchaseToken)

@@ -12,11 +12,15 @@ package com.dangerfield.cards.libraries.billing
 interface BillingRepository {
 
     /**
-     * Redeem a finished purchase. The server validates the receipt, resolves the
+     * Redeem a finished purchase. [catalogProductId] is the server-catalog
+     * product id (`Product.ChipPack.id`, e.g. `chip_pack_medium`) the server
+     * resolves `grantsChips` from and derives the per-store SKU to verify the
+     * receipt against — NOT the platform store SKU on the transaction, which
+     * differs per platform. The server validates the receipt, resolves the
      * product to its server-side `grantsChips`, and grants idempotently on the
      * store transaction id.
      */
-    suspend fun redeem(transaction: PurchaseTransaction): RedeemOutcome
+    suspend fun redeem(catalogProductId: String, transaction: PurchaseTransaction): RedeemOutcome
 }
 
 /** Outcome of a [BillingRepository.redeem] round-trip. */

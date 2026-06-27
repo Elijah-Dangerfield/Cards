@@ -120,6 +120,13 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         assertEquals(0, chips.addChipsCalls, "no optimistic local credit on the real path")
         assertEquals(1, redeem.redeemCalls)
         assertEquals(1, billing.acknowledgeCalls)
+        assertEquals(
+            PACK.id,
+            redeem.lastProductId,
+            "redeem must post the catalog product id (chip_pack_medium), not the platform store " +
+                "SKU (chips_medium) — the server resolves grantsChips by catalog id, so sending the " +
+                "SKU 400s and the paying user gets nothing",
+        )
     }
 
     @Test
@@ -225,8 +232,11 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
     ) : BillingRepository {
         var redeemCalls = 0
             private set
-        override suspend fun redeem(transaction: PurchaseTransaction): RedeemOutcome {
+        var lastProductId: String? = null
+            private set
+        override suspend fun redeem(catalogProductId: String, transaction: PurchaseTransaction): RedeemOutcome {
             redeemCalls += 1
+            lastProductId = catalogProductId
             return outcome
         }
     }
