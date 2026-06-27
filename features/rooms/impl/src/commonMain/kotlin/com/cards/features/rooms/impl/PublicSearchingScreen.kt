@@ -280,15 +280,26 @@ private fun ColumnScope.BotFallbackContent(
     subsidyNotice: SubsidyNotice?,
     onAction: (PublicSearchingAction) -> Unit,
 ) {
+    // Honest no-results empty state (ROOM-9): a calm centered message rather than
+    // a promo-gradient banner. The headline owns the "we couldn't find anyone"
+    // truth; the body frames playing bots as the offered next step, with the
+    // subsidy disclosure kept legible underneath. Action hierarchy: keep waiting
+    // (the honest default) is primary, playing bots is the secondary offer.
     Spacer(Modifier.weight(1f))
-    PublicHeroCard(
-        title = stringResource(Res.string.public_searching_offer_title),
-        body = stringResource(Res.string.public_searching_offer_body),
-        leading = {
-            HeroBadge {
-                Text("🤖", typography = AppTheme.typography.Heading.H700, color = AppTheme.colors.content)
-            }
-        },
+    Text(
+        text = stringResource(Res.string.public_searching_offer_title),
+        typography = AppTheme.typography.Heading.H800,
+        color = AppTheme.colors.content,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(Dimension.D300))
+    Text(
+        text = stringResource(Res.string.public_searching_offer_body),
+        typography = AppTheme.typography.Body.B500,
+        color = AppTheme.colors.contentSecondary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
     )
     if (subsidyNotice != null) {
         Spacer(Modifier.height(Dimension.D500))
@@ -297,18 +308,18 @@ private fun ColumnScope.BotFallbackContent(
     Spacer(Modifier.weight(1f))
 
     ButtonPrimary(
-        onClick = { onAction(PublicSearchingAction.PlayBots) },
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(stringResource(Res.string.public_searching_offer_play_bots))
-    }
-    Spacer(Modifier.height(Dimension.D400))
-    ButtonSecondary(
         onClick = { onAction(PublicSearchingAction.KeepWaiting) },
-        style = ButtonStyle.Outlined,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(stringResource(Res.string.public_searching_offer_keep_waiting))
+    }
+    Spacer(Modifier.height(Dimension.D400))
+    ButtonSecondary(
+        onClick = { onAction(PublicSearchingAction.PlayBots) },
+        style = ButtonStyle.Outlined,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(stringResource(Res.string.public_searching_offer_play_bots))
     }
     Spacer(Modifier.height(Dimension.D400))
     ButtonGhost(

@@ -50,10 +50,3 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 - `[P2]` **SHOP-3 — Host-chosen felt + card backs, shown to every player at the table.** Owner directive: let the game creator pick the felt and card backs from their inventory when creating a room, and have *every* player at the table see the host's chosen felt and card backs (incentivizes buying cosmetics). The host's selection already exists per-player; this makes it table-wide.
   **Acceptance:** create-room flow lets the host pick an owned felt + card back; the room snapshot carries them; all clients render the host's felt and card backs in-game. Ship a slice + a directional call on edge cases (host has none equipped → table default; whether a player's own equipped back still applies to their own cards) and let the reviewer course-correct.
   **Hints:** plumbing mirrors the "Player Card — Phase 2: opponent cosmetics over the wire" backlog item — put the host's equipped felt/back on the room/seat snapshot and read it at the play surface instead of `LocalCurrentFelt`/local equip. Owner directive, Sentry [CARDS-4Q](https://elijah-dangerfield.sentry.io/issues/CARDS-4Q).
-
-## G. Rooms & matchmaking
-
-- `[P2]` **ROOM-9 — Rework the "We couldn't find anyone right now" matchmaking UI.** Owner directive: the offer state (when no table is found, pitching "play bots for real chips while you wait") feels off — the banner reads weird and isn't what he'd expect. Needs a design pass, not a copy tweak.
-  **Acceptance:** the no-results state is reworked into a treatment that reads naturally (not a weird banner) while keeping the honest "bots step aside when a real player joins" + daily-subsidy disclosure intact. Make a directional design recommendation, ship a slice, let the reviewer/owner course-correct.
-  **Hints:** the offer state in [`PublicSearchingScreen.kt`](features/rooms/impl/src/commonMain/kotlin/com/cards/features/rooms/impl/PublicSearchingScreen.kt) (strings `public_searching_offer_*`); keep the subsidy-remaining/exhausted disclosures. Owner directive (in-session 2026-06-27), no Sentry issue; pairs with the approved public-matchmaking build.
-
