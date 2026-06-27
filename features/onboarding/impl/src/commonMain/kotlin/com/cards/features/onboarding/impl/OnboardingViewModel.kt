@@ -607,7 +607,7 @@ sealed interface OnboardingAuthError {
     data class AnonymousSignInDisabled(val debugDetails: String?) : OnboardingAuthError
     /** Guest path: project requires captcha. */
     data class CaptchaRequired(val debugDetails: String?) : OnboardingAuthError
-    /** Guest path: Supabase anon key looks wrong or expired. */
+    /** Guest path: Supabase publishable key looks wrong or expired. */
     data class InvalidConfig(val debugDetails: String?) : OnboardingAuthError
     /** Guest path: network unreachable or generic failure (shared copy). */
     data class GuestSignInFailed(val debugDetails: String?) : OnboardingAuthError

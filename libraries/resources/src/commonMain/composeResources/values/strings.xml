@@ -208,7 +208,7 @@
     <string name="onboarding_auth_error_oauth_failed">Sign in failed. Please try again.</string>
     <string name="onboarding_auth_error_guest_anonymous_disabled">Anonymous sign-in isn't enabled in this Supabase project. Enable it in Authentication → Providers → Email (Allow anonymous sign-ins).</string>
     <string name="onboarding_auth_error_guest_captcha">Captcha is required by this Supabase project. Disable it in dev or wire a token.</string>
-    <string name="onboarding_auth_error_guest_invalid_config">The Supabase anon key looks wrong or expired. Check IdentityConfig.</string>
+    <string name="onboarding_auth_error_guest_invalid_config">The Supabase publishable key looks wrong or expired. Check IdentityConfig.</string>
     <string name="onboarding_auth_error_guest_failed">Couldn't reach the server. Check your connection and try again.</string>
     <string name="onboarding_auth_error_debug_suffix">\n\nDEBUG: %1$s</string>
     <string name="onboarding_save_error_display_name_taken">That name is taken. Try another.</string>

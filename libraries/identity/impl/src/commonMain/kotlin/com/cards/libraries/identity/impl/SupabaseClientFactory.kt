@@ -31,7 +31,7 @@ interface SupabaseClientComponent {
     fun provideSupabaseClient(config: IdentityConfig): SupabaseClient =
         createSupabaseClient(
             supabaseUrl = config.supabaseUrl,
-            supabaseKey = config.supabaseAnonKey,
+            supabaseKey = config.supabasePublishableKey,
         ) {
             install(Auth) {
                 // alwaysAutoRefresh = true (default) — refresh tokens
