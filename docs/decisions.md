@@ -27,6 +27,22 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-27 — Game/state objects are additive-only; breaking changes gate on min app version, not per-room capabilities (CARDS-4S)
+
+**Decision:** Cross-client version skew is handled by one two-tier rule. (1) Additive / cosmetic / optional fields degrade gracefully and never bump the version — new fields are nullable + defaulted, and release JSON's `coerceInputValues` coerces unknown values to the property default, so an old client renders the default (e.g. an unknown `felt_*` → `felt_default`) and plays on. (2) A breaking change to the game/state object — repurposing a field, changing an existing field's meaning, or a new rule an old client would misplay — requires raising `upgrade.minSupportedVersionCode` (the existing `:features:upgrade` force-update gate), rolled out *before* the breaking server change ships. The additive tier is the safety net for any in-session straggler between the config bump and the server change. As a runtime backstop beneath both tiers, the client wraps game-state deserialization in a `Catching` block and, on failure, shows a "we're struggling to play this game — it may have been created with a newer app version; updating may help" message instead of crashing or hanging (ENG-7).
+
+**Why:** Breaking changes to core game state are rare and significant (a new variant, a different betting structure) — exactly what you'd want every client on anyway, so a force-update is the correct behaviour, not something to engineer around. Strict additive-only serialization handles the common case for free, so most skew costs nobody an update while the dangerous cases reuse a gate that already exists (`AppGuardState.from` evaluates the streamed config map live). Setting this convention pre-launch is near-free; retrofitting forward-compat behaviour onto an already-shipped launch cohort is not.
+
+**Alternatives considered:**
+- **Per-room capability gate** — `requiredCapabilities: Set<String>` on the room snapshot, a client-supported capability set, a config-driven version→capability map, and an "update to join this table" screen. Lets a breaking *gameplay* feature roll out to some tables while old clients keep using the rest of the app. Rejected for V1: substantial new infrastructure for a narrow case (a breaking game-rule change you specifically *don't* want everyone on) that may never arise. Kept as a future consideration if we ever need to ship per-table breaking features without a force-update.
+- **Force-update for any change at all.** Rejected: would force a release for a new felt or any cosmetic; the additive-degrade tier exists precisely to avoid that.
+
+**Status:** Locked.
+
+**Follow-up:** ENG-6 (todo.md) — confirm the streamed `MinSupportedVersionCode` overlay reliably covers an in-game client. ENG-7 (todo.md) — the runtime deserialization-failure fallback message.
+
+---
+
 ## 2026-06-26 — Room invites share a deep link via a platform `ShareLauncher`, code as a path segment (ROOM-7)
 
 **Decision:** Sharing a room invite goes through a new `ShareLauncher` capability in `:libraries:navigation` (sibling to `WebLinkLauncher`), surfaced as `Router.shareText(text)` and backed by per-platform impls (Android `ACTION_SEND` chooser, iOS `UIActivityViewController`, JVM unsupported). The invite link is `cards://join/{prefilledCode}` — the code is a **path segment**, not a query param — built from one source of truth, `RoomInvite.linkForCode`, which the lobby deep-link registration also references so the share URL and the registered deep link can't drift. Every room already carries a shareable code regardless of visibility, so the affordance is identical for private/open/public rooms; "public" only adds Find-a-Table discovery on top.

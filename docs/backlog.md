@@ -782,7 +782,7 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 
 **Threads to weigh:** a min-supported-version / schema-version field on rooms and on the wire frames; server-side gating that refuses (with a clear "update your app" message) rather than letting a stale client misread a newer object; forward-compatible (additive-only) serialization conventions so most version skew is tolerated without a hard gate; and where the version line is drawn (room create, room join, or per-frame). Pairs with the existing app-integrity / min-version thinking in `docs/decisions.md`.
 
-**Status:** Backlog. Needs a design pass + a recommendation before it's worker-pickable — owner explicitly invited a proposal. Good to settle pre-launch.
+**Status:** Decided 2026-06-27 — see [decisions.md](./decisions.md). V1 uses the simple two-tier rule (additive changes degrade; breaking game-object changes bump `upgrade.minSupportedVersionCode`), with a runtime deserialization-failure fallback (ENG-7) as defense-in-depth. The per-room **capability gate** sketched in "Threads to weigh" is the future-consideration path if we ever need to ship a breaking gameplay feature to some tables without forcing every client to update — not built.
 
 ---
 
