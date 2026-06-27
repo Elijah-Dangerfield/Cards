@@ -41,6 +41,7 @@ kotlin {
             // against the in-code defaults.
             implementation(projects.libraries.config)
             implementation(projects.libraries.social)
+            implementation(projects.libraries.billing)
             implementation(projects.features.upgrade)
             implementation(libs.kotlinx.serialization.json)
 
