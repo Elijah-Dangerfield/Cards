@@ -10,6 +10,11 @@ internal data class Status(val ok: Boolean, val message: String)
 /**
  * Run a suspend mutation, then reload + report. Centralizes the try/status
  * dance every write goes through (refusal messages surface from [AdminApiException]).
+ *
+ * Reloads on both success and failure: a rejected write can still have changed
+ * state (or the operator's view of it can be stale), so we always re-fetch so the
+ * flag/rule list reflects what the server actually holds. Without this, a 400/409
+ * left the list looking like the write silently did nothing.
  */
 internal fun CoroutineScope.launchOp(
     setStatus: (Status) -> Unit,
@@ -19,8 +24,9 @@ internal fun CoroutineScope.launchOp(
 ) {
     launch {
         runCatching { block() }
-            .onSuccess { setStatus(Status(true, success)); reload() }
+            .onSuccess { setStatus(Status(true, success)) }
             .onFailure { setStatus(Status(false, it.message ?: "Request failed")) }
+        reload()
     }
 }
 

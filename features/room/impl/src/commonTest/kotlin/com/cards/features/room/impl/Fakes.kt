@@ -11,7 +11,7 @@ import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
-import com.dangerfield.cards.libraries.cards.BotSpeed
+import com.dangerfield.cards.libraries.cards.GameSpeed
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
@@ -182,15 +182,15 @@ class FakePokerSessionFactory(
 
     var bootstrapCalled: Boolean = false
     var capturedOnHandEnded: ((GameEvent.HandEnded, GameState, Long) -> Unit)? = null
-    var capturedBotSpeedProvider: (() -> BotSpeed)? = null
+    var capturedGameSpeedProvider: (() -> GameSpeed)? = null
 
     override fun create(
         humanSeatIndex: Int,
-        botSpeedProvider: () -> BotSpeed,
+        gameSpeedProvider: () -> GameSpeed,
         onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit,
     ): PokerSession {
         capturedOnHandEnded = onHandEnded
-        capturedBotSpeedProvider = botSpeedProvider
+        capturedGameSpeedProvider = gameSpeedProvider
         return session
     }
 

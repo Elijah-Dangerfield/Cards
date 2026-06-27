@@ -27,7 +27,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.public_searching_alone
 import cards.libraries.resources.generated.resources.public_searching_buyin_label
 import cards.libraries.resources.generated.resources.public_searching_cancel
 import cards.libraries.resources.generated.resources.public_searching_choose_humans
@@ -42,7 +41,6 @@ import cards.libraries.resources.generated.resources.public_searching_error_body
 import cards.libraries.resources.generated.resources.public_searching_error_back
 import cards.libraries.resources.generated.resources.public_searching_error_insufficient
 import cards.libraries.resources.generated.resources.public_searching_error_retry
-import cards.libraries.resources.generated.resources.public_searching_joined
 import cards.libraries.resources.generated.resources.public_searching_joining_bots_body
 import cards.libraries.resources.generated.resources.public_searching_joining_bots_title
 import cards.libraries.resources.generated.resources.public_searching_offer_body
@@ -68,8 +66,6 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.room.MatchmakingRadar
 import com.dangerfield.cards.libraries.ui.components.room.RoomHeader
-import com.dangerfield.cards.libraries.ui.components.room.RoomVisibility
-import com.dangerfield.cards.libraries.ui.components.room.VisTag
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
@@ -102,7 +98,6 @@ fun PublicSearchingScreen(
             RoomHeader(
                 title = stringResource(Res.string.public_searching_title),
                 onNavigateBack = { onAction(PublicSearchingAction.Cancel) },
-                right = { VisTag(kind = RoomVisibility.Public) },
             )
         },
     ) { padding ->
@@ -133,18 +128,10 @@ private fun ColumnScope.SearchingContent(
     MatchmakingRadar(reduceMotion = isReduceMotionEnabled())
 
     Spacer(Modifier.height(Dimension.D900))
-    // Rotating reassurance — keeps the wait feeling alive while we genuinely
-    // hunt for real players. Purely cosmetic, so it lives in the UI.
+    // A single line carries the wait: it opens on a steady "looking for players"
+    // message, then begins rotating the reassurance copy after a beat so the wait
+    // feels alive without a second static line repeating the same idea.
     RotatingReassurance()
-
-    Spacer(Modifier.height(Dimension.D500))
-    Text(
-        text = if (state.realPlayersFound > 0) stringResource(Res.string.public_searching_joined)
-        else stringResource(Res.string.public_searching_alone),
-        typography = AppTheme.typography.Label.L400,
-        color = AppTheme.colors.accentSecondary,
-        textAlign = TextAlign.Center,
-    )
 
     Spacer(Modifier.weight(1f))
 

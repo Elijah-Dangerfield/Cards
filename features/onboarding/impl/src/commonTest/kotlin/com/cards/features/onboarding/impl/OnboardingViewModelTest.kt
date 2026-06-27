@@ -341,6 +341,33 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun finish_guestCreationNeverTerminates_stillNavigatesHome_afterTimeout() = runUnitTest {
+        // The principle: onboarding must NEVER trap the user on a backend call.
+        // If guest creation is wedged/offline and never reaches a terminal state,
+        // "Take a seat" must still complete onboarding after the bounded wait —
+        // the creator keeps retrying in the background.
+        val cache = FakeAppCache()
+        val creator = FakeGuestAccountCreator(hangInProgress = true)
+        val vm = newVm(cache = cache, creator = creator)
+        val received = mutableListOf<OnboardingEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
+        runCurrent()
+        vm.takeAction(OnboardingAction.Finish)
+        runCurrent()
+        // Creation never terminates — only the timeout lets us through.
+        advanceTimeBy(6_000)
+        runCurrent()
+
+        assertTrue(cache.get().hasUserOnboarded, "onboarding completes even when creation never terminates")
+        assertTrue(vm.state.creationFailed, "degraded flag set when the wait times out")
+        assertEquals(OnboardingEvent.NavigateToHome, received.firstOrNull())
+    }
+
+    @Test
     fun signInWithOAuth_providerNotEnabled_surfacesOAuthProviderNotEnabled() = runUnitTest {
         val auth = FakeAuthRepository(oauthSignInOutcome = SignInOutcome.ProviderNotEnabled)
         val vm = newVm(auth = auth)
@@ -529,6 +556,10 @@ class OnboardingViewModelTest : CoroutineTest() {
 internal class FakeGuestAccountCreator(
     private val failCreation: Boolean = false,
     private val failureCause: Throwable? = null,
+    // Models a wedged / offline creation that never reaches a terminal state —
+    // start() parks in InProgress and awaitTerminal() never returns. The finish
+    // path must time out and proceed Home anyway rather than trap the user.
+    private val hangInProgress: Boolean = false,
 ) : GuestAccountCreator {
     private val _state = MutableStateFlow<AccountCreationState>(AccountCreationState.Idle)
     override val state: StateFlow<AccountCreationState> = _state
@@ -541,10 +572,10 @@ internal class FakeGuestAccountCreator(
     override fun start(identity: PendingIdentity) {
         startCalls++
         lastIdentity = identity
-        _state.value = if (failCreation) {
-            AccountCreationState.Failed(identity, failureCause)
-        } else {
-            AccountCreationState.Succeeded
+        _state.value = when {
+            hangInProgress -> AccountCreationState.InProgress
+            failCreation -> AccountCreationState.Failed(identity, failureCause)
+            else -> AccountCreationState.Succeeded
         }
     }
 

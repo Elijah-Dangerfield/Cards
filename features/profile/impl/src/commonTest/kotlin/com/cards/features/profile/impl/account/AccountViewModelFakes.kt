@@ -192,6 +192,17 @@ internal class TestAppConfigMap(
                 },
             ),
         )
+
+        /** Like [withOAuthEnabled] but always writes the flag, so `false`
+         *  models an explicit override (not "use the shipped default"). */
+        fun withOAuth(google: Boolean, apple: Boolean) = TestAppConfigMap(
+            backing = mapOf(
+                "identity" to mapOf(
+                    "googleSignInEnabled" to google,
+                    "appleSignInEnabled" to apple,
+                ),
+            ),
+        )
     }
 }
 

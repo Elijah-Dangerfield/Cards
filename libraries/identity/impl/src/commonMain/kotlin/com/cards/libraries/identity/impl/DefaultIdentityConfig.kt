@@ -9,13 +9,13 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
  * Supabase auth config for the resolved [AppEnvironment] (dev or prod, picked by
- * build type — see [AppAppEnvironment.current]). The anon key is a public client
- * constant by design; data is gated by Supabase RLS, not by secrecy.
+ * build type — see [AppAppEnvironment.current]). The publishable key is a public
+ * client constant by design; data is gated by Supabase RLS, not by secrecy.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
 @Inject
 class DefaultIdentityConfig : IdentityConfig {
     override val supabaseUrl: String = AppEnvironment.current.supabaseUrl
-    override val supabaseAnonKey: String = AppEnvironment.current.supabaseAnonKey
+    override val supabasePublishableKey: String = AppEnvironment.current.supabasePublishableKey
 }

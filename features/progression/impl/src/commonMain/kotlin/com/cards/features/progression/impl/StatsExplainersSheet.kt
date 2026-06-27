@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.stats_explainer_mp_xp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle
@@ -26,6 +28,7 @@ import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.remember
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -94,7 +97,7 @@ private fun WhatXpDoesCard() {
         SheetBullet("Drives your level pill and seat-level badge across the app")
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Multiplayer hands will earn 2× when it ships.",
+            text = stringResource(Res.string.stats_explainer_mp_xp),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.contentSecondary,
         )

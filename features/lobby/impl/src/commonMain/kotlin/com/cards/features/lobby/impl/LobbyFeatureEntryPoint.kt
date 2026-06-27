@@ -9,10 +9,12 @@ import androidx.navigation.toRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.lobby.PrivateCreateRoute
 import com.dangerfield.cards.features.lobby.PrivateJoinRoute
+import com.dangerfield.cards.features.lobby.RoomInvite
 import com.dangerfield.cards.features.room.PlayMultiplayerRoute
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
+import com.dangerfield.cards.libraries.navigation.routeDeepLink
 import com.dangerfield.cards.libraries.navigation.screen
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarDuration
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
@@ -61,7 +63,16 @@ class LobbyFeatureEntryPoint(
             )
         }
 
-        screen<LobbyRoute> { backStackEntry ->
+        // Deep-link join: `cards://join/{prefilledCode}` lands a tapped invite
+        // straight in the lobby with the code pre-filled, which auto-attempts a
+        // join on entry (same path as PrivateJoinScreen → LobbyRoute). The code
+        // is a path segment so the shared URL reads cleanly. autoCreate/open
+        // default false, so an invite link never spins up a fresh room.
+        screen<LobbyRoute>(
+            deepLinks = listOf(
+                routeDeepLink<LobbyRoute>(basePath = "${RoomInvite.DEEP_LINK_BASE_PATH}/{prefilledCode}"),
+            ),
+        ) { backStackEntry ->
             val route = backStackEntry.toRoute<LobbyRoute>()
             val viewModel: LobbyViewModel = viewModel {
                 viewModelFactory(route.prefilledCode, route.autoCreate, route.maxSeats, route.buyIn, route.open)
@@ -100,6 +111,7 @@ class LobbyFeatureEntryPoint(
                 state = state,
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
+                onShareInvite = { message -> router.shareText(message) },
             )
         }
     }

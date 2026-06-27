@@ -27,5 +27,5 @@ object LegalUrls {
      * carries this number, so comparing it against the live version is the
      * trigger.
      */
-    const val LEGAL_VERSION: Int = 1
+    const val LEGAL_VERSION: Int = 2
 }

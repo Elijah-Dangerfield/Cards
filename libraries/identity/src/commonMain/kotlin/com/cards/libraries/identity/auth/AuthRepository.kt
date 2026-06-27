@@ -137,8 +137,37 @@ interface AuthRepository {
      * Switch sessions to an existing OAuth account. The current local
      * session is replaced; any guest progress tied to the previous
      * session is orphaned by design.
+     *
+     * Note: for the browser OAuth flow this only *launches* the system browser.
+     * The session is established later, when the provider redirects back to
+     * `cards://login-callback` and the app forwards that URL to
+     * [completeOAuthRedirect]. A `SignInOutcome.Success` here means "browser
+     * opened", not "signed in".
      */
     suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome
+
+    /**
+     * Whether [url] is the browser-OAuth redirect deep link (`cards://login-callback`).
+     * The app's deep-link collector uses this to send auth callbacks to
+     * [completeOAuthRedirect] and route everything else through the nav graph.
+     *
+     * Defaults to false so test fakes that don't drive OAuth needn't implement
+     * it; the production impl overrides.
+     */
+    fun isOAuthRedirect(url: String): Boolean = false
+
+    /**
+     * Finish a browser OAuth sign-in from the redirect deep link. [url] is the
+     * full `cards://login-callback#access_token=…` callback. Imports the session
+     * supabase-kt parsed out of the URL and emits the resulting
+     * [AuthState.Authenticated] (replacing any prior session). Returns the
+     * outcome so the caller can surface a failure (cancelled / network).
+     *
+     * Default-throws so test fakes that don't drive OAuth needn't implement it;
+     * the production impl overrides.
+     */
+    suspend fun completeOAuthRedirect(url: String): SignInOutcome =
+        throw NotImplementedError("completeOAuthRedirect not implemented by ${this::class.simpleName}")
 
     /**
      * Native Sign in with Apple — exchange the [credential] (id token + raw

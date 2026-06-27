@@ -163,13 +163,10 @@ internal fun RuleEditor(
                         enabled = true,
                         description = current.description.trim().ifBlank { null },
                     )
-                    // A rule needs its flag to exist (FK). Create the override
-                    // from the in-code default first if there's no DB row yet.
+                    // The server lazily materializes the flag from its manifest
+                    // default when a rule first attaches, so we no longer mint a
+                    // base override here as a side effect of adding a rule.
                     scope.launchOp(setStatus, reload, "Added rule to ${row.path}") {
-                        if (!row.inDb) {
-                            val seed = row.default ?: parseJsonOrNull("null")!!
-                            api.upsertFlag(row.path, seed)
-                        }
                         api.upsertRule(randomUuid(), request)
                     }
                     draft = null

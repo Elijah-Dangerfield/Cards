@@ -18,7 +18,7 @@ import com.dangerfield.cards.libraries.cards.AchievementRarity
 import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.ChipsRepository
-import com.dangerfield.cards.libraries.cards.BotSpeed
+import com.dangerfield.cards.libraries.cards.GameSpeed
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.EmojiBlast
 import com.dangerfield.cards.libraries.cards.EmotePackCatalog
@@ -116,7 +116,7 @@ class PlayPokerViewModel @Inject constructor(
     private val humanSeatIndex: Int = 0
 
     // Mirror read by the session each bot turn so a mid-hand speed toggle applies next.
-    private var latestBotSpeed: BotSpeed = BotSpeed.Normal
+    private var latestGameSpeed: GameSpeed = GameSpeed.Normal
 
     // Per-hand transients fed into the table projection (not part of GameState);
     // tracked from events, cleared each hand.
@@ -158,7 +158,7 @@ class PlayPokerViewModel @Inject constructor(
     // Created here so the hand-end lambda can reference `viewModelScope`.
     private val session: PokerSession = sessionFactory.create(
         humanSeatIndex = humanSeatIndex,
-        botSpeedProvider = { latestBotSpeed },
+        gameSpeedProvider = { latestGameSpeed },
         onHandEnded = { event, state, humanStartingStack ->
             handleHandEnded(event, state, humanStartingStack)
         },
@@ -258,8 +258,9 @@ class PlayPokerViewModel @Inject constructor(
         // Settings mirrors
         viewModelScope.launch {
             appCache.updates.collect { data ->
-                latestBotSpeed = data.botSpeed
+                latestGameSpeed = data.gameSpeed
                 takeAction(PlayPokerAction.TurnFeedbackChanged(data.turnFeedback))
+                takeAction(PlayPokerAction.GameSpeedChanged(data.gameSpeed))
                 takeAction(PlayPokerAction.SwipeFoldAckChanged(data.swipeFoldGestureAck))
                 takeAction(PlayPokerAction.WinOddsFlipHintSeenChanged(data.winOddsFlipHintSeen))
                 takeAction(PlayPokerAction.MutedEmojiPlayersChanged(data.mutedEmojiPlayerKeys))
@@ -740,6 +741,9 @@ class PlayPokerViewModel @Inject constructor(
             }
             is PlayPokerAction.TurnFeedbackChanged -> action.updateState {
                 it.copy(turnFeedback = action.value)
+            }
+            is PlayPokerAction.GameSpeedChanged -> action.updateState {
+                it.copy(gameSpeed = action.value)
             }
             is PlayPokerAction.XpBoostChanged -> action.updateState {
                 it.copy(xpBoostExpiresAtEpochMs = action.expiresAtEpochMs)

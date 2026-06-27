@@ -5,7 +5,7 @@ import com.dangerfield.cards.features.room.impl.ui.label
 import com.dangerfield.cards.features.room.impl.usecase.MultiplayerCredit
 
 import com.dangerfield.cards.libraries.bots.BotPersonality
-import com.dangerfield.cards.libraries.cards.BotSpeed
+import com.dangerfield.cards.libraries.cards.GameSpeed
 import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.cards.XpMode
@@ -73,10 +73,10 @@ class RemotePokerSessionFactory @Inject constructor(
 
     override fun create(
         humanSeatIndex: Int,
-        botSpeedProvider: () -> BotSpeed,
+        gameSpeedProvider: () -> GameSpeed,
         onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit,
     ): PokerSession {
-        // botSpeedProvider + humanSeatIndex are bot-mode hints; remote
+        // gameSpeedProvider + humanSeatIndex are bot-mode hints; remote
         // sessions don't act on them. onHandEnded fires through the
         // VM's normal GameEvent collector → handleHandEnded path
         // (achievement detection still works there).

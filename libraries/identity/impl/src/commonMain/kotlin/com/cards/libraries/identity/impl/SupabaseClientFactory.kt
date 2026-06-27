@@ -31,13 +31,36 @@ interface SupabaseClientComponent {
     fun provideSupabaseClient(config: IdentityConfig): SupabaseClient =
         createSupabaseClient(
             supabaseUrl = config.supabaseUrl,
-            supabaseKey = config.supabaseAnonKey,
+            supabaseKey = config.supabasePublishableKey,
         ) {
             install(Auth) {
                 // alwaysAutoRefresh = true (default) — refresh tokens
                 // before they expire so we don't get a 401 on every call.
                 // autoLoadFromStorage = true (default) — restore session
                 // from `multiplatform-settings` storage on cold start.
+
+                // Browser OAuth redirect target. supabase-kt builds the
+                // redirect_to it sends to the provider from scheme://host on
+                // Android + Apple, so a Google sign-in lands back on
+                // `cards://login-callback`. The app's deep-link collector hands
+                // that URL straight to [SupabaseAuthGateway.completeOAuthRedirect]
+                // (see App.kt) rather than the nav graph.
+                //
+                // Flow stays the default IMPLICIT: the session tokens arrive in
+                // the URL fragment, which `parseSessionFromUrl` reads with no
+                // extra round trip. The matching `cards://login-callback` URL
+                // must also be added as a redirect URL in the Supabase project's
+                // Auth → URL Configuration.
+                scheme = OAUTH_REDIRECT_SCHEME
+                host = OAUTH_REDIRECT_HOST
             }
         }
+
+    companion object {
+        /** Deep-link scheme for the browser OAuth return trip — `cards://`. */
+        const val OAUTH_REDIRECT_SCHEME = "cards"
+
+        /** Deep-link host for the browser OAuth return trip — `…//login-callback`. */
+        const val OAUTH_REDIRECT_HOST = "login-callback"
+    }
 }

@@ -62,12 +62,12 @@ import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.Card
 import com.dangerfield.cards.libraries.ui.components.CardsFan
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
+import com.dangerfield.cards.libraries.ui.components.GoogleSignInButton
 import com.dangerfield.cards.libraries.ui.components.RotatingDial
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.XpBadge
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
-import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
@@ -131,7 +131,6 @@ import cards.libraries.resources.generated.resources.onboarding_welcome_sign_in
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_apple
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_google
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_google_short
-import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_in_flight
 import cards.libraries.resources.generated.resources.onboarding_welcome_subtitle
 import cards.libraries.resources.generated.resources.onboarding_welcome_title
 import cards.libraries.resources.generated.resources.ui_top_bar_back_a11y
@@ -448,10 +447,10 @@ private fun OAuthOptions(
                 modifier = Modifier.weight(1f),
             )
             GoogleSignInButton(
-                state = state,
-                onAction = onAction,
-                oauthBusy = oauthBusy,
-                label = stringResource(Res.string.onboarding_welcome_oauth_google_short),
+                text = stringResource(Res.string.onboarding_welcome_oauth_google_short),
+                onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
+                enabled = !oauthBusy,
+                isLoading = state.oauthInFlight == OAuthProvider.Google,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -465,37 +464,11 @@ private fun OAuthOptions(
         )
     } else if (state.googleEnabled) {
         GoogleSignInButton(
-            state = state,
-            onAction = onAction,
-            oauthBusy = oauthBusy,
-            label = stringResource(Res.string.onboarding_welcome_oauth_google),
+            text = stringResource(Res.string.onboarding_welcome_oauth_google),
+            onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
+            enabled = !oauthBusy,
+            isLoading = state.oauthInFlight == OAuthProvider.Google,
             modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
-
-@Composable
-private fun GoogleSignInButton(
-    state: OnboardingState,
-    onAction: (OnboardingAction) -> Unit,
-    oauthBusy: Boolean,
-    label: String,
-    modifier: Modifier = Modifier,
-) {
-    // flat so the neutral fill reads as a quiet alternative next to the native
-    // Apple button, rather than carrying the 3D lip the gold guest CTA owns.
-    ButtonSecondary(
-        onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
-        enabled = !oauthBusy,
-        flat = true,
-        modifier = modifier,
-    ) {
-        Text(
-            if (state.oauthInFlight == OAuthProvider.Google) {
-                stringResource(Res.string.onboarding_welcome_oauth_in_flight)
-            } else {
-                label
-            },
         )
     }
 }
