@@ -1,12 +1,19 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Server deploy to Fly.io — PRODUCTION (cards-server-prod).
 #
-# Fires on:    manual dispatch only. Prod deploys are deliberate — unlike dev
-#              (which auto-deploys on every push to main), prod ships when you
-#              ask it to, after dev has been exercised.
+# Release model: the server is continuously deployed, INDEPENDENT of the mobile
+# app release (release-please / release.yml). Coordinate breaking client⇄server
+# changes with config flags, not lockstep deploys. See
+# docs/branching-and-release-strategy.md → "Server release model".
+#
+# Fires on:    push to main (server-affecting paths) — auto-QUEUES a prod deploy
+#              that PAUSES on the `production` GitHub Environment until a human
+#              approves it (Actions → the run → "Review deployments"). Dev has
+#              already auto-deployed by then, so the approver verifies dev looks
+#              good, then one-click approves prod. Also `workflow_dispatch` as a
+#              break-glass / redeploy button.
 # Auth:        FLY_API_TOKEN_PROD secret, created via
-#                `fly tokens create deploy -a cards-server-prod --expiry 8760h`
-#              and pasted into Repo Settings → Secrets and variables → Actions.
+#                `fly tokens create deploy -a cards-server-prod --expiry 8760h`.
 #
 # See apps/server/DEPLOY.md for the two-environment setup walkthrough.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -14,6 +21,16 @@
 name: Deploy server (prod)
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/server/**'
+      - 'build-logic/**'
+      - 'gradle/libs.versions.toml'
+      - 'settings.gradle.kts'
+      - 'build.gradle.kts'
+      - '.github/workflows/server-deploy-prod.yml'
   workflow_dispatch:
     inputs:
       confirm:
@@ -29,9 +46,12 @@ jobs:
   deploy:
     name: Deploy to Fly (prod)
     runs-on: ubuntu-latest
+    # The gate: this Environment requires a reviewer's approval, so the job
+    # pauses here until a human approves. Both push and manual runs go through it.
+    environment: production
     steps:
-      - name: Guard — require explicit confirmation
-        if: ${{ inputs.confirm != 'prod' }}
+      - name: Guard — require explicit confirmation (manual runs only)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm != 'prod' }}
         run: |
           echo "Refusing to deploy: type 'prod' in the confirm input to proceed."
           exit 1
@@ -91,6 +111,8 @@ jobs:
           echo "Manifest upload → HTTP $status"
           cat /tmp/manifest-response.json; echo
           if [ "$status" != "200" ]; then
-            echo "::error::Config manifest upload failed (HTTP $status)"
-            exit 1
+            # Don't fail an otherwise-healthy server deploy over the manifest (a
+            # secondary record). Most likely the GH secret and the server's
+            # ADMIN_API_TOKEN don't match — re-upload manually, or rotate both.
+            echo "::warning::Config manifest upload failed (HTTP $status) — server deploy still succeeded."
           fi

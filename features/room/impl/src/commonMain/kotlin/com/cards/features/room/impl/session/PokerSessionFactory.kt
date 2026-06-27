@@ -3,8 +3,8 @@ package com.dangerfield.cards.features.room.impl.session
 import com.dangerfield.cards.features.room.impl.TableUiState
 import com.dangerfield.cards.features.room.impl.ui.label
 
-import com.dangerfield.cards.libraries.cards.BotSpeed
 import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
+import com.dangerfield.cards.libraries.cards.GameSpeed
 import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.levelProgressFor
@@ -44,7 +44,7 @@ interface PokerSessionFactory {
 
     fun create(
         humanSeatIndex: Int,
-        botSpeedProvider: () -> BotSpeed,
+        gameSpeedProvider: () -> GameSpeed,
         onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit,
     ): PokerSession
 

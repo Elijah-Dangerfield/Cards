@@ -32,7 +32,6 @@ import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.tatarka.inject.annotations.Inject
@@ -185,9 +184,18 @@ class OfflineFirstAppConfigRepository @Inject constructor(
             ?.let { BasicMapAppConfig(it) }
 
     private inner class LazyAppConfigMap : AppConfigMap() {
+        // Synchronous + non-blocking by design. A `ConfiguredValue` read can land
+        // on the main thread (e.g. `progressionConfig.levelCurve()` during
+        // composition), so this must never block: on a cold/fresh start the
+        // stream hasn't emitted yet (it waits for the first cached config), and
+        // `runBlocking { configStream.first() }` here deadlocks the app — the
+        // main thread parks while the K/N worker pool is full of the same
+        // blocking read, so nothing can produce the config (scene-create
+        // watchdog → SIGKILL). Return the latest emitted config if present, else
+        // the shipped [fallbackConfig]; every `ConfiguredValue` already falls
+        // back to its own default for any missing key, and reactive readers
+        // (App.kt `remember(config)`) recompose once the real config arrives.
         override val map: Map<String, *>
-            get() = configStream.replayCache.firstOrNull()?.map ?: runBlocking {
-                configStream.first().map
-            }
+            get() = configStream.replayCache.firstOrNull()?.map ?: fallbackConfig.map
     }
 }

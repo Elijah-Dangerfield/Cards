@@ -125,36 +125,53 @@ private fun FlagDetail(
         P(attrs = { classes("muted"); style { property("margin", "4px 0 8px") } }) { Text(it) }
     }
 
-    // The three-layer story: in-code default → DB base → resolved-for-target.
+    // The resolve story: shipped default (read-only) → global override (optional)
+    // → resolved-for-target. The app *ships* the default; the site mainly targets.
     Div(attrs = { classes("layers") }) {
-        Layer("in-code default", row.default.inline(), "what the build shipped with")
-        Layer("DB base value", if (row.inDb) row.base.inline() else "(no override)", "served when no rule matches")
+        Layer("shipped default", row.default.inline(), "what the app ships with (read-only)")
+        if (row.inDb) {
+            Layer("global override", row.base.inline(), "served to all targets when no rule matches")
+        }
         Layer("resolved", row.resolved.inline(), "for the current target")
     }
 
-    // Base value editor (creates the DB flag if it doesn't exist yet).
+    // Global override editor — optional. Without one the app's shipped default is
+    // served; setting one overrides the default for *every* target that no rule
+    // matches. The shipped default above stays read-only; this is the explicit,
+    // opt-in remote retune layer.
     var baseDraft by remember(row.path, row.base) {
         mutableStateOf((row.base ?: row.default).inline().takeUnless { it == "—" } ?: "null")
     }
-    Div(attrs = { classes("row"); style { property("margin-top", "8px") } }) {
-        Label { Text("base value") }
-        TextInput(baseDraft) { onInput { baseDraft = it.value } }
-        Button(attrs = {
-            classes("primary")
-            onClick {
-                val element = parseJsonOrNull(baseDraft)
-                if (element == null) { setStatus(Status(false, "Base value must be valid JSON")); return@onClick }
-                dangerousWarning(row.path, baseDraft)?.let { if (!confirmDialog(it)) return@onClick }
-                scope.launchOp(setStatus, reload, "Saved base value for ${row.path}") {
-                    api.upsertFlag(row.path, element)
-                }
-            }
-        }) { Text(if (row.inDb) "Save base" else "Create override") }
-        if (row.inDb) {
+    Div(attrs = { style { property("margin-top", "8px") } }) {
+        Span(attrs = { classes("muted") }) {
+            Text(
+                if (row.inDb) {
+                    "Global override (all targets) — edit or remove to fall back to the shipped default"
+                } else {
+                    "No global override — every target gets the shipped default. Add one to retune remotely without a release."
+                },
+            )
+        }
+        Div(attrs = { classes("row"); style { property("margin-top", "6px") } }) {
+            Label { Text("override value") }
+            TextInput(baseDraft) { onInput { baseDraft = it.value } }
             Button(attrs = {
-                classes("danger")
-                onClick { scope.launchOp(setStatus, reload, "Deleted ${row.path}") { api.deleteFlag(row.path) } }
-            }) { Text("Delete flag") }
+                classes("primary")
+                onClick {
+                    val element = parseJsonOrNull(baseDraft)
+                    if (element == null) { setStatus(Status(false, "Override value must be valid JSON")); return@onClick }
+                    dangerousWarning(row.path, baseDraft)?.let { if (!confirmDialog(it)) return@onClick }
+                    scope.launchOp(setStatus, reload, "Saved global override for ${row.path}") {
+                        api.upsertFlag(row.path, element)
+                    }
+                }
+            }) { Text(if (row.inDb) "Save override" else "Add global override") }
+            if (row.inDb) {
+                Button(attrs = {
+                    classes("danger")
+                    onClick { scope.launchOp(setStatus, reload, "Removed override for ${row.path}") { api.deleteFlag(row.path) } }
+                }) { Text("Remove override") }
+            }
         }
     }
 
@@ -162,7 +179,7 @@ private fun FlagDetail(
     Div(attrs = { style { property("margin-top", "12px") } }) {
         Span(attrs = { classes("muted") }) { Text("Targeting rules — first match wins, in priority order") }
         if (row.rules.isEmpty()) {
-            P(attrs = { classes("muted") }) { Text("No rules. Everyone gets the base value.") }
+            P(attrs = { classes("muted") }) { Text("No rules. Every target gets the global override, or the shipped default if none is set.") }
         }
         row.rules.forEach { rule -> RuleRow(rule, api, scope, setStatus, reload) }
     }

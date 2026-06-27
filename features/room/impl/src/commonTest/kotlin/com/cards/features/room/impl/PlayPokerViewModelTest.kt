@@ -8,7 +8,7 @@ import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AchievementRarity
 import com.dangerfield.cards.libraries.cards.AppData
-import com.dangerfield.cards.libraries.cards.BotSpeed
+import com.dangerfield.cards.libraries.cards.GameSpeed
 import com.dangerfield.cards.libraries.cards.Criterion
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.Progression
@@ -87,15 +87,15 @@ class PlayPokerViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun appCacheBotSpeed_isExposedToSession() = runUnitTest {
+    fun appCacheGameSpeed_isExposedToSession() = runUnitTest {
         val cache = FakeAppCache()
         val factory = FakePokerSessionFactory()
         val vm = buildVm(appCache = cache, factory = factory)
         vm  // suppress unused — the VM is the system under test, constructed for side effects
 
-        cache.emit(AppData(botSpeed = BotSpeed.Fast))
+        cache.emit(AppData(gameSpeed = GameSpeed.Fast))
 
-        assertEquals(BotSpeed.Fast, factory.capturedBotSpeedProvider?.invoke())
+        assertEquals(GameSpeed.Fast, factory.capturedGameSpeedProvider?.invoke())
     }
 
     @Test

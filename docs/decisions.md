@@ -27,6 +27,21 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-26 — Room invites share a deep link via a platform `ShareLauncher`, code as a path segment (ROOM-7)
+
+**Decision:** Sharing a room invite goes through a new `ShareLauncher` capability in `:libraries:navigation` (sibling to `WebLinkLauncher`), surfaced as `Router.shareText(text)` and backed by per-platform impls (Android `ACTION_SEND` chooser, iOS `UIActivityViewController`, JVM unsupported). The invite link is `cards://join/{prefilledCode}` — the code is a **path segment**, not a query param — built from one source of truth, `RoomInvite.linkForCode`, which the lobby deep-link registration also references so the share URL and the registered deep link can't drift. Every room already carries a shareable code regardless of visibility, so the affordance is identical for private/open/public rooms; "public" only adds Find-a-Table discovery on top.
+
+**Why:** A share sheet is a fire-and-forget platform side effect with the exact shape of `openWebLink`, so it belongs on `Router` next to it rather than as a one-off in the lobby screen — any future invite surface (friends, achievements) reuses it. A path-segment code keeps the shared URL human-readable (`cards://join/ABC123`) versus a query string, and centralising the link string means the deep-link basePath and the share builder are provably the same.
+
+**Alternatives considered:**
+- **Build the share string + call platform APIs inline in `LobbyScreen`.** Rejected: composables don't own platform side effects here (clipboard is the lone exception, and even that is borderline); a share sheet needs the root view controller on iOS, which only the DI-wired impl can reach.
+- **Query-param code (`cards://join?prefilledCode=ABC123`).** Works (Navigation matches it), but the shared link reads as machine output. Path segment is friendlier and still resolves through `routeDeepLink<LobbyRoute>`.
+- **Server-issued short links / Universal Links (https://).** Deferred — needs an assetlinks.json / apple-app-site-association host and a link-shortening service. The custom `cards://` scheme is already wired on both platforms and ships today.
+
+**Status:** Locked.
+
+---
+
 ## 2026-06-25 — Placeholder ($0) room snapshots are dropped in the data layer, not the UI (MP-16)
 
 **Decision:** The "don't show a $0 buy-in" rule lives as one domain invariant, `Room.preferRealOver(previous)` (backed by `Room.isPlaceholder`, i.e. `buyIn <= 0`), applied at every repo staging boundary: `RoomRepositoryImpl.upsertActiveRoom` (HTTP create/join/addBot) and `ReconnectingRoomSocket`'s `Snapshot` emission (the live lobby path). A placeholder snapshot never regresses a known-good room — the repo retains the last real one. The `LobbyScreen` `if (room.buyIn > 0)` band-aid was removed; the UI no longer defends against an impossible state.
@@ -560,3 +575,81 @@ This makes Supabase feel like "managed Postgres + hosted auth" rather than "all-
 **Alternatives considered:** (1) Persist the last-known stack on the `table_sessions` row instead. Rejected: that row is per-user lifecycle bookkeeping written on sit-down / status flips, not on every hand boundary, so it would need a new write path on the gameplay hot loop and a second source of truth for "what did this player walk away with"; the snapshot already mutates at exactly the right cadence. (2) Recompute the stack from the snapshot's event history — there is no durable event log (snapshot-only state, see 2026-05-29), so nothing to replay. Round-trip safety: the column is `NOT NULL DEFAULT '{}'`, so pre-V74 rows and any insert that omits it read back as an empty map (no recorded stack → the sweep falls back to a full refund, the prior behaviour) rather than failing to deserialize.
 
 **Status:** Shipped. Red/green proven by `Mp13CrashRecoveryConservationTest` (harness `restart()` + sweep); `PostgresSessionSnapshotStoreTest` pins the round-trip + the pre-V74 empty-map fallback.
+
+## 2026-06-26 — Lazily seed a config flag from its manifest default when a rule first attaches (ENG-4)
+
+**Decision:** The admin rule write (`PUT /v1/admin/config/rules/{id}`) now calls `seedFlagFromManifestIfMissing` before the rule upsert: if the flag has no DB row, the server materializes one from the flag's shipped manifest default and only then attaches the rule. A flag with neither a DB row nor a manifest entry still returns 409 `unknown_flag`. The admin client no longer mints a base override (`upsertFlag(seed)`) as a side effect of adding a rule, and `launchOp` now reloads on both success and failure so a rejected write can't leave the flag list looking stale.
+
+**Why:** The targeting-rule write has an FK on the flag row. The client worked around it by writing a DB base override from the in-code default before every rule add, so a failed rule-add could leave behind a base override the operator never intended, and the resolve layers showed a "base value" the operator never set. Moving the seed server-side, sourced from the authoritative manifest default rather than a client guess, keeps the FK invariant intact while making "add a rule to a flag that only ships in code" a single honest operation. Reloading on failure fixes the separate no-render bug where a 400/409 set an error banner but skipped the refresh, so the just-added rule looked like it silently vanished.
+
+**Alternatives considered:** (1) Relax the FK so rules can reference a flag with no row. Rejected: it splits the source of truth (a rule pointing at a non-existent flag) and complicates resolve, which already unions DB + manifest. (2) Keep minting the base override but do it server-side. Rejected: that still presents the shipped default as an operator-set "base value", which is exactly the confusion ENG-5 is chartered to remove; seeding silently from the manifest default (an audit `create_flag` row records it) is the honest middle ground.
+
+**Status:** Shipped. Red/green proven by `ConfigAdminRoutesTest.upsertRule_forManifestOnlyFlag_seedsBaseFromManifestDefault_andSucceeds` (was 409, now 200 + seeded base) and `upsertRule_forUnknownFlagWithNoManifest_is409` (the no-manifest path stays an honest conflict).
+
+## 2026-06-27 — Rewrite Terms/Privacy to professional coverage; 18+ age gate, arbitration + class-action waiver (AUTH-7)
+
+**Decision:** Rewrote `pages/terms.html` and `pages/privacy.html` from the thin starter set to the full coverage a simulated-gambling app is expected to carry, in Dealt's plain-English voice. Terms now cover: amusement/non-gambling disclaimer, an **18+ age gate**, virtual-currency disclaimer, app-store terms (Apple as third-party beneficiary), third-party services (Supabase/Fly/Sentry named), suspension/termination + survival, warranty disclaimer, limitation of liability, indemnification, a **binding-arbitration + class-action-waiver** dispute-resolution block (AAA Consumer Rules, NY seat, small-claims + IP carve-outs, **30-day opt-out**, one-year limit), NY governing law, and severability/entire-agreement. Privacy adds: a sub-processor disclosure ("Where your data lives" — Supabase + Fly, US), retention, security, and a "Your privacy rights" section (access/correct/delete/export/object + regulator complaint). Children raised from under-13 to under-18 to match the age gate. `LegalUrls.LEGAL_VERSION` bumped `1 → 2` so the re-accept gate fires.
+
+**Why:** The owner asked to match competitor (Offsuit) coverage. We deliberately did **not** copy Offsuit's text — it's copyrighted and describes their entity, practices, and third parties (ads, offer walls, real-money, social-login friend import) that Dealt doesn't have, which would make Dealt's docs factually false. Instead we wrote Dealt-accurate prose covering the same professional topics, and dropped the inapplicable Offsuit clauses (advertising/offer-wall, subscriptions, multi-state privacy appendix). 18+ chosen over the current 13 because the app carries a poker theme and a "simulated gambling" store rating; aligning the age gate sidesteps COPPA/teen-data scope.
+
+**Alternatives considered:** (1) Copy Offsuit verbatim — rejected (copyright + factual inaccuracy, above). (2) Keep the NY-courts-only model — owner chose to add arbitration. (3) Keep 13+ — out of step with the poker rating.
+
+**Caveat / follow-up:** The arbitration + class-action-waiver clause is the most legally consequential part and its enforceability turns on drafting; this is a reasonable standard version, **not** a substitute for counsel. A lawyer review before launch is tracked in `developer-todo.md`.
+
+**Status:** Shipped (docs + version bump). No automated test — static legal copy; `LEGAL_VERSION` consumers all read the constant, so the onboarding re-consent tests stay green.
+
+## 2026-06-27 — Move both Supabase projects onto new publishable/secret API keys; disable legacy JWT keys
+
+**Decision:** Both projects (dev `yuqrfhdoejonclgbixlw`, prod `kzohlyvmnnvyabspzpbb`) now use Supabase's new API keys: the client ships the `sb_publishable_` key (`AppEnvironment.supabasePublishableKey`, replacing the legacy `anon` JWT) and the server reads an `sb_secret_` key as `SUPABASE_SERVICE_ROLE_KEY` (Fly secret). Legacy `anon` + `service_role` JWT keys are **disabled** on both projects. Prod's Fly app `cards-server-prod` now has its secrets set (DATABASE_URL/SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY/ADMIN_API_TOKEN) and is running.
+
+**Correction — `fly secrets set` only restarts the existing image; it does NOT deploy new code.** Both `cards-server-dev` and `cards-server-prod` deploy on push to `main`, and the unslop copy (V78/V79) + all of PR #80's work is on `develop`. So neither live DB has the unslopped copy yet — verified via `GET /v1/products` on both (old copy still served). ENG-3 ships when PR #80 merges to main and both servers redeploy (Flyway then applies V78/V79).
+
+**Why:** A prod `service_role` JWT was exposed during setup. Both projects had already migrated to JWT Signing Keys, so the legacy secret was verify-only and not simply regenerable; the clean fix Supabase recommends is moving to publishable/secret keys and disabling the legacy ones. Doing it on **both** envs (not prod-only) keeps dev/prod config identical — the operator's explicit requirement, and the right call to avoid drift. The server never decodes its key (it's a bearer credential to the Auth admin API), and user-token verification is via JWKS, so `sb_secret_` is a drop-in and disabling legacy keys breaks nothing.
+
+**Status:** Shipped. Client change in `refactor(identity): move client onto Supabase publishable keys`. Server/key changes are infra (Fly secrets + Supabase dashboard), not source. Follow-up: the leaked legacy key is dead (disabled), so no rotation debt remains.
+
+## 2026-06-27 — Complete Google sign-in via the browser OAuth flow (not the dormant native id-token path)
+
+**Decision:** Google sign-in now logs a user in end-to-end through supabase-kt's **browser OAuth flow**. Three pieces:
+
+- **Redirect config.** The Auth plugin is configured with `scheme = "cards"` / `host = "login-callback"` (`SupabaseClientFactory`), so supabase-kt builds `cards://login-callback` as the `redirect_to` it sends Google on Android + Apple targets. Flow stays the default **IMPLICIT** — the session tokens come back in the URL fragment.
+- **Return trip.** The provider redirects to `cards://login-callback#access_token=…`. On iOS `.onOpenURL` already feeds every URL into the common `DeepLinkBridge`; on Android `MainActivity.onCreate`/`onNewIntent` now forward **only** the auth-callback URL into the same bridge (other `cards://` links keep going straight to NavHost, which reads `Activity.intent.data` itself). `App.kt`'s bridge collector tests each URL with `AuthRepository.isOAuthRedirect` and routes a match to `AuthRepository.completeOAuthRedirect(url)` instead of `navController.handleDeepLink`. That calls supabase-kt's stable common API `Auth.parseSessionFromUrl(url)` + `Auth.importSession(session, source = SessionSource.External)`, then emits the new `AuthState.Authenticated`.
+- **Button + flag.** A reusable `GoogleSignInButton` (four-colour Google "G" + label, white brand surface) lands in `:libraries:ui` and replaces the plain `Button` on the sign-in + claim screens. `GoogleSignInEnabled` now defaults `true` (matching Apple).
+
+**Why browser OAuth, not native id-token:** the gateway already has a **dormant** native Google path (`signInWithGoogleIdToken`) wired ahead of a token source — but there's no Credential Manager (Android) / GIDSignIn (iOS) integration producing that id token, so it can't sign anyone in today. The browser flow needs no Google SDK, no per-platform client-id plumbing, and reuses the deep-link bridge that already exists for verify-email. It's the smallest correct path to a working Google login. Native Google (one-tap, no browser bounce) stays a future polish — when a token source is added, `signInWithGoogleIdToken` is already there to call.
+
+**Why `parseSessionFromUrl` + `importSession` over the platform `handleDeeplinks`:** supabase-kt's `SupabaseClient.handleDeeplinks` is platform-specific (`Intent` on Android, `NSURL` on Apple) and would force an `iosMain` source set into `:libraries:identity:impl` (which has none today). `parseSessionFromUrl`/`importSession` are **public, common, stable** API doing exactly what the platform helpers do internally for the IMPLICIT flow — so the whole return trip lives in `commonMain`, behind the existing `SupabaseAuthGateway` seam, and is unit-testable with the in-memory fake.
+
+**Alternatives considered:** (1) Native Google id-token now — rejected: no token source exists, so it's not actually a login (above). (2) Switch to the PKCE flow — rejected for V1: PKCE adds a code-exchange round trip + a code-verifier cache and buys little for a mobile custom-scheme redirect; IMPLICIT is supabase-kt's default and the platform `handleDeeplinks` support it directly. Revisit if we ever serve the callback over https App Links. (3) Let the callback flow through NavHost as a route — rejected: it maps to no destination, so NavHost silently drops it and the session never lands; intercepting before the navigator is the correct seam.
+
+**Caveat:** This is auth code that **cannot be device-tested in CI** — the OAuth round trip needs a real browser + the Supabase project configured (Google provider enabled + `cards://login-callback` added to the redirect-URL allowlist). Manual device QA is tracked in `developer-todo.md`; the dashboard config is a new item there too.
+
+**Status:** Shipped (client). Unit tests in `SupabaseAuthRepositoryImplTest` pin the import-and-emit success path, the no-token → Cancelled path, and `isOAuthRedirect` matching. Android `assembleDebug`, iOS `compileKotlinIosSimulatorArm64`, and `detekt` (0 findings) all green. End-to-end sign-in unverified until device QA + Supabase dashboard config.
+
+> **Superseded 2026-06-27 by "Google browser-OAuth: suspend until the redirect resolves" below.** The flow above emitted auth state right after the browser opened, which was wrong: the session hasn't arrived yet, and a link (claim) redirect carries no session to import at all. The entry below is the current design.
+
+## 2026-06-27 — Google browser-OAuth: suspend until the redirect resolves (link ≠ sign-in)
+
+**Problem (verified on device):** With supabase-kt 3.6.0, `auth.signInWith(OAuth)` and `auth.linkIdentity(OAuth)` only **open the system browser** and return immediately — the session arrives ~seconds later as the `cards://login-callback` deep link. The previous flow (entry above) called the gateway then immediately emitted auth state. So `signInWithOAuth`/`linkOAuthIdentity` reported a result **before the redirect**. For a claim that emitted the still-anonymous session → "Success" while nothing had changed → the "Save your progress" banner persisted. Then the deep-link handler `completeOAuthRedirect` ran assuming a sign-in session lived in the URL; a **link** redirect carries none → `emitAuthenticatedFromGatewayLocked called without a session` (`IllegalStateException`, caught + logged).
+
+**Decision:** Make the OAuth start calls **suspend until the redirect resolves**, so the existing outcome-driven UI works unchanged (`ClaimAccountViewModel`/`OnboardingViewModel` still `when` on the return value and spin a spinner during the call). Mechanics in `SupabaseAuthRepositoryImpl`:
+
+- **One in-flight handle.** A nullable `PendingOAuth` = a `CompletableDeferred<OAuthRedirectResult>` + the **flow kind** (`SignIn` vs `Link`). Starting a new attempt while one is pending resolves the old as `Cancelled` (so its starter unsuspends) and replaces it.
+- **Start (two phases).** `signInWithOAuth` / `linkOAuthIdentity` launch the browser via the gateway **under the mutex**, park the handle, then `await` the deferred **outside the mutex** — awaiting under the lock would deadlock `completeOAuthRedirect`, which needs the same mutex to resolve us. No premature emit. A launch failure (browser couldn't open) returns the mapped failure without parking.
+- **Finish.** `completeOAuthRedirect(url)` reads the pending kind:
+  - **SignIn** → `parseSessionFromUrl(url)` + `importSession(session, source = External)` → emit `Authenticated` → resolve `Success`.
+  - **Link** → do **not** parse the URL (no session in a link redirect). Call `Auth.retrieveUserForCurrentSession(updateSession = true)` (supabase-kt 3.6.0, `Auth.kt:357`) to refresh the now-linked, non-anonymous user into the current session → emit `Authenticated` (`isAnonymous = false`) → resolve `Success`.
+  - **Any failure** → never throw out of this path; resolve the handle with the mapped failure (reusing the existing `RestException`/`HttpRequestException`/cancel mapping) and leave auth state as-is. A redirect with **no pending handle** (stray/duplicate) no-ops safely.
+- **Backstop.** A generous (3-minute) timeout on the await; on expiry resolve `Cancelled` and clear the handle. Clean "user backed out of the browser" cancellation (the app foregrounds with no redirect) is a **known rough edge** — we deliberately did NOT build foreground-race detection now; the timeout is the backstop and the cancel UX will be refined during device testing.
+
+**Why suspend-the-call over a fire-and-forget event:** the VMs are already outcome-driven (`when (authRepository.linkOAuthIdentity(...))`), and the spinner is gated on the call being in flight. Keeping the call suspended until the real result lands means **zero VM changes** and the spinner naturally covers the browser round trip.
+
+**Why a single handle, not a queue:** there is exactly one OAuth attempt a user can have in flight (one browser, one consent screen). A second start means the user abandoned the first — resolving the old as `Cancelled` is the correct, simplest model.
+
+**Gateway seam:** added `refreshLinkedUser()` to `SupabaseAuthGateway` (`RealSupabaseAuthGateway` → `retrieveUserForCurrentSession(updateSession = true)`); the in-memory fake implements it so the link path is unit-testable. `completeOAuthRedirect` on the gateway stays sign-in-only (parse + import).
+
+**APIs used (re-verified against `auth-kt-3.6.0-sources.jar`, commonMain):** `Auth.retrieveUserForCurrentSession(updateSession: Boolean = false): UserInfo` (`Auth.kt:357`), `Auth.parseSessionFromUrl(url): UserSession` (`AuthExtensions.kt:54`), `Auth.importSession(session, autoRefresh, source)` (`Auth.kt:372`), `Auth.refreshCurrentSession()` (`Auth.kt:404`), `Auth.currentSessionOrNull()` (`Auth.kt:493`), `Auth.currentUserOrNull()` (`Auth.kt:501`). All match the spec.
+
+**Flag:** `GoogleSignInEnabled.default` flipped back to `true` (matching Apple). Still gated on the Supabase Google provider + `cards://login-callback` redirect URL being configured, and a device test — tracked in `developer-todo.md`.
+
+**Status:** Shipped (client). `SupabaseAuthRepositoryImplTest` pins: the regression (link must NOT return Success while anonymous — it suspends, resolves only when the redirect runs), link happy path (refresh-user → `isAnonymous = false` → `LinkIdentityOutcome.Success`), sign-in happy path (parse+import → `SignInOutcome.Success`), redirect-failure resolving the suspended call without throwing, and the no-pending-handle no-op. Android `assembleDebug`, iOS `compileKotlinIosSimulatorArm64`, and `detekt` green. End-to-end sign-in / claim / cancel unverified until device QA + Supabase dashboard config.

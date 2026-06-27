@@ -14,9 +14,10 @@ import com.dangerfield.cards.buildinfo.CardsBuildConfig
  * forces a choice for local testing; it's CI-guarded so an override can't land
  * on a shared branch — see `Versioning.kt#loadServerMetadata`.
  *
- * Anon keys are public by design (Postgres RLS is the real guard, not secrecy),
- * so embedding both here is fine — same reasoning that kept the dev key in
- * source before this consolidation.
+ * Publishable keys are public by design (Postgres RLS is the real guard, not
+ * secrecy), so embedding both here is fine — same reasoning that kept the dev
+ * key in source before this consolidation. These replaced the legacy `anon`
+ * JWT keys when both projects moved to Supabase's new publishable/secret keys.
  *
  * Named `AppEnvironment` rather than `Environment`: this is a public type exported
  * into the iOS framework, and a bare `Environment` collides with `SwiftUI.Environment`
@@ -26,26 +27,19 @@ enum class AppEnvironment(
     val displayName: String,
     val baseUrl: String,
     val supabaseProjectRef: String,
-    val supabaseAnonKey: String,
+    val supabasePublishableKey: String,
 ) {
     Dev(
         displayName = "dev",
         baseUrl = "https://cards-server-dev.fly.dev",
         supabaseProjectRef = "yuqrfhdoejonclgbixlw",
-        supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIs" +
-            "InJlZiI6Inl1cXJmaGRvZWpvbmNsZ2JpeGx3Iiwicm9sZSI6ImFub24iLCJ" +
-            "pYXQiOjE3NzkxMDY3NDEsImV4cCI6MjA5NDY4Mjc0MX0.0xX2-uFVNic_D" +
-            "36BMooHA5m8DEIOns1Y_XCVqECCtwA",
+        supabasePublishableKey = "sb_publishable_DePmCC4oTQiiTtqPVjC-sw_8TRLa7pt",
     ),
     Prod(
         displayName = "prod",
         baseUrl = "https://cards-server-prod.fly.dev",
         supabaseProjectRef = "kzohlyvmnnvyabspzpbb",
-        // Project's anon (public) API key. Public by design — gated by RLS.
-        supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." +
-            "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6b2hseXZtbm52eWFic3B6cGJiIiwi" +
-            "cm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMDgwODcsImV4cCI6MjA5NDY4NDA4N30." +
-            "rw8i_Hu6FsONRM3yhZmVutbDz_c6yK63x-1c9Io2kGw",
+        supabasePublishableKey = "sb_publishable_R9o8bEnWEZG5M_ooAwkujw_SYnZ58el",
     ),
     ;
 

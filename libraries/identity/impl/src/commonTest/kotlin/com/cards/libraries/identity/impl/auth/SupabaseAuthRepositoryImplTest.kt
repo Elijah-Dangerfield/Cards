@@ -20,6 +20,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -332,19 +333,28 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     @Test
     fun accountSwitch_dumpsDepartingUser_beforeEmit_andAnnouncesUserChange() = runUnitTest {
         // Start signed in as a guest, then sign into a *different* existing
-        // account. The guest's local data must be dumped before the new
-        // session is announced, and the switch announced as UserChanged.
+        // account via the browser flow. signInWithOAuth only opens the browser;
+        // the switch lands when completeOAuthRedirect imports the new session.
+        // The guest's local data must be dumped before the new session is
+        // announced, and the switch announced as UserChanged.
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.Authenticated,
             session = anonymousSession(userId = "guest-1"),
-            onSignInWithOAuth = { advanceToAuthenticated(claimedSession(userId = "real-2", email = "real@b.com")) },
+            onCompleteOAuthRedirect = {
+                advanceToAuthenticated(claimedSession(userId = "real-2", email = "real@b.com"))
+            },
         )
         val events = RecordingEventBus()
         val reset = RecordingUserScopedDataReset()
         val repo = build(gateway = gateway, appEventBus = events, userScopedDataReset = reset)
         advanceUntilIdle()
 
-        repo.signInWithOAuth(OAuthProvider.Google)
+        // Start the sign-in (parks, awaiting the redirect), then drive the redirect.
+        // runCurrent (not advanceUntilIdle) so the 3-min await timeout doesn't fire.
+        val signIn = async { repo.signInWithOAuth(OAuthProvider.Google) }
+        runCurrent()
+        repo.completeOAuthRedirect("cards://login-callback#access_token=t")
+        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Success>(signIn.await())
 
         val state = assertIs<AuthState.Authenticated>(repo.current())
         assertEquals("real-2", state.userId)
@@ -361,15 +371,16 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     @Test
     fun accountClaim_sameUserId_doesNotDump_andAnnouncesAccountClaimed() = runUnitTest {
         // Linking/claiming keeps the same user id (anon guest-1 becomes a
-        // claimed account but stays guest-1). The guest's progress is theirs:
-        // no dump, no UserChanged. But the just-claimed account's pending
-        // syncs would otherwise wait for the next foreground, so the claim is
-        // announced as AccountClaimed for the sync listeners to flush now.
+        // claimed account but stays guest-1). The link redirect carries no
+        // session, so completeOAuthRedirect refreshes the existing user. The
+        // guest's progress is theirs: no dump, no UserChanged. But the
+        // just-claimed account's pending syncs would otherwise wait for the next
+        // foreground, so the claim is announced as AccountClaimed.
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.Authenticated,
             session = anonymousSession(userId = "guest-1"),
-            onSignInWithOAuth = {
-                // Same id, now non-anonymous + email — models a refresh after claim.
+            onHydrateCurrentUser = {
+                // Same id, now non-anonymous + email — models the refresh after claim.
                 advanceToAuthenticated(claimedSession(userId = "guest-1", email = "claimed@b.com"))
             },
         )
@@ -379,11 +390,16 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         advanceUntilIdle()
         val dispatchedAtBoot = events.dispatched.size
 
-        repo.signInWithOAuth(OAuthProvider.Google)
+        val link = async { repo.linkOAuthIdentity(OAuthProvider.Google) }
+        runCurrent()
+        repo.completeOAuthRedirect("cards://login-callback")
+        assertIs<com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome.Success>(link.await())
 
         val state = assertIs<AuthState.Authenticated>(repo.current())
         assertEquals("guest-1", state.userId)
         assertEquals(false, state.isAnonymous, "the claim still flips anon → claimed")
+        assertEquals(1, gateway.hydrateCurrentUserCalls, "link redirect refreshes the user, never parses a session")
+        assertEquals(0, gateway.completeOAuthRedirectCalls, "a link redirect must NOT import a session from the URL")
         assertTrue(reset.clearedFor.isEmpty(), "same-user claim must not dump the guest's data")
         val afterClaim = events.dispatched.drop(dispatchedAtBoot)
         assertTrue(
@@ -395,6 +411,148 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
             afterClaim,
             "the claim is announced so user-scoped syncs flush now",
         )
+    }
+
+    @Test
+    fun resolve_authenticatedButSessionNotHydrated_fetchesUserAndResolves_neverThrows() = runUnitTest {
+        // Regression: a tokens-only session (status Authenticated but
+        // currentSession() == null because the user object isn't fetched yet —
+        // an OAuth import or a storage load) must hydrate + recover, NOT crash.
+        // The old code did `error("Authenticated status but no session")`, which
+        // surfaced on device as repeated red stack traces during sign-in/boot.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = null,
+            onHydrateCurrentUser = {
+                // Fetching the user populates the session — what supabase's
+                // retrieveUserForCurrentSession(updateSession = true) does.
+                advanceToAuthenticated(claimedSession(userId = "u-1"))
+            },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val state = assertIs<AuthState.Authenticated>(repo.current())
+        assertEquals("u-1", state.userId)
+        assertTrue(gateway.hydrateCurrentUserCalls >= 1, "resolve must hydrate a tokens-only session")
+    }
+
+    // ---------- browser OAuth: suspend-until-redirect ----------
+
+    @Test
+    fun linkOAuthIdentity_suspendsUntilRedirect_doesNotReturnSuccessWhileAnonymous() = runUnitTest {
+        // Regression for the broken flow: linkIdentity(OAuth) only OPENS the
+        // browser, so the repo must NOT report Success (and must not stay
+        // anonymous) until the cards://login-callback redirect actually lands.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = anonymousSession(userId = "guest-1"),
+            onHydrateCurrentUser = {
+                advanceToAuthenticated(claimedSession(userId = "guest-1", email = "claimed@b.com"))
+            },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val link = async { repo.linkOAuthIdentity(OAuthProvider.Google) }
+        runCurrent()
+
+        // Browser opened, but the redirect hasn't returned: still suspended, and
+        // the user is still the anonymous guest. (The old code emitted here and
+        // returned Success → "Save your progress" banner persisted.)
+        assertTrue(link.isActive, "linkOAuthIdentity must await the redirect, not resolve on browser open")
+        assertEquals(1, gateway.linkOAuthIdentityCalls, "the browser was launched exactly once")
+        assertTrue(
+            assertIs<AuthState.Authenticated>(repo.current()).isAnonymous,
+            "still anonymous until the redirect resolves the link",
+        )
+
+        // The redirect lands → the link resolves Success, now non-anonymous.
+        repo.completeOAuthRedirect("cards://login-callback")
+        assertIs<com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome.Success>(link.await())
+        assertEquals(false, assertIs<AuthState.Authenticated>(repo.current()).isAnonymous)
+    }
+
+    @Test
+    fun signInWithOAuth_suspendsUntilRedirect_thenParsesImportsAndReturnsSuccess() = runUnitTest {
+        // Happy sign-in: signInWithOAuth parks awaiting the redirect;
+        // completeOAuthRedirect parses+imports the session and emits Authenticated.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+            onCompleteOAuthRedirect = {
+                advanceToAuthenticated(claimedSession(userId = "oauth-1", email = "g@b.com"))
+            },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val signIn = async { repo.signInWithOAuth(OAuthProvider.Google) }
+        runCurrent()
+        assertTrue(signIn.isActive, "signInWithOAuth must await the redirect, not resolve on browser open")
+        assertEquals(1, gateway.signInWithOAuthCalls)
+
+        repo.completeOAuthRedirect("cards://login-callback#access_token=t&refresh_token=r")
+
+        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Success>(signIn.await())
+        assertEquals(1, gateway.completeOAuthRedirectCalls, "sign-in imports the session from the URL")
+        assertEquals(0, gateway.hydrateCurrentUserCalls, "sign-in does not use the link refresh path")
+        val state = assertIs<AuthState.Authenticated>(repo.current())
+        assertEquals("oauth-1", state.userId)
+        assertEquals(false, state.isAnonymous)
+    }
+
+    @Test
+    fun completeOAuthRedirect_failure_resolvesSuspendedCall_andDoesNotThrow() = runUnitTest {
+        // A redirect that fails to import (e.g. no tokens — user backed out)
+        // must resolve the suspended sign-in with a failure outcome, never throw,
+        // and leave auth state untouched.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+            onCompleteOAuthRedirect = { throw IllegalArgumentException("No access token found") },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val signIn = async { repo.signInWithOAuth(OAuthProvider.Google) }
+        runCurrent()
+
+        // Does not throw out of the redirect path.
+        repo.completeOAuthRedirect("cards://login-callback#error=access_denied")
+
+        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Cancelled>(signIn.await())
+        assertIs<AuthState.Unauthenticated>(repo.current())
+    }
+
+    @Test
+    fun completeOAuthRedirect_withNoPendingHandle_isNoOp() = runUnitTest {
+        // A stray / duplicate redirect with nothing waiting on it must not touch
+        // auth state or throw.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        repo.completeOAuthRedirect("cards://login-callback#access_token=t")
+
+        assertIs<AuthState.Unauthenticated>(repo.current())
+        assertEquals(0, gateway.completeOAuthRedirectCalls, "no pending handle → the gateway is never touched")
+    }
+
+    @Test
+    fun isOAuthRedirect_matchesCallbackUrl_only() = runUnitTest {
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        assertTrue(repo.isOAuthRedirect("cards://login-callback#access_token=t"))
+        assertEquals(false, repo.isOAuthRedirect("cards://profile"))
     }
 
     // ---------- refreshSession ----------
@@ -570,8 +728,13 @@ internal class FakeSupabaseAuthGateway(
     var onSignInAnonymously: suspend FakeSupabaseAuthGateway.() -> Unit = {},
     var onSignOut: suspend FakeSupabaseAuthGateway.() -> Unit = {},
     var onRefreshSession: suspend FakeSupabaseAuthGateway.() -> Unit = {},
-    var onSignInWithOAuth: suspend FakeSupabaseAuthGateway.(OAuthProvider) -> Unit = {
-        error("signInWithOAuth not stubbed for this test")
+    var onSignInWithOAuth: suspend FakeSupabaseAuthGateway.(OAuthProvider) -> Unit = {},
+    var onLinkOAuthIdentity: suspend FakeSupabaseAuthGateway.(OAuthProvider) -> Unit = {},
+    var onCompleteOAuthRedirect: suspend FakeSupabaseAuthGateway.(String) -> Unit = {
+        error("completeOAuthRedirect not stubbed for this test")
+    },
+    var onHydrateCurrentUser: suspend FakeSupabaseAuthGateway.() -> Unit = {
+        error("hydrateCurrentUser not stubbed for this test")
     },
 ) : SupabaseAuthGateway {
 
@@ -586,6 +749,14 @@ internal class FakeSupabaseAuthGateway(
     var refreshSessionCalls: Int = 0
         private set
     var signOutCalls: Int = 0
+        private set
+    var signInWithOAuthCalls: Int = 0
+        private set
+    var linkOAuthIdentityCalls: Int = 0
+        private set
+    var completeOAuthRedirectCalls: Int = 0
+        private set
+    var hydrateCurrentUserCalls: Int = 0
         private set
 
     /**
@@ -650,12 +821,28 @@ internal class FakeSupabaseAuthGateway(
         onSignOut()
     }
 
-    override suspend fun linkOAuthIdentity(provider: OAuthProvider): Unit =
-        error("linkOAuthIdentity not stubbed for these tests")
+    override suspend fun linkOAuthIdentity(provider: OAuthProvider) {
+        linkOAuthIdentityCalls++
+        onLinkOAuthIdentity(provider)
+    }
 
     override suspend fun signInWithOAuth(provider: OAuthProvider) {
+        signInWithOAuthCalls++
         onSignInWithOAuth(provider)
     }
+
+    override suspend fun completeOAuthRedirect(url: String) {
+        completeOAuthRedirectCalls++
+        onCompleteOAuthRedirect(url)
+    }
+
+    override suspend fun hydrateCurrentUser() {
+        hydrateCurrentUserCalls++
+        onHydrateCurrentUser()
+    }
+
+    override fun isOAuthRedirect(url: String): Boolean =
+        url.startsWith("cards://login-callback")
 
     override suspend fun signInWithAppleIdToken(idToken: String, nonce: String): Unit =
         error("signInWithAppleIdToken not stubbed for these tests")

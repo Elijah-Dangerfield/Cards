@@ -153,6 +153,7 @@
     <string name="lobby_in_room_start_button_waiting">Waiting for players…</string>
     <string name="lobby_in_room_copy_button">Copy code</string>
     <string name="lobby_in_room_share_button">Share invite</string>
+    <string name="lobby_in_room_share_message">Join my poker game on Dealt. Room code %1$s: %2$s</string>
     <string name="lobby_in_room_code_copied">Room code copied</string>
     <string name="lobby_in_room_deal_button">Deal hand · %1$d players</string>
     <string name="lobby_in_room_ready_to_deal">Ready to deal</string>
@@ -207,7 +208,7 @@
     <string name="onboarding_auth_error_oauth_failed">Sign in failed. Please try again.</string>
     <string name="onboarding_auth_error_guest_anonymous_disabled">Anonymous sign-in isn't enabled in this Supabase project. Enable it in Authentication → Providers → Email (Allow anonymous sign-ins).</string>
     <string name="onboarding_auth_error_guest_captcha">Captcha is required by this Supabase project. Disable it in dev or wire a token.</string>
-    <string name="onboarding_auth_error_guest_invalid_config">The Supabase anon key looks wrong or expired. Check IdentityConfig.</string>
+    <string name="onboarding_auth_error_guest_invalid_config">The Supabase publishable key looks wrong or expired. Check IdentityConfig.</string>
     <string name="onboarding_auth_error_guest_failed">Couldn't reach the server. Check your connection and try again.</string>
     <string name="onboarding_auth_error_debug_suffix">\n\nDEBUG: %1$s</string>
     <string name="onboarding_save_error_display_name_taken">That name is taken. Try another.</string>
@@ -283,8 +284,6 @@
     <string name="public_searching_rotate_2">Every seat at your table is a real person.</string>
     <string name="public_searching_rotate_3">A good table is worth the wait. Hang tight.</string>
     <string name="public_searching_rotate_4">Got friends who play? They make tables fill faster.</string>
-    <string name="public_searching_alone">Still looking for players</string>
-    <string name="public_searching_joined">A player joined. Dealing you in.</string>
     <!-- Chooser - the qualifying tables the user can pick from (SPEC §2). -->
     <string name="public_searching_choose_title">Tables you can join</string>
     <string name="public_searching_choose_subtitle">Pick a table to take a seat. Joining buys you in at that table's stakes.</string>
@@ -388,6 +387,7 @@
     <string name="auth_sign_in_subtitle">Sign in to keep your progress across devices.</string>
     <string name="auth_sign_in_oauth_google">Continue with Google</string>
     <string name="auth_sign_in_oauth_apple">Continue with Apple</string>
+    <string name="auth_sign_in_oauth_google_logo_a11y">Google logo</string>
     <string name="auth_sign_in_oauth_divider">or</string>
     <string name="auth_sign_in_submit_button">Sign in</string>
     <string name="auth_sign_in_submit_button_progress">Signing in…</string>
@@ -473,15 +473,15 @@
     <!-- Profile - Gameplay section rows + picker option labels. -->
     <string name="profile_gameplay_tutorial_headline">How to play</string>
     <string name="profile_gameplay_tutorial_supporting">Replay the 2-minute poker tutorial</string>
-    <string name="profile_gameplay_bot_speed_headline">Bot speed</string>
-    <string name="profile_gameplay_bot_speed_supporting">How fast the bots think and act</string>
+    <string name="profile_gameplay_game_speed_headline">Game speed</string>
+    <string name="profile_gameplay_game_speed_supporting">How fast hands play — bot pace and card animations. Instant snaps the action.</string>
     <string name="profile_gameplay_turn_feedback_headline">Your turn feedback</string>
     <string name="profile_gameplay_turn_feedback_supporting">Cue when it becomes your turn</string>
     <string name="profile_gameplay_achievement_popups_headline">Achievement pop-ups</string>
     <string name="profile_gameplay_achievement_popups_supporting">Celebrate unlocks with a pop-up. They're still earned when off.</string>
-    <string name="profile_bot_speed_slow">Slow</string>
-    <string name="profile_bot_speed_normal">Normal</string>
-    <string name="profile_bot_speed_fast">Fast</string>
+    <string name="profile_game_speed_normal">Normal</string>
+    <string name="profile_game_speed_fast">Fast</string>
+    <string name="profile_game_speed_instant">Instant</string>
     <string name="profile_turn_feedback_mute">Mute</string>
     <string name="profile_turn_feedback_vibrate">Vibrate</string>
     <string name="profile_turn_feedback_sound">Sound</string>
@@ -538,6 +538,7 @@
     <string name="stats_lifetime_opponents_label">Players faced</string>
     <string name="stats_lifetime_no_bust_streak_label">No-bust streak</string>
     <string name="stats_lifetime_best_streak_label">Best streak</string>
+    <string name="stats_explainer_mp_xp">Multiplayer hands earn 2× the XP of bot hands.</string>
     <string name="stats_play_style_section">Play style</string>
     <string name="stats_play_style_name">Tight-Aggressive</string>
     <string name="stats_play_style_blurb">You wait for strong hands, then bet them hard.</string>

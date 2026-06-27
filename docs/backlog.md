@@ -723,3 +723,73 @@ Today they're client-side, which is the right default: the client needs a bundle
 Adjacent, also deferred (not blocking): **server-validated reward granting** — the server re-deriving each crossing and granting chips exactly-once (it already does this for *multiplayer* achievements). Skipped because chips are freemium (no cash-out), so a cheated/double-granted reward is in-game inflation, not lost money.
 
 **Status:** Backlog. A future product/ops call, not a gap. See `docs/wiki/achievements.md` for the as-built design + rationale.
+
+## Private-room host sets the table's cosmetics (card face, felt, …)
+
+**Idea (raised 2026-06-26):** Let the host of a private room theme the table for everyone seated — card face / card back, felt, and other table cosmetics — drawn only from cosmetics the host personally owns. Today cosmetics are per-viewer (each player sees their own equipped felt/card back); this flips a private room to a host-chosen shared look.
+
+**Sketch directions when revisiting:**
+- Room snapshot carries a host-chosen `tableCosmetics` block (felt id, card-face id, …); clients render the room's cosmetics instead of their own equipped set while seated.
+- Gate the picker to the host's owned inventory only — validate ownership server-side on set, don't trust the client's list.
+- Decide the default (host's own equipped cosmetics) and whether guests can locally override back to their own look or are pinned to the host's choice.
+
+**Tradeoff:** Reuses the existing cosmetic catalog + equip plumbing, but introduces room-scoped cosmetic state and a server-side ownership check on set — more than a one-line change. Pairs with the felt/card-back cosmetic work already in the catalog.
+
+**Status:** Backlog. Owner flagged it as a backlog feature on capture.
+
+## Pin a room to one machine (room→machine affinity) before scaling the server out
+
+**Idea (raised 2026-06-26):** Live game state is held **in-memory per machine** in [`DefaultGameSessionRegistry`](../apps/server/src/main/kotlin/com/cards/server/game/GameSessionRegistry.kt) (`MutableStateFlow<Map<code, GameSession>>`), with a Postgres snapshot (`room_sessions` via `SessionSnapshotStore`) written through on every mutation for server-restart recovery. WS clients attach to the live session via `observeSession`. This is correct on **one** machine. `apps/server/fly.toml` keeps `min_machines_running = 1` with `auto_stop`/`auto_start`, so today there's effectively a single warm machine and the model holds.
+
+**The hazard the owner flagged ("misses"):** the moment a second machine runs concurrently (Fly autoscaling under load), two players in the same room can land on different machines. Each machine hydrates its *own* `GameSession` from the snapshot; an intent applied on machine A never reaches machine B's subscribers in real time — the snapshot store is a restart-recovery store, not a cross-node bus. Result: dropped/stale frames and divergent table state.
+
+**Two ways to fix (design call when scale-out is on the table — they're alternatives):**
+- **(a) Room→machine affinity.** Route every socket *and* HTTP intent for a room code to the single machine that owns its session — Fly's `fly-replay` (reply with `fly-replay: instance=<id>`) or a consistent-hash on the room code. Keeps the in-memory + snapshot model intact; one machine owns a room for its lifetime, and the snapshot gives failover if that machine dies. Smaller change.
+- **(b) Shared real-time bus.** Back the session fan-out with Redis pub/sub (or Postgres `LISTEN/NOTIFY`) so any machine can serve any room and broadcasts cross nodes. Removes the single-owner constraint; more infra.
+
+**Recommendation:** No action at current scale — one warm machine is correct as-is, so this isn't a V1 gap. Treat affinity (option a) as the **hard gate before enabling horizontal scale-out** (>1 concurrent machine); it's the smaller change and fits the existing architecture.
+
+**Status:** Backlog. Not needed today (single instance); revisit before raising `min_machines_running` / letting Fly run multiple machines concurrently.
+
+## Surface MP winnings on leave (toast or result dialog), not just a silently-updated balance
+
+**Idea (raised 2026-06-26):** A tester (QuickJack56, Sentry CARDS-4F) noted that after a heads-up game auto-ends, the only feedback is the chip balance changing — they suggested we "toast when they leave how much they won or even a dedicated dialog." The MP-21 fix (PR #74) already makes the balance reconcile correctly on the opponent-left / auto-end path, so the *number* is now right; this is the missing **acknowledgement** of the result. Today a player who wins (or loses) on an auto-end is routed Home with no "you won N" moment.
+
+**Sketch directions when revisiting:**
+- On the auto-terminal MP paths (opponentsLeft, match-over, settled hand), show a transient "You won N chips" / "You lost N chips" toast or a small result dialog before/while routing off the table.
+- Reuse the existing chips-delta the reconcile already computes; don't recompute settlement client-side.
+- Decide toast vs. dialog by weight: a pure win/loss number is a toast; the heads-up match-over already has `MatchOverResultDialog` (MP-14) — make sure this doesn't double up with it.
+
+**Tradeoff:** Small, additive UX polish on top of an already-fixed data path. Pairs with MP-14's match-over dialog and the backlog "per-game result record" item.
+
+**Status:** Backlog. Enhancement, not a defect — the underlying stale-balance bug (MP-21) is already fixed. Captured from feedback case `docs/agent/feedback-cases/8d2185b9834542e9abc2be52afdded2d.md`.
+
+## Scale chip-stack and pot count-up animations with the Game speed setting
+
+**Idea (raised 2026-06-26):** GAME-6 added a speed preference (Normal / Fast / Instant) that scales the play-screen card-deal and reveal animations via `LocalTableTempo` (`features/room/impl/.../ui/TableTempo.kt`). (Later unified into a single "Game speed" setting that also paces bot think time — the old separate "Bot speed" / "Table speed" pickers were merged, and `GameSpeed` now carries both `animationScale` and `botThinkScale`.) The tester's request named the deal, *chip*, and reveal animations; the deal + reveal are done, but the chip-stack odometer roll (`ChipCoinAmount(animated = true)` → `AnimatedNumberText`) and the pot pill still animate at their fixed pace regardless of the setting.
+
+**Sketch:** The count-up animators live in `:libraries:ui` DS primitives (identity-bearing content the DS deliberately animates), so the scaling has to be threaded into those primitives rather than the play screen — either read an optional speed/tempo from a composition local with a Normal default, or pass a duration-scale param. "Instant" should snap the stack/pot to the final number. Keep the Normal feel byte-identical so non-instant players see no change.
+
+**Tradeoff:** Small polish completing the GAME-6 request; touches a shared DS animator used beyond the table, so it needs a default that leaves every other surface untouched.
+
+**Status:** Backlog. GAME-6's core ask (speed up / instant-skip the deal + reveal) shipped; this is the remaining chip-move sub-part.
+
+---
+
+## Cross-version backwards compatibility for game/state objects
+
+**Idea (owner feedback 2026-06-26, Sentry [CARDS-4S](https://elijah-dangerfield.sentry.io/issues/CARDS-4S)):** We should decide how the app handles game/state objects across client versions before launch — e.g. can a user on app version 1 join a game created by someone on version 2? What happens if not, and how do we degrade gracefully? Owner asks for a recommendation + an implemented system while we're still pre-launch and free to set conventions.
+
+**Threads to weigh:** a min-supported-version / schema-version field on rooms and on the wire frames; server-side gating that refuses (with a clear "update your app" message) rather than letting a stale client misread a newer object; forward-compatible (additive-only) serialization conventions so most version skew is tolerated without a hard gate; and where the version line is drawn (room create, room join, or per-frame). Pairs with the existing app-integrity / min-version thinking in `docs/decisions.md`.
+
+**Status:** Backlog. Needs a design pass + a recommendation before it's worker-pickable — owner explicitly invited a proposal. Good to settle pre-launch.
+
+---
+
+## Evaluate / eliminate empty-body POST requests
+
+**Idea (owner feedback 2026-06-26, Sentry [CARDS-4K](https://elijah-dangerfield.sentry.io/issues/CARDS-4K)):** A number of client→server POSTs send an empty body (the session logs are full of `POST … request_body_size=2` sync calls — equipment, play-style, progression, achievements, inventory, etc.). Owner suggests we evaluate those: some may be redundant round-trips that could be collapsed, batched, made GETs, or dropped entirely.
+
+**Sketch direction when revisiting:** inventory the empty-body POST endpoints, classify each as (a) genuinely needed write/sync, (b) collapsible into a single batched sync call, or (c) removable; then trim. Pairs with the existing "Offline-aware retry / deferred queue" and the per-sync-coordinator design — a batched sync envelope would address several at once.
+
+**Status:** Backlog. Fuzzy/evaluative ("maybe we should evaluate those") — scope it with an endpoint inventory first, not a blind change.

@@ -57,6 +57,8 @@ import cards.libraries.resources.generated.resources.lobby_error_start_coming_so
 import cards.libraries.resources.generated.resources.lobby_in_room_buyin_label
 import cards.libraries.resources.generated.resources.lobby_in_room_code_label
 import cards.libraries.resources.generated.resources.lobby_in_room_copy_button
+import cards.libraries.resources.generated.resources.lobby_in_room_share_button
+import cards.libraries.resources.generated.resources.lobby_in_room_share_message
 import cards.libraries.resources.generated.resources.lobby_in_room_deal_button
 import cards.libraries.resources.generated.resources.lobby_in_room_leave_button
 import cards.libraries.resources.generated.resources.lobby_in_room_leave_button_progress
@@ -74,6 +76,7 @@ import cards.libraries.resources.generated.resources.lobby_in_room_waiting_for_h
 import cards.libraries.resources.generated.resources.lobby_setting_up
 import cards.libraries.resources.generated.resources.lobby_topbar_title_idle
 import cards.libraries.resources.generated.resources.lobby_topbar_title_in_room
+import com.dangerfield.cards.features.lobby.RoomInvite
 import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.CircularProgressIndicator
@@ -114,6 +117,7 @@ fun LobbyScreen(
     state: LobbyState,
     onAction: (LobbyAction) -> Unit,
     onBack: () -> Unit,
+    onShareInvite: (String) -> Unit = {},
 ) {
     // One leave path for every affordance: top-bar back, OS back, and the
     // in-room Leave button all route through requestBack, which confirms then
@@ -162,7 +166,12 @@ fun LobbyScreen(
             Spacer(modifier = Modifier.height(Dimension.D300))
 
             if (state.isInRoom) {
-                InRoomContent(state = state, onAction = onAction, onLeave = requestBack)
+                InRoomContent(
+                    state = state,
+                    onAction = onAction,
+                    onLeave = requestBack,
+                    onShareInvite = onShareInvite,
+                )
             } else {
                 // We only ever enter the lobby via Create (autoCreate) or Join
                 // (prefilledCode), so room == null means the create/join call
@@ -270,6 +279,7 @@ private fun InRoomContent(
     state: LobbyState,
     onAction: (LobbyAction) -> Unit,
     onLeave: () -> Unit,
+    onShareInvite: (String) -> Unit,
 ) {
     val room = state.room ?: return
     val clipboard = LocalClipboardManager.current
@@ -278,6 +288,12 @@ private fun InRoomContent(
         clipboard.setText(AnnotatedString(room.code))
         showSnackBar(message = copiedMessage)
     }
+    val shareMessage = stringResource(
+        Res.string.lobby_in_room_share_message,
+        room.code,
+        RoomInvite.linkForCode(room.code),
+    )
+    val shareInvite = { onShareInvite(shareMessage) }
 
     // Room-code hero — the share-this artefact, in the gold italic serif
     // that signals "this is the headline of the screen".
@@ -299,15 +315,23 @@ private fun InRoomContent(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(Dimension.D400))
-        // Copy-only for now. A real share sheet (with a deep link into the
-        // lobby) is tracked in docs/todo.md — until then a second "Share"
-        // button that also just copies is misleading, so it's gone.
-        ButtonSecondary(
-            onClick = copyCode,
-            size = ButtonSize.Small,
-            style = ButtonStyle.Outlined,
-        ) {
-            Text(stringResource(Res.string.lobby_in_room_copy_button))
+        // Share opens the platform share sheet with a join deep link
+        // (cards://join/CODE) so a friend taps straight into this lobby;
+        // Copy stays as the bare-code fallback for paste-anywhere.
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D300)) {
+            ButtonSecondary(
+                onClick = shareInvite,
+                size = ButtonSize.Small,
+            ) {
+                Text(stringResource(Res.string.lobby_in_room_share_button))
+            }
+            ButtonSecondary(
+                onClick = copyCode,
+                size = ButtonSize.Small,
+                style = ButtonStyle.Outlined,
+            ) {
+                Text(stringResource(Res.string.lobby_in_room_copy_button))
+            }
         }
     }
 

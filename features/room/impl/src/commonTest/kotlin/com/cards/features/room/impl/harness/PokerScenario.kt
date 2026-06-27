@@ -10,7 +10,7 @@ import com.dangerfield.cards.features.room.impl.session.seatToOccupant
 import com.dangerfield.cards.libraries.bots.BotDecider
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
-import com.dangerfield.cards.libraries.cards.BotSpeed
+import com.dangerfield.cards.libraries.cards.GameSpeed
 import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
@@ -231,7 +231,7 @@ class HarnessSoloFactory(
 
     override fun create(
         humanSeatIndex: Int,
-        botSpeedProvider: () -> BotSpeed,
+        gameSpeedProvider: () -> GameSpeed,
         onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit,
     ): PokerSession {
         val session = if (deckFactory != null) {
@@ -241,7 +241,7 @@ class HarnessSoloFactory(
                 botPersonalities = personalities,
                 random = Random(42L),
                 botActionDelayMs = 0L,
-                botSpeedProvider = botSpeedProvider,
+                gameSpeedProvider = gameSpeedProvider,
                 onHandEnded = onHandEnded,
                 dispatchers = dispatchers,
                 botDecider = decider,
@@ -254,7 +254,7 @@ class HarnessSoloFactory(
                 botPersonalities = personalities,
                 random = Random(42L),
                 botActionDelayMs = 0L,
-                botSpeedProvider = botSpeedProvider,
+                gameSpeedProvider = gameSpeedProvider,
                 onHandEnded = onHandEnded,
                 dispatchers = dispatchers,
                 botDecider = decider,

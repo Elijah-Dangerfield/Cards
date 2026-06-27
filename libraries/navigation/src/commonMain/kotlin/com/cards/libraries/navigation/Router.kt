@@ -79,6 +79,14 @@ interface Router {
     fun openWebLink(url: String)
 
     /**
+     * Hand [text] to the host platform's share sheet (Android `ACTION_SEND`,
+     * iOS `UIActivityViewController`). Used for invite affordances like
+     * "Share room code" where the user picks the destination app. Like
+     * [openWebLink] this is a fire-and-forget side effect, not a navigation.
+     */
+    fun shareText(text: String)
+
+    /**
      * Run a sequence of navigation operations atomically against the
      * underlying controller. The whole block runs inside a single
      * queued op, so caller scope death (a ViewModel being torn down,

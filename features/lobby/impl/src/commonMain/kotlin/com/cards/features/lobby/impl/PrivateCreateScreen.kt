@@ -46,8 +46,6 @@ import com.dangerfield.cards.libraries.ui.components.Slider
 import com.dangerfield.cards.libraries.ui.components.Switch
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.room.RoomHeader
-import com.dangerfield.cards.libraries.ui.components.room.RoomVisibility
-import com.dangerfield.cards.libraries.ui.components.room.VisTag
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
@@ -89,7 +87,6 @@ fun PrivateCreateScreen(
             RoomHeader(
                 title = stringResource(Res.string.private_create_title),
                 onNavigateBack = onBack,
-                right = { VisTag(kind = RoomVisibility.Private) },
             )
         },
     ) { padding ->

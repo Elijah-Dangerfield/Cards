@@ -47,12 +47,12 @@ class LocalBotsSession(
     private val random: Random = Random.Default,
     private val botActionDelayMs: Long = 750L,
     /**
-     * Live user-chosen bot speed. Read on every loop iteration so toggling
+     * Live user-chosen game speed. Read on every loop iteration so toggling
      * it in Settings during a hand applies on the very next bot turn,
      * without restarting the session.
      */
-    private val botSpeedProvider: () -> com.dangerfield.cards.libraries.cards.BotSpeed =
-        { com.dangerfield.cards.libraries.cards.BotSpeed.Normal },
+    private val gameSpeedProvider: () -> com.dangerfield.cards.libraries.cards.GameSpeed =
+        { com.dangerfield.cards.libraries.cards.GameSpeed.Normal },
     /**
      * Called when a hand ends, before any next-hand setup runs. Receives the
      * event, the game state captured at hand-end (so seat contributions and
@@ -313,7 +313,7 @@ class LocalBotsSession(
             val humanFolded = gameState.seats
                 .firstOrNull { it.index == humanSeatIndex }
                 ?.handParticipation == HandParticipation.Folded
-            val currentSpeed = botSpeedProvider()
+            val currentSpeed = gameSpeedProvider()
             val thinkDelay = if (humanFolded) {
                 0L
             } else {
@@ -342,7 +342,7 @@ class LocalBotsSession(
             applyIntentAndEmit(decision.intent)
             // Action-tail delay also scales with user speed pref — and
             // collapses to zero when the human folded, same rationale.
-            val tailDelay = if (humanFolded) 0L else (botActionDelayMs * currentSpeed.multiplier).toLong()
+            val tailDelay = if (humanFolded) 0L else (botActionDelayMs * currentSpeed.botThinkScale).toLong()
             delay(tailDelay)
             if (gameState.street == BettingRound.Complete) break
         }

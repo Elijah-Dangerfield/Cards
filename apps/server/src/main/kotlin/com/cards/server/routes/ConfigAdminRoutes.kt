@@ -107,6 +107,11 @@ fun Route.configAdminRoutes(
             schema(manifestRepository).validateValue(body.flagPath, body.value)?.let {
                 return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_value", it)
             }
+            // A rule needs a flag row to attach to (FK). Rather than make the admin
+            // mint a base override by hand, lazily materialize the flag from its
+            // shipped manifest default the first time it carries a rule. Only the
+            // truly-unknown flag (no DB row, no manifest entry) stays a 409.
+            seedFlagFromManifestIfMissing(body.flagPath, repository, manifestRepository, call.actor())
             val rule = TargetingRule(
                 id = id,
                 flagPath = body.flagPath,
@@ -120,7 +125,7 @@ fun Route.configAdminRoutes(
                 ?: return@put call.respondProblem(
                     HttpStatusCode.Conflict,
                     "unknown_flag",
-                    "Rule references a flag that doesn't exist: ${body.flagPath}",
+                    "Rule references a flag that doesn't exist and isn't in any manifest: ${body.flagPath}",
                 )
             notifier.changed(ConfigChangeEvent(call.actor(), "update_rule", body.flagPath, body.value.toString()))
             call.respond(HttpStatusCode.OK, saved.toDto())
@@ -246,6 +251,24 @@ private fun parsePlatform(raw: String?): ClientContext.Platform = when (raw?.low
     "ios" -> ClientContext.Platform.iOS
     "android" -> ClientContext.Platform.Android
     else -> ClientContext.Platform.Other
+}
+
+/**
+ * Materialize a flag's DB row from its shipped manifest default when it doesn't
+ * exist yet, so a targeting rule can attach without the operator first minting a
+ * base override. No-op when the flag already has a DB row; skipped when no
+ * manifest entry exists (the rule write then fails its FK check, surfacing the
+ * honest "unknown flag" conflict).
+ */
+private suspend fun seedFlagFromManifestIfMissing(
+    flagPath: String,
+    repository: AppConfigAdminRepository,
+    manifestRepository: AppConfigManifestRepository,
+    actor: String,
+) {
+    if (repository.listFlags().any { it.path == flagPath }) return
+    val default = manifestRepository.getManifest(null).firstOrNull { it.path == flagPath }?.default ?: return
+    repository.upsertFlag(flagPath, default, actor)
 }
 
 /** Build the type/allowed-values schema from the latest captured manifest. */

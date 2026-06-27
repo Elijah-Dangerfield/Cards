@@ -146,7 +146,7 @@ data class ProfileSettings(
     val rank: Int,
     val xp: Long,
     val isAnonymous: Boolean,
-    val botSpeed: com.dangerfield.cards.libraries.cards.BotSpeed,
+    val gameSpeed: com.dangerfield.cards.libraries.cards.GameSpeed,
     val turnFeedback: com.dangerfield.cards.libraries.cards.TurnFeedback,
     /** Settings-only toggle: false silences in-game achievement reveals. */
     val showAchievementPopups: Boolean = true,
@@ -1037,7 +1037,7 @@ private fun previewSettings(isAnonymous: Boolean) = ProfileSettings(
     rank = if (isAnonymous) 0 else 1200,
     xp = 340,
     isAnonymous = isAnonymous,
-    botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
+    gameSpeed = com.dangerfield.cards.libraries.cards.GameSpeed.Normal,
     turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
     appVersion = "0.1.0",
     unreadNotificationCount = if (isAnonymous) 0 else 3,

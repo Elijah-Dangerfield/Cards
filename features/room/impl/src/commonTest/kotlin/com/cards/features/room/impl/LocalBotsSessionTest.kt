@@ -359,7 +359,7 @@ class LocalBotsSessionTest : CoroutineTest() {
             botPersonalities = personalities,
             random = random,
             botActionDelayMs = 0L,
-            botSpeedProvider = { com.dangerfield.cards.libraries.cards.BotSpeed.Fast },
+            gameSpeedProvider = { com.dangerfield.cards.libraries.cards.GameSpeed.Fast },
             onHandEnded = onHandEnded,
             // All four production dispatchers route through the test scheduler,
             // so Monte Carlo (production: Dispatchers.Default) runs on virtual

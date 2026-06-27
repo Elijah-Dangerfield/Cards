@@ -41,9 +41,7 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.room.RangeSlider
 import com.dangerfield.cards.libraries.ui.components.room.RoomHeader
-import com.dangerfield.cards.libraries.ui.components.room.RoomVisibility
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.components.room.VisTag
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -82,7 +80,6 @@ fun PublicFindScreen(
                 title = stringResource(Res.string.public_find_title),
                 sub = stringResource(Res.string.public_find_subtitle),
                 onNavigateBack = onBack,
-                right = { VisTag(kind = RoomVisibility.Public) },
             )
         },
     ) { padding ->

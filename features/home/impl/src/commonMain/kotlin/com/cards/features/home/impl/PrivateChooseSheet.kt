@@ -31,8 +31,6 @@ import cards.libraries.resources.generated.resources.private_choose_join_subtitl
 import cards.libraries.resources.generated.resources.private_choose_join_title
 import cards.libraries.resources.generated.resources.private_choose_title
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
-import com.dangerfield.cards.libraries.ui.components.room.RoomVisibility
-import com.dangerfield.cards.libraries.ui.components.room.VisTag
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.FeatureCardAccents
 import com.dangerfield.cards.system.AppTheme
@@ -60,18 +58,11 @@ internal fun PrivateChooseSheet(
         backgroundColor = AppTheme.colors.background,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    text = stringResource(Res.string.private_choose_title),
-                    typography = AppTheme.typography.Heading.H700,
-                    color = AppTheme.colors.content,
-                )
-                VisTag(kind = RoomVisibility.Private)
-            }
+            Text(
+                text = stringResource(Res.string.private_choose_title),
+                typography = AppTheme.typography.Heading.H700,
+                color = AppTheme.colors.content,
+            )
             Spacer(modifier = Modifier.height(Dimension.D600))
 
             // Create — gold gradient hero.

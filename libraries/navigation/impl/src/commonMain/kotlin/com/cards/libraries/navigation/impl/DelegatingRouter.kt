@@ -27,6 +27,7 @@ import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.navigation.Route
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.RouterBatch
+import com.dangerfield.cards.libraries.navigation.ShareLauncher
 import com.dangerfield.cards.libraries.navigation.TabRoute
 import com.dangerfield.cards.libraries.navigation.WebLinkLauncher
 import com.dangerfield.cards.libraries.navigation.NavigableWhileBlocked
@@ -56,6 +57,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class DelegatingRouter(
     private val appScope: AppCoroutineScope,
     private val webLinkLauncher: WebLinkLauncher,
+    private val shareLauncher: ShareLauncher,
     private val dispatchers: DispatcherProvider,
     private val authGateChecker: AuthGateChecker,
 ) : Router {
@@ -256,6 +258,13 @@ class DelegatingRouter(
         webLinkLauncher
             .open(url)
             .logOnFailure("Failed to open web link: $url")
+            .throwIfDebug()
+    }
+
+    override fun shareText(text: String) {
+        shareLauncher
+            .share(text)
+            .logOnFailure("Failed to share text")
             .throwIfDebug()
     }
     @Composable

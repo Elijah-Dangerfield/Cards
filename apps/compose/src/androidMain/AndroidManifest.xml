@@ -37,8 +37,11 @@
             </intent-filter>
 
             <!--
-              Custom-scheme deep links. Today's only consumer is
-              `cards://auth/confirmed` (Supabase verify-email redirect).
+              Custom-scheme deep links. Consumers:
+              - `cards://auth/confirmed` — Supabase verify-email redirect.
+              - `cards://login-callback` — browser OAuth (Google) return trip;
+                NOT a nav route. MainActivity forwards it to the DeepLinkBridge
+                so supabase-kt can capture the session (see App.kt).
               Per-route mapping happens via the `deepLinks` parameter on
               `screen<Route>` in the relevant FeatureEntryPoint; Compose
               NavHost reads `Activity.intent.data` automatically when a

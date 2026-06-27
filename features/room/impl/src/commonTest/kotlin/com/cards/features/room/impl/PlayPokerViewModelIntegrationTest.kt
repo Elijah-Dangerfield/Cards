@@ -7,7 +7,7 @@ import com.dangerfield.cards.features.room.impl.session.seatToOccupant
 
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
-import com.dangerfield.cards.libraries.cards.BotSpeed
+import com.dangerfield.cards.libraries.cards.GameSpeed
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.BettingRound
@@ -184,15 +184,15 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
     // ---------- Settings → real session ----------
 
     @Test
-    fun appCacheBotSpeedChange_isReadByRealSession() = runUnitTest {
+    fun appCacheGameSpeedChange_isReadByRealSession() = runUnitTest {
         val (vm, _) = buildVmWithRealSession(seatsCount = 2)
         advanceUntilIdle()
 
         vm.testAppCache.emit(
-            com.dangerfield.cards.libraries.cards.AppData(botSpeed = BotSpeed.Slow),
+            com.dangerfield.cards.libraries.cards.AppData(gameSpeed = GameSpeed.Instant),
         )
 
-        assertEquals(BotSpeed.Slow, vm.testFactory.botSpeedProvider?.invoke())
+        assertEquals(GameSpeed.Instant, vm.testFactory.gameSpeedProvider?.invoke())
     }
 
     // ---------- Helpers ----------
@@ -273,21 +273,21 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
         ).take(seatsCount - 1)
 
         var builtSession: LocalBotsSession? = null
-        var botSpeedProvider: (() -> BotSpeed)? = null
+        var gameSpeedProvider: (() -> GameSpeed)? = null
 
         override fun create(
             humanSeatIndex: Int,
-            botSpeedProvider: () -> BotSpeed,
+            gameSpeedProvider: () -> GameSpeed,
             onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit,
         ): PokerSession {
-            this.botSpeedProvider = botSpeedProvider
+            this.gameSpeedProvider = gameSpeedProvider
             val session = LocalBotsSession(
                 difficulty = BotDifficulty.Casual,
                 humanSeatIndex = humanSeatIndex,
                 botPersonalities = personalities,
                 random = random,
                 botActionDelayMs = 0L,
-                botSpeedProvider = botSpeedProvider,
+                gameSpeedProvider = gameSpeedProvider,
                 onHandEnded = onHandEnded,
                 dispatchers = dispatchers,
             )

@@ -55,7 +55,9 @@ class ConfigAdminRoutesTest {
         }
         override suspend fun deleteFlag(path: String, actor: String): Boolean =
             flags.removeAll { it.path == path }
-        override suspend fun upsertRule(rule: TargetingRule, actor: String): TargetingRule? = rule
+        // Mirrors the Postgres FK: a rule can only attach to a flag that has a DB row.
+        override suspend fun upsertRule(rule: TargetingRule, actor: String): TargetingRule? =
+            if (flags.any { it.path == rule.flagPath }) rule else null
         override suspend fun deleteRule(id: UUID, actor: String): Boolean = false
         override suspend fun listAudit(flagPath: String?, limit: Int): List<ConfigAuditRecord> = emptyList()
     }
@@ -246,6 +248,39 @@ class ConfigAdminRoutesTest {
                 setBody("""{"flagPath":"social.enabled","priority":0,"value":true,"conditions":{"rolloutPercent":150}}""")
             }
             assertEquals(HttpStatusCode.BadRequest, resp.status)
+        }
+    }
+
+    @Test
+    fun upsertRule_forManifestOnlyFlag_seedsBaseFromManifestDefault_andSucceeds() = runTest {
+        // social.enabled exists only in the manifest (default false) — no DB row yet.
+        // Adding a rule must lazily materialize the flag row from the manifest
+        // default rather than 409, so the operator never has to mint a base first.
+        val repo = FakeRepo()
+        testApp(repo, schemaManifest()) { client ->
+            val resp = client.put("/v1/admin/config/rules/${UUID.randomUUID()}") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"flagPath":"social.enabled","priority":0,"value":true}""")
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            // The flag row now exists, seeded with the shipped manifest default (false).
+            val flag = repo.flags.single { it.path == "social.enabled" }
+            assertEquals(JsonPrimitive(false), flag.value)
+        }
+    }
+
+    @Test
+    fun upsertRule_forUnknownFlagWithNoManifest_is409() = runTest {
+        // No manifest entry and no DB row — there's nothing to seed from, so the
+        // honest answer is still a conflict the UI can surface.
+        testApp(FakeRepo()) { client ->
+            val resp = client.put("/v1/admin/config/rules/${UUID.randomUUID()}") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"flagPath":"ghost.flag","priority":0,"value":true}""")
+            }
+            assertEquals(HttpStatusCode.Conflict, resp.status)
         }
     }
 

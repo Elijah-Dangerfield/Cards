@@ -49,12 +49,12 @@ import cards.libraries.resources.generated.resources.profile_claim_title
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.ui.components.AppleSignInButton
 import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonKind
+import com.dangerfield.cards.libraries.ui.components.GoogleSignInButton
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
-import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
@@ -204,12 +204,14 @@ fun ClaimAccountScreen(
                     )
                     Spacer(modifier = Modifier.height(Dimension.D500))
                     if (state.googleEnabled) {
-                        ProviderButton(
-                            label = stringResource(Res.string.profile_claim_provider_google),
+                        GoogleSignInButton(
+                            text = stringResource(Res.string.profile_claim_provider_google),
                             enabled = !state.isSubmitting,
+                            isLoading = state.isSubmitting,
                             onClick = {
                                 onAction(ClaimAccountAction.ClaimWith(OAuthProvider.Google))
                             },
+                            modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(modifier = Modifier.height(Dimension.D400))
                     }
@@ -295,22 +297,6 @@ private fun EmailField(
         label = { Text(stringResource(Res.string.auth_field_email_label)) },
         modifier = Modifier.fillMaxWidth(),
     )
-}
-
-@Composable
-private fun ProviderButton(
-    label: String,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        style = ButtonStyle.Outlined,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(label)
-    }
 }
 
 @Composable
