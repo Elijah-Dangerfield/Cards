@@ -27,6 +27,20 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-27 — Client chip credit goes validate->grant->reflect, gated by one `billing.realPurchasesEnabled` flag (BILL-5)
+
+**Decision:** The client purchase flow inverts from "credit locally on store confirm" to validate->grant->reflect, selected at runtime by a single config flag `billing.realPurchasesEnabled` (`RealPurchasesEnabled`, default **off**). When on, a finished store purchase POSTs its receipt to BILL-1's `/v1/billing/redeem` via a new `BillingRepository`, then the client sets its wallet to the server-returned authoritative balance (`ChipsRepository.setBalance`) — never claiming the chip amount itself — then acknowledges. A rejected receipt or unreachable server credits nothing and surfaces a failure. When off, the prior local-credit path is unchanged. `Fake`-platform transactions have no server store mapping, so the repo returns `Unavailable` and they never reach the real endpoint.
+
+**Why:** The local-credit path had a double-credit window and let a forged receipt mint chips offline; BILL-1 gave us the server trust boundary but nothing called it. One flag, defaulting off, both inverts the credit path and ships real billing dark until the real store clients (BILL-3/4) and validators (BILL-2) are live — so prod keeps the safe local-only behaviour with zero further releases needed to flip it on per environment. If the dark-ship requirement goes away (post-launch, validators live), the flag becomes a permanent "real IAP" master switch rather than dead code.
+
+**Alternatives considered:**
+- **Two flags — a runtime `useServerCredit` separate from the real-vs-Dev client selection.** Rejected: the client selection is a compile/DI concern (`@ContributesBinding(replaces=…)`), and the credit path always moves together with "real purchases are live." Two flags is needless surface that can drift into an incoherent half-on state.
+- **Auto-retry/queue a paid-but-unredeemed receipt inside the use case.** Rejected for this slice: the store still owns the purchase and a re-tap re-redeems idempotently, so the failure is recoverable; a background drain-on-foreground job is the right home for it (flagged as a follow-up), not the synchronous purchase path.
+
+**Status:** Locked.
+
+---
+
 ## 2026-06-27 — Server-authoritative IAP redemption: `/v1/billing/redeem` + `ReceiptValidator` seam + idempotent grant (BILL-1)
 
 **Decision:** Real-money chip redemption is server-authoritative. `POST /v1/billing/redeem` takes `{ store, productId, token }`, runs the token through a `ReceiptValidator` interface, resolves the productId to a catalog `ChipPack` for its server-side `grantsChips` (the client never says how many chips it bought), then grants through `BillingRepository.redeem`. Idempotency anchors on a new `billing_transactions` table with `UNIQUE(store, order_id)`; the audit-row insert and the wallet credit commit in **one** `database.transaction` so a crash can't leave a credited wallet with no record (which a retry would re-credit) or vice-versa. The `ReceiptValidator` ships as a seam with a `DevReceiptValidator` default (trusts the token, uses it as the order id — for local StoreKit/Play test SKUs); BILL-2 swaps in the real Apple/Google validators via `replaces`. The grant pins to the user via the validator's bound account token, not the order id.

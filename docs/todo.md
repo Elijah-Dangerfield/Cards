@@ -42,7 +42,7 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ## G. Billing & IAP
 
-Native IAP (Play Billing + StoreKit 2 + own server validation — no RevenueCat). The `BillingClient` abstraction, fake/dev clients, server wallet ledger, and idempotent grant already exist; these items fill the two real gaps (platform clients + server validation) and make the credit server-authoritative. Live store testing for several items is developer-gated on credentials/listings — those gates live in [developer-todo.md](./developer-todo.md); the code is buildable and unit/locally-testable now.
+Native IAP (Play Billing + StoreKit 2 + own server validation — no RevenueCat). The `BillingClient` abstraction, fake/dev clients, server wallet ledger, idempotent grant, the server-authoritative redeem endpoint, and the client-side validate->grant->reflect flow (behind `billing.realPurchasesEnabled`) already exist; these items fill the two remaining real gaps — the real platform store clients and the real receipt validators. Live store testing for several items is developer-gated on credentials/listings — those gates live in [developer-todo.md](./developer-todo.md); the code is buildable and unit/locally-testable now.
 
 - `[P0]` **BILL-2 — Real receipt validators (Apple App Store Server API + Google Play Developer API).** The `ReceiptValidator` seam from BILL-1 needs real platform impls before any real-money sale; a forged receipt must be rejected.
   **Acceptance:** Apple impl verifies the StoreKit 2 signed-transaction JWS via the official app-store-server-library (Java) — checks bundle id, product id, and `appAccountToken == userId`. Google impl calls `purchases.products.get`, checks `purchaseState == purchased` + `obfuscatedExternalAccountId == userId`, then acknowledges/consumes. Both read credentials from server config and stay dormant (validation refused) when unset. Live exercise against the stores is developer-gated.
@@ -55,10 +55,6 @@ Native IAP (Play Billing + StoreKit 2 + own server validation — no RevenueCat)
 - `[P1]` **BILL-4 — iOS `StoreKitBillingClient`.** `libraries/billing/impl/src/iosMain` is empty; iOS release builds have no IAP.
   **Acceptance:** implements `BillingClient` with StoreKit 2 (`Product.purchase()`, `Transaction`, `transaction.finish()` for consumables), forwarding `userId` as `appAccountToken` (a UUID — Supabase user ids already qualify). Verifiable locally via an Xcode `.storekit` test config — **no App Store Connect needed for dev iteration**.
   **Hints:** StoreKit 2 async API; pairs with the BILL-2 Apple validator (same `appAccountToken` pin).
-
-- `[P1]` **BILL-5 — Server-authoritative chip credit + `billing.realPurchasesEnabled` gate.** [DefaultPurchaseChipPackUseCase.kt](libraries/billing/impl/src/commonMain/kotlin/com/cards/libraries/billing/impl/DefaultPurchaseChipPackUseCase.kt) credits chips locally before any server validation (a double-credit window it admits to in its own comment), and there's no flag to ship real billing dark.
-  **Acceptance:** the purchase flow becomes validate → grant → consume: store confirms → `POST /v1/billing/redeem` → reflect the server-returned balance → then consume/acknowledge. A config flag both selects the real-vs-Dev billing client and lets the code ship dark; per-environment via the config Postgres.
-  **Hints:** `creditChipsFor` is the seam to invert; config-flag precedent in `:libraries:config`; depends on BILL-1 (endpoint) — BILL-3/4 can land independently.
 
 ---
 
