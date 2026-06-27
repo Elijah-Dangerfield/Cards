@@ -34,9 +34,9 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ## C. Gameplay & table
 
-- `[P1]` **GAME-7 — Solo hole cards don't render; player sees one face-down card.** A brand-new user's first PlayBots hand showed a single face-down card instead of their two face-up hole cards; the engine had dealt them (the user could Call), so it's a render/flip defect, not a deal failure. Bad first impression — new users can't see their hand.
-  **Acceptance:** a failing test reproduces "first solo hand → both hole cards render face-up" (covers the first-emission/flip path); fix makes both cards show. Verify on a fresh install's first PlayBots hand.
-  **Hints:** client-only — `LocalBotsSession`/`GameEngine` deal → `TableUiState` projection → `PlayingCard`/hole-card flip in `:features:room:impl`; suspect a first-hand initial-emission race in the flip animation. **Telemetry gap:** the session log is engine-level only — there was no view-side line to confirm what the table actually rendered, so the render state couldn't be read from telemetry. Add one (per AGENTS.md): a once-per-hand log of the hole-card projection (e.g. dealt-cards count vs face-up-rendered count for the human seat) — not per-frame. Case `docs/agent/feedback-cases/2e3eea34a7fb42a3996498a3833031d2.md`; Sentry [CARDS-53](https://elijah-dangerfield.sentry.io/issues/CARDS-53).
+- `[P2]` **GAME-8 — Add a once-per-hand hole-card render log so a "cards didn't show" report is readable from telemetry. (proposed 2026-06-27)** The GAME-7 render fix (cards freezing mid-deal) shipped, but the view side still emits no telemetry confirming what the table actually rendered — the session log is engine-level only, so a future "I can't see my hand" report can't be diagnosed from logs.
+  **Acceptance:** one Info line per hand (not per-frame) records the human seat's hole-card projection — dealt-cards count vs face-up-rendered count — keyed off `handNumber` so it fires once.
+  **Hints:** `PlayPokerViewModel` already has `KLog.withTag("PlayPokerViewModel")`; `handNumber` lives on `TableUiState.Active`. Render path is `HoleCardSlot` in `PlayerArea.kt`.
 
 ## E. Multiplayer
 
