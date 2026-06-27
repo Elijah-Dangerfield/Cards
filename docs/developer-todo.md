@@ -21,6 +21,11 @@ Normal engineering tasks pulled out of [todo.md](./todo.md) on purpose — to pi
 Fully QA the build
 ---
 
+## Legal / compliance
+
+- [ ] **Have a lawyer review the Terms before launch — especially the arbitration clause.** The 2026-06-27 rewrite (AUTH-7, see [decisions.md](./decisions.md)) added a binding-arbitration + class-action-waiver block to [pages/terms.html](../pages/terms.html). It's a reasonable standard version (AAA Consumer Rules, NY seat, small-claims + IP carve-outs, 30-day opt-out, one-year limit) but enforceability turns on drafting and on consumer-arbitration law that shifts by state — get counsel to review before it goes live. While there, sanity-check the 18+ age gate and the limitation-of-liability cap against your actual entity and jurisdiction.
+---
+
 ## Dashboard / external-service config
 
 - [ ] **Supabase email-confirm site URL + redirect URLs + branded template.** Today the confirmation link in the email Supabase sends out still points at the default site URL (localhost) — users can't actually confirm by clicking it. Set Site URL = `cards://auth/confirmed` (matching the deep-link wire-up in [todo.md §A Auth & account onboarding](./todo.md)) and add it to the redirect-URL allowlist, in the dashboard for dev *and* prod. While there, swap the default Supabase template for a Cards-branded one — copy is in the conversation's email-template draft (subject "Confirm your email — Cards" / body with `{{ .ConfirmationURL }}` button + "Then return to Cards" line). The client-side `VerifyEmailScreen` already does `refreshSession()` + `emailConfirmedAt` check; once the deep link is wired, the page auto-refreshes on resume — no manual button tap needed on the same device. Dashboard URLs: https://supabase.com/dashboard/project/yuqrfhdoejonclgbixlw/auth/url-configuration + https://supabase.com/dashboard/project/yuqrfhdoejonclgbixlw/auth/templates
