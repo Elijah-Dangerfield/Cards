@@ -2,6 +2,7 @@ package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.features.room.impl.session.IntentRejectedException
 import com.dangerfield.cards.features.room.impl.session.IntentTimeoutException
+import com.dangerfield.cards.features.room.impl.session.NextHandRefusal
 import com.dangerfield.cards.features.room.impl.session.PokerSession
 import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
 import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
@@ -141,6 +142,11 @@ class PlayPokerViewModel @Inject constructor(
     // guard as play-style; the outbox feeds the server's authoritative counters.
     private var lastRecordedStatHand: Int? = null
 
+    // Hand number of the last hole-card render projection we logged (GAME-8).
+    // Guards the once-per-hand "what the table projected for my seat" line so it
+    // fires once cards are dealt, never per snapshot/frame.
+    private var lastLoggedHoleCardHand: Int? = null
+
     // Opponents we've already fired a friend request at this session — guards a
     // double-tap from sending twice (the inline button also flips to Sent).
     private val requestedFriendIds: MutableSet<String> = mutableSetOf()
@@ -234,11 +240,21 @@ class PlayPokerViewModel @Inject constructor(
                 sendEvent(PlayPokerEvent.OpponentLeft(displayName))
             }
         }
-        // Server refused the next hand (heads-up bust, no rebuy yet) — surface
-        // it so the winner's tap isn't a silent no-op. Never fires for solo bots.
+        // Server refused the next hand — split the genuine can't-deal case (the
+        // winner waits on the rebuy-grace countdown) from a transient resync race
+        // so a backgrounded-then-stale tap never gets the terminal rebuy copy
+        // (MP-22). Never fires for solo bots.
         viewModelScope.launch {
-            session.nextHandUnavailable.collect {
-                sendEvent(PlayPokerEvent.NextHandUnavailable)
+            session.nextHandRefused.collect { refusal ->
+                val event = when (refusal) {
+                    NextHandRefusal.CannotDeal -> PlayPokerEvent.NextHandUnavailable
+                    NextHandRefusal.Transient -> PlayPokerEvent.NextHandResyncing
+                }
+                // Info: which user-facing event a refusal mapped to — the wrong
+                // mapping (every refusal → rebuy toast) was invisible from the
+                // ack log alone (MP-22). Once per refusal, never in a loop.
+                logger.i { "next-hand refusal $refusal → ${event::class.simpleName}" }
+                sendEvent(event)
             }
         }
         // Heads-up match-over grace countdown (MP-14) → on-table banner. Opens on
@@ -439,6 +455,29 @@ class PlayPokerViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Once per hand (GAME-8), log what the table actually projected for the human
+     * seat: dealt-cards count vs face-up-rendered count. A "cards didn't show"
+     * report (CARDS-style) is otherwise undiagnosable from logs — the session log
+     * is engine-level only, so it never reveals whether the *view* received cards
+     * it could render face-up. Fires only once the human's cards have been dealt,
+     * keyed on `handNumber` so it's one line per hand, never per snapshot/frame.
+     */
+    private fun logHoleCardProjection(table: TableUiState) {
+        val active = table as? TableUiState.Active ?: return
+        val human = active.seats.firstOrNull { it.isHuman } ?: return
+        val dealt = human.holeCards.size
+        if (dealt == 0 || active.handNumber == lastLoggedHoleCardHand) return
+        lastLoggedHoleCardHand = active.handNumber
+        // Face-up = cards the projection would render face-up (not as backs). The
+        // human always sees their own cards, so backs here means the projection
+        // withheld them — the smoking gun for a "can't see my hand" report.
+        val faceUp = if (human.showHoleCardBacks) 0 else dealt
+        logger.i {
+            "hole-card projection hand=${active.handNumber} dealt=$dealt faceUp=$faceUp"
+        }
+    }
+
     private fun handleHandEnded(
         event: GameEvent.HandEnded,
         state: GameState,
@@ -605,18 +644,20 @@ class PlayPokerViewModel @Inject constructor(
         when (action) {
             is PlayPokerAction.GameStateUpdated -> {
                 lastGameState = action.state
+                var projected: TableUiState? = null
                 action.updateState {
-                    it.copy(
-                        table = sessionFactory.tableFor(
-                            state = action.state,
-                            lastWinners = lastWinners,
-                            lastActionBySeat = lastActionBySeat.toMap(),
-                            humanProfile = latestHumanProfile,
-                            humanLevel = it.humanLevel,
-                            curve = levelCurve,
-                        ),
+                    val table = sessionFactory.tableFor(
+                        state = action.state,
+                        lastWinners = lastWinners,
+                        lastActionBySeat = lastActionBySeat.toMap(),
+                        humanProfile = latestHumanProfile,
+                        humanLevel = it.humanLevel,
+                        curve = levelCurve,
                     )
+                    projected = table
+                    it.copy(table = table)
                 }
+                projected?.let { logHoleCardProjection(it) }
             }
             is PlayPokerAction.OccupantsUpdated -> action.updateState {
                 it.copy(occupants = action.occupants)

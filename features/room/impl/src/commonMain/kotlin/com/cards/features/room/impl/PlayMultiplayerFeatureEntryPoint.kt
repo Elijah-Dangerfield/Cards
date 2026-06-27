@@ -39,6 +39,7 @@ import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_intent_rejected
 import cards.libraries.resources.generated.resources.room_intent_timed_out
+import cards.libraries.resources.generated.resources.room_next_hand_resyncing
 import cards.libraries.resources.generated.resources.room_next_hand_unavailable
 import cards.libraries.resources.generated.resources.room_opponent_left
 import cards.libraries.resources.generated.resources.room_quick_buy_failed
@@ -143,6 +144,10 @@ class PlayMultiplayerFeatureEntryPoint(
                         PlayPokerEvent.NextHandUnavailable -> showSnackBar(
                             message = getString(Res.string.room_next_hand_unavailable),
                             emoji = "⏳",
+                        )
+                        PlayPokerEvent.NextHandResyncing -> showSnackBar(
+                            message = getString(Res.string.room_next_hand_resyncing),
+                            emoji = "🔄",
                         )
                         is PlayPokerEvent.IntentFeedback -> when (event.kind) {
                             IntentFeedbackKind.TimedOut -> showSnackBar(

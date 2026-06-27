@@ -221,9 +221,13 @@
     <string name="onboarding_welcome_continue_guest_progress">One moment…</string>
     <string name="onboarding_welcome_oauth_apple">Continue with Apple</string>
     <string name="onboarding_welcome_oauth_google">Continue with Google</string>
-    <string name="onboarding_welcome_oauth_in_flight">One moment…</string>
-    <string name="onboarding_welcome_footer">No account required to play.\nSign in later if you want to save your progress.</string>
-    <string name="onboarding_welcome_sign_in">Sign in with email</string>
+    <!-- Compact label for the side-by-side OAuth row, where the full "Continue
+         with Google" won't fit at half width. -->
+    <string name="onboarding_welcome_oauth_google_short">Google</string>
+    <!-- Inline sign-in prompt under the Welcome buttons. "Sign in" must appear
+         verbatim so buildClickableText can make it a tappable link. -->
+    <string name="onboarding_welcome_footer">Already have an account? Sign in</string>
+    <string name="onboarding_welcome_sign_in">Sign in</string>
     <!-- Passive consent shown under the Welcome buttons. "Terms of Service" and "Privacy Policy"
          must appear verbatim so buildClickableText can make each a tappable link. -->
     <string name="onboarding_welcome_consent">By continuing, you agree to our Terms of Service and Privacy Policy.</string>
@@ -263,7 +267,6 @@
 
     <!-- Public rooms - Find a table (SPEC §4). Visual shell; no live matchmaking. -->
     <string name="public_find_title">Find a table</string>
-    <string name="public_find_subtitle">214 online now</string>
     <string name="public_find_explainer_title">We'll seat you</string>
     <string name="public_find_explainer_body">Set what you're happy to buy in for. If a hand's already running, you're in for the next one.</string>
     <string name="public_find_range_label">Your buy-in range</string>
@@ -279,11 +282,14 @@
     <string name="public_searching_title">Finding a table</string>
     <string name="public_searching_buyin_label">Your buy-in range</string>
     <string name="public_searching_cancel">Cancel search</string>
-    <!-- Rotating reassurance shown while we genuinely hunt for real players. -->
-    <string name="public_searching_rotate_1">Looking for real players at your buy-in…</string>
-    <string name="public_searching_rotate_2">Every seat at your table is a real person.</string>
-    <string name="public_searching_rotate_3">A good table is worth the wait. Hang tight.</string>
-    <string name="public_searching_rotate_4">Got friends who play? They make tables fill faster.</string>
+    <!-- Rotating reassurance shown while we genuinely hunt for players. Calm, not
+         protesting-too-much: at most one understated mention of "real" across the set. -->
+    <string name="public_searching_rotate_1">Looking for players at your buy-in…</string>
+    <string name="public_searching_rotate_2">A good table is worth the wait. Hang tight.</string>
+    <string name="public_searching_rotate_3">Matching you with someone at your stakes.</string>
+    <string name="public_searching_rotate_4">Got friends who play? Tables fill faster together.</string>
+    <string name="public_searching_rotate_5">Still searching. Thanks for your patience.</string>
+    <string name="public_searching_rotate_6">Every seat here is a real person, no bots in the mix.</string>
     <!-- Chooser - the qualifying tables the user can pick from (SPEC §2). -->
     <string name="public_searching_choose_title">Tables you can join</string>
     <string name="public_searching_choose_subtitle">Pick a table to take a seat. Joining buys you in at that table's stakes.</string>
@@ -834,6 +840,8 @@
 
     <!-- Room - notice when "next hand" is refused because the table can't deal another (heads-up, opponent busted with no rebuy). -->
     <string name="room_next_hand_unavailable">Waiting for your opponent to rebuy or leave</string>
+    <!-- Room - transient notice when "next hand" is refused mid-resolve / after a reconnect (the hand is still settling); the table catches up on its own and the player can retry. -->
+    <string name="room_next_hand_resyncing">Catching up with the table, try that again in a moment</string>
 
     <!-- Room - transient notice when a submitted action got no server ack in time (the action did not land; the player can retry). -->
     <string name="room_intent_timed_out">That didn't send. Check your connection and try again</string>

@@ -2,6 +2,7 @@ package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.features.room.impl.session.IntentRejectedException
 import com.dangerfield.cards.features.room.impl.session.IntentTimeoutException
+import com.dangerfield.cards.features.room.impl.session.NextHandRefusal
 import com.dangerfield.cards.features.room.impl.session.RemotePokerSession
 
 import app.cash.turbine.test
@@ -837,15 +838,15 @@ class RemotePokerSessionTest : CoroutineTest() {
     }
 
     @Test
-    fun nextHandUnavailable_emits_whenServerRejectsNextHand() = runUnitTest {
+    fun nextHandRefused_classifiesCannotDeal_onHeadsUpBust() = runUnitTest {
         // Heads-up bust: the server refuses the next hand because only one
-        // seat has chips. The winner's tap must surface a notice (MP-14)
-        // rather than vanishing silently.
+        // seat has chips. This is the genuine can't-deal case (MP-14) — it must
+        // classify as CannotDeal so the winner sees the rebuy notice.
         val handle = FakeRoomConnectionHandle()
         val session = RemotePokerSession(handle)
-        val unavailable = mutableListOf<Unit>()
+        val refusals = mutableListOf<NextHandRefusal>()
         val runJob = launch { session.run() }
-        val collectJob = launch { session.nextHandUnavailable.collect { unavailable += it } }
+        val collectJob = launch { session.nextHandRefused.collect { refusals += it } }
         advanceUntilIdle()
 
         session.requestNextHand()
@@ -860,18 +861,49 @@ class RemotePokerSessionTest : CoroutineTest() {
         )
         advanceUntilIdle()
 
-        assertEquals(1, unavailable.size, "a rejected next-hand must fan out the unavailable notice")
+        assertEquals(listOf(NextHandRefusal.CannotDeal), refusals)
         runJob.cancel()
         collectJob.cancel()
     }
 
     @Test
-    fun nextHandUnavailable_doesNotEmit_whenServerAcceptsNextHand() = runUnitTest {
+    fun nextHandRefused_classifiesTransient_onCurrentHandNotComplete() = runUnitTest {
+        // MP-22: the user backgrounded, their socket flapped, and they tapped a
+        // stale-snapshot "next hand" while the server had already moved the hand
+        // on. The server rejects with "current hand not complete" — a transient
+        // resync race, NOT an opponent-busted condition. It must classify as
+        // Transient so the screen never shows the terminal rebuy copy.
         val handle = FakeRoomConnectionHandle()
         val session = RemotePokerSession(handle)
-        val unavailable = mutableListOf<Unit>()
+        val refusals = mutableListOf<NextHandRefusal>()
         val runJob = launch { session.run() }
-        val collectJob = launch { session.nextHandUnavailable.collect { unavailable += it } }
+        val collectJob = launch { session.nextHandRefused.collect { refusals += it } }
+        advanceUntilIdle()
+
+        session.requestNextHand()
+        runCurrent()
+        val frame = assertIs<ClientFrame.RequestNextHand>(handle.sent.single())
+        handle.pushFrame(
+            GameplayFrame.IntentAck(
+                clientNonce = frame.clientNonce,
+                accepted = false,
+                error = "current hand not complete",
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf(NextHandRefusal.Transient), refusals)
+        runJob.cancel()
+        collectJob.cancel()
+    }
+
+    @Test
+    fun nextHandRefused_doesNotEmit_whenServerAcceptsNextHand() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val refusals = mutableListOf<NextHandRefusal>()
+        val runJob = launch { session.run() }
+        val collectJob = launch { session.nextHandRefused.collect { refusals += it } }
         advanceUntilIdle()
 
         session.requestNextHand()
@@ -882,7 +914,7 @@ class RemotePokerSessionTest : CoroutineTest() {
         )
         advanceUntilIdle()
 
-        assertTrue(unavailable.isEmpty(), "an accepted next-hand must not fire the unavailable notice")
+        assertTrue(refusals.isEmpty(), "an accepted next-hand must not fire a refusal")
         runJob.cancel()
         collectJob.cancel()
     }

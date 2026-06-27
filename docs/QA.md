@@ -299,6 +299,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 **Expected:** Either a chooser lists candidate tables (buy-in, seats taken / max, real-human count) and tapping one seats you at that table, or — on an empty result — the search waits and then seats you against bots. Finish line is sit-down: you have a stack at the table. The buy-in is reserved from your wallet (wallet drops by the buy-in, not spent).
 
 - When the bot-fallback offer appears and you've already drawn down some of today's house-funded subsidy, the offer shows a heads-up line naming the remaining bonus chips (or "you've used today's bonus chips" once exhausted). With full headroom no caveat shows. Tapping "Keep waiting" clears the line (MP-6).
+- The no-results state reads as a calm centered message ("We couldn't find anyone right now" + a supportive line), not a promotional banner. "Keep waiting for players" is the primary action; "Play bots for real chips" sits below it as a secondary offer; "Try again later" is the quiet exit. The subsidy disclosure (above) stays legible in this treatment (ROOM-9).
 - Two devices, same buy-in range (including a tight range that falls between the round stakes, e.g. 3k-4k): Device A searches first and opens a table; Device B searches the same range and is seated *with A* (two members at one table), never stranded on its own empty table (MP-15).
 
 ---
@@ -344,6 +345,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** The client retries the socket with backoff and reconnects. Device B's view resyncs to the current hand state (its hole cards, the board, whose turn it is, pot + stacks) — no stale snapshot, no "you left" screen. If it was Device B's turn, the turn is still available (the timer accounts for the gap).
 
+- **Stale-tap after reconnect (MP-22):** background Device B right as a hand is resolving, then foreground and tap "Next hand" on the (briefly stale) summary before the resync lands. The tap must NOT show the terminal "waiting for your opponent to rebuy or leave" toast — both stacks are healthy, nobody busted. Either the table catches up silently and advances, or a brief "Catching up with the table, try that again in a moment" hint shows. The rebuy toast only ever appears when the opponent actually busted with no rebuy (cross-ref `MP-8`).
+
 ---
 
 ### `MP-7` ⚠️ 📱 Graceful leave vs. force-quit
@@ -370,7 +373,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Device B sees the bust dialog with re-buy options (move another buy-in from wallet, drop to a lower tier, or — if broke — soft-bust protection). Choosing re-buy moves a fresh buy-in wallet → stack and deals B back in on the next hand. Declining leaves the table cleanly. On a subsidized bots-for-chips table, the bust dialog reads "fresh stack on the house" and the chips stay real (cross-ref `MP-6` settlement). Wallet math is correct after the re-buy — no double debit.
 
-- **Heads-up:** while Device B sits on the bust dialog (hasn't rebought), Device A (the winner) taps "next hand". A is not left with a dead button — a notice toasts ("waiting for your opponent to rebuy or leave") instead of the tap silently doing nothing. (Cross-ref `MP-12` for the full match-over countdown + result.)
+- **Heads-up (MP-22):** while Device B sits on the bust dialog (hasn't rebought), Device A (the winner) is NOT offered a tappable "Next hand" at all — A sees the shared rebuy-grace countdown ("Opponent busted. Auto-continues in N") instead of a button that can only be refused. If A somehow does fire a next-hand request, the refusal toasts "waiting for your opponent to rebuy or leave" rather than silently doing nothing. (Cross-ref `MP-12` for the full match-over countdown + result.)
 
 ---
 
@@ -446,3 +449,15 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 3. Set Table speed to **Instant**, start a new hand and reach showdown.
 
 **Expected:** Normal plays the calibrated pacing. Fast roughly halves the deal-in and reveal timing. Instant snaps hole cards and community cards straight to settled face-up with no fly/flip animation — action resolves immediately. The setting persists across app restarts and applies on both bot and multiplayer tables. (Covers todo GAME-6.)
+
+## Progression
+
+### `PROG-1` ⚠️ 📱 Level-up celebration shows on a fresh account's first level-up
+
+**State:** a brand-new account (reach via `ONB-1` / `ONB-2`) that has not yet leveled up — go straight from onboarding into a bot game without visiting other screens first.
+
+1. Play bot hands until you earn enough XP to cross into the next level (the header LevelPill ring fills and rolls over).
+2. Finish the hand and let the table return to Home (tap back / Next hand through to Home).
+3. Repeat once more for a second level-up later in the session.
+
+**Expected:** The full-screen level-up celebration presents every time a level is crossed — including the very first level-up of a fresh session — with the correct level number and any chip/boost/cosmetic reward rows. It never silently drops the user back to Home with no fanfare. A multi-level jump shows a single celebration for the net level. (Covers todo PROG-3; the fix anchors the celebration watermark in the reward granter so a first-session level-up can't be eaten by a seeding race.)

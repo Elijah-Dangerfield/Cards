@@ -275,9 +275,10 @@ class RunningMpScenario internal constructor(
 
     /**
      * Server refuses a [requestNextHand] — fans an unaccepted ack for the
-     * outbound [ClientFrame.RequestNextHand] frame, the way the server signals
-     * "can't deal another hand" (heads-up bust, no rebuy yet). Drives
-     * [PlayPokerEvent.NextHandUnavailable].
+     * outbound [ClientFrame.RequestNextHand] frame. The [error] string decides
+     * the classification (MP-22): the canonical can't-deal reason drives
+     * [PlayPokerEvent.NextHandUnavailable] (the rebuy notice), any other reason
+     * drives [PlayPokerEvent.NextHandResyncing] (a transient resync hint).
      */
     suspend fun serverRefusesNextHand(error: String? = null) {
         vm.takeAction(PlayPokerAction.RequestNextHand)

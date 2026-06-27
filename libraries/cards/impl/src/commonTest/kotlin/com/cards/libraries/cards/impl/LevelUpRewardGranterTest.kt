@@ -48,6 +48,38 @@ class LevelUpRewardGranterTest : CoroutineTest() {
     }
 
     @Test
+    fun unsetWatermark_alsoSeedsCelebrationWatermark_toTheSameLevel() = runUnitTest {
+        // PROG-3: the granter is the single AutoInit observer that reliably sees
+        // the user's pre-session level before any hand is played. It must anchor
+        // BOTH watermarks there so a level-up earned this session can't be eaten
+        // by HomeViewModel's own (racy, possibly-late) celebration seed. Without
+        // this, a fresh account that levels up before Home's gate first emits
+        // seeds lastCelebratedLevel straight to the new level and the celebration
+        // is silently dropped.
+        val cache = FakeAppCache() // both watermarks 0
+        val progression = FakeProgressionRepository(Progression.Empty.copy(totalXp = xpAtStartOfLevel(5)))
+
+        build(cache = cache, progression = progression)
+
+        assertEquals(5, cache.get().highestLevelRewarded)
+        assertEquals(5, cache.get().lastCelebratedLevel, "celebration watermark anchored alongside the reward one")
+    }
+
+    @Test
+    fun unsetRewardWatermark_doesNotClobberAnAlreadySeededCelebrationWatermark() = runUnitTest {
+        // If HomeViewModel's gate already seeded lastCelebratedLevel (won the
+        // race), the granter's seed must leave it alone — only seed the
+        // celebration watermark when it too is unset.
+        val cache = FakeAppCache(AppData(lastCelebratedLevel = 1))
+        val progression = FakeProgressionRepository(Progression.Empty.copy(totalXp = xpAtStartOfLevel(3)))
+
+        build(cache = cache, progression = progression)
+
+        assertEquals(3, cache.get().highestLevelRewarded)
+        assertEquals(1, cache.get().lastCelebratedLevel, "existing celebration watermark untouched")
+    }
+
+    @Test
     fun crossingRewardedLevel_grantsChips_keyedPerLevel_andAdvancesWatermark() = runUnitTest {
         val cache = FakeAppCache(AppData(highestLevelRewarded = 2))
         val chips = RecordingChipsRepository()

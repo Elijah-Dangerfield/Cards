@@ -344,11 +344,20 @@ sealed interface PlayPokerEvent {
     data object RebuyInsufficientChips : PlayPokerEvent
 
     /**
-     * The server rejected "next hand" because the table can't deal another one
-     * (heads-up, the opponent busted to 0 with no rebuy yet). The screen toasts
-     * a notice so the winner's tap isn't a silent no-op (MP-14).
+     * The server rejected "next hand" because the table genuinely can't deal
+     * another one (heads-up, the opponent busted to 0 with no rebuy yet). The
+     * screen toasts a notice so the winner's tap isn't a silent no-op (MP-14).
      */
     data object NextHandUnavailable : PlayPokerEvent
+
+    /**
+     * "Next hand" was refused by a transient race — the hand is still resolving
+     * or the tap rode a stale snapshot after a socket flap (MP-22). NOT the
+     * opponent-rebuy case: the live snapshot stream is the resync, so the screen
+     * shows a quiet "catching up, try again" hint instead of the terminal rebuy
+     * copy the bug surfaced. MP only.
+     */
+    data object NextHandResyncing : PlayPokerEvent
 
     /**
      * A submitted action didn't go through — the server either never acked it in

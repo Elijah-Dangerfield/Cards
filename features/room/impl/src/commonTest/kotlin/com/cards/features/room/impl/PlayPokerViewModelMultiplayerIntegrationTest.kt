@@ -183,6 +183,59 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
     }
 
     @Test
+    fun nextHandRefusal_currentHandNotComplete_emitsResyncing_notRebuyToast() = runUnitTest {
+        // MP-22: the user backgrounded and tapped a stale-snapshot "next hand";
+        // the server rejected with "current hand not complete". The bug mapped
+        // EVERY refusal to NextHandUnavailable (the opponent-rebuy toast). It must
+        // instead emit the transient NextHandResyncing event.
+        val (vm, handle) = buildMpVm(localUserId = LOCAL_USER)
+        val events = mutableListOf<PlayPokerEvent>()
+        val collectJob = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.RequestNextHand)
+        // runCurrent (not advanceUntilIdle) so the frame goes out but the
+        // session's 10s ack-timeout doesn't fire before we push the ack back.
+        runCurrent()
+        val frame = assertIs<ClientFrame.RequestNextHand>(handle.sent.single())
+        handle.pushFrame(
+            GameplayFrame.IntentAck(
+                clientNonce = frame.clientNonce,
+                accepted = false,
+                error = "current hand not complete",
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf<PlayPokerEvent>(PlayPokerEvent.NextHandResyncing), events)
+        collectJob.cancel()
+    }
+
+    @Test
+    fun nextHandRefusal_cannotDeal_emitsNextHandUnavailable() = runUnitTest {
+        // The genuine heads-up-bust case (MP-14) still surfaces the rebuy notice.
+        val (vm, handle) = buildMpVm(localUserId = LOCAL_USER)
+        val events = mutableListOf<PlayPokerEvent>()
+        val collectJob = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.RequestNextHand)
+        runCurrent()
+        val frame = assertIs<ClientFrame.RequestNextHand>(handle.sent.single())
+        handle.pushFrame(
+            GameplayFrame.IntentAck(
+                clientNonce = frame.clientNonce,
+                accepted = false,
+                error = "not enough players with chips for next hand",
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf<PlayPokerEvent>(PlayPokerEvent.NextHandUnavailable), events)
+        collectJob.cancel()
+    }
+
+    @Test
     fun connectionTransitions_propagateToVmConnectionState() = runUnitTest {
         val (vm, handle) = buildMpVm()
         advanceUntilIdle()

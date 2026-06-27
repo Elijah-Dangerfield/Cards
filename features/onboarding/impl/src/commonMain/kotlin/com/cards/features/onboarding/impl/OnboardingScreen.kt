@@ -67,10 +67,7 @@ import com.dangerfield.cards.libraries.ui.components.RotatingDial
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.XpBadge
-import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
-import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
-import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
@@ -133,6 +130,7 @@ import cards.libraries.resources.generated.resources.onboarding_welcome_footer
 import cards.libraries.resources.generated.resources.onboarding_welcome_sign_in
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_apple
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_google
+import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_google_short
 import cards.libraries.resources.generated.resources.onboarding_welcome_subtitle
 import cards.libraries.resources.generated.resources.onboarding_welcome_title
 import cards.libraries.resources.generated.resources.ui_top_bar_back_a11y
@@ -359,36 +357,13 @@ private fun WelcomeStep(
                 Spacer(modifier = Modifier.height(Dimension.D400))
             }
 
-            // Social-forward: the OAuth options sit on top as full-width
-            // buttons, then the always-available no-friction guest path, then
-            // a quiet "use email instead" link for the minority who want it.
-            // Each OAuth button only appears when its provider flag is on
-            // (off until the Supabase provider is provisioned); with both off
-            // the screen gracefully collapses to guest + email link.
+            // Guest is the no-friction hero path, so it leads as the gold
+            // primary CTA. The OAuth providers sit beneath it as a compact
+            // side-by-side pair, and returning users get a quiet inline
+            // sign-in link. Each OAuth slot only shows when its provider flag
+            // is on (off until the Supabase provider is provisioned); with both
+            // off the screen collapses to guest + sign-in.
             val oauthBusy = state.oauthInFlight != null || state.isAuthing
-            if (state.appleEnabled) {
-                // Native ASAuthorizationAppleIDButton on iOS (the only place the
-                // Apple slot shows — appleEnabled is iOS-gated). Tapping it runs
-                // the native sheet via the injected coordinator, not the web flow.
-                AppleSignInButton(
-                    onClick = { onAction(OnboardingAction.SignInWithApple) },
-                    enabled = !oauthBusy,
-                    isLoading = state.oauthInFlight == OAuthProvider.Apple,
-                    kind = AppleSignInButtonKind.ContinueFlow,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(Dimension.D400))
-            }
-            if (state.googleEnabled) {
-                GoogleSignInButton(
-                    text = stringResource(Res.string.onboarding_welcome_oauth_google),
-                    onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
-                    enabled = !oauthBusy,
-                    isLoading = state.oauthInFlight == OAuthProvider.Google,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(Dimension.D400))
-            }
 
             ButtonPrimary(
                 onClick = { onAction(OnboardingAction.ContinueAsGuest) },
@@ -403,22 +378,26 @@ private fun WelcomeStep(
                 )
             }
 
+            if (state.appleEnabled || state.googleEnabled) {
+                Spacer(modifier = Modifier.height(Dimension.D400))
+                OAuthOptions(state = state, onAction = onAction, oauthBusy = oauthBusy)
+            }
+
             Spacer(modifier = Modifier.height(Dimension.D500))
-            Text(
-                text = stringResource(Res.string.onboarding_welcome_footer),
+            // "Already have an account? Sign in" — the trailing "Sign in" is the
+            // tappable link out to the email/password flow. Suppressed mid-auth
+            // so a returning-user tap can't race an in-flight guest/OAuth call.
+            ClickableText(
+                text = run {
+                    val signInLink = stringResource(Res.string.onboarding_welcome_sign_in)
+                    buildClickableText(stringResource(Res.string.onboarding_welcome_footer)) {
+                        link(signInLink) { if (!oauthBusy) onAction(OnboardingAction.SignIn) }
+                    }
+                },
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
-            Spacer(modifier = Modifier.height(Dimension.D300))
-            Button(
-                onClick = { onAction(OnboardingAction.SignIn) },
-                type = ButtonType.Ghost,
-                style = ButtonStyle.Text,
-                enabled = !state.isAuthing && state.oauthInFlight == null,
-            ) {
-                Text(stringResource(Res.string.onboarding_welcome_sign_in))
-            }
 
             Spacer(modifier = Modifier.height(Dimension.D500))
             // Passive consent — every sign-in path (guest / Apple / Google /
@@ -439,6 +418,58 @@ private fun WelcomeStep(
             )
             Spacer(modifier = Modifier.height(Dimension.D700))
         }
+    }
+}
+
+/**
+ * The OAuth provider buttons on the Welcome step. When both providers are
+ * enabled they share a single side-by-side row (each half width); when only
+ * one is enabled it stretches full width. Apple is the native
+ * `ASAuthorizationAppleIDButton` (iOS-only — `appleEnabled` is iOS-gated),
+ * which collapses to its logo gracefully at the narrow side-by-side width.
+ */
+@Composable
+private fun OAuthOptions(
+    state: OnboardingState,
+    onAction: (OnboardingAction) -> Unit,
+    oauthBusy: Boolean,
+) {
+    if (state.appleEnabled && state.googleEnabled) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D400),
+        ) {
+            AppleSignInButton(
+                onClick = { onAction(OnboardingAction.SignInWithApple) },
+                enabled = !oauthBusy,
+                isLoading = state.oauthInFlight == OAuthProvider.Apple,
+                kind = AppleSignInButtonKind.ContinueFlow,
+                modifier = Modifier.weight(1f),
+            )
+            GoogleSignInButton(
+                text = stringResource(Res.string.onboarding_welcome_oauth_google_short),
+                onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
+                enabled = !oauthBusy,
+                isLoading = state.oauthInFlight == OAuthProvider.Google,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    } else if (state.appleEnabled) {
+        AppleSignInButton(
+            onClick = { onAction(OnboardingAction.SignInWithApple) },
+            enabled = !oauthBusy,
+            isLoading = state.oauthInFlight == OAuthProvider.Apple,
+            kind = AppleSignInButtonKind.ContinueFlow,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    } else if (state.googleEnabled) {
+        GoogleSignInButton(
+            text = stringResource(Res.string.onboarding_welcome_oauth_google),
+            onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
+            enabled = !oauthBusy,
+            isLoading = state.oauthInFlight == OAuthProvider.Google,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

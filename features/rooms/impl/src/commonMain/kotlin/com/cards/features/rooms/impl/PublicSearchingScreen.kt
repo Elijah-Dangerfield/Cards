@@ -54,6 +54,8 @@ import cards.libraries.resources.generated.resources.public_searching_rotate_1
 import cards.libraries.resources.generated.resources.public_searching_rotate_2
 import cards.libraries.resources.generated.resources.public_searching_rotate_3
 import cards.libraries.resources.generated.resources.public_searching_rotate_4
+import cards.libraries.resources.generated.resources.public_searching_rotate_5
+import cards.libraries.resources.generated.resources.public_searching_rotate_6
 import cards.libraries.resources.generated.resources.public_searching_title
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -252,6 +254,8 @@ private fun RotatingReassurance() {
         Res.string.public_searching_rotate_2,
         Res.string.public_searching_rotate_3,
         Res.string.public_searching_rotate_4,
+        Res.string.public_searching_rotate_5,
+        Res.string.public_searching_rotate_6,
     )
     var index by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
@@ -276,15 +280,26 @@ private fun ColumnScope.BotFallbackContent(
     subsidyNotice: SubsidyNotice?,
     onAction: (PublicSearchingAction) -> Unit,
 ) {
+    // Honest no-results empty state (ROOM-9): a calm centered message rather than
+    // a promo-gradient banner. The headline owns the "we couldn't find anyone"
+    // truth; the body frames playing bots as the offered next step, with the
+    // subsidy disclosure kept legible underneath. Action hierarchy: keep waiting
+    // (the honest default) is primary, playing bots is the secondary offer.
     Spacer(Modifier.weight(1f))
-    PublicHeroCard(
-        title = stringResource(Res.string.public_searching_offer_title),
-        body = stringResource(Res.string.public_searching_offer_body),
-        leading = {
-            HeroBadge {
-                Text("🤖", typography = AppTheme.typography.Heading.H700, color = AppTheme.colors.content)
-            }
-        },
+    Text(
+        text = stringResource(Res.string.public_searching_offer_title),
+        typography = AppTheme.typography.Heading.H800,
+        color = AppTheme.colors.content,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(Dimension.D300))
+    Text(
+        text = stringResource(Res.string.public_searching_offer_body),
+        typography = AppTheme.typography.Body.B500,
+        color = AppTheme.colors.contentSecondary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
     )
     if (subsidyNotice != null) {
         Spacer(Modifier.height(Dimension.D500))
@@ -293,18 +308,18 @@ private fun ColumnScope.BotFallbackContent(
     Spacer(Modifier.weight(1f))
 
     ButtonPrimary(
-        onClick = { onAction(PublicSearchingAction.PlayBots) },
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(stringResource(Res.string.public_searching_offer_play_bots))
-    }
-    Spacer(Modifier.height(Dimension.D400))
-    ButtonSecondary(
         onClick = { onAction(PublicSearchingAction.KeepWaiting) },
-        style = ButtonStyle.Outlined,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(stringResource(Res.string.public_searching_offer_keep_waiting))
+    }
+    Spacer(Modifier.height(Dimension.D400))
+    ButtonSecondary(
+        onClick = { onAction(PublicSearchingAction.PlayBots) },
+        style = ButtonStyle.Outlined,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(stringResource(Res.string.public_searching_offer_play_bots))
     }
     Spacer(Modifier.height(Dimension.D400))
     ButtonGhost(
@@ -417,7 +432,7 @@ private fun BuyInRangeCard(minBuyIn: Long, maxBuyIn: Long) {
     }
 }
 
-private const val ROTATE_INTERVAL_MS = 5_000L
+private const val ROTATE_INTERVAL_MS = 8_000L
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable

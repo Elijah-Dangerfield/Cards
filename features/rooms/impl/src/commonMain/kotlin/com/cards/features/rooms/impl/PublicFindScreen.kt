@@ -32,7 +32,6 @@ import cards.libraries.resources.generated.resources.public_find_explainer_body
 import cards.libraries.resources.generated.resources.public_find_explainer_title
 import cards.libraries.resources.generated.resources.public_find_range_label
 import cards.libraries.resources.generated.resources.public_find_range_per_table
-import cards.libraries.resources.generated.resources.public_find_subtitle
 import cards.libraries.resources.generated.resources.public_find_title
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -78,7 +77,6 @@ fun PublicFindScreen(
         topBar = {
             RoomHeader(
                 title = stringResource(Res.string.public_find_title),
-                sub = stringResource(Res.string.public_find_subtitle),
                 onNavigateBack = onBack,
             )
         },
