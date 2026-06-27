@@ -446,3 +446,15 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 3. Set Table speed to **Instant**, start a new hand and reach showdown.
 
 **Expected:** Normal plays the calibrated pacing. Fast roughly halves the deal-in and reveal timing. Instant snaps hole cards and community cards straight to settled face-up with no fly/flip animation — action resolves immediately. The setting persists across app restarts and applies on both bot and multiplayer tables. (Covers todo GAME-6.)
+
+## Progression
+
+### `PROG-1` ⚠️ 📱 Level-up celebration shows on a fresh account's first level-up
+
+**State:** a brand-new account (reach via `ONB-1` / `ONB-2`) that has not yet leveled up — go straight from onboarding into a bot game without visiting other screens first.
+
+1. Play bot hands until you earn enough XP to cross into the next level (the header LevelPill ring fills and rolls over).
+2. Finish the hand and let the table return to Home (tap back / Next hand through to Home).
+3. Repeat once more for a second level-up later in the session.
+
+**Expected:** The full-screen level-up celebration presents every time a level is crossed — including the very first level-up of a fresh session — with the correct level number and any chip/boost/cosmetic reward rows. It never silently drops the user back to Home with no fanfare. A multi-level jump shows a single celebration for the net level. (Covers todo PROG-3; the fix anchors the celebration watermark in the reward granter so a first-session level-up can't be eaten by a seeding race.)

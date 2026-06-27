@@ -231,6 +231,25 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun levelUp_gateFirstSeesLeveledUpXp_butWatermarkAnchored_stillCelebrates() = runUnitTest {
+        // PROG-3 regression: the celebration was silently dropped when the gate's
+        // FIRST progression emission already reflected a level-up earned this
+        // session (the gate raced behind the level-up). The granter now anchors
+        // lastCelebratedLevel to the pre-session level (here 1) before the hand,
+        // so even though Home's gate first observes level 2, the crossing 1 -> 2
+        // surfaces the celebration instead of being swallowed by the unset seed.
+        val progression = FakeProgressionRepository(initial = Progression.Empty.copy(totalXp = 150L))
+        val appCache = FakeAppCache(initial = AppData(lastCelebratedLevel = 1))
+        val vm = buildVm(progression = progression, appCache = appCache)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.levelUpCelebration == null) last = awaitItem()
+            assertEquals(2, last.levelUpCelebration)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun levelUp_crossingIntoRewardedLevel_revealsAggregatedRewards() = runUnitTest {
         // Level 3 grants 1,000 chips (DefaultLevelRewards). Starting from a fresh
         // level-1 account, the watermark seeds to 1, then a jump straight to

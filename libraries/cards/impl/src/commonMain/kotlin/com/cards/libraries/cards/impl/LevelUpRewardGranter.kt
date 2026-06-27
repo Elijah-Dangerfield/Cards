@@ -64,8 +64,25 @@ class LevelUpRewardGranter(
     private suspend fun reconcile(currentLevel: Int) = mutex.withLock {
         val watermark = appCache.get().highestLevelRewarded
         if (watermark == 0) {
-            // Unset — seed to the current level so we never retro-grant.
-            appCache.update { it.copy(highestLevelRewarded = currentLevel) }
+            // Unset — seed to the current level so we never retro-grant. The
+            // granter is the single AutoInit observer that reliably sees the
+            // pre-session level before the user touches a screen, so we anchor
+            // the celebration watermark here too (when it is likewise unset).
+            // HomeViewModel's gate also seeds on `0`, but it can race behind a
+            // level-up earned this session and seed straight past it, silently
+            // eating the celebration (PROG-3). Anchoring both from this one
+            // early observer removes that race; the gate's seed stays as a
+            // fallback for the (unlikely) case it observes first.
+            appCache.update {
+                it.copy(
+                    highestLevelRewarded = currentLevel,
+                    lastCelebratedLevel = if (it.lastCelebratedLevel == 0) {
+                        currentLevel
+                    } else {
+                        it.lastCelebratedLevel
+                    },
+                )
+            }
             return@withLock
         }
         if (currentLevel <= watermark) return@withLock

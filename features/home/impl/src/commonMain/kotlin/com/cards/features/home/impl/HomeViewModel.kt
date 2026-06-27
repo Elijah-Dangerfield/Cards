@@ -303,9 +303,18 @@ class HomeViewModel(
                 // the watermark surfaces the overlay for the *current* level.
                 val gate = action.gate
                 when {
-                    gate.watermark == 0 ->
+                    gate.watermark == 0 -> {
+                        homeLogger.i {
+                            "level-up celebration skipped because watermark unset " +
+                                "(seeding to level ${gate.currentLevel})"
+                        }
                         appCache.update { it.copy(lastCelebratedLevel = gate.currentLevel) }
-                    gate.currentLevel > gate.watermark ->
+                    }
+                    gate.currentLevel > gate.watermark -> {
+                        homeLogger.i {
+                            "level-up celebration enqueued for level ${gate.currentLevel} " +
+                                "(from watermark ${gate.watermark})"
+                        }
                         action.updateState {
                             it.copy(
                                 levelUpCelebration = gate.currentLevel,
@@ -315,6 +324,7 @@ class HomeViewModel(
                                 ),
                             )
                         }
+                    }
                     else ->
                         action.updateState {
                             it.copy(levelUpCelebration = null, levelUpRewards = emptyList())
