@@ -37,6 +37,7 @@ import com.dangerfield.cards.libraries.navigation.serializableType
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_incompatible_version
 import cards.libraries.resources.generated.resources.room_intent_rejected
 import cards.libraries.resources.generated.resources.room_intent_timed_out
 import cards.libraries.resources.generated.resources.room_next_hand_resyncing
@@ -111,7 +112,21 @@ class PlayMultiplayerFeatureEntryPoint(
             LaunchedEffect(viewModel) {
                 viewModel.eventFlow.collect { event ->
                     when (event) {
-                        is PlayPokerEvent.RoomClosed -> router.goBack()
+                        is PlayPokerEvent.RoomClosed -> {
+                            // A frame the client couldn't parse closes the room as
+                            // incompatible (ENG-7). Surface the "update may help"
+                            // message before exiting so the player understands the
+                            // dead table rather than getting a silent pop.
+                            if (event.reason ==
+                                com.dangerfield.cards.libraries.rooms.ClosedReason.IncompatibleVersion
+                            ) {
+                                showSnackBar(
+                                    message = getString(Res.string.room_incompatible_version),
+                                    level = SnackbarLevel.Error,
+                                )
+                            }
+                            router.goBack()
+                        }
                         PlayPokerEvent.OpponentsLeft -> router.batch {
                             when (route.kind) {
                                 // Pop back to the player's EXISTING lobby (it sits

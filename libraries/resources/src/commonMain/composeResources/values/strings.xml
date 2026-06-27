@@ -847,6 +847,8 @@
     <string name="room_intent_timed_out">That didn't send. Check your connection and try again</string>
     <!-- Room - transient notice when the server refused a submitted action (not your turn / illegal move). -->
     <string name="room_intent_rejected">That move wasn't allowed</string>
+    <!-- Room - shown when a game frame couldn't be read (ENG-7); the table may have been created with a newer app version. -->
+    <string name="room_incompatible_version">We're struggling to play this game. It may have been created with a newer app version. Updating may help</string>
 
     <!-- Room - heads-up match-over rebuy countdown (MP-14). Shown to the busted player. %1$s is a m:ss countdown. -->
     <string name="room_match_over_busted_title">Rebuy in %1$s or lose your seat</string>

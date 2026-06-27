@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.MissingFieldException
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -456,11 +457,21 @@ class ReconnectingRoomSocket @Inject constructor(
                         }
                     }
                 } catch (e: CancellationException) {
-                    // Distinguish our control-flow marker from an
-                    // external cancellation (subscriber drop / app
-                    // shutdown). Marker → propagate `terminal = true`
-                    // through; real cancellation → propagate up.
-                    if (e !== TerminalFrameMarker) throw e
+                    // Distinguish our control-flow markers from an external
+                    // cancellation (subscriber drop / app shutdown). A terminal
+                    // frame → propagate `terminal = true` through; an
+                    // undeserializable frame → close terminally as an
+                    // incompatible version (ENG-7) so the screen surfaces an
+                    // "update may help" message and exits rather than freezing;
+                    // a real cancellation → propagate up.
+                    when (e) {
+                        TerminalFrameMarker -> Unit
+                        IncompatibleFrameMarker -> {
+                            _connection.emit(RoomConnection.Closed(ClosedReason.IncompatibleVersion))
+                            terminal = true
+                        }
+                        else -> throw e
+                    }
                 } catch (e: Throwable) {
                     logger.w(e) { "Room socket dropped mid-stream" }
                 } finally {
@@ -484,8 +495,22 @@ class ReconnectingRoomSocket @Inject constructor(
         }
     }
 
+    /**
+     * Decode one wire frame. Returns null for a frame we can safely drop: an
+     * unknown discriminator type (an additive server change the old client
+     * doesn't dispatch yet — ignoring it is the whole point of the additive-only
+     * convention). Throws [IncompatibleFrameMarker] when a *known* frame is
+     * missing a required field ([MissingFieldException]) — a removed/renamed
+     * field, i.e. the breaking change the convention forbids (ENG-7 / CARDS-4S).
+     * The caller turns that into a terminal [ClosedReason.IncompatibleVersion]
+     * close so the user gets an "update may help" message and a safe exit
+     * instead of a silent freeze or a crash.
+     */
     private fun decode(text: String): RoomSocketEventDto? = try {
         RoomSocketJson.decodeFromString(RoomSocketEventDto.serializer(), text)
+    } catch (e: MissingFieldException) {
+        logger.w(e) { "Socket frame missing a required field — treating as incompatible version" }
+        throw IncompatibleFrameMarker
     } catch (e: Throwable) {
         logger.w(e) { "Dropped unrecognized socket frame" }
         null
@@ -574,3 +599,12 @@ private val HandshakeStatusPattern = Regex("expected status code 101 but was (\\
  * Distinguished from real cancellation by identity check.
  */
 private object TerminalFrameMarker : CancellationException("room-closed")
+
+/**
+ * Private control-flow marker thrown when a frame fails to deserialize, so the
+ * session loop can break out of `incoming.collect` and emit a terminal
+ * [ClosedReason.IncompatibleVersion] (ENG-7). Like [TerminalFrameMarker] it's a
+ * [CancellationException] distinguished by identity, so it threads through
+ * `collect` without being mistaken for a real cancellation.
+ */
+private object IncompatibleFrameMarker : CancellationException("incompatible-frame")

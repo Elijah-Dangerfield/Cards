@@ -27,6 +27,20 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-27 — Undeserializable socket frames close the room as `IncompatibleVersion`, gated on missing-required-field vs unknown-type (ENG-7)
+
+**Decision:** The runtime deserialization backstop promised by the CARDS-4S entry lives in the room socket frame decoder (`ReconnectingRoomSocket.decode`), not in a `Catching` wrapper at the game-state read site. The decoder splits two failure shapes: an **unknown discriminator** (a new frame type an old client doesn't dispatch) is dropped and the session keeps running — that is the additive-only convention working as designed; a **`MissingFieldException` on a known frame** (a required field removed/renamed — the breaking change the convention forbids) throws an internal marker that closes the connection terminally as the new `ClosedReason.IncompatibleVersion`. The play screen maps that reason to the "we're struggling to play this game; updating may help" message + a safe exit; the lobby and public-search VMs map it to their existing room-closed / connection-error states.
+
+**Why:** A single `Catching` over the whole decode would conflate "ignore this additive frame" with "this build can't play here," and the natural place to tell them apart is the one function that already owns frame decode and the terminal-close control flow (it already had a `TerminalFrameMarker` for `room_closed`). Keying the breaking case on `MissingFieldException` matches the convention precisely: additions are nullable+defaulted (never missing), so only a removed/renamed *required* field trips it. Surfacing it as a `ClosedReason` reuses the existing close→message→exit plumbing rather than threading a parallel error channel through three VMs.
+
+**Alternatives considered:**
+- **Catch all `SerializationException` as incompatible.** Rejected: an unknown discriminator (additive) is a `SerializationException` too, so this would force a "you must update" message for a benign new frame type — the opposite of the additive-degrade tier.
+- **Wrap the game-state read in the session/VM.** Rejected: by then the frame is already decoded or dropped silently; the decoder is the only point that sees the raw parse failure with enough context to classify it.
+
+**Status:** Locked.
+
+---
+
 ## 2026-06-27 — Game/state objects are additive-only; breaking changes gate on min app version, not per-room capabilities (CARDS-4S)
 
 **Decision:** Cross-client version skew is handled by one two-tier rule. (1) Additive / cosmetic / optional fields degrade gracefully and never bump the version — new fields are nullable + defaulted, and release JSON's `coerceInputValues` coerces unknown values to the property default, so an old client renders the default (e.g. an unknown `felt_*` → `felt_default`) and plays on. (2) A breaking change to the game/state object — repurposing a field, changing an existing field's meaning, or a new rule an old client would misplay — requires raising `upgrade.minSupportedVersionCode` (the existing `:features:upgrade` force-update gate), rolled out *before* the breaking server change ships. The additive tier is the safety net for any in-session straggler between the config bump and the server change. As a runtime backstop beneath both tiers, the client wraps game-state deserialization in a `Catching` block and, on failure, shows a "we're struggling to play this game — it may have been created with a newer app version; updating may help" message instead of crashing or hanging (ENG-7).
@@ -39,7 +53,7 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 **Status:** Locked.
 
-**Follow-up:** ENG-6 (todo.md) — confirm the streamed `MinSupportedVersionCode` overlay reliably covers an in-game client. ENG-7 (todo.md) — the runtime deserialization-failure fallback message.
+**Follow-up:** ENG-6 (todo.md) — confirm the streamed `MinSupportedVersionCode` overlay reliably covers an in-game client. ENG-7 — the runtime deserialization-failure fallback shipped (see the 2026-06-27 entry below).
 
 ---
 

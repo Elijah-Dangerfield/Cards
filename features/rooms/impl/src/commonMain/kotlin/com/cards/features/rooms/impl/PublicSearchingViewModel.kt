@@ -201,8 +201,13 @@ class PublicSearchingViewModel(
                                 updateState { it.copy(phase = SearchPhase.Searching, error = null) }
                                 beginSearch(backoff = true)
                             }
-                        ClosedReason.Rejected, ClosedReason.ReconnectFailed ->
-                            updateState { it.copy(error = SearchError.Connection) }
+                        // IncompatibleVersion (ENG-7): the table sent a frame this
+                        // build can't parse — surface a connection error rather than
+                        // re-finding into the same unparseable table.
+                        ClosedReason.Rejected,
+                        ClosedReason.ReconnectFailed,
+                        ClosedReason.IncompatibleVersion,
+                            -> updateState { it.copy(error = SearchError.Connection) }
                         ClosedReason.Cancelled -> Unit // we tore it down ourselves
                     }
                 }

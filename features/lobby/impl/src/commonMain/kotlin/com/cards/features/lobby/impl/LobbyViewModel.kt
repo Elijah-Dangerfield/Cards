@@ -291,6 +291,17 @@ class LobbyViewModel(
                                 joining = false,
                                 leaving = false,
                             )
+                            // A frame this client can't parse (ENG-7): the room is
+                            // unusable for this build, so close it out like the
+                            // room being gone rather than spinning on a dead lobby.
+                            ClosedReason.IncompatibleVersion -> it.copy(
+                                room = null,
+                                connectionStatus = ConnectionStatus.Disconnected,
+                                error = LobbyError.RoomWasClosed,
+                                creating = false,
+                                joining = false,
+                                leaving = false,
+                            )
                         }
                     }.also { appliedState = it }
                 }

@@ -430,6 +430,17 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
+### `MP-13` ℹ️ 📱 Unparseable game frame shows "update may help", not a freeze
+
+**State:** an in-progress MP table on a build whose game-frame shape is intentionally older than what the server sends (or simulate a server frame with a required field removed). Hard to reproduce without a deliberately-mismatched build — verify opportunistically or via the unit coverage (`ReconnectingRoomSocketTest`).
+
+1. Be seated at a live table receiving game frames.
+2. Have the server send (or replay) a game frame the client can't deserialize.
+
+**Expected:** The app does not crash, hang on "dealing in", or sit on a frozen table. A clear message appears ("We're struggling to play this game. It may have been created with a newer app version. Updating may help") and the player is routed off the dead table to a safe place (lobby for a private game, Home/Find for a public one). (Covers todo ENG-7.)
+
+---
+
 ## Profile & items
 
 ### `PROF-1` ℹ️ 📱 Default felt + card back show as equipped on a fresh account
