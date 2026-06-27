@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-26 (reconcile: MP-22 removed — public matchmaking shipped server + client) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-27 (ENG-3 shipped — unslopped copy now live on prod via V78/V79 on first deploy; list clear) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -24,10 +24,5 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## C. Content & data
-
-**ENG-3 — Mirror the unslopped product copy to prod** `[P1]`
-- Problem: The product copy was unslopped on dev across V78 (shop-visible rows) and V79 (unlock-only achievement-reward rows); prod still holds the old em-dash-heavy copy.
-- Acceptance: Mirror dev's V78 + V79 final copy to prod so the two databases stay identical.
-- Hint: Treat the prod write as sensitive — review the dev diff before mirroring. Needs prod DB creds.
+_No open engineering items right now — the V1 punch list is clear. Human-only follow-ups live in [developer-todo.md](./developer-todo.md); deferred ideas in [backlog.md](./backlog.md)._
 

@@ -597,3 +597,11 @@ This makes Supabase feel like "managed Postgres + hosted auth" rather than "all-
 **Caveat / follow-up:** The arbitration + class-action-waiver clause is the most legally consequential part and its enforceability turns on drafting; this is a reasonable standard version, **not** a substitute for counsel. A lawyer review before launch is tracked in `developer-todo.md`.
 
 **Status:** Shipped (docs + version bump). No automated test — static legal copy; `LEGAL_VERSION` consumers all read the constant, so the onboarding re-consent tests stay green.
+
+## 2026-06-27 — Move both Supabase projects onto new publishable/secret API keys; disable legacy JWT keys
+
+**Decision:** Both projects (dev `yuqrfhdoejonclgbixlw`, prod `kzohlyvmnnvyabspzpbb`) now use Supabase's new API keys: the client ships the `sb_publishable_` key (`AppEnvironment.supabasePublishableKey`, replacing the legacy `anon` JWT) and the server reads an `sb_secret_` key as `SUPABASE_SERVICE_ROLE_KEY` (Fly secret). Legacy `anon` + `service_role` JWT keys are **disabled** on both projects. Prod was stood up for the first time in the process (Fly app `cards-server-prod` now has DATABASE_URL/SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY/ADMIN_API_TOKEN set; Flyway applied all migrations incl. V78/V79, so the unslopped copy — ENG-3 — is live on prod).
+
+**Why:** A prod `service_role` JWT was exposed during setup. Both projects had already migrated to JWT Signing Keys, so the legacy secret was verify-only and not simply regenerable; the clean fix Supabase recommends is moving to publishable/secret keys and disabling the legacy ones. Doing it on **both** envs (not prod-only) keeps dev/prod config identical — the operator's explicit requirement, and the right call to avoid drift. The server never decodes its key (it's a bearer credential to the Auth admin API), and user-token verification is via JWKS, so `sb_secret_` is a drop-in and disabling legacy keys breaks nothing.
+
+**Status:** Shipped. Client change in `refactor(identity): move client onto Supabase publishable keys`. Server/key changes are infra (Fly secrets + Supabase dashboard), not source. Follow-up: the leaked legacy key is dead (disabled), so no rotation debt remains.
