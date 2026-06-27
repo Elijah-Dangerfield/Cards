@@ -77,20 +77,22 @@ interface SupabaseAuthGateway {
      * cancelled).
      *
      * Sign-in only — a **link** (claim) redirect carries no session fragment;
-     * use [refreshLinkedUser] to fold the now-linked identity into the existing
-     * session instead.
+     * use [hydrateCurrentUser] to fold the now-linked identity into the existing
+     * session instead. (Sign-in itself also hydrates the user internally, since
+     * an imported token session has no user object yet.)
      */
     suspend fun completeOAuthRedirect(url: String)
 
     /**
-     * Refresh the user attached to the *current* session from the server,
-     * updating [sessionStatus] in place. Called after a browser **link** (claim)
-     * redirect returns: the identity was attached server-side but the local
-     * session is stale (still `is_anonymous=true`, no identities), and a link
-     * redirect carries no session fragment to import. After this, [currentSession]
-     * reflects the now-claimed, non-anonymous user. Throws on failure.
+     * Fetch the user for the *current* session from the server and write it back
+     * into [sessionStatus] (in place). Two callers: after a browser **link**
+     * (claim) redirect (the identity was attached server-side but the local
+     * session is stale — still `is_anonymous=true`, no identities), and to
+     * hydrate a tokens-only session (an OAuth import or a storage load) whose
+     * `user` is null. After this, [currentSession] resolves to a non-null,
+     * fully-populated session. Throws on failure.
      */
-    suspend fun refreshLinkedUser()
+    suspend fun hydrateCurrentUser()
 
     /**
      * Whether [url] is the OAuth redirect deep link this gateway expects

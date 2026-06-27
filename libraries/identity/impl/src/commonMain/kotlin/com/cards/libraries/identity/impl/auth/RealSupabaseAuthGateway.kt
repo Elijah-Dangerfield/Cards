@@ -14,8 +14,6 @@ import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.auth.signInAnonymously
 import io.github.jan.supabase.auth.status.SessionSource
 import io.github.jan.supabase.auth.status.SessionStatus
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeout
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -28,14 +26,6 @@ import io.github.jan.supabase.auth.providers.OAuthProvider as SupabaseOAuthProvi
  * [SupabaseAuthRepositoryImpl] can map them to outcomes; this class
  * deliberately does not catch.
  */
-/**
- * Upper bound on how long [completeOAuthRedirect] waits for `importSession` to
- * make the new session live before returning. A normal import settles in
- * milliseconds; this only bounds the bad-token case so a wedged redirect
- * surfaces as a failure rather than hanging the sign-in.
- */
-private const val SessionSettleTimeoutMs = 5_000L
-
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
 @Inject
@@ -124,22 +114,20 @@ class RealSupabaseAuthGateway(
         // or an error redirect) — propagated raw, like every other gateway call.
         val session = supabase.auth.parseSessionFromUrl(url)
         supabase.auth.importSession(session, source = SessionSource.External)
-        // `importSession` flips `sessionStatus` / `currentSessionOrNull`
-        // asynchronously — they land a beat later ("loaded from storage"). Wait
-        // until the session is actually live so the caller's `currentSession()`
-        // read can't race to null (the "called without a session" crash). Bounded
-        // so bad/expired tokens surface as a failure here instead of hanging.
-        withTimeout(SessionSettleTimeoutMs) {
-            supabase.auth.sessionStatus.first { it is SessionStatus.Authenticated }
-        }
+        // `parseSessionFromUrl` carries tokens but NO user object — so
+        // `sessionStatus` flips to Authenticated yet `currentSession()` (which
+        // requires `session.user`) still reads null, and the caller throws
+        // "no session" despite being authenticated. Fetch the user into the
+        // session so it's fully hydrated before the caller reads it.
+        hydrateCurrentUser()
     }
 
-    override suspend fun refreshLinkedUser() {
-        // A link/claim redirect attaches the identity server-side but doesn't
-        // hand back a session fragment, so there's nothing to import. Pull the
-        // updated user for the *current* session and write it back into
-        // sessionStatus (updateSession = true) — that flips is_anonymous → false
-        // and populates identities, so currentSession() reflects the claim.
+    override suspend fun hydrateCurrentUser() {
+        // Fetch the user for the current session and write it back into
+        // sessionStatus (updateSession = true). Two uses: after a link/claim
+        // (flips is_anonymous → false, populates identities) and to hydrate a
+        // tokens-only session (OAuth import / storage load) so currentSession()
+        // resolves instead of reading null.
         supabase.auth.retrieveUserForCurrentSession(updateSession = true)
     }
 

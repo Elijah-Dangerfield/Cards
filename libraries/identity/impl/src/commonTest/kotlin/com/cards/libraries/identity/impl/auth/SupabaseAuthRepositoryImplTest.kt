@@ -379,7 +379,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.Authenticated,
             session = anonymousSession(userId = "guest-1"),
-            onRefreshLinkedUser = {
+            onHydrateCurrentUser = {
                 // Same id, now non-anonymous + email — models the refresh after claim.
                 advanceToAuthenticated(claimedSession(userId = "guest-1", email = "claimed@b.com"))
             },
@@ -398,7 +398,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         val state = assertIs<AuthState.Authenticated>(repo.current())
         assertEquals("guest-1", state.userId)
         assertEquals(false, state.isAnonymous, "the claim still flips anon → claimed")
-        assertEquals(1, gateway.refreshLinkedUserCalls, "link redirect refreshes the user, never parses a session")
+        assertEquals(1, gateway.hydrateCurrentUserCalls, "link redirect refreshes the user, never parses a session")
         assertEquals(0, gateway.completeOAuthRedirectCalls, "a link redirect must NOT import a session from the URL")
         assertTrue(reset.clearedFor.isEmpty(), "same-user claim must not dump the guest's data")
         val afterClaim = events.dispatched.drop(dispatchedAtBoot)
@@ -413,6 +413,30 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         )
     }
 
+    @Test
+    fun resolve_authenticatedButSessionNotHydrated_fetchesUserAndResolves_neverThrows() = runUnitTest {
+        // Regression: a tokens-only session (status Authenticated but
+        // currentSession() == null because the user object isn't fetched yet —
+        // an OAuth import or a storage load) must hydrate + recover, NOT crash.
+        // The old code did `error("Authenticated status but no session")`, which
+        // surfaced on device as repeated red stack traces during sign-in/boot.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = null,
+            onHydrateCurrentUser = {
+                // Fetching the user populates the session — what supabase's
+                // retrieveUserForCurrentSession(updateSession = true) does.
+                advanceToAuthenticated(claimedSession(userId = "u-1"))
+            },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val state = assertIs<AuthState.Authenticated>(repo.current())
+        assertEquals("u-1", state.userId)
+        assertTrue(gateway.hydrateCurrentUserCalls >= 1, "resolve must hydrate a tokens-only session")
+    }
+
     // ---------- browser OAuth: suspend-until-redirect ----------
 
     @Test
@@ -423,7 +447,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.Authenticated,
             session = anonymousSession(userId = "guest-1"),
-            onRefreshLinkedUser = {
+            onHydrateCurrentUser = {
                 advanceToAuthenticated(claimedSession(userId = "guest-1", email = "claimed@b.com"))
             },
         )
@@ -472,7 +496,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
 
         assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Success>(signIn.await())
         assertEquals(1, gateway.completeOAuthRedirectCalls, "sign-in imports the session from the URL")
-        assertEquals(0, gateway.refreshLinkedUserCalls, "sign-in does not use the link refresh path")
+        assertEquals(0, gateway.hydrateCurrentUserCalls, "sign-in does not use the link refresh path")
         val state = assertIs<AuthState.Authenticated>(repo.current())
         assertEquals("oauth-1", state.userId)
         assertEquals(false, state.isAnonymous)
@@ -709,8 +733,8 @@ internal class FakeSupabaseAuthGateway(
     var onCompleteOAuthRedirect: suspend FakeSupabaseAuthGateway.(String) -> Unit = {
         error("completeOAuthRedirect not stubbed for this test")
     },
-    var onRefreshLinkedUser: suspend FakeSupabaseAuthGateway.() -> Unit = {
-        error("refreshLinkedUser not stubbed for this test")
+    var onHydrateCurrentUser: suspend FakeSupabaseAuthGateway.() -> Unit = {
+        error("hydrateCurrentUser not stubbed for this test")
     },
 ) : SupabaseAuthGateway {
 
@@ -732,7 +756,7 @@ internal class FakeSupabaseAuthGateway(
         private set
     var completeOAuthRedirectCalls: Int = 0
         private set
-    var refreshLinkedUserCalls: Int = 0
+    var hydrateCurrentUserCalls: Int = 0
         private set
 
     /**
@@ -812,9 +836,9 @@ internal class FakeSupabaseAuthGateway(
         onCompleteOAuthRedirect(url)
     }
 
-    override suspend fun refreshLinkedUser() {
-        refreshLinkedUserCalls++
-        onRefreshLinkedUser()
+    override suspend fun hydrateCurrentUser() {
+        hydrateCurrentUserCalls++
+        onHydrateCurrentUser()
     }
 
     override fun isOAuthRedirect(url: String): Boolean =

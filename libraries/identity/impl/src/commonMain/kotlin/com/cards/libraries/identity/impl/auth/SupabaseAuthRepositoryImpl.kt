@@ -168,7 +168,18 @@ class SupabaseAuthRepositoryImpl(
             when (gateway.currentStatus()) {
                 AuthGatewayStatus.Authenticated -> {
                     val session = gateway.currentSession()
-                        ?: error("Authenticated status but no session in gateway")
+                    if (session == null) {
+                        // Authenticated tokens are present but the session has no
+                        // user yet — a tokens-only state from an OAuth import or a
+                        // storage load. Fetch the user and re-poll rather than
+                        // crash; the user must never get stuck on a transient
+                        // hydration gap. If hydration keeps failing we fall through
+                        // to settle Unauthenticated below.
+                        logger.w { "Authenticated but session not hydrated — fetching user, then retrying" }
+                        Catching { gateway.hydrateCurrentUser() }
+                            .logOnFailure { "User hydration during resolve failed; will retry" }
+                        return@repeat
+                    }
                     val next = AuthState.Authenticated(
                         userId = session.userId,
                         isAnonymous = session.isAnonymous,
@@ -665,7 +676,7 @@ class SupabaseAuthRepositoryImpl(
                     // Link/claim: the redirect carries NO session. Refresh the
                     // current session's user so the just-attached identity folds in
                     // (is_anonymous → false). The URL is irrelevant past routing.
-                    OAuthFlowKind.Link -> gateway.refreshLinkedUser()
+                    OAuthFlowKind.Link -> gateway.hydrateCurrentUser()
                 }
                 emitAuthenticatedFromGatewayLocked()
             }.fold(
