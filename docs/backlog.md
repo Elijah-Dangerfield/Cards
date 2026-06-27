@@ -817,3 +817,23 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch if revisited:** push a lightweight "config changed" / "force upgrade" signal over the existing room WebSocket (or a dedicated app-wide channel) so a continuously-foregrounded client re-resolves config without waiting for a foreground transition. Avoid reintroducing fixed-interval polling — that was deliberately removed.
 
 **Status:** Backlog. The reactive wiring + z-order are verified (`AppGuardStateTest`); this is the optional "cover the never-backgrounds-mid-hand client" hardening, gated on a product call about whether it's worth a new push channel.
+
+---
+
+## Drain paid-but-unredeemed receipts on app foreground (BILL)
+
+**Idea (deferred from BILL-5, 2026-06-27):** On the server-authoritative purchase path (`billing.realPurchasesEnabled` on), if `/v1/billing/redeem` is unreachable *after* the user already paid at the store, `DefaultPurchaseChipPackUseCase` returns `Failed("redeem_unavailable")` and the purchase stands at the store but is never credited until the user manually re-taps Buy (which idempotently re-redeems). For real money, a transient network blip at the wrong moment means a paying user is left without their chips with no automatic recovery.
+
+**Sketch if revisited:** on app foreground, enumerate any finished-but-unredeemed store purchases (Play Billing's owned-but-unacknowledged purchases / StoreKit's unfinished transactions) and re-POST each to `/v1/billing/redeem` (idempotent on the store transaction id, so a double-drain is safe), then acknowledge. This is the standard "restore / reconcile pending purchases" loop both stores expect anyway.
+
+**Status:** Backlog. Real money-loss-for-user risk — should land before `realPurchasesEnabled` is ever flipped on in prod, alongside the real store listings (BILL-3/4).
+
+---
+
+## Leave a real-chip table before the next hand's blinds post (ROOM-4 secondary)
+
+**Idea (deferred from ROOM-4, 2026-06-27):** ROOM-4 made the leave-confirm dialog show the net a leave settles plus any chips forfeited in the live hand. The secondary owner ask — letting a player leave *before* the next hand's blinds are posted (so they don't forfeit a blind they never wanted to post) — is a turn-flow change (when the leave actually fires relative to the deal), not a dialog-copy change, so it was left out of the dialog-only slice.
+
+**Sketch if revisited:** let a queued leave fire at the hand boundary before the new blinds are posted for the leaving seat — i.e. honor an "I'm leaving" intent during the between-hands window so the player isn't auto-posted into a hand they're trying to exit. Pairs with the existing sit-out / auto-fold machinery.
+
+**Status:** Backlog. Visibility (the net + forfeit callout) shipped in this PR; this is the turn-flow follow-up.
