@@ -59,15 +59,7 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ## G. Rooms & matchmaking
 
-- `[P2]` **ROOM-8 — Soften the "real players" emphasis in the matchmaking search copy; rotate more lines, hold each longer.** Owner directive: the rotating reassurance while searching leans on "real" too hard — it reads as protesting-too-much (`public_searching_rotate_2` = "Every seat at your table is a real person."). Keep the honest framing but stop repeating "real" in every line, cycle through a few more variants, and hold each longer so it feels calm rather than nagging.
-  **Acceptance:** `public_searching_rotate_1` drops "real" ("Looking for players at your buy-in…"); the set no longer says "real" in most lines (at most one understated mention); there are a few calm variants; each holds noticeably longer. No claim that any seat is a bot or a person beyond what's honest.
-  **Hints:** strings `public_searching_rotate_1..4` (+ the XML comment on line 282) in `libraries/resources/.../strings.xml`; the rotation list + `ROTATE_INTERVAL_MS = 5_000L` (bump it) in [`PublicSearchingScreen.kt:250`](features/rooms/impl/src/commonMain/kotlin/com/cards/features/rooms/impl/PublicSearchingScreen.kt). Owner directive (in-session 2026-06-27), no Sentry issue.
-
 - `[P2]` **ROOM-9 — Rework the "We couldn't find anyone right now" matchmaking UI.** Owner directive: the offer state (when no table is found, pitching "play bots for real chips while you wait") feels off — the banner reads weird and isn't what he'd expect. Needs a design pass, not a copy tweak.
   **Acceptance:** the no-results state is reworked into a treatment that reads naturally (not a weird banner) while keeping the honest "bots step aside when a real player joins" + daily-subsidy disclosure intact. Make a directional design recommendation, ship a slice, let the reviewer/owner course-correct.
   **Hints:** the offer state in [`PublicSearchingScreen.kt`](features/rooms/impl/src/commonMain/kotlin/com/cards/features/rooms/impl/PublicSearchingScreen.kt) (strings `public_searching_offer_*`); keep the subsidy-remaining/exhausted disclosures. Owner directive (in-session 2026-06-27), no Sentry issue; pairs with the approved public-matchmaking build.
-
-- `[P2]` **ROOM-10 — Remove the fake "214 online now" count on the public Find screen.** It's a hardcoded static string with no real data behind it — exactly the kind of fabricated social proof the honest-by-design matchmaking is supposed to avoid. Owner directive: kill it.
-  **Acceptance:** the public Find screen shows no fabricated online/player count. Either drop the subtitle entirely or replace it with honest copy that doesn't assert a made-up number; do not wire it to a faked source. If a real concurrent-players signal ever exists, that's a separate item.
-  **Hints:** static string `public_find_subtitle` = "214 online now" rendered at [`PublicFindScreen.kt:81`](features/rooms/impl/src/commonMain/kotlin/com/cards/features/rooms/impl/PublicFindScreen.kt) (`sub = stringResource(...)`). Owner directive (in-session 2026-06-27), no Sentry issue; same honest-matchmaking thread as ROOM-8/9.
 

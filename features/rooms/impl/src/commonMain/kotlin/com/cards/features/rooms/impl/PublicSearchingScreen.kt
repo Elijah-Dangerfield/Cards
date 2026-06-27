@@ -54,6 +54,8 @@ import cards.libraries.resources.generated.resources.public_searching_rotate_1
 import cards.libraries.resources.generated.resources.public_searching_rotate_2
 import cards.libraries.resources.generated.resources.public_searching_rotate_3
 import cards.libraries.resources.generated.resources.public_searching_rotate_4
+import cards.libraries.resources.generated.resources.public_searching_rotate_5
+import cards.libraries.resources.generated.resources.public_searching_rotate_6
 import cards.libraries.resources.generated.resources.public_searching_title
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -252,6 +254,8 @@ private fun RotatingReassurance() {
         Res.string.public_searching_rotate_2,
         Res.string.public_searching_rotate_3,
         Res.string.public_searching_rotate_4,
+        Res.string.public_searching_rotate_5,
+        Res.string.public_searching_rotate_6,
     )
     var index by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
@@ -417,7 +421,7 @@ private fun BuyInRangeCard(minBuyIn: Long, maxBuyIn: Long) {
     }
 }
 
-private const val ROTATE_INTERVAL_MS = 5_000L
+private const val ROTATE_INTERVAL_MS = 8_000L
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
