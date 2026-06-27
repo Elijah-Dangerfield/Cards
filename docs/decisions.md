@@ -625,3 +625,31 @@ This makes Supabase feel like "managed Postgres + hosted auth" rather than "all-
 **Caveat:** This is auth code that **cannot be device-tested in CI** — the OAuth round trip needs a real browser + the Supabase project configured (Google provider enabled + `cards://login-callback` added to the redirect-URL allowlist). Manual device QA is tracked in `developer-todo.md`; the dashboard config is a new item there too.
 
 **Status:** Shipped (client). Unit tests in `SupabaseAuthRepositoryImplTest` pin the import-and-emit success path, the no-token → Cancelled path, and `isOAuthRedirect` matching. Android `assembleDebug`, iOS `compileKotlinIosSimulatorArm64`, and `detekt` (0 findings) all green. End-to-end sign-in unverified until device QA + Supabase dashboard config.
+
+> **Superseded 2026-06-27 by "Google browser-OAuth: suspend until the redirect resolves" below.** The flow above emitted auth state right after the browser opened, which was wrong: the session hasn't arrived yet, and a link (claim) redirect carries no session to import at all. The entry below is the current design.
+
+## 2026-06-27 — Google browser-OAuth: suspend until the redirect resolves (link ≠ sign-in)
+
+**Problem (verified on device):** With supabase-kt 3.6.0, `auth.signInWith(OAuth)` and `auth.linkIdentity(OAuth)` only **open the system browser** and return immediately — the session arrives ~seconds later as the `cards://login-callback` deep link. The previous flow (entry above) called the gateway then immediately emitted auth state. So `signInWithOAuth`/`linkOAuthIdentity` reported a result **before the redirect**. For a claim that emitted the still-anonymous session → "Success" while nothing had changed → the "Save your progress" banner persisted. Then the deep-link handler `completeOAuthRedirect` ran assuming a sign-in session lived in the URL; a **link** redirect carries none → `emitAuthenticatedFromGatewayLocked called without a session` (`IllegalStateException`, caught + logged).
+
+**Decision:** Make the OAuth start calls **suspend until the redirect resolves**, so the existing outcome-driven UI works unchanged (`ClaimAccountViewModel`/`OnboardingViewModel` still `when` on the return value and spin a spinner during the call). Mechanics in `SupabaseAuthRepositoryImpl`:
+
+- **One in-flight handle.** A nullable `PendingOAuth` = a `CompletableDeferred<OAuthRedirectResult>` + the **flow kind** (`SignIn` vs `Link`). Starting a new attempt while one is pending resolves the old as `Cancelled` (so its starter unsuspends) and replaces it.
+- **Start (two phases).** `signInWithOAuth` / `linkOAuthIdentity` launch the browser via the gateway **under the mutex**, park the handle, then `await` the deferred **outside the mutex** — awaiting under the lock would deadlock `completeOAuthRedirect`, which needs the same mutex to resolve us. No premature emit. A launch failure (browser couldn't open) returns the mapped failure without parking.
+- **Finish.** `completeOAuthRedirect(url)` reads the pending kind:
+  - **SignIn** → `parseSessionFromUrl(url)` + `importSession(session, source = External)` → emit `Authenticated` → resolve `Success`.
+  - **Link** → do **not** parse the URL (no session in a link redirect). Call `Auth.retrieveUserForCurrentSession(updateSession = true)` (supabase-kt 3.6.0, `Auth.kt:357`) to refresh the now-linked, non-anonymous user into the current session → emit `Authenticated` (`isAnonymous = false`) → resolve `Success`.
+  - **Any failure** → never throw out of this path; resolve the handle with the mapped failure (reusing the existing `RestException`/`HttpRequestException`/cancel mapping) and leave auth state as-is. A redirect with **no pending handle** (stray/duplicate) no-ops safely.
+- **Backstop.** A generous (3-minute) timeout on the await; on expiry resolve `Cancelled` and clear the handle. Clean "user backed out of the browser" cancellation (the app foregrounds with no redirect) is a **known rough edge** — we deliberately did NOT build foreground-race detection now; the timeout is the backstop and the cancel UX will be refined during device testing.
+
+**Why suspend-the-call over a fire-and-forget event:** the VMs are already outcome-driven (`when (authRepository.linkOAuthIdentity(...))`), and the spinner is gated on the call being in flight. Keeping the call suspended until the real result lands means **zero VM changes** and the spinner naturally covers the browser round trip.
+
+**Why a single handle, not a queue:** there is exactly one OAuth attempt a user can have in flight (one browser, one consent screen). A second start means the user abandoned the first — resolving the old as `Cancelled` is the correct, simplest model.
+
+**Gateway seam:** added `refreshLinkedUser()` to `SupabaseAuthGateway` (`RealSupabaseAuthGateway` → `retrieveUserForCurrentSession(updateSession = true)`); the in-memory fake implements it so the link path is unit-testable. `completeOAuthRedirect` on the gateway stays sign-in-only (parse + import).
+
+**APIs used (re-verified against `auth-kt-3.6.0-sources.jar`, commonMain):** `Auth.retrieveUserForCurrentSession(updateSession: Boolean = false): UserInfo` (`Auth.kt:357`), `Auth.parseSessionFromUrl(url): UserSession` (`AuthExtensions.kt:54`), `Auth.importSession(session, autoRefresh, source)` (`Auth.kt:372`), `Auth.refreshCurrentSession()` (`Auth.kt:404`), `Auth.currentSessionOrNull()` (`Auth.kt:493`), `Auth.currentUserOrNull()` (`Auth.kt:501`). All match the spec.
+
+**Flag:** `GoogleSignInEnabled.default` flipped back to `true` (matching Apple). Still gated on the Supabase Google provider + `cards://login-callback` redirect URL being configured, and a device test — tracked in `developer-todo.md`.
+
+**Status:** Shipped (client). `SupabaseAuthRepositoryImplTest` pins: the regression (link must NOT return Success while anonymous — it suspends, resolves only when the redirect runs), link happy path (refresh-user → `isAnonymous = false` → `LinkIdentityOutcome.Success`), sign-in happy path (parse+import → `SignInOutcome.Success`), redirect-failure resolving the suspended call without throwing, and the no-pending-handle no-op. Android `assembleDebug`, iOS `compileKotlinIosSimulatorArm64`, and `detekt` green. End-to-end sign-in / claim / cancel unverified until device QA + Supabase dashboard config.

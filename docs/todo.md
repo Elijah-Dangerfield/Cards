@@ -26,10 +26,7 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## B. Auth & onboarding
 
-**AUTH-9 — Redesign the Google browser-OAuth flow (async redirect; link ≠ sign-in)** `[P1]`
-- Problem: `signInWithOAuth`/`linkOAuthIdentity` emit auth state right after the browser opens (before the redirect returns), and `completeOAuthRedirect` assumes a sign-in session lives in the redirect URL. Result on device: claiming stayed anonymous (banner persisted) and the link redirect threw `emitAuthenticatedFromGatewayLocked called without a session`. Flag `identity.googleSignInEnabled` disabled (default false) to hide the broken button.
-- Acceptance: tap Google → browser opens (no emit yet); on `cards://login-callback` the session is captured and auth flips to claimed/non-anon — sign-in: parse+import the session; link/claim: refresh/upgrade the existing session (a link redirect carries no session fragment). Re-enable the flag. Device-verify sign-in + claim + cancel on Android and iOS (see developer-todo).
-- Hint: supabase-kt 3.6.0; the repo drives `AuthState` via manual emits (no `sessionStatus` observer). Files: `SupabaseAuthRepositoryImpl` (signInWithOAuth/linkOAuthIdentity/completeOAuthRedirect), `RealSupabaseAuthGateway`, `App.kt` deep-link collector. Also consider the dormant native id-token path (`signInWithGoogleIdToken`) as the better-UX alternative.
+_No open engineering items. (AUTH-9 — the Google browser-OAuth redesign to suspend-until-redirect, with link ≠ sign-in — shipped 2026-06-27, see [decisions.md](./decisions.md). End-to-end device QA + the Supabase dashboard config it depends on remain in [developer-todo.md](./developer-todo.md).)_
 
 _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ideas in [backlog.md](./backlog.md)._
 
