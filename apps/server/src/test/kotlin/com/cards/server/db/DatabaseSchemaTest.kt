@@ -34,6 +34,9 @@ class DatabaseSchemaTest : DatabaseTest() {
             // repo lazy-seeds the row on first read, not via the migration.
             assertEquals(0, WalletsTable.selectAll().count())
             assertEquals(0, WalletEventsTable.selectAll().count())
+            // V81 billing_transactions ships empty — rows are written on the
+            // first redeem.
+            assertEquals(0, BillingTransactionsTable.selectAll().count())
             assertEquals(0, UserMessagesTable.selectAll().count())
             assertEquals(0, RoomSessionsTable.selectAll().count())
             assertEquals(0, RoomsTable.selectAll().count())

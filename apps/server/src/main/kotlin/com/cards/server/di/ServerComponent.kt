@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.domain.AchievementRepository
 import com.dangerfield.cards.server.domain.AppConfigAdminRepository
 import com.dangerfield.cards.server.domain.AppConfigManifestRepository
 import com.dangerfield.cards.server.domain.AppConfigSource
+import com.dangerfield.cards.server.domain.BillingRepository
 import com.dangerfield.cards.server.domain.EquipmentRepository
 import com.dangerfield.cards.server.domain.FriendRepository
 import com.dangerfield.cards.server.domain.HandsFinishedRepository
@@ -17,6 +18,7 @@ import com.dangerfield.cards.server.domain.PlayStyleRepository
 import com.dangerfield.cards.server.domain.PlayerStatsRepository
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.ReceiptValidator
 import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.RecentOpponentsRepository
 import com.dangerfield.cards.server.domain.RoomService
@@ -72,6 +74,8 @@ abstract class ServerComponent(
     abstract val equipmentRepository: EquipmentRepository
     abstract val inventoryRepository: InventoryRepository
     abstract val walletRepository: WalletRepository
+    abstract val billingRepository: BillingRepository
+    abstract val receiptValidator: ReceiptValidator
     abstract val progressionRepository: ProgressionRepository
     abstract val playStyleRepository: PlayStyleRepository
     abstract val playerStatsRepository: PlayerStatsRepository

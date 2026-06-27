@@ -27,6 +27,20 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-27 — Server-authoritative IAP redemption: `/v1/billing/redeem` + `ReceiptValidator` seam + idempotent grant (BILL-1)
+
+**Decision:** Real-money chip redemption is server-authoritative. `POST /v1/billing/redeem` takes `{ store, productId, token }`, runs the token through a `ReceiptValidator` interface, resolves the productId to a catalog `ChipPack` for its server-side `grantsChips` (the client never says how many chips it bought), then grants through `BillingRepository.redeem`. Idempotency anchors on a new `billing_transactions` table with `UNIQUE(store, order_id)`; the audit-row insert and the wallet credit commit in **one** `database.transaction` so a crash can't leave a credited wallet with no record (which a retry would re-credit) or vice-versa. The `ReceiptValidator` ships as a seam with a `DevReceiptValidator` default (trusts the token, uses it as the order id — for local StoreKit/Play test SKUs); BILL-2 swaps in the real Apple/Google validators via `replaces`. The grant pins to the user via the validator's bound account token, not the order id.
+
+**Why:** The client credits chips locally today, so the server never sees the receipt and a forged one mints chips — the V1 ship-blocker BILL-1 names. Routing every chip movement through the existing `WalletLedger.applyInCurrentTransaction` (composed inside the billing transaction) keeps "exactly one place balances change" intact and gets the wallet's non-negative invariant + ledger dedup for free. The `ReceiptValidator` interface is the seam that lets BILL-1 land + be fully unit/integration-tested now while the credential-gated real validators (BILL-2) drop in with zero route changes.
+
+**Alternatives considered:**
+- **Catch the unique-constraint violation on the duplicate INSERT to detect a replay.** Rejected: a failed statement aborts the whole Postgres transaction ("current transaction is aborted"), so the post-failure balance read fails. The repo pre-checks `(store, order_id)` existence before inserting; the unique constraint stays as the backstop for the rare concurrent-redeem race, where the loser's transaction rolls back entirely and the client's retry reads the committed row as `AlreadyRedeemed`.
+- **Key idempotency on the wallet ledger alone (no billing table).** Rejected: the ledger key is `(user_id, idempotency_key)`, but a redemption needs a `(store, order_id)` audit trail for abuse review and a record that survives independent of the chip math. The billing table is the redemption boundary; the ledger key (`billing.<store>.<orderId>`) is the second line of defence.
+
+**Status:** Locked.
+
+---
+
 ## 2026-06-27 — Undeserializable socket frames close the room as `IncompatibleVersion`, gated on missing-required-field vs unknown-type (ENG-7)
 
 **Decision:** The runtime deserialization backstop promised by the CARDS-4S entry lives in the room socket frame decoder (`ReconnectingRoomSocket.decode`), not in a `Catching` wrapper at the game-state read site. The decoder splits two failure shapes: an **unknown discriminator** (a new frame type an old client doesn't dispatch) is dropped and the session keeps running — that is the additive-only convention working as designed; a **`MissingFieldException` on a known frame** (a required field removed/renamed — the breaking change the convention forbids) throws an internal marker that closes the connection terminally as the new `ClosedReason.IncompatibleVersion`. The play screen maps that reason to the "we're struggling to play this game; updating may help" message + a safe exit; the lobby and public-search VMs map it to their existing room-closed / connection-error states.

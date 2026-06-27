@@ -141,6 +141,27 @@ object WalletEventsTable : Table("wallet_events") {
 }
 
 /**
+ * One row per redeemed store purchase (IAP). `(store, order_id)` is the
+ * dedup boundary that makes `POST /v1/billing/redeem` idempotent — a
+ * retried redemption collapses to a single grant. Written in the same
+ * transaction as the wallet credit. See `V81__billing_transactions.sql`.
+ */
+object BillingTransactionsTable : Table("billing_transactions") {
+    val id = long("id").autoIncrement()
+    val store = text("store")
+    val orderId = text("order_id")
+    val userId = uuid("user_id")
+    val productId = text("product_id")
+    val grantedChips = long("granted_chips")
+    val redeemedAt = timestamp("redeemed_at")
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        uniqueIndex("billing_transactions_store_order_uq", store, orderId)
+    }
+}
+
+/**
  * Server-authoritative XP total, one row per user. Lazy-created on first
  * progression contact. `total_xp` is summed from [XpEventsTable]; `level`
  * is derived client-side from the curve, never stored. See
