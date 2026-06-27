@@ -1,6 +1,6 @@
 [
   { "path": "social.enabled", "type": "boolean", "default": false, "description": "Social features master switch" },
-  { "path": "identity.googleSignInEnabled", "type": "boolean", "default": false, "description": "Show Google sign-in" },
+  { "path": "identity.googleSignInEnabled", "type": "boolean", "default": true, "description": "Show Google sign-in" },
   { "path": "identity.appleSignInEnabled", "type": "boolean", "default": true, "description": "Show Apple sign-in" },
   { "path": "upgrade.minSupportedVersionCode", "type": "int", "default": 1, "description": "Below this build code, force upgrade" },
   { "path": "upgrade.maintenanceMode", "type": "string", "default": "off", "description": "Maintenance gate", "allowedValues": ["off", "banner", "blocking"] },
