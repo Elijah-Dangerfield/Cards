@@ -441,9 +441,15 @@ class OnboardingViewModel(
 
         val alreadyAuthed = authRepository.current() is AuthState.Authenticated
         if (!alreadyAuthed && guestAccountCreator.state.value != AccountCreationState.Idle) {
-            val terminal = guestAccountCreator.awaitTerminal()
-            logger.d { "finish: guest-creation terminal=${terminal::class.simpleName}" }
-            if (terminal is AccountCreationState.Failed) {
+            // Bounded wait — never trap the user on this screen. If creation
+            // hasn't reached a terminal state in time (offline / wedged), go Home
+            // degraded; the creator keeps the identity and retries in the
+            // background (and GuestSessionHealer recovers it later).
+            val terminal = withTimeoutOrNull(FINISH_CREATION_AWAIT_TIMEOUT) {
+                guestAccountCreator.awaitTerminal()
+            }
+            logger.d { "finish: guest-creation terminal=${terminal?.let { it::class.simpleName } ?: "timed-out"}" }
+            if (terminal is AccountCreationState.Failed || terminal == null) {
                 updateState { it.copy(creationFailed = true) }
             }
         }
@@ -468,6 +474,16 @@ class OnboardingViewModel(
          * bites on a slow/offline first run.
          */
         private val GRANT_REVEAL_TIMEOUT = 1_500.milliseconds
+
+        /**
+         * Upper bound on how long "Take a seat" waits for the in-flight guest
+         * account to finish before going Home anyway. Onboarding must never trap
+         * the user on a backend call — if creation hasn't settled by now (offline
+         * / slow), we proceed degraded and the creator keeps retrying in the
+         * background. Usually already done: the grant-reveal wait above gave it a
+         * head start.
+         */
+        private val FINISH_CREATION_AWAIT_TIMEOUT = 5_000.milliseconds
 
         /**
          * The starter pack onboarding shows. Deliberately basic —
