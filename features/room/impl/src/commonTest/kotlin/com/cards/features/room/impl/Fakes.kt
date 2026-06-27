@@ -44,6 +44,7 @@ import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
 import com.dangerfield.cards.libraries.rooms.ClosedReason
@@ -475,6 +476,7 @@ fun testSeat(
     playerId: String? = "p-$index",
     stack: Long = 1_000,
     xp: Long? = null,
+    holeCards: List<Card> = emptyList(),
 ): Seat = Seat(
     index = index,
     playerId = playerId,
@@ -484,6 +486,7 @@ fun testSeat(
     handParticipation = HandParticipation.InHand,
     isBot = isBot,
     xp = xp,
+    holeCards = holeCards,
 )
 
 fun bizzaroPersonality(label: String = "Tight Aggressive"): Personality = Personality(

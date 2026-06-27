@@ -17,12 +17,20 @@ import com.dangerfield.cards.libraries.cards.TurnFeedback
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.XpSource
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.LogEntry
+import com.dangerfield.cards.libraries.core.logging.LogId
+import com.dangerfield.cards.libraries.core.logging.LogLevel
+import com.dangerfield.cards.libraries.core.logging.LogTree
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.BettingRound
+import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.HandWinner
+import com.dangerfield.cards.libraries.gameplay.Rank
+import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.identity.profile.Profile
@@ -352,6 +360,85 @@ class PlayPokerViewModelTest : CoroutineTest() {
         )
         assertEquals(3, vm.state.occupants.size)
         assertTrue(vm.state.occupants[2] is SeatOccupant.Bot)
+    }
+
+    // ---------- Hole-card render telemetry (GAME-8) ----------
+
+    @Test
+    fun holeCardProjection_logsOncePerHand_withDealtAndFaceUpCounts() = runUnitTest {
+        // GAME-8: one Info line per hand records what the table projected for the
+        // human seat (dealt vs face-up), keyed on handNumber so it fires once and
+        // a "cards didn't show" report is diagnosable from logs.
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            val hole = listOf(Card(Rank.Ace, Suit.Spades), Card(Rank.King, Suit.Hearts))
+            val session = FakePokerSession(
+                initialGameState = stubGameState(
+                    handNumber = 7,
+                    seats = listOf(
+                        testSeat(0, "You", isBot = false, playerId = "human", holeCards = hole),
+                        testSeat(1, "Steve", isBot = true, playerId = "bot-1"),
+                    ),
+                ),
+            )
+            val vm = buildVm(factory = FakePokerSessionFactory(session = session))
+            advanceUntilIdle()
+
+            val projectionLogs = tree.entries.filter {
+                it.message?.contains("hole-card projection") == true
+            }
+            assertEquals(1, projectionLogs.size, "exactly one projection line per hand; got ${tree.entries.map { it.message }}")
+            val line = projectionLogs.single().message
+            assertTrue(line?.contains("hand=7") == true, "line names the hand: $line")
+            assertTrue(line?.contains("dealt=2") == true, "line records dealt count: $line")
+            assertTrue(line?.contains("faceUp=2") == true, "human sees their own cards face-up: $line")
+
+            // A second snapshot of the SAME hand must not re-log (not per-frame).
+            session.emitGameState(
+                stubGameState(
+                    handNumber = 7,
+                    street = BettingRound.Flop,
+                    seats = listOf(
+                        testSeat(0, "You", isBot = false, playerId = "human", holeCards = hole),
+                        testSeat(1, "Steve", isBot = true, playerId = "bot-1"),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                1,
+                tree.entries.count { it.message?.contains("hole-card projection") == true },
+                "a fresh snapshot of the same hand must not re-log",
+            )
+
+            // A new hand logs again.
+            session.emitGameState(
+                stubGameState(
+                    handNumber = 8,
+                    seats = listOf(
+                        testSeat(0, "You", isBot = false, playerId = "human", holeCards = hole),
+                        testSeat(1, "Steve", isBot = true, playerId = "bot-1"),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(
+                tree.entries.any { it.message?.contains("hand=8") == true },
+                "the next hand logs its own projection line",
+            )
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    private class CapturingLogTree : LogTree() {
+        val entries = mutableListOf<LogEntry>()
+        override fun isLoggable(level: LogLevel, tag: String?): Boolean = true
+        override fun log(entry: LogEntry): LogId? {
+            entries += entry
+            return null
+        }
     }
 
     // ---------- Submit / RequestNextHand → session ----------

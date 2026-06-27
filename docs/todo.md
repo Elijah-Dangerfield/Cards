@@ -32,12 +32,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ---
 
-## C. Gameplay & table
-
-- `[P2]` **GAME-8 — Add a once-per-hand hole-card render log so a "cards didn't show" report is readable from telemetry. (proposed 2026-06-27)** The GAME-7 render fix (cards freezing mid-deal) shipped, but the view side still emits no telemetry confirming what the table actually rendered — the session log is engine-level only, so a future "I can't see my hand" report can't be diagnosed from logs.
-  **Acceptance:** one Info line per hand (not per-frame) records the human seat's hole-card projection — dealt-cards count vs face-up-rendered count — keyed off `handNumber` so it fires once.
-  **Hints:** `PlayPokerViewModel` already has `KLog.withTag("PlayPokerViewModel")`; `handNumber` lives on `TableUiState.Active`. Render path is `HoleCardSlot` in `PlayerArea.kt`.
-
 ## F. Shop & cosmetics
 
 - `[P2]` **SHOP-3 — Host-chosen felt + card backs, shown to every player at the table.** Owner directive: let the game creator pick the felt and card backs from their inventory when creating a room, and have *every* player at the table see the host's chosen felt and card backs (incentivizes buying cosmetics). The host's selection already exists per-player; this makes it table-wide.

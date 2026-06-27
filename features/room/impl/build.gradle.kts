@@ -72,6 +72,7 @@ kotlin {
             implementation(projects.libraries.billing)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.config)
+            implementation(projects.libraries.core)
             implementation(projects.libraries.game)
             implementation(projects.libraries.gameplay)
             implementation(projects.libraries.identity)
