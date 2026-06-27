@@ -27,6 +27,21 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-27 — Real IAP receipt validators are credential-gated + dormant-by-default; user binding via echoed account token, not orderId (BILL-2)
+
+**Decision:** The BILL-1 `ReceiptValidator` seam now has real platform impls behind a single `StoreReceiptValidator` (`@ContributesBinding(replaces = [DevReceiptValidator::class])`) that dispatches by `Store`. `AppStoreReceiptValidator` verifies the StoreKit 2 signed-transaction JWS offline via Apple's official `app-store-server-library` (5.2.0) against the bundled Apple root CAs (shipped in `resources/apple-certs/`), then enforces our invariants: decoded `productId == expectedSku`, `appAccountToken == userId`, not revoked. `GooglePlayReceiptValidator` calls the Play Developer API's `purchases.products.get` (official `google-api-services-androidpublisher` + `google-auth-library-oauth2-http`) and enforces `purchaseState == Purchased` and `obfuscatedExternalAccountId == userId`. Both read credentials from a new `BillingConfig` (`BillingConfig.fromEnv`, mirroring `SentryConfig.fromEnv`) and stay **dormant** — refusing validation — until their credentials are set. `PurchaseReceipt` gained an `expectedSku` field: the route resolves the catalog product and hands the validator the platform store SKU to compare against the decoded transaction, because the catalog product id (`chip_pack_medium`) differs from the store SKU (`chips_medium`).
+
+**Why:** A forged receipt must be rejected before any real-money sale. Apple's JWS is self-contained, so transaction verification needs only the bundle id + root certs — no App Store Connect API key — which keeps the Apple path verifiable in a sandbox/`.storekit` config. Google requires a server-side lookup, hence the service-account credential. Dormant-by-default fails closed: an unconfigured store rejects rather than trusting, and with BILL-5's `billing.realPurchasesEnabled` flag off (default) the client still credits locally and never hits the endpoint, so the gap is harmless until both the flag and the credentials are deliberately turned on.
+
+**Alternatives considered:**
+- **Hand-roll JWS x5c chain verification with the auth0 java-jwt lib already on the classpath.** Rejected: certificate-chain validation against Apple's PKI is exactly the security-critical code you don't reinvent; the official library is maintained, audited, and tracks Apple's environment/revocation rules.
+- **Pin the grant to the store `orderId` instead of the echoed account token.** Rejected (and the now-wrong client `BillingClient` doc comment that claimed this is fixed): the order id doesn't bind a receipt to a user, so user A could redeem user B's receipt. Both stores echo the account token we set at purchase (StoreKit `appAccountToken` / Play `obfuscatedExternalAccountId`); requiring it to equal the authenticated caller is the real user binding.
+- **Make the validators testable by mocking the Apple verifier / Google publisher.** Rejected: no mocking library on the server. Instead each validator takes an injectable decode/lookup seam (`TransactionDecoder` / `PurchaseLookup`) defaulting to the real call, so the post-verification invariants are unit-tested without a live signed receipt or API call, and the crypto/transport stays the library's responsibility.
+
+**Status:** Locked. Live exercise against the real stores stays developer-gated on credentials + store listings.
+
+---
+
 ## 2026-06-27 — Force-update gate raises on the next foreground transition, not mid-session (ENG-6)
 
 **Decision:** The app-wide upgrade / maintenance overlay (`AppGuardGate` → `AppGuardState.from`, drawn by `AppGuardLayer` above the whole nav graph) is the live, screen-independent gate for the cross-version rule (CARDS-4S). It recomputes on every streamed-config emission, so bumping `upgrade.minSupportedVersionCode` above a running client's `VERSION_CODE` raises the blocking overlay over *any* screen — including an in-session play screen — **on the client's next foreground transition** (config is fetched on foreground, throttled; `OfflineFirstAppConfigRepository` deliberately does **not** poll mid-session). A client that stays continuously foregrounded mid-hand won't see the gate until it backgrounds/foregrounds. This is accepted as-is for V1; verified by `AppGuardStateTest`.

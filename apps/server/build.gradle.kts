@@ -83,6 +83,16 @@ dependencies {
     implementation(libs.auth0.jwt)
     implementation(libs.auth0.jwksRsa)
 
+    // IAP receipt validation (BILL-2). Apple's app-store-server-library
+    // verifies the StoreKit 2 signed-transaction JWS against the bundled
+    // Apple root CAs; Google's androidpublisher client + auth library call
+    // the Play Developer API's purchases.products endpoint. Both validators
+    // stay dormant (refusing validation) until their credentials are set, so
+    // an unconfigured server can never accept a forged receipt.
+    implementation(libs.appStoreServerLibrary)
+    implementation(libs.google.api.androidpublisher)
+    implementation(libs.google.auth.oauth2)
+
     // Database — Postgres + HikariCP + Exposed DSL + Flyway migrations.
     // See docs/decisions.md "Server query layer" entry for the rationale.
     implementation(libs.postgres.jdbc)

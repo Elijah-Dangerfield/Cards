@@ -75,7 +75,7 @@ fun Application.module(config: ServerConfig) {
     val database = Database.connect(config.database)
     logger.info("Database connected and migrations applied")
 
-    val component = ServerComponent::class.create(database, config.supabase)
+    val component = ServerComponent::class.create(database, config.supabase, config.billing)
 
     installApp(
         component = component,

@@ -16,6 +16,7 @@ data class ServerConfig(
     val accessControl: AccessControlConfig,
     val observability: ObservabilityConfig,
     val configChange: ConfigChangeConfig,
+    val billing: BillingConfig,
 ) {
     companion object {
         fun fromEnv(env: Env = Env()): ServerConfig = ServerConfig(
@@ -27,6 +28,48 @@ data class ServerConfig(
             accessControl = AccessControlConfig.fromEnv(env),
             observability = ObservabilityConfig.fromEnv(env),
             configChange = ConfigChangeConfig.fromEnv(env),
+            billing = BillingConfig.fromEnv(env),
+        )
+    }
+}
+
+/**
+ * Credentials the real receipt validators (BILL-2) need to verify a paid
+ * purchase with each platform store. Every field is optional: a validator
+ * whose credentials are unset stays **dormant** and refuses validation, so
+ * an unconfigured server can never accept a forged receipt. The
+ * [com.dangerfield.cards.server.data.DevReceiptValidator] only runs while
+ * the BILL-5 `billing.realPurchasesEnabled` flag keeps the redeem path dark;
+ * once that flips on, an unconfigured store simply rejects.
+ *
+ * Apple ([appleBundleId] + [appleEnvironment]) is enough to verify a
+ * StoreKit 2 signed-transaction JWS offline against the bundled Apple root
+ * CAs — no App Store Connect API key is required for transaction
+ * verification. [appleAppAppleId] is only needed for production online
+ * checks and may stay null in sandbox.
+ *
+ * Google ([googlePackageName] + [googleServiceAccountJson]) calls the Play
+ * Developer API's `purchases.products.get`, which requires a service-account
+ * key JSON with the Android Publisher scope. The JSON is read verbatim from
+ * the env so it can be injected as a Fly secret without a file mount.
+ */
+data class BillingConfig(
+    val appleBundleId: String?,
+    val appleEnvironment: String,
+    val appleAppAppleId: Long?,
+    val googlePackageName: String?,
+    val googleServiceAccountJson: String?,
+) {
+    companion object {
+        fun fromEnv(env: Env): BillingConfig = BillingConfig(
+            appleBundleId = env["APPLE_BUNDLE_ID"],
+            // StoreKit JWS verification needs the target environment; default
+            // to Sandbox so a misconfigured prod env fails closed rather than
+            // trusting a sandbox receipt against production rules.
+            appleEnvironment = env["APPLE_STORE_ENVIRONMENT"] ?: "Sandbox",
+            appleAppAppleId = env.get("APPLE_APP_APPLE_ID")?.toLongOrNull(),
+            googlePackageName = env["GOOGLE_PLAY_PACKAGE_NAME"],
+            googleServiceAccountJson = env["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"],
         )
     }
 }

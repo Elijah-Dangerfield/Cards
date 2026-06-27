@@ -68,11 +68,14 @@ interface BillingClient {
      * user finishes interacting with the store sheet (success, cancel,
      * already-owned, etc.).
      *
-     * [userId] is forwarded to the store as an "obfuscated account id"
-     * so a server-side receipt validation pass can pin the purchase to
-     * the right player. The store doesn't echo this back in the receipt
-     * payload — server validation looks it up from the receipt's
-     * orderId via the platform's purchase-state API.
+     * [userId] is forwarded to the store as an account token (StoreKit
+     * `appAccountToken` / Play `setObfuscatedAccountId`) so a server-side
+     * receipt validation pass can pin the purchase to the right player. The
+     * store echoes this token back in the verified receipt — the StoreKit 2
+     * transaction's `appAccountToken` and the Play purchase's
+     * `obfuscatedExternalAccountId` — and server validation requires it to
+     * equal the authenticated caller. Pinning to the order id instead would
+     * let one user redeem another's receipt.
      */
     suspend fun purchase(sku: String, userId: String): PurchaseResult
 

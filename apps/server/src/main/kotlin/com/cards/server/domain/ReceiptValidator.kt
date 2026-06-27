@@ -50,10 +50,18 @@ enum class Store(val wire: String) {
  * opaque platform proof — a StoreKit 2 signed-transaction JWS for Apple, a
  * purchase token for Google. [userId] is the authenticated caller; a
  * genuine receipt must carry a matching account token.
+ *
+ * [productId] is our catalog product id (the redeem boundary), while
+ * [expectedSku] is the platform store SKU that the receipt actually carries
+ * (`Product.ChipPack.store.{ios,android}.sku`). The two differ — the route
+ * resolves the catalog product and hands the validator the SKU it must see
+ * in the decoded transaction, so a receipt for a different product cannot be
+ * redeemed against this one.
  */
 data class PurchaseReceipt(
     val store: Store,
     val productId: String,
+    val expectedSku: String,
     val token: String,
     val userId: UserId,
 )

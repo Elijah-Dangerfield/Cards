@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.di
 
+import com.dangerfield.cards.server.config.BillingConfig
 import com.dangerfield.cards.server.config.SupabaseConfig
 import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.domain.AchievementRepository
@@ -61,6 +62,7 @@ import kotlin.time.ExperimentalTime
 abstract class ServerComponent(
     @get:Provides val database: Database,
     @get:Provides val supabaseConfig: SupabaseConfig,
+    @get:Provides val billingConfig: BillingConfig,
 ) {
     abstract val appConfigSource: AppConfigSource
     abstract val appConfigAdminRepository: AppConfigAdminRepository

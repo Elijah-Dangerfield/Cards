@@ -79,10 +79,15 @@ fun Route.billingRoutes(
                     )
                 }
 
+                val expectedSku = when (store) {
+                    Store.Apple -> product.store.ios.sku
+                    Store.Google -> product.store.android.sku
+                }
                 val validation = validator.validate(
                     PurchaseReceipt(
                         store = store,
                         productId = body.productId,
+                        expectedSku = expectedSku,
                         token = body.token,
                         userId = userId,
                     ),
