@@ -77,6 +77,26 @@ class OfflineFirstAppConfigRepositoryTest : CoroutineTest() {
     }
 
     @Test
+    fun config_beforeAnyEmission_returnsFallbackAndDoesNotBlock() = runUnitTest {
+        // Regression: a ConfiguredValue read can land on the main thread (e.g.
+        // progressionConfig.levelCurve() during composition). On a cold/fresh
+        // start the stream hasn't emitted yet, and the old code did
+        // `runBlocking { configStream.first() }` here — which deadlocked the app
+        // at launch (scene-create watchdog → SIGKILL). It must fall back to the
+        // shipped defaults synchronously instead of blocking. (No foreground
+        // event is fired, so configStream never emits — the old code would hang
+        // this test.)
+        val fallback = TestFallbackConfigMap(map = mapOf("fallback" to "yes"))
+        val repo = newRepo(fallback = fallback)
+
+        assertEquals(
+            "yes",
+            repo.config().map["fallback"],
+            "config() must return the fallback before the stream emits, never block",
+        )
+    }
+
+    @Test
     fun init_withCachedConfig_hydratesBeforeRefreshLands() = runUnitTest {
         val cache = FakeConfigCache()
         cache.seed(configJson = """{"hydrated":"from-disk"}""")
