@@ -25,12 +25,15 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class GoogleSignInEnabled(appConfigMap: AppConfigMap) : FlagConfigValue(appConfigMap) {
     override val name = "Google sign-in enabled"
     override val path = "identity.googleSignInEnabled"
-    // On by default — the browser OAuth flow is wired end-to-end (redirect lands
-    // on cards://login-callback, captured by the deep-link collector). Still
-    // needs the Google provider + the cards://login-callback redirect URL
-    // configured in the Supabase project to actually authenticate; AppConfig /
-    // QA override can flip it back off.
-    override val default = true
+    // Off by default — the browser OAuth flow is wired but mis-modeled: the
+    // sign-in/link call returns as soon as the browser opens (the session
+    // arrives ~seconds later via the cards://login-callback deep link), and
+    // link (claim) ≠ sign-in (a link redirect carries no session to import).
+    // Device testing exposed this: claiming stayed anonymous and the redirect
+    // handler hit "emitAuthenticatedFromGatewayLocked called without a session".
+    // Keep the button hidden until the flow is redesigned + device-verified.
+    // See docs/decisions.md and the redesign item in developer-todo.md.
+    override val default = false
 }
 
 @Inject
