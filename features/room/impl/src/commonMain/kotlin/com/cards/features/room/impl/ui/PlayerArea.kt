@@ -405,15 +405,25 @@ private fun HoleCardSlot(
         var arrived by remember { mutableStateOf(skip) }
         var revealed by remember { mutableStateOf(skip) }
         var settled by remember { mutableStateOf(skip) }
-        if (!skip) {
-            LaunchedEffect(Unit) {
-                delay(tempo.delay(dealDelayMs))
+        // Key the effect on [skip] rather than gating its existence with an
+        // `if (!skip)`. The persisted Table-speed setting resolves a beat after
+        // the screen mounts, so [skip] can flip Normal -> Instant while a card
+        // is still mid-flight. Gating the effect would tear it down on that flip
+        // and freeze the card half-dealt; re-keying instead restarts it and the
+        // skip branch snaps the card straight to settled.
+        LaunchedEffect(skip) {
+            if (skip) {
                 arrived = true
-                delay(tempo.delay(320))
                 revealed = true
-                delay(tempo.delay(420))
                 settled = true
+                return@LaunchedEffect
             }
+            delay(tempo.delay(dealDelayMs))
+            arrived = true
+            delay(tempo.delay(320))
+            revealed = true
+            delay(tempo.delay(420))
+            settled = true
         }
         if (settled) {
             // Manual flip wrapper — once the deal-in animation has
