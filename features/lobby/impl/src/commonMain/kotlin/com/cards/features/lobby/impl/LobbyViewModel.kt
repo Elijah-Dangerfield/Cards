@@ -18,7 +18,6 @@ import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.Room
-import com.dangerfield.cards.libraries.rooms.preferRealOver
 import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
@@ -245,13 +244,7 @@ class LobbyViewModel(
                     when (val conn = action.connection) {
                         RoomConnection.Connecting -> it.copy(connectionStatus = ConnectionStatus.Connecting)
                         is RoomConnection.Connected -> it.copy(
-                            // A placeholder snapshot (buyIn == 0) must never
-                            // regress the known-good room — the joiner stages the
-                            // real room from the join response, then an early
-                            // socket snapshot can land before the buy-in resolves
-                            // and would otherwise render the lobby at $0 (MP-24 /
-                            // CARDS-55). Same invariant the repo + socket enforce.
-                            room = conn.room.preferRealOver(it.room),
+                            room = conn.room,
                             connectionStatus = ConnectionStatus.Connected,
                             creating = false,
                             joining = false,

@@ -738,81 +738,6 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun connectionUpdated_placeholderSnapshot_doesNotRegressRealBuyIn() = runUnitTest {
-        // MP-24 / CARDS-55: a joiner stages the real room from the join HTTP
-        // response, then the socket emits an early/placeholder Connected snapshot
-        // (buyIn == 0) before the real room snapshot resolves. Blindly copying
-        // conn.room would clobber the known-good buy-in and render the lobby at
-        // $0. The VM must refuse to regress a real room to a placeholder, the
-        // same invariant the repo + socket already enforce (Room.preferRealOver).
-        val vm = buildVm()
-        vm.takeAction(
-            LobbyAction.ConnectionUpdated(
-                RoomConnection.Connected(
-                    roomOf(
-                        members = listOf(member(LOCAL_USER, "You", isConnected = true)),
-                        buyIn = 5_000,
-                    ),
-                ),
-            ),
-        )
-        runCurrent()
-        assertEquals(5_000, vm.state.room?.buyIn)
-
-        vm.takeAction(
-            LobbyAction.ConnectionUpdated(
-                RoomConnection.Connected(
-                    roomOf(
-                        members = listOf(member(LOCAL_USER, "You", isConnected = true)),
-                        buyIn = 0,
-                    ),
-                ),
-            ),
-        )
-        runCurrent()
-        assertEquals(
-            5_000,
-            vm.state.room?.buyIn,
-            "a placeholder ($0 buy-in) snapshot must not regress the real lobby buy-in",
-        )
-    }
-
-    @Test
-    fun connectionUpdated_realSnapshot_replacesEarlierRoom() = runUnitTest {
-        // The guard only blocks placeholders — a fresh real snapshot (member
-        // joined, blinds updated) must still apply normally.
-        val vm = buildVm()
-        vm.takeAction(
-            LobbyAction.ConnectionUpdated(
-                RoomConnection.Connected(
-                    roomOf(
-                        members = listOf(member(LOCAL_USER, "You", isConnected = true)),
-                        buyIn = 5_000,
-                    ),
-                ),
-            ),
-        )
-        runCurrent()
-
-        vm.takeAction(
-            LobbyAction.ConnectionUpdated(
-                RoomConnection.Connected(
-                    roomOf(
-                        members = listOf(
-                            member(LOCAL_USER, "You", isConnected = true),
-                            member("peer", "Peer", isConnected = true, seatIndex = 1),
-                        ),
-                        buyIn = 5_000,
-                    ),
-                ),
-            ),
-        )
-        runCurrent()
-        assertEquals(5_000, vm.state.room?.buyIn)
-        assertEquals(2, vm.state.room?.members?.size)
-    }
-
-    @Test
     fun connectionUpdated_initialSetup_doesNotEmitPromotion() = runUnitTest {
         val vm = buildVm()
         vm.eventFlow.test {
@@ -967,7 +892,6 @@ class LobbyViewModelTest : CoroutineTest() {
         members: List<RoomMember>,
         visibility: com.dangerfield.cards.libraries.rooms.RoomVisibility =
             com.dangerfield.cards.libraries.rooms.RoomVisibility.Private,
-        buyIn: Long = 0,
     ) = Room(
         code = code,
         hostUserId = members.first().userId,
@@ -976,7 +900,6 @@ class LobbyViewModelTest : CoroutineTest() {
         status = RoomStatus.Lobby,
         members = members,
         visibility = visibility,
-        buyIn = buyIn,
     )
 
     /**

@@ -32,6 +32,14 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ---
 
+## D. Multiplayer hardening
+
+- `[P1]` **MP-24 — Lobby buy-in still renders 0 for a joiner (MP-16 reopen, post-#74).** MP-16's $0-buy-in fix (PR #74: `Room.preferRealOver` / `isPlaceholder`) guards the host's create + socket-rebound staging, but a joiner who enters via PrivateJoin still sees the lobby buy-in render as 0 on a post-#74 build. The room's real buy-in was applied server-side (stacks debited); only the joiner's lobby snapshot shows 0.
+  **Acceptance:** joining a real-buy-in room never shows a $0 lobby buy-in; a failing-then-passing test joins a room with a non-zero buy-in and asserts the lobby value is the real buy-in, not a placeholder. The fix must NOT break lobby presence convergence (see the regression note below).
+  **Hints:** A first attempt (reverted, was commit 8df4dbbf) applied `conn.room.preferRealOver(it.room)` in `LobbyViewModel.ConnectionUpdated` and broke 11 `:apps:integration` presence tests (`SetupJourneyTest`, `LobbyLifecycleTest`, `FriendsGameHappyPathTest`): the server emits legitimate lobby presence snapshots carrying `buyIn = 0` with the full converged member list, so `isPlaceholder (buyIn <= 0)` is NOT a reliable placeholder signal on the lobby-snapshot path — guarding there drops the real "everyone connected" snapshot and the lobby never converges. Any real fix must distinguish a genuine early/rebound placeholder from a normal presence snapshot by something other than `buyIn == 0` (e.g. only guard the joiner's pre-socket staged seed, or carry an explicit "hydrated" flag), and must keep `:apps:integration:testDebugUnitTest` green. Case `docs/agent/feedback-cases/ee5bfb6407cb421592a7e501eab916b5.md`, Sentry [CARDS-55](https://elijah-dangerfield.sentry.io/issues/CARDS-55).
+
+---
+
 ## F. Shop & cosmetics
 
 - `[P2]` **SHOP-3 — Host-chosen felt + card backs, shown to every player at the table.** Owner directive: let the game creator pick the felt and card backs from their inventory when creating a room, and have *every* player at the table see the host's chosen felt and card backs (incentivizes buying cosmetics). The host's selection already exists per-player; this makes it table-wide.
