@@ -805,3 +805,15 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch:** add a typed refusal reason (an enum on the wire `IntentAck`, e.g. `NextHandRefusalReason.CannotDeal` / `Transient`) so the client switches on a stable code instead of parsing copy. Removes the string mirror entirely.
 
 **Status:** Backlog. Client-side classification ships in this PR; the server-side typed code is the follow-up.
+
+---
+
+## Mid-session push for the force-update / maintenance gate
+
+**Idea (from ENG-6 verification, 2026-06-27):** The app-wide upgrade / maintenance overlay (`AppGuardGate` → `AppGuardState.from`) recomputes live on every streamed-config emission, so bumping `upgrade.minSupportedVersionCode` raises the blocking overlay over any screen — including an in-session play screen — on the **next foreground transition** (config is fetched on foreground, throttled, never polled mid-session by deliberate design in `OfflineFirstAppConfigRepository`). A client that stays continuously foregrounded mid-hand therefore won't see the gate until it backgrounds/foregrounds.
+
+**Why it's acceptable today:** the cross-version rule (CARDS-4S) is additive-only for game objects; a breaking change that needs the hard gate ships with a coordinated min-version bump, and the room socket already closes a genuinely-unparseable frame as `IncompatibleVersion` (ENG-7) — so an in-game client that would actually choke on a new frame gets a graceful exit even without the overlay. The overlay is the broad "time to update" net, not the per-frame safety mechanism.
+
+**Sketch if revisited:** push a lightweight "config changed" / "force upgrade" signal over the existing room WebSocket (or a dedicated app-wide channel) so a continuously-foregrounded client re-resolves config without waiting for a foreground transition. Avoid reintroducing fixed-interval polling — that was deliberately removed.
+
+**Status:** Backlog. The reactive wiring + z-order are verified (`AppGuardStateTest`); this is the optional "cover the never-backgrounds-mid-hand client" hardening, gated on a product call about whether it's worth a new push channel.

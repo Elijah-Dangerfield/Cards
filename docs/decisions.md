@@ -27,6 +27,20 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-27 — Force-update gate raises on the next foreground transition, not mid-session (ENG-6)
+
+**Decision:** The app-wide upgrade / maintenance overlay (`AppGuardGate` → `AppGuardState.from`, drawn by `AppGuardLayer` above the whole nav graph) is the live, screen-independent gate for the cross-version rule (CARDS-4S). It recomputes on every streamed-config emission, so bumping `upgrade.minSupportedVersionCode` above a running client's `VERSION_CODE` raises the blocking overlay over *any* screen — including an in-session play screen — **on the client's next foreground transition** (config is fetched on foreground, throttled; `OfflineFirstAppConfigRepository` deliberately does **not** poll mid-session). A client that stays continuously foregrounded mid-hand won't see the gate until it backgrounds/foregrounds. This is accepted as-is for V1; verified by `AppGuardStateTest`.
+
+**Why:** The reactive wiring + z-order are correct (the gate is a pure function of config + version, called on each emission; the overlay draws after the nav content and swallows touches), so the only open question was cadence. Polling for config was deliberately removed in favour of foreground-transition refresh; re-adding it to cover the rare never-backgrounds-mid-hand client would regress that decision for a case that ENG-7 already handles defensively — a genuinely unparseable frame closes the room as `IncompatibleVersion` and exits the table gracefully even without the overlay. The overlay is the broad "time to update" net; the socket close is the per-frame safety mechanism. If that reasoning stops holding (e.g. we ship a breaking change that an in-game client could silently misread without choking), the mid-session-push hardening in backlog.md becomes load-bearing.
+
+**Alternatives considered:**
+- **Reintroduce interval polling of config so a foregrounded client re-resolves mid-session.** Rejected: contradicts the documented foreground-only refresh decision and adds steady network/battery cost for a corner case.
+- **Push a "config changed / force upgrade" signal over the room WebSocket.** Deferred to backlog (not rejected) — the right shape if we ever need to cover the continuously-foregrounded client, but gated on a product call about adding a push channel.
+
+**Status:** Locked (verification + accepted boundary). Revisit if a breaking gameplay change needs mid-session enforcement.
+
+---
+
 ## 2026-06-27 — Client chip credit goes validate->grant->reflect, gated by one `billing.realPurchasesEnabled` flag (BILL-5)
 
 **Decision:** The client purchase flow inverts from "credit locally on store confirm" to validate->grant->reflect, selected at runtime by a single config flag `billing.realPurchasesEnabled` (`RealPurchasesEnabled`, default **off**). When on, a finished store purchase POSTs its receipt to BILL-1's `/v1/billing/redeem` via a new `BillingRepository`, then the client sets its wallet to the server-returned authoritative balance (`ChipsRepository.setBalance`) — never claiming the chip amount itself — then acknowledges. A rejected receipt or unreachable server credits nothing and surfaces a failure. When off, the prior local-credit path is unchanged. `Fake`-platform transactions have no server store mapping, so the repo returns `Unavailable` and they never reach the real endpoint.

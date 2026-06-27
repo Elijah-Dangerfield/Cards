@@ -56,10 +56,3 @@ Native IAP (Play Billing + StoreKit 2 + own server validation — no RevenueCat)
   **Acceptance:** implements `BillingClient` with StoreKit 2 (`Product.purchase()`, `Transaction`, `transaction.finish()` for consumables), forwarding `userId` as `appAccountToken` (a UUID — Supabase user ids already qualify). Verifiable locally via an Xcode `.storekit` test config — **no App Store Connect needed for dev iteration**.
   **Hints:** StoreKit 2 async API; pairs with the BILL-2 Apple validator (same `appAccountToken` pin).
 
----
-
-## H. Engineering & structural
-
-- `[P1]` **ENG-6 — Verify the force-update gate reliably covers an already-in-game client.** The cross-version rule (decisions.md 2026-06-27, CARDS-4S) relies on raising `upgrade.minSupportedVersionCode` to lock out clients too old to parse a breaking game-object change. `AppGuardState.from` already evaluates the *streamed* config map and `AppGuardLayer` renders an app-wide `UpgradeRequired` overlay, so it should take effect live — but this hasn't been verified for a client mid-hand.
-  **Acceptance:** a test (or documented manual check) confirms that bumping `minSupportedVersionCode` in streamed config raises the blocking overlay over the play screen for an in-session client within the config refresh window — not only on next cold boot. If the refresh cadence or overlay z-order leaves a gap, close it.
-  **Hints:** [AppGuard.kt](features/upgrade/src/commonMain/kotlin/com/cards/features/upgrade/AppGuard.kt), [AppGuardLayer.kt](features/upgrade/impl/src/commonMain/kotlin/com/cards/features/upgrade/impl/AppGuardLayer.kt), config key `upgrade.minSupportedVersionCode`; check the `AppConfigMap` stream refresh cadence (push vs poll) and that the overlay sits above the nav graph including the play surface.
