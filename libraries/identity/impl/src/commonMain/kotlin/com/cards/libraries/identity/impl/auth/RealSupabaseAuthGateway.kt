@@ -116,6 +116,15 @@ class RealSupabaseAuthGateway(
         supabase.auth.importSession(session, source = SessionSource.External)
     }
 
+    override suspend fun refreshLinkedUser() {
+        // A link/claim redirect attaches the identity server-side but doesn't
+        // hand back a session fragment, so there's nothing to import. Pull the
+        // updated user for the *current* session and write it back into
+        // sessionStatus (updateSession = true) — that flips is_anonymous → false
+        // and populates identities, so currentSession() reflects the claim.
+        supabase.auth.retrieveUserForCurrentSession(updateSession = true)
+    }
+
     override fun isOAuthRedirect(url: String): Boolean =
         url.startsWith("$OAUTH_REDIRECT_SCHEME://$OAUTH_REDIRECT_HOST")
 

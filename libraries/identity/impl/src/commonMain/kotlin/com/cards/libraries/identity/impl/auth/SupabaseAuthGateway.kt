@@ -69,13 +69,28 @@ interface SupabaseAuthGateway {
     suspend fun signInWithOAuth(provider: OAuthProvider)
 
     /**
-     * Finish a browser OAuth sign-in from the redirect deep link. [url] is the
-     * full `cards://login-callback#access_token=…` URL the provider handed back.
-     * Parses the session tokens out of the URL fragment (IMPLICIT flow) and
-     * imports them into supabase-kt so [currentSession] reflects the new user.
-     * Throws if the URL carries no valid session (e.g. the user cancelled).
+     * Finish a browser OAuth **sign-in** from the redirect deep link. [url] is
+     * the full `cards://login-callback#access_token=…` URL the provider handed
+     * back. Parses the session tokens out of the URL fragment (IMPLICIT flow)
+     * and imports them into supabase-kt so [currentSession] reflects the new
+     * user. Throws if the URL carries no valid session (e.g. the user
+     * cancelled).
+     *
+     * Sign-in only — a **link** (claim) redirect carries no session fragment;
+     * use [refreshLinkedUser] to fold the now-linked identity into the existing
+     * session instead.
      */
     suspend fun completeOAuthRedirect(url: String)
+
+    /**
+     * Refresh the user attached to the *current* session from the server,
+     * updating [sessionStatus] in place. Called after a browser **link** (claim)
+     * redirect returns: the identity was attached server-side but the local
+     * session is stale (still `is_anonymous=true`, no identities), and a link
+     * redirect carries no session fragment to import. After this, [currentSession]
+     * reflects the now-claimed, non-anonymous user. Throws on failure.
+     */
+    suspend fun refreshLinkedUser()
 
     /**
      * Whether [url] is the OAuth redirect deep link this gateway expects

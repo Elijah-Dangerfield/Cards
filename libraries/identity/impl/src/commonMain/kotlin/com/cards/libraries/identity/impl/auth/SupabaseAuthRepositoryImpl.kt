@@ -24,12 +24,16 @@ import com.dangerfield.cards.libraries.networking.AuthTokenInvalidator
 import com.dangerfield.cards.libraries.networking.SessionRejectionBus
 import io.github.jan.supabase.exceptions.HttpRequestException
 import io.github.jan.supabase.exceptions.RestException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
+import kotlin.time.Duration.Companion.minutes
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -77,6 +81,41 @@ class SupabaseAuthRepositoryImpl(
     private val logger = KLog.withTag("AuthRepository")
     private val mutex = Mutex()
     private val state = MutableSharedFlow<AuthState>(replay = 1)
+
+    /**
+     * The single in-flight browser-OAuth attempt, or null when none is pending.
+     *
+     * supabase-kt's `signInWith(OAuth)` / `linkIdentity(OAuth)` only *open* the
+     * system browser and return immediately — the real result arrives ~seconds
+     * later as the `cards://login-callback` deep link, which the app feeds to
+     * [completeOAuthRedirect]. To keep the outcome-driven UI working (the VMs
+     * `when` on the return value), the start call parks here and *awaits* this
+     * deferred; [completeOAuthRedirect] resolves it once the redirect lands.
+     *
+     * [kind] tells the redirect handler how to finish: a SignIn redirect carries
+     * a session to parse+import; a Link redirect carries none and instead needs
+     * the existing session refreshed to fold in the just-attached identity.
+     *
+     * Guarded by [mutex] — only ever read/written under the lock.
+     */
+    private var pendingOAuth: PendingOAuth? = null
+
+    private class PendingOAuth(
+        val kind: OAuthFlowKind,
+        val result: CompletableDeferred<OAuthRedirectResult>,
+    )
+
+    private enum class OAuthFlowKind { SignIn, Link }
+
+    /**
+     * What [completeOAuthRedirect] hands back to the parked starter. The starter
+     * maps it to the right `*Outcome` for its flow (sign-in vs link).
+     */
+    private sealed interface OAuthRedirectResult {
+        data object Success : OAuthRedirectResult
+        data object Cancelled : OAuthRedirectResult
+        data class Failed(val cause: Throwable) : OAuthRedirectResult
+    }
 
     init {
         logger.d { "init: awaiting initial bootstrap resolve" }
@@ -502,89 +541,194 @@ class SupabaseAuthRepositoryImpl(
         outcome
     }
 
-    override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =
-        mutex.withLock {
-            logger.d { "linkOAuthIdentity: attempting with $provider" }
+    override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome {
+        // Phase 1 (under the lock): guard, launch the browser, park a pending
+        // handle. supabase-kt's linkIdentity(OAuth) only OPENS the browser — the
+        // claim isn't done until the cards://login-callback redirect returns and
+        // [completeOAuthRedirect] resolves the deferred. Do NOT emit here.
+        val deferred = mutex.withLock {
+            logger.d { "linkOAuthIdentity: launching browser for $provider" }
             if (gateway.currentSession() == null) {
                 logger.w { "linkOAuthIdentity: NotSignedIn (no supabase session)" }
-                return@withLock LinkIdentityOutcome.NotSignedIn
+                return LinkIdentityOutcome.NotSignedIn
             }
-            Catching {
-                gateway.linkOAuthIdentity(provider)
-                emitAuthenticatedFromGatewayLocked()
-            }.fold(
-                onSuccess = {
-                    logger.i { "linkOAuthIdentity($provider): Success" }
-                    LinkIdentityOutcome.Success
-                },
-                onFailure = { e ->
-                    val outcome = when (e) {
-                        is RestException -> mapLinkRestException(e)
-                        is HttpRequestException -> LinkIdentityOutcome.NetworkError(e)
-                        else ->
-                            if ((e.message ?: "").contains("cancel", ignoreCase = true)) {
-                                LinkIdentityOutcome.Cancelled
-                            } else LinkIdentityOutcome.Unknown(e)
-                    }
-                    logger.w(e) { "linkOAuthIdentity($provider): ${outcome::class.simpleName}" }
-                    outcome
-                },
-            )
+            val launch = Catching { gateway.linkOAuthIdentity(provider) }
+            launch.exceptionOrNull()?.let { e ->
+                val outcome = when (e) {
+                    is RestException -> mapLinkRestException(e)
+                    is HttpRequestException -> LinkIdentityOutcome.NetworkError(e)
+                    else ->
+                        if ((e.message ?: "").contains("cancel", ignoreCase = true)) {
+                            LinkIdentityOutcome.Cancelled
+                        } else LinkIdentityOutcome.Unknown(e)
+                }
+                logger.w(e) { "linkOAuthIdentity($provider): launch failed → ${outcome::class.simpleName}" }
+                return outcome
+            }
+            startPendingOAuthLocked(OAuthFlowKind.Link).result
         }
 
-    override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome =
-        mutex.withLock {
-            logger.d { "signInWithOAuth: attempting with $provider" }
-            Catching {
-                gateway.signInWithOAuth(provider)
-                emitAuthenticatedFromGatewayLocked()
-            }.fold(
-                onSuccess = {
-                    logger.i { "signInWithOAuth($provider): Success" }
-                    SignInOutcome.Success
-                },
-                onFailure = { e ->
-                    val outcome = when (e) {
-                        is RestException -> mapOAuthSignInRestException(e)
-                        is HttpRequestException -> SignInOutcome.NetworkError(e)
-                        else ->
-                            if ((e.message ?: "").contains("cancel", ignoreCase = true)) {
-                                SignInOutcome.Cancelled
-                            } else SignInOutcome.Unknown(e)
-                    }
-                    logger.w(e) { "signInWithOAuth($provider): ${outcome::class.simpleName}" }
-                    outcome
-                },
-            )
+        // Phase 2 (OUTSIDE the lock — awaiting it under the mutex would deadlock
+        // completeOAuthRedirect, which needs the same mutex to resolve us).
+        return when (val result = awaitOAuthRedirect(deferred)) {
+            OAuthRedirectResult.Success -> {
+                logger.i { "linkOAuthIdentity($provider): Success" }
+                LinkIdentityOutcome.Success
+            }
+            OAuthRedirectResult.Cancelled -> {
+                logger.i { "linkOAuthIdentity($provider): Cancelled" }
+                LinkIdentityOutcome.Cancelled
+            }
+            is OAuthRedirectResult.Failed -> {
+                val outcome = when (val e = result.cause) {
+                    is RestException -> mapLinkRestException(e)
+                    is HttpRequestException -> LinkIdentityOutcome.NetworkError(e)
+                    else -> LinkIdentityOutcome.Unknown(e)
+                }
+                logger.w(result.cause) { "linkOAuthIdentity($provider): ${outcome::class.simpleName}" }
+                outcome
+            }
         }
+    }
+
+    override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome {
+        // Phase 1 (under the lock): launch the browser, park a pending handle. As
+        // with link, the session isn't here yet — it arrives via the redirect, so
+        // do NOT emit. The starter awaits the deferred outside the lock below.
+        val deferred = mutex.withLock {
+            logger.d { "signInWithOAuth: launching browser for $provider" }
+            val launch = Catching { gateway.signInWithOAuth(provider) }
+            launch.exceptionOrNull()?.let { e ->
+                val outcome = when (e) {
+                    is RestException -> mapOAuthSignInRestException(e)
+                    is HttpRequestException -> SignInOutcome.NetworkError(e)
+                    else ->
+                        if ((e.message ?: "").contains("cancel", ignoreCase = true)) {
+                            SignInOutcome.Cancelled
+                        } else SignInOutcome.Unknown(e)
+                }
+                logger.w(e) { "signInWithOAuth($provider): launch failed → ${outcome::class.simpleName}" }
+                return outcome
+            }
+            startPendingOAuthLocked(OAuthFlowKind.SignIn).result
+        }
+
+        // Phase 2 (OUTSIDE the lock — see linkOAuthIdentity for why).
+        return when (val result = awaitOAuthRedirect(deferred)) {
+            OAuthRedirectResult.Success -> {
+                logger.i { "signInWithOAuth($provider): Success" }
+                SignInOutcome.Success
+            }
+            OAuthRedirectResult.Cancelled -> {
+                logger.i { "signInWithOAuth($provider): Cancelled" }
+                SignInOutcome.Cancelled
+            }
+            is OAuthRedirectResult.Failed -> {
+                val outcome = when (val e = result.cause) {
+                    is RestException -> mapOAuthSignInRestException(e)
+                    is HttpRequestException -> SignInOutcome.NetworkError(e)
+                    else -> SignInOutcome.Unknown(e)
+                }
+                logger.w(result.cause) { "signInWithOAuth($provider): ${outcome::class.simpleName}" }
+                outcome
+            }
+        }
+    }
 
     override fun isOAuthRedirect(url: String): Boolean = gateway.isOAuthRedirect(url)
 
+    /**
+     * The browser OAuth round trip landed back on `cards://login-callback`. Finish
+     * the pending [signInWithOAuth] / [linkOAuthIdentity] by resolving its deferred
+     * — which un-parks the suspended starter so the outcome-driven UI gets its
+     * answer. Never throws out of this path: any failure resolves the handle with a
+     * mapped failure and leaves auth state untouched.
+     *
+     * The [SignInOutcome] return is vestigial (the deep-link collector ignores it);
+     * the real result flows to the parked starter. We still return a best-effort
+     * value for the interface contract.
+     */
     override suspend fun completeOAuthRedirect(url: String): SignInOutcome =
         mutex.withLock {
-            logger.d { "completeOAuthRedirect: importing session from redirect" }
+            val pending = pendingOAuth
+            if (pending == null) {
+                // Stray / duplicate redirect (no starter waiting) — nothing to
+                // finish. No-op rather than guess at a session change.
+                logger.w { "completeOAuthRedirect: no pending OAuth handle — ignoring stray redirect" }
+                return@withLock SignInOutcome.Cancelled
+            }
+            logger.d { "completeOAuthRedirect: finishing pending ${pending.kind} flow" }
             Catching {
-                gateway.completeOAuthRedirect(url)
+                when (pending.kind) {
+                    // Sign-in: the session lives in the URL fragment — parse + import.
+                    OAuthFlowKind.SignIn -> gateway.completeOAuthRedirect(url)
+                    // Link/claim: the redirect carries NO session. Refresh the
+                    // current session's user so the just-attached identity folds in
+                    // (is_anonymous → false). The URL is irrelevant past routing.
+                    OAuthFlowKind.Link -> gateway.refreshLinkedUser()
+                }
                 emitAuthenticatedFromGatewayLocked()
             }.fold(
                 onSuccess = {
-                    logger.i { "completeOAuthRedirect: Success" }
+                    logger.i { "completeOAuthRedirect: ${pending.kind} Success" }
+                    resolvePendingOAuthLocked(OAuthRedirectResult.Success)
                     SignInOutcome.Success
                 },
                 onFailure = { e ->
-                    val outcome = when (e) {
-                        is RestException -> mapOAuthSignInRestException(e)
-                        is HttpRequestException -> SignInOutcome.NetworkError(e)
-                        // No tokens in the fragment — the user backed out of the
-                        // consent screen, or the provider sent an error redirect.
-                        is IllegalArgumentException -> SignInOutcome.Cancelled
-                        else -> SignInOutcome.Unknown(e)
+                    // No tokens in the fragment (sign-in) — the user backed out of
+                    // the consent screen, or the provider sent an error redirect.
+                    val redirectResult = if (e is IllegalArgumentException) {
+                        OAuthRedirectResult.Cancelled
+                    } else {
+                        OAuthRedirectResult.Failed(e)
                     }
-                    logger.w(e) { "completeOAuthRedirect: ${outcome::class.simpleName}" }
-                    outcome
+                    logger.w(e) { "completeOAuthRedirect: ${pending.kind} failed → ${redirectResult::class.simpleName}" }
+                    resolvePendingOAuthLocked(redirectResult)
+                    SignInOutcome.Cancelled
                 },
             )
         }
+
+    /**
+     * Install a fresh pending OAuth handle, cancelling/replacing any prior one
+     * (a new attempt while one is in flight resolves the old as Cancelled so its
+     * starter unsuspends). Lock must be held.
+     */
+    private fun startPendingOAuthLocked(kind: OAuthFlowKind): PendingOAuth {
+        pendingOAuth?.let { stale ->
+            logger.w { "startPendingOAuth: replacing an in-flight ${stale.kind} attempt — resolving it Cancelled" }
+            stale.result.complete(OAuthRedirectResult.Cancelled)
+        }
+        return PendingOAuth(kind, CompletableDeferred()).also { pendingOAuth = it }
+    }
+
+    /** Resolve + clear the current pending handle. Lock must be held. */
+    private fun resolvePendingOAuthLocked(result: OAuthRedirectResult) {
+        pendingOAuth?.result?.complete(result)
+        pendingOAuth = null
+    }
+
+    /**
+     * Await the redirect's resolution with a generous backstop timeout. The
+     * timeout is the ONLY guard against a hang: a user who backs out of the
+     * browser (the app foregrounds with no redirect) leaves the deferred unparked
+     * until it fires. Clean "backed out" cancellation is a known rough edge we'll
+     * refine during device testing — we deliberately don't build foreground-race
+     * detection here.
+     */
+    private suspend fun awaitOAuthRedirect(
+        deferred: CompletableDeferred<OAuthRedirectResult>,
+    ): OAuthRedirectResult = try {
+        withTimeout(OAuthRedirectTimeout) { deferred.await() }
+    } catch (e: TimeoutCancellationException) {
+        logger.w(e) { "awaitOAuthRedirect: timed out after $OAuthRedirectTimeout — treating as Cancelled" }
+        mutex.withLock {
+            // Only clear if this is still the handle we were waiting on; a newer
+            // attempt may have already replaced it.
+            if (pendingOAuth?.result === deferred) pendingOAuth = null
+        }
+        OAuthRedirectResult.Cancelled
+    }
 
     override suspend fun signInWithApple(credential: AppleSignInCredential): SignInOutcome =
         mutex.withLock {
@@ -768,5 +912,13 @@ class SupabaseAuthRepositoryImpl(
     private companion object {
         /** Bounded re-polls over supabase-kt's transient hydration states. */
         const val MaxResolveAttempts: Int = 5
+
+        /**
+         * Backstop for a browser-OAuth attempt that never gets a redirect back
+         * (user abandoned the consent screen / killed the browser tab). Generous
+         * because a real consent flow can take a while; on expiry we resolve the
+         * starter as Cancelled rather than leave it suspended forever.
+         */
+        val OAuthRedirectTimeout = 3.minutes
     }
 }
