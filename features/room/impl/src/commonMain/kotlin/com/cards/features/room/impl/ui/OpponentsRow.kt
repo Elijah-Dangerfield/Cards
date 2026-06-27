@@ -274,6 +274,7 @@ private fun OpponentSeat(
         else -> 1f
     }
     val dimMod = Modifier.alpha(dimAlpha)
+    val tempo = LocalTableTempo.current
     // The fade-when-folded effect is applied per-element rather than on the
     // outer Column. A wrapping `Modifier.alpha` rasterizes into an offscreen
     // layer sized to the wrapped bounds, which clips the LastActionPill's
@@ -363,12 +364,12 @@ private fun OpponentSeat(
         // is tapped. Keeping it inline made the opponents row too dense.
         AnimatedVisibility(
             visible = !busted,
-            enter = fadeIn(animationSpec = tween(220)) +
-                slideInVertically(animationSpec = tween(220)) { -it / 2 } +
-                expandVertically(animationSpec = tween(220)),
-            exit = fadeOut(animationSpec = tween(280)) +
-                slideOutVertically(animationSpec = tween(360)) { it } +
-                shrinkVertically(animationSpec = tween(360)),
+            enter = fadeIn(animationSpec = tween(tempo.duration(220))) +
+                slideInVertically(animationSpec = tween(tempo.duration(220))) { -it / 2 } +
+                expandVertically(animationSpec = tween(tempo.duration(220))),
+            exit = fadeOut(animationSpec = tween(tempo.duration(280))) +
+                slideOutVertically(animationSpec = tween(tempo.duration(360))) { it } +
+                shrinkVertically(animationSpec = tween(tempo.duration(360))),
         ) {
             ChipCoinAmount(
                 amount = seat.stack,
@@ -399,11 +400,12 @@ private fun OpponentSeat(
  */
 @Composable
 private fun ChevronOverlay(visible: Boolean, modifier: Modifier = Modifier) {
+    val tempo = LocalTableTempo.current
     Box(modifier = modifier) {
         AnimatedVisibility(
             visible = visible,
-            enter = fadeIn(animationSpec = tween(160)),
-            exit = fadeOut(animationSpec = tween(140)),
+            enter = fadeIn(animationSpec = tween(tempo.duration(160))),
+            exit = fadeOut(animationSpec = tween(tempo.duration(140))),
         ) {
             Text(
                 text = "▼",
@@ -420,13 +422,14 @@ private fun LastActionOverlay(
     onClick: (PlayerAction) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val tempo = LocalTableTempo.current
     Box(modifier = modifier) {
         AnimatedVisibility(
             visible = action != null,
-            enter = slideInVertically(animationSpec = tween(240)) { -it } +
-                fadeIn(animationSpec = tween(200)),
-            exit = slideOutVertically(animationSpec = tween(180)) { -it } +
-                fadeOut(animationSpec = tween(140)),
+            enter = slideInVertically(animationSpec = tween(tempo.duration(240))) { -it } +
+                fadeIn(animationSpec = tween(tempo.duration(200))),
+            exit = slideOutVertically(animationSpec = tween(tempo.duration(180))) { -it } +
+                fadeOut(animationSpec = tween(tempo.duration(140))),
         ) {
             action?.let { a -> LastActionPill(label = a.shortLabel(), onClick = { onClick(a) }) }
         }

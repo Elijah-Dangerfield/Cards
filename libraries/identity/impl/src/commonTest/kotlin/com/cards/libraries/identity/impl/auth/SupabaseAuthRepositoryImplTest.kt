@@ -372,15 +372,18 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     fun accountClaim_sameUserId_doesNotDump_andAnnouncesAccountClaimed() = runUnitTest {
         // Linking/claiming keeps the same user id (anon guest-1 becomes a
         // claimed account but stays guest-1). The link redirect carries no
-        // session, so completeOAuthRedirect refreshes the existing user. The
-        // guest's progress is theirs: no dump, no UserChanged. But the
-        // just-claimed account's pending syncs would otherwise wait for the next
-        // foreground, so the claim is announced as AccountClaimed.
+        // session, so completeOAuthRedirect refreshes the session (a stale-token
+        // refresh; hydrate alone leaves is_anonymous=true — see the device
+        // regression below). The guest's progress is theirs: no dump, no
+        // UserChanged. But the just-claimed account's pending syncs would
+        // otherwise wait for the next foreground, so the claim is announced as
+        // AccountClaimed.
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.Authenticated,
             session = anonymousSession(userId = "guest-1"),
-            onHydrateCurrentUser = {
-                // Same id, now non-anonymous + email — models the refresh after claim.
+            onRefreshSession = {
+                // Same id, now non-anonymous + email — models the fresh JWT + user
+                // a session refresh mints after the identity is linked.
                 advanceToAuthenticated(claimedSession(userId = "guest-1", email = "claimed@b.com"))
             },
         )
@@ -398,7 +401,8 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         val state = assertIs<AuthState.Authenticated>(repo.current())
         assertEquals("guest-1", state.userId)
         assertEquals(false, state.isAnonymous, "the claim still flips anon → claimed")
-        assertEquals(1, gateway.hydrateCurrentUserCalls, "link redirect refreshes the user, never parses a session")
+        assertEquals(1, gateway.refreshSessionCalls, "link redirect refreshes the session, never parses a session from the URL")
+        assertEquals(0, gateway.hydrateCurrentUserCalls, "link redirect must NOT rely on hydrate-only (leaves is_anonymous=true on device)")
         assertEquals(0, gateway.completeOAuthRedirectCalls, "a link redirect must NOT import a session from the URL")
         assertTrue(reset.clearedFor.isEmpty(), "same-user claim must not dump the guest's data")
         val afterClaim = events.dispatched.drop(dispatchedAtBoot)
@@ -447,7 +451,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.Authenticated,
             session = anonymousSession(userId = "guest-1"),
-            onHydrateCurrentUser = {
+            onRefreshSession = {
                 advanceToAuthenticated(claimedSession(userId = "guest-1", email = "claimed@b.com"))
             },
         )
@@ -472,6 +476,49 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         assertIs<com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome.Success>(link.await())
         assertEquals(false, assertIs<AuthState.Authenticated>(repo.current()).isAnonymous)
     }
+
+    @Test
+    fun linkOAuthIdentity_redirect_refreshesSession_evenWhenHydrateAloneLeavesAnonymous() =
+        runUnitTest {
+            // Device regression: after the Google link redirect the app stayed
+            // anonymous (Save-your-progress banner persisted, hasEmail=false,
+            // same user id) even though the link reported Success. Root cause:
+            // the Link redirect path hydrated the user (GET /user) instead of
+            // refreshing the session — and on device GET /user with the still-anon
+            // token does NOT fold in the just-linked identity, so is_anonymous
+            // stayed true. This test models that exact split: hydrate does NOT
+            // claim, only a session refresh does.
+            val gateway = FakeSupabaseAuthGateway(
+                initialStatus = AuthGatewayStatus.Authenticated,
+                session = anonymousSession(userId = "guest-1"),
+                onHydrateCurrentUser = {
+                    // Hydrate-only: refetches the user but the session is still the
+                    // anon one — exactly what the device showed.
+                    advanceToAuthenticated(anonymousSession(userId = "guest-1"))
+                },
+                onRefreshSession = {
+                    // The fresh JWT + user the refresh mints carries the linked
+                    // identity → claimed, with the real email surfaced.
+                    advanceToAuthenticated(claimedSession(userId = "guest-1", email = "claimed@b.com"))
+                },
+            )
+            val repo = build(gateway = gateway)
+            advanceUntilIdle()
+
+            val link = async { repo.linkOAuthIdentity(OAuthProvider.Google) }
+            runCurrent()
+            repo.completeOAuthRedirect("cards://login-callback")
+            assertIs<com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome.Success>(
+                link.await(),
+            )
+
+            val state = assertIs<AuthState.Authenticated>(repo.current())
+            assertEquals("guest-1", state.userId, "same id — it's a claim, not a switch")
+            assertEquals(false, state.isAnonymous, "the link must flip the user off anonymous")
+            assertEquals("claimed@b.com", state.email, "the claimed account's email must surface")
+            assertEquals(1, gateway.refreshSessionCalls, "the link redirect refreshes the session")
+            assertEquals(0, gateway.hydrateCurrentUserCalls, "hydrate-only is the broken path — must not be used")
+        }
 
     @Test
     fun signInWithOAuth_suspendsUntilRedirect_thenParsesImportsAndReturnsSuccess() = runUnitTest {

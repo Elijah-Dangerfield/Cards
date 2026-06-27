@@ -673,10 +673,19 @@ class SupabaseAuthRepositoryImpl(
                 when (pending.kind) {
                     // Sign-in: the session lives in the URL fragment — parse + import.
                     OAuthFlowKind.SignIn -> gateway.completeOAuthRedirect(url)
-                    // Link/claim: the redirect carries NO session. Refresh the
-                    // current session's user so the just-attached identity folds in
-                    // (is_anonymous → false). The URL is irrelevant past routing.
-                    OAuthFlowKind.Link -> gateway.hydrateCurrentUser()
+                    // Link/claim: the redirect carries NO session, and the browser
+                    // flow already attached the identity server-side. Fetching the
+                    // user (hydrateCurrentUser) is NOT enough: the cached access
+                    // token still carries is_anonymous=true and GET /user doesn't
+                    // fold the just-linked identity into the local session, so the
+                    // app stays "anonymous" and the Save-your-progress banner
+                    // persists (observed on device — the link reported Success while
+                    // the session was still the anon user with no email). Force a
+                    // session refresh so a fresh JWT + user (now carrying the linked
+                    // identity, is_anonymous=false) replaces the stale one — the same
+                    // fix the native Apple link path uses. The URL is irrelevant past
+                    // routing.
+                    OAuthFlowKind.Link -> gateway.refreshSession()
                 }
                 emitAuthenticatedFromGatewayLocked()
             }.fold(
