@@ -197,6 +197,15 @@ class PlayMultiplayerFeatureEntryPoint(
                 // keeps a mid-teardown scope death from stranding the player
                 // on a dead table.
                 onBack = {
+                    // Fire the leave teardown here too, not only from the
+                    // screen's BackHandler / top-arrow. An iOS edge-swipe pop can
+                    // reach this lambda without going through Compose's
+                    // BackHandler, which would pop the screen with the wallet
+                    // un-reconciled — the settled balance then stays invisible
+                    // until the next foreground (MP-23 / CARDS-5B). The VM
+                    // latches the teardown, so this is idempotent with the
+                    // screen's own LeaveTable on the normal back paths.
+                    viewModel.takeAction(PlayPokerAction.LeaveTable)
                     router.batch {
                         when (route.kind) {
                             RoomKind.Private -> popBackTo(LobbyRoute::class, inclusive = true)

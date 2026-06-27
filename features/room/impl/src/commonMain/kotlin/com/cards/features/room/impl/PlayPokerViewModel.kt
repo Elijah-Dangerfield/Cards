@@ -609,7 +609,19 @@ class PlayPokerViewModel @Inject constructor(
         return state.seats.firstOrNull { it.index == seatIndex }?.playerId
     }
 
+    // Latches the user-initiated leave teardown (server leave + wallet
+    // reconcile) so it runs at most once. Two leave paths can both fire: the
+    // screen's BackHandler fires LeaveTable, and an iOS edge-swipe that bypasses
+    // Compose's BackHandler reaches the entry point's onBack, which also fires
+    // LeaveTable so the swipe-back still reconciles (MP-23 / CARDS-5B). A second
+    // session.leave is a redundant DELETE; a second reconcile is guarded
+    // separately by walletReconciled, but latching here keeps the whole teardown
+    // single-shot.
+    private var leaveInitiated = false
+
     private suspend fun leaveAndReconcileWallet() {
+        if (leaveInitiated) return
+        leaveInitiated = true
         Catching { session.leave() }
             .onFailure { e -> logger.w(e) { "room leave failed" } }
         reconcileWalletAfterGame()

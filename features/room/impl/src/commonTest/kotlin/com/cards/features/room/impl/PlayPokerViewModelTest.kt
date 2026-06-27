@@ -1125,6 +1125,49 @@ class PlayPokerViewModelTest : CoroutineTest() {
         )
     }
 
+    @Test
+    fun leaveTable_firedTwice_sendsLeaveAndReconcilesOnce() = runUnitTest {
+        // MP-23 / CARDS-5B: two leave paths can both fire — the screen's
+        // BackHandler fires LeaveTable, and an iOS edge-swipe that bypasses
+        // Compose's BackHandler reaches the entry point's onBack (which also
+        // fires LeaveTable so the swipe-back reconciles). The teardown must run
+        // at most once: a second session.leave is a redundant DELETE and a
+        // second sync could re-confirm a now-zero credit.
+        val session = FakePokerSession()
+        val chips = FakeChipsRepository()
+        val factory = FakePokerSessionFactory(
+            session = session,
+            xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER,
+        )
+        val vm = buildVm(factory = factory, chipsRepository = chips)
+
+        vm.takeAction(PlayPokerAction.LeaveTable)
+        vm.takeAction(PlayPokerAction.LeaveTable)
+
+        assertEquals(1, session.leaveCount, "a redundant leave must not re-send the server leave")
+        assertEquals(1, chips.syncCount, "a redundant leave must not re-reconcile the wallet")
+    }
+
+    @Test
+    fun leaveTable_thenLeaveFromBust_tearsDownOnce() = runUnitTest {
+        // The two distinct leave actions still share one teardown latch — a
+        // LeaveTable already reconciled, so a following LeaveGameFromBust (or
+        // vice-versa) must not run the teardown a second time.
+        val session = FakePokerSession()
+        val chips = FakeChipsRepository()
+        val factory = FakePokerSessionFactory(
+            session = session,
+            xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER,
+        )
+        val vm = buildVm(factory = factory, chipsRepository = chips)
+
+        vm.takeAction(PlayPokerAction.LeaveTable)
+        vm.takeAction(PlayPokerAction.LeaveGameFromBust)
+
+        assertEquals(1, session.leaveCount)
+        assertEquals(1, chips.syncCount)
+    }
+
     // ---------- Multiplayer bust dialog + opponent-left ----------
 
     @Test

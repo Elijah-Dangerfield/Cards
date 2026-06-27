@@ -32,14 +32,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ---
 
-## D. Multiplayer hardening
-
-- `[P1]` **MP-23 — Wallet doesn't reconcile when the host leaves via the back button (only on next foreground).** A real-chip MP balance stays at the escrowed value after leaving via the top back-arrow / system back; the settled balance only appears on the next app foreground — the exact symptom `reconcileWalletAfterGame` was built to kill (CARDS-3C/4B). The in-screen Leave action reconciles; the back-button leave path bypasses it (VM popped before the reconcile runs).
-  **Acceptance:** every leave path — in-screen Leave, top back-arrow, and system back — funnels through `leaveAndReconcileWallet` before the screen pops; a failing-then-passing test pops the play screen via back and asserts a post-leave wallet sync fired and the cash-out toast showed.
-  **Hints:** `leaveAndReconcileWallet` / `reconcileWalletAfterGame` in [PlayPokerViewModel.kt](features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayPokerViewModel.kt):601-641; related to ROOM-2 (two leave paths diverge) but this is the wallet reconcile, not nav. Case `docs/agent/feedback-cases/113c61ec949f463692165413177659e9.md`, Sentry [CARDS-5B](https://elijah-dangerfield.sentry.io/issues/CARDS-5B).
-
----
-
 ## F. Shop & cosmetics
 
 - `[P2]` **SHOP-3 — Host-chosen felt + card backs, shown to every player at the table.** Owner directive: let the game creator pick the felt and card backs from their inventory when creating a room, and have *every* player at the table see the host's chosen felt and card backs (incentivizes buying cosmetics). The host's selection already exists per-player; this makes it table-wide.
