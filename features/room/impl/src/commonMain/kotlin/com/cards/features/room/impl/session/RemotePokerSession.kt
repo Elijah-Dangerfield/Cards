@@ -137,11 +137,12 @@ internal class RemotePokerSession(
 
     /**
      * `replay = 0` — a live notice; a late collector must not re-fire a stale
-     * rejection. Emitted when a [requestNextHand] frame is rejected (heads-up
-     * bust with no rebuy yet, MP-14).
+     * rejection. Emitted when a [requestNextHand] frame is rejected, carrying the
+     * classified [NextHandRefusal] reason so the VM can split the terminal
+     * heads-up-bust case from a transient resync race (MP-22).
      */
-    private val _nextHandUnavailable = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
-    override val nextHandUnavailable: SharedFlow<Unit> = _nextHandUnavailable.asSharedFlow()
+    private val _nextHandRefused = MutableSharedFlow<NextHandRefusal>(extraBufferCapacity = 4)
+    override val nextHandRefused: SharedFlow<NextHandRefusal> = _nextHandRefused.asSharedFlow()
 
     /**
      * Live heads-up rebuy-grace countdown (MP-14). Set on a `MatchOverPending`
@@ -324,10 +325,9 @@ internal class RemotePokerSession(
                 .isSuccess
             if (!sent) return
             // Unlike submit()/rebuy() this stays fire-and-forget to the caller,
-            // but we still watch the ack so a server "no" (heads-up bust: the
-            // table can't deal another hand) surfaces as a notice instead of the
-            // winner's tap vanishing silently (MP-14). A missing ack just times
-            // out quietly — the prior behaviour.
+            // but we still watch the ack so a server "no" surfaces as a notice
+            // instead of the winner's tap vanishing silently (MP-14). A missing
+            // ack just times out quietly — the prior behaviour.
             val ack = try {
                 withTimeout(INTENT_TIMEOUT_MS) { deferred.await() }
             } catch (e: TimeoutCancellationException) {
@@ -335,13 +335,30 @@ internal class RemotePokerSession(
                 return
             }
             if (!ack.accepted) {
-                logger.i { "requestNextHand rejected: ${ack.error ?: "unspecified"} (nonce=$nonce)" }
-                _nextHandUnavailable.tryEmit(Unit)
+                val refusal = classifyNextHandRefusal(ack.error)
+                // Info: which refusal class we read from the server error — the
+                // branch that decides between the terminal rebuy notice and a
+                // transient resync (MP-22). Once per refusal, not in a loop.
+                logger.i {
+                    "requestNextHand rejected: ${ack.error ?: "unspecified"} → $refusal (nonce=$nonce)"
+                }
+                _nextHandRefused.tryEmit(refusal)
             }
         } finally {
             pendingAcksMutex.withLock { pendingAcks.remove(nonce) }
         }
     }
+
+    /**
+     * Map the server's free-text next-hand rejection onto a [NextHandRefusal]
+     * (MP-22). The server only refuses next-hand for the genuine can't-deal case
+     * with [CANNOT_DEAL_ERROR]; every other reason ("current hand not complete",
+     * a stale-snapshot race, anything unexpected) is a transient that the live
+     * snapshot stream resolves on its own — so it must not surface the terminal
+     * rebuy copy.
+     */
+    private fun classifyNextHandRefusal(error: String?): NextHandRefusal =
+        if (error == CANNOT_DEAL_ERROR) NextHandRefusal.CannotDeal else NextHandRefusal.Transient
 
     @OptIn(ExperimentalUuidApi::class)
     override suspend fun submit(intent: PlayerIntent) {
@@ -432,6 +449,16 @@ internal class RemotePokerSession(
          * VM to surface a flicker.
          */
         const val INTENT_TIMEOUT_MS: Long = 10_000L
+
+        /**
+         * The server's exact next-hand rejection reason for "the table genuinely
+         * can't deal another hand" (heads-up bust, nobody else has chips). Lives
+         * in `GameSession.requestNextHand` server-side. Any *other* rejection
+         * reason is treated as a transient resync race (MP-22) — see
+         * [classifyNextHandRefusal]. Mirror string, not a shared type: the wire
+         * carries free-text errors today, so this is the one coupling point.
+         */
+        const val CANNOT_DEAL_ERROR: String = "not enough players with chips for next hand"
 
         /**
          * Pre-first-snapshot state. The factory's `tableFor` checks

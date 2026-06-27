@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.features.room.impl.session.NextHandRefusal
 import com.dangerfield.cards.features.room.impl.session.PokerSession
 import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
 import com.dangerfield.cards.features.room.impl.session.RemoteEmote
@@ -97,6 +98,14 @@ class FakePokerSession(
 
     private val _emoteBlasts = MutableSharedFlow<RemoteEmote>(extraBufferCapacity = 32)
     override val emoteBlasts: SharedFlow<RemoteEmote> = _emoteBlasts.asSharedFlow()
+
+    private val _nextHandRefused = MutableSharedFlow<NextHandRefusal>(extraBufferCapacity = 4)
+    override val nextHandRefused: SharedFlow<NextHandRefusal> = _nextHandRefused.asSharedFlow()
+
+    /** Drive a next-hand refusal the way the real session would (MP-22). */
+    fun emitNextHandRefused(refusal: NextHandRefusal) {
+        _nextHandRefused.tryEmit(refusal)
+    }
 
     val submittedIntents = mutableListOf<PlayerIntent>()
     val sentEmotes = mutableListOf<String>()

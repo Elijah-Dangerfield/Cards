@@ -2,6 +2,7 @@ package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.features.room.impl.session.IntentRejectedException
 import com.dangerfield.cards.features.room.impl.session.IntentTimeoutException
+import com.dangerfield.cards.features.room.impl.session.NextHandRefusal
 import com.dangerfield.cards.features.room.impl.session.PokerSession
 import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
 import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
@@ -234,11 +235,21 @@ class PlayPokerViewModel @Inject constructor(
                 sendEvent(PlayPokerEvent.OpponentLeft(displayName))
             }
         }
-        // Server refused the next hand (heads-up bust, no rebuy yet) — surface
-        // it so the winner's tap isn't a silent no-op. Never fires for solo bots.
+        // Server refused the next hand — split the genuine can't-deal case (the
+        // winner waits on the rebuy-grace countdown) from a transient resync race
+        // so a backgrounded-then-stale tap never gets the terminal rebuy copy
+        // (MP-22). Never fires for solo bots.
         viewModelScope.launch {
-            session.nextHandUnavailable.collect {
-                sendEvent(PlayPokerEvent.NextHandUnavailable)
+            session.nextHandRefused.collect { refusal ->
+                val event = when (refusal) {
+                    NextHandRefusal.CannotDeal -> PlayPokerEvent.NextHandUnavailable
+                    NextHandRefusal.Transient -> PlayPokerEvent.NextHandResyncing
+                }
+                // Info: which user-facing event a refusal mapped to — the wrong
+                // mapping (every refusal → rebuy toast) was invisible from the
+                // ack log alone (MP-22). Once per refusal, never in a loop.
+                logger.i { "next-hand refusal $refusal → ${event::class.simpleName}" }
+                sendEvent(event)
             }
         }
         // Heads-up match-over grace countdown (MP-14) → on-table banner. Opens on

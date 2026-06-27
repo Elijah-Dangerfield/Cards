@@ -569,7 +569,21 @@ fun PlayPokerScreen(
         }
 
         val handResult = active?.handResult
-        if (handResult != null && active.seats.isNotEmpty() && !celebrationActive) {
+        // Don't offer the winner a tappable "Next hand" while the table can't deal
+        // one (MP-22). When a heads-up opponent busts with no rebuy yet, the
+        // server opens the rebuy-grace window: the winner already sees the
+        // MatchOverCountdownBanner ("auto-continues in Ns"), so suppressing the
+        // showdown dialog here keeps them from tapping a CTA that the server can
+        // only refuse. The busted player keeps their own bust/countdown path.
+        val winnerWaitingOnRebuyGrace = state.matchOverCountdown
+            ?.takeIf { state.matchOverResult == null }
+            ?.localPlayerIsBusted == false
+        if (
+            handResult != null &&
+            active.seats.isNotEmpty() &&
+            !celebrationActive &&
+            !winnerWaitingOnRebuyGrace
+        ) {
             val humanSeat = active.seats.firstOrNull { it.isHuman }
             val humanBust = humanSeat != null && humanSeat.stack <= 0
             val onDismiss: () -> Unit = {

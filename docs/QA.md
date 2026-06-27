@@ -345,6 +345,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** The client retries the socket with backoff and reconnects. Device B's view resyncs to the current hand state (its hole cards, the board, whose turn it is, pot + stacks) — no stale snapshot, no "you left" screen. If it was Device B's turn, the turn is still available (the timer accounts for the gap).
 
+- **Stale-tap after reconnect (MP-22):** background Device B right as a hand is resolving, then foreground and tap "Next hand" on the (briefly stale) summary before the resync lands. The tap must NOT show the terminal "waiting for your opponent to rebuy or leave" toast — both stacks are healthy, nobody busted. Either the table catches up silently and advances, or a brief "Catching up with the table, try that again in a moment" hint shows. The rebuy toast only ever appears when the opponent actually busted with no rebuy (cross-ref `MP-8`).
+
 ---
 
 ### `MP-7` ⚠️ 📱 Graceful leave vs. force-quit
@@ -371,7 +373,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Device B sees the bust dialog with re-buy options (move another buy-in from wallet, drop to a lower tier, or — if broke — soft-bust protection). Choosing re-buy moves a fresh buy-in wallet → stack and deals B back in on the next hand. Declining leaves the table cleanly. On a subsidized bots-for-chips table, the bust dialog reads "fresh stack on the house" and the chips stay real (cross-ref `MP-6` settlement). Wallet math is correct after the re-buy — no double debit.
 
-- **Heads-up:** while Device B sits on the bust dialog (hasn't rebought), Device A (the winner) taps "next hand". A is not left with a dead button — a notice toasts ("waiting for your opponent to rebuy or leave") instead of the tap silently doing nothing. (Cross-ref `MP-12` for the full match-over countdown + result.)
+- **Heads-up (MP-22):** while Device B sits on the bust dialog (hasn't rebought), Device A (the winner) is NOT offered a tappable "Next hand" at all — A sees the shared rebuy-grace countdown ("Opponent busted. Auto-continues in N") instead of a button that can only be refused. If A somehow does fire a next-hand request, the refusal toasts "waiting for your opponent to rebuy or leave" rather than silently doing nothing. (Cross-ref `MP-12` for the full match-over countdown + result.)
 
 ---
 

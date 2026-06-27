@@ -88,14 +88,22 @@ interface PokerSession {
     val opponentLeft: SharedFlow<String> get() = NeverEmits
 
     /**
-     * Fires when the server rejects a [requestNextHand] because the table can't
-     * deal another hand — heads-up, the loser busted to 0 and nobody else has
-     * chips, so the winner's "next hand" tap would otherwise vanish silently
-     * (MP-14). The screen surfaces a notice; the busted player resolves via the
-     * rebuy dialog. Defaults to a never-emitting flow so solo-bot sessions and
-     * test fakes don't have to override it.
+     * Fires when the server rejects a [requestNextHand], carrying *why* so the
+     * screen can react correctly (MP-22). Two refusals look identical on the wire
+     * but mean opposite things:
+     *
+     *  - [NextHandRefusal.CannotDeal] — heads-up, the loser busted to 0 and nobody
+     *    else has chips, so the table genuinely can't deal another hand. The winner
+     *    waits on the rebuy-grace countdown; surfacing the rebuy notice is correct.
+     *  - [NextHandRefusal.Transient] — the hand is still resolving or the tap rode a
+     *    stale snapshot (the player backgrounded and their socket flapped). The live
+     *    snapshot stream *is* the resync; the screen must NOT show the terminal rebuy
+     *    copy, only a quiet "catching up, try again" hint.
+     *
+     * Defaults to a never-emitting flow so solo-bot sessions and test fakes don't
+     * have to override it.
      */
-    val nextHandUnavailable: SharedFlow<Unit> get() = NeverEmits
+    val nextHandRefused: SharedFlow<NextHandRefusal> get() = NeverRefused
 
     /**
      * The live heads-up rebuy-grace countdown (MP-14), or null when no match-over
@@ -117,7 +125,7 @@ interface PokerSession {
     /**
      * Signal readiness to advance to the next hand. No-op when no hand is
      * pending. Remote sessions await the server ack off-band and surface a
-     * rejection via [nextHandUnavailable] rather than to the caller, so this
+     * rejection via [nextHandRefused] rather than to the caller, so this
      * stays fire-and-forget.
      */
     fun requestNextHand()
@@ -152,7 +160,30 @@ interface PokerSession {
 }
 
 private val NeverEmits: SharedFlow<Nothing> = MutableSharedFlow()
+private val NeverRefused: SharedFlow<NextHandRefusal> = MutableSharedFlow()
 private val NoMatchOver: StateFlow<MatchOverCountdown?> = MutableStateFlow(null)
+
+/**
+ * Why the server refused a [PokerSession.requestNextHand] (MP-22). Splits the one
+ * genuine "the table can't deal another hand" case from every transient race so
+ * the screen never shows the terminal rebuy copy for a tap that just needs a
+ * resync.
+ */
+enum class NextHandRefusal {
+    /**
+     * Heads-up bust with no rebuy yet — the table truly can't deal. The winner
+     * waits on the rebuy-grace countdown; the rebuy notice is the right surface.
+     */
+    CannotDeal,
+
+    /**
+     * The hand is still resolving or the request rode a stale snapshot (a flapping
+     * socket after backgrounding). Not terminal — the live snapshot stream is the
+     * resync. The screen shows a quiet "catching up, try again" hint, never the
+     * opponent-rebuy copy.
+     */
+    Transient,
+}
 
 /**
  * The live state of a heads-up rebuy-grace window (MP-14). [deadlineEpochMs] is

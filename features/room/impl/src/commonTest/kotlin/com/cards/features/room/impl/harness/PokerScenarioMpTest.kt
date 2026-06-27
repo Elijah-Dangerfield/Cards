@@ -518,12 +518,41 @@ class PokerScenarioMpTest : PokerScenarioTest() {
         )
 
         // Heads-up, the opponent busted to 0 with no rebuy — the server refuses
-        // the winner's "next hand" tap.
-        s.serverRefusesNextHand(error = "cannot deal: opponent busted")
+        // the winner's "next hand" tap with the canonical can't-deal reason.
+        s.serverRefusesNextHand(error = "not enough players with chips for next hand")
 
         assertTrue(
             s.events.events.contains(PlayPokerEvent.NextHandUnavailable),
-            "a refused next-hand must surface NextHandUnavailable so the tap isn't a silent no-op; got ${s.events.events}",
+            "a genuine can't-deal refusal must surface NextHandUnavailable so the tap isn't a silent no-op; got ${s.events.events}",
+        )
+    }
+
+    @Test
+    fun nextHandRefused_transientRace_emitsResyncing_notRebuyToast() = runUnitTest {
+        // MP-22: a "current hand not complete" refusal (a stale-snapshot race
+        // after the user backgrounded) must NOT show the terminal rebuy copy —
+        // it resyncs off the live snapshot stream instead.
+        val s = mpScenario().start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 2_000),
+                    mpSeat(1, playerId = "peer", stack = 1_000),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+
+        s.serverRefusesNextHand(error = "current hand not complete")
+
+        assertTrue(
+            s.events.events.contains(PlayPokerEvent.NextHandResyncing),
+            "a transient refusal must surface NextHandResyncing; got ${s.events.events}",
+        )
+        assertTrue(
+            !s.events.events.contains(PlayPokerEvent.NextHandUnavailable),
+            "a transient refusal must NOT surface the terminal rebuy toast; got ${s.events.events}",
         )
     }
 

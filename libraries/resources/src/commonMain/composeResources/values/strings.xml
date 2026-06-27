@@ -836,6 +836,8 @@
 
     <!-- Room - notice when "next hand" is refused because the table can't deal another (heads-up, opponent busted with no rebuy). -->
     <string name="room_next_hand_unavailable">Waiting for your opponent to rebuy or leave</string>
+    <!-- Room - transient notice when "next hand" is refused mid-resolve / after a reconnect (the hand is still settling); the table catches up on its own and the player can retry. -->
+    <string name="room_next_hand_resyncing">Catching up with the table, try that again in a moment</string>
 
     <!-- Room - transient notice when a submitted action got no server ack in time (the action did not land; the player can retry). -->
     <string name="room_intent_timed_out">That didn't send. Check your connection and try again</string>
