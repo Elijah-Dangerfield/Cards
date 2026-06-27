@@ -9,17 +9,14 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * Remote-toggleable flags for auth surfaces. Both default to false because the
- * corresponding Supabase Auth providers aren't enabled in any project until the
- * dashboard gets the OAuth credentials (Apple Developer service id / Google
- * Cloud client id). Once provisioned, server-side AppConfig flips these on
+ * Remote-toggleable flags for auth surfaces. Code consumers (sign-in screen,
+ * claim screen) hide their respective buttons when the flag is false — the OAuth
+ * code paths still ship but stay dormant. This avoids "Coming soon" buttons that
+ * frustrate users. Server-side AppConfig (or a QA override) can flip either off
  * without a client release.
  *
- * Code consumers (sign-in screen, claim screen) hide their respective buttons
- * when the flag is false — the OAuth code paths still ship but stay dormant.
- * This avoids "Coming soon" buttons that frustrate users.
- *
- * See docs/decisions.md "Identity pivot (REVERSED)" for the broader provider story.
+ * See docs/decisions.md "Identity pivot (REVERSED)" + "Google sign-in (browser
+ * OAuth completion)" for the broader provider story.
  */
 
 @Inject
@@ -28,7 +25,12 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class GoogleSignInEnabled(appConfigMap: AppConfigMap) : FlagConfigValue(appConfigMap) {
     override val name = "Google sign-in enabled"
     override val path = "identity.googleSignInEnabled"
-    override val default = false
+    // On by default — the browser OAuth flow is wired end-to-end (redirect lands
+    // on cards://login-callback, captured by the deep-link collector). Still
+    // needs the Google provider + the cards://login-callback redirect URL
+    // configured in the Supabase project to actually authenticate; AppConfig /
+    // QA override can flip it back off.
+    override val default = true
 }
 
 @Inject

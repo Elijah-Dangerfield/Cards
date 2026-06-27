@@ -39,10 +39,21 @@ class ClaimAccountViewModelTest : CoroutineTest() {
 
     @Test
     fun initialState_reflectsOAuthFeatureFlags_fromConfig() = runUnitTest {
-        val vmDisabled = buildVm(config = TestAppConfigMap())
-        assertEquals(false, vmDisabled.state.googleEnabled)
-        assertEquals(false, vmDisabled.state.appleEnabled)
-        assertEquals(false, vmDisabled.state.anyProviderEnabled)
+        // Empty config → each flag falls back to its shipped default. Google
+        // now defaults ON (browser OAuth flow is wired); Apple's flag also
+        // defaults ON but is iOS-gated, so it reads false on the JVM.
+        val vmDefaults = buildVm(config = TestAppConfigMap())
+        assertEquals(true, vmDefaults.state.googleEnabled)
+        assertEquals(false, vmDefaults.state.appleEnabled)
+        assertEquals(true, vmDefaults.state.anyProviderEnabled)
+
+        // An explicit `false` override turns Google back off.
+        val vmGoogleOff = buildVm(
+            config = TestAppConfigMap.withOAuth(google = false, apple = false),
+        )
+        assertEquals(false, vmGoogleOff.state.googleEnabled)
+        assertEquals(false, vmGoogleOff.state.appleEnabled)
+        assertEquals(false, vmGoogleOff.state.anyProviderEnabled)
 
         val vmEnabled = buildVm(
             config = TestAppConfigMap.withOAuthEnabled(google = true, apple = true),

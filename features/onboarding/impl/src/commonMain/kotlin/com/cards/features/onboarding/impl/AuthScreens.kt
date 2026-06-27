@@ -81,6 +81,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.components.AppleSignInButton
 import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonKind
+import com.dangerfield.cards.libraries.ui.components.GoogleSignInButton
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
@@ -171,11 +172,13 @@ fun SignInScreen(
         if (state.anyOAuthEnabled) {
             Spacer(modifier = Modifier.height(Dimension.D800))
             if (state.googleEnabled) {
-                Button(
+                GoogleSignInButton(
+                    text = stringResource(Res.string.auth_sign_in_oauth_google),
                     onClick = { onAction(SignInAction.SignInWithOAuth(OAuthProvider.Google)) },
                     enabled = !state.isSubmitting,
+                    isLoading = state.isSubmitting,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(Res.string.auth_sign_in_oauth_google)) }
+                )
                 Spacer(modifier = Modifier.height(Dimension.D400))
             }
             if (state.appleEnabled) {

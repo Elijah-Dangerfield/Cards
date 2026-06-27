@@ -387,6 +387,7 @@
     <string name="auth_sign_in_subtitle">Sign in to keep your progress across devices.</string>
     <string name="auth_sign_in_oauth_google">Continue with Google</string>
     <string name="auth_sign_in_oauth_apple">Continue with Apple</string>
+    <string name="auth_sign_in_oauth_google_logo_a11y">Google logo</string>
     <string name="auth_sign_in_oauth_divider">or</string>
     <string name="auth_sign_in_submit_button">Sign in</string>
     <string name="auth_sign_in_submit_button_progress">Signing in…</string>
