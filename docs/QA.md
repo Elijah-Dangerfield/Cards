@@ -276,6 +276,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Device B lands in the same room's lobby. Both devices show both members in the seat list, each marked connected. The host badge sits on Device A. No spinner stall longer than ~2s after the code is entered.
 
+- **Joiner buy-in display (MP-24):** create the room with a non-default buy-in (e.g. 5,000). When Device B joins, its lobby shows the *real* buy-in, never $0 — including in the first second after the snapshot lands, before any further updates.
+
 ---
 
 ### `MP-1B` ⚠️ 📱 Share an invite link and deep-link join

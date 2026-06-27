@@ -38,10 +38,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
   **Acceptance:** every leave path — in-screen Leave, top back-arrow, and system back — funnels through `leaveAndReconcileWallet` before the screen pops; a failing-then-passing test pops the play screen via back and asserts a post-leave wallet sync fired and the cash-out toast showed.
   **Hints:** `leaveAndReconcileWallet` / `reconcileWalletAfterGame` in [PlayPokerViewModel.kt](features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayPokerViewModel.kt):601-641; related to ROOM-2 (two leave paths diverge) but this is the wallet reconcile, not nav. Case `docs/agent/feedback-cases/113c61ec949f463692165413177659e9.md`, Sentry [CARDS-5B](https://elijah-dangerfield.sentry.io/issues/CARDS-5B).
 
-- `[P1]` **MP-24 — Lobby buy-in still renders 0 for a joiner (MP-16 reopen, post-#74).** MP-16's $0-buy-in fix (PR #74: `Room.preferRealOver` / `isPlaceholder`) guards the host's create + socket-rebound staging, but a joiner who enters via PrivateJoin still sees the lobby buy-in render as 0 on a post-#74 build. The room's real buy-in was applied server-side (stacks debited); only the joiner's lobby snapshot shows 0.
-  **Acceptance:** joining a real-buy-in room never shows a $0 lobby buy-in; a failing-then-passing test joins a room with a non-zero buy-in and asserts the lobby value is the real buy-in, not a placeholder.
-  **Hints:** apply the `preferRealOver` / `isPlaceholder (buyIn <= 0)` invariant on the joiner's lobby snapshot read (PrivateJoin → lobby), not just the create seed; same files MP-16 touched (`RoomRepositoryImpl.upsertActiveRoom`, `ReconnectingRoomSocket` snapshot emission). Case `docs/agent/feedback-cases/ee5bfb6407cb421592a7e501eab916b5.md`, Sentry [CARDS-55](https://elijah-dangerfield.sentry.io/issues/CARDS-55).
-
 ---
 
 ## F. Shop & cosmetics
