@@ -53,10 +53,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ## F. Shop & cosmetics
 
-- `[P2]` **SHOP-2 — Remove the fake "50% off" tag on the Sunset felt.** The Sunset felt is flagged 50% off in the shop (dev, and probably prod config) but isn't actually discounted — it was a placeholder example. Owner directive: drop the tag.
-  **Acceptance:** the Sunset felt shows no sale/discount tag; no other item gains a stray one. Check both the dev and prod app-config / product catalog so the tag is gone everywhere it's seeded.
-  **Hints:** owner directive (Sentry [CARDS-4N](https://elijah-dangerfield.sentry.io/issues/CARDS-4N)) — find where the discount/sale tag is set for the sunset felt product (app-config or the products catalog seed) and remove it.
-
 - `[P2]` **SHOP-3 — Host-chosen felt + card backs, shown to every player at the table.** Owner directive: let the game creator pick the felt and card backs from their inventory when creating a room, and have *every* player at the table see the host's chosen felt and card backs (incentivizes buying cosmetics). The host's selection already exists per-player; this makes it table-wide.
   **Acceptance:** create-room flow lets the host pick an owned felt + card back; the room snapshot carries them; all clients render the host's felt and card backs in-game. Ship a slice + a directional call on edge cases (host has none equipped → table default; whether a player's own equipped back still applies to their own cards) and let the reviewer course-correct.
   **Hints:** plumbing mirrors the "Player Card — Phase 2: opponent cosmetics over the wire" backlog item — put the host's equipped felt/back on the room/seat snapshot and read it at the play surface instead of `LocalCurrentFelt`/local equip. Owner directive, Sentry [CARDS-4Q](https://elijah-dangerfield.sentry.io/issues/CARDS-4Q).

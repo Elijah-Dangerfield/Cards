@@ -117,6 +117,23 @@ class PostgresProductCatalogSourceTest : DatabaseTest() {
     }
 
     @Test
+    fun read_sunsetFelt_carriesNoFakeSaleBadge() = runTest {
+        // SHOP-2: the Sunset felt's "50% OFF" badge was a placeholder demo sale
+        // with no real discount behind it (V80 cleared it). Pin that the badge
+        // stays gone so a future seed edit can't reintroduce fabricated copy.
+        val catalog = newSource().read(androidContext)
+
+        val felt = catalog.chipOffers.single { it.id == "felt_sunset_weekend" }
+        assertNull(felt.badgeByLocale)
+        val description = felt.descriptionByLocale?.get("en").orEmpty()
+        assertTrue(
+            !description.contains("sale", ignoreCase = true) &&
+                !description.contains("half price", ignoreCase = true),
+            "sunset felt description still implies a sale: $description",
+        )
+    }
+
+    @Test
     fun read_returnsAllPlatformsByDefault() = runTest {
         val catalog = newSource().read(androidContext)
 
