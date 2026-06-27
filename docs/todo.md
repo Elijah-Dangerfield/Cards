@@ -44,14 +44,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ---
 
-## E. Rooms UI
-
-- `[P2]` **ROOM-4 — Show the win/loss this leave will settle in the leave-confirmation dialog.** Players leaving an MP table can't see what leaving does to their chips: they win a pot, leave at the start of the next hand, and are surprised by the net (a posted blind already forfeited). Two players asked for the same thing — "make people super in control of their money." The chip math is correct; the gap is visibility at the leave moment.
-  **Acceptance:** the MP leave-confirm dialog shows the net chips this leave will settle (and calls out a posted blind being forfeited when applicable). Ship a slice; a directional call on the secondary ask — letting a player leave *before* the next hand's blinds are posted — can be a follow-up note, not a requirement.
-  **Hints:** leave-confirm surface today is [ui/LeaveBotsConfirmDialog.kt](features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/ui/LeaveBotsConfirmDialog.kt); the settle delta is the same value `reconcileWalletAfterGame` computes. Cases `docs/agent/feedback-cases/6eaea8834468472d91186958d94d2fc8.md` + `fd024476465049c09b24c1193c338d7a.md`, Sentry [CARDS-59](https://elijah-dangerfield.sentry.io/issues/CARDS-59) / [CARDS-57](https://elijah-dangerfield.sentry.io/issues/CARDS-57).
-
----
-
 ## F. Shop & cosmetics
 
 - `[P2]` **SHOP-3 — Host-chosen felt + card backs, shown to every player at the table.** Owner directive: let the game creator pick the felt and card backs from their inventory when creating a room, and have *every* player at the table see the host's chosen felt and card backs (incentivizes buying cosmetics). The host's selection already exists per-player; this makes it table-wide.

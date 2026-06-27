@@ -719,6 +719,11 @@
     <string name="room_leave_bots_subsidized_body">You'll lose progress on this hand. The %1$s chips at your seat are real. They go straight back to your wallet when you leave.</string>
     <string name="room_leave_bots_stay_button">Stay</string>
     <string name="room_leave_bots_leave_button">Leave</string>
+    <!-- Room - net chips a real-chip leave will settle, shown ahead in the leave-confirm dialog (ROOM-4). %1$s is a signed total e.g. "+1,250" or "-300". -->
+    <string name="room_leave_settle_up">Leaving now settles %1$s chips to your wallet</string>
+    <string name="room_leave_settle_even">Leaving now returns your buy-in with no change</string>
+    <!-- Room - sub-note when the player has chips committed in the current hand that leaving forfeits (ROOM-4). %1$s is the forfeited amount. -->
+    <string name="room_leave_forfeit_note">Includes %1$s already in this hand that you'll forfeit by leaving now</string>
 
     <!-- Room - Swipe-fold confirm dialog (swipe-down to fold while in a hand). -->
     <string name="room_swipe_fold_title">Fold this hand?</string>

@@ -16,6 +16,9 @@ import cards.libraries.resources.generated.resources.room_leave_bots_leave_butto
 import cards.libraries.resources.generated.resources.room_leave_bots_stay_button
 import cards.libraries.resources.generated.resources.room_leave_bots_subsidized_body
 import cards.libraries.resources.generated.resources.room_leave_bots_title
+import cards.libraries.resources.generated.resources.room_leave_forfeit_note
+import cards.libraries.resources.generated.resources.room_leave_settle_even
+import cards.libraries.resources.generated.resources.room_leave_settle_up
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -37,6 +40,14 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * cashing back to the wallet (MP-6) — the disclosed-bot complaint was that
  * the chips watched at the table didn't visibly follow the player out, so
  * the leave moment names the number going home.
+ *
+ * On a real-chip table ([showSettle]) the dialog also states the *net* this
+ * leave settles to the wallet — `[netSettleChips]` = the stack returning minus
+ * the buy-in — and, when the player still has chips committed in the live hand
+ * ([forfeitedThisHand] > 0, e.g. a posted blind), calls out that those are
+ * forfeited by leaving now (ROOM-4). Two players asked to "be super in control
+ * of their money" at the leave moment; the chip math was already correct, this
+ * makes the consequence visible before they tap Leave.
  */
 @Composable
 internal fun LeaveBotsConfirmDialog(
@@ -44,6 +55,9 @@ internal fun LeaveBotsConfirmDialog(
     onLeave: () -> Unit,
     subsidized: Boolean = false,
     cashOutChips: Long = 0,
+    showSettle: Boolean = false,
+    netSettleChips: Long = 0,
+    forfeitedThisHand: Long = 0,
 ) {
     Dialog(
         onDismissRequest = onStay,
@@ -75,6 +89,36 @@ internal fun LeaveBotsConfirmDialog(
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
+            if (showSettle) {
+                Text(
+                    text = if (netSettleChips == 0L) {
+                        stringResource(Res.string.room_leave_settle_even)
+                    } else {
+                        stringResource(
+                            Res.string.room_leave_settle_up,
+                            netSettleChips.signedChips(),
+                        )
+                    },
+                    typography = AppTheme.typography.Body.B600,
+                    color = if (netSettleChips < 0L) {
+                        AppTheme.colors.danger
+                    } else {
+                        AppTheme.colors.content
+                    },
+                    textAlign = TextAlign.Center,
+                )
+                if (forfeitedThisHand > 0L) {
+                    Text(
+                        text = stringResource(
+                            Res.string.room_leave_forfeit_note,
+                            formatThousands(forfeitedThisHand),
+                        ),
+                        typography = AppTheme.typography.Body.B400,
+                        color = AppTheme.colors.contentSecondary,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -92,6 +136,9 @@ internal fun LeaveBotsConfirmDialog(
         }
     }
 }
+
+private fun Long.signedChips(): String =
+    if (this > 0L) "+${formatThousands(this)}" else formatThousands(this)
 
 @Preview
 @Composable
@@ -113,6 +160,37 @@ private fun LeaveBotsConfirmDialogPreview_Subsidized() {
             onLeave = {},
             subsidized = true,
             cashOutChips = 9_180,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LeaveBotsConfirmDialogPreview_SettleUp() {
+    PreviewContent {
+        LeaveBotsConfirmDialog(
+            onStay = {},
+            onLeave = {},
+            subsidized = true,
+            cashOutChips = 11_250,
+            showSettle = true,
+            netSettleChips = 1_250,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LeaveBotsConfirmDialogPreview_SettleDownWithForfeit() {
+    PreviewContent {
+        LeaveBotsConfirmDialog(
+            onStay = {},
+            onLeave = {},
+            subsidized = true,
+            cashOutChips = 9_700,
+            showSettle = true,
+            netSettleChips = -300,
+            forfeitedThisHand = 50,
         )
     }
 }

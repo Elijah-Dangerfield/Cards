@@ -298,6 +298,13 @@ data class SeatView(
     val displayName: String,
     val stack: Long,
     val contributedThisStreet: Long,
+    /**
+     * Chips this seat has put in the pot across the whole current hand (blinds +
+     * every street's bets), not just the live street. Leaving mid-hand forfeits
+     * these, so the leave-confirm dialog reads it to call out a posted blind /
+     * committed chips the player is about to give up (ROOM-4).
+     */
+    val contributedThisHand: Long = 0,
     val isActing: Boolean,
     val isHuman: Boolean,
     val isBot: Boolean,
@@ -422,6 +429,7 @@ data class SeatView(
                 displayName = displayName,
                 stack = seat.stack,
                 contributedThisStreet = seat.contributedThisStreet,
+                contributedThisHand = seat.contributedThisHand,
                 isActing = isActing,
                 isHuman = isHuman,
                 isBot = seat.isBot,

@@ -364,6 +364,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - On a **subsidized** bots-for-chips table (Variant A, mid-hand), the leave-confirm dialog names the exact stack returning to the wallet ("The N chips at your seat are real…") — the number matches the stack shown at the seat, and the wallet rises by that amount after leaving (MP-6).
 - After winning a pot on a real-chip table and leaving (Variant A), the Home/wallet balance reflects the credited stack **right away** — without backgrounding and foregrounding the app. No delayed phantom jump appears on the next resume (todo `MP-7`).
 - After leaving a real-chip table with chips at your seat (Variant A), a toast confirms the credit on the screen you land on ("N chips from your seat went back to your wallet. New balance: M.") — the amounts match the wallet change. Leaving with nothing credited (lost the stack, or a bots-only practice table) shows no toast (MP-6).
+- **Net-settle preview (ROOM-4):** on a real-chip table, the leave-confirm dialog states the *net* this leave settles to the wallet (stack minus buy-in, shown as e.g. "+1,250" up or red when down). If you have a posted blind / chips already in the live hand, a sub-note calls out the amount you forfeit by leaving now. A practice / solo table shows no settle line. The net shown matches the wallet change after leaving.
 
 ---
 

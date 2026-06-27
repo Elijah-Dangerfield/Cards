@@ -217,6 +217,45 @@ class TableUiStateTest {
     }
 
     @Test
+    fun seatView_carriesContributedThisHand_forLeaveSettleForfeitNote() {
+        // ROOM-4: the leave-confirm dialog reads the human seat's hand-level
+        // contribution to call out a posted blind / committed chips forfeited by
+        // leaving mid-hand. The projection must surface it, not just the
+        // per-street figure.
+        val state = GameState(
+            settings = RoomSettings.Default,
+            handNumber = 1,
+            buttonSeatIndex = 0,
+            seats = listOf(
+                seat(
+                    index = 0,
+                    stack = 950,
+                    participation = HandParticipation.InHand,
+                    contributedThisHand = 50,
+                ),
+            ),
+            community = emptyList(),
+            street = BettingRound.Flop,
+            currentBetThisStreet = 0,
+            lastFullRaiseSize = 0,
+            actingSeatIndex = 0,
+            deckRemaining = emptyList(),
+        )
+        val table = TableUiState.fromGameState(
+            gameState = state,
+            humanSeatIndex = 0,
+            personalitiesBySeat = emptyMap(),
+            lastWinners = null,
+            lastActionBySeat = emptyMap(),
+        )
+        assertEquals(
+            50L,
+            table.seats.single { it.isHuman }.contributedThisHand,
+            "hand-level contribution rides onto the seat view for the leave-settle forfeit note",
+        )
+    }
+
+    @Test
     fun turnTimer_surfacesSettingValue_whenEnforced() {
         val state = GameState(
             settings = RoomSettings.Default.copy(turnTimerSeconds = 45),
@@ -259,6 +298,7 @@ class TableUiStateTest {
         stack: Long,
         participation: HandParticipation,
         empty: Boolean = false,
+        contributedThisHand: Long = 0,
     ): Seat = Seat(
         index = index,
         playerId = if (empty) null else "p$index",
@@ -266,6 +306,7 @@ class TableUiStateTest {
         stack = stack,
         seatStatus = if (empty) SeatStatus.Empty else SeatStatus.Active,
         handParticipation = participation,
+        contributedThisHand = contributedThisHand,
     )
 
     private fun botSeat(index: Int): Seat = Seat(
