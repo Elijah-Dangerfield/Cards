@@ -793,3 +793,15 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch direction when revisiting:** inventory the empty-body POST endpoints, classify each as (a) genuinely needed write/sync, (b) collapsible into a single batched sync call, or (c) removable; then trim. Pairs with the existing "Offline-aware retry / deferred queue" and the per-sync-coordinator design — a batched sync envelope would address several at once.
 
 **Status:** Backlog. Fuzzy/evaluative ("maybe we should evaluate those") — scope it with an endpoint inventory first, not a blind change.
+
+---
+
+## Typed next-hand refusal code on the room socket ack
+
+**Idea (deferred from MP-22, 2026-06-27):** When the server refuses a "next hand" request it sends back a free-text `error` string on `IntentAck`. The client now classifies that string to decide whether to show the terminal "waiting for your opponent to rebuy" notice (the genuine can't-deal case) or a quiet "catching up, try again" hint (every transient race). The only coupling point is one mirrored constant, `RemotePokerSession.CANNOT_DEAL_ERROR = "not enough players with chips for next hand"`, which must stay byte-identical to `GameSession.requestNextHand` server-side.
+
+**Why it's safe today:** if the strings ever drift, the failure is graceful in both directions — a healthy table briefly shows the rebuy hint, or a busted table shows the resync hint — never a crash or a stuck state. So this is a robustness cleanup, not a bug.
+
+**Sketch:** add a typed refusal reason (an enum on the wire `IntentAck`, e.g. `NextHandRefusalReason.CannotDeal` / `Transient`) so the client switches on a stable code instead of parsing copy. Removes the string mirror entirely.
+
+**Status:** Backlog. Client-side classification ships in this PR; the server-side typed code is the follow-up.
