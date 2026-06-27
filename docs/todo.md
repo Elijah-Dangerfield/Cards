@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-27 · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-27 (feedback triage) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -32,11 +32,65 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ---
 
+## C. Progression, XP & stats
+
+- `[P1]` **PROG-4 — Multiplayer hands award no XP (and skip player-stats + the hand-end celebration).** A finished MP hand grants zero XP and records no player-stat; only achievements appear (they're pulled server-side). `RemotePokerSessionFactory.create` builds `RemotePokerSession` without wiring the VM's `onHandEnded` callback, and the MP `GameEventReceived` branch never calls `handleHandEnded` — the only caller of `awardForHand` / `recordPlayerStat`. Solo bots work because `LocalBotsSession` invokes `onHandEnded` directly.
+  **Acceptance:** a finished MP hand awards XP (MULTIPLAYER 1.0 multiplier) and records the player-stat, proven by a failing-then-passing test that plays an MP `HandEnded` and asserts progression + player-stats advanced. The hand-end celebration also fires for MP.
+  **Hints:** [RemotePokerSessionFactory.kt](features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/session/RemotePokerSessionFactory.kt):74-89 (the unwired `onHandEnded`); `handleHandEnded` / `awardForHand` in [PlayPokerViewModel.kt](features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayPokerViewModel.kt); mirror `LocalBotsSession.kt`:454. Distinct from PROG-3 (celebration UI). Case `docs/agent/feedback-cases/1b7364a79e5e44b6aa97e7a821152225.md`, Sentry [CARDS-5D](https://elijah-dangerfield.sentry.io/issues/CARDS-5D).
+
+---
+
+## D. Multiplayer hardening
+
+- `[P1]` **MP-23 — Wallet doesn't reconcile when the host leaves via the back button (only on next foreground).** A real-chip MP balance stays at the escrowed value after leaving via the top back-arrow / system back; the settled balance only appears on the next app foreground — the exact symptom `reconcileWalletAfterGame` was built to kill (CARDS-3C/4B). The in-screen Leave action reconciles; the back-button leave path bypasses it (VM popped before the reconcile runs).
+  **Acceptance:** every leave path — in-screen Leave, top back-arrow, and system back — funnels through `leaveAndReconcileWallet` before the screen pops; a failing-then-passing test pops the play screen via back and asserts a post-leave wallet sync fired and the cash-out toast showed.
+  **Hints:** `leaveAndReconcileWallet` / `reconcileWalletAfterGame` in [PlayPokerViewModel.kt](features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayPokerViewModel.kt):601-641; related to ROOM-2 (two leave paths diverge) but this is the wallet reconcile, not nav. Case `docs/agent/feedback-cases/113c61ec949f463692165413177659e9.md`, Sentry [CARDS-5B](https://elijah-dangerfield.sentry.io/issues/CARDS-5B).
+
+- `[P1]` **MP-24 — Lobby buy-in still renders 0 for a joiner (MP-16 reopen, post-#74).** MP-16's $0-buy-in fix (PR #74: `Room.preferRealOver` / `isPlaceholder`) guards the host's create + socket-rebound staging, but a joiner who enters via PrivateJoin still sees the lobby buy-in render as 0 on a post-#74 build. The room's real buy-in was applied server-side (stacks debited); only the joiner's lobby snapshot shows 0.
+  **Acceptance:** joining a real-buy-in room never shows a $0 lobby buy-in; a failing-then-passing test joins a room with a non-zero buy-in and asserts the lobby value is the real buy-in, not a placeholder.
+  **Hints:** apply the `preferRealOver` / `isPlaceholder (buyIn <= 0)` invariant on the joiner's lobby snapshot read (PrivateJoin → lobby), not just the create seed; same files MP-16 touched (`RoomRepositoryImpl.upsertActiveRoom`, `ReconnectingRoomSocket` snapshot emission). Case `docs/agent/feedback-cases/ee5bfb6407cb421592a7e501eab916b5.md`, Sentry [CARDS-55](https://elijah-dangerfield.sentry.io/issues/CARDS-55).
+
+---
+
+## E. Rooms UI
+
+- `[P2]` **ROOM-4 — Show the win/loss this leave will settle in the leave-confirmation dialog.** Players leaving an MP table can't see what leaving does to their chips: they win a pot, leave at the start of the next hand, and are surprised by the net (a posted blind already forfeited). Two players asked for the same thing — "make people super in control of their money." The chip math is correct; the gap is visibility at the leave moment.
+  **Acceptance:** the MP leave-confirm dialog shows the net chips this leave will settle (and calls out a posted blind being forfeited when applicable). Ship a slice; a directional call on the secondary ask — letting a player leave *before* the next hand's blinds are posted — can be a follow-up note, not a requirement.
+  **Hints:** leave-confirm surface today is [ui/LeaveBotsConfirmDialog.kt](features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/ui/LeaveBotsConfirmDialog.kt); the settle delta is the same value `reconcileWalletAfterGame` computes. Cases `docs/agent/feedback-cases/6eaea8834468472d91186958d94d2fc8.md` + `fd024476465049c09b24c1193c338d7a.md`, Sentry [CARDS-59](https://elijah-dangerfield.sentry.io/issues/CARDS-59) / [CARDS-57](https://elijah-dangerfield.sentry.io/issues/CARDS-57).
+
+---
+
 ## F. Shop & cosmetics
 
 - `[P2]` **SHOP-3 — Host-chosen felt + card backs, shown to every player at the table.** Owner directive: let the game creator pick the felt and card backs from their inventory when creating a room, and have *every* player at the table see the host's chosen felt and card backs (incentivizes buying cosmetics). The host's selection already exists per-player; this makes it table-wide.
   **Acceptance:** create-room flow lets the host pick an owned felt + card back; the room snapshot carries them; all clients render the host's felt and card backs in-game. Ship a slice + a directional call on edge cases (host has none equipped → table default; whether a player's own equipped back still applies to their own cards) and let the reviewer course-correct.
   **Hints:** plumbing mirrors the "Player Card — Phase 2: opponent cosmetics over the wire" backlog item — put the host's equipped felt/back on the room/seat snapshot and read it at the play surface instead of `LocalCurrentFelt`/local equip. Owner directive, Sentry [CARDS-4Q](https://elijah-dangerfield.sentry.io/issues/CARDS-4Q).
+
+---
+
+## G. Billing & IAP
+
+Native IAP (Play Billing + StoreKit 2 + own server validation — no RevenueCat). The `BillingClient` abstraction, fake/dev clients, server wallet ledger, and idempotent grant already exist; these items fill the two real gaps (platform clients + server validation) and make the credit server-authoritative. Live store testing for several items is developer-gated on credentials/listings — those gates live in [developer-todo.md](./developer-todo.md); the code is buildable and unit/locally-testable now.
+
+- `[P0]` **BILL-1 — Server `/v1/billing/redeem` endpoint with idempotent grant + `ReceiptValidator` seam.** Today the shop credits chips locally on store confirmation ([DefaultPurchaseChipPackUseCase.kt](libraries/billing/impl/src/commonMain/kotlin/com/cards/libraries/billing/impl/DefaultPurchaseChipPackUseCase.kt)); the server never sees the receipt, so a forged one mints chips.
+  **Acceptance:** an authenticated `POST /v1/billing/redeem` takes `{ platform, productId, purchaseToken|signedTransaction }`, runs it through a `ReceiptValidator` interface (fake impl for tests; real impls are BILL-2), and on success grants chips through the wallet ledger keyed on the store transaction id. A `billing_transactions` table with `UNIQUE(store, order_id)` makes redemption idempotent. Returns the authoritative balance.
+  **Hints:** JWT auth plugin → `call.userId()`; grant precedent `WalletRepository.apply(idempotencyKey=…)`; new Flyway migration alongside `apps/server/src/main/resources/db/migration/V5__products.sql`.
+
+- `[P0]` **BILL-2 — Real receipt validators (Apple App Store Server API + Google Play Developer API).** The `ReceiptValidator` seam from BILL-1 needs real platform impls before any real-money sale; a forged receipt must be rejected.
+  **Acceptance:** Apple impl verifies the StoreKit 2 signed-transaction JWS via the official app-store-server-library (Java) — checks bundle id, product id, and `appAccountToken == userId`. Google impl calls `purchases.products.get`, checks `purchaseState == purchased` + `obfuscatedExternalAccountId == userId`, then acknowledges/consumes. Both read credentials from server config and stay dormant (validation refused) when unset. Live exercise against the stores is developer-gated.
+  **Hints:** both official libs run on the JVM Ktor server; mirror `SentryConfig.fromEnv` for the dormant-until-configured pattern; pin the purchase to the user via the echoed-back account token, **not** orderId — and fix the now-wrong `BillingClient` doc comment that says orderId.
+
+- `[P1]` **BILL-3 — Android `PlayBillingClient`.** `libraries/billing/impl/src/androidMain` is empty, so release builds fall back to `NoOpBillingClient` (no IAP).
+  **Acceptance:** implements [BillingClient](libraries/billing/src/commonMain/kotlin/com/cards/libraries/billing/BillingClient.kt) against the Play Billing Library (v7+; check for v8 at build time) — `connect`/`queryProducts`/`purchase`, forwarding `userId` via `setObfuscatedAccountId`. Chip packs are **consumables**, so the success path must `consumeAsync` (not just acknowledge) or a re-purchase is impossible — add a `consume()` to the interface (or rework `acknowledge`). Bound with `@ContributesBinding(replaces = [DevBillingClient::class])`, selected by the BILL-5 flag.
+  **Hints:** keep behaviour identical to `FakeBillingClient`; local verification uses Play static-response test SKUs / license testers (developer-gated).
+
+- `[P1]` **BILL-4 — iOS `StoreKitBillingClient`.** `libraries/billing/impl/src/iosMain` is empty; iOS release builds have no IAP.
+  **Acceptance:** implements `BillingClient` with StoreKit 2 (`Product.purchase()`, `Transaction`, `transaction.finish()` for consumables), forwarding `userId` as `appAccountToken` (a UUID — Supabase user ids already qualify). Verifiable locally via an Xcode `.storekit` test config — **no App Store Connect needed for dev iteration**.
+  **Hints:** StoreKit 2 async API; pairs with the BILL-2 Apple validator (same `appAccountToken` pin).
+
+- `[P1]` **BILL-5 — Server-authoritative chip credit + `billing.realPurchasesEnabled` gate.** [DefaultPurchaseChipPackUseCase.kt](libraries/billing/impl/src/commonMain/kotlin/com/cards/libraries/billing/impl/DefaultPurchaseChipPackUseCase.kt) credits chips locally before any server validation (a double-credit window it admits to in its own comment), and there's no flag to ship real billing dark.
+  **Acceptance:** the purchase flow becomes validate → grant → consume: store confirms → `POST /v1/billing/redeem` → reflect the server-returned balance → then consume/acknowledge. A config flag both selects the real-vs-Dev billing client and lets the code ship dark; per-environment via the config Postgres.
+  **Hints:** `creditChipsFor` is the seam to invert; config-flag precedent in `:libraries:config`; depends on BILL-1 (endpoint) — BILL-3/4 can land independently.
 
 ---
 
