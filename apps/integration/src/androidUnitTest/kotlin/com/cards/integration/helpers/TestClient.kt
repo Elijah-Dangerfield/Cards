@@ -107,6 +107,7 @@ class TestClient(
             auth = FakeAuthRepository(userId),
             profile = NoProfileRepository,
             equipment = NoEquipmentRepository,
+            chips = NoChipsRepository,
             appScope = AppCoroutineScope(DefaultDispatcherProvider()),
         )
 
@@ -161,6 +162,23 @@ class TestClient(
             authoritative: List<com.dangerfield.cards.libraries.cards.EquipmentEntry>,
         ) = Unit
         override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>) = emptyList<String>()
+        override suspend fun deleteAll() = Unit
+        override suspend fun sync() = Result.success(Unit)
+    }
+
+    /**
+     * No wallet — the lobby flow's only chip touch is the MP-27 reconcile sync
+     * fired on leave, which a no-op satisfies (the harness asserts on room state,
+     * not balances).
+     */
+    private object NoChipsRepository : com.dangerfield.cards.libraries.cards.ChipsRepository {
+        override fun observeBalance() = flowOf<Long?>(null)
+        override suspend fun getBalance(): Long? = null
+        override val walletJustCreated =
+            kotlinx.coroutines.flow.MutableStateFlow(false)
+        override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
+        override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
+        override suspend fun setBalance(authoritativeBalance: Long) = Unit
         override suspend fun deleteAll() = Unit
         override suspend fun sync() = Result.success(Unit)
     }
