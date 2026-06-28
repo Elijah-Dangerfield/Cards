@@ -52,3 +52,20 @@ internal expect fun launchNetworkInspector()
  * when running under a unit test.
  */
 internal expect fun HttpClientConfig<*>.installNetworkInspector()
+
+/**
+ * Installs Wiretap's WebSocket-capture plugin on a WS-capable [HttpClient] —
+ * the gameplay room socket flows through the authenticated client, and the
+ * hardest multiplayer bugs live in those frames (ENG-8). The plugin wraps every
+ * WebSocket session opened through the client transparently (no per-frame hook),
+ * logging the connection, every sent/received frame, and close/error events
+ * alongside the HTTP traffic in the same inspector.
+ *
+ * Gated identically to [installNetworkInspector]: callers wrap it in
+ * `BuildInfo.isDebug`, the Android actual additionally skips host-JVM unit tests
+ * (Wiretap's DI isn't bootstrapped there), and the iOS noop/real split is driven
+ * by `cards.wiretap.ios` at the dependency level. Must be installed *after*
+ * Ktor's `WebSockets` plugin so it can wrap the raw session before `WebSockets`
+ * transforms it.
+ */
+internal expect fun HttpClientConfig<*>.installWebSocketInspector()

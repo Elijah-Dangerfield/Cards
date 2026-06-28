@@ -30,14 +30,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ---
 
-## C. Engineering & tooling
-
-- `[P2]` **ENG-8 — Wiretap captures the gameplay WebSocket.** Wiretap (the shake-to-open network inspector in `:libraries:networking:impl`) only captures HTTP traffic today; the multiplayer gameplay WebSocket — where the hardest MP bugs live — is invisible in the inspector. Hook Wiretap into the gameplay socket so sent/received frames are captured and browsable alongside HTTP calls. *(proposed 2026-06-28)*
-  **Acceptance:** opening Wiretap during an MP game shows the gameplay WS connection with its inbound/outbound frames, plus connect / close / error events.
-  **Hints:** the room gameplay socket client (`RemotePokerSessionFactory` consumes its `gameplayFrames`); Wiretap's interception lives in `:libraries:networking:impl` next to the HTTP capture. Mind the iOS noop/release split (`cards.wiretap.ios`).
-
----
-
 ## D. Multiplayer hardening
 
 - `[P2]` **MP-28 — Evaluate per-hand opt-in for multiplayer tables.** Owner proposal: right now an MP hand continues no matter what you do, and a player who wants to leave is guaranteed to forfeit a posted blind. Consider requiring each player to opt in to each hand (or be auto-sat-out / booted) so leaving between hands is clean. Owner explicitly invited push-back — "if you push back I want it mentioned in the PR description." *(owner directive, 2026-06-28)*

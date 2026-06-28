@@ -514,3 +514,16 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 4. Buy the **same** pack a second time.
 
 **Expected:** Real prices come from StoreKit (not the fallback). After confirming, the chips are credited once and the balance updates. The second purchase of the same pack succeeds again (consumable was finished — no "already purchased" dead end). Cancelling the sheet returns silently with no credit and no error toast. With `billing.realPurchasesEnabled` on, the balance reflects the server-returned authoritative total (no local double-credit). The account token pins to the signed-in user (a mismatched receipt is rejected server-side). Anonymous accounts hard-gate before the sheet ever opens.
+
+---
+
+## Tooling & debug
+
+### `ENG-8` ℹ️ 📱 Wiretap captures the gameplay WebSocket
+
+**State:** a debug build (the inspector is debug-only; on iOS the framework must be built with `cards.wiretap.ios` left on). Be in or about to start a multiplayer game.
+
+1. Join/host an MP table so the gameplay room socket connects, and play a hand (act, see opponents act).
+2. Shake the device to open the Network inspector; find the WebSocket / sockets tab.
+
+**Expected:** The gameplay socket connection appears in the inspector (URL `…/v1/rooms/<code>/socket`) alongside the HTTP calls, listing its inbound frames (game_state snapshots, game_event, intent_ack, emoji) and outbound frames (your submitted intents, next-hand requests), plus the connect and the close/error when you leave. A release build never shows the inspector. (Covers todo ENG-8.)

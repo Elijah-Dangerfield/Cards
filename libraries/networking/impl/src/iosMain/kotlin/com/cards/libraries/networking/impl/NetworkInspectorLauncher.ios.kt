@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.networking.impl
 
 import dev.skymansandy.wiretap.helper.launcher.WiretapViewController
 import dev.skymansandy.wiretap.plugin.http.WiretapKtorHttpPlugin
+import dev.skymansandy.wiretap.plugin.ws.WiretapKtorWebSocketPlugin
 import io.ktor.client.HttpClientConfig
 import platform.UIKit.UIApplication
 import platform.UIKit.UIModalPresentationPageSheet
@@ -37,4 +38,8 @@ internal actual fun launchNetworkInspector() {
 
 internal actual fun HttpClientConfig<*>.installNetworkInspector() {
     install(WiretapKtorHttpPlugin)
+}
+
+internal actual fun HttpClientConfig<*>.installWebSocketInspector() {
+    install(WiretapKtorWebSocketPlugin) { enabled = true }
 }
