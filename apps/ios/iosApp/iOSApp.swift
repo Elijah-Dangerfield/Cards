@@ -8,6 +8,7 @@ struct iOSApp: App {
     let permissionManager = IOSPermissionManager()
     let reviewLauncher = IOSReviewLauncher()
     let appleSignInCoordinator = IOSAppleSignInCoordinator()
+    let storeKitCoordinator = IOSStoreKitCoordinator()
     private let nativeViewFactory = IOSNativeViewFactory.shared
     private let iOSAppComponent: IosAppComponent
 
@@ -16,6 +17,7 @@ struct iOSApp: App {
             permissionManager: permissionManager,
             reviewLauncher: reviewLauncher,
             appleSignInCoordinator: appleSignInCoordinator,
+            storeKitCoordinator: storeKitCoordinator,
             nativeViewFactory: nativeViewFactory
         )
         iOSAppComponent.telemetry.initialize()

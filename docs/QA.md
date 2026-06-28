@@ -493,3 +493,18 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 3. Repeat once more for a second level-up later in the session.
 
 **Expected:** The full-screen level-up celebration presents every time a level is crossed — including the very first level-up of a fresh session — with the correct level number and any chip/boost/cosmetic reward rows. It never silently drops the user back to Home with no fanfare. A multi-level jump shows a single celebration for the net level. (Covers todo PROG-3; the fix anchors the celebration watermark in the reward granter so a first-session level-up can't be eaten by a seeding race.)
+
+---
+
+## Billing & IAP
+
+### `BILL-4` 🚨 🍎 iOS chip-pack purchase via StoreKit (local `.storekit` config)
+
+**State:** a **release** iOS build (the real StoreKit client only binds in release; debug uses the fake), running against the bundled `apps/ios/iosApp/Cards.storekit` test config attached to the run scheme's StoreKit Configuration. Signed in with a **claimed** (non-anonymous) account. Note the chip balance.
+
+1. Shop → tap a real-money chip pack (e.g. Medium). The native StoreKit purchase sheet appears with the right localized price.
+2. Confirm the purchase in the sheet.
+3. Watch the chip balance and the purchase confirmation.
+4. Buy the **same** pack a second time.
+
+**Expected:** Real prices come from StoreKit (not the fallback). After confirming, the chips are credited once and the balance updates. The second purchase of the same pack succeeds again (consumable was finished — no "already purchased" dead end). Cancelling the sheet returns silently with no credit and no error toast. With `billing.realPurchasesEnabled` on, the balance reflects the server-returned authoritative total (no local double-credit). The account token pins to the signed-in user (a mismatched receipt is rejected server-side). Anonymous accounts hard-gate before the sheet ever opens.

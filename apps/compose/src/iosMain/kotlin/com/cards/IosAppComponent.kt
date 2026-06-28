@@ -1,5 +1,6 @@
 package com.dangerfield.cards
 
+import com.dangerfield.cards.libraries.billing.StoreKitCoordinator
 import com.dangerfield.cards.libraries.cards.PermissionManager
 import com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator
 import com.dangerfield.cards.libraries.review.ReviewLauncher
@@ -17,6 +18,9 @@ abstract class IosAppComponent(
     // The Swift `IOSAppleSignInCoordinator` (ASAuthorizationController flow),
     // passed in from `iOSApp.swift`. Android binds its own no-op via anvil.
     private val appleSignInCoordinator: AppleSignInCoordinator,
+    // The Swift `IOSStoreKitCoordinator` (StoreKit 2 purchase flow), passed in
+    // from `iOSApp.swift`. Android binds its own no-op via anvil.
+    private val storeKitCoordinator: StoreKitCoordinator,
     val nativeViewFactory: NativeViewFactory
 ) : AppComponent {
 
@@ -28,6 +32,9 @@ abstract class IosAppComponent(
 
     @Provides
     fun provideAppleSignInCoordinator(): AppleSignInCoordinator = appleSignInCoordinator
+
+    @Provides
+    fun provideStoreKitCoordinator(): StoreKitCoordinator = storeKitCoordinator
 }
 
 
@@ -36,5 +43,6 @@ expect fun create(
     permissionManager: PermissionManager,
     reviewLauncher: ReviewLauncher,
     appleSignInCoordinator: AppleSignInCoordinator,
+    storeKitCoordinator: StoreKitCoordinator,
     nativeViewFactory: NativeViewFactory
 ): IosAppComponent

@@ -1,0 +1,72 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "CARDS_LOCAL_TEST",
+  "nonRenewingSubscriptions" : [],
+  "products" : [
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "C0000001",
+      "localizations" : [
+        {
+          "description" : "A small stack of chips.",
+          "displayName" : "Small Chip Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.cards.iap.chips.small",
+      "referenceName" : "Chips Small",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "C0000002",
+      "localizations" : [
+        {
+          "description" : "A medium stack of chips.",
+          "displayName" : "Medium Chip Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.cards.iap.chips.medium",
+      "referenceName" : "Chips Medium",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "14.99",
+      "familyShareable" : false,
+      "internalID" : "C0000003",
+      "localizations" : [
+        {
+          "description" : "A large stack of chips.",
+          "displayName" : "Large Chip Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.cards.iap.chips.large",
+      "referenceName" : "Chips Large",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "CARDS_LOCAL_TEST",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 0
+  },
+  "subscriptionGroups" : [],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

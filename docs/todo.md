@@ -30,13 +30,3 @@ _No open engineering items. (AUTH-9 — the Google browser-OAuth redesign to sus
 
 _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ideas in [backlog.md](./backlog.md)._
 
----
-
-## G. Billing & IAP
-
-Native IAP (Play Billing + StoreKit 2 + own server validation — no RevenueCat). The `BillingClient` abstraction, fake/dev clients, server wallet ledger, idempotent grant, the server-authoritative redeem endpoint with the real Apple + Google receipt validators, and the client-side validate->grant->reflect flow (behind `billing.realPurchasesEnabled`) already exist; these items fill the remaining gap — the real platform store clients. Live store testing is developer-gated on credentials/listings — those gates live in [developer-todo.md](./developer-todo.md); the code is buildable and unit/locally-testable now.
-
-- `[P1]` **BILL-4 — iOS `StoreKitBillingClient`.** `libraries/billing/impl/src/iosMain` is empty; iOS release builds have no IAP. The shared `BillingClient.consume()` consumable primitive already exists (added with BILL-3) and the chip-pack use case routes through it.
-  **Acceptance:** implements `BillingClient` with StoreKit 2 (`Product.purchase()`, `Transaction`, `transaction.finish()` for consumables — finish on `consume()`), forwarding `userId` as `appAccountToken` (a UUID — Supabase user ids already qualify). Verifiable locally via an Xcode `.storekit` test config — **no App Store Connect needed for dev iteration**.
-  **Hints:** StoreKit 2's `Product.purchase()` is a Swift-only `async` API, so the impl is Swift, injected via `IosAppComponent` like `AppleSignInCoordinator` (whose Android counterpart is a no-op binding) — NOT a Kotlin/Native binding. That likely means a callback-shaped Swift-friendly protocol (mirroring `AppleSignInCoordinator.requestCredential`) rather than conforming Swift directly to the suspend/StateFlow `BillingClient`; decide whether to wrap or re-shape. Pairs with the BILL-2 Apple validator (same `appAccountToken` pin).
-
