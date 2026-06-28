@@ -58,6 +58,31 @@ data class Room(
 fun Room.preferRealOver(previous: Room?): Room =
     if (isPlaceholder && previous?.isPlaceholder == false) previous else this
 
+/**
+ * Field-level counterpart to [preferRealOver]: keep *this* snapshot's members,
+ * status, and presence, but carry forward [previous]'s real stakes
+ * ([buyIn]/[smallBlind]/[bigBlind]) when this one is a placeholder.
+ *
+ * The lobby presence path needs this where [preferRealOver] can't be used.
+ * The server's lobby presence snapshots legitimately carry `buyIn = 0` while
+ * delivering the converged member list (everyone connected), so dropping them
+ * wholesale ([preferRealOver]) would stall member-list convergence. But a
+ * joiner whose first socket frame is such a presence snapshot would otherwise
+ * see the buy-in regress from the real value (carried by the HTTP join
+ * response) to $0 (MP-24). Merging keeps the live member list while pinning the
+ * stakes to the last real value.
+ */
+fun Room.mergeStakesFrom(previous: Room?): Room =
+    if (isPlaceholder && previous != null && !previous.isPlaceholder) {
+        copy(
+            buyIn = previous.buyIn,
+            smallBlind = previous.smallBlind,
+            bigBlind = previous.bigBlind,
+        )
+    } else {
+        this
+    }
+
 data class RoomMember(
     val userId: String,
     val displayName: String,

@@ -277,6 +277,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 **Expected:** Device B lands in the same room's lobby. Both devices show both members in the seat list, each marked connected. The host badge sits on Device A. No spinner stall longer than ~2s after the code is entered.
 
 - On Device B, enter a 6-character code that is not a real room and tap Join. A "room not found" error appears in place under the code field; the screen does **not** move, navigate, or recompose — the input + keyboard stay put. Editing a character clears the error. (Covers todo ROOM-5.)
+- Create the room on Device A with a non-zero buy-in. After Device B joins, both devices' lobby show the real buy-in (and matching blinds) — never $0 — and it stays correct as the second seat fills in. (Covers MP-24.)
 
 ---
 

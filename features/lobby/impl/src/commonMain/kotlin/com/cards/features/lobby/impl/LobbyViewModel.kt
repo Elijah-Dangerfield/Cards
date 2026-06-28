@@ -18,6 +18,7 @@ import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.Room
+import com.dangerfield.cards.libraries.rooms.mergeStakesFrom
 import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
@@ -244,7 +245,13 @@ class LobbyViewModel(
                     when (val conn = action.connection) {
                         RoomConnection.Connecting -> it.copy(connectionStatus = ConnectionStatus.Connecting)
                         is RoomConnection.Connected -> it.copy(
-                            room = conn.room,
+                            // A lobby presence snapshot carries the converged
+                            // member list but may report buyIn = 0; merging
+                            // keeps that live member list while pinning the
+                            // stakes to the real value the HTTP join/create
+                            // response staged, so a joiner never sees a $0
+                            // buy-in (MP-24).
+                            room = conn.room.mergeStakesFrom(it.room),
                             connectionStatus = ConnectionStatus.Connected,
                             creating = false,
                             joining = false,

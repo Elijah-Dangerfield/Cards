@@ -758,6 +758,55 @@ class LobbyViewModelTest : CoroutineTest() {
         }
     }
 
+    // ---------- MP-24: joiner buy-in never regresses to $0 ----------
+
+    @Test
+    fun join_realBuyIn_thenPlaceholderPresenceSnapshot_keepsRealBuyIn() = runUnitTest {
+        // The joiner's HTTP join response carries the real stakes (server
+        // debited the buy-in). The first socket frame is a lobby presence
+        // snapshot with the converged member list but buyIn = 0 (the server's
+        // presence snapshots don't carry stakes). The lobby must keep the real
+        // buy-in while still adopting the live member list (MP-24).
+        val joined = roomWithStakes(
+            buyIn = 5000,
+            smallBlind = 25,
+            bigBlind = 50,
+            members = listOf(member(LOCAL_USER, "You", isConnected = true)),
+        )
+        val presenceSnapshot = roomWithStakes(
+            buyIn = 0,
+            smallBlind = 0,
+            bigBlind = 0,
+            members = listOf(
+                member(LOCAL_USER, "You", isConnected = true),
+                member("peer", "Peer", isConnected = true, seatIndex = 1),
+            ),
+        )
+        val socketFrames = Channel<RoomConnection>(Channel.UNLIMITED)
+        val rooms = FakeRoomRepository(
+            joinOutcome = JoinRoomOutcome.Success(joined, alreadyJoined = false),
+            observe = { socketFrames.receiveAsFlow() },
+        )
+        val vm = buildVm(rooms = rooms, prefilledCode = "AS4UPA")
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.room?.buyIn != 5000L) last = awaitItem()
+            assertEquals(1, last.room?.members?.size, "join response seeds one seat")
+
+            socketFrames.send(RoomConnection.Connected(presenceSnapshot))
+            var afterSnapshot = awaitItem()
+            while (afterSnapshot.room?.members?.size != 2) afterSnapshot = awaitItem()
+            val converged = afterSnapshot.room!!
+
+            assertEquals(2, converged.members.size, "the live member list converged")
+            assertEquals(5000L, converged.buyIn, "buy-in must not regress to 0")
+            assertEquals(25L, converged.smallBlind)
+            assertEquals(50L, converged.bigBlind)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     // ---------- "open to anyone" (server-dealt) ----------
 
     @Test
@@ -900,6 +949,24 @@ class LobbyViewModelTest : CoroutineTest() {
         status = RoomStatus.Lobby,
         members = members,
         visibility = visibility,
+    )
+
+    private fun roomWithStakes(
+        buyIn: Long,
+        smallBlind: Long,
+        bigBlind: Long,
+        members: List<RoomMember>,
+        code: String = "AS4UPA",
+    ) = Room(
+        code = code,
+        hostUserId = members.first().userId,
+        createdAtEpochMs = 1_700_000_000_000,
+        maxSeats = 4,
+        status = RoomStatus.Lobby,
+        members = members,
+        buyIn = buyIn,
+        smallBlind = smallBlind,
+        bigBlind = bigBlind,
     )
 
     /**
