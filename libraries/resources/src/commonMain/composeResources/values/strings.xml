@@ -310,6 +310,12 @@
     <string name="public_searching_offer_subsidy_exhausted">Heads up: you've used today's bonus chips. You can still play bots, but winnings won't be topped up until tomorrow.</string>
     <string name="public_searching_joining_bots_title">Setting up your table</string>
     <string name="public_searching_joining_bots_body">Seating your opponents and dealing you in…</string>
+    <!-- Joined-table pre-deal lobby (ROOM-11): the user took a seat and is waiting on the deal. -->
+    <string name="public_searching_joined_title">You're in</string>
+    <string name="public_searching_joined_waiting_for_players">Waiting for more players to sit down…</string>
+    <string name="public_searching_joined_ready_to_deal">Dealing you in any moment now…</string>
+    <string name="public_searching_joined_players_count">%1$d of %2$d seated</string>
+    <string name="public_searching_joined_leave">Leave table</string>
     <!-- Search failed (network / rate limit / rejected). -->
     <string name="public_searching_error_body">We couldn't reach the tables just now. Check your connection and try again.</string>
     <string name="public_searching_error_insufficient">That buy-in is more than your balance. Go back and lower your range.</string>

@@ -130,6 +130,80 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun joinCandidate_entersJoinedLobby_stagingTheSeatedTable() = runUnitTest {
+        // ROOM-11: explicitly picking a table seats the user in a distinct
+        // pre-deal lobby (not the still-hunting radar) with the room staged.
+        val conn = MutableSharedFlow<RoomConnection>(extraBufferCapacity = 8)
+        val joined = roomOf(
+            code = "AAA111",
+            members = listOf(member(LOCAL_USER, "You", isConnected = true)),
+        )
+        val mm = FakeMatchmakingRepository(
+            candidates = CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+        )
+        val rooms = FakeRoomRepository(
+            connection = conn,
+            join = JoinRoomOutcome.Success(joined, alreadyJoined = false),
+        )
+        val vm = buildVm(matchmaking = mm, rooms = rooms)
+        runCurrent()
+
+        vm.takeAction(PublicSearchingAction.JoinCandidate("AAA111"))
+        runCurrent()
+
+        assertEquals(SearchPhase.Joined, vm.state.phase, "joining a chosen table opens the pre-deal lobby")
+        assertEquals("AAA111", vm.state.joinedRoom?.code, "the seated table is staged for the lobby")
+
+        // A snapshot with a second human keeps the staged room fresh + counts them.
+        conn.emit(
+            RoomConnection.Connected(
+                roomOf(
+                    code = "AAA111",
+                    members = listOf(
+                        member(LOCAL_USER, "You", isConnected = true),
+                        member("peer", "Peer", isConnected = true, seatIndex = 1),
+                    ),
+                ),
+            ),
+        )
+        runCurrent()
+        assertEquals(SearchPhase.Joined, vm.state.phase, "still pre-deal until the hand deals")
+        assertEquals(2, vm.state.joinedRoom?.members?.size, "the staged room tracks new arrivals")
+        assertEquals(1, vm.state.realPlayersFound)
+
+        vm.takeAction(PublicSearchingAction.Cancel)
+        runCurrent()
+    }
+
+    @Test
+    fun genuineWaitMigration_staysOnTheRadar_notTheJoinedLobby() = runUnitTest {
+        // ROOM-11 + ROOM-12: a wait-time consolidation into a discovered table is
+        // still genuine waiting, so it must stay on the radar, never flip to the
+        // explicit-join pre-deal lobby.
+        val ownTable = roomOf(code = "MINE99", createdAtEpochMs = 2_000)
+        val olderPeerTable = roomOf(code = "PEER11", createdAtEpochMs = 1_000)
+        val mm = FakeMatchmakingRepository(
+            find = FindTableOutcome.Success(ownTable, created = true),
+            candidatesSequence = listOf(
+                CandidatesOutcome.Success(emptyList()),
+                CandidatesOutcome.Success(listOf(olderPeerTable)),
+            ),
+        )
+        val vm = buildVm(matchmaking = mm, rooms = FakeRoomRepository())
+        runCurrent()
+        assertEquals(SearchPhase.Searching, vm.state.phase)
+
+        testScheduler.advanceTimeBy(6.seconds)
+        testScheduler.runCurrent()
+
+        assertEquals(SearchPhase.Searching, vm.state.phase, "a migration is still genuine waiting")
+        assertNull(vm.state.joinedRoom, "migration never stages a joined lobby")
+
+        vm.takeAction(PublicSearchingAction.Cancel)
+        runCurrent()
+    }
+
+    @Test
     fun joinCandidate_overBalance_surfacesInsufficientError() = runUnitTest {
         val mm = FakeMatchmakingRepository(
             candidates = CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),

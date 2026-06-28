@@ -178,14 +178,32 @@ class PublicSearchingViewModel(
 
             is PublicSearchingAction.JoinCandidate -> action.run {
                 candidatesPollJob?.cancel()
-                updateState { it.copy(phase = SearchPhase.Searching, error = null) }
-                joinAndWatch(action.code)
+                updateState { it.copy(error = null) }
+                joinAndWatch(action.code, intoJoinedLobby = true)
             }
 
             PublicSearchingAction.StartFreshTable -> action.run {
                 reFindAttempts = 0
                 updateState { it.copy(phase = SearchPhase.Searching, error = null, candidates = emptyList()) }
                 fallThroughToSearch()
+            }
+
+            is PublicSearchingAction.Seated -> action.run {
+                if (action.intoJoinedLobby) {
+                    updateState {
+                        it.copy(
+                            phase = SearchPhase.Joined,
+                            joinedRoom = action.room,
+                            realPlayersFound = countOtherHumans(action.room),
+                        )
+                    }
+                } else {
+                    updateState { it.copy(phase = SearchPhase.Searching) }
+                }
+            }
+
+            is PublicSearchingAction.LocalUserResolved -> action.updateState {
+                it.copy(localUserId = action.userId)
             }
 
             is PublicSearchingAction.ConnectionUpdated -> action.run {
@@ -195,7 +213,15 @@ class PublicSearchingViewModel(
                         // A healthy snapshot means the re-find loop converged.
                         reFindAttempts = 0
                         val others = countOtherHumans(conn.room)
-                        updateState { it.copy(realPlayersFound = others) }
+                        // Once the user has explicitly taken a seat (ROOM-11) the
+                        // screen shows a pre-deal lobby off this snapshot, so keep
+                        // it fresh as members come and go while we wait for the deal.
+                        updateState {
+                            it.copy(
+                                realPlayersFound = others,
+                                joinedRoom = if (it.phase == SearchPhase.Joined) conn.room else it.joinedRoom,
+                            )
+                        }
                         // The server deals a public table itself the moment two
                         // humans are present — that flip to Playing is our cue to
                         // hand off to the live table (also covers a mid-hand join).
@@ -217,7 +243,7 @@ class PublicSearchingViewModel(
                                 updateState { it.copy(error = SearchError.Network) }
                             } else {
                                 reFindAttempts++
-                                updateState { it.copy(phase = SearchPhase.Searching, error = null) }
+                                updateState { it.copy(phase = SearchPhase.Searching, error = null, joinedRoom = null) }
                                 beginSearch(backoff = true)
                             }
                         // IncompatibleVersion (ENG-7): the table sent a frame this
@@ -395,8 +421,15 @@ class PublicSearchingViewModel(
         joinAndWatch(target.code)
     }
 
-    /** Join the table the user picked from the chooser, then watch its socket. */
-    private fun joinAndWatch(code: String) {
+    /**
+     * Join a table by code, then watch its socket. [intoJoinedLobby] is true when
+     * the user *explicitly* picked a table from the chooser — they then sit in a
+     * distinct pre-deal lobby ([SearchPhase.Joined]) showing the seated players
+     * until the deal lands, rather than the still-hunting radar (ROOM-11). The
+     * ROOM-12 wait-time consolidation reuses this path with the flag off: a
+     * migration is still genuine waiting, so it stays on the radar.
+     */
+    private fun joinAndWatch(code: String, intoJoinedLobby: Boolean = false) {
         searchJob?.cancel()
         timeoutJob?.cancel()
         candidatesPollJob?.cancel()
@@ -408,6 +441,7 @@ class PublicSearchingViewModel(
                     currentRoomCode = outcome.room.code
                     // We're at a real chosen table now, not waiting in our own.
                     ownWaitingRoom = null
+                    takeAction(PublicSearchingAction.Seated(outcome.room, intoJoinedLobby))
                     armTimeout()
                     watchRoom(outcome.room.code)
                 }
@@ -483,7 +517,10 @@ class PublicSearchingViewModel(
 
     private suspend fun ensureLocalUserId() {
         if (localUserId == null) {
-            (auth.current() as? AuthState.Authenticated)?.let { localUserId = it.userId }
+            (auth.current() as? AuthState.Authenticated)?.let {
+                localUserId = it.userId
+                takeAction(PublicSearchingAction.LocalUserResolved(it.userId))
+            }
         }
     }
 
@@ -552,6 +589,14 @@ data class PublicSearchingState(
     val maxBuyIn: Long,
     val error: SearchError? = null,
     /**
+     * The table the user took a seat at, staged once the join succeeds and kept
+     * fresh from each snapshot while [SearchPhase.Joined] renders the pre-deal
+     * lobby (ROOM-11). Null on every other phase.
+     */
+    val joinedRoom: Room? = null,
+    /** This device's user id, so the joined-lobby seat grid can mark "you". */
+    val localUserId: String? = null,
+    /**
      * Set on the bot-fallback offer when the player has already drawn down some of
      * their daily disclosed-bot subsidy, so the offer can disclose the limit up
      * front. Null when full headroom remains (no need to caveat) or unread.
@@ -583,6 +628,13 @@ sealed interface SearchPhase {
 
     /** Hunting for real players (or waiting in a fresh table). */
     data object Searching : SearchPhase
+
+    /**
+     * The user explicitly picked a table from the chooser and took a seat — a
+     * pre-deal lobby showing the seated players, distinct from the still-hunting
+     * radar, until the server deals the first hand (ROOM-11).
+     */
+    data object Joined : SearchPhase
 
     /** The window elapsed with nobody else here — offering disclosed bots. */
     data object BotFallbackOffer : SearchPhase
@@ -633,6 +685,16 @@ sealed interface PublicSearchingAction {
     data object KeepWaiting : PublicSearchingAction
 
     // ----- internal (fired by the VM's own jobs) -----
+    /**
+     * A join succeeded. [intoJoinedLobby] true → the user explicitly picked the
+     * table, so show the pre-deal lobby ([SearchPhase.Joined]); false → a wait-time
+     * consolidation that stays on the radar.
+     */
+    data class Seated(val room: Room, val intoJoinedLobby: Boolean) : PublicSearchingAction
+
+    /** Auth resolved this device's user id (so the lobby seat grid can mark "you"). */
+    data class LocalUserResolved(val userId: String) : PublicSearchingAction
+
     data class ConnectionUpdated(val connection: RoomConnection) : PublicSearchingAction
     data class FindFailed(val error: SearchError) : PublicSearchingAction
     data object SearchTimedOut : PublicSearchingAction

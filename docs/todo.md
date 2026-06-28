@@ -47,12 +47,3 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 - `[P2]` **MP-28 — Evaluate per-hand opt-in for multiplayer tables.** Owner proposal: right now an MP hand continues no matter what you do, and a player who wants to leave is guaranteed to forfeit a posted blind. Consider requiring each player to opt in to each hand (or be auto-sat-out / booted) so leaving between hands is clean. Owner explicitly invited push-back — "if you push back I want it mentioned in the PR description." *(owner directive, 2026-06-28)*
   **Acceptance:** a design decision is made and documented (in the PR description if pushing back); if adopted, players opt in per hand and can leave between hands without forfeiting an unwanted blind.
   **Hints:** overlaps the existing sit-out / auto-fold machinery and the ROOM-4-secondary backlog item (leave before next blinds post). Pairs with MP-26's hand-boundary handling. Sentry CARDS-5X.
-
----
-
-## E. Rooms & matchmaking
-
-- `[P1]` **ROOM-11 — Joining a found public table lands on the radar/searching screen, not a lobby.** Picking a table from the matchmaking chooser and tapping Join keeps the user on the "searching" radar UI until the server deals — there's no distinct joined-table/lobby state — so it reads as "I joined a game but got dumped back into search." *(feedback 2026-06-28)*
-  **Acceptance:** after joining a chosen candidate, the user sees a joined-table / pre-deal lobby (seated players, waiting-for-deal) that is visibly distinct from the still-hunting radar.
-  **Hints:** `PublicSearchingViewModel.JoinCandidate` → `joinAndWatch` → `watchRoom` reuses `SearchPhase.Searching`; add a joined/lobby phase. Directional UI call — recommend + ship a slice. Case `docs/agent/feedback-cases/98a0f24a398841ceac4e8c87afee9f50.md`; Sentry CARDS-63.
-

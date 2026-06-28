@@ -306,6 +306,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - The no-results state reads as a calm centered message ("We couldn't find anyone right now" + a supportive line), not a promotional banner. "Keep waiting for players" is the primary action; "Play bots for real chips" sits below it as a secondary offer; "Try again later" is the quiet exit. The subsidy disclosure (above) stays legible in this treatment (ROOM-9).
 - Two devices, same buy-in range (including a tight range that falls between the round stakes, e.g. 3k-4k): Device A searches first and opens a table; Device B searches the same range and is seated *with A* (two members at one table), never stranded on its own empty table (MP-15).
 - Staggered start (ROOM-12): Device A searches and falls through to its own waiting table (no candidates yet). A few seconds later Device B starts a search in the same range. A must still discover B's table while waiting and the two end up at one table — neither sits alone forever. (The older of the two tables wins, so exactly one device migrates.)
+- Joined-table lobby (ROOM-11): when the chooser lists candidates and you tap Join on one, you land on a distinct joined-table screen ("You're in") showing the seat grid with the seated players and a "waiting for more players" / "dealing you in" line — NOT the spinning radar. Once a hand deals you go straight to the live table. (Falling through to the genuine wait, with no candidate picked, still shows the radar.)
 
 ---
 
