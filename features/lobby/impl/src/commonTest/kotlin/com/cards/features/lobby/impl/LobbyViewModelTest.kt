@@ -345,7 +345,7 @@ class LobbyViewModelTest : CoroutineTest() {
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.room == null) last = awaitItem()
-            assertEquals("PREFIL", last.room!!.code)
+            assertEquals("PREFIL", last.room?.code)
             assertEquals(1, rooms.joinCalls)
             cancelAndIgnoreRemainingEvents()
         }
@@ -890,12 +890,12 @@ class LobbyViewModelTest : CoroutineTest() {
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.room?.buyIn != 5000L) last = awaitItem()
-            assertEquals(1, last.room?.members?.size, "join response seeds one seat")
+            assertEquals(1, last.room.members.size, "join response seeds one seat")
 
             socketFrames.send(RoomConnection.Connected(presenceSnapshot))
             var afterSnapshot = awaitItem()
             while (afterSnapshot.room?.members?.size != 2) afterSnapshot = awaitItem()
-            val converged = afterSnapshot.room!!
+            val converged = afterSnapshot.room
 
             assertEquals(2, converged.members.size, "the live member list converged")
             assertEquals(5000L, converged.buyIn, "buy-in must not regress to 0")
