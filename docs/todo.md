@@ -56,10 +56,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
   **Acceptance:** after joining a chosen candidate, the user sees a joined-table / pre-deal lobby (seated players, waiting-for-deal) that is visibly distinct from the still-hunting radar.
   **Hints:** `PublicSearchingViewModel.JoinCandidate` → `joinAndWatch` → `watchRoom` reuses `SearchPhase.Searching`; add a joined/lobby phase. Directional UI call — recommend + ship a slice. Case `docs/agent/feedback-cases/98a0f24a398841ceac4e8c87afee9f50.md`; Sentry CARDS-63.
 
-- `[P1]` **ROOM-12 — Public search stops discovering new tables after it falls through to a fresh waiting table.** The candidates re-poll only runs while the chooser is showing; when the first browse is empty the VM seats the user into its own waiting table and never browses `/candidates` again. Two people who start searching seconds apart sit in two separate tables forever and never match — confirmed in telemetry (a table created mid-search was never found). *(feedback 2026-06-28)*
-  **Acceptance:** two users who start searching within the window land in the same room; a table that appears after a searcher has fallen through to waiting is still discovered. Reproduce with a failing test first.
-  **Hints:** `PublicSearchingViewModel.armCandidatesPoll` is gated on `SearchPhase.Choosing`; keep polling (or have the server match a later `find` into an existing waiting table) during the genuine-wait phase too. Case `docs/agent/feedback-cases/3de8930dc5aa49a2bdb3926ff014b403.md`; Sentry CARDS-5S.
-
 - `[P2]` **ROOM-13 — Sanity-check the create-room default buy-in + blinds/stakes.** Owner review question: on the create-table screen, are the initial buy-in value and the small/big-blind + stakes defaults appropriate for a new user? Audit the defaults and adjust to sensible starting values. *(owner directive, 2026-06-28)*
   **Acceptance:** the create-room screen opens with defended, documented defaults (buy-in, blinds, stakes) that make sense for a first-time host.
   **Hints:** create-room/stake config (`StakeTier`, the create-room screen + VM). Make a recommendation and ship it. Sentry CARDS-65.

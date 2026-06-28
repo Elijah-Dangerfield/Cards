@@ -83,6 +83,14 @@ class PublicSearchingViewModel(
     /** The table we're currently seated in (for leave + play-bots). */
     private var currentRoomCode: String? = null
 
+    /**
+     * The fresh waiting table we opened via [beginSearch], kept so the wait-time
+     * candidates poll (ROOM-12) can tiebreak a discovered table against it (older
+     * table wins, so two mutual searchers converge on one and never swap seats).
+     * Null while choosing or after joining someone else's table from the chooser.
+     */
+    private var ownWaitingRoom: Room? = null
+
     /** Guards the one-shot hand-off so a re-emitted Playing snapshot can't double-navigate. */
     private var hasNavigated = false
 
@@ -155,6 +163,17 @@ class PublicSearchingViewModel(
                 } else {
                     updateState { it.copy(candidates = rooms.map(::toCandidate)) }
                 }
+            }
+
+            is PublicSearchingAction.WaitingCandidatesRefreshed -> action.run {
+                // Only migrate while we're genuinely waiting alone. Once a human is
+                // here (or we left the wait phase) the table is dealing and moving
+                // would be wrong; a transient poll failure just keeps us waiting.
+                if (state.phase != SearchPhase.Searching || state.realPlayersFound > 0) return@run
+                val rooms = (action.outcome as? CandidatesOutcome.Success)?.rooms ?: return@run
+                val target = migrationTarget(rooms) ?: return@run
+                updateState { it.copy(error = null) }
+                migrateTo(target)
             }
 
             is PublicSearchingAction.JoinCandidate -> action.run {
@@ -288,6 +307,7 @@ class PublicSearchingViewModel(
         searchJob?.cancel()
         timeoutJob?.cancel()
         candidatesPollJob?.cancel()
+        ownWaitingRoom = null
         hasNavigated = false
         viewModelScope.launch {
             ensureLocalUserId()
@@ -316,16 +336,78 @@ class PublicSearchingViewModel(
         }
     }
 
+    /**
+     * Re-poll candidates while we genuinely wait in our own fresh table so a table
+     * that appears afterward is still discovered (ROOM-12). Reuses [candidatesPollJob]
+     * — only one of the two poll modes (chooser-refresh vs wait-time) is ever live.
+     */
+    private fun armWaitingCandidatesPoll() {
+        candidatesPollJob?.cancel()
+        candidatesPollJob = viewModelScope.launch {
+            // Self-terminates once we're no longer genuinely waiting alone (a human
+            // arrived, the window elapsed into the bot offer, or we left the phase),
+            // so the poll never outlives the state it exists to serve.
+            while (state.phase == SearchPhase.Searching && state.realPlayersFound == 0) {
+                delay(CANDIDATES_POLL_INTERVAL)
+                if (state.phase != SearchPhase.Searching || state.realPlayersFound > 0) break
+                takeAction(PublicSearchingAction.WaitingCandidatesRefreshed(matchmaking.findCandidates(minBuyIn, maxBuyIn)))
+            }
+        }
+    }
+
+    /**
+     * Pick a table worth migrating to from a wait-time candidates poll, or null to
+     * stay put. Skips our own waiting table and only moves to one that's strictly
+     * preferable — more other humans, or (tie) an older table (code as the final
+     * tiebreak). The age tiebreak makes two mutual searchers converge on the older
+     * table instead of swapping seats and both ending up alone.
+     */
+    private fun migrationTarget(candidates: List<Room>): Room? {
+        val own = ownWaitingRoom ?: return null
+        val ownHumans = own.members.count { !it.isBot }
+        return candidates
+            .filter { it.code != own.code && !it.isFull && it.status != RoomStatus.Finished }
+            .filter { candidate ->
+                val candidateHumans = candidate.members.count { !it.isBot }
+                when {
+                    candidateHumans != ownHumans -> candidateHumans > ownHumans
+                    candidate.createdAtEpochMs != own.createdAtEpochMs ->
+                        candidate.createdAtEpochMs < own.createdAtEpochMs
+                    else -> candidate.code < own.code
+                }
+            }
+            .minWithOrNull(
+                compareByDescending<Room> { it.members.count { m -> !m.isBot } }
+                    .thenBy { it.createdAtEpochMs }
+                    .thenBy { it.code },
+            )
+    }
+
+    /** Leave our own waiting table and consolidate into the discovered one (ROOM-12). */
+    private fun migrateTo(target: Room) {
+        val leaving = currentRoomCode
+        searchJob?.cancel()
+        timeoutJob?.cancel()
+        candidatesPollJob?.cancel()
+        if (leaving != null && leaving != target.code) {
+            appScope.launch { Catching { rooms.leaveRoom(leaving) } }
+        }
+        joinAndWatch(target.code)
+    }
+
     /** Join the table the user picked from the chooser, then watch its socket. */
     private fun joinAndWatch(code: String) {
         searchJob?.cancel()
         timeoutJob?.cancel()
+        candidatesPollJob?.cancel()
         hasNavigated = false
         searchJob = viewModelScope.launch {
             ensureLocalUserId()
             when (val outcome = rooms.joinRoom(code)) {
                 is JoinRoomOutcome.Success -> {
                     currentRoomCode = outcome.room.code
+                    // We're at a real chosen table now, not waiting in our own.
+                    ownWaitingRoom = null
                     armTimeout()
                     watchRoom(outcome.room.code)
                 }
@@ -361,7 +443,12 @@ class PublicSearchingViewModel(
             when (val outcome = matchmaking.findTable(minBuyIn, maxBuyIn)) {
                 is FindTableOutcome.Success -> {
                     currentRoomCode = outcome.room.code
+                    ownWaitingRoom = outcome.room
                     armTimeout()
+                    // ROOM-12: keep browsing /candidates while we genuinely wait, so
+                    // a table created after we fell through to our own waiting table
+                    // is still discovered and we consolidate into it.
+                    armWaitingCandidatesPoll()
                     watchRoom(outcome.room.code)
                 }
                 is FindTableOutcome.InvalidRange ->
@@ -559,4 +646,11 @@ sealed interface PublicSearchingAction {
 
     /** Result of a background candidates re-poll while the chooser is showing. */
     data class CandidatesRefreshed(val outcome: CandidatesOutcome) : PublicSearchingAction
+
+    /**
+     * Result of a background candidates re-poll while *genuinely waiting* in our
+     * own fresh table (ROOM-12). Lets a searcher who fell through to a waiting
+     * table still discover a table that appeared afterward and consolidate into it.
+     */
+    data class WaitingCandidatesRefreshed(val outcome: CandidatesOutcome) : PublicSearchingAction
 }

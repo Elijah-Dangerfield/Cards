@@ -240,6 +240,95 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun genuineWait_discoversAnOlderTableThatAppearsLater_andMigratesIntoIt() = runUnitTest {
+        // ROOM-12: the first browse is empty, so the searcher falls through to its
+        // OWN fresh waiting table. A table created a moment earlier by someone else
+        // shows up on a later candidates poll. The searcher must still discover it
+        // and consolidate in (older table wins), rather than sit alone forever.
+        val ownTable = roomOf(code = "MINE99", createdAtEpochMs = 2_000)
+        val olderPeerTable = roomOf(code = "PEER11", createdAtEpochMs = 1_000)
+        val mm = FakeMatchmakingRepository(
+            find = FindTableOutcome.Success(ownTable, created = true),
+            candidatesSequence = listOf(
+                // Initial browse: nothing yet → fall through to the genuine wait.
+                CandidatesOutcome.Success(emptyList()),
+                // A wait-time re-poll surfaces the peer's table (born just before ours).
+                CandidatesOutcome.Success(listOf(olderPeerTable)),
+            ),
+        )
+        val rooms = FakeRoomRepository()
+        val vm = buildVm(matchmaking = mm, rooms = rooms)
+        runCurrent()
+        assertEquals(SearchPhase.Searching, vm.state.phase, "empty browse → genuine wait")
+        assertEquals(1, mm.findCalls, "we opened our own waiting table")
+
+        // The wait poll fires on the interval and discovers the peer's table.
+        testScheduler.advanceTimeBy(6.seconds)
+        testScheduler.runCurrent()
+
+        assertEquals(listOf("PEER11"), rooms.joinedCodes, "we consolidated into the older peer table")
+        assertEquals(listOf("MINE99"), rooms.leftCodes, "we released our own waiting seat on migrating")
+
+        vm.takeAction(PublicSearchingAction.Cancel)
+        runCurrent()
+    }
+
+    @Test
+    fun genuineWait_doesNotMigrateToItsOwnWaitingTable() = runUnitTest {
+        // The /candidates endpoint includes the caller's own table, so a wait-time
+        // poll that only returns our own table must NOT trigger a pointless
+        // leave-and-rejoin of the seat we already hold.
+        val ownTable = roomOf(code = "MINE99", createdAtEpochMs = 2_000)
+        val mm = FakeMatchmakingRepository(
+            find = FindTableOutcome.Success(ownTable, created = true),
+            candidatesSequence = listOf(
+                CandidatesOutcome.Success(emptyList()),
+                CandidatesOutcome.Success(listOf(ownTable)),
+            ),
+        )
+        val rooms = FakeRoomRepository()
+        val vm = buildVm(matchmaking = mm, rooms = rooms)
+        runCurrent()
+
+        testScheduler.advanceTimeBy(6.seconds)
+        testScheduler.runCurrent()
+
+        assertEquals(emptyList(), rooms.joinedCodes, "our own table is never a migration target")
+        assertEquals(emptyList(), rooms.leftCodes, "we keep the seat we already hold")
+
+        vm.takeAction(PublicSearchingAction.Cancel)
+        runCurrent()
+    }
+
+    @Test
+    fun genuineWait_doesNotMigrateToANewerTable() = runUnitTest {
+        // The age tiebreak: of two mutual searchers, only the newer-table owner
+        // migrates. Our table is the older one, so a newer peer table appearing in
+        // the poll must NOT pull us off our seat (else both swap and both end alone).
+        val ownTable = roomOf(code = "MINE99", createdAtEpochMs = 1_000)
+        val newerPeerTable = roomOf(code = "PEER11", createdAtEpochMs = 2_000)
+        val mm = FakeMatchmakingRepository(
+            find = FindTableOutcome.Success(ownTable, created = true),
+            candidatesSequence = listOf(
+                CandidatesOutcome.Success(emptyList()),
+                CandidatesOutcome.Success(listOf(ownTable, newerPeerTable)),
+            ),
+        )
+        val rooms = FakeRoomRepository()
+        val vm = buildVm(matchmaking = mm, rooms = rooms)
+        runCurrent()
+
+        testScheduler.advanceTimeBy(6.seconds)
+        testScheduler.runCurrent()
+
+        assertEquals(emptyList(), rooms.joinedCodes, "the older table stays put; only the newer one migrates")
+        assertEquals(emptyList(), rooms.leftCodes)
+
+        vm.takeAction(PublicSearchingAction.Cancel)
+        runCurrent()
+    }
+
+    @Test
     fun connected_countsOtherConnectedHumans_excludingSelfAndBots() = runUnitTest {
         val conn = MutableSharedFlow<RoomConnection>(extraBufferCapacity = 8)
         val vm = buildVm(rooms = FakeRoomRepository(connection = conn))
@@ -657,13 +746,16 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         code: String = "ABC123",
         status: RoomStatus = RoomStatus.Lobby,
         members: List<RoomMember> = listOf(member("11111111-1111-1111-1111-111111111111", "You", isConnected = true)),
+        createdAtEpochMs: Long = 1_700_000_000_000,
+        buyIn: Long = 2_000,
     ) = Room(
         code = code,
         hostUserId = "00000000-0000-0000-0000-000000000000",
-        createdAtEpochMs = 1_700_000_000_000,
+        createdAtEpochMs = createdAtEpochMs,
         maxSeats = 6,
         status = status,
         members = members,
+        buyIn = buyIn,
     )
 
     private class FakeMatchmakingRepository(
