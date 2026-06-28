@@ -56,7 +56,3 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
   **Acceptance:** after joining a chosen candidate, the user sees a joined-table / pre-deal lobby (seated players, waiting-for-deal) that is visibly distinct from the still-hunting radar.
   **Hints:** `PublicSearchingViewModel.JoinCandidate` → `joinAndWatch` → `watchRoom` reuses `SearchPhase.Searching`; add a joined/lobby phase. Directional UI call — recommend + ship a slice. Case `docs/agent/feedback-cases/98a0f24a398841ceac4e8c87afee9f50.md`; Sentry CARDS-63.
 
-- `[P2]` **ROOM-13 — Sanity-check the create-room default buy-in + blinds/stakes.** Owner review question: on the create-table screen, are the initial buy-in value and the small/big-blind + stakes defaults appropriate for a new user? Audit the defaults and adjust to sensible starting values. *(owner directive, 2026-06-28)*
-  **Acceptance:** the create-room screen opens with defended, documented defaults (buy-in, blinds, stakes) that make sense for a first-time host.
-  **Hints:** create-room/stake config (`StakeTier`, the create-room screen + VM). Make a recommendation and ship it. Sentry CARDS-65.
-

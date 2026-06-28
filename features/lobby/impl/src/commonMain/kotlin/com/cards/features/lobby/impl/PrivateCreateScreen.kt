@@ -76,7 +76,9 @@ fun PrivateCreateScreen(
     // balance); until the balance loads we cap at the default. The slider can
     // never go below the engine's minimum valid buy-in.
     val maxBuyIn = (chipBalance ?: RoomSettings.DEFAULT_BUY_IN).coerceAtLeast(RoomSettings.MIN_BUY_IN)
-    var buyIn by remember { mutableStateOf(RoomSettings.DEFAULT_BUY_IN) }
+    // ROOM-13: a first-time host opens on a sensible fraction of their bankroll,
+    // not half of it. The slider still lets them go higher up to their balance.
+    var buyIn by remember { mutableStateOf(RoomSettings.DEFAULT_HOST_BUY_IN) }
     // Re-clamp when the affordable ceiling changes (balance arrives / shrinks).
     LaunchedEffect(maxBuyIn) {
         buyIn = buyIn.coerceIn(RoomSettings.MIN_BUY_IN, maxBuyIn)

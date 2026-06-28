@@ -40,6 +40,26 @@ class RoomSettingsTest {
     }
 
     @Test
+    fun defaultHostBuyIn_isASensibleFractionOfTheStarterGrant() {
+        // ROOM-13: the create-table screen opens on this. The 10,000-chip starter
+        // grant is the reference bankroll; a first-time host should commit a slice,
+        // not half of it, so they can rebuy and sit a second table. Pin it within
+        // 5..25% of the grant and on a tidy slider step.
+        val starterGrant = 10_000L
+        assertTrue(
+            RoomSettings.DEFAULT_HOST_BUY_IN in (starterGrant / 20)..(starterGrant / 4),
+            "host default ${RoomSettings.DEFAULT_HOST_BUY_IN} should be 5..25% of the $starterGrant grant",
+        )
+        assertEquals(0L, RoomSettings.DEFAULT_HOST_BUY_IN % 50, "must land on the 50-chip slider step")
+        assertTrue(RoomSettings.DEFAULT_HOST_BUY_IN >= RoomSettings.MIN_BUY_IN)
+
+        // It must also derive a fully valid table (init invariants hold).
+        val settings = RoomSettings.forBuyIn(RoomSettings.DEFAULT_HOST_BUY_IN, maxSeats = 6)
+        assertEquals(RoomSettings.DEFAULT_HOST_BUY_IN, settings.startingStack)
+        assertTrue(settings.startingStack >= settings.bigBlind * 10)
+    }
+
+    @Test
     fun forBuyIn_isAlwaysConstructible_acrossTheRange() {
         // forBuyIn returning means RoomSettings.init didn't throw — assert it
         // holds across a sweep of buy-ins and seat counts.

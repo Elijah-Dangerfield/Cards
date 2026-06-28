@@ -30,8 +30,20 @@ data class RoomSettings(
         /** Sanity ceiling so a tampered request can't create an absurd table. */
         const val MAX_BUY_IN: Long = 1_000_000_000
 
-        /** Buy-in used when the host doesn't pick one. */
+        /** Buy-in the server assumes when a create request omits one entirely. */
         const val DEFAULT_BUY_IN: Long = 5_000
+
+        /**
+         * Buy-in pre-selected on the create-table screen for a first-time host
+         * (ROOM-13). Deliberately a fraction of the 10,000-chip starter grant —
+         * ~10% — so a new player commits a sensible slice of their bankroll to one
+         * table, keeping plenty back for rebuys and a second table, rather than the
+         * old half-bankroll 5,000 default. At 100 big blinds this is the classic
+         * 5/10 small-stakes feel. Distinct from [DEFAULT_BUY_IN] (the protocol
+         * fallback) so the host-facing default can move without shifting the wire
+         * default or the matchmaker's nearest-tier snapping.
+         */
+        const val DEFAULT_HOST_BUY_IN: Long = 1_000
 
         val Default: RoomSettings = RoomSettings(
             smallBlind = 5,

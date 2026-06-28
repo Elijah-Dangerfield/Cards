@@ -39,6 +39,18 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-28 — Create-table default buy-in is 1,000 (10% of the starter grant), split from the protocol default (ROOM-13)
+
+**Decision:** The create-table screen now opens pre-selected on a new `RoomSettings.DEFAULT_HOST_BUY_IN = 1_000` instead of the old `DEFAULT_BUY_IN = 5_000`. The two constants are now distinct: `DEFAULT_HOST_BUY_IN` is the host-facing default selection; `DEFAULT_BUY_IN` stays the protocol fallback the server assumes when a create request omits a buy-in (and the value the matchmaker snaps a missing buy-in toward). Max players (6) and the Open-to-anyone default (off, i.e. private) were reviewed and left as-is.
+
+**Why:** A first-time host has a 10,000-chip starter grant. The old 5,000 default committed *half their entire bankroll* to a single table — one bad beat and they're rebuying with nothing left, and they can't sit a second table. 1,000 (≈10% of the grant, 100 big blinds at 5/10 blinds, the classic small-stakes feel) leaves headroom for rebuys and exploration while still being a meaningful stake. The slider still lets a host dial all the way up to their balance, so nothing is lost for a player who wants higher stakes.
+
+**Alternatives considered:** (1) Just lower the single `DEFAULT_BUY_IN` to 1,000 — rejected: it's also the wire/matchmaking fallback, and shifting that quietly changes nearest-tier snapping for buy-in-less matchmaking finds; the host-facing default deserves its own knob. (2) Keep 5,000 — rejected per the bankroll math above. (3) 2,500 (25%) — defensible, but 10% leaves more room for the rebuy + second-table loop a new player is most likely to want; pinned by a test as the upper bound of the sensible band so a future bump stays principled.
+
+**Status:** Locked. Pinned by `RoomSettingsTest.defaultHostBuyIn_isASensibleFractionOfTheStarterGrant`.
+
+---
+
 ## 2026-06-27 — Real IAP receipt validators are credential-gated + dormant-by-default; user binding via echoed account token, not orderId (BILL-2)
 
 **Decision:** The BILL-1 `ReceiptValidator` seam now has real platform impls behind a single `StoreReceiptValidator` (`@ContributesBinding(replaces = [DevReceiptValidator::class])`) that dispatches by `Store`. `AppStoreReceiptValidator` verifies the StoreKit 2 signed-transaction JWS offline via Apple's official `app-store-server-library` (5.2.0) against the bundled Apple root CAs (shipped in `resources/apple-certs/`), then enforces our invariants: decoded `productId == expectedSku`, `appAccountToken == userId`, not revoked. `GooglePlayReceiptValidator` calls the Play Developer API's `purchases.products.get` (official `google-api-services-androidpublisher` + `google-auth-library-oauth2-http`) and enforces `purchaseState == Purchased` and `obfuscatedExternalAccountId == userId`. Both read credentials from a new `BillingConfig` (`BillingConfig.fromEnv`, mirroring `SentryConfig.fromEnv`) and stay **dormant** — refusing validation — until their credentials are set. `PurchaseReceipt` gained an `expectedSku` field: the route resolves the catalog product and hands the validator the platform store SKU to compare against the decoded transaction, because the catalog product id (`chip_pack_medium`) differs from the store SKU (`chips_medium`).
