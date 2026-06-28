@@ -31,6 +31,8 @@ Real-device checklist run by a human before each release. Organised by feature. 
 
 **Expected:** Lands on Home. Welcome grant dialog shows 10,000 chips + welcome copy. Dismissing reveals Home with the 10K balance already displayed — no 0 → 10K flicker, no spinner.
 
+- Landing layout (AUTH-10): on the welcome page the bottom actions are clearly spaced — the guest CTA, the provider buttons, the "Sign in" link, and the Terms/Privacy footnote each read as separate, comfortably tappable, with a hairline divider above the legal footnote so "Sign in" is no longer jammed against it. The Apple and Google buttons render their dark brand variants (dark fill) rather than white slabs on the dark page.
+
 ---
 
 ### `ONB-2` 🚨 📱 Fresh install, online, email sign-up (new email)

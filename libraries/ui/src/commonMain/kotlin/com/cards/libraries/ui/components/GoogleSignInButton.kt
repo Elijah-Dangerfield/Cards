@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -30,16 +32,23 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
+ * Which of Google's two brand-fixed sign-in surfaces to render. Both are valid
+ * per Google's guidelines; pick the one that reads on the surrounding surface —
+ * [Dark] on the app's dark theme so the button doesn't punch a white slab into
+ * the page, [Light] when sitting on a light surface.
+ */
+enum class GoogleSignInButtonTheme { Light, Dark }
+
+/**
  * "Continue with Google" button — the four-colour Google "G" mark beside a
- * label, on Google's mandated neutral surface.
+ * label, on one of Google's two mandated neutral surfaces.
  *
  * Unlike [AppleSignInButton] there's no system-drawn Google equivalent, so this
- * is a single Compose composable across all targets. It follows Google's
- * sign-in branding: the white (`light`) button variant with the full-colour G,
- * which reads correctly on the app's dark theme and sits visually next to the
- * adjacent white Apple button. The white surface + colour mark are brand-fixed
- * (Google's guidelines), deliberately not themed — only the disabled alpha and
- * the spinner pull from DS tokens.
+ * is a single Compose composable across all targets. Both surfaces are
+ * brand-fixed (Google's guidelines): [GoogleSignInButtonTheme.Light] is the
+ * white button, [GoogleSignInButtonTheme.Dark] is the `#131314` button with a
+ * hairline stroke — deliberately not themed beyond that two-way brand choice.
+ * Only the disabled alpha and the spinner pull from DS tokens.
  *
  * [text] is passed in (typically a `stringResource`) so the user-facing copy
  * stays in `:libraries:resources`, not baked into this primitive.
@@ -53,14 +62,20 @@ fun GoogleSignInButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     isLoading: Boolean = false,
+    theme: GoogleSignInButtonTheme = GoogleSignInButtonTheme.Light,
     onClick: () -> Unit,
 ) {
     val interactive = enabled && !isLoading
+    val dark = theme == GoogleSignInButtonTheme.Dark
+    val surface = if (dark) GoogleDarkSurface else ColorResource.White
+    val foreground = if (dark) GoogleDarkForeground else ColorResource.Black
+    val shape = RoundedCornerShape(8.dp)
     Box(
         modifier = modifier
             .defaultMinSize(minHeight = 50.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(ColorResource.White.color)
+            .clip(shape)
+            .background(surface.color)
+            .then(if (dark) Modifier.border(1.dp, GoogleDarkStroke.color, shape) else Modifier)
             .alpha(if (enabled) 1f else 0.6f)
             .semantics { role = Role.Button }
             .let { if (interactive) it.clickable(onClick = onClick) else it },
@@ -70,7 +85,7 @@ fun GoogleSignInButton(
             CircularProgressIndicator(
                 modifier = Modifier.defaultMinSize(minWidth = 20.dp, minHeight = 20.dp),
                 strokeWidth = 2.dp,
-                color = ColorResource.Black.color,
+                color = foreground.color,
             )
         } else {
             Row(
@@ -86,9 +101,16 @@ fun GoogleSignInButton(
                 Text(
                     text = text,
                     typography = AppTheme.typography.Body.B600,
-                    color = ColorResource.Black,
+                    color = foreground,
                 )
             }
         }
     }
 }
+
+// Google's dark-theme sign-in button is brand-fixed (#131314 surface, #8E918F
+// hairline, #E3E3E3 label) — provider brand constants, not app theme tokens, so
+// they stay next to the primitive rather than in the semantic palette.
+private val GoogleDarkSurface = ColorResource.FromColor(Color(0xFF131314), "google-dark-surface")
+private val GoogleDarkStroke = ColorResource.FromColor(Color(0xFF8E918F), "google-dark-stroke")
+private val GoogleDarkForeground = ColorResource.FromColor(Color(0xFFE3E3E3), "google-dark-foreground")

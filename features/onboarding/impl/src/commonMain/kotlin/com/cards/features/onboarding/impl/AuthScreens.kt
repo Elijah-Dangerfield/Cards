@@ -81,7 +81,9 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.components.AppleSignInButton
 import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonKind
+import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonStyle
 import com.dangerfield.cards.libraries.ui.components.GoogleSignInButton
+import com.dangerfield.cards.libraries.ui.components.GoogleSignInButtonTheme
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
@@ -177,6 +179,7 @@ fun SignInScreen(
                     onClick = { onAction(SignInAction.SignInWithOAuth(OAuthProvider.Google)) },
                     enabled = !state.isSubmitting,
                     isLoading = state.isSubmitting,
+                    theme = GoogleSignInButtonTheme.Dark,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(modifier = Modifier.height(Dimension.D400))
@@ -189,6 +192,7 @@ fun SignInScreen(
                     enabled = !state.isSubmitting,
                     isLoading = state.isSubmitting,
                     kind = AppleSignInButtonKind.SignIn,
+                    style = AppleSignInButtonStyle.Dark,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

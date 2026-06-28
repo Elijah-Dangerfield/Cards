@@ -25,6 +25,7 @@ actual fun AppleSignInButton(
     enabled: Boolean,
     isLoading: Boolean,
     kind: AppleSignInButtonKind,
+    style: AppleSignInButtonStyle,
     onClick: () -> Unit,
 ) {
     val factory = LocalNativeViewFactory.current
@@ -32,7 +33,7 @@ actual fun AppleSignInButton(
     val effectiveEnabled = enabled && !isLoading
 
     if (factory == null) {
-        ComposeAppleSignInButton(modifier, enabled, isLoading, kind, onClick)
+        ComposeAppleSignInButton(modifier, enabled, isLoading, kind, style, onClick)
         return
     }
 
@@ -41,7 +42,7 @@ actual fun AppleSignInButton(
         factory = {
             val view = factory.createAppleSignInButton(
                 kind = kind.toNativeKind(),
-                style = NativeAppleSignInButtonStyle.White,
+                style = style.toNativeStyle(),
                 cornerRadius = 8f,
                 onTap = { latestOnClick() },
             )
@@ -57,4 +58,9 @@ actual fun AppleSignInButton(
 private fun AppleSignInButtonKind.toNativeKind(): NativeAppleSignInButtonKind = when (this) {
     AppleSignInButtonKind.SignIn -> NativeAppleSignInButtonKind.SignIn
     AppleSignInButtonKind.ContinueFlow -> NativeAppleSignInButtonKind.ContinueFlow
+}
+
+private fun AppleSignInButtonStyle.toNativeStyle(): NativeAppleSignInButtonStyle = when (this) {
+    AppleSignInButtonStyle.Light -> NativeAppleSignInButtonStyle.White
+    AppleSignInButtonStyle.Dark -> NativeAppleSignInButtonStyle.Black
 }

@@ -26,10 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## B. Auth & onboarding
 
-- `[P2]` **AUTH-10 — Welcome/landing: declutter the sign-in actions + dark social buttons.** Owner ask: on the landing page the bottom section is cramped — "Sign in" sits jammed between the Google button and the Terms-of-Service link, making it hard to tap; space the actions out, and use dark variants of the Apple/Google buttons if the SDKs allow. *(owner directive, 2026-06-28)*
-  **Acceptance:** the landing page's sign-in / Google / Terms actions have clear separation (comfortable tap targets, no mis-taps); Apple + Google buttons use dark styling where the provider button supports it.
-  **Hints:** the welcome/landing layout shipped in #82; CARDS-5V. Provider buttons may constrain styling — make the call and ship a slice.
-
 _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ideas in [backlog.md](./backlog.md). (AUTH-9 — Google browser-OAuth redesign — shipped 2026-06-27, see [decisions.md](./decisions.md).)_
 
 ---

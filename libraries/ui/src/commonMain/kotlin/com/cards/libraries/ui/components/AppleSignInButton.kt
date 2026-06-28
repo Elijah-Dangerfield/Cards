@@ -26,6 +26,14 @@ import com.dangerfield.cards.system.AppTheme
 enum class AppleSignInButtonKind { SignIn, ContinueFlow }
 
 /**
+ * Which of Apple's two brand-fixed button surfaces to render — [Dark] (black
+ * fill) on a dark page so it doesn't punch a white slab in; [Light] (white fill)
+ * on a light page. Both are HIG-compliant; this is the only styling lever Apple
+ * exposes.
+ */
+enum class AppleSignInButtonStyle { Light, Dark }
+
+/**
  * "Sign in with Apple" button.
  *
  * On iOS this is the real `ASAuthorizationAppleIDButton` — system-drawn,
@@ -43,13 +51,14 @@ expect fun AppleSignInButton(
     enabled: Boolean = true,
     isLoading: Boolean = false,
     kind: AppleSignInButtonKind = AppleSignInButtonKind.ContinueFlow,
+    style: AppleSignInButtonStyle = AppleSignInButtonStyle.Light,
     onClick: () -> Unit,
 )
 
 /**
  * Compose-drawn fallback for non-iOS targets. Apple mandates a black or white
- * button — this renders the white variant. The white/black are brand-fixed
- * (Apple HIG), deliberately not themed.
+ * button — [style] picks which. Both are brand-fixed (Apple HIG), deliberately
+ * not themed beyond that two-way choice.
  */
 @Composable
 internal fun ComposeAppleSignInButton(
@@ -57,14 +66,18 @@ internal fun ComposeAppleSignInButton(
     enabled: Boolean = true,
     isLoading: Boolean = false,
     kind: AppleSignInButtonKind = AppleSignInButtonKind.ContinueFlow,
+    style: AppleSignInButtonStyle = AppleSignInButtonStyle.Light,
     onClick: () -> Unit,
 ) {
     val interactive = enabled && !isLoading
+    val dark = style == AppleSignInButtonStyle.Dark
+    val surface = if (dark) ColorResource.Black else ColorResource.White
+    val foreground = if (dark) ColorResource.White else ColorResource.Black
     Box(
         modifier = modifier
             .defaultMinSize(minHeight = 50.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(ColorResource.White.color)
+            .background(surface.color)
             .alpha(if (enabled) 1f else 0.6f)
             .semantics { role = Role.Button }
             .let { if (interactive) it.clickable(onClick = onClick) else it },
@@ -74,7 +87,7 @@ internal fun ComposeAppleSignInButton(
             CircularProgressIndicator(
                 modifier = Modifier.defaultMinSize(minWidth = 20.dp, minHeight = 20.dp),
                 strokeWidth = 2.dp,
-                color = ColorResource.Black.color,
+                color = foreground.color,
             )
         } else {
             Text(
@@ -83,7 +96,7 @@ internal fun ComposeAppleSignInButton(
                     AppleSignInButtonKind.ContinueFlow -> "Continue with Apple"
                 },
                 typography = AppTheme.typography.Body.B600,
-                color = ColorResource.Black,
+                color = foreground,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
             )
