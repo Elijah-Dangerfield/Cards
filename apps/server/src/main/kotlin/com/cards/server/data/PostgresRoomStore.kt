@@ -57,6 +57,8 @@ class PostgresRoomStore(
                 it[maxSeats] = room.maxSeats
                 it[createdAt] = room.createdAt.toJavaInstant()
                 it[visibility] = room.visibility.toDb()
+                it[feltProductId] = room.feltProductId
+                it[cardBackProductId] = room.cardBackProductId
             }
             if (rowsUpdated == 0) {
                 RoomsTable.insert {
@@ -67,6 +69,8 @@ class PostgresRoomStore(
                     it[maxSeats] = room.maxSeats
                     it[createdAt] = room.createdAt.toJavaInstant()
                     it[visibility] = room.visibility.toDb()
+                    it[feltProductId] = room.feltProductId
+                    it[cardBackProductId] = room.cardBackProductId
                 }
             }
             // Replace the member set wholesale — snapshot semantics.
@@ -141,6 +145,8 @@ class PostgresRoomStore(
             members = members,
             buyIn = roomRow[RoomsTable.buyIn],
             visibility = roomRow[RoomsTable.visibility].toVisibility(),
+            feltProductId = roomRow[RoomsTable.feltProductId],
+            cardBackProductId = roomRow[RoomsTable.cardBackProductId],
         )
     }
 

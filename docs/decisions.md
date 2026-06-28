@@ -42,6 +42,21 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-27 — Table-wide cosmetics = the host's *equipped* felt + card back, pinned on the room (SHOP-3)
+
+**Decision:** A room carries two new opaque fields — `feltProductId` + `cardBackProductId` — set at create time from whatever felt + card back the host already had equipped, and echoed onto every room snapshot. The play surface renders the host's table cosmetics for *every* player (resolving the ids through the existing client-side `feltForProductId` / `cardBackProductId` switchboard), falling back per-slot to the player's own equipped cosmetic when the host set no override. The server stores + echoes the ids and never interprets them; the felt/card-back style mapping stays client-only. The resolution rule ("first equipped felt / card back, newest-first") lives once in `equippedTableCosmetics` (`:libraries:cards`), shared by the create path and the play surface.
+
+**Why:** The owner directive is "the host's look is the table's look, to incentivize buying cosmetics." Pinning the host's *already-equipped* selection is the smallest honest read of "the host's selection already exists per-player; this makes it table-wide" — the host changes the table by equipping in My Items, the surface they already use, so there's no second cosmetic-picker UI to build, keep in sync, or drift. Keeping the ids opaque on the wire means a future catalog felt needs zero server change. If the "equipped = table look" model ever stops being the intent, the create path is the one seam to revisit.
+
+**Alternatives considered:**
+- **A dedicated felt/card-back picker inside the create-room screen.** Rejected for this slice: it duplicates the My Items equip surface, doubles the diff, and adds a second source of truth for "what's the host's look" that can disagree with what they have equipped. Left as a reviewer-triageable follow-up if product wants an explicit per-room override distinct from the host's standing equip.
+- **Flip `isPersonalCosmetic(felt/cardBack)` to public.** Rejected: a non-host player's felt/card back is still personal (only the host's propagates), so the "Only visible to you" badge stays correct for the buyer browsing the shop. The table-wide propagation is a property of *being the host*, not of the cosmetic.
+- **Carry the cosmetics on each seat rather than the room.** Rejected: it's a single host-level choice for the whole table, not per-seat; the room is the natural owner, and `mergeStakesFrom` already had the placeholder-snapshot machinery to keep them stable across a presence frame.
+
+**Status:** Locked for the host-equipped model. The explicit in-create override picker is deferred (backlog-worthy if product wants it).
+
+---
+
 ## 2026-06-27 — Force-update gate raises on the next foreground transition, not mid-session (ENG-6)
 
 **Decision:** The app-wide upgrade / maintenance overlay (`AppGuardGate` → `AppGuardState.from`, drawn by `AppGuardLayer` above the whole nav graph) is the live, screen-independent gate for the cross-version rule (CARDS-4S). It recomputes on every streamed-config emission, so bumping `upgrade.minSupportedVersionCode` above a running client's `VERSION_CODE` raises the blocking overlay over *any* screen — including an in-session play screen — **on the client's next foreground transition** (config is fetched on foreground, throttled; `OfflineFirstAppConfigRepository` deliberately does **not** poll mid-session). A client that stays continuously foregrounded mid-hand won't see the gate until it backgrounds/foregrounds. This is accepted as-is for V1; verified by `AppGuardStateTest`.

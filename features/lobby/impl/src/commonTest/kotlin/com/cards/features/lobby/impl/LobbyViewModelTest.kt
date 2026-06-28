@@ -2,6 +2,10 @@ package com.dangerfield.cards.features.lobby.impl
 
 import app.cash.turbine.test
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.EquipmentEntry
+import com.dangerfield.cards.libraries.cards.EquipmentRepository
+import com.dangerfield.cards.libraries.cards.EquipmentSyncState
+import com.dangerfield.cards.libraries.cards.EquipmentToggleResult
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
@@ -119,6 +123,44 @@ class LobbyViewModelTest : CoroutineTest() {
             assertEquals(ConnectionStatus.Connected, last.connectionStatus)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun create_forwardsHostEquippedFeltAndCardBack_asTableCosmetics() = runUnitTest {
+        // SHOP-3: the host's equipped felt + card back ride along to createRoom so
+        // the room snapshot carries them table-wide. A non-cosmetic equip (a tool)
+        // is ignored — only the felt + card-back slots resolve.
+        val rooms = FakeRoomRepository(createOutcome = CreateRoomOutcome.Success(sampleRoom()))
+        val equipment = FakeEquipmentRepository(
+            equipped = listOf("cardback_gold", "tool_win_odds", "felt_royal_red"),
+        )
+        val vm = buildVm(rooms = rooms, equipment = equipment)
+
+        vm.takeAction(LobbyAction.CreateRoom)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.room == null) last = awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        assertEquals("felt_royal_red", rooms.createdFeltProductId)
+        assertEquals("cardback_gold", rooms.createdCardBackProductId)
+    }
+
+    @Test
+    fun create_withNothingEquipped_forwardsNoTableCosmetics() = runUnitTest {
+        val rooms = FakeRoomRepository(createOutcome = CreateRoomOutcome.Success(sampleRoom()))
+        val vm = buildVm(rooms = rooms, equipment = FakeEquipmentRepository(equipped = emptyList()))
+
+        vm.takeAction(LobbyAction.CreateRoom)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.room == null) last = awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        assertEquals(null, rooms.createdFeltProductId)
+        assertEquals(null, rooms.createdCardBackProductId)
     }
 
     @Test
@@ -866,6 +908,7 @@ class LobbyViewModelTest : CoroutineTest() {
         maxSeats: Int? = null,
         buyIn: Long? = null,
         open: Boolean = false,
+        equipment: EquipmentRepository = FakeEquipmentRepository(),
     ): LobbyViewModel = LobbyViewModel(
         prefilledCode = prefilledCode,
         autoCreate = autoCreate,
@@ -875,6 +918,7 @@ class LobbyViewModelTest : CoroutineTest() {
         rooms = rooms,
         auth = identity,
         profile = profile,
+        equipment = equipment,
         appScope = AppCoroutineScope(dispatchers),
     )
 
@@ -979,7 +1023,13 @@ class LobbyViewModelTest : CoroutineTest() {
         val handle: RecordingHandle = RecordingHandle(),
     ) : RoomRepository {
         val addBotSeatIndexes: MutableList<Int?> = mutableListOf()
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = createOutcome
+        override suspend fun createRoom(
+            maxSeats: Int?,
+            buyIn: Long?,
+            open: Boolean,
+            feltProductId: String?,
+            cardBackProductId: String?,
+        ): CreateRoomOutcome = createOutcome
         override suspend fun joinRoom(code: String): JoinRoomOutcome =
             JoinRoomOutcome.NetworkError(RuntimeException("not used"))
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = LeaveRoomOutcome.Success
@@ -1042,7 +1092,13 @@ class LobbyViewModelTest : CoroutineTest() {
         var leaveFinished: Int = 0
             private set
 
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = createOutcome
+        override suspend fun createRoom(
+            maxSeats: Int?,
+            buyIn: Long?,
+            open: Boolean,
+            feltProductId: String?,
+            cardBackProductId: String?,
+        ): CreateRoomOutcome = createOutcome
         override suspend fun joinRoom(code: String): JoinRoomOutcome =
             JoinRoomOutcome.NetworkError(RuntimeException("not used"))
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome {
@@ -1069,7 +1125,21 @@ class LobbyViewModelTest : CoroutineTest() {
         var joinCalls: Int = 0
             private set
         val addBotSeatIndexes: MutableList<Int?> = mutableListOf()
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = createOutcome
+        var createdFeltProductId: String? = null
+            private set
+        var createdCardBackProductId: String? = null
+            private set
+        override suspend fun createRoom(
+            maxSeats: Int?,
+            buyIn: Long?,
+            open: Boolean,
+            feltProductId: String?,
+            cardBackProductId: String?,
+        ): CreateRoomOutcome {
+            createdFeltProductId = feltProductId
+            createdCardBackProductId = cardBackProductId
+            return createOutcome
+        }
         override suspend fun joinRoom(code: String): JoinRoomOutcome {
             joinCalls += 1
             return joinOutcome
@@ -1094,6 +1164,34 @@ class LobbyViewModelTest : CoroutineTest() {
         override val connection: Flow<RoomConnection> = flow { }
         override val gameplayFrames: Flow<GameplayFrame> = flow { }
         override suspend fun send(frame: ClientFrame) = Unit
+    }
+
+    /**
+     * Equipment fake seeded with whatever the host has "equipped" — newest-first,
+     * mirroring the real DAO order. Only [observeEquipped] is exercised by the
+     * create path; the rest are no-ops.
+     */
+    private class FakeEquipmentRepository(
+        equipped: List<String> = emptyList(),
+    ) : EquipmentRepository {
+        private val state = MutableStateFlow(
+            equipped.mapIndexed { index, productId ->
+                EquipmentEntry(
+                    productId = productId,
+                    isEquipped = true,
+                    syncState = EquipmentSyncState.Synced,
+                    updatedAtEpochMs = (equipped.size - index).toLong(),
+                )
+            },
+        )
+        override fun observeEquipped(): Flow<List<EquipmentEntry>> = state.asStateFlow()
+        override suspend fun getAll(): List<EquipmentEntry> = state.value
+        override suspend fun equip(productId: String): EquipmentToggleResult = EquipmentToggleResult.NoChange
+        override suspend fun unequip(productId: String): EquipmentToggleResult = EquipmentToggleResult.NoChange
+        override suspend fun applyServerSnapshot(authoritative: List<EquipmentEntry>) = Unit
+        override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>): List<String> = emptyList()
+        override suspend fun deleteAll() = Unit
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
     }
 
     private class AlwaysSignedInAuth : AuthRepository {

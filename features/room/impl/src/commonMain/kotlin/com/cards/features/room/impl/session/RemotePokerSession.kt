@@ -164,6 +164,18 @@ internal class RemotePokerSession(
     override val matchOverCountdown: StateFlow<MatchOverCountdown?> =
         _matchOverCountdown.asStateFlow()
 
+    /**
+     * Host-chosen table cosmetics (SHOP-3), pinned from the room snapshot's
+     * [com.dangerfield.cards.libraries.rooms.Room.feltProductId] /
+     * [com.dangerfield.cards.libraries.rooms.Room.cardBackProductId]. Set on the
+     * first Connected snapshot that carries a non-null override and held for the
+     * session — the values are constant for the room's life, and a placeholder
+     * presence frame (member-list convergence) delivers them as null, so we never
+     * regress a known override back to "use your own."
+     */
+    private val _tableCosmetics = MutableStateFlow<TableCosmetics?>(null)
+    override val tableCosmetics: StateFlow<TableCosmetics?> = _tableCosmetics.asStateFlow()
+
     // Last observed human (non-bot) room members, keyed by user id → display
     // name. Null until the first snapshot establishes a baseline, so the first
     // snapshot never reads as a "drop."
@@ -226,6 +238,18 @@ internal class RemotePokerSession(
             //    humans remain): fire [opponentLeft] with their name so the
             //    screen shows a transient notice and the seat renders vacated.
             if (conn is RoomConnection.Connected) {
+                // SHOP-3: pin the host's table cosmetics off the first snapshot that
+                // carries them. A placeholder presence frame delivers them as null,
+                // so only adopt non-null values and never regress a known override.
+                val felt = conn.room.feltProductId
+                val cardBack = conn.room.cardBackProductId
+                if (felt != null || cardBack != null) {
+                    val current = _tableCosmetics.value
+                    _tableCosmetics.value = TableCosmetics(
+                        feltProductId = felt ?: current?.feltProductId,
+                        cardBackProductId = cardBack ?: current?.cardBackProductId,
+                    )
+                }
                 val humans = conn.room.members
                     .filter { !it.isBot }
                     .associate { it.userId to it.displayName }

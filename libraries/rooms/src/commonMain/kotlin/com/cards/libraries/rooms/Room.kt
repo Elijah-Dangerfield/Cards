@@ -29,6 +29,17 @@ data class Room(
      * Defaulted so pre-visibility snapshots read as Private.
      */
     val visibility: RoomVisibility = RoomVisibility.Private,
+    /**
+     * Host-chosen table cosmetics (SHOP-3): the felt + card-back catalog product
+     * ids the creator had equipped when the room was made, applied table-wide so
+     * every player sees the host's look. Null when the host had nothing equipped
+     * in that slot — the play surface then falls back to each player's own
+     * equipped felt/card back. The id → style mapping is client-side
+     * (`feltForProductId` / `cardBackForProductId`); the server only stores +
+     * echoes the opaque ids.
+     */
+    val feltProductId: String? = null,
+    val cardBackProductId: String? = null,
 ) {
     val seatCount: Int get() = members.size
     val isFull: Boolean get() = seatCount >= maxSeats
@@ -78,6 +89,13 @@ fun Room.mergeStakesFrom(previous: Room?): Room =
             buyIn = previous.buyIn,
             smallBlind = previous.smallBlind,
             bigBlind = previous.bigBlind,
+            // Host table cosmetics (SHOP-3) are pinned at create time and carried
+            // for the room's life, but a placeholder presence snapshot delivers
+            // them as null — carry the real values forward alongside the stakes so
+            // the table look doesn't blink to the per-player fallback on a converged
+            // member-list frame.
+            feltProductId = feltProductId ?: previous.feltProductId,
+            cardBackProductId = cardBackProductId ?: previous.cardBackProductId,
         )
     } else {
         this

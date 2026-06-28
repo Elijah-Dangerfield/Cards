@@ -105,3 +105,26 @@ sealed interface EquipmentToggleResult {
     /** Toggle was a no-op (already in the requested state, Synced). */
     data object NoChange : EquipmentToggleResult
 }
+
+/**
+ * The product ids of the user's currently-equipped felt + card back, or null per
+ * slot when nothing in that slot is equipped. [entries] is an equipped-only list
+ * newest-first (as [EquipmentRepository.observeEquipped] returns), so the first
+ * match per slot is the active one — the same selection the play surface uses to
+ * paint the table. SHOP-3 resolves these at room-create time to pin the host's
+ * look table-wide, so the rule lives here as the single source of truth rather
+ * than re-derived per call site.
+ */
+fun equippedTableCosmetics(entries: List<EquipmentEntry>): EquippedTableCosmetics {
+    val equipped = entries.filter { it.isEquipped }
+    return EquippedTableCosmetics(
+        feltProductId = equipped.firstOrNull { cosmeticSlotFor(it.productId) == CosmeticSlot.Felt }?.productId,
+        cardBackProductId = equipped.firstOrNull { cosmeticSlotFor(it.productId) == CosmeticSlot.CardBack }?.productId,
+    )
+}
+
+/** The felt + card-back product ids resolved by [equippedTableCosmetics]; null = none in that slot. */
+data class EquippedTableCosmetics(
+    val feltProductId: String?,
+    val cardBackProductId: String?,
+)

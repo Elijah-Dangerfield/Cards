@@ -446,6 +446,17 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
+### `MP-14` ⚠️ 📱 Host's felt + card back show on every player's table
+
+**State:** two devices, both signed in, online. Device A (the host) owns + has equipped a non-default felt and a non-default card back (equip them in My Items first). Device B has different (or default) cosmetics. (Covers todo SHOP-3.)
+
+1. Device A: create a private room, then add a bot or have Device B join.
+2. Play a hand so both devices see the felt + opponents' card backs.
+
+**Expected:** Both devices render the *host's* felt color under the table and the host's card-back style on the face-down cards — Device B sees Device A's look, not its own. If the host had nothing equipped in a slot, that slot falls back to each player's own equipped cosmetic. The host swapping a felt in My Items only changes future rooms (the cosmetics pin at create time), not the live one.
+
+---
+
 ## Profile & items
 
 ### `PROF-1` ℹ️ 📱 Default felt + card back show as equipped on a fresh account

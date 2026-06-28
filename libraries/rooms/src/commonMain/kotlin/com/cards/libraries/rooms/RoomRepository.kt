@@ -33,8 +33,19 @@ interface RoomRepository {
      * Create a room. [open] = true makes it "open to anyone": matchmaker-
      * discoverable and server-dealt, while still joinable by its code. Default
      * (false) is a code-only Private room the host starts.
+     *
+     * [feltProductId] / [cardBackProductId] are the host's equipped felt +
+     * card-back catalog product ids (SHOP-3), applied table-wide so every player
+     * sees the host's look. Null leaves that slot unset, so each player renders
+     * their own equipped cosmetic.
      */
-    suspend fun createRoom(maxSeats: Int? = null, buyIn: Long? = null, open: Boolean = false): CreateRoomOutcome
+    suspend fun createRoom(
+        maxSeats: Int? = null,
+        buyIn: Long? = null,
+        open: Boolean = false,
+        feltProductId: String? = null,
+        cardBackProductId: String? = null,
+    ): CreateRoomOutcome
 
     suspend fun joinRoom(code: String): JoinRoomOutcome
 

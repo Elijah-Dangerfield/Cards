@@ -364,6 +364,11 @@ object RoomsTable : Table("rooms") {
     // 'private' | 'open' | 'public' (V66). Defaulted at the DB level so pre-V66
     // rows + Exposed inserts that omit it read as 'private'.
     val visibility = text("visibility")
+    // Host-chosen table cosmetics (SHOP-3): the felt + card-back catalog product
+    // ids the host had equipped at create time, applied table-wide. Nullable —
+    // null means the host had nothing equipped in that slot. See V82.
+    val feltProductId = text("felt_product_id").nullable()
+    val cardBackProductId = text("card_back_product_id").nullable()
     override val primaryKey = PrimaryKey(code)
 }
 

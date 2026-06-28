@@ -129,6 +129,34 @@ class RoomRoutesTest {
     }
 
     @Test
+    fun create_carriesHostTableCosmetics_ontoTheRoomSnapshot() = runTest {
+        // SHOP-3: the host's equipped felt + card back ride the create body onto the
+        // room so every player renders the host's look. Stored opaquely + echoed.
+        withRooms { client ->
+            val room = client.createRoom(
+                asUser = host,
+                feltProductId = "felt_royal_red",
+                cardBackProductId = "cardback_gold",
+            ).body<CreateRoomResponse>().room
+            assertEquals("felt_royal_red", room.feltProductId)
+            assertEquals("cardback_gold", room.cardBackProductId)
+        }
+    }
+
+    @Test
+    fun create_blankCosmetics_readAsNoOverride() = runTest {
+        withRooms { client ->
+            val room = client.createRoom(
+                asUser = host,
+                feltProductId = "  ",
+                cardBackProductId = "",
+            ).body<CreateRoomResponse>().room
+            assertNull(room.feltProductId)
+            assertNull(room.cardBackProductId)
+        }
+    }
+
+    @Test
     fun create_400_whenClientTriesToMintAPublicTable() = runTest {
         withRooms { client ->
             // Only the matchmaker mints Public tables; a client can't.
@@ -403,12 +431,22 @@ class RoomRoutesTest {
             maxSeats: Int? = null,
             buyIn: Long? = null,
             visibility: String? = null,
+            feltProductId: String? = null,
+            cardBackProductId: String? = null,
             asUser: UserId?,
         ): HttpResponse =
             raw.post("/v1/rooms") {
                 contentType(ContentType.Application.Json)
                 bearer(asUser)
-                setBody(CreateRoomRequest(maxSeats = maxSeats, buyIn = buyIn, visibility = visibility))
+                setBody(
+                    CreateRoomRequest(
+                        maxSeats = maxSeats,
+                        buyIn = buyIn,
+                        visibility = visibility,
+                        feltProductId = feltProductId,
+                        cardBackProductId = cardBackProductId,
+                    ),
+                )
             }
 
         suspend fun getRoom(code: String, asUser: UserId?): HttpResponse =

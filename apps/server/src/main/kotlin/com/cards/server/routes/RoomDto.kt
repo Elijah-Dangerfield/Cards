@@ -37,6 +37,14 @@ data class RoomDto(
      * clients/rows read as Private.
      */
     val visibility: RoomVisibilityDto = RoomVisibilityDto.Private,
+    /**
+     * Host-chosen table cosmetics (SHOP-3): the felt + card-back catalog product
+     * ids the host had equipped at create time. Every client renders the host's
+     * look instead of its own equipped cosmetic. Null = host had nothing equipped
+     * in that slot, so the client falls back to the player's own felt/card back.
+     */
+    val feltProductId: String? = null,
+    val cardBackProductId: String? = null,
 )
 
 @Serializable
@@ -85,6 +93,14 @@ data class CreateRoomRequest(
      * code. "Public" is rejected — only the matchmaker mints those.
      */
     val visibility: String? = null,
+    /**
+     * Host's equipped felt + card-back catalog product ids at create time
+     * (SHOP-3). Echoed onto the room snapshot so every player renders the host's
+     * table look. Null = nothing equipped in that slot. Stored opaquely — the
+     * server never maps them to a style.
+     */
+    val feltProductId: String? = null,
+    val cardBackProductId: String? = null,
 )
 
 @Serializable
@@ -196,6 +212,8 @@ internal fun Room.toDto(): RoomDto = RoomDto(
     smallBlind = settings.smallBlind,
     bigBlind = settings.bigBlind,
     visibility = visibility.toDto(),
+    feltProductId = feltProductId,
+    cardBackProductId = cardBackProductId,
 )
 
 @OptIn(ExperimentalTime::class)

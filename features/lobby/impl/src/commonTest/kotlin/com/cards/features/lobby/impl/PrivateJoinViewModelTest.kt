@@ -130,8 +130,13 @@ class PrivateJoinViewModelTest : CoroutineTest() {
         var joinCalls: Int = 0
             private set
 
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean) =
-            error("not used")
+        override suspend fun createRoom(
+            maxSeats: Int?,
+            buyIn: Long?,
+            open: Boolean,
+            feltProductId: String?,
+            cardBackProductId: String?,
+        ) = error("not used")
         override suspend fun joinRoom(code: String): JoinRoomOutcome {
             joinCalls += 1
             return joinOutcome

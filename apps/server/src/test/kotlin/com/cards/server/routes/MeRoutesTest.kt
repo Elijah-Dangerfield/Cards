@@ -779,6 +779,8 @@ class MeRoutesTest {
             hostAvatarBackgroundColor: String?,
             buyIn: Long,
             visibility: com.dangerfield.cards.server.domain.RoomVisibility,
+            feltProductId: String?,
+            cardBackProductId: String?,
         ): CreateResult = error("unused")
         override suspend fun findOrJoinPublic(
             userId: UserId,

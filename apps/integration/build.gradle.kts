@@ -29,6 +29,9 @@ kotlin {
             implementation(projects.features.room.impl)
             implementation(projects.libraries.rooms)
             implementation(projects.libraries.rooms.impl)
+            // LobbyViewModel reads the host's equipped cosmetics to pin the table
+            // look on create (SHOP-3); the harness wires a no-op client equipment repo.
+            implementation(projects.libraries.cards)
             implementation(projects.libraries.networking)
             implementation(projects.libraries.networking.impl)
             implementation(projects.libraries.flowroutines)

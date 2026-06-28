@@ -29,6 +29,9 @@ data class RoomDto(
     val smallBlind: Long = 0,
     val bigBlind: Long = 0,
     val visibility: RoomVisibilityDto = RoomVisibilityDto.Private,
+    /** Host-chosen table cosmetics (SHOP-3); null = no host override for that slot. */
+    val feltProductId: String? = null,
+    val cardBackProductId: String? = null,
 )
 
 @Serializable
@@ -81,6 +84,9 @@ data class CreateRoomRequestDto(
     val buyIn: Long? = null,
     /** "Open" makes the room matchmaker-discoverable + server-dealt; null = Private. */
     val visibility: String? = null,
+    /** Host's equipped felt + card-back product ids at create time (SHOP-3); null = none. */
+    val feltProductId: String? = null,
+    val cardBackProductId: String? = null,
 )
 
 @Serializable
@@ -173,6 +179,8 @@ internal fun RoomDto.toDomain(): Room = Room(
     smallBlind = smallBlind,
     bigBlind = bigBlind,
     visibility = visibility.toDomain(),
+    feltProductId = feltProductId,
+    cardBackProductId = cardBackProductId,
 )
 
 internal fun RoomMemberDto.toDomain(): RoomMember = RoomMember(

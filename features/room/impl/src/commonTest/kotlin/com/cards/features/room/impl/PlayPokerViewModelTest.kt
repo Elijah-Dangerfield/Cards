@@ -37,6 +37,8 @@ import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.review.ReviewTrigger
 import com.dangerfield.cards.libraries.ui.components.PlayerBadge
+import com.dangerfield.cards.libraries.cards.EquipmentEntry
+import com.dangerfield.cards.libraries.cards.EquipmentSyncState
 import com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle
 import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import kotlinx.coroutines.launch
@@ -1363,6 +1365,48 @@ class PlayPokerViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun hostTableFelt_overridesPlayersOwnEquippedFelt() = runUnitTest {
+        // SHOP-3: the host's table-wide felt + card back beat the local player's own
+        // equipped cosmetic so everyone sees the host's look.
+        val equipment = FakeEquipmentRepository(
+            initial = listOf(
+                equippedEntry("felt_pine_green"),
+                equippedEntry("cardback_marble"),
+            ),
+        )
+        val factory = FakePokerSessionFactory()
+        val vm = buildVm(factory = factory, equipmentRepository = equipment)
+
+        // Before the host snapshot lands, the player's own equipped cosmetic shows.
+        assertEquals(EquippedFelt.PineGreen, vm.state.equippedFelt)
+        assertEquals(CardBackStyle.Marble, vm.state.equippedCardBack)
+
+        factory.session.emitTableCosmetics(felt = "felt_royal_red", cardBack = "cardback_gold")
+
+        assertEquals(EquippedFelt.RoyalRed, vm.state.equippedFelt)
+        assertEquals(CardBackStyle.Gold, vm.state.equippedCardBack)
+    }
+
+    @Test
+    fun hostTableCosmetics_absentForASlot_fallsBackToPlayersOwn() = runUnitTest {
+        // Host pinned a felt but no card back → the player's own card back still wins
+        // for that slot, the host's felt for the felt slot.
+        val equipment = FakeEquipmentRepository(
+            initial = listOf(
+                equippedEntry("felt_pine_green"),
+                equippedEntry("cardback_marble"),
+            ),
+        )
+        val factory = FakePokerSessionFactory()
+        val vm = buildVm(factory = factory, equipmentRepository = equipment)
+
+        factory.session.emitTableCosmetics(felt = "felt_royal_red", cardBack = null)
+
+        assertEquals(EquippedFelt.RoyalRed, vm.state.equippedFelt)
+        assertEquals(CardBackStyle.Marble, vm.state.equippedCardBack)
+    }
+
+    @Test
     fun equippedBadgeChanged_setsEmoji() = runUnitTest {
         val vm = buildVm()
         vm.takeAction(PlayPokerAction.EquippedBadgeChanged("🔥"))
@@ -1463,6 +1507,13 @@ class PlayPokerViewModelTest : CoroutineTest() {
 
     // ---------- Helpers ----------
 
+    private fun equippedEntry(productId: String): EquipmentEntry = EquipmentEntry(
+        productId = productId,
+        isEquipped = true,
+        syncState = EquipmentSyncState.Synced,
+        updatedAtEpochMs = 0L,
+    )
+
     private fun buildVm(
         factory: PokerSessionFactory = FakePokerSessionFactory(),
         progressionRepository: FakeProgressionRepository = FakeProgressionRepository(),
@@ -1477,6 +1528,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         productsRepository: FakeProductsRepository = FakeProductsRepository(),
         chipsRepository: FakeChipsRepository = FakeChipsRepository(),
         purchaseChipPack: FakePurchaseChipPackUseCase = FakePurchaseChipPackUseCase(),
+        equipmentRepository: FakeEquipmentRepository = FakeEquipmentRepository(),
         clock: kotlin.time.Clock = kotlin.time.Clock.System,
         socialEnabled: Boolean = false,
     ): PlayPokerViewModel = PlayPokerViewModel(
@@ -1487,7 +1539,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         progressionConfig = progressionConfig,
         achievementRepository = achievementRepository,
         appCache = appCache,
-        equipmentRepository = FakeEquipmentRepository(),
+        equipmentRepository = equipmentRepository,
         inventoryRepository = inventoryRepository,
         productsRepository = productsRepository,
         chipsRepository = chipsRepository,

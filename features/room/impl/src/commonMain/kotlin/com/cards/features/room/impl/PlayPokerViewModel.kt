@@ -325,24 +325,38 @@ class PlayPokerViewModel @Inject constructor(
                 lastGameState?.let { takeAction(PlayPokerAction.GameStateUpdated(it)) }
             }
         }
-        // Equipped cosmetics → mid-session repaint. The flow is newest-first, so
-        // pick the first non-Default per slot; also surfaces the win-odds tool flag.
+        // Equipped cosmetics → mid-session repaint, combined with the host's
+        // table-wide cosmetics (SHOP-3). The flow is newest-first, so pick the first
+        // non-Default per slot. Felt + card back honour the host's table choice when
+        // the room sets one, falling back to the player's own equipped cosmetic;
+        // the win-odds tool + badge stay purely the local player's. Also drives the
+        // win-odds tool flag.
         viewModelScope.launch {
-            equipmentRepository.observeEquipped().collect { entries ->
-                val felt = entries
+            combine(
+                equipmentRepository.observeEquipped(),
+                session.tableCosmetics,
+            ) { entries, table ->
+                val ownFelt = entries
                     .map { feltForProductId(it.productId) }
                     .firstOrNull { it != EquippedFelt.Default }
                     ?: EquippedFelt.Default
-                val cardBack = entries
+                val ownCardBack = entries
                     .map { cardBackForProductId(it.productId) }
                     .firstOrNull { it != com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default }
                     ?: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default
-                val winOddsTool = entries.any { it.productId == TOOL_WIN_ODDS_PRODUCT_ID }
-                val badgeEmoji = entries.firstNotNullOfOrNull { badgeEmojiForProductId(it.productId) }
-                takeAction(PlayPokerAction.EquippedFeltChanged(felt))
-                takeAction(PlayPokerAction.EquippedCardBackChanged(cardBack))
-                takeAction(PlayPokerAction.WinOddsToolEquippedChanged(winOddsTool))
-                takeAction(PlayPokerAction.EquippedBadgeChanged(badgeEmoji))
+                val felt = table?.feltProductId?.let { feltForProductId(it) } ?: ownFelt
+                val cardBack = table?.cardBackProductId?.let { cardBackForProductId(it) } ?: ownCardBack
+                ResolvedCosmetics(
+                    felt = felt,
+                    cardBack = cardBack,
+                    winOddsTool = entries.any { it.productId == TOOL_WIN_ODDS_PRODUCT_ID },
+                    badgeEmoji = entries.firstNotNullOfOrNull { badgeEmojiForProductId(it.productId) },
+                )
+            }.collect { resolved ->
+                takeAction(PlayPokerAction.EquippedFeltChanged(resolved.felt))
+                takeAction(PlayPokerAction.EquippedCardBackChanged(resolved.cardBack))
+                takeAction(PlayPokerAction.WinOddsToolEquippedChanged(resolved.winOddsTool))
+                takeAction(PlayPokerAction.EquippedBadgeChanged(resolved.badgeEmoji))
             }
         }
         // Equipped badges/titles resolved from catalog + inventory for the
@@ -1064,3 +1078,17 @@ class PlayPokerViewModel @Inject constructor(
     }
 
 }
+
+/**
+ * The cosmetics painted on the play surface this emission — the host's table-wide
+ * felt + card back (SHOP-3) when the room sets them, else the local player's own
+ * equipped cosmetic, plus the local player's win-odds tool + badge (never
+ * table-wide). Lifted to a value type so the felt + card-back + tool + badge land
+ * in a single combined emission rather than four racing collectors.
+ */
+private data class ResolvedCosmetics(
+    val felt: EquippedFelt,
+    val cardBack: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle,
+    val winOddsTool: Boolean,
+    val badgeEmoji: String?,
+)

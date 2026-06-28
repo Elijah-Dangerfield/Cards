@@ -33,6 +33,7 @@ kotlin {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.features.lobby)
             implementation(projects.libraries.rooms)
+            implementation(projects.libraries.cards)
             implementation(projects.libraries.identity)
             implementation(libs.turbine)
         }

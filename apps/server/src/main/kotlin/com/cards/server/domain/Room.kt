@@ -50,6 +50,16 @@ data class Room(
      * as Private.
      */
     val visibility: RoomVisibility = RoomVisibility.Private,
+    /**
+     * Host-chosen table cosmetics: the felt + card-back catalog product ids the
+     * creator had equipped at create time, applied table-wide so every player
+     * sees the host's look (SHOP-3). Opaque to the server — it stores + echoes
+     * the ids and never interprets them; the client maps them to a felt/card-back
+     * style. Null when the host had nothing equipped in that slot, in which case
+     * the client falls back to each player's own equipped cosmetic.
+     */
+    val feltProductId: String? = null,
+    val cardBackProductId: String? = null,
 ) {
     /** Full engine settings derived from [buyIn] + [maxSeats]. */
     val settings: RoomSettings get() = RoomSettings.forBuyIn(buyIn, maxSeats)
@@ -163,6 +173,10 @@ interface RoomService {
         // Private by default. The create-game "open to anyone" toggle passes
         // [RoomVisibility.Open] so the matchmaker can seat strangers here.
         visibility: RoomVisibility = RoomVisibility.Private,
+        // Host's equipped felt + card-back product ids at create time, applied
+        // table-wide (SHOP-3). Null = the host had nothing equipped in that slot.
+        feltProductId: String? = null,
+        cardBackProductId: String? = null,
     ): CreateResult
 
     /**

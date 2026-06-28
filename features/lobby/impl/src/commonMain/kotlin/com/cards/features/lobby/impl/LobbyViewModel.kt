@@ -1,6 +1,9 @@
 package com.dangerfield.cards.features.lobby.impl
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.EquipmentRepository
+import com.dangerfield.cards.libraries.cards.equippedTableCosmetics
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -60,6 +63,7 @@ class LobbyViewModel(
     private val rooms: RoomRepository,
     private val auth: AuthRepository,
     private val profile: ProfileRepository,
+    private val equipment: EquipmentRepository,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<LobbyState, LobbyEvent, LobbyAction>(
     initialStateArg = LobbyState(codeInput = prefilledCode?.uppercase().orEmpty()),
@@ -122,7 +126,21 @@ class LobbyViewModel(
                 val current = state
                 if (current.isBusy) return@run
                 updateState { it.copy(creating = true, error = null) }
-                when (val outcome = rooms.createRoom(maxSeats = maxSeats, buyIn = buyIn, open = open)) {
+                // SHOP-3: pin the host's equipped felt + card back onto the room so
+                // every player sees the host's table look. Best-effort — a read
+                // failure falls back to no override (each player's own cosmetic),
+                // never blocks room creation.
+                val cosmetics = Catching { equippedTableCosmetics(equipment.observeEquipped().first()) }
+                    .getOrNull()
+                when (
+                    val outcome = rooms.createRoom(
+                        maxSeats = maxSeats,
+                        buyIn = buyIn,
+                        open = open,
+                        feltProductId = cosmetics?.feltProductId,
+                        cardBackProductId = cosmetics?.cardBackProductId,
+                    )
+                ) {
                     is CreateRoomOutcome.Success -> startConnection(outcome.room)
                     is CreateRoomOutcome.InvalidMaxSeats -> updateState {
                         it.copy(creating = false, error = LobbyError.CreateInvalidMaxSeats(outcome.message))

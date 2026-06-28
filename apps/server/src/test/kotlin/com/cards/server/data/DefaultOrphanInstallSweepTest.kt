@@ -310,6 +310,8 @@ class DefaultOrphanInstallSweepTest {
             hostAvatarBackgroundColor: String?,
             buyIn: Long,
             visibility: com.dangerfield.cards.server.domain.RoomVisibility,
+            feltProductId: String?,
+            cardBackProductId: String?,
         ): com.dangerfield.cards.server.domain.CreateResult = error("unused")
         override suspend fun findOrJoinPublic(
             userId: UserId,

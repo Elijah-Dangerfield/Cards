@@ -743,7 +743,13 @@ class PublicSearchingViewModelTest : CoroutineTest() {
             return join
         }
 
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = error("unused")
+        override suspend fun createRoom(
+            maxSeats: Int?,
+            buyIn: Long?,
+            open: Boolean,
+            feltProductId: String?,
+            cardBackProductId: String?,
+        ): CreateRoomOutcome = error("unused")
         override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome = error("unused")
         override suspend fun removeBot(code: String, botUserId: String): RemoveBotOutcome = error("unused")
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome = GetActiveRoomsOutcome.Success(emptyList())
