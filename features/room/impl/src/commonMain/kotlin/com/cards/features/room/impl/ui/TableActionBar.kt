@@ -57,6 +57,7 @@ internal fun QuickActionBar(
     onExpandRaise: () -> Unit,
 ) {
     val currentLegal = table.humanLegalActions
+    val tempo = LocalTableTempo.current
     val humanSeat = table.seats.firstOrNull { it.isHuman }
     val canShow = table.isHumanTurn && currentLegal != null && humanSeat != null
 
@@ -92,12 +93,12 @@ internal fun QuickActionBar(
             // content-size to 0 at the end of the slide-out animation,
             // which makes the player row above appear to "jump" down at
             // the very end instead of sliding down smoothly with the bar.
-            enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(260)) +
-                expandVertically(animationSpec = tween(260)) +
-                fadeIn(animationSpec = tween(180)),
-            exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(220)) +
-                shrinkVertically(animationSpec = tween(220)) +
-                fadeOut(animationSpec = tween(140)),
+            enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(tempo.duration(260))) +
+                expandVertically(animationSpec = tween(tempo.duration(260))) +
+                fadeIn(animationSpec = tween(tempo.duration(180))),
+            exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(tempo.duration(220))) +
+                shrinkVertically(animationSpec = tween(tempo.duration(220))) +
+                fadeOut(animationSpec = tween(tempo.duration(140))),
         ) {
             val legal = lastLegal
             val seatIndex = lastSeatIndex

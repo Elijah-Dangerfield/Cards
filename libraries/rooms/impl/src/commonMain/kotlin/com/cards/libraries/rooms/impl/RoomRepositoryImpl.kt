@@ -79,12 +79,20 @@ class RoomRepositoryImpl(
         }
     }
 
-    override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = try {
+    override suspend fun createRoom(
+        maxSeats: Int?,
+        buyIn: Long?,
+        open: Boolean,
+        feltProductId: String?,
+        cardBackProductId: String?,
+    ): CreateRoomOutcome = try {
         val response = api.create(
             CreateRoomRequestDto(
                 maxSeats = maxSeats,
                 buyIn = buyIn,
                 visibility = if (open) "Open" else null,
+                feltProductId = feltProductId,
+                cardBackProductId = cardBackProductId,
             ),
         )
         val body = response.body<CreateRoomResponseDto>()

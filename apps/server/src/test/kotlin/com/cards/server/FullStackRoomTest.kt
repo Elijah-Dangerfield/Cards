@@ -2,6 +2,7 @@ package com.dangerfield.cards.server
 
 import com.dangerfield.cards.server.config.AccessControlConfig
 import com.dangerfield.cards.server.config.AdminConfig
+import com.dangerfield.cards.server.config.BillingConfig
 import com.dangerfield.cards.server.config.SupabaseConfig
 import com.dangerfield.cards.server.db.DatabaseTest
 import com.dangerfield.cards.server.di.ServerComponent
@@ -63,7 +64,7 @@ class FullStackRoomTest : DatabaseTest() {
     fun createJoinStart_throughRealComponentAndDb_persistsSessionToPostgres() = runTest {
         val host = seedAuthUser()
         val joiner = seedAuthUser()
-        val component = ServerComponent::class.create(database, TEST_SUPABASE)
+        val component = ServerComponent::class.create(database, TEST_SUPABASE, TEST_BILLING)
 
         testApplication {
             application {
@@ -148,6 +149,15 @@ class FullStackRoomTest : DatabaseTest() {
         val TEST_SUPABASE = SupabaseConfig(
             projectUrl = "https://integration-test.supabase.co",
             serviceRoleKey = null,
+        )
+        // Unconfigured billing — the real validators stay dormant, which is
+        // fine: this suite never exercises the redeem path.
+        val TEST_BILLING = BillingConfig(
+            appleBundleId = null,
+            appleEnvironment = "Sandbox",
+            appleAppAppleId = null,
+            googlePackageName = null,
+            googleServiceAccountJson = null,
         )
     }
 }

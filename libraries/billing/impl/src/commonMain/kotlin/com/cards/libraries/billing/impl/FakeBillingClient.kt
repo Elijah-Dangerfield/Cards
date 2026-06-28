@@ -68,6 +68,8 @@ class FakeBillingClient(
 
     override suspend fun acknowledge(purchaseToken: String): Boolean = true
 
+    override suspend fun consume(purchaseToken: String): Boolean = true
+
     private fun transactionFor(product: BillingProduct): PurchaseTransaction {
         sequence += 1
         return PurchaseTransaction(

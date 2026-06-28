@@ -103,6 +103,20 @@ class FakePokerSession(
     private val _nextHandRefused = MutableSharedFlow<NextHandRefusal>(extraBufferCapacity = 4)
     override val nextHandRefused: SharedFlow<NextHandRefusal> = _nextHandRefused.asSharedFlow()
 
+    private val _tableCosmetics =
+        MutableStateFlow<com.dangerfield.cards.features.room.impl.session.TableCosmetics?>(null)
+    override val tableCosmetics: StateFlow<com.dangerfield.cards.features.room.impl.session.TableCosmetics?> =
+        _tableCosmetics
+
+    /** Drive the host's table-wide felt + card back the way the real session would (SHOP-3). */
+    fun emitTableCosmetics(felt: String?, cardBack: String?) {
+        _tableCosmetics.value =
+            com.dangerfield.cards.features.room.impl.session.TableCosmetics(
+                feltProductId = felt,
+                cardBackProductId = cardBack,
+            )
+    }
+
     /** Drive a next-hand refusal the way the real session would (MP-22). */
     fun emitNextHandRefused(refusal: NextHandRefusal) {
         _nextHandRefused.tryEmit(refusal)

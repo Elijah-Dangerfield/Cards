@@ -44,6 +44,9 @@ flyway = "10.20.0"
 testcontainers = "1.20.4"
 auth0Jwt = "4.4.0"
 auth0JwksRsa = "0.22.1"
+appStoreServerLibrary = "5.2.0"
+googleApiAndroidPublisher = "v3-rev20260528-2.0.0"
+googleAuthLibrary = "1.30.1"
 opentelemetry = "1.45.0"
 # Instrumentation modules track a separate alpha train aligned with the
 # stable SDK release (`<sdk>-alpha`).
@@ -99,6 +102,12 @@ testcontainers-postgres = { module = "org.testcontainers:postgresql", version.re
 auth0-jwt = { module = "com.auth0:java-jwt", version.ref = "auth0Jwt" }
 auth0-jwksRsa = { module = "com.auth0:jwks-rsa", version.ref = "auth0JwksRsa" }
 
+# IAP receipt validation — official Apple + Google server libraries (BILL-2).
+# JVM-only, server-side. Stay dormant until their credentials are configured.
+appStoreServerLibrary = { module = "com.apple.itunes.storekit:app-store-server-library", version.ref = "appStoreServerLibrary" }
+google-api-androidpublisher = { module = "com.google.apis:google-api-services-androidpublisher", version.ref = "googleApiAndroidPublisher" }
+google-auth-oauth2 = { module = "com.google.auth:google-auth-library-oauth2-http", version.ref = "googleAuthLibrary" }
+
 # OpenTelemetry — traces + logs SDK + OTLP/stdout exporters. The
 # Logback bridge ships on the alpha instrumentation train but the SDK
 # itself is stable.
@@ -153,6 +162,7 @@ supabase-auth = { module = "io.github.jan-tennert.supabase:auth-kt", version.ref
 
 google-play-review = { module = "com.google.android.play:review", version = "2.0.2" }
 google-play-review-ktx = { module = "com.google.android.play:review-ktx", version = "2.0.2" }
+google-play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version = "7.1.1" }
 
 
 androidx-datastore-core = { module = "androidx.datastore:datastore", version.ref = "datastore" }

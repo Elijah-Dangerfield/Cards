@@ -37,6 +37,8 @@ import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.review.ReviewTrigger
 import com.dangerfield.cards.libraries.ui.components.PlayerBadge
+import com.dangerfield.cards.libraries.cards.EquipmentEntry
+import com.dangerfield.cards.libraries.cards.EquipmentSyncState
 import com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle
 import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import kotlinx.coroutines.launch
@@ -1125,6 +1127,49 @@ class PlayPokerViewModelTest : CoroutineTest() {
         )
     }
 
+    @Test
+    fun leaveTable_firedTwice_sendsLeaveAndReconcilesOnce() = runUnitTest {
+        // MP-23 / CARDS-5B: two leave paths can both fire — the screen's
+        // BackHandler fires LeaveTable, and an iOS edge-swipe that bypasses
+        // Compose's BackHandler reaches the entry point's onBack (which also
+        // fires LeaveTable so the swipe-back reconciles). The teardown must run
+        // at most once: a second session.leave is a redundant DELETE and a
+        // second sync could re-confirm a now-zero credit.
+        val session = FakePokerSession()
+        val chips = FakeChipsRepository()
+        val factory = FakePokerSessionFactory(
+            session = session,
+            xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER,
+        )
+        val vm = buildVm(factory = factory, chipsRepository = chips)
+
+        vm.takeAction(PlayPokerAction.LeaveTable)
+        vm.takeAction(PlayPokerAction.LeaveTable)
+
+        assertEquals(1, session.leaveCount, "a redundant leave must not re-send the server leave")
+        assertEquals(1, chips.syncCount, "a redundant leave must not re-reconcile the wallet")
+    }
+
+    @Test
+    fun leaveTable_thenLeaveFromBust_tearsDownOnce() = runUnitTest {
+        // The two distinct leave actions still share one teardown latch — a
+        // LeaveTable already reconciled, so a following LeaveGameFromBust (or
+        // vice-versa) must not run the teardown a second time.
+        val session = FakePokerSession()
+        val chips = FakeChipsRepository()
+        val factory = FakePokerSessionFactory(
+            session = session,
+            xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER,
+        )
+        val vm = buildVm(factory = factory, chipsRepository = chips)
+
+        vm.takeAction(PlayPokerAction.LeaveTable)
+        vm.takeAction(PlayPokerAction.LeaveGameFromBust)
+
+        assertEquals(1, session.leaveCount)
+        assertEquals(1, chips.syncCount)
+    }
+
     // ---------- Multiplayer bust dialog + opponent-left ----------
 
     @Test
@@ -1320,6 +1365,48 @@ class PlayPokerViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun hostTableFelt_overridesPlayersOwnEquippedFelt() = runUnitTest {
+        // SHOP-3: the host's table-wide felt + card back beat the local player's own
+        // equipped cosmetic so everyone sees the host's look.
+        val equipment = FakeEquipmentRepository(
+            initial = listOf(
+                equippedEntry("felt_pine_green"),
+                equippedEntry("cardback_marble"),
+            ),
+        )
+        val factory = FakePokerSessionFactory()
+        val vm = buildVm(factory = factory, equipmentRepository = equipment)
+
+        // Before the host snapshot lands, the player's own equipped cosmetic shows.
+        assertEquals(EquippedFelt.PineGreen, vm.state.equippedFelt)
+        assertEquals(CardBackStyle.Marble, vm.state.equippedCardBack)
+
+        factory.session.emitTableCosmetics(felt = "felt_royal_red", cardBack = "cardback_gold")
+
+        assertEquals(EquippedFelt.RoyalRed, vm.state.equippedFelt)
+        assertEquals(CardBackStyle.Gold, vm.state.equippedCardBack)
+    }
+
+    @Test
+    fun hostTableCosmetics_absentForASlot_fallsBackToPlayersOwn() = runUnitTest {
+        // Host pinned a felt but no card back → the player's own card back still wins
+        // for that slot, the host's felt for the felt slot.
+        val equipment = FakeEquipmentRepository(
+            initial = listOf(
+                equippedEntry("felt_pine_green"),
+                equippedEntry("cardback_marble"),
+            ),
+        )
+        val factory = FakePokerSessionFactory()
+        val vm = buildVm(factory = factory, equipmentRepository = equipment)
+
+        factory.session.emitTableCosmetics(felt = "felt_royal_red", cardBack = null)
+
+        assertEquals(EquippedFelt.RoyalRed, vm.state.equippedFelt)
+        assertEquals(CardBackStyle.Marble, vm.state.equippedCardBack)
+    }
+
+    @Test
     fun equippedBadgeChanged_setsEmoji() = runUnitTest {
         val vm = buildVm()
         vm.takeAction(PlayPokerAction.EquippedBadgeChanged("🔥"))
@@ -1420,6 +1507,13 @@ class PlayPokerViewModelTest : CoroutineTest() {
 
     // ---------- Helpers ----------
 
+    private fun equippedEntry(productId: String): EquipmentEntry = EquipmentEntry(
+        productId = productId,
+        isEquipped = true,
+        syncState = EquipmentSyncState.Synced,
+        updatedAtEpochMs = 0L,
+    )
+
     private fun buildVm(
         factory: PokerSessionFactory = FakePokerSessionFactory(),
         progressionRepository: FakeProgressionRepository = FakeProgressionRepository(),
@@ -1434,6 +1528,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         productsRepository: FakeProductsRepository = FakeProductsRepository(),
         chipsRepository: FakeChipsRepository = FakeChipsRepository(),
         purchaseChipPack: FakePurchaseChipPackUseCase = FakePurchaseChipPackUseCase(),
+        equipmentRepository: FakeEquipmentRepository = FakeEquipmentRepository(),
         clock: kotlin.time.Clock = kotlin.time.Clock.System,
         socialEnabled: Boolean = false,
     ): PlayPokerViewModel = PlayPokerViewModel(
@@ -1444,7 +1539,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         progressionConfig = progressionConfig,
         achievementRepository = achievementRepository,
         appCache = appCache,
-        equipmentRepository = FakeEquipmentRepository(),
+        equipmentRepository = equipmentRepository,
         inventoryRepository = inventoryRepository,
         productsRepository = productsRepository,
         chipsRepository = chipsRepository,

@@ -764,6 +764,19 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 
 **Status:** Backlog. Enhancement, not a defect — the underlying stale-balance bug (MP-21) is already fixed. Captured from feedback case `docs/agent/feedback-cases/8d2185b9834542e9abc2be52afdded2d.md`.
 
+## Full session/game recap on leave (hands played, net won/lost, opponents) + cache to stats
+
+**Idea (raised 2026-06-27):** A tester (SteadyEight23, Sentry CARDS-5M) asked for a recap "every game left with the result — amount won or lost, hands played, people played with, maybe even hands the player had," to remove ambiguity about where their money went. This is the broad version of two narrower items already in flight: ROOM-4 (show net win/loss + chips forfeited in the leave-confirm dialog) and "Surface MP winnings on leave (toast or result dialog)" above. Ship those first; this is the superset.
+
+**Sketch directions when revisiting:**
+- A leave-time recap surface: hands played this session, buy-in, net won/lost, opponents faced — sourced from the per-game data the table already tracks, not recomputed client-side.
+- Cache a per-session/per-game record so the stats page can show recent-game history (pairs with the "more stats metrics — Best Hands / Biggest Pots" backlog item).
+- Keep the leave-confirm dialog itself a short recap (ROOM-4 slice); push the richer breakdown to a dedicated recap/stats surface.
+
+**Tradeoff:** Real product/feature work (new surface + a cached game-result record), not a bug. Sits on top of ROOM-4 and the MP-winnings-on-leave toast.
+
+**Status:** Backlog. Feature/owner directive. Captured from feedback case `docs/agent/feedback-cases/bb4c51d9d27844b7a5cdce100dddf2d2.md`, Sentry [CARDS-5K](https://elijah-dangerfield.sentry.io/issues/CARDS-5K).
+
 ## Scale chip-stack and pot count-up animations with the Game speed setting
 
 **Idea (raised 2026-06-26):** GAME-6 added a speed preference (Normal / Fast / Instant) that scales the play-screen card-deal and reveal animations via `LocalTableTempo` (`features/room/impl/.../ui/TableTempo.kt`). (Later unified into a single "Game speed" setting that also paces bot think time — the old separate "Bot speed" / "Table speed" pickers were merged, and `GameSpeed` now carries both `animationScale` and `botThinkScale`.) The tester's request named the deal, *chip*, and reveal animations; the deal + reveal are done, but the chip-stack odometer roll (`ChipCoinAmount(animated = true)` → `AnimatedNumberText`) and the pot pill still animate at their fixed pace regardless of the setting.
@@ -782,7 +795,7 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 
 **Threads to weigh:** a min-supported-version / schema-version field on rooms and on the wire frames; server-side gating that refuses (with a clear "update your app" message) rather than letting a stale client misread a newer object; forward-compatible (additive-only) serialization conventions so most version skew is tolerated without a hard gate; and where the version line is drawn (room create, room join, or per-frame). Pairs with the existing app-integrity / min-version thinking in `docs/decisions.md`.
 
-**Status:** Backlog. Needs a design pass + a recommendation before it's worker-pickable — owner explicitly invited a proposal. Good to settle pre-launch.
+**Status:** Decided 2026-06-27 — see [decisions.md](./decisions.md). V1 uses the simple two-tier rule (additive changes degrade; breaking game-object changes bump `upgrade.minSupportedVersionCode`), with a runtime deserialization-failure fallback (ENG-7) as defense-in-depth. The per-room **capability gate** sketched in "Threads to weigh" is the future-consideration path if we ever need to ship a breaking gameplay feature to some tables without forcing every client to update — not built.
 
 ---
 
@@ -805,3 +818,45 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch:** add a typed refusal reason (an enum on the wire `IntentAck`, e.g. `NextHandRefusalReason.CannotDeal` / `Transient`) so the client switches on a stable code instead of parsing copy. Removes the string mirror entirely.
 
 **Status:** Backlog. Client-side classification ships in this PR; the server-side typed code is the follow-up.
+
+---
+
+## Mid-session push for the force-update / maintenance gate
+
+**Idea (from ENG-6 verification, 2026-06-27):** The app-wide upgrade / maintenance overlay (`AppGuardGate` → `AppGuardState.from`) recomputes live on every streamed-config emission, so bumping `upgrade.minSupportedVersionCode` raises the blocking overlay over any screen — including an in-session play screen — on the **next foreground transition** (config is fetched on foreground, throttled, never polled mid-session by deliberate design in `OfflineFirstAppConfigRepository`). A client that stays continuously foregrounded mid-hand therefore won't see the gate until it backgrounds/foregrounds.
+
+**Why it's acceptable today:** the cross-version rule (CARDS-4S) is additive-only for game objects; a breaking change that needs the hard gate ships with a coordinated min-version bump, and the room socket already closes a genuinely-unparseable frame as `IncompatibleVersion` (ENG-7) — so an in-game client that would actually choke on a new frame gets a graceful exit even without the overlay. The overlay is the broad "time to update" net, not the per-frame safety mechanism.
+
+**Sketch if revisited:** push a lightweight "config changed" / "force upgrade" signal over the existing room WebSocket (or a dedicated app-wide channel) so a continuously-foregrounded client re-resolves config without waiting for a foreground transition. Avoid reintroducing fixed-interval polling — that was deliberately removed.
+
+**Status:** Backlog. The reactive wiring + z-order are verified (`AppGuardStateTest`); this is the optional "cover the never-backgrounds-mid-hand client" hardening, gated on a product call about whether it's worth a new push channel.
+
+---
+
+## Drain paid-but-unredeemed receipts on app foreground (BILL)
+
+**Idea (deferred from BILL-5, 2026-06-27):** On the server-authoritative purchase path (`billing.realPurchasesEnabled` on), if `/v1/billing/redeem` is unreachable *after* the user already paid at the store, `DefaultPurchaseChipPackUseCase` returns `Failed("redeem_unavailable")` and the purchase stands at the store but is never credited until the user manually re-taps Buy (which idempotently re-redeems). For real money, a transient network blip at the wrong moment means a paying user is left without their chips with no automatic recovery.
+
+**Sketch if revisited:** on app foreground, enumerate any finished-but-unredeemed store purchases (Play Billing's owned-but-unacknowledged purchases / StoreKit's unfinished transactions) and re-POST each to `/v1/billing/redeem` (idempotent on the store transaction id, so a double-drain is safe), then acknowledge. This is the standard "restore / reconcile pending purchases" loop both stores expect anyway.
+
+**Status:** Backlog. Real money-loss-for-user risk — should land before `realPurchasesEnabled` is ever flipped on in prod, alongside the real store listings (BILL-3/4).
+
+---
+
+## Leave a real-chip table before the next hand's blinds post (ROOM-4 secondary)
+
+**Idea (deferred from ROOM-4, 2026-06-27):** ROOM-4 made the leave-confirm dialog show the net a leave settles plus any chips forfeited in the live hand. The secondary owner ask — letting a player leave *before* the next hand's blinds are posted (so they don't forfeit a blind they never wanted to post) — is a turn-flow change (when the leave actually fires relative to the deal), not a dialog-copy change, so it was left out of the dialog-only slice.
+
+**Sketch if revisited:** let a queued leave fire at the hand boundary before the new blinds are posted for the leaving seat — i.e. honor an "I'm leaving" intent during the between-hands window so the player isn't auto-posted into a hand they're trying to exit. Pairs with the existing sit-out / auto-fold machinery.
+
+**Status:** Backlog. Visibility (the net + forfeit callout) shipped in this PR; this is the turn-flow follow-up.
+
+---
+
+## Extract a shared `:libraries:gameplay:testing` deck-scripting helper (ENG)
+
+**Idea (from MP-25, 2026-06-27):** The deck-scripting test DSL — `cards("As Ad")` parse + a `stackedDeck(holeBySeat, board)` builder that pads a deterministic 52-card `Deck.fromOrdered` so the engine deals exactly the spelled-out cards — is now copy-pasted across three test surfaces: `:apps:integration` (`helpers/DeckScripting.kt`), `:features:room:impl` (`harness/ScenarioDecks.kt`), and an inline copy in the server's `GameSessionShowdownTest`. Both existing copies already carry a "unify into a shared gameplay-testing module if a third consumer appears" note — the third consumer has now appeared.
+
+**Sketch if revisited:** create a `:libraries:gameplay:testing` module (mirrors `:libraries:flowroutines:testing`) exporting `cards()` + `stackedDeck()`, depend on it from the three `commonTest`/`androidUnitTest`/server-test sources, and delete the three copies. Small, mechanical; the only friction is wiring a new Gradle module + its `jvm()`/android/ios targets to match each consumer.
+
+**Status:** Backlog. Pure test-infra DRY; no product impact. Kept the inline copy in MP-25's fix to avoid a module refactor riding on a bug fix.

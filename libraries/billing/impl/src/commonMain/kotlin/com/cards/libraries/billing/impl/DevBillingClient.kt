@@ -50,6 +50,7 @@ class DevBillingClient : BillingClient {
     override suspend fun queryProducts(skus: Set<String>): QueryProductsResult = delegate.queryProducts(skus)
     override suspend fun purchase(sku: String, userId: String): PurchaseResult = delegate.purchase(sku, userId)
     override suspend fun acknowledge(purchaseToken: String): Boolean = delegate.acknowledge(purchaseToken)
+    override suspend fun consume(purchaseToken: String): Boolean = delegate.consume(purchaseToken)
 }
 
 /**
@@ -63,7 +64,7 @@ class DevBillingClient : BillingClient {
  * tile renders the same number in dev as it will once the platform
  * store reports real prices.
  */
-private val DEV_FAKE_CATALOG: Map<String, BillingProduct> = listOf(
+internal val DEV_FAKE_CATALOG: Map<String, BillingProduct> = listOf(
     devProduct(sku = "com.cards.iap.chips.small", price = "$0.99", micros = 990_000),
     devProduct(sku = "chips_small", price = "$0.99", micros = 990_000),
     devProduct(sku = "com.cards.iap.chips.medium", price = "$4.99", micros = 4_990_000),

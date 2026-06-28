@@ -114,6 +114,8 @@ class InMemoryRoomService(
         hostAvatarBackgroundColor: String?,
         buyIn: Long,
         visibility: RoomVisibility,
+        feltProductId: String?,
+        cardBackProductId: String?,
     ): CreateResult = mutex.withLock {
         val activeHosted = rooms.values.count { it.room.hostUserId == hostUserId }
         if (activeHosted >= RoomService.MAX_ROOMS_PER_HOST) {
@@ -146,6 +148,8 @@ class InMemoryRoomService(
             members = listOf(host),
             buyIn = buyIn,
             visibility = visibility,
+            feltProductId = feltProductId,
+            cardBackProductId = cardBackProductId,
         )
         rooms[code] = RoomState(room = room)
         persist(room)

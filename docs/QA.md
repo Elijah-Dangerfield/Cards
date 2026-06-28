@@ -276,6 +276,9 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Device B lands in the same room's lobby. Both devices show both members in the seat list, each marked connected. The host badge sits on Device A. No spinner stall longer than ~2s after the code is entered.
 
+- On Device B, enter a 6-character code that is not a real room and tap Join. A "room not found" error appears in place under the code field; the screen does **not** move, navigate, or recompose — the input + keyboard stay put. Editing a character clears the error. (Covers todo ROOM-5.)
+- Create the room on Device A with a non-zero buy-in. After Device B joins, both devices' lobby show the real buy-in (and matching blinds) — never $0 — and it stays correct as the second seat fills in. (Covers MP-24.)
+
 ---
 
 ### `MP-1B` ⚠️ 📱 Share an invite link and deep-link join
@@ -312,6 +315,9 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Carry the hand to showdown (both players reach the river without folding).
 
 **Expected:** Each device only ever sees its own hole cards — opponents' cards stay face-down until showdown reveal. Turn passes correctly; the action ring/timer points at the acting seat. At showdown the winning hand is revealed and the pot moves to the winner's stack. The post-hand summary shows the result. No duplicate-card crash, no stuck turn.
+
+- **XP + stats credit (PROG-4):** finishing the hand awards XP (the Home/Profile XP total rises, and the hand-end XP burst shows) and advances player-stats — same as a solo bots hand, just at the full MULTIPLAYER multiplier on an all-human table. A finished MP hand must never silently award zero XP.
+- **Showdown reveal survives a reconnect blip (MP-25):** carry a multiway hand to a river showdown, then background/foreground one device right as the hand resolves (so its socket reconnects on the Complete state). On resume that device must STILL show the opponents' revealed hole cards for the just-finished hand — the showdown isn't skipped just because the device missed the live hand-end event. Opponents who folded earlier stay mucked (no cards shown).
 
 ---
 
@@ -361,7 +367,9 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - Variant B — Device B's seat shows disconnected and is swept after the grace window (not instantly); the stack still cashes back. Device A's game is not ended by B's drop.
 - On a **subsidized** bots-for-chips table (Variant A, mid-hand), the leave-confirm dialog names the exact stack returning to the wallet ("The N chips at your seat are real…") — the number matches the stack shown at the seat, and the wallet rises by that amount after leaving (MP-6).
 - After winning a pot on a real-chip table and leaving (Variant A), the Home/wallet balance reflects the credited stack **right away** — without backgrounding and foregrounding the app. No delayed phantom jump appears on the next resume (todo `MP-7`).
+- **Back-button / iOS swipe leave (MP-23):** the same immediate reconcile holds when leaving via the top back-arrow, the Android system back, AND the iOS edge-swipe-back gesture — not only the in-room Leave button. After winning a pot, leave a real-chip table via the iOS swipe-back: the wallet shows the settled balance on the screen you land on, without backgrounding/foregrounding. No double credit if you confirm a leave dialog and the gesture both fire.
 - After leaving a real-chip table with chips at your seat (Variant A), a toast confirms the credit on the screen you land on ("N chips from your seat went back to your wallet. New balance: M.") — the amounts match the wallet change. Leaving with nothing credited (lost the stack, or a bots-only practice table) shows no toast (MP-6).
+- **Net-settle preview (ROOM-4):** on a real-chip table, the leave-confirm dialog states the *net* this leave settles to the wallet (stack minus buy-in, shown as e.g. "+1,250" up or red when down). If you have a posted blind / chips already in the live hand, a sub-note calls out the amount you forfeit by leaving now. A practice / solo table shows no settle line. The net shown matches the wallet change after leaving.
 
 ---
 
@@ -428,6 +436,28 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
+### `MP-13` ℹ️ 📱 Unparseable game frame shows "update may help", not a freeze
+
+**State:** an in-progress MP table on a build whose game-frame shape is intentionally older than what the server sends (or simulate a server frame with a required field removed). Hard to reproduce without a deliberately-mismatched build — verify opportunistically or via the unit coverage (`ReconnectingRoomSocketTest`).
+
+1. Be seated at a live table receiving game frames.
+2. Have the server send (or replay) a game frame the client can't deserialize.
+
+**Expected:** The app does not crash, hang on "dealing in", or sit on a frozen table. A clear message appears ("We're struggling to play this game. It may have been created with a newer app version. Updating may help") and the player is routed off the dead table to a safe place (lobby for a private game, Home/Find for a public one). (Covers todo ENG-7.)
+
+---
+
+### `MP-14` ⚠️ 📱 Host's felt + card back show on every player's table
+
+**State:** two devices, both signed in, online. Device A (the host) owns + has equipped a non-default felt and a non-default card back (equip them in My Items first). Device B has different (or default) cosmetics. (Covers todo SHOP-3.)
+
+1. Device A: create a private room, then add a bot or have Device B join.
+2. Play a hand so both devices see the felt + opponents' card backs.
+
+**Expected:** Both devices render the *host's* felt color under the table and the host's card-back style on the face-down cards — Device B sees Device A's look, not its own. If the host had nothing equipped in a slot, that slot falls back to each player's own equipped cosmetic. The host swapping a felt in My Items only changes future rooms (the cosmetics pin at create time), not the live one.
+
+---
+
 ## Profile & items
 
 ### `PROF-1` ℹ️ 📱 Default felt + card back show as equipped on a fresh account
@@ -448,7 +478,9 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Back out, set Table speed to **Fast**, start a new hand — the same cards should fly in and flip noticeably quicker.
 3. Set Table speed to **Instant**, start a new hand and reach showdown.
 
-**Expected:** Normal plays the calibrated pacing. Fast roughly halves the deal-in and reveal timing. Instant snaps hole cards and community cards straight to settled face-up with no fly/flip animation — action resolves immediately. The setting persists across app restarts and applies on both bot and multiplayer tables. (Covers todo GAME-6.)
+**Expected:** Normal plays the calibrated pacing. Fast roughly halves the deal-in and reveal timing. Instant snaps hole cards and community cards straight to settled face-up with no fly/flip animation — action resolves immediately. The setting persists across app restarts. (Covers todo GAME-6.)
+
+- With Table speed set to **Instant**, join a real game where chips are at stake — a human multiplayer room or a public bots-for-chips room — and deal a hand. The deal + card-flip/reveal animations still play at Normal pacing; the Instant preference does **not** strip them. Solo and private practice-bot tables still honour the chosen speed. (Covers todo GAME-8.)
 
 ## Progression
 
@@ -461,3 +493,18 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 3. Repeat once more for a second level-up later in the session.
 
 **Expected:** The full-screen level-up celebration presents every time a level is crossed — including the very first level-up of a fresh session — with the correct level number and any chip/boost/cosmetic reward rows. It never silently drops the user back to Home with no fanfare. A multi-level jump shows a single celebration for the net level. (Covers todo PROG-3; the fix anchors the celebration watermark in the reward granter so a first-session level-up can't be eaten by a seeding race.)
+
+---
+
+## Billing & IAP
+
+### `BILL-4` 🚨 🍎 iOS chip-pack purchase via StoreKit (local `.storekit` config)
+
+**State:** a **release** iOS build (the real StoreKit client only binds in release; debug uses the fake), running against the bundled `apps/ios/iosApp/Cards.storekit` test config attached to the run scheme's StoreKit Configuration. Signed in with a **claimed** (non-anonymous) account. Note the chip balance.
+
+1. Shop → tap a real-money chip pack (e.g. Medium). The native StoreKit purchase sheet appears with the right localized price.
+2. Confirm the purchase in the sheet.
+3. Watch the chip balance and the purchase confirmation.
+4. Buy the **same** pack a second time.
+
+**Expected:** Real prices come from StoreKit (not the fallback). After confirming, the chips are credited once and the balance updates. The second purchase of the same pack succeeds again (consumable was finished — no "already purchased" dead end). Cancelling the sheet returns silently with no credit and no error toast. With `billing.realPurchasesEnabled` on, the balance reflects the server-returned authoritative total (no local double-credit). The account token pins to the signed-in user (a mismatched receipt is rejected server-side). Anonymous accounts hard-gate before the sheet ever opens.

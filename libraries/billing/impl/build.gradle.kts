@@ -21,6 +21,20 @@ kotlin {
             implementation(projects.libraries.cards)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.products)
+            // BillingRepositoryImpl POSTs receipts to /v1/billing/redeem
+            // (server-authoritative credit, BILL-5).
+            implementation(projects.libraries.config)
+            implementation(projects.libraries.networking)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.contentNegotiation)
+            implementation(libs.kotlinx.serialization.json)
+        }
+        androidMain.dependencies {
+            // PlayBillingClient drives Play Billing for real Android IAP. The
+            // foreground Activity (for launchBillingFlow) comes from the
+            // host-app ActivityProvider in :libraries:cards (already a
+            // commonMain dep above).
+            implementation(libs.google.play.billing.ktx)
         }
         commonTest.dependencies {
             implementation(projects.libraries.flowroutines.testing)
@@ -28,6 +42,7 @@ kotlin {
             implementation(projects.libraries.cards)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.products)
+            implementation(projects.libraries.config)
         }
     }
 }

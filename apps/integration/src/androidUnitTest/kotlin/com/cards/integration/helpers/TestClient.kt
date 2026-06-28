@@ -106,6 +106,7 @@ class TestClient(
             rooms = repository,
             auth = FakeAuthRepository(userId),
             profile = NoProfileRepository,
+            equipment = NoEquipmentRepository,
             appScope = AppCoroutineScope(DefaultDispatcherProvider()),
         )
 
@@ -142,6 +143,26 @@ class TestClient(
             clearAvatarBackgroundColor: Boolean,
         ) = error("unused")
         override suspend fun fetchAvatarPack() = error("unused")
+    }
+
+    /**
+     * No equipped cosmetics — the host creates rooms with no felt/card-back
+     * override (SHOP-3), so the table falls back to each player's own cosmetic.
+     */
+    private object NoEquipmentRepository : com.dangerfield.cards.libraries.cards.EquipmentRepository {
+        override fun observeEquipped() =
+            flowOf(emptyList<com.dangerfield.cards.libraries.cards.EquipmentEntry>())
+        override suspend fun getAll() = emptyList<com.dangerfield.cards.libraries.cards.EquipmentEntry>()
+        override suspend fun equip(productId: String) =
+            com.dangerfield.cards.libraries.cards.EquipmentToggleResult.NoChange
+        override suspend fun unequip(productId: String) =
+            com.dangerfield.cards.libraries.cards.EquipmentToggleResult.NoChange
+        override suspend fun applyServerSnapshot(
+            authoritative: List<com.dangerfield.cards.libraries.cards.EquipmentEntry>,
+        ) = Unit
+        override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>) = emptyList<String>()
+        override suspend fun deleteAll() = Unit
+        override suspend fun sync() = Result.success(Unit)
     }
 
     /** Always signed in as [userId]; the rest is unused by the lobby flow. */

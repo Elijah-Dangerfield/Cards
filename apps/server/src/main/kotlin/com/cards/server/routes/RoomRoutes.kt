@@ -99,6 +99,11 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository, wallets: W
                         ),
                     )
                 }
+                // Host table cosmetics (SHOP-3) are opaque catalog ids; the server
+                // never interprets them. Cap the length so a malformed body can't
+                // store an unbounded string, and blank → null (no host override).
+                val feltProductId = body.feltProductId.sanitizeProductId()
+                val cardBackProductId = body.cardBackProductId.sanitizeProductId()
                 val profile = profiles.findOrCreate(userId)
                 when (val outcome = rooms.create(
                     hostUserId = userId,
@@ -108,6 +113,8 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository, wallets: W
                     hostAvatarBackgroundColor = profile.avatarBackgroundColor,
                     buyIn = buyIn,
                     visibility = visibility,
+                    feltProductId = feltProductId,
+                    cardBackProductId = cardBackProductId,
                 )) {
                     is CreateResult.Success -> call.respond(
                         HttpStatusCode.OK,
@@ -291,6 +298,14 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository, wallets: W
     }
 }
 
+/**
+ * Normalise a host-supplied cosmetic product id (SHOP-3): trim, treat blank as
+ * "no override", and drop anything implausibly long for a catalog id so a
+ * malformed body can't stash an unbounded string on the room snapshot.
+ */
+private fun String?.sanitizeProductId(): String? =
+    this?.trim()?.takeIf { it.isNotEmpty() && it.length <= MAX_PRODUCT_ID_LENGTH }
+
 /** Maps the optional wire difficulty name to the enum; null body → Standard. */
 private fun parseDifficulty(raw: String?): BotDifficulty? {
     if (raw == null) return BotDifficulty.Standard
@@ -306,6 +321,7 @@ private fun parseUserIdOrNull(raw: String): UserId? =
 
 private const val MIN_SEATS = 2
 private const val MAX_SEATS = 9
+private const val MAX_PRODUCT_ID_LENGTH = 64
 
 private fun problemEnvelope(code: String, message: String): Map<String, Map<String, String>> =
     mapOf("error" to mapOf("code" to code, "message" to message))

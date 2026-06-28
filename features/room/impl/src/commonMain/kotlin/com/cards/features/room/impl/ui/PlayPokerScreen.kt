@@ -260,7 +260,7 @@ fun PlayPokerScreen(
         LocalCardBackStyle provides state.equippedCardBack,
         LocalFeltAccentSurface provides feltAccent,
         LocalTableRewardAnchors provides rewardAnchors,
-        LocalTableTempo provides TableTempo(state.gameSpeed),
+        LocalTableTempo provides TableTempo(state.effectiveTableSpeed),
     ) {
     Screen(modifier = modifier, containerColor = tableSurface) { padding ->
         Box(
@@ -438,6 +438,12 @@ fun PlayPokerScreen(
         }
 
         if (leaveConfirmOpen) {
+            // Real chips at the table → show the net this leave settles to the
+            // wallet (stack returning minus the buy-in) and call out any chips
+            // committed in the live hand that leaving forfeits (ROOM-4). Practice
+            // / solo tables keep the plain copy — there's no real settlement.
+            val humanSeat = active?.seats?.firstOrNull { it.isHuman }
+            val realChips = state.isRealMultiplayer || active?.subsidizedBotTable == true
             LeaveBotsConfirmDialog(
                 onStay = { leaveConfirmOpen = false },
                 onLeave = {
@@ -446,6 +452,9 @@ fun PlayPokerScreen(
                 },
                 subsidized = active?.subsidizedBotTable == true,
                 cashOutChips = humanStack,
+                showSettle = realChips && humanSeat != null,
+                netSettleChips = humanStack - (active?.buyIn ?: 0L),
+                forfeitedThisHand = humanSeat?.contributedThisHand ?: 0L,
             )
         }
 

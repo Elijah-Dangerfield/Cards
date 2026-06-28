@@ -29,6 +29,17 @@ data class Room(
      * Defaulted so pre-visibility snapshots read as Private.
      */
     val visibility: RoomVisibility = RoomVisibility.Private,
+    /**
+     * Host-chosen table cosmetics (SHOP-3): the felt + card-back catalog product
+     * ids the creator had equipped when the room was made, applied table-wide so
+     * every player sees the host's look. Null when the host had nothing equipped
+     * in that slot — the play surface then falls back to each player's own
+     * equipped felt/card back. The id → style mapping is client-side
+     * (`feltForProductId` / `cardBackForProductId`); the server only stores +
+     * echoes the opaque ids.
+     */
+    val feltProductId: String? = null,
+    val cardBackProductId: String? = null,
 ) {
     val seatCount: Int get() = members.size
     val isFull: Boolean get() = seatCount >= maxSeats
@@ -57,6 +68,38 @@ data class Room(
  */
 fun Room.preferRealOver(previous: Room?): Room =
     if (isPlaceholder && previous?.isPlaceholder == false) previous else this
+
+/**
+ * Field-level counterpart to [preferRealOver]: keep *this* snapshot's members,
+ * status, and presence, but carry forward [previous]'s real stakes
+ * ([buyIn]/[smallBlind]/[bigBlind]) when this one is a placeholder.
+ *
+ * The lobby presence path needs this where [preferRealOver] can't be used.
+ * The server's lobby presence snapshots legitimately carry `buyIn = 0` while
+ * delivering the converged member list (everyone connected), so dropping them
+ * wholesale ([preferRealOver]) would stall member-list convergence. But a
+ * joiner whose first socket frame is such a presence snapshot would otherwise
+ * see the buy-in regress from the real value (carried by the HTTP join
+ * response) to $0 (MP-24). Merging keeps the live member list while pinning the
+ * stakes to the last real value.
+ */
+fun Room.mergeStakesFrom(previous: Room?): Room =
+    if (isPlaceholder && previous != null && !previous.isPlaceholder) {
+        copy(
+            buyIn = previous.buyIn,
+            smallBlind = previous.smallBlind,
+            bigBlind = previous.bigBlind,
+            // Host table cosmetics (SHOP-3) are pinned at create time and carried
+            // for the room's life, but a placeholder presence snapshot delivers
+            // them as null — carry the real values forward alongside the stakes so
+            // the table look doesn't blink to the per-player fallback on a converged
+            // member-list frame.
+            feltProductId = feltProductId ?: previous.feltProductId,
+            cardBackProductId = cardBackProductId ?: previous.cardBackProductId,
+        )
+    } else {
+        this
+    }
 
 data class RoomMember(
     val userId: String,

@@ -10,6 +10,8 @@ import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.game.SeatOccupant
+import com.dangerfield.cards.libraries.gameplay.GameEvent
+import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.ClosedReason
@@ -359,6 +361,94 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
         assertEquals(null, table.humanLegalActions)
     }
 
+    // ---------- PROG-4: MP hand-end credit ----------
+
+    @Test
+    fun mpHandEnded_awardsXp_recordsPlayerStat_andSurfacesCelebration() = runUnitTest {
+        // PROG-4 (CARDS-5D): a finished MP hand granted zero XP and recorded no
+        // player-stat because RemotePokerSession never fired onHandEnded — the
+        // only path into the VM's awardForHand / recordPlayerStat / celebration.
+        val spies = buildMpVmWithSpies(localUserId = LOCAL_USER)
+        spies.progression.nextAwardedEvents = listOf(
+            com.dangerfield.cards.libraries.cards.XpEvent(
+                id = 1,
+                deltaXp = 12,
+                source = com.dangerfield.cards.libraries.cards.XpSource.BASE,
+                mode = XpMode.MULTIPLAYER,
+                handId = "1",
+                createdAtEpochMs = 0,
+            ),
+        )
+        advanceUntilIdle()
+
+        spies.handle.pushFrame(GameplayFrame.StateSnapshot(twoHumanTable(actingSeatIndex = 0)))
+        advanceUntilIdle()
+
+        spies.handle.pushFrame(
+            GameplayFrame.Event(
+                event = GameEvent.HandEnded(
+                    sequence = 19,
+                    winners = listOf(
+                        HandWinner(seatIndex = 0, amount = 100, handRank = null, byFold = true),
+                    ),
+                    board = emptyList(),
+                    revealedHoleCards = emptyMap(),
+                ),
+                seq = 19,
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(
+            1,
+            spies.progression.awardedSummaries.size,
+            "a finished MP hand must run awardForHand",
+        )
+        assertEquals(
+            XpMode.MULTIPLAYER,
+            spies.progression.awardedSummaries.single().mode,
+            "an all-human MP table is credited at the MULTIPLAYER multiplier",
+        )
+        assertEquals(
+            1,
+            spies.playerStats.recordedHands.size,
+            "a finished MP hand must record the player-stat",
+        )
+        assertEquals(
+            12,
+            spies.vm.state.lastHandXpAwarded,
+            "the awarded XP surfaces to the hand-end celebration",
+        )
+    }
+
+    @Test
+    fun mpHandEnded_doubleDelivered_recordsHandOnce() = runUnitTest {
+        // The wire can re-deliver a HandEnded (resync / replay). The VM's
+        // per-hand guards must keep awardForHand + the player-stat at one each.
+        val spies = buildMpVmWithSpies(localUserId = LOCAL_USER)
+        advanceUntilIdle()
+        spies.handle.pushFrame(GameplayFrame.StateSnapshot(twoHumanTable(actingSeatIndex = 0)))
+        advanceUntilIdle()
+
+        val handEnded = GameplayFrame.Event(
+            event = GameEvent.HandEnded(
+                sequence = 19,
+                winners = listOf(
+                    HandWinner(seatIndex = 0, amount = 100, handRank = null, byFold = true),
+                ),
+                board = emptyList(),
+                revealedHoleCards = emptyMap(),
+            ),
+            seq = 19,
+        )
+        spies.handle.pushFrame(handEnded)
+        advanceUntilIdle()
+        spies.handle.pushFrame(handEnded)
+        advanceUntilIdle()
+
+        assertEquals(1, spies.playerStats.recordedHands.size, "player-stat recorded once per hand")
+    }
+
     // ---------- helpers ----------
 
     private fun twoHumanTable(actingSeatIndex: Int) = stubGameState(
@@ -410,7 +500,17 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
     private fun buildMpVm(
         localUserId: String = LOCAL_USER,
         handle: FakeRoomConnectionHandle = FakeRoomConnectionHandle(),
-    ): Pair<PlayPokerViewModel, FakeRoomConnectionHandle> {
+    ): Pair<PlayPokerViewModel, FakeRoomConnectionHandle> =
+        buildMpVmWithSpies(localUserId, handle).let { it.vm to it.handle }
+
+    /**
+     * Like [buildMpVm] but exposes the progression / player-stat spies so a
+     * test can assert the hand-end credit path ran (PROG-4).
+     */
+    private fun buildMpVmWithSpies(
+        localUserId: String = LOCAL_USER,
+        handle: FakeRoomConnectionHandle = FakeRoomConnectionHandle(),
+    ): MpVm {
         val factory = RemotePokerSessionFactory(
             roomCode = "ABCDEF",
             localUserId = localUserId,
@@ -418,13 +518,16 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
             roomRepository = ConnectingRoomRepository(handle),
             telemetry = NoopTelemetry,
         )
+        val progression = FakeProgressionRepository()
+        val playerStats = FakePlayerStatsRepository()
+        val achievements = FakeAchievementRepository()
         val vm = PlayPokerViewModel(
             sessionFactory = factory,
-            progressionRepository = FakeProgressionRepository(),
+            progressionRepository = progression,
             playStyleRepository = FakePlayStyleRepository(),
-            playerStatsRepository = FakePlayerStatsRepository(),
+            playerStatsRepository = playerStats,
             progressionConfig = FakeProgressionConfig(),
-            achievementRepository = FakeAchievementRepository(),
+            achievementRepository = achievements,
             appCache = FakeAppCache(),
             equipmentRepository = FakeEquipmentRepository(),
             inventoryRepository = FakeInventoryRepository(),
@@ -440,8 +543,16 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
             clock = kotlin.time.Clock.System,
             socialEnabledConfig = com.dangerfield.cards.libraries.social.SocialEnabled.forTest(enabled = false),
         )
-        return vm to handle
+        return MpVm(vm, handle, progression, playerStats, achievements)
     }
+
+    private class MpVm(
+        val vm: PlayPokerViewModel,
+        val handle: FakeRoomConnectionHandle,
+        val progression: FakeProgressionRepository,
+        val playerStats: FakePlayerStatsRepository,
+        val achievements: FakeAchievementRepository,
+    )
 
     private fun sampleRoom(): Room = Room(
         code = "ABCDEF",
@@ -460,7 +571,13 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
     private class ConnectingRoomRepository(
         private val handle: RoomConnectionHandle,
     ) : RoomRepository {
-        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?, open: Boolean): CreateRoomOutcome = error("unused")
+        override suspend fun createRoom(
+            maxSeats: Int?,
+            buyIn: Long?,
+            open: Boolean,
+            feltProductId: String?,
+            cardBackProductId: String?,
+        ): CreateRoomOutcome = error("unused")
         override suspend fun joinRoom(code: String): JoinRoomOutcome = error("unused")
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = error("unused")
         override suspend fun addBot(code: String, seatIndex: Int?): com.dangerfield.cards.libraries.rooms.AddBotOutcome =

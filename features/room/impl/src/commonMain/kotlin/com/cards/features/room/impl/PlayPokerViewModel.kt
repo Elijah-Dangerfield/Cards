@@ -142,6 +142,12 @@ class PlayPokerViewModel @Inject constructor(
     // guard as play-style; the outbox feeds the server's authoritative counters.
     private var lastRecordedStatHand: Int? = null
 
+    // Hand number of the last hand we ran the full hand-end credit path for
+    // (XP award + achievement reveal + feedback). Solo fires onHandEnded exactly
+    // once per hand, but the MP event flow can re-deliver a HandEnded (replay /
+    // resync), which would otherwise double-award XP and re-fire the celebration.
+    private var lastCreditedHand: Int? = null
+
     // Hand number of the last hole-card render projection we logged (GAME-8).
     // Guards the once-per-hand "what the table projected for my seat" line so it
     // fires once cards are dealt, never per snapshot/frame.
@@ -319,24 +325,38 @@ class PlayPokerViewModel @Inject constructor(
                 lastGameState?.let { takeAction(PlayPokerAction.GameStateUpdated(it)) }
             }
         }
-        // Equipped cosmetics → mid-session repaint. The flow is newest-first, so
-        // pick the first non-Default per slot; also surfaces the win-odds tool flag.
+        // Equipped cosmetics → mid-session repaint, combined with the host's
+        // table-wide cosmetics (SHOP-3). The flow is newest-first, so pick the first
+        // non-Default per slot. Felt + card back honour the host's table choice when
+        // the room sets one, falling back to the player's own equipped cosmetic;
+        // the win-odds tool + badge stay purely the local player's. Also drives the
+        // win-odds tool flag.
         viewModelScope.launch {
-            equipmentRepository.observeEquipped().collect { entries ->
-                val felt = entries
+            combine(
+                equipmentRepository.observeEquipped(),
+                session.tableCosmetics,
+            ) { entries, table ->
+                val ownFelt = entries
                     .map { feltForProductId(it.productId) }
                     .firstOrNull { it != EquippedFelt.Default }
                     ?: EquippedFelt.Default
-                val cardBack = entries
+                val ownCardBack = entries
                     .map { cardBackForProductId(it.productId) }
                     .firstOrNull { it != com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default }
                     ?: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default
-                val winOddsTool = entries.any { it.productId == TOOL_WIN_ODDS_PRODUCT_ID }
-                val badgeEmoji = entries.firstNotNullOfOrNull { badgeEmojiForProductId(it.productId) }
-                takeAction(PlayPokerAction.EquippedFeltChanged(felt))
-                takeAction(PlayPokerAction.EquippedCardBackChanged(cardBack))
-                takeAction(PlayPokerAction.WinOddsToolEquippedChanged(winOddsTool))
-                takeAction(PlayPokerAction.EquippedBadgeChanged(badgeEmoji))
+                val felt = table?.feltProductId?.let { feltForProductId(it) } ?: ownFelt
+                val cardBack = table?.cardBackProductId?.let { cardBackForProductId(it) } ?: ownCardBack
+                ResolvedCosmetics(
+                    felt = felt,
+                    cardBack = cardBack,
+                    winOddsTool = entries.any { it.productId == TOOL_WIN_ODDS_PRODUCT_ID },
+                    badgeEmoji = entries.firstNotNullOfOrNull { badgeEmojiForProductId(it.productId) },
+                )
+            }.collect { resolved ->
+                takeAction(PlayPokerAction.EquippedFeltChanged(resolved.felt))
+                takeAction(PlayPokerAction.EquippedCardBackChanged(resolved.cardBack))
+                takeAction(PlayPokerAction.WinOddsToolEquippedChanged(resolved.winOddsTool))
+                takeAction(PlayPokerAction.EquippedBadgeChanged(resolved.badgeEmoji))
             }
         }
         // Equipped badges/titles resolved from catalog + inventory for the
@@ -483,6 +503,11 @@ class PlayPokerViewModel @Inject constructor(
         state: GameState,
         humanStartingStack: Long,
     ) {
+        // Credit each hand at most once even if HandEnded is re-delivered (the
+        // MP event flow replays). Without this a resync double-awards XP and
+        // re-fires the celebration. Solo never re-delivers, so it's a no-op there.
+        if (state.handNumber == lastCreditedHand) return
+        lastCreditedHand = state.handNumber
         // Resolve the human's seat from live state (MP seats vary) so the hand
         // is attributed to the right player.
         val humanSeatIndex = sessionFactory.humanSeatIndex(state)
@@ -598,7 +623,19 @@ class PlayPokerViewModel @Inject constructor(
         return state.seats.firstOrNull { it.index == seatIndex }?.playerId
     }
 
+    // Latches the user-initiated leave teardown (server leave + wallet
+    // reconcile) so it runs at most once. Two leave paths can both fire: the
+    // screen's BackHandler fires LeaveTable, and an iOS edge-swipe that bypasses
+    // Compose's BackHandler reaches the entry point's onBack, which also fires
+    // LeaveTable so the swipe-back still reconciles (MP-23 / CARDS-5B). A second
+    // session.leave is a redundant DELETE; a second reconcile is guarded
+    // separately by walletReconciled, but latching here keeps the whole teardown
+    // single-shot.
+    private var leaveInitiated = false
+
     private suspend fun leaveAndReconcileWallet() {
+        if (leaveInitiated) return
+        leaveInitiated = true
         Catching { session.leave() }
             .onFailure { e -> logger.w(e) { "room leave failed" } }
         reconcileWalletAfterGame()
@@ -1041,3 +1078,17 @@ class PlayPokerViewModel @Inject constructor(
     }
 
 }
+
+/**
+ * The cosmetics painted on the play surface this emission — the host's table-wide
+ * felt + card back (SHOP-3) when the room sets them, else the local player's own
+ * equipped cosmetic, plus the local player's win-odds tool + badge (never
+ * table-wide). Lifted to a value type so the felt + card-back + tool + badge land
+ * in a single combined emission rather than four racing collectors.
+ */
+private data class ResolvedCosmetics(
+    val felt: EquippedFelt,
+    val cardBack: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle,
+    val winOddsTool: Boolean,
+    val badgeEmoji: String?,
+)

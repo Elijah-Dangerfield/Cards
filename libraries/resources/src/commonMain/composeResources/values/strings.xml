@@ -57,11 +57,11 @@
     <string name="session_expired_guest_logout_confirm">Log out anyway</string>
     <!-- App - access denied (server returned the locked 403 envelope). Copy is keyed off `reason`; the wire never carries copy. -->
     <string name="access_denied_banned_title">Account blocked</string>
-    <string name="access_denied_banned_message">Your account is blocked from Dealt. Open an appeal if you think this is a mistake.</string>
+    <string name="access_denied_banned_message">Your account is blocked from Downcard. Open an appeal if you think this is a mistake.</string>
     <string name="access_denied_suspended_title">Account suspended</string>
     <string name="access_denied_suspended_message">Your account is temporarily suspended. Open an appeal if you think this is a mistake.</string>
     <string name="access_denied_default_title">Access blocked</string>
-    <string name="access_denied_default_message">Dealt is not available for this account right now.</string>
+    <string name="access_denied_default_message">Downcard is not available for this account right now.</string>
     <string name="access_denied_appeal">Open appeal</string>
     <string name="shop_snackbar_insufficient_chips_title">Not enough chips</string>
     <string name="shop_snackbar_insufficient_chips_message">You need more chips to grab %1$s.</string>
@@ -153,7 +153,7 @@
     <string name="lobby_in_room_start_button_waiting">Waiting for players…</string>
     <string name="lobby_in_room_copy_button">Copy code</string>
     <string name="lobby_in_room_share_button">Share invite</string>
-    <string name="lobby_in_room_share_message">Join my poker game on Dealt. Room code %1$s: %2$s</string>
+    <string name="lobby_in_room_share_message">Join my poker game on Downcard. Room code %1$s: %2$s</string>
     <string name="lobby_in_room_code_copied">Room code copied</string>
     <string name="lobby_in_room_deal_button">Deal hand · %1$d players</string>
     <string name="lobby_in_room_ready_to_deal">Ready to deal</string>
@@ -215,7 +215,7 @@
     <string name="onboarding_save_error_invalid_display_name">Try a different name. Letters and numbers only.</string>
 
     <!-- Onboarding - Welcome step (entry screen). -->
-    <string name="onboarding_welcome_title">Dealt</string>
+    <string name="onboarding_welcome_title">Downcard</string>
     <string name="onboarding_welcome_subtitle">Poker with your friends.\nPractice with bots when they're busy.</string>
     <string name="onboarding_welcome_continue_guest">Continue as guest</string>
     <string name="onboarding_welcome_continue_guest_progress">One moment…</string>
@@ -533,7 +533,7 @@
     <!-- Settings - screen reached from the Profile gear. -->
     <string name="settings_title">Settings</string>
     <string name="settings_section_account_support">Account &amp; support</string>
-    <string name="settings_about_headline">About Dealt</string>
+    <string name="settings_about_headline">About Downcard</string>
     <string name="settings_legal_footer">Play money only · no real-money gambling</string>
     <string name="settings_responsible_play_headline">Responsible play</string>
     <string name="settings_responsible_play_supporting">Get help with problem gambling</string>
@@ -693,7 +693,7 @@
 
     <!-- Onboarding - HowItWorks step (explainer). -->
     <string name="onboarding_how_eyebrow">ALMOST THERE</string>
-    <string name="onboarding_how_title">How Dealt works.</string>
+    <string name="onboarding_how_title">How Downcard works.</string>
     <string name="onboarding_how_card_play_title">Play three ways</string>
     <string name="onboarding_how_card_play_subtitle">Bots, strangers, or friends.</string>
     <string name="onboarding_how_card_chips_title">Chips fund the table</string>
@@ -703,7 +703,7 @@
     <string name="onboarding_how_continue_button">Continue</string>
 
     <!-- Onboarding - StarterGrant step (final celebratory chip-grant reveal). -->
-    <string name="onboarding_grant_eyebrow">WELCOME TO DEALT</string>
+    <string name="onboarding_grant_eyebrow">WELCOME TO DOWNCARD</string>
     <string name="onboarding_grant_chips_label">chips</string>
     <string name="onboarding_grant_subtitle">Chips are the currency you play with. Here's a starter stack, on us.</string>
     <string name="onboarding_grant_offline_subtitle">Your starter chips land the moment you're back online.</string>
@@ -719,6 +719,11 @@
     <string name="room_leave_bots_subsidized_body">You'll lose progress on this hand. The %1$s chips at your seat are real. They go straight back to your wallet when you leave.</string>
     <string name="room_leave_bots_stay_button">Stay</string>
     <string name="room_leave_bots_leave_button">Leave</string>
+    <!-- Room - net chips a real-chip leave will settle, shown ahead in the leave-confirm dialog (ROOM-4). %1$s is a signed total e.g. "+1,250" or "-300". -->
+    <string name="room_leave_settle_up">Leaving now settles %1$s chips to your wallet</string>
+    <string name="room_leave_settle_even">Leaving now returns your buy-in with no change</string>
+    <!-- Room - sub-note when the player has chips committed in the current hand that leaving forfeits (ROOM-4). %1$s is the forfeited amount. -->
+    <string name="room_leave_forfeit_note">Includes %1$s already in this hand that you'll forfeit by leaving now</string>
 
     <!-- Room - Swipe-fold confirm dialog (swipe-down to fold while in a hand). -->
     <string name="room_swipe_fold_title">Fold this hand?</string>
@@ -847,6 +852,8 @@
     <string name="room_intent_timed_out">That didn't send. Check your connection and try again</string>
     <!-- Room - transient notice when the server refused a submitted action (not your turn / illegal move). -->
     <string name="room_intent_rejected">That move wasn't allowed</string>
+    <!-- Room - shown when a game frame couldn't be read (ENG-7); the table may have been created with a newer app version. -->
+    <string name="room_incompatible_version">We're struggling to play this game. It may have been created with a newer app version. Updating may help</string>
 
     <!-- Room - heads-up match-over rebuy countdown (MP-14). Shown to the busted player. %1$s is a m:ss countdown. -->
     <string name="room_match_over_busted_title">Rebuy in %1$s or lose your seat</string>
@@ -1224,7 +1231,7 @@
          server's minimum supported version. Body is generic so it covers both
          App Store and Play Store; the CTA opens the user's platform store. -->
     <string name="upgrade_required_title">Time to update</string>
-    <string name="upgrade_required_body">A new version of Dealt is ready, and you'll need it to keep playing.</string>
+    <string name="upgrade_required_body">A new version of Downcard is ready, and you'll need it to keep playing.</string>
     <string name="upgrade_required_cta">Update now</string>
     <!-- Reassurance under the CTA so the update doesn't read as risky. -->
     <string name="upgrade_required_reassurance">Your chips, level, and progress are safe.</string>

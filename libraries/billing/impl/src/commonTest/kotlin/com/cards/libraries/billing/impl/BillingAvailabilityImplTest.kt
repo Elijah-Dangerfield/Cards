@@ -199,6 +199,7 @@ private class RecordingBillingClient(
         PurchaseResult.NotConnected
 
     override suspend fun acknowledge(purchaseToken: String): Boolean = false
+    override suspend fun consume(purchaseToken: String): Boolean = false
 }
 
 private class StagedBillingClient(connection: ConnectionState) : BillingClient {
@@ -212,6 +213,7 @@ private class StagedBillingClient(connection: ConnectionState) : BillingClient {
     override suspend fun purchase(sku: String, userId: String): PurchaseResult =
         PurchaseResult.NotConnected
     override suspend fun acknowledge(purchaseToken: String): Boolean = false
+    override suspend fun consume(purchaseToken: String): Boolean = false
 }
 
 private class SuspendingBillingClient(
@@ -245,4 +247,5 @@ private class SuspendingBillingClient(
     override suspend fun purchase(sku: String, userId: String): PurchaseResult =
         PurchaseResult.NotConnected
     override suspend fun acknowledge(purchaseToken: String): Boolean = false
+    override suspend fun consume(purchaseToken: String): Boolean = false
 }

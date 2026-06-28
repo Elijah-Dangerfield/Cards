@@ -25,6 +25,7 @@ import com.dangerfield.cards.server.routes.achievementsRoutes
 import com.dangerfield.cards.server.routes.adminRoutes
 import com.dangerfield.cards.server.routes.appConfigRoutes
 import com.dangerfield.cards.server.routes.avatarRoutes
+import com.dangerfield.cards.server.routes.billingRoutes
 import com.dangerfield.cards.server.routes.configAdminRoutes
 import com.dangerfield.cards.server.routes.equipmentRoutes
 import com.dangerfield.cards.server.routes.friendsRoutes
@@ -74,7 +75,7 @@ fun Application.module(config: ServerConfig) {
     val database = Database.connect(config.database)
     logger.info("Database connected and migrations applied")
 
-    val component = ServerComponent::class.create(database, config.supabase)
+    val component = ServerComponent::class.create(database, config.supabase, config.billing)
 
     installApp(
         component = component,
@@ -148,6 +149,11 @@ fun Application.installApp(
             repository = component.walletRepository,
             messages = component.userMessageRepository,
             clock = component.provideClock(),
+        )
+        billingRoutes(
+            catalog = component.productCatalogSource,
+            validator = component.receiptValidator,
+            billing = component.billingRepository,
         )
         progressionRoutes(component.progressionRepository)
         playStyleRoutes(component.playStyleRepository)

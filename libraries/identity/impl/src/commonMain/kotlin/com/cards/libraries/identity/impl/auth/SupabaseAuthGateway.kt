@@ -76,21 +76,22 @@ interface SupabaseAuthGateway {
      * user. Throws if the URL carries no valid session (e.g. the user
      * cancelled).
      *
-     * Sign-in only — a **link** (claim) redirect carries no session fragment;
-     * use [hydrateCurrentUser] to fold the now-linked identity into the existing
-     * session instead. (Sign-in itself also hydrates the user internally, since
-     * an imported token session has no user object yet.)
+     * Sign-in only — a link (claim) redirect carries no session fragment; the
+     * repository calls [refreshSession] to fold in the now-linked identity
+     * instead. (Sign-in itself also hydrates the user internally, since an
+     * imported token session has no user object yet.)
      */
     suspend fun completeOAuthRedirect(url: String)
 
     /**
      * Fetch the user for the *current* session from the server and write it back
-     * into [sessionStatus] (in place). Two callers: after a browser **link**
-     * (claim) redirect (the identity was attached server-side but the local
-     * session is stale — still `is_anonymous=true`, no identities), and to
-     * hydrate a tokens-only session (an OAuth import or a storage load) whose
-     * `user` is null. After this, [currentSession] resolves to a non-null,
-     * fully-populated session. Throws on failure.
+     * into [sessionStatus] (in place). Used to hydrate a tokens-only session (an
+     * OAuth import or a storage load) whose `user` is null, so [currentSession]
+     * resolves to a non-null, fully-populated session. Throws on failure.
+     *
+     * Note: this is NOT enough to finish a link/claim. On device, fetching the
+     * user with the still-anonymous token does not fold in the just-linked
+     * identity, so is_anonymous stays true. The link path uses [refreshSession].
      */
     suspend fun hydrateCurrentUser()
 

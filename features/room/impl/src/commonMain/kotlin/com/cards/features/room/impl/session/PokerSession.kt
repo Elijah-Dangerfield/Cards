@@ -117,6 +117,17 @@ interface PokerSession {
     val matchOverCountdown: StateFlow<MatchOverCountdown?> get() = NoMatchOver
 
     /**
+     * Host-chosen table cosmetics (SHOP-3): the felt + card-back catalog product
+     * ids the room's host had equipped at create time, applied table-wide so every
+     * player renders the host's look. Null when the host set no override for a slot
+     * (then the player's own equipped cosmetic wins). Remote sessions populate this
+     * from the room snapshot; local-bots sessions have no host but the local player,
+     * so they stay null and the player's own equipped cosmetic always applies.
+     * Defaults to a constant-null flow so solo sessions and test fakes don't override.
+     */
+    val tableCosmetics: StateFlow<TableCosmetics?> get() = NoTableCosmetics
+
+    /**
      * Submit the local player's intent. Suspends because the local-bots implementation
      * runs the bot loop synchronously after the human acts.
      */
@@ -162,6 +173,19 @@ interface PokerSession {
 private val NeverEmits: SharedFlow<Nothing> = MutableSharedFlow()
 private val NeverRefused: SharedFlow<NextHandRefusal> = MutableSharedFlow()
 private val NoMatchOver: StateFlow<MatchOverCountdown?> = MutableStateFlow(null)
+private val NoTableCosmetics: StateFlow<TableCosmetics?> = MutableStateFlow(null)
+
+/**
+ * Host-chosen table cosmetics for a room (SHOP-3): the felt + card-back catalog
+ * product ids the host had equipped at create time. Null per slot = no host
+ * override, so the local player's own equipped cosmetic applies there. The id →
+ * style mapping is the same client-side switchboard the per-player path uses
+ * (`feltForProductId` / `cardBackForProductId`).
+ */
+data class TableCosmetics(
+    val feltProductId: String?,
+    val cardBackProductId: String?,
+)
 
 /**
  * Why the server refused a [PokerSession.requestNextHand] (MP-22). Splits the one

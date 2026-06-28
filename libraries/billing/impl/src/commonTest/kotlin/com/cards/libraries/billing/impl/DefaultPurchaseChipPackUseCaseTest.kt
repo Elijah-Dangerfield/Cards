@@ -2,12 +2,16 @@ package com.dangerfield.cards.libraries.billing.impl
 
 import com.dangerfield.cards.libraries.billing.BillingClient
 import com.dangerfield.cards.libraries.billing.BillingPlatform
+import com.dangerfield.cards.libraries.billing.BillingRepository
 import com.dangerfield.cards.libraries.billing.ConnectionState
 import com.dangerfield.cards.libraries.billing.IapPurchaseOutcome
 import com.dangerfield.cards.libraries.billing.PurchaseResult
 import com.dangerfield.cards.libraries.billing.PurchaseTransaction
 import com.dangerfield.cards.libraries.billing.QueryProductsResult
+import com.dangerfield.cards.libraries.billing.RealPurchasesEnabled
+import com.dangerfield.cards.libraries.billing.RedeemOutcome
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
@@ -29,34 +33,43 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 /**
- * Pins the [DefaultPurchaseChipPackUseCase] contract — the billing round-trip
- * extracted out of ShopViewModel so the shop grid and the in-game quick-buy
- * sheet share it. Covers: success credits chips + acknowledges, already-owned
- * re-credits, cancel/failure/not-connected map to outcomes without crediting,
- * and the anonymous / no-session gates short-circuit before billing.
+ * Pins the [DefaultPurchaseChipPackUseCase] contract. Two credit paths gated by
+ * [RealPurchasesEnabled] (BILL-5):
+ *
+ *  - **off (default)** — store confirm credits chips locally + consumes;
+ *    already-owned re-credits; cancel/failure/not-connected don't credit. The
+ *    server redeem endpoint is never called.
+ *  - **on** — store confirm POSTs the receipt to redeem and reflects the
+ *    server-returned authoritative balance; a rejected receipt or unreachable
+ *    server grants nothing locally and surfaces a failure.
+ *
+ * Plus the anonymous / no-session gates short-circuit before billing in both.
  */
 class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
 
+    // ---------- real purchases OFF (local credit) ----------
+
     @Test
-    fun success_creditsChips_acknowledges_andReturnsSuccess() = runUnitTest {
+    fun off_success_creditsChipsLocally_acknowledges_andReturnsSuccess() = runUnitTest {
         val billing = FakeBillingClient(PurchaseResult.Success(TX))
         val chips = FakeChipsRepository(initial = 0)
-        val useCase = build(billing = billing, chips = chips)
+        val redeem = RecordingBillingRepository()
+        val useCase = build(billing = billing, chips = chips, redeem = redeem)
 
         val outcome = useCase(PACK)
 
         assertIs<IapPurchaseOutcome.Success>(outcome)
         assertEquals(PACK.grantsChips, outcome.grantedChips)
         assertEquals(PACK.grantsChips, chips.balanceValue, "chips credited locally")
-        assertEquals(1, billing.purchaseCalls)
-        assertEquals(1, billing.acknowledgeCalls, "successful purchase is acknowledged")
+        assertEquals(1, billing.consumeCalls, "a consumable chip pack is consumed, not just acknowledged")
+        assertEquals(0, billing.acknowledgeCalls, "consumables route through consume(), never acknowledge()")
+        assertEquals(0, redeem.redeemCalls, "server redeem is not called when real purchases are off")
     }
 
     @Test
-    fun alreadyOwned_reCreditsChips_andReturnsAlreadyOwned() = runUnitTest {
+    fun off_alreadyOwned_reCreditsChips_andReturnsAlreadyOwned() = runUnitTest {
         val chips = FakeChipsRepository(initial = 0)
         val useCase = build(billing = FakeBillingClient(PurchaseResult.AlreadyOwned(TX)), chips = chips)
 
@@ -67,7 +80,7 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
     }
 
     @Test
-    fun cancelled_doesNotCredit_andReturnsCancelled() = runUnitTest {
+    fun off_cancelled_doesNotCredit_andReturnsCancelled() = runUnitTest {
         val chips = FakeChipsRepository(initial = 0)
         val useCase = build(billing = FakeBillingClient(PurchaseResult.UserCancelled), chips = chips)
 
@@ -76,18 +89,97 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
     }
 
     @Test
-    fun notConnected_mapsToStoreUnavailable() = runUnitTest {
+    fun off_notConnected_mapsToStoreUnavailable() = runUnitTest {
         val useCase = build(billing = FakeBillingClient(PurchaseResult.NotConnected))
         assertEquals(IapPurchaseOutcome.StoreUnavailable, useCase(PACK))
     }
 
     @Test
-    fun failure_mapsToFailed() = runUnitTest {
+    fun off_failure_mapsToFailed() = runUnitTest {
         val useCase = build(billing = FakeBillingClient(PurchaseResult.Failed("boom")))
         val outcome = useCase(PACK)
         assertIs<IapPurchaseOutcome.Failed>(outcome)
         assertEquals("boom", outcome.reason)
     }
+
+    // ---------- real purchases ON (server-authoritative credit) ----------
+
+    @Test
+    fun on_success_redeemsServerSide_reflectsBalance_andDoesNotLocalCredit() = runUnitTest {
+        val chips = FakeChipsRepository(initial = 1_000)
+        val redeem = RecordingBillingRepository(
+            outcome = RedeemOutcome.Granted(balance = 31_000, grantedChips = 30_000, alreadyRedeemed = false),
+        )
+        val billing = FakeBillingClient(PurchaseResult.Success(APPLE_TX))
+        val useCase = build(billing = billing, chips = chips, redeem = redeem, realPurchases = true)
+
+        val outcome = useCase(PACK)
+
+        assertIs<IapPurchaseOutcome.Success>(outcome)
+        assertEquals(30_000, outcome.grantedChips, "granted amount comes from the server")
+        assertEquals(31_000, chips.balanceValue, "client reflects the server's authoritative balance")
+        assertEquals(0, chips.addChipsCalls, "no optimistic local credit on the real path")
+        assertEquals(1, redeem.redeemCalls)
+        assertEquals(1, billing.consumeCalls, "the consumable is consumed after a server-authoritative grant")
+        assertEquals(
+            PACK.id,
+            redeem.lastProductId,
+            "redeem must post the catalog product id (chip_pack_medium), not the platform store " +
+                "SKU (chips_medium) — the server resolves grantsChips by catalog id, so sending the " +
+                "SKU 400s and the paying user gets nothing",
+        )
+    }
+
+    @Test
+    fun on_alreadyRedeemed_surfacesAlreadyOwned_toSuppressCelebration() = runUnitTest {
+        val chips = FakeChipsRepository(initial = 31_000)
+        val redeem = RecordingBillingRepository(
+            outcome = RedeemOutcome.Granted(balance = 31_000, grantedChips = 30_000, alreadyRedeemed = true),
+        )
+        val useCase = build(
+            billing = FakeBillingClient(PurchaseResult.Success(APPLE_TX)),
+            chips = chips,
+            redeem = redeem,
+            realPurchases = true,
+        )
+
+        val outcome = useCase(PACK)
+
+        assertIs<IapPurchaseOutcome.AlreadyOwned>(outcome)
+        assertEquals(31_000, chips.balanceValue)
+    }
+
+    @Test
+    fun on_rejectedReceipt_grantsNothing_andReturnsFailed() = runUnitTest {
+        val chips = FakeChipsRepository(initial = 1_000)
+        val redeem = RecordingBillingRepository(outcome = RedeemOutcome.Rejected)
+        val billing = FakeBillingClient(PurchaseResult.Success(APPLE_TX))
+        val useCase = build(billing = billing, chips = chips, redeem = redeem, realPurchases = true)
+
+        val outcome = useCase(PACK)
+
+        assertIs<IapPurchaseOutcome.Failed>(outcome)
+        assertEquals(1_000, chips.balanceValue, "a forged/rejected receipt mints no chips")
+        assertEquals(0, chips.addChipsCalls)
+        assertEquals(0, billing.consumeCalls, "nothing to consume on a rejected receipt")
+    }
+
+    @Test
+    fun on_unreachableServer_grantsNothing_andReturnsFailed() = runUnitTest {
+        val chips = FakeChipsRepository(initial = 1_000)
+        val redeem = RecordingBillingRepository(outcome = RedeemOutcome.Unavailable)
+        val useCase = build(
+            billing = FakeBillingClient(PurchaseResult.Success(APPLE_TX)),
+            chips = chips,
+            redeem = redeem,
+            realPurchases = true,
+        )
+
+        assertIs<IapPurchaseOutcome.Failed>(useCase(PACK))
+        assertEquals(1_000, chips.balanceValue, "an unreachable redeem leaves the purchase uncredited")
+    }
+
+    // ---------- auth gates (path-independent) ----------
 
     @Test
     fun anonymousUser_returnsClaimAccountRequired_withoutTouchingBilling() = runUnitTest {
@@ -117,19 +209,45 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
     private fun build(
         billing: BillingClient = FakeBillingClient(PurchaseResult.Success(TX)),
         chips: FakeChipsRepository = FakeChipsRepository(),
+        redeem: BillingRepository = RecordingBillingRepository(),
+        realPurchases: Boolean = false,
         auth: AuthRepository = FakeAuthRepository(
             AuthState.Authenticated(userId = USER_ID, isAnonymous = false, email = null),
         ),
     ) = DefaultPurchaseChipPackUseCase(
         billingClient = billing,
+        billingRepository = redeem,
         chipsRepository = chips,
         authRepository = auth,
+        realPurchasesEnabled = RealPurchasesEnabled(FakeAppConfigMap(realPurchases)),
     )
+
+    private class FakeAppConfigMap(realPurchasesEnabled: Boolean) : AppConfigMap() {
+        override val map: Map<String, *> =
+            mapOf("billing" to mapOf("realPurchasesEnabled" to realPurchasesEnabled))
+    }
+
+    private class RecordingBillingRepository(
+        private val outcome: RedeemOutcome =
+            RedeemOutcome.Granted(balance = 0, grantedChips = 0, alreadyRedeemed = false),
+    ) : BillingRepository {
+        var redeemCalls = 0
+            private set
+        var lastProductId: String? = null
+            private set
+        override suspend fun redeem(catalogProductId: String, transaction: PurchaseTransaction): RedeemOutcome {
+            redeemCalls += 1
+            lastProductId = catalogProductId
+            return outcome
+        }
+    }
 
     private class FakeBillingClient(private val result: PurchaseResult) : BillingClient {
         var purchaseCalls = 0
             private set
         var acknowledgeCalls = 0
+            private set
+        var consumeCalls = 0
             private set
         private val _connectionState = MutableStateFlow(ConnectionState.Connected)
         override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
@@ -144,15 +262,22 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
             acknowledgeCalls += 1
             return true
         }
+        override suspend fun consume(purchaseToken: String): Boolean {
+            consumeCalls += 1
+            return true
+        }
     }
 
     private class FakeChipsRepository(initial: Long? = 0L) : ChipsRepository {
         private val balance = MutableStateFlow(initial)
         val balanceValue: Long? get() = balance.value
+        var addChipsCalls = 0
+            private set
         override val walletJustCreated: StateFlow<Boolean> = MutableStateFlow(false)
         override fun observeBalance(): Flow<Long?> = balance.asStateFlow()
         override suspend fun getBalance(): Long? = balance.value
         override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {
+            addChipsCalls += 1
             balance.value = (balance.value ?: 0L) + amount
         }
         override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) {
@@ -198,5 +323,6 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
             purchasedAtEpochMs = 0L,
             displayPrice = "$4.99",
         )
+        val APPLE_TX = TX.copy(platform = BillingPlatform.Apple)
     }
 }

@@ -1,6 +1,9 @@
 package com.dangerfield.cards.features.lobby.impl
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.EquipmentRepository
+import com.dangerfield.cards.libraries.cards.equippedTableCosmetics
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -18,6 +21,7 @@ import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.Room
+import com.dangerfield.cards.libraries.rooms.mergeStakesFrom
 import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
@@ -59,6 +63,7 @@ class LobbyViewModel(
     private val rooms: RoomRepository,
     private val auth: AuthRepository,
     private val profile: ProfileRepository,
+    private val equipment: EquipmentRepository,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<LobbyState, LobbyEvent, LobbyAction>(
     initialStateArg = LobbyState(codeInput = prefilledCode?.uppercase().orEmpty()),
@@ -121,7 +126,21 @@ class LobbyViewModel(
                 val current = state
                 if (current.isBusy) return@run
                 updateState { it.copy(creating = true, error = null) }
-                when (val outcome = rooms.createRoom(maxSeats = maxSeats, buyIn = buyIn, open = open)) {
+                // SHOP-3: pin the host's equipped felt + card back onto the room so
+                // every player sees the host's table look. Best-effort — a read
+                // failure falls back to no override (each player's own cosmetic),
+                // never blocks room creation.
+                val cosmetics = Catching { equippedTableCosmetics(equipment.observeEquipped().first()) }
+                    .getOrNull()
+                when (
+                    val outcome = rooms.createRoom(
+                        maxSeats = maxSeats,
+                        buyIn = buyIn,
+                        open = open,
+                        feltProductId = cosmetics?.feltProductId,
+                        cardBackProductId = cosmetics?.cardBackProductId,
+                    )
+                ) {
                     is CreateRoomOutcome.Success -> startConnection(outcome.room)
                     is CreateRoomOutcome.InvalidMaxSeats -> updateState {
                         it.copy(creating = false, error = LobbyError.CreateInvalidMaxSeats(outcome.message))
@@ -244,7 +263,13 @@ class LobbyViewModel(
                     when (val conn = action.connection) {
                         RoomConnection.Connecting -> it.copy(connectionStatus = ConnectionStatus.Connecting)
                         is RoomConnection.Connected -> it.copy(
-                            room = conn.room,
+                            // A lobby presence snapshot carries the converged
+                            // member list but may report buyIn = 0; merging
+                            // keeps that live member list while pinning the
+                            // stakes to the real value the HTTP join/create
+                            // response staged, so a joiner never sees a $0
+                            // buy-in (MP-24).
+                            room = conn.room.mergeStakesFrom(it.room),
                             connectionStatus = ConnectionStatus.Connected,
                             creating = false,
                             joining = false,
@@ -284,6 +309,17 @@ class LobbyViewModel(
                             // screen; if it ever reaches the lobby's socket the room
                             // is gone, so treat it like RoomDeleted.
                             is ClosedReason.MatchOver -> it.copy(
+                                room = null,
+                                connectionStatus = ConnectionStatus.Disconnected,
+                                error = LobbyError.RoomWasClosed,
+                                creating = false,
+                                joining = false,
+                                leaving = false,
+                            )
+                            // A frame this client can't parse (ENG-7): the room is
+                            // unusable for this build, so close it out like the
+                            // room being gone rather than spinning on a dead lobby.
+                            ClosedReason.IncompatibleVersion -> it.copy(
                                 room = null,
                                 connectionStatus = ConnectionStatus.Disconnected,
                                 error = LobbyError.RoomWasClosed,

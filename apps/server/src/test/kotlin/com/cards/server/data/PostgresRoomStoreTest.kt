@@ -48,6 +48,8 @@ class PostgresRoomStoreTest : DatabaseTest() {
             maxSeats = 6,
             status = RoomStatus.Lobby,
             buyIn = 500,
+            feltProductId = "felt_royal_red",
+            cardBackProductId = "cardback_gold",
             members = listOf(
                 RoomMember(
                     userId = host,
@@ -80,6 +82,9 @@ class PostgresRoomStoreTest : DatabaseTest() {
         assertEquals(RoomStatus.Lobby, loaded.status)
         assertEquals(500, loaded.buyIn)
         assertEquals(6, loaded.maxSeats)
+        // SHOP-3: host table cosmetics survive the restart so the table look is stable.
+        assertEquals("felt_royal_red", loaded.feltProductId)
+        assertEquals("cardback_gold", loaded.cardBackProductId)
         assertEquals(2, loaded.members.size)
         val botSeat = loaded.members.first { it.seatIndex == 1 }
         assertTrue(botSeat.isBot, "the bot seat round-trips as a bot")

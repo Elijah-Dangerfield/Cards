@@ -557,6 +557,52 @@ class ReconnectingRoomSocketTest : CoroutineTest() {
     }
 
     @Test
+    fun undeserializableFrame_emits_Closed_IncompatibleVersion_andStopsLoop() = runUnitTest {
+        // ENG-7 / CARDS-4S: a game frame the client genuinely can't parse (a
+        // required field gone — a breaking shape change that slipped past the
+        // additive-only convention) must close the room as IncompatibleVersion,
+        // not silently drop the frame and leave the table frozen. The screen maps
+        // this reason to an "update may help" message + a safe exit.
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        val session = transport.primeSuccess()
+
+        socket.connect("ABC123").connection.test {
+            assertEquals(RoomConnection.Connecting, awaitItem())
+            // Known discriminator, but the required `state` field is absent →
+            // MissingFieldException (a SerializationException), the genuine
+            // can't-parse case (not an unknown type we'd safely ignore).
+            session.receive("""{"type":"game_state"}""")
+            val closed = assertIs<RoomConnection.Closed>(awaitItem())
+            assertEquals(ClosedReason.IncompatibleVersion, closed.reason)
+            advanceTimeBy(60_000)
+            runCurrent()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, transport.openCalls, "loop must not reopen after an incompatible frame")
+    }
+
+    @Test
+    fun unknownFrameType_isDropped_notTreatedAsIncompatible() = runUnitTest {
+        // A frame with a discriminator this client doesn't know is an additive
+        // server change — safe to ignore. It must NOT close the room (that's the
+        // breaking-change path above); the session keeps running.
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        val session = transport.primeSuccess()
+
+        socket.connect("ABC123").connection.test {
+            assertEquals(RoomConnection.Connecting, awaitItem())
+            session.receive("""{"type":"some_future_frame","payload":1}""")
+            session.receive(RoomSocketEventDto.Snapshot(sampleRoomDto("ABC123")))
+            // The next real frame still lands — the unknown one was dropped, not
+            // terminal.
+            assertIs<RoomConnection.Connected>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun cleanDrop_withoutRoomClosed_emitsReconnecting_andReopens() = runUnitTest {
         val transport = FakeRoomSocketTransport()
         val socket = newSocket(transport)

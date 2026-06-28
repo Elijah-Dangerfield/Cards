@@ -68,11 +68,14 @@ interface BillingClient {
      * user finishes interacting with the store sheet (success, cancel,
      * already-owned, etc.).
      *
-     * [userId] is forwarded to the store as an "obfuscated account id"
-     * so a server-side receipt validation pass can pin the purchase to
-     * the right player. The store doesn't echo this back in the receipt
-     * payload — server validation looks it up from the receipt's
-     * orderId via the platform's purchase-state API.
+     * [userId] is forwarded to the store as an account token (StoreKit
+     * `appAccountToken` / Play `setObfuscatedAccountId`) so a server-side
+     * receipt validation pass can pin the purchase to the right player. The
+     * store echoes this token back in the verified receipt — the StoreKit 2
+     * transaction's `appAccountToken` and the Play purchase's
+     * `obfuscatedExternalAccountId` — and server validation requires it to
+     * equal the authenticated caller. Pinning to the order id instead would
+     * let one user redeem another's receipt.
      */
     suspend fun purchase(sku: String, userId: String): PurchaseResult
 
@@ -81,8 +84,32 @@ interface BillingClient {
      * purchases are auto-refunded by the Play Store after 3 days — call
      * this once the server has granted the chips on its side. iOS has
      * no equivalent timer; the call is a no-op on that platform.
+     *
+     * Use this only for **non-consumable / durable** entitlements. Chip
+     * packs are consumables — call [consume] instead, which acknowledges
+     * *and* clears the entitlement so the same pack can be bought again.
      */
     suspend fun acknowledge(purchaseToken: String): Boolean
+
+    /**
+     * Consume a finished **consumable** purchase so the user can buy the
+     * same SKU again. Chip packs are consumables: without this, Play
+     * reports the SKU as already-owned on the next purchase attempt and a
+     * re-buy is impossible.
+     *
+     * Platform mapping:
+     *  - **Android:** `BillingClient.consumeAsync(purchaseToken)`. This
+     *    both acknowledges the purchase (satisfying the 3-day auto-refund
+     *    timer) and consumes it, so a separate [acknowledge] is redundant.
+     *  - **iOS:** StoreKit auto-finishing for consumables happens via
+     *    `transaction.finish()`; this call routes there. The
+     *    [purchaseToken] doubles as the StoreKit transaction id.
+     *
+     * Call this only after the server has granted the chips, so a crash
+     * between grant and consume re-grants idempotently rather than
+     * dropping a paid purchase.
+     */
+    suspend fun consume(purchaseToken: String): Boolean
 }
 
 enum class ConnectionState {

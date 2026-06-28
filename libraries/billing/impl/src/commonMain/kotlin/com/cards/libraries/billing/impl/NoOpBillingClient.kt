@@ -41,4 +41,6 @@ class NoOpBillingClient : BillingClient {
         PurchaseResult.NotConnected
 
     override suspend fun acknowledge(purchaseToken: String): Boolean = false
+
+    override suspend fun consume(purchaseToken: String): Boolean = false
 }
