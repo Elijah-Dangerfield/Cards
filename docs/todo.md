@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-27 (feedback triage) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-27 (feedback triage, round 3) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -32,11 +32,31 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ---
 
+## C. Gameplay & table UX
+
+- `[P1]` **GAME-8 — Game speed setting strips deal/reveal animations in real (bots-for-chips) MP games.** A tester in a real public room against bots reported "no animations all the sudden … the cards aren't flipping over," and intuited the speed scaling should be practice-only. GAME-6's unified "Game speed" (`GameSpeed.animationScale` + `botThinkScale`, via `LocalTableTempo`) is a single global setting, so a Fast/Instant choice made for solo practice now suppresses deals/reveals in a real-chip game too.
+  **Acceptance:** a real-chip MP game keeps visible deal + card-flip/reveal animations regardless of the global Game speed setting (or the setting is scoped so it can't strip reveals in a non-practice game) — make the directional call and ship a slice. A failing-then-passing test asserts the table's effective animation scale in a real MP game isn't driven to instant by the solo speed preference.
+  **Hints:** trace where the play surface reads `LocalTableTempo` / `GameSpeed.animationScale` (`features/room/impl/.../ui/TableTempo.kt`, `PlayPokerViewModel`) and whether MP reads the same composition local as solo. Case `docs/agent/feedback-cases/530b16e41ac545c5928d6562d1d7b144.md`, Sentry [CARDS-5H](https://elijah-dangerfield.sentry.io/issues/CARDS-5H).
+
+---
+
 ## D. Multiplayer hardening
+
+- `[P1]` **MP-25 — MP showdown is never shown; a multiway-river hand jumps Complete → next hand with no reveal.** A tester reported "the last hand ended and I didn't see a showdown." For a hand that reaches the river multiway (no fold-to-one-winner), the client advanced River → `street=Complete` → the next hand's Preflop (~4s later) with no opponent hole-card reveal / winning-hand step. Server-side, fold-ended hands log "Hand N finished" but the multiway river hand (room BY6HUV hand 4) has no such line, so the normal end-of-hand/showdown path didn't run.
+  **Acceptance:** an MP hand that reaches showdown surfaces the opponents' revealed hole cards + winner before the next hand deals; the table holds on Complete long enough to render it. Failing-then-passing scenario test: drive a multiway hand to a showdown and assert the showdown reveal state is emitted to the play screen.
+  **Hints:** compare the fold-to-one path (clean `PotAwarded` + `HandEnded`) against the showdown path in `RemotePokerSession`/`PlayPokerViewModel` and the server's `GameSession` end-of-hand; pull `{service_name="cards-server"} | room_code="BY6HUV"` around 2026-06-27T22:09:57Z. Case `docs/agent/feedback-cases/5f501218109f4391b4997f4abd75c4ce.md`, Sentry [CARDS-5F](https://elijah-dangerfield.sentry.io/issues/CARDS-5F).
 
 - `[P1]` **MP-24 — Lobby buy-in still renders 0 for a joiner (MP-16 reopen, post-#74).** MP-16's $0-buy-in fix (PR #74: `Room.preferRealOver` / `isPlaceholder`) guards the host's create + socket-rebound staging, but a joiner who enters via PrivateJoin still sees the lobby buy-in render as 0 on a post-#74 build. The room's real buy-in was applied server-side (stacks debited); only the joiner's lobby snapshot shows 0.
   **Acceptance:** joining a real-buy-in room never shows a $0 lobby buy-in; a failing-then-passing test joins a room with a non-zero buy-in and asserts the lobby value is the real buy-in, not a placeholder. The fix must NOT break lobby presence convergence (see the regression note below).
   **Hints:** A first attempt (reverted, was commit 8df4dbbf) applied `conn.room.preferRealOver(it.room)` in `LobbyViewModel.ConnectionUpdated` and broke 11 `:apps:integration` presence tests (`SetupJourneyTest`, `LobbyLifecycleTest`, `FriendsGameHappyPathTest`): the server emits legitimate lobby presence snapshots carrying `buyIn = 0` with the full converged member list, so `isPlaceholder (buyIn <= 0)` is NOT a reliable placeholder signal on the lobby-snapshot path — guarding there drops the real "everyone connected" snapshot and the lobby never converges. Any real fix must distinguish a genuine early/rebound placeholder from a normal presence snapshot by something other than `buyIn == 0` (e.g. only guard the joiner's pre-socket staged seed, or carry an explicit "hydrated" flag), and must keep `:apps:integration:testDebugUnitTest` green. Case `docs/agent/feedback-cases/ee5bfb6407cb421592a7e501eab916b5.md`, Sentry [CARDS-55](https://elijah-dangerfield.sentry.io/issues/CARDS-55).
+
+---
+
+## E. Rooms UI
+
+- `[P2]` **ROOM-5 — Rejected private-join (bad code) fires a navigation/recompose flicker instead of an in-place error.** A tester typing a wrong room code reported it "looks like a navigation event" rather than an error just popping up in place. The server correctly 404s the unknown code, but each `JoinCodeRejected` is immediately followed by a `DelegatingRouter: Enqueuing navigation: batch`, so the PrivateJoin screen visibly moves/recomposes on reject.
+  **Acceptance:** entering a bad code on PrivateJoin surfaces the "room not found" error in place with no route/navigation batch and no screen movement; the input + keyboard stay put. Test asserts a rejected join doesn't enqueue a navigation on the PrivateJoin route.
+  **Hints:** find the `JoinCodeRejected` handler / PrivateJoin route wiring that enqueues the `DelegatingRouter` batch on reject (room feature); the earlier room-not-found UX work (CARDS-28/29) kept the user on-screen but left this navigation batch. Case `docs/agent/feedback-cases/ce29450daeef4630b599fecc29d1486b.md`, Sentry [CARDS-5N](https://elijah-dangerfield.sentry.io/issues/CARDS-5N).
 
 ---
 

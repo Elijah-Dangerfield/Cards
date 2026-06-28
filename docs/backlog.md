@@ -764,6 +764,19 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 
 **Status:** Backlog. Enhancement, not a defect — the underlying stale-balance bug (MP-21) is already fixed. Captured from feedback case `docs/agent/feedback-cases/8d2185b9834542e9abc2be52afdded2d.md`.
 
+## Full session/game recap on leave (hands played, net won/lost, opponents) + cache to stats
+
+**Idea (raised 2026-06-27):** A tester (SteadyEight23, Sentry CARDS-5M) asked for a recap "every game left with the result — amount won or lost, hands played, people played with, maybe even hands the player had," to remove ambiguity about where their money went. This is the broad version of two narrower items already in flight: ROOM-4 (show net win/loss + chips forfeited in the leave-confirm dialog) and "Surface MP winnings on leave (toast or result dialog)" above. Ship those first; this is the superset.
+
+**Sketch directions when revisiting:**
+- A leave-time recap surface: hands played this session, buy-in, net won/lost, opponents faced — sourced from the per-game data the table already tracks, not recomputed client-side.
+- Cache a per-session/per-game record so the stats page can show recent-game history (pairs with the "more stats metrics — Best Hands / Biggest Pots" backlog item).
+- Keep the leave-confirm dialog itself a short recap (ROOM-4 slice); push the richer breakdown to a dedicated recap/stats surface.
+
+**Tradeoff:** Real product/feature work (new surface + a cached game-result record), not a bug. Sits on top of ROOM-4 and the MP-winnings-on-leave toast.
+
+**Status:** Backlog. Feature/owner directive. Captured from feedback case `docs/agent/feedback-cases/bb4c51d9d27844b7a5cdce100dddf2d2.md`, Sentry [CARDS-5K](https://elijah-dangerfield.sentry.io/issues/CARDS-5K).
+
 ## Scale chip-stack and pot count-up animations with the Game speed setting
 
 **Idea (raised 2026-06-26):** GAME-6 added a speed preference (Normal / Fast / Instant) that scales the play-screen card-deal and reveal animations via `LocalTableTempo` (`features/room/impl/.../ui/TableTempo.kt`). (Later unified into a single "Game speed" setting that also paces bot think time — the old separate "Bot speed" / "Table speed" pickers were merged, and `GameSpeed` now carries both `animationScale` and `botThinkScale`.) The tester's request named the deal, *chip*, and reveal animations; the deal + reveal are done, but the chip-stack odometer roll (`ChipCoinAmount(animated = true)` → `AnimatedNumberText`) and the pot pill still animate at their fixed pace regardless of the setting.
