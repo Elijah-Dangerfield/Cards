@@ -30,3 +30,11 @@ _No open engineering items. (AUTH-9 — the Google browser-OAuth redesign to sus
 
 _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ideas in [backlog.md](./backlog.md)._
 
+---
+
+## C. Engineering & tooling
+
+- `[P2]` **ENG-8 — Wiretap captures the gameplay WebSocket.** Wiretap (the shake-to-open network inspector in `:libraries:networking:impl`) only captures HTTP traffic today; the multiplayer gameplay WebSocket — where the hardest MP bugs live — is invisible in the inspector. Hook Wiretap into the gameplay socket so sent/received frames are captured and browsable alongside HTTP calls. *(proposed 2026-06-28)*
+  **Acceptance:** opening Wiretap during an MP game shows the gameplay WS connection with its inbound/outbound frames, plus connect / close / error events.
+  **Hints:** the room gameplay socket client (`RemotePokerSessionFactory` consumes its `gameplayFrames`); Wiretap's interception lives in `:libraries:networking:impl` next to the HTTP capture. Mind the iOS noop/release split (`cards.wiretap.ios`).
+
