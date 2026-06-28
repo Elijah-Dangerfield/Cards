@@ -38,7 +38,7 @@ import kotlin.test.assertIs
  * Pins the [DefaultPurchaseChipPackUseCase] contract. Two credit paths gated by
  * [RealPurchasesEnabled] (BILL-5):
  *
- *  - **off (default)** — store confirm credits chips locally + acknowledges;
+ *  - **off (default)** — store confirm credits chips locally + consumes;
  *    already-owned re-credits; cancel/failure/not-connected don't credit. The
  *    server redeem endpoint is never called.
  *  - **on** — store confirm POSTs the receipt to redeem and reflects the
@@ -63,7 +63,8 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         assertIs<IapPurchaseOutcome.Success>(outcome)
         assertEquals(PACK.grantsChips, outcome.grantedChips)
         assertEquals(PACK.grantsChips, chips.balanceValue, "chips credited locally")
-        assertEquals(1, billing.acknowledgeCalls, "successful purchase is acknowledged")
+        assertEquals(1, billing.consumeCalls, "a consumable chip pack is consumed, not just acknowledged")
+        assertEquals(0, billing.acknowledgeCalls, "consumables route through consume(), never acknowledge()")
         assertEquals(0, redeem.redeemCalls, "server redeem is not called when real purchases are off")
     }
 
@@ -119,7 +120,7 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         assertEquals(31_000, chips.balanceValue, "client reflects the server's authoritative balance")
         assertEquals(0, chips.addChipsCalls, "no optimistic local credit on the real path")
         assertEquals(1, redeem.redeemCalls)
-        assertEquals(1, billing.acknowledgeCalls)
+        assertEquals(1, billing.consumeCalls, "the consumable is consumed after a server-authoritative grant")
         assertEquals(
             PACK.id,
             redeem.lastProductId,
@@ -160,7 +161,7 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         assertIs<IapPurchaseOutcome.Failed>(outcome)
         assertEquals(1_000, chips.balanceValue, "a forged/rejected receipt mints no chips")
         assertEquals(0, chips.addChipsCalls)
-        assertEquals(0, billing.acknowledgeCalls, "nothing to acknowledge on a rejected receipt")
+        assertEquals(0, billing.consumeCalls, "nothing to consume on a rejected receipt")
     }
 
     @Test
@@ -246,6 +247,8 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
             private set
         var acknowledgeCalls = 0
             private set
+        var consumeCalls = 0
+            private set
         private val _connectionState = MutableStateFlow(ConnectionState.Connected)
         override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
         override suspend fun connect(): ConnectionState = ConnectionState.Connected
@@ -257,6 +260,10 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         }
         override suspend fun acknowledge(purchaseToken: String): Boolean {
             acknowledgeCalls += 1
+            return true
+        }
+        override suspend fun consume(purchaseToken: String): Boolean {
+            consumeCalls += 1
             return true
         }
     }

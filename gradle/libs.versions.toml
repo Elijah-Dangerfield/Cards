@@ -162,6 +162,7 @@ supabase-auth = { module = "io.github.jan-tennert.supabase:auth-kt", version.ref
 
 google-play-review = { module = "com.google.android.play:review", version = "2.0.2" }
 google-play-review-ktx = { module = "com.google.android.play:review-ktx", version = "2.0.2" }
+google-play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version = "7.1.1" }
 
 
 androidx-datastore-core = { module = "androidx.datastore:datastore", version.ref = "datastore" }

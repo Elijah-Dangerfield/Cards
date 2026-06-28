@@ -84,8 +84,32 @@ interface BillingClient {
      * purchases are auto-refunded by the Play Store after 3 days — call
      * this once the server has granted the chips on its side. iOS has
      * no equivalent timer; the call is a no-op on that platform.
+     *
+     * Use this only for **non-consumable / durable** entitlements. Chip
+     * packs are consumables — call [consume] instead, which acknowledges
+     * *and* clears the entitlement so the same pack can be bought again.
      */
     suspend fun acknowledge(purchaseToken: String): Boolean
+
+    /**
+     * Consume a finished **consumable** purchase so the user can buy the
+     * same SKU again. Chip packs are consumables: without this, Play
+     * reports the SKU as already-owned on the next purchase attempt and a
+     * re-buy is impossible.
+     *
+     * Platform mapping:
+     *  - **Android:** `BillingClient.consumeAsync(purchaseToken)`. This
+     *    both acknowledges the purchase (satisfying the 3-day auto-refund
+     *    timer) and consumes it, so a separate [acknowledge] is redundant.
+     *  - **iOS:** StoreKit auto-finishing for consumables happens via
+     *    `transaction.finish()`; this call routes there. The
+     *    [purchaseToken] doubles as the StoreKit transaction id.
+     *
+     * Call this only after the server has granted the chips, so a crash
+     * between grant and consume re-grants idempotently rather than
+     * dropping a paid purchase.
+     */
+    suspend fun consume(purchaseToken: String): Boolean
 }
 
 enum class ConnectionState {

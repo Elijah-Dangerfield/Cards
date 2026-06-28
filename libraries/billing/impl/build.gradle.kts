@@ -29,6 +29,13 @@ kotlin {
             implementation(libs.ktor.client.contentNegotiation)
             implementation(libs.kotlinx.serialization.json)
         }
+        androidMain.dependencies {
+            // PlayBillingClient drives Play Billing for real Android IAP. The
+            // foreground Activity (for launchBillingFlow) comes from the
+            // host-app ActivityProvider in :libraries:cards (already a
+            // commonMain dep above).
+            implementation(libs.google.play.billing.ktx)
+        }
         commonTest.dependencies {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.libraries.billing)

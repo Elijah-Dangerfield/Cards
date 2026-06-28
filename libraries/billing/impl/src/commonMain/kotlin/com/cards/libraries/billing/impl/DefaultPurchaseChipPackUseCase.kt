@@ -75,7 +75,7 @@ class DefaultPurchaseChipPackUseCase(
             return when (val redeem = billingRepository.redeem(pack.id, transaction)) {
                 is RedeemOutcome.Granted -> {
                     chipsRepository.setBalance(redeem.balance)
-                    billingClient.acknowledge(transaction.purchaseToken)
+                    billingClient.consume(transaction.purchaseToken)
                     logger.i {
                         "Redeemed ${redeem.grantedChips} chips for order ${transaction.orderId} " +
                             "(alreadyRedeemed=${redeem.alreadyRedeemed})"
@@ -94,7 +94,7 @@ class DefaultPurchaseChipPackUseCase(
         }
 
         creditChipsLocally(pack, transaction)
-        billingClient.acknowledge(transaction.purchaseToken)
+        billingClient.consume(transaction.purchaseToken)
         return outcome(pack.grantsChips, alreadyOwned = alreadyOwned)
     }
 
