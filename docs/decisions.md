@@ -817,3 +817,26 @@ This makes Supabase feel like "managed Postgres + hosted auth" rather than "all-
 **Test-first:** Reproduced red before fixing. The fake gateway had masked the bug by stubbing `onHydrateCurrentUser` to perform the claim; the link tests now model device reality — `onRefreshSession` performs the claim, hydrate-only leaves the user anonymous — and a new regression test (`linkOAuthIdentity_redirect_refreshesSession_evenWhenHydrateAloneLeavesAnonymous`) pins it. With the old `hydrateCurrentUser()` line, 3 tests fail; with `refreshSession()`, all pass.
 
 **Status:** Shipped (client). `:libraries:identity:impl` `compileDebugKotlinAndroid` + full `testDebugUnitTest` green. Not yet re-verified on a device against the live Supabase Google provider.
+
+## 2026-06-28 — MP per-hand opt-in: push back; adopt between-hands sit-out instead (MP-28)
+
+**Owner proposal (2026-06-28, push-back explicitly invited):** Today an MP hand continues no matter what a player does, and a player who wants to leave is guaranteed to forfeit a posted blind. Proposal: require each player to opt in to each hand (or be auto-sat-out / booted) so leaving between hands is clean.
+
+**Decision: push back on mandatory per-hand opt-in; adopt a between-hands sit-out / clean-leave instead.**
+
+The grievance is real and worth fixing, but the proposed mechanism (an explicit "I'm in" confirmation before every hand) is the wrong shape for a casual freemium poker app:
+
+- **It taxes the 99% case to fix the 1% case.** The vast majority of the time a seated player wants to keep playing. A mandatory gate before every hand adds a tap (and a timeout-to-boot risk) to every continuing player to spare the occasional leaver one blind. Real-money and play-money poker clients don't re-confirm each hand; they let you queue a *sit out* or *leave after this hand* that lands at the hand boundary. That is the established, lower-friction pattern players already expect.
+- **The codebase already has the primitive for the better fix.** `SeatStatus.SittingOut` exists in the gameplay enum (`libraries/gameplay/.../Seat.kt`) and `GameEngine.startHand()` already honors it — only `seatStatus == Active && stack > 0` seats are dealt in and posted blinds. It is currently never *produced* (every seat is hardcoded `Active` at `GameSession.startHandLocked`), so the engine half of a sit-out is already built and untested-against.
+- **Most of the owner's concern is already handled.** A player who leaves is removed from the *next* hand today (`GameSession.removePlayer`, called from the leave flow), so they are never auto-posted a *future* blind. The only blind anyone forfeits is one **already posted in the live hand** when they leave mid-hand (`forfeitSeat` folds them; chips already in the pot are gone, which is correct poker). So the narrow, real gap is: *a player has no way to signal "deal me out of the next hand" or "leave at the hand boundary" — their only between-hands exits are leave-now or bust.*
+
+**Recommended implementation (the slice the owner should greenlight, deferred pending this direction call):** a server-authoritative **between-hands sit-out**, built on the existing `SeatStatus.SittingOut`:
+
+1. New `ClientFrame.SitOutNextHand` / `ReturnToPlay` (the room socket already carries `StartHand` / `RequestNextHand` / `Rebuy` / `SendEmoji`, so this is one more frame, not new transport).
+2. `GameSession` tracks a per-player "sitting out" set; `requestNextHand`'s occupant rebuild stamps those seats `SeatStatus.SittingOut` instead of `Active`, so the engine skips them for the deal **and** the blinds with zero engine change.
+3. A queued **leave-at-boundary**: a "leave after this hand" intent that fires the existing `removePlayer` + a clean exit at the next boundary rather than a mid-hand `forfeitSeat`, so a player who decides to go during a hand isn't auto-posted into the *next* one either (this is the ROOM-4-secondary backlog item — they converge).
+4. Client: a "Sit out next hand" affordance on the hand-result / between-hands surface (`HandResultDialogs`), and a `SeatView.isSittingOut` flag so other players see the away state.
+
+**Why this is filed as a decision, not a shipped feature:** the owner reserved the *direction* for their own review ("if you push back I want it mentioned in the PR description"), and the UX shape (where the sit-out control lives, whether there's an auto-sit-out-on-timeout, whether a long sit-out auto-boots) is exactly the contested surface. Building the full frame + session state + client UI before that call lands risks a large multi-module change the owner waves off. The decision and the recommended path are the deliverable; the build is greenlit-and-go once the direction is accepted.
+
+**Status:** Decision documented; push-back surfaced for the PR description per the owner directive. No code change. Recommended implementation deferred to a follow-up once direction is confirmed — tracked via the ROOM-4-secondary backlog item (they share the hand-boundary machinery).

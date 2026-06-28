@@ -27,11 +27,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 ## B. Auth & onboarding
 
 _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ideas in [backlog.md](./backlog.md). (AUTH-9 — Google browser-OAuth redesign — shipped 2026-06-27, see [decisions.md](./decisions.md).)_
-
----
-
-## D. Multiplayer hardening
-
-- `[P2]` **MP-28 — Evaluate per-hand opt-in for multiplayer tables.** Owner proposal: right now an MP hand continues no matter what you do, and a player who wants to leave is guaranteed to forfeit a posted blind. Consider requiring each player to opt in to each hand (or be auto-sat-out / booted) so leaving between hands is clean. Owner explicitly invited push-back — "if you push back I want it mentioned in the PR description." *(owner directive, 2026-06-28)*
-  **Acceptance:** a design decision is made and documented (in the PR description if pushing back); if adopted, players opt in per hand and can leave between hands without forfeiting an unwanted blind.
-  **Hints:** overlaps the existing sit-out / auto-fold machinery and the ROOM-4-secondary backlog item (leave before next blinds post). Pairs with MP-26's hand-boundary handling. Sentry CARDS-5X.
