@@ -28,6 +28,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class LobbyFeatureEntryPoint(
     private val viewModelFactory: (prefilledCode: String?, autoCreate: Boolean, maxSeats: Int?, buyIn: Long?, open: Boolean) -> LobbyViewModel,
+    private val privateJoinViewModelFactory: (rejectedCode: String?) -> PrivateJoinViewModel,
     private val chipsRepository: ChipsRepository,
 ) : FeatureEntryPoint {
 
@@ -51,15 +52,30 @@ class LobbyFeatureEntryPoint(
         }
         screen<PrivateJoinRoute> { backStackEntry ->
             val joinRoute = backStackEntry.toRoute<PrivateJoinRoute>()
-            PrivateJoinScreen(
-                rejectedCode = joinRoute.rejectedCode,
-                onBack = { router.goBack() },
-                onJoin = { code ->
-                    router.batch {
-                        popBackTo(PrivateJoinRoute::class, inclusive = true)
-                        navigate(LobbyRoute(prefilledCode = code))
+            val viewModel: PrivateJoinViewModel = viewModel {
+                privateJoinViewModelFactory(joinRoute.rejectedCode)
+            }
+            val state by viewModel.stateFlow.collectAsStateWithLifecycle()
+
+            // The code is validated in place (the VM attempts the join), so the
+            // only navigation off this screen is a confirmed-good code handing
+            // off to the seated lobby. A bad code stays put with an inline error
+            // (ROOM-5) — no route batch, no screen movement.
+            LaunchedEffect(viewModel) {
+                viewModel.eventFlow.collect { event ->
+                    when (event) {
+                        is PrivateJoinEvent.NavigateToLobby -> router.batch {
+                            popBackTo(PrivateJoinRoute::class, inclusive = true)
+                            navigate(LobbyRoute(prefilledCode = event.code))
+                        }
                     }
-                },
+                }
+            }
+
+            PrivateJoinScreen(
+                state = state,
+                onAction = viewModel::takeAction,
+                onBack = { router.goBack() },
             )
         }
 

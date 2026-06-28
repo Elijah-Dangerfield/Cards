@@ -44,14 +44,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ---
 
-## E. Rooms UI
-
-- `[P2]` **ROOM-5 — Rejected private-join (bad code) fires a navigation/recompose flicker instead of an in-place error.** A tester typing a wrong room code reported it "looks like a navigation event" rather than an error just popping up in place. The server correctly 404s the unknown code, but each `JoinCodeRejected` is immediately followed by a `DelegatingRouter: Enqueuing navigation: batch`, so the PrivateJoin screen visibly moves/recomposes on reject.
-  **Acceptance:** entering a bad code on PrivateJoin surfaces the "room not found" error in place with no route/navigation batch and no screen movement; the input + keyboard stay put. Test asserts a rejected join doesn't enqueue a navigation on the PrivateJoin route.
-  **Hints:** find the `JoinCodeRejected` handler / PrivateJoin route wiring that enqueues the `DelegatingRouter` batch on reject (room feature); the earlier room-not-found UX work (CARDS-28/29) kept the user on-screen but left this navigation batch. Case `docs/agent/feedback-cases/ce29450daeef4630b599fecc29d1486b.md`, Sentry [CARDS-5N](https://elijah-dangerfield.sentry.io/issues/CARDS-5N).
-
----
-
 ## F. Shop & cosmetics
 
 - `[P2]` **SHOP-3 — Host-chosen felt + card backs, shown to every player at the table.** Owner directive: let the game creator pick the felt and card backs from their inventory when creating a room, and have *every* player at the table see the host's chosen felt and card backs (incentivizes buying cosmetics). The host's selection already exists per-player; this makes it table-wide.
