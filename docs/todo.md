@@ -44,10 +44,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ## D. Multiplayer hardening
 
-- `[P1]` **MP-26 — MP table freezes when the opponent times out / folds preflop.** In a heads-up hand the non-acting player's client jumps straight from a Preflop snapshot to a terminal `game_state street=Complete acting=null` with no `ActionTaken(Fold)` / `HandEnded` / `PotAwarded` frames to react to, so the table sits dead: no acting seat, no winner, no reveal, no next-hand affordance. The BB player who never got to act is stuck staring at a frozen board. *(feedback 2026-06-28)*
-  **Acceptance:** when a hand ends by opponent timeout/fold, the client presents the hand result (winner + pot award) and offers the next hand instead of freezing — even when only the terminal `Complete` snapshot arrives. Reproduce with a failing test first.
-  **Hints:** same family as MP-25 (showdown jumps Complete→next with no reveal) but triggered by an opponent fold/timeout; drive the hand-ended presentation off the `Complete` snapshot in `RemotePokerSession`/`PlayPokerViewModel`. Server auto-fold-on-30s-timer is working as designed (no backend bug). Case `docs/agent/feedback-cases/2e228322a49f4a1c955bde1e3840be52.md`; Sentry CARDS-5Z.
-
 - `[P2]` **MP-28 — Evaluate per-hand opt-in for multiplayer tables.** Owner proposal: right now an MP hand continues no matter what you do, and a player who wants to leave is guaranteed to forfeit a posted blind. Consider requiring each player to opt in to each hand (or be auto-sat-out / booted) so leaving between hands is clean. Owner explicitly invited push-back — "if you push back I want it mentioned in the PR description." *(owner directive, 2026-06-28)*
   **Acceptance:** a design decision is made and documented (in the PR description if pushing back); if adopted, players opt in per hand and can leave between hands without forfeiting an unwanted blind.
   **Hints:** overlaps the existing sit-out / auto-fold machinery and the ROOM-4-secondary backlog item (leave before next blinds post). Pairs with MP-26's hand-boundary handling. Sentry CARDS-5X.

@@ -3,8 +3,10 @@ package com.dangerfield.cards.features.room.impl
 import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEvent
+import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
+import com.dangerfield.cards.libraries.gameplay.Pot
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.ClosedReason
@@ -158,6 +160,46 @@ class PokerScenarioMpTest : PokerScenarioTest() {
             s.table.seats.single { it.index == 1 }.holeCards,
             "the opponent's showdown cards are revealed from the snapshot alone",
         )
+    }
+
+    @Test
+    fun foldCompleteSnapshotWithoutHandEndedEvent_stillPresentsTheWinner() = runUnitTest {
+        // MP-26: a heads-up hand ends because the opponent (seat 1) times out and
+        // the server auto-folds them preflop. The non-acting BB (seat 0) only ever
+        // receives the terminal Complete snapshot — no ActionTaken(Fold), no
+        // HandEnded, no PotAwarded. The pot's eligibleSeatIndexes pin the winner;
+        // the client must present the hand result (and thus the Next Hand path)
+        // off that snapshot alone instead of freezing on a dead table.
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(
+                        0,
+                        playerId = MP_LOCAL_USER,
+                        stack = 1_015,
+                        holeCards = cards("2s 4h"),
+                        participation = HandParticipation.InHand,
+                    ),
+                    mpSeat(
+                        1,
+                        playerId = "peer",
+                        stack = 985,
+                        participation = HandParticipation.Folded,
+                    ),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+                buttonSeatIndex = 1,
+                pots = listOf(Pot(amount = 15, eligibleSeatIndexes = listOf(0))),
+            ),
+        )
+
+        assertTable(s.table) {
+            handResultShowing()
+            handResultWinner(seat = 0)
+        }
     }
 
     @Test
