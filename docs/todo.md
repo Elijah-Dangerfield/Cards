@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-28 (feedback triage) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-28 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -48,9 +48,9 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
   **Acceptance:** when a hand ends by opponent timeout/fold, the client presents the hand result (winner + pot award) and offers the next hand instead of freezing — even when only the terminal `Complete` snapshot arrives. Reproduce with a failing test first.
   **Hints:** same family as MP-25 (showdown jumps Complete→next with no reveal) but triggered by an opponent fold/timeout; drive the hand-ended presentation off the `Complete` snapshot in `RemotePokerSession`/`PlayPokerViewModel`. Server auto-fold-on-30s-timer is working as designed (no backend bug). Case `docs/agent/feedback-cases/2e228322a49f4a1c955bde1e3840be52.md`; Sentry CARDS-5Z.
 
-- `[P1]` **MP-27 — Wallet balance stays stale after an opponent-left kick to lobby.** When the opponent leaves and the room collapses (you're kicked to lobby), the client keeps showing the buy-in as still escrowed; the balance only corrects after an app foreground/background forces a `/wallet/sync`. The server balance is already correct — the client just doesn't re-pull the wallet on the room-closed-under-us path. *(feedback 2026-06-28)*
-  **Acceptance:** after an opponent-left / room-closed kick to lobby, the displayed balance reflects the settled wallet immediately, no foreground/background needed. Reproduce with a failing test first.
-  **Hints:** residual of the #83 MP-23 fix (host/normal leave already reconciles; the opponent-left path doesn't). Fire the same wallet reconcile/refresh the explicit-leave path uses on the room-closed-under-us branch. Case `docs/agent/feedback-cases/8a1a93d404a743e4b7029b2e4b010b0d.md`; Sentry CARDS-5Q.
+- `[P1]` **MP-27 — Wallet balance stays stale after leaving the lobby you were kicked to on opponent-left.** Opponent leaves → you're kicked to lobby → you leave the lobby → the buy-in still shows as escrowed until a foreground/background forces a `/wallet/sync`. The play screen's opponent-left path already reconciles; the lobby's own Leave doesn't, so the post-kick lobby exit lands Home on a stale balance. Server balance is already correct. *(feedback 2026-06-28)*
+  **Acceptance:** leaving the lobby after an opponent-left kick lands Home on the settled balance, no foreground/background needed. Reproduce with a failing test first.
+  **Hints:** `LobbyViewModel.Leave` calls `rooms.leaveRoom(code)` with no wallet reconcile — fire the same `reconcileWalletAfterGame` the play VM's `opponentsLeft`/`roomClosed` collectors already do. Case `docs/agent/feedback-cases/8a1a93d404a743e4b7029b2e4b010b0d.md`; Sentry CARDS-5Q.
 
 - `[P2]` **MP-28 — Evaluate per-hand opt-in for multiplayer tables.** Owner proposal: right now an MP hand continues no matter what you do, and a player who wants to leave is guaranteed to forfeit a posted blind. Consider requiring each player to opt in to each hand (or be auto-sat-out / booted) so leaving between hands is clean. Owner explicitly invited push-back — "if you push back I want it mentioned in the PR description." *(owner directive, 2026-06-28)*
   **Acceptance:** a design decision is made and documented (in the PR description if pushing back); if adopted, players opt in per hand and can leave between hands without forfeiting an unwanted blind.
