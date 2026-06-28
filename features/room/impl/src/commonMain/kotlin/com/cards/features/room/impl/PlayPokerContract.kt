@@ -163,6 +163,27 @@ data class PlayPokerState(
     val isRealMultiplayer: Boolean
         get() = xpMode == XpMode.MULTIPLAYER &&
             (table as? TableUiState.Active)?.practiceTierBotsOnly == false
+
+    /**
+     * True when the hand pays out real chips — a human MP game or the public
+     * disclosed-bot subsidy table (bots-only but real chips at stake). False
+     * for solo and private practice-bot games.
+     */
+    val realChipsAtStake: Boolean
+        get() = isRealMultiplayer ||
+            (table as? TableUiState.Active)?.subsidizedBotTable == true
+
+    /**
+     * The animation pacing the table actually renders at (GAME-8). The global
+     * "Game speed" setting tunes solo / practice tables, but a real-chips game
+     * always keeps the calibrated [GameSpeed.Normal] deal / reveal animations,
+     * so an Instant preference set for solo practice can't strip the card flips
+     * off a game where chips are on the line. Bot think-time scaling is
+     * unaffected — that runs server-side for these tables and is read from the
+     * raw [gameSpeed] elsewhere.
+     */
+    val effectiveTableSpeed: GameSpeed
+        get() = if (realChipsAtStake) GameSpeed.Normal else gameSpeed
 }
 
 sealed interface PlayPokerAction {

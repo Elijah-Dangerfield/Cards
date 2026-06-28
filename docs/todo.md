@@ -32,14 +32,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ---
 
-## C. Gameplay & table UX
-
-- `[P1]` **GAME-8 — Game speed setting strips deal/reveal animations in real (bots-for-chips) MP games.** A tester in a real public room against bots reported "no animations all the sudden … the cards aren't flipping over," and intuited the speed scaling should be practice-only. GAME-6's unified "Game speed" (`GameSpeed.animationScale` + `botThinkScale`, via `LocalTableTempo`) is a single global setting, so a Fast/Instant choice made for solo practice now suppresses deals/reveals in a real-chip game too.
-  **Acceptance:** a real-chip MP game keeps visible deal + card-flip/reveal animations regardless of the global Game speed setting (or the setting is scoped so it can't strip reveals in a non-practice game) — make the directional call and ship a slice. A failing-then-passing test asserts the table's effective animation scale in a real MP game isn't driven to instant by the solo speed preference.
-  **Hints:** trace where the play surface reads `LocalTableTempo` / `GameSpeed.animationScale` (`features/room/impl/.../ui/TableTempo.kt`, `PlayPokerViewModel`) and whether MP reads the same composition local as solo. Case `docs/agent/feedback-cases/530b16e41ac545c5928d6562d1d7b144.md`, Sentry [CARDS-5H](https://elijah-dangerfield.sentry.io/issues/CARDS-5H).
-
----
-
 ## D. Multiplayer hardening
 
 - `[P1]` **MP-25 — MP showdown is never shown; a multiway-river hand jumps Complete → next hand with no reveal.** A tester reported "the last hand ended and I didn't see a showdown." For a hand that reaches the river multiway (no fold-to-one-winner), the client advanced River → `street=Complete` → the next hand's Preflop (~4s later) with no opponent hole-card reveal / winning-hand step. Server-side, fold-ended hands log "Hand N finished" but the multiway river hand (room BY6HUV hand 4) has no such line, so the normal end-of-hand/showdown path didn't run.

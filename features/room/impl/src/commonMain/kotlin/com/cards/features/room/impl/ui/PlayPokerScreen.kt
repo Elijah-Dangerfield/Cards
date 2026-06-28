@@ -260,7 +260,7 @@ fun PlayPokerScreen(
         LocalCardBackStyle provides state.equippedCardBack,
         LocalFeltAccentSurface provides feltAccent,
         LocalTableRewardAnchors provides rewardAnchors,
-        LocalTableTempo provides TableTempo(state.gameSpeed),
+        LocalTableTempo provides TableTempo(state.effectiveTableSpeed),
     ) {
     Screen(modifier = modifier, containerColor = tableSurface) { padding ->
         Box(

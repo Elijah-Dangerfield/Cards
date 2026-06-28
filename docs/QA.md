@@ -463,7 +463,9 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Back out, set Table speed to **Fast**, start a new hand — the same cards should fly in and flip noticeably quicker.
 3. Set Table speed to **Instant**, start a new hand and reach showdown.
 
-**Expected:** Normal plays the calibrated pacing. Fast roughly halves the deal-in and reveal timing. Instant snaps hole cards and community cards straight to settled face-up with no fly/flip animation — action resolves immediately. The setting persists across app restarts and applies on both bot and multiplayer tables. (Covers todo GAME-6.)
+**Expected:** Normal plays the calibrated pacing. Fast roughly halves the deal-in and reveal timing. Instant snaps hole cards and community cards straight to settled face-up with no fly/flip animation — action resolves immediately. The setting persists across app restarts. (Covers todo GAME-6.)
+
+- With Table speed set to **Instant**, join a real game where chips are at stake — a human multiplayer room or a public bots-for-chips room — and deal a hand. The deal + card-flip/reveal animations still play at Normal pacing; the Instant preference does **not** strip them. Solo and private practice-bot tables still honour the chosen speed. (Covers todo GAME-8.)
 
 ## Progression
 
