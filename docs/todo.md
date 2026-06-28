@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-27 (feedback triage, round 3) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-28 (feedback triage) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -26,9 +26,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## B. Auth & onboarding
 
-_No open engineering items. (AUTH-9 — the Google browser-OAuth redesign to suspend-until-redirect, with link ≠ sign-in — shipped 2026-06-27, see [decisions.md](./decisions.md). End-to-end device QA + the Supabase dashboard config it depends on remain in [developer-todo.md](./developer-todo.md).)_
+- `[P2]` **AUTH-10 — Welcome/landing: declutter the sign-in actions + dark social buttons.** Owner ask: on the landing page the bottom section is cramped — "Sign in" sits jammed between the Google button and the Terms-of-Service link, making it hard to tap; space the actions out, and use dark variants of the Apple/Google buttons if the SDKs allow. *(owner directive, 2026-06-28)*
+  **Acceptance:** the landing page's sign-in / Google / Terms actions have clear separation (comfortable tap targets, no mis-taps); Apple + Google buttons use dark styling where the provider button supports it.
+  **Hints:** the welcome/landing layout shipped in #82; CARDS-5V. Provider buttons may constrain styling — make the call and ship a slice.
 
-_Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ideas in [backlog.md](./backlog.md)._
+_Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ideas in [backlog.md](./backlog.md). (AUTH-9 — Google browser-OAuth redesign — shipped 2026-06-27, see [decisions.md](./decisions.md).)_
 
 ---
 
@@ -37,4 +39,36 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 - `[P2]` **ENG-8 — Wiretap captures the gameplay WebSocket.** Wiretap (the shake-to-open network inspector in `:libraries:networking:impl`) only captures HTTP traffic today; the multiplayer gameplay WebSocket — where the hardest MP bugs live — is invisible in the inspector. Hook Wiretap into the gameplay socket so sent/received frames are captured and browsable alongside HTTP calls. *(proposed 2026-06-28)*
   **Acceptance:** opening Wiretap during an MP game shows the gameplay WS connection with its inbound/outbound frames, plus connect / close / error events.
   **Hints:** the room gameplay socket client (`RemotePokerSessionFactory` consumes its `gameplayFrames`); Wiretap's interception lives in `:libraries:networking:impl` next to the HTTP capture. Mind the iOS noop/release split (`cards.wiretap.ios`).
+
+---
+
+## D. Multiplayer hardening
+
+- `[P1]` **MP-26 — MP table freezes when the opponent times out / folds preflop.** In a heads-up hand the non-acting player's client jumps straight from a Preflop snapshot to a terminal `game_state street=Complete acting=null` with no `ActionTaken(Fold)` / `HandEnded` / `PotAwarded` frames to react to, so the table sits dead: no acting seat, no winner, no reveal, no next-hand affordance. The BB player who never got to act is stuck staring at a frozen board. *(feedback 2026-06-28)*
+  **Acceptance:** when a hand ends by opponent timeout/fold, the client presents the hand result (winner + pot award) and offers the next hand instead of freezing — even when only the terminal `Complete` snapshot arrives. Reproduce with a failing test first.
+  **Hints:** same family as MP-25 (showdown jumps Complete→next with no reveal) but triggered by an opponent fold/timeout; drive the hand-ended presentation off the `Complete` snapshot in `RemotePokerSession`/`PlayPokerViewModel`. Server auto-fold-on-30s-timer is working as designed (no backend bug). Case `docs/agent/feedback-cases/2e228322a49f4a1c955bde1e3840be52.md`; Sentry CARDS-5Z.
+
+- `[P1]` **MP-27 — Wallet balance stays stale after an opponent-left kick to lobby.** When the opponent leaves and the room collapses (you're kicked to lobby), the client keeps showing the buy-in as still escrowed; the balance only corrects after an app foreground/background forces a `/wallet/sync`. The server balance is already correct — the client just doesn't re-pull the wallet on the room-closed-under-us path. *(feedback 2026-06-28)*
+  **Acceptance:** after an opponent-left / room-closed kick to lobby, the displayed balance reflects the settled wallet immediately, no foreground/background needed. Reproduce with a failing test first.
+  **Hints:** residual of the #83 MP-23 fix (host/normal leave already reconciles; the opponent-left path doesn't). Fire the same wallet reconcile/refresh the explicit-leave path uses on the room-closed-under-us branch. Case `docs/agent/feedback-cases/8a1a93d404a743e4b7029b2e4b010b0d.md`; Sentry CARDS-5Q.
+
+- `[P2]` **MP-28 — Evaluate per-hand opt-in for multiplayer tables.** Owner proposal: right now an MP hand continues no matter what you do, and a player who wants to leave is guaranteed to forfeit a posted blind. Consider requiring each player to opt in to each hand (or be auto-sat-out / booted) so leaving between hands is clean. Owner explicitly invited push-back — "if you push back I want it mentioned in the PR description." *(owner directive, 2026-06-28)*
+  **Acceptance:** a design decision is made and documented (in the PR description if pushing back); if adopted, players opt in per hand and can leave between hands without forfeiting an unwanted blind.
+  **Hints:** overlaps the existing sit-out / auto-fold machinery and the ROOM-4-secondary backlog item (leave before next blinds post). Pairs with MP-26's hand-boundary handling. Sentry CARDS-5X.
+
+---
+
+## E. Rooms & matchmaking
+
+- `[P1]` **ROOM-11 — Joining a found public table lands on the radar/searching screen, not a lobby.** Picking a table from the matchmaking chooser and tapping Join keeps the user on the "searching" radar UI until the server deals — there's no distinct joined-table/lobby state — so it reads as "I joined a game but got dumped back into search." *(feedback 2026-06-28)*
+  **Acceptance:** after joining a chosen candidate, the user sees a joined-table / pre-deal lobby (seated players, waiting-for-deal) that is visibly distinct from the still-hunting radar.
+  **Hints:** `PublicSearchingViewModel.JoinCandidate` → `joinAndWatch` → `watchRoom` reuses `SearchPhase.Searching`; add a joined/lobby phase. Directional UI call — recommend + ship a slice. Case `docs/agent/feedback-cases/98a0f24a398841ceac4e8c87afee9f50.md`; Sentry CARDS-63.
+
+- `[P1]` **ROOM-12 — Public search stops discovering new tables after it falls through to a fresh waiting table.** The candidates re-poll only runs while the chooser is showing; when the first browse is empty the VM seats the user into its own waiting table and never browses `/candidates` again. Two people who start searching seconds apart sit in two separate tables forever and never match — confirmed in telemetry (a table created mid-search was never found). *(feedback 2026-06-28)*
+  **Acceptance:** two users who start searching within the window land in the same room; a table that appears after a searcher has fallen through to waiting is still discovered. Reproduce with a failing test first.
+  **Hints:** `PublicSearchingViewModel.armCandidatesPoll` is gated on `SearchPhase.Choosing`; keep polling (or have the server match a later `find` into an existing waiting table) during the genuine-wait phase too. Case `docs/agent/feedback-cases/3de8930dc5aa49a2bdb3926ff014b403.md`; Sentry CARDS-5S.
+
+- `[P2]` **ROOM-13 — Sanity-check the create-room default buy-in + blinds/stakes.** Owner review question: on the create-table screen, are the initial buy-in value and the small/big-blind + stakes defaults appropriate for a new user? Audit the defaults and adjust to sensible starting values. *(owner directive, 2026-06-28)*
+  **Acceptance:** the create-room screen opens with defended, documented defaults (buy-in, blinds, stakes) that make sense for a first-time host.
+  **Hints:** create-room/stake config (`StakeTier`, the create-room screen + VM). Make a recommendation and ship it. Sentry CARDS-65.
 
