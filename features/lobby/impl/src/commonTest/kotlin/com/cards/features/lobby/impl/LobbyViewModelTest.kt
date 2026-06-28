@@ -2,6 +2,7 @@ package com.dangerfield.cards.features.lobby.impl
 
 import app.cash.turbine.test
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.EquipmentSyncState
@@ -423,6 +424,61 @@ class LobbyViewModelTest : CoroutineTest() {
             assertEquals(ConnectionStatus.Disconnected, last.connectionStatus)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun leave_realChipRoom_reSyncsTheWallet() = runUnitTest {
+        // MP-27: after an opponent-left kick collapses the play screen back to
+        // the lobby, leaving the lobby must re-pull the authoritative balance —
+        // otherwise the buy-in shows as still escrowed until the next foreground
+        // forces a sync (CARDS-5Q).
+        val room = roomWithStakes(
+            buyIn = 5000,
+            smallBlind = 25,
+            bigBlind = 50,
+            members = listOf(member(LOCAL_USER, "You", isConnected = true)),
+        )
+        val rooms = FakeRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(room),
+            leaveOutcome = LeaveRoomOutcome.Success,
+        )
+        val chips = FakeChipsRepository()
+        val vm = buildVm(rooms = rooms, chips = chips)
+        vm.takeAction(LobbyAction.CreateRoom)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.room == null) last = awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        vm.takeAction(LobbyAction.Leave)
+        runCurrent()
+
+        assertEquals(1, chips.syncCalls, "leaving a real-chip room re-syncs the wallet")
+    }
+
+    @Test
+    fun leave_freeTable_doesNotSyncTheWallet() = runUnitTest {
+        // A free table (buyIn == 0) never escrowed chips, so there's nothing to
+        // reconcile — leaving must not fire a needless wallet sync.
+        val room = sampleRoom()
+        val rooms = FakeRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(room),
+            leaveOutcome = LeaveRoomOutcome.Success,
+        )
+        val chips = FakeChipsRepository()
+        val vm = buildVm(rooms = rooms, chips = chips)
+        vm.takeAction(LobbyAction.CreateRoom)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.room == null) last = awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        vm.takeAction(LobbyAction.Leave)
+        runCurrent()
+
+        assertEquals(0, chips.syncCalls, "a free table has no escrow to reconcile")
     }
 
     @Test
@@ -909,6 +965,7 @@ class LobbyViewModelTest : CoroutineTest() {
         buyIn: Long? = null,
         open: Boolean = false,
         equipment: EquipmentRepository = FakeEquipmentRepository(),
+        chips: ChipsRepository = FakeChipsRepository(),
     ): LobbyViewModel = LobbyViewModel(
         prefilledCode = prefilledCode,
         autoCreate = autoCreate,
@@ -919,6 +976,7 @@ class LobbyViewModelTest : CoroutineTest() {
         auth = identity,
         profile = profile,
         equipment = equipment,
+        chips = chips,
         appScope = AppCoroutineScope(dispatchers),
     )
 
@@ -1192,6 +1250,32 @@ class LobbyViewModelTest : CoroutineTest() {
         override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>): List<String> = emptyList()
         override suspend fun deleteAll() = Unit
         override suspend fun sync(): Result<Unit> = Result.success(Unit)
+    }
+
+    /**
+     * Records [sync] calls so MP-27 can assert the lobby Leave re-pulls the
+     * wallet for a real-chip room. Balance reads are inert — the lobby fix
+     * only needs the sync to fire; the celebratory credit confirmation lives
+     * on the play screen.
+     */
+    private class FakeChipsRepository : ChipsRepository {
+        var syncCalls: Int = 0
+            private set
+        private val balance = MutableStateFlow<Long?>(1000L)
+        override fun observeBalance(): Flow<Long?> = balance.asStateFlow()
+        override suspend fun getBalance(): Long? = balance.value
+        override val walletJustCreated: kotlinx.coroutines.flow.StateFlow<Boolean> =
+            MutableStateFlow(false).asStateFlow()
+        override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
+        override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
+        override suspend fun setBalance(authoritativeBalance: Long) {
+            balance.value = authoritativeBalance
+        }
+        override suspend fun deleteAll() = Unit
+        override suspend fun sync(): Result<Unit> {
+            syncCalls += 1
+            return Result.success(Unit)
+        }
     }
 
     private class AlwaysSignedInAuth : AuthRepository {
