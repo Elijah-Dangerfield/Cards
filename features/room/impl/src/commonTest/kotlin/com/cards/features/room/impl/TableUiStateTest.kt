@@ -3,11 +3,14 @@ package com.dangerfield.cards.features.room.impl
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
 import com.dangerfield.cards.libraries.gameplay.BettingRound
+import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
+import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
+import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.gameplay.GameState
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -281,6 +284,110 @@ class TableUiStateTest {
     }
 
     @Test
+    fun completeSnapshot_revealsInHandOpponentCards_evenWithoutHandEndedEvent() {
+        // MP-25: a showdown hand the server already resolved to Complete carries
+        // the in-hand opponents' hole cards on the snapshot (GameStateScrub keeps
+        // them visible at Complete). The reveal must not depend on the transient
+        // HandEnded event also arriving — if it's lost / rolled out of the event
+        // replay / raced by the next hand, the snapshot alone must still show the
+        // showdown. lastWinners = null simulates "event never reached the client."
+        val holeCards = listOf(Card(Rank.Ace, Suit.Spades), Card(Rank.Ace, Suit.Diamonds))
+        val state = GameState(
+            settings = RoomSettings.Default,
+            handNumber = 4,
+            buttonSeatIndex = 0,
+            seats = listOf(
+                seatWithHole(index = 0, participation = HandParticipation.InHand, holeCards = emptyList()),
+                seatWithHole(index = 1, participation = HandParticipation.InHand, holeCards = holeCards),
+            ),
+            community = emptyList(),
+            street = BettingRound.Complete,
+            currentBetThisStreet = 0,
+            lastFullRaiseSize = 0,
+            actingSeatIndex = null,
+            deckRemaining = emptyList(),
+        )
+        val table = TableUiState.fromGameState(
+            gameState = state,
+            humanSeatIndex = 0,
+            personalitiesBySeat = emptyMap(),
+            lastWinners = null,
+            lastActionBySeat = emptyMap(),
+        )
+        val opponent = table.seats.single { it.index == 1 }
+        assertEquals(
+            holeCards,
+            opponent.holeCards,
+            "an in-hand opponent's cards on a Complete snapshot are revealed without the HandEnded event",
+        )
+        assertFalse(opponent.showHoleCardBacks, "revealed cards are face-up, not backs")
+    }
+
+    @Test
+    fun completeSnapshot_keepsFoldedOpponentMucked() {
+        // The flip side: a seat that folded earlier mucked its cards — the server
+        // scrubs them to empty before broadcast — so even at Complete there's
+        // nothing to reveal and the seat shows backs/empty, never face-up.
+        val state = GameState(
+            settings = RoomSettings.Default,
+            handNumber = 4,
+            buttonSeatIndex = 0,
+            seats = listOf(
+                seatWithHole(index = 0, participation = HandParticipation.InHand, holeCards = emptyList()),
+                seatWithHole(index = 1, participation = HandParticipation.Folded, holeCards = emptyList()),
+            ),
+            community = emptyList(),
+            street = BettingRound.Complete,
+            currentBetThisStreet = 0,
+            lastFullRaiseSize = 0,
+            actingSeatIndex = null,
+            deckRemaining = emptyList(),
+        )
+        val table = TableUiState.fromGameState(
+            gameState = state,
+            humanSeatIndex = 0,
+            personalitiesBySeat = emptyMap(),
+            lastWinners = null,
+            lastActionBySeat = emptyMap(),
+        )
+        val folded = table.seats.single { it.index == 1 }
+        assertTrue(folded.holeCards.isEmpty(), "a mucked folder reveals nothing at showdown")
+    }
+
+    @Test
+    fun midHandSnapshot_stillHidesOpponentCards() {
+        // The reveal is gated on Complete — mid-hand (Flop here) an opponent's
+        // cards stay hidden even though the seat is in the hand, so the new
+        // Complete-reveal path can't leak cards during live play.
+        val holeCards = listOf(Card(Rank.King, Suit.Spades), Card(Rank.King, Suit.Diamonds))
+        val state = GameState(
+            settings = RoomSettings.Default,
+            handNumber = 4,
+            buttonSeatIndex = 0,
+            seats = listOf(
+                seatWithHole(index = 0, participation = HandParticipation.InHand, holeCards = emptyList()),
+                seatWithHole(index = 1, participation = HandParticipation.InHand, holeCards = holeCards),
+            ),
+            community = emptyList(),
+            street = BettingRound.Flop,
+            currentBetThisStreet = 0,
+            lastFullRaiseSize = 0,
+            actingSeatIndex = 1,
+            deckRemaining = emptyList(),
+        )
+        val table = TableUiState.fromGameState(
+            gameState = state,
+            humanSeatIndex = 0,
+            personalitiesBySeat = emptyMap(),
+            lastWinners = null,
+            lastActionBySeat = emptyMap(),
+        )
+        val opponent = table.seats.single { it.index == 1 }
+        assertTrue(opponent.holeCards.isEmpty(), "mid-hand an opponent's cards stay hidden")
+        assertTrue(opponent.showHoleCardBacks, "mid-hand an in-hand opponent shows card backs")
+    }
+
+    @Test
     fun emptySeat_isNotBusted() {
         val table = activeFromSeats(
             street = BettingRound.Complete,
@@ -307,6 +414,20 @@ class TableUiStateTest {
         seatStatus = if (empty) SeatStatus.Empty else SeatStatus.Active,
         handParticipation = participation,
         contributedThisHand = contributedThisHand,
+    )
+
+    private fun seatWithHole(
+        index: Int,
+        participation: HandParticipation,
+        holeCards: List<Card>,
+    ): Seat = Seat(
+        index = index,
+        playerId = "p$index",
+        displayName = "Seat$index",
+        stack = 1_000,
+        seatStatus = SeatStatus.Active,
+        handParticipation = participation,
+        holeCards = holeCards,
     )
 
     private fun botSeat(index: Int): Seat = Seat(

@@ -317,6 +317,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 **Expected:** Each device only ever sees its own hole cards — opponents' cards stay face-down until showdown reveal. Turn passes correctly; the action ring/timer points at the acting seat. At showdown the winning hand is revealed and the pot moves to the winner's stack. The post-hand summary shows the result. No duplicate-card crash, no stuck turn.
 
 - **XP + stats credit (PROG-4):** finishing the hand awards XP (the Home/Profile XP total rises, and the hand-end XP burst shows) and advances player-stats — same as a solo bots hand, just at the full MULTIPLAYER multiplier on an all-human table. A finished MP hand must never silently award zero XP.
+- **Showdown reveal survives a reconnect blip (MP-25):** carry a multiway hand to a river showdown, then background/foreground one device right as the hand resolves (so its socket reconnects on the Complete state). On resume that device must STILL show the opponents' revealed hole cards for the just-finished hand — the showdown isn't skipped just because the device missed the live hand-end event. Opponents who folded earlier stay mucked (no cards shown).
 
 ---
 

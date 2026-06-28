@@ -173,6 +173,13 @@ sealed interface TableUiState {
             val acting = gameState.actingSeatIndex
             val isHumanTurn = acting == humanSeatIndex
             val (sbIndex, bbIndex) = blindSeats(gameState)
+            // At Complete the snapshot itself carries the showdown reveal: the
+            // server keeps in-hand seats' hole cards visible and scrubs folders to
+            // empty (GameStateScrub). Reveal off the snapshot so a hand that
+            // resolved to Complete shows the showdown even if the transient
+            // HandEnded event never reached us — lost, rolled out of the event
+            // replay, or raced by the next hand's snapshot (MP-25).
+            val handComplete = gameState.street == BettingRound.Complete
             val seats = gameState.seats.map { seat ->
                 val isHuman = seat.index == humanSeatIndex
                 SeatView.fromSeat(
@@ -180,7 +187,7 @@ sealed interface TableUiState {
                     isActing = seat.index == acting,
                     isHuman = isHuman,
                     personality = personalitiesBySeat[seat.index],
-                    hideHoleCards = seat.index != humanSeatIndex && lastWinners == null,
+                    hideHoleCards = seat.index != humanSeatIndex && lastWinners == null && !handComplete,
                     revealedHoleCards = lastWinners?.revealedHoleCards?.get(seat.index),
                     lastAction = lastActionBySeat[seat.index],
                     isDealer = seat.index == gameState.buttonSeatIndex,

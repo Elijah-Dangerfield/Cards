@@ -32,14 +32,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ---
 
-## D. Multiplayer hardening
-
-- `[P1]` **MP-25 — MP showdown is never shown; a multiway-river hand jumps Complete → next hand with no reveal.** A tester reported "the last hand ended and I didn't see a showdown." For a hand that reaches the river multiway (no fold-to-one-winner), the client advanced River → `street=Complete` → the next hand's Preflop (~4s later) with no opponent hole-card reveal / winning-hand step. Server-side, fold-ended hands log "Hand N finished" but the multiway river hand (room BY6HUV hand 4) has no such line, so the normal end-of-hand/showdown path didn't run.
-  **Acceptance:** an MP hand that reaches showdown surfaces the opponents' revealed hole cards + winner before the next hand deals; the table holds on Complete long enough to render it. Failing-then-passing scenario test: drive a multiway hand to a showdown and assert the showdown reveal state is emitted to the play screen.
-  **Hints:** compare the fold-to-one path (clean `PotAwarded` + `HandEnded`) against the showdown path in `RemotePokerSession`/`PlayPokerViewModel` and the server's `GameSession` end-of-hand; pull `{service_name="cards-server"} | room_code="BY6HUV"` around 2026-06-27T22:09:57Z. Case `docs/agent/feedback-cases/5f501218109f4391b4997f4abd75c4ce.md`, Sentry [CARDS-5F](https://elijah-dangerfield.sentry.io/issues/CARDS-5F).
-
----
-
 ## G. Billing & IAP
 
 Native IAP (Play Billing + StoreKit 2 + own server validation — no RevenueCat). The `BillingClient` abstraction, fake/dev clients, server wallet ledger, idempotent grant, the server-authoritative redeem endpoint with the real Apple + Google receipt validators, and the client-side validate->grant->reflect flow (behind `billing.realPurchasesEnabled`) already exist; these items fill the remaining gap — the real platform store clients. Live store testing is developer-gated on credentials/listings — those gates live in [developer-todo.md](./developer-todo.md); the code is buildable and unit/locally-testable now.

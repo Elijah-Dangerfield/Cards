@@ -850,3 +850,13 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch if revisited:** let a queued leave fire at the hand boundary before the new blinds are posted for the leaving seat — i.e. honor an "I'm leaving" intent during the between-hands window so the player isn't auto-posted into a hand they're trying to exit. Pairs with the existing sit-out / auto-fold machinery.
 
 **Status:** Backlog. Visibility (the net + forfeit callout) shipped in this PR; this is the turn-flow follow-up.
+
+---
+
+## Extract a shared `:libraries:gameplay:testing` deck-scripting helper (ENG)
+
+**Idea (from MP-25, 2026-06-27):** The deck-scripting test DSL — `cards("As Ad")` parse + a `stackedDeck(holeBySeat, board)` builder that pads a deterministic 52-card `Deck.fromOrdered` so the engine deals exactly the spelled-out cards — is now copy-pasted across three test surfaces: `:apps:integration` (`helpers/DeckScripting.kt`), `:features:room:impl` (`harness/ScenarioDecks.kt`), and an inline copy in the server's `GameSessionShowdownTest`. Both existing copies already carry a "unify into a shared gameplay-testing module if a third consumer appears" note — the third consumer has now appeared.
+
+**Sketch if revisited:** create a `:libraries:gameplay:testing` module (mirrors `:libraries:flowroutines:testing`) exporting `cards()` + `stackedDeck()`, depend on it from the three `commonTest`/`androidUnitTest`/server-test sources, and delete the three copies. Small, mechanical; the only friction is wiring a new Gradle module + its `jvm()`/android/ios targets to match each consumer.
+
+**Status:** Backlog. Pure test-infra DRY; no product impact. Kept the inline copy in MP-25's fix to avoid a module refactor riding on a bug fix.

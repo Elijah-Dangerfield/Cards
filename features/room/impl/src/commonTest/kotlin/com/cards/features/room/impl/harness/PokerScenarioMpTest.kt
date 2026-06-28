@@ -129,6 +129,38 @@ class PokerScenarioMpTest : PokerScenarioTest() {
     }
 
     @Test
+    fun showdownSnapshotWithoutHandEndedEvent_stillRevealsOpponentCards() = runUnitTest {
+        // MP-25: the reporter saw a multiway-river hand jump to the next hand with
+        // no showdown reveal. The Complete snapshot already carries the in-hand
+        // opponents' cards (the server keeps them visible at Complete); the reveal
+        // must NOT hinge on the transient HandEnded event also landing. Push only
+        // the Complete snapshot — no HandEnded — and the opponent's cards still show.
+        val s = mpScenario().start()
+        val board = cards("Ah Kd 7c 2s 9h")
+
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, holeCards = cards("As Ad")),
+                    mpSeat(1, playerId = "peer", holeCards = cards("Kh Kc")),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+                community = board,
+            ),
+        )
+
+        assertTable(s.table) {
+            seatHoleCardsVisible(seat = 1, count = 2)
+        }
+        assertEquals(
+            cards("Kh Kc"),
+            s.table.seats.single { it.index == 1 }.holeCards,
+            "the opponent's showdown cards are revealed from the snapshot alone",
+        )
+    }
+
+    @Test
     fun roomClosedMidSession_recordsRoomClosedEvent() = runUnitTest {
         val s = mpScenario().start()
         s.serverSnapshot(
