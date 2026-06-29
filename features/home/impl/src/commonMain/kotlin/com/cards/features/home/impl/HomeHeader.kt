@@ -50,6 +50,10 @@ internal fun HomeHeader(
     onTapLevel: () -> Unit,
     onTapChips: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Replays a missed chip change on return — rolls the odometer from
+     *  [chipsRevealFrom] to [chips] when [chipsRevealKey] flips. */
+    chipsRevealFrom: Long? = null,
+    chipsRevealKey: Int = 0,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -91,7 +95,12 @@ internal fun HomeHeader(
             }
         }
         Spacer(modifier = Modifier.width(Dimension.D300))
-        ChipBadge(amount = chips, onClick = onTapChips)
+        ChipBadge(
+            amount = chips,
+            onClick = onTapChips,
+            revealFrom = chipsRevealFrom,
+            revealKey = chipsRevealKey,
+        )
     }
 }
 

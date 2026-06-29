@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -148,6 +149,53 @@ class HomeViewModelTest : CoroutineTest() {
             assertEquals(12_500L, last.chips)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun resumeAfterAwayChange_armsOdometerReplayFromLastSeen() = runUnitTest {
+        // The user last saw 10k; while away they won 1k, so the local source of
+        // truth is now 11k. Returning to Home must replay the count-up.
+        val chips = FakeChipsRepository(initial = 11_000L)
+        val appCache = FakeAppCache(AppData(lastShownChipBalance = 10_000L))
+        val vm = buildVm(chips = chips, appCache = appCache)
+        advanceUntilIdle()
+
+        vm.takeAction(HomeAction.ScreenResumed)
+        advanceUntilIdle()
+
+        val state = vm.stateFlow.value
+        assertEquals(10_000L, state.chipsRevealFrom, "odometer rolls from what they last saw")
+        assertEquals(11_000L, state.chips, "to the current balance")
+        assertTrue(state.chipsRevealKey > 0, "the reveal is armed")
+        assertEquals(11_000L, appCache.get().lastShownChipBalance, "baseline advances so it can't replay twice")
+    }
+
+    @Test
+    fun resumeWithNoChange_doesNotArmReplay() = runUnitTest {
+        val chips = FakeChipsRepository(initial = 10_000L)
+        val appCache = FakeAppCache(AppData(lastShownChipBalance = 10_000L))
+        val vm = buildVm(chips = chips, appCache = appCache)
+        advanceUntilIdle()
+
+        vm.takeAction(HomeAction.ScreenResumed)
+        advanceUntilIdle()
+
+        assertEquals(0, vm.stateFlow.value.chipsRevealKey, "nothing changed — no replay")
+        assertNull(vm.stateFlow.value.chipsRevealFrom)
+    }
+
+    @Test
+    fun firstResume_nullBaseline_recordsSilentlyWithoutReplay() = runUnitTest {
+        val chips = FakeChipsRepository(initial = 10_000L)
+        val appCache = FakeAppCache(AppData(lastShownChipBalance = null))
+        val vm = buildVm(chips = chips, appCache = appCache)
+        advanceUntilIdle()
+
+        vm.takeAction(HomeAction.ScreenResumed)
+        advanceUntilIdle()
+
+        assertEquals(0, vm.stateFlow.value.chipsRevealKey, "no replay before there's a baseline to compare")
+        assertEquals(10_000L, appCache.get().lastShownChipBalance, "the current balance becomes the baseline")
     }
 
     @Test

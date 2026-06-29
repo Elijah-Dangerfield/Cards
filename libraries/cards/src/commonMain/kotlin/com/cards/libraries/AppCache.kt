@@ -241,6 +241,16 @@ data class AppData(
     val xpBoostExpiresAtEpochMs: Long? = null,
 
     /**
+     * The chip balance the user last actually *saw* on Home. Persisted so the
+     * odometer can roll from it to the current balance whenever they return — a
+     * win or loss that landed while they were on another screen still animates,
+     * instead of the number having silently changed in the background. Compared
+     * against the local source of truth on resume (no backend hit). Null until the
+     * first time Home records a baseline.
+     */
+    val lastShownChipBalance: Long? = null,
+
+    /**
      * How many **inactive** XP boosts the user owns but hasn't lit yet. Buying
      * one in the shop or being gifted one at level-up increments this; lighting
      * one (opening the [xpBoostExpiresAtEpochMs] window) decrements it. Boosts

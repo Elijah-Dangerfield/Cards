@@ -18,6 +18,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.home_cta_practice_subtitle_short
@@ -67,6 +69,11 @@ fun HomeScreen(
     scrollState: ScrollState = rememberScrollState(),
 ) {
     val state by viewModel.stateFlow.collectAsStateWithLifecycle()
+    // On every return to Home, replay any chip change that landed while the user
+    // was away (won/lost chips on another screen) so the odometer always animates
+    // it — checked against the local source of truth, no backend hit.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.takeAction(HomeAction.ScreenResumed) }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { viewModel.takeAction(HomeAction.ScreenPaused) }
     // [recent-achievements-delay] One line per recomposition of HomeScreen
     // — pin whether the VM state actually carries achievements at the
     // moment Compose pulls it. If `vm=<hash>` stays constant across tab
@@ -92,6 +99,8 @@ fun HomeScreen(
         // placeholder ("—") in that state rather than flashing "0"
         // before the sync lands.
         chips = state.chips,
+        chipsRevealFrom = state.chipsRevealFrom,
+        chipsRevealKey = state.chipsRevealKey,
         activeRooms = state.activeRooms,
         showTutorialBanner = !state.tutorialBannerDismissed,
         onStartTutorial = onStartTutorial,
@@ -121,6 +130,8 @@ fun HomeScreen(
 private fun HomeScreenContent(
     levelProgress: LevelProgress,
     chips: Long?,
+    chipsRevealFrom: Long? = null,
+    chipsRevealKey: Int = 0,
     // Identity defaults keep the many previews terse; production always
     // passes the real values from HomeState.
     displayName: String = "QuietAce72",
@@ -176,6 +187,8 @@ private fun HomeScreenContent(
                 avatarEmoji = avatarEmoji,
                 avatarBackgroundColorHex = avatarBackgroundColorHex,
                 chips = chips,
+                chipsRevealFrom = chipsRevealFrom,
+                chipsRevealKey = chipsRevealKey,
                 onTapLevel = onTapLevel,
                 onTapChips = onTapCash,
             )

@@ -45,11 +45,40 @@ fun AnimatedNumberText(
      */
     gainColor: ColorResource? = null,
     lossColor: ColorResource? = null,
+    /**
+     * Explicit "replay a change the user missed" trigger. When [revealKey] flips to
+     * a new value, the odometer jumps to [revealFrom] and rolls to [value] (the text
+     * is already at [value]), bypassing the mount warm-up — used so a balance that
+     * changed while the screen was away still counts up/down when you return. Null
+     * key = no explicit reveal; live changes animate normally.
+     */
+    revealFrom: Long? = null,
+    revealKey: Any? = null,
 ) {
     val animated = remember { Animatable(initialValue = value.toFloat()) }
     var displayed by remember { mutableStateOf(value) }
     // The active direction tint while a change animates; null settles back to [color].
     var tint by remember { mutableStateOf<ColorResource?>(null) }
+    // Track the last [revealKey] we acted on so the trigger fires on a CHANGE, not
+    // on first composition (where it would replay every time the screen mounts).
+    var seenRevealKey by remember { mutableStateOf(revealKey) }
+    LaunchedEffect(revealKey) {
+        if (revealKey == seenRevealKey) return@LaunchedEffect
+        seenRevealKey = revealKey
+        val from = revealFrom ?: return@LaunchedEffect
+        if (from == value) return@LaunchedEffect
+        tint = if (value > from) gainColor else lossColor
+        animated.snapTo(from.toFloat())
+        displayed = from
+        animated.animateTo(
+            targetValue = value.toFloat(),
+            animationSpec = tween(durationMillis, easing = FastOutSlowInEasing),
+        ) {
+            displayed = this.value.toLong()
+        }
+        kotlinx.coroutines.delay(TINT_HOLD_MS)
+        tint = null
+    }
     // Warm-up window: snap silently for the first MOUNT_SETTLE_MS so the
     // common "ViewModel emits its default 0, then emits the real value" path
     // doesn't animate from 0 → real on every tab switch / screen entry. After

@@ -11,6 +11,13 @@ fun ChipBadge(
     amount: Long?,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    /**
+     * Replay trigger for the odometer — when [revealKey] flips, the count rolls
+     * from [revealFrom] to [amount]. Home uses this to animate a balance change
+     * that landed while the user was on another screen; other callers leave it null.
+     */
+    revealFrom: Long? = null,
+    revealKey: Any? = null,
 ) {
     LeadingPill(
         modifier = modifier,
@@ -38,6 +45,8 @@ fun ChipBadge(
                     // glance, then settles back to the normal colour.
                     gainColor = AppTheme.colors.success,
                     lossColor = AppTheme.colors.danger,
+                    revealFrom = revealFrom,
+                    revealKey = revealKey,
                 )
             }
         },
