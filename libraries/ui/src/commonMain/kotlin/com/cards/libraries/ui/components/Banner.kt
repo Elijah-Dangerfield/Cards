@@ -103,8 +103,8 @@ fun Banner(
         if (leading != null) {
             Box(
                 modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(palette.iconWell.color),
                 contentAlignment = Alignment.Center,
             ) { leading() }

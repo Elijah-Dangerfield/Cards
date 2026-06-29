@@ -119,9 +119,9 @@ private fun FeltSwatch(productId: String, size: Dp, modifier: Modifier = Modifie
     Box(
         modifier = modifier
             .size(size)
-            .clip(Radii.R500.shape)
+            .clip(Radii.R600.shape)
             .background(color)
-            .border(1.dp, border, Radii.R500.shape),
+            .border(1.dp, border, Radii.R600.shape),
     )
 }
 
