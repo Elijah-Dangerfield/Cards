@@ -559,12 +559,12 @@ private fun StatsStyleBanner(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(Res.string.profile_stats_banner_title),
-                    typography = AppTheme.typography.Body.B600,
+                    typography = AppTheme.typography.Body.B600.Bold,
                     color = AppTheme.colors.content,
                 )
                 Text(
                     text = subtitleAnnotated,
-                    typography = AppTheme.typography.Body.B400,
+                    typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.contentSecondary,
                 )
             }
