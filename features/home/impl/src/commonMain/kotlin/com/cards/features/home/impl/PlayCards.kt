@@ -92,7 +92,7 @@ internal fun PlayFeatureCard(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(Radii.R900.shape)
+            .clip(Radii.Card.shape)
             .background(playGradient(accent))
             .clickable(onClick = onClick)
             .padding(horizontal = Dimension.D700, vertical = Dimension.D900),
@@ -103,7 +103,7 @@ internal fun PlayFeatureCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                typography = AppTheme.typography.Heading.H600,
+                typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.content,
             )
             Spacer(modifier = Modifier.height(2.dp))
