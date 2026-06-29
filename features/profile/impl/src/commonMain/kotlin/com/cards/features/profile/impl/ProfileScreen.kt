@@ -387,7 +387,7 @@ private fun ProfileHeader(
                 Icon(
                     icon = Icons.Pencil(stringResource(Res.string.profile_avatar_edit_a11y)),
                     size = IconSize.Small,
-                    color = AppTheme.colors.onAccentPrimary,
+                    color = AppTheme.colors.content,
                 )
             }
         }
