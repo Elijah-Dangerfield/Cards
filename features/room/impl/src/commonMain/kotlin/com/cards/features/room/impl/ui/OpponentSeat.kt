@@ -94,7 +94,6 @@ internal fun OpponentSeat(
     turnTimerSeconds: Int?,
     turnKey: Any,
     onBlindClick: () -> Unit = {},
-    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit = { _, _ -> },
     onAvatarTap: () -> Unit = {},
 ) {
     val folded = seat.participation == HandParticipation.Folded
@@ -203,7 +202,6 @@ internal fun OpponentSeat(
                 !handComplete -> seat.lastAction?.let { action ->
                     SeatActionChip(
                         action = action,
-                        onClick = { onLastActionClick(seat.displayName, action) },
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .offset(y = 7.dp),
@@ -327,37 +325,40 @@ private fun GoldSeatRing(pulsing: Boolean, modifier: Modifier = Modifier) {
 /**
  * The bottom-center action chip: green check for a check, a neutral pill for a
  * call, a gold pill for chips going in (bet/raise/all-in). Gold == chips in.
+ * Purely visual — the seat's avatar is the tap target; the tapped Player Card
+ * (PlayerProfileSheet) reuses this chip to echo the move, so [cutoutColor]
+ * defaults to the felt but can be set to whatever backdrop it sits on.
  */
 @Composable
-private fun SeatActionChip(
+internal fun SeatActionChip(
     action: PlayerAction,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    cutoutColor: Color = seatCutoutColor(),
 ) {
     when (action) {
-        is PlayerAction.Check -> CheckBadge(onClick = onClick, modifier = modifier)
+        is PlayerAction.Check -> CheckBadge(cutoutColor = cutoutColor, modifier = modifier)
         is PlayerAction.Call -> ActionPill(
             text = formatCompactChips(action.amount),
             gold = false,
-            onClick = onClick,
+            cutoutColor = cutoutColor,
             modifier = modifier,
         )
         is PlayerAction.Bet -> ActionPill(
             text = formatCompactChips(action.amount),
             gold = true,
-            onClick = onClick,
+            cutoutColor = cutoutColor,
             modifier = modifier,
         )
         is PlayerAction.Raise -> ActionPill(
             text = "▲ ${formatCompactChips(action.totalStreetContribution)}",
             gold = true,
-            onClick = onClick,
+            cutoutColor = cutoutColor,
             modifier = modifier,
         )
         is PlayerAction.AllIn -> ActionPill(
             text = "ALL-IN",
             gold = true,
-            onClick = onClick,
+            cutoutColor = cutoutColor,
             modifier = modifier,
         )
         is PlayerAction.Fold -> Unit
@@ -365,13 +366,12 @@ private fun SeatActionChip(
 }
 
 @Composable
-private fun CheckBadge(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun CheckBadge(cutoutColor: Color, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(18.dp)
-            .clickable(onClick = onClick)
             .cutout(
-                ringColor = seatCutoutColor(),
+                ringColor = cutoutColor,
                 fillColor = AppTheme.colors.success.color,
                 shape = CircleShape,
                 ringWidth = 2.dp,
@@ -390,14 +390,13 @@ private fun CheckBadge(onClick: () -> Unit, modifier: Modifier = Modifier) {
 private fun ActionPill(
     text: String,
     gold: Boolean,
-    onClick: () -> Unit,
+    cutoutColor: Color,
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
-            .clickable(onClick = onClick)
             .cutout(
-                ringColor = seatCutoutColor(),
+                ringColor = cutoutColor,
                 fillColor = if (gold) AppTheme.colors.poker.chipGold.color else AppTheme.colors.surfaceHigh.color,
                 shape = Radii.Round.shape,
                 ringWidth = 1.5.dp,

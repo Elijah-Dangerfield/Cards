@@ -79,6 +79,7 @@ import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.cutout
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
@@ -89,6 +90,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.AvatarBackOverlay
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
+import com.dangerfield.cards.libraries.ui.components.poker.LocalTableSurface
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardBack
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
@@ -119,7 +121,6 @@ internal fun PlayerArea(
     onWinOddsFlipped: () -> Unit = {},
     onBlindClick: () -> Unit = {},
     onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
-    onLastActionClick: (seatName: String, action: com.dangerfield.cards.libraries.gameplay.PlayerAction) -> Unit = { _, _ -> },
     onStackClick: () -> Unit = {},
     onHandLabelClick: (label: String) -> Unit = {},
     onSwipeFold: () -> Unit = {},
@@ -364,7 +365,6 @@ internal fun PlayerArea(
                 onFirstFlip = onWinOddsFlipped,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
-                onLastActionClick = onLastActionClick,
                 onStackClick = onStackClick,
                 onHandLabelClick = onHandLabelClick,
                 onSelfTap = onSelfTap,
@@ -518,7 +518,6 @@ private fun PlayerInfoTile(
     turnKey: Any,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
-    onLastActionClick: (seatName: String, action: com.dangerfield.cards.libraries.gameplay.PlayerAction) -> Unit,
     onStackClick: () -> Unit,
     onHandLabelClick: (label: String) -> Unit,
     onSelfTap: () -> Unit = {},
@@ -690,7 +689,9 @@ private fun PlayerInfoTile(
                 VerticalSpacerD100()
                 LastActionPill(
                     label = seat.lastAction.shortLabel(),
-                    onClick = { onLastActionClick("You", seat.lastAction) },
+                    // Tap surfaces your own Player Card (which echoes the move) —
+                    // same destination as tapping your avatar.
+                    onClick = onSelfTap,
                 )
             }
         }
@@ -723,7 +724,6 @@ private fun FlippablePlayerInfoTile(
     onFirstFlip: () -> Unit,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
-    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
     onStackClick: () -> Unit,
     onHandLabelClick: (label: String) -> Unit,
     onSelfTap: () -> Unit = {},
@@ -800,7 +800,6 @@ private fun FlippablePlayerInfoTile(
                 turnKey = turnKey,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
-                onLastActionClick = onLastActionClick,
                 onStackClick = onStackClick,
                 onHandLabelClick = onHandLabelClick,
                 onSelfTap = onSelfTap,
@@ -943,12 +942,19 @@ private fun FlipAffordance(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Cut out of the table background (same convention as the emote badge and the
+    // opponent seats) so the glyph reads as punched into the tile's corner.
+    val cutoutColor = LocalTableSurface.current ?: AppTheme.colors.background.color
     Box(
         modifier = modifier
-            .size(20.dp)
-            .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(AppTheme.colors.surfaceRaised.color)
-            .clickable(onClick = onClick),
+            .size(24.dp)
+            .clickable(onClick = onClick)
+            .cutout(
+                ringColor = cutoutColor,
+                fillColor = AppTheme.colors.surfaceRaised.color,
+                shape = androidx.compose.foundation.shape.CircleShape,
+                ringWidth = 3.dp,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

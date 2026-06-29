@@ -132,9 +132,9 @@ fun PlayPokerScreen(
     // A badge/title chip tapped on the player-profile sheet — opens its
     // read-about-it detail sheet.
     var selectedBadge by remember { mutableStateOf<PlayerBadge?>(null) }
-    // Action / bet / hand-label explainers carry their own context so each
-    // dialog can render specific copy instead of opening the whole cheat sheet.
-    var lastActionDialog by remember { mutableStateOf<Pair<String, PlayerAction>?>(null) }
+    // Bet / hand-label explainers carry their own context so each dialog can
+    // render specific copy instead of opening the whole cheat sheet. (The last
+    // action no longer pops a dialog — it surfaces on the tapped Player Card.)
     var betPillDialog by remember { mutableStateOf<Pair<String, Long>?>(null) }
     var handLabelDialog by remember { mutableStateOf<String?>(null) }
     // Achievement-celebration sequencing — declared up here so the displayed-XP
@@ -355,7 +355,6 @@ fun PlayPokerScreen(
                         onPotClick = { potExplainerOpen = true },
                         onBoardClick = { onAction(PlayPokerAction.ToggleCheatSheet) },
                         onBetPillClick = { name, amount -> betPillDialog = name to amount },
-                        onLastActionClick = { name, action -> lastActionDialog = name to action },
                         onStackClick = { stackExplainerOpen = true },
                         onHandLabelClick = { label -> handLabelDialog = label },
                         onSwipeFold = {
@@ -446,14 +445,6 @@ fun PlayPokerScreen(
                 botsOnly = active?.practiceTierBotsOnly == true,
                 subsidized = active?.subsidizedBotTable == true,
                 onDismiss = { practiceTierExplainerOpen = false },
-            )
-        }
-
-        lastActionDialog?.let { (name, action) ->
-            LastActionExplainer(
-                seatName = name,
-                action = action,
-                onDismiss = { lastActionDialog = null },
             )
         }
 
@@ -1021,7 +1012,6 @@ private fun ActiveTable(
     onPotClick: () -> Unit,
     onBoardClick: () -> Unit = {},
     onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
-    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit = { _, _ -> },
     onStackClick: () -> Unit = {},
     onHandLabelClick: (label: String) -> Unit = {},
     onSwipeFold: () -> Unit = {},
@@ -1050,7 +1040,6 @@ private fun ActiveTable(
             OpponentsRow(
                 table = table,
                 onBlindClick = onBlindClick,
-                onLastActionClick = onLastActionClick,
                 onAvatarTap = onOpponentTap,
             )
             Spacer(modifier = Modifier.weight(1f))
@@ -1072,7 +1061,6 @@ private fun ActiveTable(
                 onWinOddsFlipped = onWinOddsFlipped,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
-                onLastActionClick = onLastActionClick,
                 onStackClick = onStackClick,
                 onHandLabelClick = onHandLabelClick,
                 onSwipeFold = onSwipeFold,

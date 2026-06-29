@@ -767,20 +767,8 @@
     <string name="room_blind_roles_big_blind_title">Big blind</string>
     <string name="room_blind_roles_big_blind_description">Forced full bet, posted left of the small blind. The minimum opening bet for the hand.</string>
 
-    <!-- Room - Last-action explainer (tap a player's "Folded" / "Called 10" / etc. pill). -->
-    <string name="room_last_action_headline_fold">%1$s folded</string>
-    <string name="room_last_action_headline_check">%1$s checked</string>
-    <string name="room_last_action_headline_call">%1$s called %2$s</string>
-    <string name="room_last_action_headline_bet">%1$s bet %2$s</string>
-    <string name="room_last_action_headline_raise">%1$s raised to %2$s</string>
-    <string name="room_last_action_headline_all_in">%1$s went all in for %2$s</string>
-    <string name="room_last_action_body_fold">Fold means giving up the hand. Any chips already in the pot stay there. They don't come back.</string>
-    <string name="room_last_action_body_check">Check passes the action without putting any chips in. Only legal when there's nothing to call.</string>
-    <string name="room_last_action_body_call">Call matches the current bet so they can stay in the hand. No raise, just keeping up.</string>
-    <string name="room_last_action_body_bet">Bet opens the betting on this street. Everyone else now has to call, raise, or fold.</string>
-    <string name="room_last_action_body_raise">Raise increases the current bet. Everyone else who wants to stay in has to match the new total.</string>
-    <string name="room_last_action_body_all_in">All in means pushing their entire stack into the pot. They can't act again this hand.</string>
-    <string name="room_last_action_cheat_sheet_hint">Tap the ? icon up top for the full list of actions.</string>
+    <!-- Room - Player card: the seat's most recent action this round. -->
+    <string name="room_player_profile_last_move_heading">Last move</string>
 
     <!-- Room - Hand-label explainer (tap the human's hand-label pill: "Pair", "Two pair", etc.). -->
     <string name="room_hand_label_body_royal_flush">Ten through Ace, all the same suit. The strongest hand in poker.</string>

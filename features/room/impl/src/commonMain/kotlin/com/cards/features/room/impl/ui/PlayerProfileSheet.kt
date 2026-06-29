@@ -2,14 +2,20 @@ package com.dangerfield.cards.features.room.impl.ui
 
 import com.dangerfield.cards.features.room.impl.SeatBadge
 import com.dangerfield.cards.features.room.impl.SeatView
+import com.dangerfield.cards.features.room.impl.shortLabel
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import com.dangerfield.cards.libraries.gameplay.PlayerAction
+import com.dangerfield.cards.system.Dimension
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_player_profile_last_move_heading
 import cards.libraries.resources.generated.resources.profile_player_card_view_blurb
 import cards.libraries.resources.generated.resources.room_player_profile_add_friend_button
 import cards.libraries.resources.generated.resources.room_player_profile_add_friend_button_sent
@@ -127,6 +133,14 @@ internal fun PlayerProfileSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
             VerticalSpacerD500()
+            // The seat's last action this round, echoed with the exact felt
+            // symbols (green check / gold pill). Tapping the avatar is the
+            // bigger-target way in — this is where the move now lives, not a
+            // separate dialog.
+            seat.lastAction?.let { action ->
+                SeatLastMoveBlock(action = action)
+                VerticalSpacerD500()
+            }
             // Play-style readout. Bots ship a deterministic [BotPersonality] and
             // render free via seat-tap. Humans get a derived style: your own is
             // free on your self-card; a human opponent's is gated behind the
@@ -232,6 +246,43 @@ internal fun PlayerProfileSheet(
                     ),
                 )
             }
+        }
+    }
+}
+
+/**
+ * The seat's most recent action this round, shown on the Player Card with the
+ * same chip the felt draws (green check for a check, gold/neutral pill for
+ * chips in) plus a worded label. [SeatActionChip] renders nothing for a fold,
+ * so the label carries it alone.
+ */
+@Composable
+private fun SeatLastMoveBlock(action: PlayerAction) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(Res.string.room_player_profile_last_move_heading),
+            typography = AppTheme.typography.Body.B400.Bold,
+            color = AppTheme.colors.contentSecondary,
+        )
+        VerticalSpacerD200()
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D300),
+        ) {
+            if (action !is PlayerAction.Fold) {
+                SeatActionChip(
+                    action = action,
+                    cutoutColor = AppTheme.colors.surface.color,
+                )
+            }
+            Text(
+                text = action.shortLabel(),
+                typography = AppTheme.typography.Body.B600.SemiBold,
+                color = AppTheme.colors.content,
+            )
         }
     }
 }
@@ -343,6 +394,7 @@ private fun PlayerProfileSheetPreview_BotUnmuted_TightPassive() {
                     seatBadge = SeatBadge.BotWithDifficulty("Standard"),
                     personality = com.dangerfield.cards.libraries.bots.BotPersonality.Jane,
                     handsAtTable = 47,
+                    lastAction = PlayerAction.Raise(totalStreetContribution = 60, raiseAmount = 40),
                 ),
             isMuted = false,
             onToggleMute = {},

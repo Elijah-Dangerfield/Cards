@@ -36,7 +36,6 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 internal fun OpponentsRow(
     table: TableUiState.Active,
     onBlindClick: () -> Unit = {},
-    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit = { _, _ -> },
     onAvatarTap: (SeatView) -> Unit = {},
 ) {
     val opponents = table.seats.filter { !it.isHuman }
@@ -66,7 +65,6 @@ internal fun OpponentsRow(
             turnTimerSeconds = turnTimerSeconds,
             turnKey = turnKey,
             onBlindClick = onBlindClick,
-            onLastActionClick = onLastActionClick,
             onAvatarTap = onAvatarTap,
         )
     } else {
@@ -77,7 +75,6 @@ internal fun OpponentsRow(
             turnTimerSeconds = turnTimerSeconds,
             turnKey = turnKey,
             onBlindClick = onBlindClick,
-            onLastActionClick = onLastActionClick,
             onAvatarTap = onAvatarTap,
         )
     }
@@ -93,7 +90,6 @@ private fun PackedOpponentsRow(
     turnTimerSeconds: Int?,
     turnKey: Any,
     onBlindClick: () -> Unit,
-    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
     onAvatarTap: (SeatView) -> Unit = {},
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -120,7 +116,6 @@ private fun PackedOpponentsRow(
                         turnTimerSeconds = turnTimerSeconds,
                         turnKey = turnKey,
                         onBlindClick = onBlindClick,
-                        onLastActionClick = onLastActionClick,
                         onAvatarTap = { onAvatarTap(seat) },
                     )
                 }
@@ -138,7 +133,6 @@ private fun ScrollingOpponentsRow(
     turnTimerSeconds: Int?,
     turnKey: Any,
     onBlindClick: () -> Unit,
-    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
     onAvatarTap: (SeatView) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
@@ -210,7 +204,6 @@ private fun ScrollingOpponentsRow(
                     turnTimerSeconds = turnTimerSeconds,
                     turnKey = turnKey,
                     onBlindClick = onBlindClick,
-                    onLastActionClick = onLastActionClick,
                     onAvatarTap = { onAvatarTap(seat) },
                 )
             }
