@@ -74,7 +74,9 @@ internal fun TutorialBanner(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(Radii.R900.shape)
-                .background(playGradient(FeatureCardAccents.Green))
+                // Flat green fill — the gradient panel read as inconsistent next
+                // to the now-flat Play cards.
+                .background(FeatureCardAccents.Green.copy(alpha = 0.85f))
                 .bounceClick(onClick = onStart)
                 .padding(horizontal = Dimension.D600, vertical = Dimension.D600),
             verticalAlignment = Alignment.CenterVertically,

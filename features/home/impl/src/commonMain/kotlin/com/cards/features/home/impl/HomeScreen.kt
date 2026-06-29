@@ -201,7 +201,7 @@ private fun HomeScreenContent(
                     fadeOut(animationSpec = tween(140)),
             ) {
                 Column {
-                    VerticalSpacerD800()
+                    VerticalSpacerD1100()
                     TutorialBanner(
                         onStart = onStartTutorial,
                         onDismiss = onDismissTutorialBanner,
