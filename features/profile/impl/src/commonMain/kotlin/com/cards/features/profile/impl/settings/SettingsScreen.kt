@@ -319,37 +319,26 @@ private fun SignOutConfirmDialog(
     } else {
         stringResource(Res.string.profile_sign_out_dialog_claimed_body)
     }
+    // Use the DS title preset so the headline inherits the unified dialog
+    // typography (it was hand-rolling its own Heading before).
     com.dangerfield.cards.libraries.ui.components.dialog.Dialog(
+        title = title,
         onDismissRequest = onDismiss,
         topAccessory = com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji(emoji = "👋"),
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text(
-                text = title,
-                typography = AppTheme.typography.Heading.H600,
-                color = AppTheme.colors.content,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = body,
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-            com.dangerfield.cards.libraries.ui.components.button.Button(
-                onClick = onConfirm,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(Res.string.profile_sign_out_dialog_confirm_button))
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            com.dangerfield.cards.libraries.ui.components.button.Button(
-                onClick = onDismiss,
-                style = ButtonStyle.Text,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(Res.string.profile_sign_out_dialog_cancel_button))
-            }
+        Text(text = body)
+        com.dangerfield.cards.libraries.ui.components.button.Button(
+            onClick = onConfirm,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(Res.string.profile_sign_out_dialog_confirm_button))
+        }
+        com.dangerfield.cards.libraries.ui.components.button.Button(
+            onClick = onDismiss,
+            style = ButtonStyle.Text,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(Res.string.profile_sign_out_dialog_cancel_button))
         }
     }
 }
