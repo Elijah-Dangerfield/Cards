@@ -62,8 +62,9 @@ data class PlayingCardSize(val width: Dp, val height: Dp) {
         /** A card sized to a target [height]; width follows from [Ratio]. */
         fun ofHeight(height: Dp): PlayingCardSize = PlayingCardSize(height * Ratio, height)
 
-        /** Smallest readable card. Cheat-sheet examples and seat indicators. */
-        val Mini = ofHeight(40.dp)
+        /** Smallest readable card. Cheat-sheet examples and seat indicators.
+         *  Sized so a two-glyph rank ("10") clears the padding without clipping. */
+        val Mini = ofHeight(46.dp)
 
         /** A deck-stack card. */
         val Deck = ofHeight(50.dp)
@@ -516,7 +517,9 @@ private fun cornerRadiusFor(width: Dp): Dp = when {
 private fun paddingFor(width: Dp): Dp = when {
     width >= 70.dp -> 8.dp
     width >= 40.dp -> 4.dp
-    else -> 3.dp
+    // Tight padding on the smallest cards so a two-glyph rank still fits the
+    // narrow content box (it was clipping in the hand-rankings cheat sheet).
+    else -> 2.dp
 }
 
 private fun shadowElevation(width: Dp): Dp = when {
