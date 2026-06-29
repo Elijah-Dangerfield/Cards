@@ -1,12 +1,16 @@
 package com.dangerfield.cards.features.room.impl.ui
-import com.dangerfield.cards.features.room.impl.shortLabel
 
 import com.dangerfield.cards.features.room.impl.HandResultView
 import com.dangerfield.cards.features.room.impl.SeatView
 import com.dangerfield.cards.features.room.impl.TableUiState
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -14,7 +18,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -40,6 +48,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -53,17 +62,14 @@ import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
-import com.dangerfield.cards.libraries.ui.components.poker.BustedStamp
-import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
-import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
-import com.dangerfield.cards.libraries.ui.components.poker.PulsingActiveRing
 import com.dangerfield.cards.libraries.ui.components.poker.TurnCountdownRing
 import com.dangerfield.cards.libraries.ui.components.poker.WinnerGlow
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.horizontalFadingEdge
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -73,7 +79,6 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 internal fun OpponentsRow(
     table: TableUiState.Active,
     onBlindClick: () -> Unit = {},
-    onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit = { _, _ -> },
     onAvatarTap: (SeatView) -> Unit = {},
 ) {
@@ -104,7 +109,6 @@ internal fun OpponentsRow(
             turnTimerSeconds = turnTimerSeconds,
             turnKey = turnKey,
             onBlindClick = onBlindClick,
-            onBetPillClick = onBetPillClick,
             onLastActionClick = onLastActionClick,
             onAvatarTap = onAvatarTap,
         )
@@ -116,7 +120,6 @@ internal fun OpponentsRow(
             turnTimerSeconds = turnTimerSeconds,
             turnKey = turnKey,
             onBlindClick = onBlindClick,
-            onBetPillClick = onBetPillClick,
             onLastActionClick = onLastActionClick,
             onAvatarTap = onAvatarTap,
         )
@@ -133,15 +136,14 @@ private fun PackedOpponentsRow(
     turnTimerSeconds: Int?,
     turnKey: Any,
     onBlindClick: () -> Unit,
-    onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
     onAvatarTap: (SeatView) -> Unit = {},
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val rowWidth = maxWidth
         val count = opponents.size.coerceAtLeast(1)
-        val perOpponent = (rowWidth / count).coerceAtLeast(56.dp)
-        val avatarSize = (perOpponent * 0.62f).coerceIn(40.dp, 76.dp)
+        val perOpponent = (rowWidth / count).coerceAtLeast(48.dp)
+        val avatarSize = (perOpponent * 0.5f).coerceIn(34.dp, 56.dp)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -161,7 +163,6 @@ private fun PackedOpponentsRow(
                         turnTimerSeconds = turnTimerSeconds,
                         turnKey = turnKey,
                         onBlindClick = onBlindClick,
-                        onBetPillClick = onBetPillClick,
                         onLastActionClick = onLastActionClick,
                         onAvatarTap = { onAvatarTap(seat) },
                     )
@@ -180,7 +181,6 @@ private fun ScrollingOpponentsRow(
     turnTimerSeconds: Int?,
     turnKey: Any,
     onBlindClick: () -> Unit,
-    onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
     onAvatarTap: (SeatView) -> Unit = {},
 ) {
@@ -225,12 +225,8 @@ private fun ScrollingOpponentsRow(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalFadingEdge(listState),
-        // Top padding gives the chevron (offset y=-16) and the last-
-        // action pill (offset y=-6, pill height ~22dp) room to render
-        // inside the row. Without it, LazyRow clips at its bounds and
-        // the "Folded" / "Called 10" pill gets cut at the top edge —
-        // the packed (non-scrolling) variant uses a plain Row, which
-        // doesn't clip, so that path renders fine.
+        // Small top padding so the top-left position badge has a hair of
+        // room to bleed past the avatar without LazyRow clipping it.
         contentPadding = PaddingValues(
             start = ScrollingRowHorizontalPadding,
             end = ScrollingRowHorizontalPadding,
@@ -257,7 +253,6 @@ private fun ScrollingOpponentsRow(
                     turnTimerSeconds = turnTimerSeconds,
                     turnKey = turnKey,
                     onBlindClick = onBlindClick,
-                    onBetPillClick = onBetPillClick,
                     onLastActionClick = onLastActionClick,
                     onAvatarTap = { onAvatarTap(seat) },
                 )
@@ -267,15 +262,11 @@ private fun ScrollingOpponentsRow(
 }
 
 private const val ManualScrollGraceMillis = 3000L
-private val ScrollingAvatarSize: Dp = 56.dp
-private val ScrollingSeatWidth: Dp = 72.dp
+private val ScrollingAvatarSize: Dp = 46.dp
+private val ScrollingSeatWidth: Dp = 60.dp
 private val ScrollingRowItemSpacing: Dp = 8.dp
 private val ScrollingRowHorizontalPadding: Dp = 12.dp
-// Headroom for the active-turn chevron (-16dp) and the last-action
-// pill (-6dp offset, ~22dp tall = 28dp overhang). 28dp matches the
-// pill's worst case; if the chevron grows or the pill gets a bigger
-// font, bump this together.
-private val ScrollingRowOverhangPadding: Dp = 28.dp
+private val ScrollingRowOverhangPadding: Dp = 6.dp
 
 @Composable
 private fun OpponentSeat(
@@ -287,46 +278,43 @@ private fun OpponentSeat(
     turnTimerSeconds: Int?,
     turnKey: Any,
     onBlindClick: () -> Unit,
-    onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
     onAvatarTap: () -> Unit = {},
 ) {
     val folded = seat.participation == HandParticipation.Folded
     val busted = seat.isBusted
-    // A thin halo bleeds just a few dp past the avatar's edge (was a chunky
-    // 6dp ring) so the active-turn signal reads as a crisp ring, not a glow.
-    val ringSize = avatarSize + 6.dp
+    val outOfHand = folded || busted
     val hasBlindRole = seat.isDealer || seat.isSmallBlind || seat.isBigBlind
-    // A still-in seat that has already acted this street (has a last action, isn't
-    // the one on the clock) is gently scrimmed so attention stays on who still has
-    // to act — short of the heavier fold/bust fade. Never during the showdown
-    // reveal (every seat has a last action then) so the revealed cards stay lit.
-    val actedThisStreet = !handComplete && !folded && !busted && !seat.isActing &&
+    // The gold turn / aggressor ring (and the countdown arc) render in the thin
+    // band between the avatar's edge and the ring box edge.
+    val ringSize = avatarSize + 6.dp
+    // A still-in seat that has already acted this street is gently scrimmed so
+    // attention stays on who still has to act — short of the heavier fold/bust
+    // fade. Never at showdown (every seat has a last action then).
+    val actedThisStreet = !handComplete && !outOfHand && !seat.isActing &&
         seat.participation == HandParticipation.InHand && seat.lastAction != null
     val dimAlpha = when {
-        busted -> 0.35f
-        folded -> 0.4f
-        actedThisStreet -> 0.7f
+        busted -> 0.4f
+        folded -> 0.45f
+        actedThisStreet -> 0.72f
         else -> 1f
     }
     val dimMod = Modifier.alpha(dimAlpha)
     // The seat on the clock sits at full size; everyone else shrinks a touch so
-    // attention pulls to whoever's acting. Draw-only scale (graphicsLayer), so
-    // seats keep their layout slots and the row doesn't reflow as turns pass.
+    // attention pulls to whoever's acting. Draw-only scale, so the row never reflows.
     val seatScale by animateFloatAsState(
-        targetValue = if (seat.isActing) 1f else 0.9f,
+        targetValue = if (seat.isActing) 1f else 0.92f,
         animationSpec = tween(220),
         label = "seat-scale",
     )
-    // Publish this seat's avatar bounds so the pot-ship coins can fly to it when
-    // the seat wins. No-op when there's no anchor holder (previews / tutorial).
     val rewardAnchors = LocalTableRewardAnchors.current
-    // The fade-when-folded effect is applied per-element rather than on the
-    // outer Column. A wrapping `Modifier.alpha` rasterizes into an offscreen
-    // layer sized to the wrapped bounds, which clips the LastActionPill's
-    // negative-Y offset (the "Fold" chip floats above the avatar's top edge
-    // and was getting cut off). Splitting the dim keeps the pill out of the
-    // clipped region while still fading the avatar + identity text.
+
+    // Ring zone: the depleting countdown (timer-enforced human), a pulsing gold
+    // "to act" ring (bots / solo, untimed), or the solid gold aggressor ring after
+    // a bet/raise/all-in. All gold, mutually exclusive — never two on one seat.
+    val countdownSeconds = turnTimerSeconds?.takeIf { seat.isActing && !seat.isBot && !outOfHand }
+    val aggressor = !outOfHand && !handComplete && seat.lastAction.isAggressive()
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -351,21 +339,19 @@ private fun OpponentSeat(
                 )
                 .clickable(onClick = onAvatarTap),
         ) {
-            // Faded subtree — everything that's "the seat" semantically.
-            Box(modifier = Modifier.size(ringSize).then(dimMod), contentAlignment = Alignment.Center) {
-                // Acting human opponents on a timer-enforced (MP) table get the
-                // depleting countdown ring; bots — fast server-side, never timed
-                // — and solo tables keep the plain pulsing halo.
-                val countdownSeconds = turnTimerSeconds?.takeIf { seat.isActing && !seat.isBot }
-                when {
-                    countdownSeconds != null -> TurnCountdownRing(
-                        turnKey = turnKey,
-                        durationSeconds = countdownSeconds,
-                        modifier = Modifier.size(ringSize),
-                    )
-                    seat.isActing -> PulsingActiveRing(modifier = Modifier.size(ringSize))
-                }
-                if (isWinner) WinnerGlow(modifier = Modifier.size(ringSize))
+            when {
+                countdownSeconds != null -> TurnCountdownRing(
+                    turnKey = turnKey,
+                    durationSeconds = countdownSeconds,
+                    modifier = Modifier.size(ringSize),
+                )
+                !outOfHand && seat.isActing -> GoldSeatRing(pulsing = true, modifier = Modifier.size(ringSize))
+                aggressor -> GoldSeatRing(pulsing = false, modifier = Modifier.size(ringSize))
+            }
+            if (isWinner) WinnerGlow(modifier = Modifier.size(ringSize))
+
+            // The avatar — recolored (dimmed) when out of the hand.
+            Box(modifier = dimMod) {
                 AvatarCircle(
                     name = seat.displayName,
                     size = avatarSize,
@@ -374,42 +360,43 @@ private fun OpponentSeat(
                 )
             }
 
-            // Active-turn chevron — floats just above the avatar's outer ring.
-            ChevronOverlay(
-                visible = seat.isActing,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = (-16).dp),
-            )
+            // Out state OR the bottom-center action chip for this round — one zone,
+            // never both (a folded/busted seat has no live action).
+            when {
+                busted -> Text(
+                    text = "✕",
+                    typography = AppTheme.typography.Heading.H800,
+                    color = AppTheme.colors.danger,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+                folded -> MuckedCardsMarker(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .offset(y = 5.dp),
+                )
+                !handComplete -> seat.lastAction?.let { action ->
+                    SeatActionChip(
+                        action = action,
+                        onClick = { onLastActionClick(seat.displayName, action) },
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .offset(y = 7.dp),
+                    )
+                }
+            }
 
-            // Last-action pill — rendered OUTSIDE the dim scope so the "Fold"
-            // pill doesn't get clipped by the offscreen layer.
-            LastActionOverlay(
-                action = seat.lastAction,
-                onClick = { action -> onLastActionClick(seat.displayName, action) },
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = (-6).dp),
-            )
-
-            // Dealer / SB / BB chip — overlapping inward over the avatar's
-            // bottom-right so the edge seats in the row don't clip the badge
-            // against the screen margin.
+            // Position badge — top-left, persists the whole hand.
             BlindMarker(
                 isDealer = seat.isDealer,
                 isSmallBlind = seat.isSmallBlind,
                 isBigBlind = seat.isBigBlind,
+                muted = outOfHand,
                 onClick = if (hasBlindRole) onBlindClick else null,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .offset(x = (-6).dp, y = (-6).dp),
+                modifier = Modifier.align(Alignment.TopStart),
             )
-
-            if (busted) {
-                BustedStamp(modifier = Modifier.align(Alignment.Center))
-            }
         }
-        VerticalSpacerD100()
+        // Clearance for the action chip that straddles the avatar's bottom edge.
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = seat.displayName,
             typography = AppTheme.typography.Body.B400,
@@ -420,14 +407,10 @@ private fun OpponentSeat(
             modifier = dimMod,
         )
         // At showdown the under-avatar slot reveals this seat's two hole cards in
-        // place of the stack — the felt-native showdown. A folded (mucked) seat
-        // reveals nothing (its cards are scrubbed, so holeCards is empty); only a
-        // seat that went to showdown carries two cards here.
+        // place of the stack. A folded (mucked) seat reveals nothing.
         val revealHoleCards = handComplete && seat.holeCards.size == 2
-        // Level / bot-difficulty badge intentionally omitted here — it's
-        // surfaced on the [PlayerProfileSheet] that opens when the seat
-        // is tapped. Keeping it inline made the opponents row too dense.
         if (revealHoleCards) {
+            VerticalSpacerD100()
             Row(
                 horizontalArrangement = Arrangement.spacedBy(3.dp),
                 modifier = dimMod,
@@ -457,14 +440,6 @@ private fun OpponentSeat(
                 )
             }
         }
-        if (!revealHoleCards && seat.contributedThisStreet > 0) {
-            VerticalSpacerD100()
-            ChipPill(
-                amount = seat.contributedThisStreet,
-                onClick = { onBetPillClick(seat.displayName, seat.contributedThisStreet) },
-                modifier = dimMod,
-            )
-        }
         // The winner's take, named in gold under the seat for the whole showdown
         // window — the persistent companion to the (transient) coins that flew here.
         if (isWinner && handComplete && winAmount > 0) {
@@ -473,6 +448,9 @@ private fun OpponentSeat(
         }
     }
 }
+
+private fun PlayerAction?.isAggressive(): Boolean =
+    this is PlayerAction.Bet || this is PlayerAction.Raise || this is PlayerAction.AllIn
 
 @Composable
 private fun WinAmountBadge(amount: Long) {
@@ -484,45 +462,145 @@ private fun WinAmountBadge(amount: Long) {
 }
 
 /**
- * Extracted so the `AnimatedVisibility` call site sees only `BoxScope` and
- * resolves to the top-level overload. Inlining this into `OpponentSeat` puts
- * it inside an outer `Column { Box { ... } }`, which makes the `ColumnScope`
- * extension of `AnimatedVisibility` ambiguous with the top-level function.
+ * The gold ring that wraps an avatar — solid for an aggressor (bet/raise/all-in),
+ * or a slow pulse for an untimed "to act" seat (bots / solo, where there's no
+ * server clock to deplete). The timer-enforced countdown uses [TurnCountdownRing].
  */
 @Composable
-private fun ChevronOverlay(visible: Boolean, modifier: Modifier = Modifier) {
-    Box(modifier = modifier) {
-        AnimatedVisibility(
-            visible = visible,
-            enter = fadeIn(animationSpec = tween(160)),
-            exit = fadeOut(animationSpec = tween(140)),
-        ) {
-            Text(
-                text = "▼",
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.content,
-            )
-        }
+private fun GoldSeatRing(pulsing: Boolean, modifier: Modifier = Modifier) {
+    val alpha = if (pulsing) {
+        val transition = rememberInfiniteTransition(label = "to-act")
+        val pulse by transition.animateFloat(
+            initialValue = 0.45f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(900, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "to-act-alpha",
+        )
+        pulse
+    } else {
+        1f
+    }
+    Box(
+        modifier = modifier.border(
+            width = 2.5.dp,
+            color = AppTheme.colors.poker.chipGold.color.copy(alpha = alpha),
+            shape = CircleShape,
+        ),
+    )
+}
+
+/**
+ * The bottom-center action chip: green check for a check, a neutral pill for a
+ * call, a gold pill for chips going in (bet/raise/all-in). Gold == chips in.
+ */
+@Composable
+private fun SeatActionChip(
+    action: PlayerAction,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (action) {
+        is PlayerAction.Check -> CheckBadge(onClick = onClick, modifier = modifier)
+        is PlayerAction.Call -> ActionPill(
+            text = formatCompactChips(action.amount),
+            gold = false,
+            onClick = onClick,
+            modifier = modifier,
+        )
+        is PlayerAction.Bet -> ActionPill(
+            text = formatCompactChips(action.amount),
+            gold = true,
+            onClick = onClick,
+            modifier = modifier,
+        )
+        is PlayerAction.Raise -> ActionPill(
+            text = "▲ ${formatCompactChips(action.totalStreetContribution)}",
+            gold = true,
+            onClick = onClick,
+            modifier = modifier,
+        )
+        is PlayerAction.AllIn -> ActionPill(
+            text = "ALL-IN",
+            gold = true,
+            onClick = onClick,
+            modifier = modifier,
+        )
+        is PlayerAction.Fold -> Unit
     }
 }
 
 @Composable
-private fun LastActionOverlay(
-    action: PlayerAction?,
-    onClick: (PlayerAction) -> Unit = {},
+private fun CheckBadge(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(18.dp)
+            .clip(CircleShape)
+            .background(AppTheme.colors.success.color)
+            .border(2.dp, AppTheme.colors.background.color, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "✓",
+            typography = AppTheme.typography.Label.L300,
+            color = AppTheme.colors.onSuccess,
+        )
+    }
+}
+
+@Composable
+private fun ActionPill(
+    text: String,
+    gold: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier) {
-        AnimatedVisibility(
-            visible = action != null,
-            enter = slideInVertically(animationSpec = tween(240)) { -it } +
-                fadeIn(animationSpec = tween(200)),
-            exit = slideOutVertically(animationSpec = tween(180)) { -it } +
-                fadeOut(animationSpec = tween(140)),
-        ) {
-            action?.let { a -> LastActionPill(label = a.shortLabel(), onClick = { onClick(a) }) }
-        }
+    Box(
+        modifier = modifier
+            .clip(Radii.Round.shape)
+            .background(if (gold) AppTheme.colors.poker.chipGold.color else AppTheme.colors.surfaceHigh.color)
+            .then(
+                if (gold) Modifier else Modifier.border(1.dp, AppTheme.colors.border.color, Radii.Round.shape),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+    ) {
+        Text(
+            text = text,
+            typography = AppTheme.typography.Label.L500,
+            color = if (gold) AppTheme.colors.background else AppTheme.colors.content,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
+}
+
+/** Two tilted grey rects under a folded seat — the mucked hand. */
+@Composable
+private fun MuckedCardsMarker(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy((-5).dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        MuckCard(rotation = -12f)
+        MuckCard(rotation = 12f)
+    }
+}
+
+@Composable
+private fun MuckCard(rotation: Float) {
+    Box(
+        modifier = Modifier
+            .graphicsLayer { rotationZ = rotation }
+            .size(width = 11.dp, height = 15.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(AppTheme.colors.surfaceHigh.color)
+            .border(1.dp, AppTheme.colors.background.color, RoundedCornerShape(2.dp)),
+    )
 }
 
 @Preview

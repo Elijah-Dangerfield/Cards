@@ -389,10 +389,9 @@ internal fun PlayerArea(
 
 /**
  * Drives the active-turn pulse for the human's player-area border. The
- * opponent ring uses its own self-contained `PulsingActiveRing` in
- * `libraries/ui`; we keep this helper local because the border alpha is
- * woven into a `Color.copy(alpha = ...)` derivation that doesn't fit the
- * library component's API.
+ * opponent seats draw their own gold ring; we keep this helper local because
+ * the border alpha is woven into a `Color.copy(alpha = ...)` derivation that
+ * doesn't fit a shared component's API.
  */
 @Composable
 private fun pulseAlpha(low: Float = 0.32f, high: Float = 0.78f): Float {

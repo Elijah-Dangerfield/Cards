@@ -1048,7 +1048,6 @@ private fun ActiveTable(
             OpponentsRow(
                 table = table,
                 onBlindClick = onBlindClick,
-                onBetPillClick = onBetPillClick,
                 onLastActionClick = onLastActionClick,
                 onAvatarTap = onOpponentTap,
             )
