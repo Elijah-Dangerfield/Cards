@@ -8,7 +8,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
@@ -40,6 +38,7 @@ import cards.libraries.resources.generated.resources.room_emoji_tray_cooldown
 import cards.libraries.resources.generated.resources.room_emoji_tray_empty_caption
 import com.dangerfield.cards.libraries.cards.EmotePackCatalog
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.cutout
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.icon.EmojiButton
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
@@ -99,16 +98,20 @@ internal fun SeatEmoteBadge(
         if (cooling) {
             CooldownChip(remainingSeconds = remainingSeconds)
         } else {
-            // The cutout ring — a thick border in the background colour so the
-            // emoji reads as set into the card corner rather than stuck on top.
+            // Cut out of the player tile's surface so the emoji reads as set into
+            // the card corner rather than stuck on top.
             Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .border(CutoutBorder, AppTheme.colors.background.color, CircleShape),
+                modifier = Modifier.cutout(
+                    ringColor = AppTheme.colors.surface.color,
+                    fillColor = AppTheme.colors.surfaceRaised.color,
+                    shape = CircleShape,
+                    ringWidth = CutoutBorder,
+                ),
             ) {
                 EmojiButton(
                     emoji = TriggerEmoji,
                     size = TriggerSize,
+                    backgroundColor = null,
                     onClick = { expanded = !expanded },
                 )
             }

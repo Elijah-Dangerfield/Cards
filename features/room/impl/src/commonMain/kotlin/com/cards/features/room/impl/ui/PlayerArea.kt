@@ -625,16 +625,19 @@ private fun PlayerInfoTile(
                     backgroundColorHex = seat.avatarBackgroundColorHex,
                 )
             }
+            // Top-right corner badge (matches the opponent-seat convention), cut
+            // out of the player tile's own surface — not the page background — so
+            // the ring reads as the tile color, and clear of the bottom-right
+            // emote badge.
             BlindMarker(
                 isDealer = seat.isDealer,
                 isSmallBlind = seat.isSmallBlind,
                 isBigBlind = seat.isBigBlind,
+                cutoutColor = AppTheme.colors.surface.color,
                 onClick = if (hasBlindRole) onBlindClick else null,
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    // Small inward inset so the chip overlaps the avatar's
-                    // bottom-right corner rather than floating off it.
-                    .offset(x = (-4).dp, y = (-4).dp),
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-2).dp, y = 2.dp),
             )
         }
         VerticalSpacerD100()

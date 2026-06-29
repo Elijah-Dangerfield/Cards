@@ -46,6 +46,7 @@ import com.dangerfield.cards.features.room.impl.SeatView
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.cutout
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
@@ -210,11 +211,13 @@ internal fun OpponentSeat(
                 }
             }
 
-            // Position badge — top-left, persists the whole hand.
+            // Position badge — top-left, persists the whole hand. Cut out of the
+            // felt the seat sits on.
             BlindMarker(
                 isDealer = seat.isDealer,
                 isSmallBlind = seat.isSmallBlind,
                 isBigBlind = seat.isBigBlind,
+                cutoutColor = cutoutColor,
                 muted = outOfHand,
                 onClick = if (hasBlindRole) onBlindClick else null,
                 modifier = Modifier.align(Alignment.TopStart),
@@ -366,10 +369,13 @@ private fun CheckBadge(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(18.dp)
-            .clip(CircleShape)
-            .background(AppTheme.colors.success.color)
-            .border(2.dp, seatCutoutColor(), CircleShape)
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .cutout(
+                ringColor = seatCutoutColor(),
+                fillColor = AppTheme.colors.success.color,
+                shape = CircleShape,
+                ringWidth = 2.dp,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -389,10 +395,13 @@ private fun ActionPill(
 ) {
     Box(
         modifier = modifier
-            .clip(Radii.Round.shape)
-            .background(if (gold) AppTheme.colors.poker.chipGold.color else AppTheme.colors.surfaceHigh.color)
-            .border(1.5.dp, seatCutoutColor(), Radii.Round.shape)
             .clickable(onClick = onClick)
+            .cutout(
+                ringColor = seatCutoutColor(),
+                fillColor = if (gold) AppTheme.colors.poker.chipGold.color else AppTheme.colors.surfaceHigh.color,
+                shape = Radii.Round.shape,
+                ringWidth = 1.5.dp,
+            )
             .padding(horizontal = 7.dp, vertical = 2.dp),
     ) {
         Text(
@@ -424,9 +433,12 @@ private fun MuckCard(rotation: Float) {
         modifier = Modifier
             .graphicsLayer { rotationZ = rotation }
             .size(width = 11.dp, height = 15.dp)
-            .clip(RoundedCornerShape(2.dp))
-            .background(AppTheme.colors.surfaceHigh.color)
-            .border(1.dp, seatCutoutColor(), RoundedCornerShape(2.dp)),
+            .cutout(
+                ringColor = seatCutoutColor(),
+                fillColor = AppTheme.colors.surfaceHigh.color,
+                shape = RoundedCornerShape(2.dp),
+                ringWidth = 1.dp,
+            ),
     )
 }
 
