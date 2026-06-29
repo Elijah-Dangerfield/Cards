@@ -171,6 +171,30 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun lateSyncWhileHome_stillReplaysOdometer() = runUnitTest {
+        // The leave-game sync responds *after* the user is already on Home: they
+        // arrive with the old balance, then the network lands and the local truth
+        // updates. The change must still animate, not snap in silently.
+        val chips = FakeChipsRepository(initial = 10_000L)
+        val appCache = FakeAppCache(AppData(lastShownChipBalance = 10_000L))
+        val vm = buildVm(chips = chips, appCache = appCache)
+        advanceUntilIdle()
+
+        vm.takeAction(HomeAction.ScreenResumed) // foregrounded; balance still old
+        advanceUntilIdle()
+        assertEquals(0, vm.stateFlow.value.chipsRevealKey, "nothing changed on arrival")
+
+        // Sync lands late — the local balance updates while Home is foregrounded.
+        chips.balance.value = 11_000L
+        advanceUntilIdle()
+
+        val state = vm.stateFlow.value
+        assertEquals(10_000L, state.chipsRevealFrom, "rolls from what they last saw")
+        assertEquals(11_000L, state.chips)
+        assertTrue(state.chipsRevealKey > 0, "the late-landing change still animates")
+    }
+
+    @Test
     fun resumeWithNoChange_doesNotArmReplay() = runUnitTest {
         val chips = FakeChipsRepository(initial = 10_000L)
         val appCache = FakeAppCache(AppData(lastShownChipBalance = 10_000L))

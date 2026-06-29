@@ -113,14 +113,11 @@ class HomeViewModel(
         viewModelScope.launch {
             chipsRepository.observeBalance().collect { balance ->
                 takeAction(HomeAction.ChipsChanged(balance))
-                // While Home is foregrounded the live odometer already shows the
-                // change, so keep the "last seen" baseline current — that way a
-                // change seen live here doesn't replay as a reveal on the next
-                // return. While Home is away we leave the baseline frozen at what
-                // the user last saw, so the change waiting for them still animates.
-                if (homeResumed && balance != null) {
-                    appCache.update { it.copy(lastShownChipBalance = balance) }
-                }
+                // Reconcile the odometer against the value the user last saw on
+                // every change — not just on resume — so a change that lands while
+                // Home is already foregrounded (e.g. the leave-game sync responding
+                // after navigation) still animates instead of snapping.
+                takeAction(HomeAction.ReconcileChipReveal)
             }
         }
         viewModelScope.launch {
@@ -284,28 +281,32 @@ class HomeViewModel(
             }
             is HomeAction.ChipsChanged -> action.updateState { it.copy(chips = action.balance) }
             is HomeAction.ScreenResumed -> {
-                // Read the local source of truth (no backend) and replay any chip
-                // change that landed while the user was away, then re-arm baseline
-                // tracking for changes seen live. Reading the baseline before
-                // homeResumed flips true keeps the collector from clobbering it
-                // mid-check.
-                val current = chipsRepository.getBalance()
-                val lastShown = appCache.get().lastShownChipBalance
-                if (current != null) {
-                    appCache.update { it.copy(lastShownChipBalance = current) }
-                    if (lastShown != null && lastShown != current) {
-                        takeAction(HomeAction.RevealChips(from = lastShown, to = current))
-                    }
-                }
                 homeResumed = true
+                takeAction(HomeAction.ReconcileChipReveal)
             }
             is HomeAction.ScreenPaused -> homeResumed = false
-            is HomeAction.RevealChips -> action.updateState {
-                it.copy(
-                    chips = action.to,
-                    chipsRevealFrom = action.from,
-                    chipsRevealKey = it.chipsRevealKey + 1,
-                )
+            is HomeAction.ReconcileChipReveal -> {
+                // Only while Home is the foreground screen — otherwise leave the
+                // baseline frozen at what the user last saw so the accumulated
+                // change replays when they return. Reads the local source of truth
+                // (no backend); arms the odometer to roll from last-seen to current
+                // and advances the baseline so the same change can't replay twice.
+                if (homeResumed) {
+                    val current = chipsRepository.getBalance()
+                    val lastShown = appCache.get().lastShownChipBalance
+                    if (current != null && lastShown != current) {
+                        if (lastShown != null) {
+                            action.updateState {
+                                it.copy(
+                                    chips = current,
+                                    chipsRevealFrom = lastShown,
+                                    chipsRevealKey = it.chipsRevealKey + 1,
+                                )
+                            }
+                        }
+                        appCache.update { it.copy(lastShownChipBalance = current) }
+                    }
+                }
             }
             is HomeAction.ProfileChanged -> action.applyProfile(action.profile)
             is HomeAction.RecentUnlocksChanged -> action.updateState {
@@ -644,15 +645,17 @@ sealed interface HomeAction {
     data class ProgressionChanged(val progress: LevelProgress) : HomeAction
     data class ChipsChanged(val balance: Long?) : HomeAction
 
-    /** Home became visible — check the local source of truth and replay any chip
-     *  change the user missed while away. */
+    /** Home became visible — start reconciling the chip odometer against what the
+     *  user last saw, replaying any change they missed while away. */
     data object ScreenResumed : HomeAction
 
-    /** Home went to the background — stop treating live balance changes as "seen". */
+    /** Home went to the background — freeze the "last seen" baseline. */
     data object ScreenPaused : HomeAction
 
-    /** Arm the odometer to roll from [from] (last seen) to [to] (current). */
-    data class RevealChips(val from: Long, val to: Long) : HomeAction
+    /** Reconcile the odometer with the local source of truth: if the balance
+     *  differs from what the user last saw (and Home is foregrounded), roll from
+     *  last-seen to current and advance the baseline. */
+    data object ReconcileChipReveal : HomeAction
     data class ProfileChanged(val profile: Profile) : HomeAction
     data class RecentUnlocksChanged(val items: List<RecentAchievement>) : HomeAction
     data class RecentOpponentsChanged(val profiles: List<RecentOpponentProfile>) : HomeAction
