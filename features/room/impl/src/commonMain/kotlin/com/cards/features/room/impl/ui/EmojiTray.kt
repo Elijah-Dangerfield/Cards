@@ -45,6 +45,7 @@ import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.iconSize
 import com.dangerfield.cards.libraries.ui.components.icon.padding
 import com.dangerfield.cards.libraries.ui.components.poker.LocalFeltAccentSurface
+import com.dangerfield.cards.libraries.ui.components.poker.LocalTableSurface
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -98,11 +99,11 @@ internal fun SeatEmoteBadge(
         if (cooling) {
             CooldownChip(remainingSeconds = remainingSeconds)
         } else {
-            // Cut out of the player tile's surface so the emoji reads as set into
-            // the card corner rather than stuck on top.
+            // Cut out of the table background (matching the win-odds badge and the
+            // opponent seats) so the emoji reads as punched into the card corner.
             Box(
                 modifier = Modifier.cutout(
-                    ringColor = AppTheme.colors.surface.color,
+                    ringColor = LocalTableSurface.current ?: AppTheme.colors.background.color,
                     fillColor = AppTheme.colors.surfaceRaised.color,
                     shape = CircleShape,
                     ringWidth = CutoutBorder,
