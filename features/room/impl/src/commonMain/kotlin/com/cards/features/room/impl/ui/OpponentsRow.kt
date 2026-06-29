@@ -6,6 +6,7 @@ import com.dangerfield.cards.features.room.impl.SeatView
 import com.dangerfield.cards.features.room.impl.TableUiState
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -39,6 +40,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.style.TextOverflow
@@ -291,7 +293,9 @@ private fun OpponentSeat(
 ) {
     val folded = seat.participation == HandParticipation.Folded
     val busted = seat.isBusted
-    val ringSize = avatarSize + 12.dp
+    // A thin halo bleeds just a few dp past the avatar's edge (was a chunky
+    // 6dp ring) so the active-turn signal reads as a crisp ring, not a glow.
+    val ringSize = avatarSize + 6.dp
     val hasBlindRole = seat.isDealer || seat.isSmallBlind || seat.isBigBlind
     // A still-in seat that has already acted this street (has a last action, isn't
     // the one on the clock) is gently scrimmed so attention stays on who still has
@@ -306,6 +310,14 @@ private fun OpponentSeat(
         else -> 1f
     }
     val dimMod = Modifier.alpha(dimAlpha)
+    // The seat on the clock sits at full size; everyone else shrinks a touch so
+    // attention pulls to whoever's acting. Draw-only scale (graphicsLayer), so
+    // seats keep their layout slots and the row doesn't reflow as turns pass.
+    val seatScale by animateFloatAsState(
+        targetValue = if (seat.isActing) 1f else 0.9f,
+        animationSpec = tween(220),
+        label = "seat-scale",
+    )
     // Publish this seat's avatar bounds so the pot-ship coins can fly to it when
     // the seat wins. No-op when there's no anchor holder (previews / tutorial).
     val rewardAnchors = LocalTableRewardAnchors.current
@@ -317,7 +329,12 @@ private fun OpponentSeat(
     // clipped region while still fading the avatar + identity text.
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(horizontal = 2.dp),
+        modifier = Modifier
+            .padding(horizontal = 2.dp)
+            .graphicsLayer {
+                scaleX = seatScale
+                scaleY = seatScale
+            },
     ) {
         Box(
             contentAlignment = Alignment.Center,
