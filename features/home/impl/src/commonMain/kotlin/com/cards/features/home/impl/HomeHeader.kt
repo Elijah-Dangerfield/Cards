@@ -2,11 +2,13 @@ package com.dangerfield.cards.features.home.impl
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
@@ -16,10 +18,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.ui_level_pill_label
+import cards.libraries.resources.generated.resources.home_header_xp
+import cards.libraries.resources.generated.resources.home_level_chip
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.cutout
 import com.dangerfield.cards.libraries.ui.components.ChipBadge
 import com.dangerfield.cards.libraries.ui.components.RingedAvatar
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -71,13 +75,35 @@ internal fun HomeHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
         ) {
-            RingedAvatar(
-                name = displayName,
-                fraction = levelProgress.fraction,
-                emoji = avatarEmoji,
-                backgroundColorHex = avatarBackgroundColorHex,
-                avatarSize = 56.dp,
-            )
+            Box(contentAlignment = Alignment.BottomCenter) {
+                RingedAvatar(
+                    name = displayName,
+                    fraction = levelProgress.fraction,
+                    emoji = avatarEmoji,
+                    backgroundColorHex = avatarBackgroundColorHex,
+                    avatarSize = 56.dp,
+                )
+                // "LV N" chip straddling the avatar's bottom edge, cut out of the
+                // page background. Teal text keeps the XP colour language; the XP
+                // ring already encodes progress, so the number lives here.
+                Box(
+                    modifier = Modifier
+                        .offset(y = 4.dp)
+                        .cutout(
+                            ringColor = AppTheme.colors.background.color,
+                            fillColor = AppTheme.colors.surfaceRaised.color,
+                            shape = Radii.Round.shape,
+                            ringWidth = 2.dp,
+                        )
+                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                ) {
+                    Text(
+                        text = stringResource(Res.string.home_level_chip, levelProgress.level),
+                        typography = AppTheme.typography.Label.L400,
+                        color = AppTheme.colors.poker.progressionCyan,
+                    )
+                }
+            }
             Column(modifier = Modifier.weight(1f, fill = false)) {
                 Text(
                     text = displayName,
@@ -87,7 +113,11 @@ internal fun HomeHeader(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = stringResource(Res.string.ui_level_pill_label, levelProgress.level),
+                    text = stringResource(
+                        Res.string.home_header_xp,
+                        levelProgress.xpIntoLevel.toString(),
+                        levelProgress.xpForNextLevel.toString(),
+                    ),
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.contentSecondary,
                     maxLines = 1,

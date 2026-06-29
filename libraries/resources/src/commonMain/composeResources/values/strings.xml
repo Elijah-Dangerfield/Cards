@@ -246,6 +246,10 @@
     <string name="onboarding_identity_name_requirements">%1$d to %2$d characters, no emoji</string>
     <string name="onboarding_identity_continue_button">Continue</string>
 
+    <!-- Home - header XP line under the username (e.g. "320 / 500 XP"). %1$s into-level XP, %2$s for-this-level XP. -->
+    <string name="home_header_xp">%1$s / %2$s XP</string>
+    <!-- Home - compact level chip on the avatar (e.g. "LV 2"). %1$d is the level. -->
+    <string name="home_level_chip">LV %1$d</string>
     <!-- Home - Play section (Public rooms hero + Private room row + Practice / Tournament tiles). -->
     <string name="home_section_play">Play</string>
     <string name="home_cta_practice_title">Practice</string>
