@@ -124,6 +124,9 @@ internal fun PlayerArea(
     onHandLabelClick: (label: String) -> Unit = {},
     onSwipeFold: () -> Unit = {},
     onSelfTap: () -> Unit = {},
+    availableEmojis: List<String> = emptyList(),
+    emojiCooldownEndsAtMs: Long = 0L,
+    onBlastEmoji: ((String) -> Unit)? = null,
 ) {
     val human = table.seats.firstOrNull { it.isHuman } ?: return
     val folded = human.participation == HandParticipation.Folded
@@ -345,27 +348,42 @@ internal fun PlayerArea(
                 )
             }
         }
-        FlippablePlayerInfoTile(
-            seat = human,
-            handLabel = table.humanHandLabel,
-            isWinner = isWinner,
-            stackOverride = humanStackOverride,
-            // Acting human on a timer-enforced (MP) table gets the depleting
-            // countdown ring around their avatar; null on solo tables (no
-            // enforcement) suppresses it. Re-arms on the turn token.
-            countdownSeconds = table.turnTimerSeconds?.takeIf { human.isActing },
-            turnKey = table.handNumber to table.turnSequence,
-            winOdds = humanWinOdds,
-            winOddsFlipHintSeen = winOddsFlipHintSeen,
-            onFirstFlip = onWinOddsFlipped,
-            onBlindClick = onBlindClick,
-            onBetPillClick = onBetPillClick,
-            onLastActionClick = onLastActionClick,
-            onStackClick = onStackClick,
-            onHandLabelClick = onHandLabelClick,
-            onSelfTap = onSelfTap,
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-        )
+        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            FlippablePlayerInfoTile(
+                seat = human,
+                handLabel = table.humanHandLabel,
+                isWinner = isWinner,
+                stackOverride = humanStackOverride,
+                // Acting human on a timer-enforced (MP) table gets the depleting
+                // countdown ring around their avatar; null on solo tables (no
+                // enforcement) suppresses it. Re-arms on the turn token.
+                countdownSeconds = table.turnTimerSeconds?.takeIf { human.isActing },
+                turnKey = table.handNumber to table.turnSequence,
+                winOdds = humanWinOdds,
+                winOddsFlipHintSeen = winOddsFlipHintSeen,
+                onFirstFlip = onWinOddsFlipped,
+                onBlindClick = onBlindClick,
+                onBetPillClick = onBetPillClick,
+                onLastActionClick = onLastActionClick,
+                onStackClick = onStackClick,
+                onHandLabelClick = onHandLabelClick,
+                onSelfTap = onSelfTap,
+                modifier = Modifier.fillMaxSize(),
+            )
+            // Emote blast lives here as a cutout badge in the seat's bottom-right
+            // corner (moved off the top bar). Null when emotes aren't available
+            // (e.g. the tutorial), which hides the affordance entirely.
+            if (onBlastEmoji != null) {
+                SeatEmoteBadge(
+                    emojis = availableEmojis,
+                    cooldownEndsAtEpochMs = emojiCooldownEndsAtMs,
+                    onBlast = onBlastEmoji,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = (-2).dp, y = (-2).dp),
+                )
+            }
+        }
     }
 }
 

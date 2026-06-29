@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,10 +27,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import cards.libraries.resources.generated.resources.Res
@@ -53,29 +57,24 @@ import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Compact emoji-blast button suitable for the TopBar. Renders a DS
- * [EmojiButton] (sibling of [IconButton], same Size scale + shape) so
- * the cluster reads as one set of controls. Tap opens a popup containing
- * either [EmojiPickerRow] (user owns ≥1 `emotes_*` pack) or
- * [EmptyEmojiPopup] (user owns none; greyed-out preview + caption).
- * The trigger always renders so the affordance is visible — receiving
- * emotes still works without ownership, and the empty-state popup
- * surfaces the path to start sending them.
+ * Emote-blast badge for the bottom-right corner of the human's seat card.
+ * Styled as a cutout — a thick border in the screen background colour rings
+ * the emoji so the trigger reads as punched into the card corner. Tap opens a
+ * tray that unfurls UPWARD (the badge sits near the bottom of the screen) with
+ * either [EmojiPickerRow] (user owns ≥1 `emotes_*` pack) or [EmptyEmojiPopup]
+ * (user owns none; greyed-out preview + caption). The trigger always renders so
+ * the affordance is visible.
  *
- * Cooldown: while [cooldownEndsAtEpochMs] is in the future, the button
- * is replaced by a same-sized non-tappable surface showing remaining
- * seconds. The popup auto-closes the moment a cooldown begins, since
- * the dimmed picker is useless mid-cooldown. The VM is still
- * authoritative — the disabled-on-cooldown gate here just keeps the
- * animation noise out of the channel.
+ * Cooldown: while [cooldownEndsAtEpochMs] is in the future the trigger is
+ * replaced by a same-sized chip counting the remaining seconds, and the tray
+ * auto-closes. The VM stays authoritative; this gate just keeps the channel
+ * quiet mid-cooldown.
  *
- * The popup's picker cells are intentionally a notch larger than the
- * trigger ([CellSize] > [TriggerSize]) so they're comfortable to tap
- * once the tray is open — the tray no longer inherits its height from
- * the trigger.
+ * The tray's picker cells are a notch larger than the trigger ([CellSize] >
+ * [TriggerSize]) so they're comfortable to tap once open.
  */
 @Composable
-internal fun TopBarEmojiButton(
+internal fun SeatEmoteBadge(
     emojis: List<String>,
     cooldownEndsAtEpochMs: Long,
     onBlast: (String) -> Unit,
@@ -94,40 +93,43 @@ internal fun TopBarEmojiButton(
         if (cooling) expanded = false
     }
 
-    val triggerFootprint = TriggerSize.iconSize.dp + TriggerSize.padding * 2
+    val triggerFootprint = TriggerSize.iconSize.dp + TriggerSize.padding * 2 + CutoutBorder * 2
 
     Box(modifier = modifier.size(triggerFootprint)) {
         if (cooling) {
             CooldownChip(remainingSeconds = remainingSeconds)
         } else {
-            EmojiButton(
-                emoji = TriggerEmoji,
-                size = TriggerSize,
-                onClick = { expanded = !expanded },
-            )
+            // The cutout ring — a thick border in the background colour so the
+            // emoji reads as set into the card corner rather than stuck on top.
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .border(CutoutBorder, AppTheme.colors.background.color, CircleShape),
+            ) {
+                EmojiButton(
+                    emoji = TriggerEmoji,
+                    size = TriggerSize,
+                    onClick = { expanded = !expanded },
+                )
+            }
         }
 
-        // Drive enter/exit through a MutableTransitionState so the
-        // Popup itself stays mounted through the exit animation —
-        // wrapping `Popup` in a plain `if (expanded)` would yank the
-        // popup out the instant the user dismisses, skipping the
-        // shrink/fade. Mount-while-(currentState || targetState) is
-        // the canonical pattern for animated popups in Compose.
+        // Drive enter/exit through a MutableTransitionState so the Popup stays
+        // mounted through the exit animation — a plain `if (expanded)` would
+        // yank it the instant the user dismisses, skipping the shrink/fade.
         val visibleState = remember { MutableTransitionState(initialState = false) }
         visibleState.targetState = expanded && !cooling
 
         if (visibleState.currentState || visibleState.targetState) {
-            // Anchored popup directly under the trigger. Offset pushes
-            // the picker below using the trigger's own footprint so the
-            // gap stays consistent if the Size scale changes. Aligned
-            // to TopEnd so the row hugs the right edge — same side as
-            // the trigger.
-            val offsetY = with(LocalDensity.current) {
-                (triggerFootprint + Dimension.D200).roundToPx()
+            // Tray unfurls UP from the badge: pin the popup's bottom-end to the
+            // badge's bottom-end, then lift it clear by the badge footprint + a
+            // gap so it floats just above instead of overlapping the seat.
+            val liftY = with(LocalDensity.current) {
+                -(triggerFootprint + Dimension.D200).roundToPx()
             }
             Popup(
-                alignment = Alignment.TopEnd,
-                offset = IntOffset(x = 0, y = offsetY),
+                alignment = Alignment.BottomEnd,
+                offset = IntOffset(x = 0, y = liftY),
                 onDismissRequest = { expanded = false },
                 properties = PopupProperties(
                     focusable = true,
@@ -135,12 +137,6 @@ internal fun TopBarEmojiButton(
                     dismissOnClickOutside = true,
                 ),
             ) {
-                // Scale + fade from the trigger's pivot (top-right of
-                // the tray, since trigger sits at TopEnd of the bar).
-                // The pivot makes the tray feel like it physically
-                // unfurls from the button rather than dropping in as a
-                // detached panel. Exit is a touch faster than enter so
-                // dismiss feels snappy without looking abrupt.
                 AnimatedVisibility(
                     visibleState = visibleState,
                     enter = scaleIn(
@@ -315,18 +311,21 @@ private val TriggerSize = IconButton.Size.Medium
 private val CellSize = IconButton.Size.Large
 private const val TriggerEmoji = "😀"
 
-// Pivot anchored to the tray's top-right corner so the scale animation
-// reads as "unfurling from the trigger button" — which sits at TopEnd
-// of the TopBar directly above the popup's top-right.
-private val TrayTransformOrigin = TransformOrigin(pivotFractionX = 1f, pivotFractionY = 0f)
+/** Thickness of the cutout ring around the seat badge. */
+private val CutoutBorder = 3.dp
+
+// Pivot anchored to the tray's bottom-right corner so the scale animation
+// reads as "unfurling upward from the badge" — which sits at the popup's
+// bottom-right, just below it.
+private val TrayTransformOrigin = TransformOrigin(pivotFractionX = 1f, pivotFractionY = 1f)
 
 private val PreviewEmojis = listOf("🔥", "😂", "👀", "💀", "🎉", "🤝")
 
 @Preview
 @Composable
-private fun TopBarEmojiButtonPreview_Idle() {
+private fun SeatEmoteBadgePreview_Idle() {
     PreviewContent {
-        TopBarEmojiButton(
+        SeatEmoteBadge(
             emojis = PreviewEmojis,
             cooldownEndsAtEpochMs = 0L,
             onBlast = {},
@@ -336,9 +335,9 @@ private fun TopBarEmojiButtonPreview_Idle() {
 
 @Preview
 @Composable
-private fun TopBarEmojiButtonPreview_Cooldown() {
+private fun SeatEmoteBadgePreview_Cooldown() {
     PreviewContent {
-        TopBarEmojiButton(
+        SeatEmoteBadge(
             emojis = PreviewEmojis,
             cooldownEndsAtEpochMs = Clock.System.now().toEpochMilliseconds() + 5_000L,
             onBlast = {},
@@ -348,9 +347,9 @@ private fun TopBarEmojiButtonPreview_Cooldown() {
 
 @Preview
 @Composable
-private fun TopBarEmojiButtonPreview_EmptyState() {
+private fun SeatEmoteBadgePreview_EmptyState() {
     PreviewContent {
-        TopBarEmojiButton(
+        SeatEmoteBadge(
             emojis = emptyList(),
             cooldownEndsAtEpochMs = 0L,
             onBlast = {},

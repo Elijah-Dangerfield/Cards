@@ -53,7 +53,6 @@ import cards.libraries.resources.generated.resources.room_next_hand_leave_button
 import cards.libraries.resources.generated.resources.room_practice_tier_bots_present
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
-import cards.libraries.resources.generated.resources.room_top_bar_overflow_a11y
 import cards.libraries.resources.generated.resources.room_waiting_to_be_dealt_in
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
@@ -90,7 +89,6 @@ import com.dangerfield.cards.libraries.ui.components.poker.feltSurfaceColor
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.HorizontalSpacerD100
-import com.dangerfield.cards.system.HorizontalSpacerD200
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD500
 import org.jetbrains.compose.resources.stringResource
@@ -127,7 +125,6 @@ fun PlayPokerScreen(
     var practiceTierExplainerOpen by remember { mutableStateOf(false) }
     var practiceTierExplainerAutoShown by remember { mutableStateOf(false) }
     var leaveConfirmOpen by remember { mutableStateOf(false) }
-    var overflowOpen by remember { mutableStateOf(false) }
     var swipeFoldConfirmOpen by remember { mutableStateOf(false) }
     var profileSheetSeat by remember { mutableStateOf<SeatView?>(null) }
     var selfCardOpen by remember { mutableStateOf(false) }
@@ -307,15 +304,9 @@ fun PlayPokerScreen(
                     xp = displayedXp,
                     xpBoostExpiresAtEpochMs = state.xpBoostExpiresAtEpochMs,
                     onBack = requestLeave,
-                    onOverflow = { overflowOpen = true },
                     onTapXp = onTapXp,
                     showXpPill = showXpPill,
                     centerSlot = topBarCenterSlot,
-                    availableEmojis = state.availableEmojis,
-                    emojiCooldownEndsAtEpochMs = state.emojiCooldownEndsAtMs,
-                    onBlastEmoji = { emoji ->
-                        onAction(PlayPokerAction.BlastEmoji(emoji))
-                    },
                 )
 
                 if (active?.practiceTierBotsPresent == true) {
@@ -378,6 +369,9 @@ fun PlayPokerScreen(
                             seatMuteKey(seat)?.let { profileSheetSeat = seat }
                         },
                         onSelfTap = { selfCardOpen = true },
+                        availableEmojis = state.availableEmojis,
+                        emojiCooldownEndsAtMs = state.emojiCooldownEndsAtMs,
+                        onBlastEmoji = { emoji -> onAction(PlayPokerAction.BlastEmoji(emoji)) },
                     )
                 }
             }
@@ -403,19 +397,6 @@ fun PlayPokerScreen(
                     },
                 )
             }
-        }
-
-        if (overflowOpen) {
-            TableOverflowSheet(
-                handNumber = active?.handNumber ?: 0,
-                street = active?.street ?: BettingRound.Preflop,
-                sessionWon = state.sessionHandsWon,
-                sessionLost = state.sessionHandsLost,
-                walletChips = state.chipBalance,
-                tableStack = humanStack,
-                roomCode = state.roomCode,
-                onDismiss = { overflowOpen = false },
-            )
         }
 
         if (state.cheatSheetOpen) {
@@ -957,29 +938,17 @@ private fun TopBar(
     xp: Long,
     xpBoostExpiresAtEpochMs: Long? = null,
     onBack: () -> Unit,
-    onOverflow: () -> Unit,
     onTapXp: () -> Unit = {},
     showXpPill: Boolean = true,
     centerSlot: (@Composable () -> Unit)? = null,
-    availableEmojis: List<String> = emptyList(),
-    emojiCooldownEndsAtEpochMs: Long = 0L,
-    onBlastEmoji: ((String) -> Unit)? = null,
 ) {
-    // Minimal top bar — navigation, level + ring, info. The level pill
-    // ticks up live as the player earns XP, and the gradient ring fills
-    // toward the next level so the player feels progress even when they
-    // lose a hand. Emoji blast lives here alongside the cheat sheet
-    // (right-side action cluster) — the trigger always renders so the
-    // affordance is visible; the tray itself swaps to an empty-state
-    // popup (greyed preview + caption) when the user owns no pack — no
-    // in-game shop navigation, which would forfeit the seat.
+    // Minimal top bar — back, the live level pill + ring, and nothing on the
+    // right. The pill ticks up as the player earns XP and the gradient ring
+    // fills toward the next level, so progress reads even on a losing hand.
     //
-    // The pill is overlay-positioned at true screen-center via Box
-    // alignment rather than placed inline in a SpaceBetween Row.
-    // SpaceBetween distributes children based on side widths, so the
-    // pill drifts off-center whenever the right cluster grows (e.g. the
-    // emoji button appears). Box(CenterStart/Center/CenterEnd) keeps
-    // the pill pinned to the screen midpoint regardless.
+    // The pill is overlay-positioned at true screen-center via Box alignment
+    // rather than placed inline in a SpaceBetween Row, so it stays pinned to
+    // the screen midpoint regardless of what flanks it.
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1012,26 +981,6 @@ private fun TopBar(
                             Modifier
                         },
                     ),
-            )
-        }
-        Row(
-            modifier = Modifier.align(Alignment.CenterEnd),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (onBlastEmoji != null) {
-                TopBarEmojiButton(
-                    emojis = availableEmojis,
-                    cooldownEndsAtEpochMs = emojiCooldownEndsAtEpochMs,
-                    onBlast = onBlastEmoji,
-                )
-                HorizontalSpacerD200()
-            }
-            IconButton(
-                backgroundColor = AppTheme.colors.surface,
-                icon = Icons.MoreHoriz(
-                    stringResource(Res.string.room_top_bar_overflow_a11y),
-                ),
-                onClick = onOverflow,
             )
         }
     }
@@ -1076,6 +1025,9 @@ private fun ActiveTable(
     onSwipeFold: () -> Unit = {},
     onOpponentTap: (SeatView) -> Unit = {},
     onSelfTap: () -> Unit = {},
+    availableEmojis: List<String> = emptyList(),
+    emojiCooldownEndsAtMs: Long = 0L,
+    onBlastEmoji: ((String) -> Unit)? = null,
 ) {
     // Pinned-bottom layout: opponents + board scroll if needed, but the
     // player's hand and the action bar always sit at the bottom in reach.
@@ -1124,6 +1076,9 @@ private fun ActiveTable(
                 onHandLabelClick = onHandLabelClick,
                 onSwipeFold = onSwipeFold,
                 onSelfTap = onSelfTap,
+                availableEmojis = availableEmojis,
+                emojiCooldownEndsAtMs = emojiCooldownEndsAtMs,
+                onBlastEmoji = onBlastEmoji,
             )
             // Between hands on a real-chip table the bet bar is replaced by the
             // auto-advance countdown + a leave-with-winnings affordance, so the
