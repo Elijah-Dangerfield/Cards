@@ -111,6 +111,8 @@ fun PlayingCard(
                 typography = resolvedRankType,
                 color = color,
                 textAlign = TextAlign.Start,
+                maxLines = 1,
+                softWrap = false,
             )
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
                 Text(
@@ -492,17 +494,17 @@ fun PlayingCardSlot(
 
 @Composable
 private fun defaultRankTypography(width: Dp): TypographyResource = when {
-    width >= 90.dp -> AppTheme.typography.Heading.H1000
-    width >= 60.dp -> AppTheme.typography.Heading.H800
-    width >= 40.dp -> AppTheme.typography.Body.B700
-    else -> AppTheme.typography.Body.B600
+    width >= 84.dp -> AppTheme.typography.Display.D1100
+    width >= 54.dp -> AppTheme.typography.Display.D1000
+    width >= 38.dp -> AppTheme.typography.Heading.H800
+    else -> AppTheme.typography.Body.B700
 }
 
 @Composable
 private fun defaultSuitTypography(width: Dp): TypographyResource = when {
-    width >= 90.dp -> AppTheme.typography.Heading.H1000
-    width >= 60.dp -> AppTheme.typography.Body.B600
-    else -> AppTheme.typography.Body.B500
+    width >= 84.dp -> AppTheme.typography.Heading.H1000
+    width >= 54.dp -> AppTheme.typography.Heading.H800
+    else -> AppTheme.typography.Body.B600
 }
 
 private fun cornerRadiusFor(width: Dp): Dp = when {
