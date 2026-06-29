@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 
 /** `SignIn` → "Sign in with Apple"; `ContinueFlow` → "Continue with Apple" (onboarding). */
 enum class AppleSignInButtonKind { SignIn, ContinueFlow }
@@ -76,7 +76,7 @@ internal fun ComposeAppleSignInButton(
     Box(
         modifier = modifier
             .defaultMinSize(minHeight = 50.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(Radii.Button.shape)
             .background(surface.color)
             .alpha(if (enabled) 1f else 0.6f)
             .semantics { role = Role.Button }

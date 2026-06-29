@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,6 +27,7 @@ import cards.libraries.resources.generated.resources.ic_google_g
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -69,7 +69,7 @@ fun GoogleSignInButton(
     val dark = theme == GoogleSignInButtonTheme.Dark
     val surface = if (dark) GoogleDarkSurface else ColorResource.White
     val foreground = if (dark) GoogleDarkForeground else ColorResource.Black
-    val shape = RoundedCornerShape(8.dp)
+    val shape = Radii.Button.shape
     Box(
         modifier = modifier
             .defaultMinSize(minHeight = 50.dp)

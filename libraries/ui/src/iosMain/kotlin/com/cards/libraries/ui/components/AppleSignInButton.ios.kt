@@ -43,7 +43,9 @@ actual fun AppleSignInButton(
             val view = factory.createAppleSignInButton(
                 kind = kind.toNativeKind(),
                 style = style.toNativeStyle(),
-                cornerRadius = 8f,
+                // Matches the app's button radius (Radii.Button = 16dp) so the
+                // Apple button reads as part of the set, not a square slab.
+                cornerRadius = 16f,
                 onTap = { latestOnClick() },
             )
             factory.updateAppleSignInButton(view, effectiveEnabled) { latestOnClick() }
