@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -50,10 +49,10 @@ import kotlin.math.roundToInt
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * The one canonical way to render an achievement as a glossy 3D "medal"
- * disc — the achievement equivalent of [com.dangerfield.cards.libraries.ui.components.ChipCoin]
- * or `AvatarCircle`. A domed radial gradient (lit from the top-left) plus a
- * soft specular highlight give it a raised, Apple-Fitness-award feel.
+ * The one canonical way to render an achievement as a flat "medal" disc — the
+ * achievement equivalent of [com.dangerfield.cards.libraries.ui.components.ChipCoin]
+ * or `AvatarCircle`. A clean flat fill in the rarity colour (grey when locked)
+ * with a thin rim — no domed gradient or metallic gloss.
  *
  * It's a real two-sided coin: the **front** carries the icon; the **back**
  * carries the date you earned it (or your progress "X / Y" toward earning it).
@@ -129,19 +128,9 @@ fun AchievementMedal(
     val isMystery = achievement.isMystery && !earned
     val rarity = achievement.rarity.toAccentColor()
 
-    val highlight: Color
-    val mid: Color
-    val edge: Color
-    if (earned) {
-        highlight = lerp(rarity, Color.White, 0.50f)
-        mid = rarity
-        edge = lerp(rarity, Color.Black, 0.42f)
-    } else {
-        highlight = AppTheme.colors.surfaceHigh.color
-        mid = AppTheme.colors.surfaceRaised.color
-        edge = lerp(AppTheme.colors.surfaceRaised.color, Color.Black, 0.30f)
-    }
-    val gloss = Color.White.copy(alpha = if (earned) 0.38f else 0.12f)
+    // Flat disc — earned shows its rarity colour, locked a neutral surface. No
+    // domed gradient / metallic gloss; a thin rim gives the edge a little definition.
+    val mid = if (earned) rarity else AppTheme.colors.surfaceRaised.color
     val rim = Color.White.copy(alpha = if (earned) 0.16f else 0.08f)
     val glyph = if (isMystery) "?" else achievement.icon
     val glyphColor = if (isMystery) AppTheme.colors.contentSecondary.color else Color.Black
@@ -231,25 +220,8 @@ fun AchievementMedal(
         val r = size.minDimension / 2f
         val c = center
 
-        // Coin material — same domed body, gloss, and rim on both faces.
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(0f to highlight, 0.55f to mid, 1f to edge),
-                center = Offset(c.x - r * 0.28f, c.y - r * 0.32f),
-                radius = r * 1.35f,
-            ),
-            radius = r,
-            center = c,
-        )
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(0f to gloss, 1f to Color.Transparent),
-                center = Offset(c.x - r * 0.32f, c.y - r * 0.42f),
-                radius = r * 0.85f,
-            ),
-            radius = r,
-            center = c,
-        )
+        // Coin body — a flat disc with a subtle rim, both faces.
+        drawCircle(color = mid, radius = r, center = c)
         val rimW = r * 0.05f
         drawCircle(color = rim, radius = r - rimW / 2f, style = Stroke(width = rimW))
 
