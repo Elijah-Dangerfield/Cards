@@ -66,7 +66,7 @@ fun BadgedIconButton(
                     ) {
                         Text(
                             text = if (badgeCount > 99) "99+" else badgeCount.toString(),
-                            typography = AppTheme.typography.Caption.C200.SemiBold,
+                            typography = AppTheme.typography.Caption.C400.SemiBold,
                         )
                     }
                 }

@@ -394,7 +394,7 @@ private fun ProfileHeader(
         VerticalSpacerD500()
         Text(
             text = settings.displayName,
-            typography = AppTheme.typography.Display.D1100,
+            typography = AppTheme.typography.Heading.H900,
             color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
         )
@@ -618,9 +618,9 @@ private fun AchievementsSection(
         VerticalSpacerD200()
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
-            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
-            maxItemsInEachRow = 4,
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D600),
+            verticalArrangement = Arrangement.spacedBy(Dimension.D600),
+            maxItemsInEachRow = AchievementsPerRow,
         ) {
             display.forEach { achievement ->
                 val isEarned = progress.isEarned(achievement.id)
@@ -654,16 +654,19 @@ private fun AchievementsSection(
                 }
             }
             // Pad the final row so medals stay left-aligned in their columns.
-            val remainder = display.size % 4
+            val remainder = display.size % AchievementsPerRow
             if (remainder != 0) {
-                repeat(4 - remainder) { Box(modifier = Modifier.weight(1f)) }
+                repeat(AchievementsPerRow - remainder) { Box(modifier = Modifier.weight(1f)) }
             }
         }
     }
     VerticalSpacerD800()
 }
 
-private const val AchievementDisplayCount = 8
+// Show fewer, larger medals: two rows of three reads bolder than the old
+// 4-up grid and keeps the preview focused on the headline achievements.
+private const val AchievementDisplayCount = 6
+private const val AchievementsPerRow = 3
 
 // ---- Owned items grouped by type --------------------------------------
 
@@ -960,16 +963,19 @@ private fun OwnedCosmeticTile(
 }
 
 /** Cosmetic shelf tile preview edge — a touch larger than the old grid tiles. */
-private val CosmeticTileSize = 90.dp
+private val CosmeticTileSize = 100.dp
 
 @Composable
 private fun EquippedBadge(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .size(22.dp)
-            .clip(CircleShape)
-            .background(AppTheme.colors.accentPrimary.color)
-            .border(2.dp, AppTheme.colors.background.color, CircleShape),
+            .size(CosmeticBadgeSize)
+            .cutout(
+                ringColor = AppTheme.colors.background.color,
+                fillColor = AppTheme.colors.accentPrimary.color,
+                shape = CircleShape,
+                ringWidth = 2.dp,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -979,6 +985,9 @@ private fun EquippedBadge(modifier: Modifier = Modifier) {
         )
     }
 }
+
+/** Corner-badge edge for the equipped / locked markers on a cosmetic tile. */
+private val CosmeticBadgeSize = 24.dp
 
 /**
  * A not-yet-owned cosmetic shown after the owned tiles on a shoppable shelf —
@@ -1003,7 +1012,7 @@ private fun BuyableCosmeticTile(item: BuyableCosmetic, onClick: () -> Unit) {
                 packEmojis = item.packEmojis,
             )
         }
-        LockedBadge(modifier = Modifier.align(Alignment.BottomEnd))
+        LockedBadge(modifier = Modifier.align(Alignment.TopEnd))
     }
 }
 
@@ -1014,10 +1023,13 @@ private const val BuyableTileAlpha = 0.45f
 private fun LockedBadge(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .size(22.dp)
-            .clip(CircleShape)
-            .background(AppTheme.colors.surfaceHigh.color)
-            .border(2.dp, AppTheme.colors.background.color, CircleShape),
+            .size(CosmeticBadgeSize)
+            .cutout(
+                ringColor = AppTheme.colors.background.color,
+                fillColor = AppTheme.colors.surfaceHigh.color,
+                shape = CircleShape,
+                ringWidth = 2.dp,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
