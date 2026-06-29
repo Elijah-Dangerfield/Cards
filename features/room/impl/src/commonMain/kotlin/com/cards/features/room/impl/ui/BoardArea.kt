@@ -27,13 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
@@ -75,6 +73,12 @@ internal fun winningBoardCards(handResult: HandResultView?, communityCards: List
 /** How much each board card overlaps the previous, as a fraction of its own width. */
 private const val BoardOverlapFraction = 0.34f
 
+/** Stagger between each face-down board card dropping into place at hand start — the snake-like cascade. */
+private const val BoardAppearStaggerMs = 70
+
+/** Stagger between cards flipping face-up within a street (so the flop's three reveal in sequence). */
+private const val BoardFlipStaggerMs = 130
+
 @Composable
 internal fun BoardArea(
     table: TableUiState.Active,
@@ -89,8 +93,7 @@ internal fun BoardArea(
         // Size the five cards to fill the felt width rather than hardcoding their
         // dimensions: each card overlaps the previous by [BoardOverlapFraction] of
         // its own width, so width = available / (5 - 4·fraction) and the row spans
-        // exactly the space. Height follows from the card aspect ratio. No outlined
-        // well — the face-down backs already fill every slot from hand start.
+        // exactly the space. Height follows from the card aspect ratio.
         // Tapping the board opens the hand-rankings reference (moved off the top bar).
         BoxWithConstraints(
             modifier = Modifier
@@ -101,30 +104,25 @@ internal fun BoardArea(
             val cardWidth = maxWidth / (5f - 4f * BoardOverlapFraction)
             val cardSize = PlayingCardSize.ofWidth(cardWidth)
             val overlap = cardWidth * BoardOverlapFraction
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(-overlap),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                for (i in 0 until 5) {
-                    val c = table.communityCards.getOrNull(i)
-                    val streetIndexInStreet = if (i < 3) i else 0
-                    if (c == null) {
-                        // Undealt slot — a face-down back, not a blank gap. The five
-                        // backs fill the row at hand start and flip to faces per
-                        // street (the client only learns each card at its street, so
-                        // an undealt slot stays a back until then).
-                        PlayingCardBack(size = cardSize)
-                    } else {
+            // Reset every slot's animation state per hand so the face-down backs
+            // cascade in again at the start of each new deal.
+            key(table.handNumber) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(-overlap),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    for (i in 0 until 5) {
+                        val c = table.communityCards.getOrNull(i)
                         // Dim the losing board cards at showdown so the winning ones
                         // stand out; full strength otherwise.
-                        val dimmed = winningCards.isNotEmpty() && c !in winningCards
-                        Box(modifier = Modifier.alpha(if (dimmed) 0.3f else 1f)) {
-                            BoardCard(
-                                card = c,
-                                revealDelayMs = streetIndexInStreet * 240,
-                                size = cardSize,
-                            )
-                        }
+                        val dimmed = c != null && winningCards.isNotEmpty() && c !in winningCards
+                        BoardSlot(
+                            card = c,
+                            appearDelayMs = i * BoardAppearStaggerMs,
+                            flipDelayMs = (if (i < 3) i else 0) * BoardFlipStaggerMs,
+                            dimmed = dimmed,
+                            size = cardSize,
+                        )
                     }
                 }
             }
@@ -193,64 +191,66 @@ private fun PotAmount(amount: Long, onClick: () -> Unit) {
     }
 }
 
+/**
+ * One of the five board positions. At hand start every slot is a face-down back
+ * that drops into place on a per-index stagger (the snake-like cascade). When the
+ * slot's card becomes known it flips face-up in place — no drop from above. State
+ * is reset per hand by the [key] on the hand number in [BoardArea].
+ */
 @Composable
-private fun BoardCard(card: Card, revealDelayMs: Int, size: PlayingCardSize) {
-    // Compose previews don't drive animations to completion — without this the
-    // card would render mid-flight (translated up, half-flipped). In preview,
-    // jump straight to the settled face-up state.
+private fun BoardSlot(
+    card: Card?,
+    appearDelayMs: Int,
+    flipDelayMs: Int,
+    dimmed: Boolean,
+    size: PlayingCardSize,
+) {
+    // Previews don't drive animations to completion, so jump to the settled state.
     val skip = LocalInspectionMode.current
-    key(card) {
-        var arrived by remember { mutableStateOf(skip) }
-        var revealed by remember { mutableStateOf(skip) }
-        var settled by remember { mutableStateOf(skip) }
-        LaunchedEffect(skip) {
-            if (skip) {
-                arrived = true
-                revealed = true
-                settled = true
-                return@LaunchedEffect
-            }
-            delay(revealDelayMs.toLong())
-            arrived = true
-            delay(340)
-            revealed = true
-            delay(420)
-            settled = true
+
+    var appeared by remember { mutableStateOf(skip) }
+    LaunchedEffect(Unit) {
+        if (!skip) delay(appearDelayMs.toLong())
+        appeared = true
+    }
+    val appear by animateFloatAsState(
+        targetValue = if (appeared) 1f else 0f,
+        animationSpec = tween(240, easing = FastOutSlowInEasing),
+        label = "board-appear",
+    )
+
+    var flipped by remember { mutableStateOf(skip && card != null) }
+    LaunchedEffect(card != null) {
+        if (card != null && !flipped) {
+            if (!skip) delay(flipDelayMs.toLong())
+            flipped = true
         }
-        if (settled) {
-            // Animation finished — render plain, no graphicsLayer.
-            PlayingCard(card = card, size = size)
+    }
+    val flip by animateFloatAsState(
+        targetValue = if (flipped) 180f else 0f,
+        animationSpec = tween(380),
+        label = "board-flip",
+    )
+
+    val dimAlpha = if (dimmed) 0.3f else 1f
+    Box(
+        modifier = Modifier
+            .size(width = size.width, height = size.height)
+            .graphicsLayer {
+                translationY = (1f - appear) * (-18).dp.toPx()
+                alpha = appear * dimAlpha
+                val s = 0.8f + 0.2f * appear
+                scaleX = s
+                scaleY = s
+                rotationY = flip
+                cameraDistance = 12f * density
+            },
+    ) {
+        if (flip <= 90f) {
+            PlayingCardBack(size = size)
         } else {
-            val flightDp = -120f
-            val flightPx = with(LocalDensity.current) { flightDp.dp.toPx() }
-            val translationY by animateFloatAsState(
-                targetValue = if (arrived) 0f else flightPx,
-                animationSpec = tween(340, easing = FastOutSlowInEasing),
-                label = "board-fly",
-            )
-            val rotation by animateFloatAsState(
-                targetValue = if (revealed) 180f else 0f,
-                animationSpec = tween(380),
-                label = "board-flip",
-            )
-            Box(
-                modifier = Modifier
-                    .size(width = size.width, height = size.height)
-                    .graphicsLayer {
-                        this.translationY = translationY
-                        rotationY = rotation
-                        cameraDistance = 12f * density
-                    },
-            ) {
-                if (rotation <= 90f) {
-                    PlayingCardBack(size = size)
-                } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize().graphicsLayer { rotationY = 180f },
-                    ) {
-                        PlayingCard(card = card, size = size)
-                    }
-                }
+            Box(modifier = Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }) {
+                PlayingCard(card = card!!, size = size)
             }
         }
     }
