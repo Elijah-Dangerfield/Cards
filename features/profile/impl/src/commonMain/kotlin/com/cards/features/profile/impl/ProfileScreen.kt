@@ -533,7 +533,7 @@ private fun StatsStyleBanner(
         radius = Radii.Card,
         onClick = onClick,
         bounceScale = 0.98f,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(Dimension.D600),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(Dimension.D800),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -544,16 +544,16 @@ private fun StatsStyleBanner(
             // else the decorative teaser shape.
             Box(
                 modifier = Modifier
-                    .size(52.dp)
-                    .clip(Radii.R600.shape)
+                    .size(60.dp)
+                    .clip(Radii.R700.shape)
                     .background(AppTheme.colors.surfaceRaised.color),
                 contentAlignment = Alignment.Center,
             ) {
                 val markAxes = derived?.toRadarAxes()
                 if (markAxes != null) {
-                    PlayStyleRadarMark(modifier = Modifier.size(36.dp), axes = markAxes)
+                    PlayStyleRadarMark(modifier = Modifier.size(42.dp), axes = markAxes)
                 } else {
-                    PlayStyleRadarMark(modifier = Modifier.size(36.dp))
+                    PlayStyleRadarMark(modifier = Modifier.size(42.dp))
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -942,8 +942,8 @@ private fun OwnedCosmeticTile(
     Box(modifier = modifier) {
         Box(
             modifier = Modifier
-                .clip(Radii.R500.shape)
-                .border(2.dp, AppTheme.colors.accentPrimary.color.copy(alpha = pulseAlpha), Radii.R500.shape)
+                .clip(Radii.R600.shape)
+                .border(2.dp, AppTheme.colors.accentPrimary.color.copy(alpha = pulseAlpha), Radii.R600.shape)
                 .clickable(onClick = onClick),
         ) {
             CosmeticPreview(
@@ -960,7 +960,7 @@ private fun OwnedCosmeticTile(
 }
 
 /** Cosmetic shelf tile preview edge — a touch larger than the old grid tiles. */
-private val CosmeticTileSize = 80.dp
+private val CosmeticTileSize = 90.dp
 
 @Composable
 private fun EquippedBadge(modifier: Modifier = Modifier) {
@@ -990,7 +990,7 @@ private fun EquippedBadge(modifier: Modifier = Modifier) {
 private fun BuyableCosmeticTile(item: BuyableCosmetic, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .clip(Radii.R500.shape)
+            .clip(Radii.R600.shape)
             .clickable(onClick = onClick),
     ) {
         // Only the preview dims — the lock badge stays full-opacity so
