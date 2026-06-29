@@ -7,7 +7,8 @@ import cards.libraries.resources.generated.resources.save_progress_cta
 import cards.libraries.resources.generated.resources.save_progress_subtitle
 import cards.libraries.resources.generated.resources.save_progress_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonAccent
+import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
@@ -19,7 +20,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * The shared guest "Save your progress" sign-in nudge — a lock, a one-line
- * pitch, and a "Sign in" pill on the cool-blue [BannerType.Trust] gradient.
+ * pitch, and a white "Sign in" pill on the flat cool-blue [BannerType.Trust] tint.
  *
  * One definition for every tab root that hosts it (Profile, Stats, Settings):
  * each caller just gates on "is this a guest?" and wires [onSignIn] to its
@@ -44,7 +45,12 @@ fun SaveProgressBanner(
         title = { Text(stringResource(Res.string.save_progress_title)) },
         body = { Text(stringResource(Res.string.save_progress_subtitle)) },
         action = {
-            ButtonSecondary(onClick = onSignIn, size = ButtonSize.Small) {
+            // White pill — a clear, high-contrast call to action on the flat tint.
+            ButtonPrimary(
+                onClick = onSignIn,
+                accent = ButtonAccent.Inverse,
+                size = ButtonSize.Small,
+            ) {
                 Text(stringResource(Res.string.save_progress_cta))
             }
         },
