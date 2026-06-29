@@ -1,10 +1,13 @@
 package com.dangerfield.cards.libraries.ui.components
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
 
 @Composable
 fun ChipBadge(
@@ -22,7 +25,9 @@ fun ChipBadge(
     LeadingPill(
         modifier = modifier,
         onClick = onClick,
-        leading = { ChipCoin() },
+        // The wallet is a prominent affordance — grow it past the family default.
+        contentPadding = PaddingValues(horizontal = Dimension.D500, vertical = Dimension.D400),
+        leading = { ChipCoin(size = 28.dp, textTypography = AppTheme.typography.Body.B600) },
         trailing = {
             if (amount == null) {
                 // Null = local Room hasn't emitted yet (first-launch /
@@ -31,13 +36,13 @@ fun ChipBadge(
                 // flash before sync lands.
                 Text(
                     text = "—",
-                    typography = AppTheme.typography.Body.B500,
+                    typography = AppTheme.typography.Heading.H700,
                     color = AppTheme.colors.contentSecondary,
                 )
             } else {
                 AnimatedNumberText(
                     value = amount,
-                    typography = AppTheme.typography.Body.B500,
+                    typography = AppTheme.typography.Heading.H700,
                     color = AppTheme.colors.content,
                     formatter = { formatThousands(it) },
                     // Flash green when the wallet grows and red when it shrinks —

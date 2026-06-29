@@ -93,7 +93,7 @@ fun Banner(
             }
         )
         .border(1.dp, palette.edge.color, shape)
-        .padding(horizontal = Dimension.D750, vertical = Dimension.D700)
+        .padding(horizontal = Dimension.D800, vertical = Dimension.D750)
 
     Row(
         modifier = modifier.then(container),

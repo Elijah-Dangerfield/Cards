@@ -211,7 +211,7 @@ private val MediumButtonTextConfig: TextConfig
 
 private val LargeButtonTextConfig: TextConfig
     @Composable get() = TextConfig(
-        typography = AppTheme.typography.Label.L700,
+        typography = AppTheme.typography.Label.L800,
         overflow = TextOverflow.Ellipsis,
         maxLines = 1,
     )
@@ -259,15 +259,15 @@ private val MediumButtonWithIconPadding = PaddingValues(
 )
 
 private val LargeButtonPadding = PaddingValues(
-    horizontal = Dimension.D800,
-    vertical = Dimension.D700
+    horizontal = Dimension.D800,  // 20dp horizontal
+    vertical = Dimension.D800      // 20dp vertical — chunky primary CTA
 )
 
 private val LargeButtonWithIconPadding = PaddingValues(
-    start = Dimension.D700,       // 20dp start (reduced, icon adds weight)
-    end = Dimension.D800,          // 24dp end (extra space for icon)
-    top = Dimension.D700,          // 16dp vertical (same as text-only)
-    bottom = Dimension.D700
+    start = Dimension.D700,       // 16dp start (reduced, icon adds weight)
+    end = Dimension.D800,          // 20dp end (extra space for icon)
+    top = Dimension.D800,          // 20dp vertical (matches text-only)
+    bottom = Dimension.D800
 )
 
 private val ButtonIconSpacing = Dimension.D200
