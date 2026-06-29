@@ -30,7 +30,7 @@ operator fun PaddingValues.plus(other: PaddingValues): PaddingValues = object : 
 
 fun PaddingValues.horizontalScreenInsets() = this.plus(screenHorizontalInsets)
 
-val screenHorizontalInsets = PaddingValues(horizontal = Dimension.D500)
+val screenHorizontalInsets = PaddingValues(horizontal = Dimension.D600)
 
 @Composable
 fun Modifier.screenContentPadding(
