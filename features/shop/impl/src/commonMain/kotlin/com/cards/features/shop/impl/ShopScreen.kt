@@ -70,7 +70,7 @@ import com.dangerfield.cards.libraries.ui.border
 import com.dangerfield.cards.libraries.ui.components.BadgePlacement
 import com.dangerfield.cards.libraries.ui.components.BadgedBox
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
-import com.dangerfield.cards.libraries.ui.components.BalancePillSlot
+import com.dangerfield.cards.libraries.ui.components.ChipBadge
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.CircularLoadingIndicator
@@ -177,6 +177,18 @@ fun ShopScreen(
                         .padding(horizontal = 16.dp, vertical = 16.dp),
                 )
             }
+
+            // Wallet balance pinned to the top-right like a FAB — it stays put
+            // while the catalog scrolls under it. Only while the catalog shows.
+            if (state.hasLoaded && !state.catalog.isEmpty) {
+                ChipBadge(
+                    amount = state.chipBalance,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(screenHorizontalInsets)
+                        .padding(top = Dimension.D500),
+                )
+            }
         }
         // The purchase confirmation sheet used to render here as
         // overlay UI driven by `state.pendingPurchase`. It's now its
@@ -232,7 +244,7 @@ private fun CatalogContent(
         // Nullable on purpose: null = balance hasn't hydrated yet (first launch
         // or post account-switch wipe). The pill renders "—" rather than a
         // fake "0" until the sync lands — same as Home.
-        ShopHeader(chips = state.chipBalance)
+        ShopHeader()
         VerticalSpacerD700()
 
         GetChipsSection(
@@ -300,18 +312,13 @@ private fun IdeaFooter(onClick: () -> Unit) {
 }
 
 @Composable
-private fun ShopHeader(chips: Long?) {
+private fun ShopHeader() {
     Column {
-        // Only the title is the pill's leading element, so the chip centers on
-        // the title line and lands at the same vertical band as Home's header
-        // chip. The subtitle stacks below the whole pill row.
-        BalancePillSlot(chips = chips) {
-            Text(
-                text = stringResource(Res.string.shop_header_title),
-                typography = AppTheme.typography.Heading.H1000,
-                color = AppTheme.colors.content,
-            )
-        }
+        Text(
+            text = stringResource(Res.string.shop_header_title),
+            typography = AppTheme.typography.Heading.H1000,
+            color = AppTheme.colors.content,
+        )
         VerticalSpacerD100()
         Text(
             text = stringResource(Res.string.shop_header_subtitle),
