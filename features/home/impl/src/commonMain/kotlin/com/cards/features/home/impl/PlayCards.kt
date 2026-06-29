@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -112,13 +113,17 @@ internal fun PlayRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     tag: String? = null,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(Radii.Card.shape)
             .background(AppTheme.colors.surface.color)
-            .clickable(onClick = onClick)
+            // A disabled option (e.g. a not-yet-shipped mode) reads as greyed out
+            // and ignores taps, so it advertises "coming" without leading anywhere.
+            .alpha(if (enabled) 1f else 0.45f)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = Dimension.D700, vertical = Dimension.D700),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
@@ -195,6 +200,7 @@ private fun PlayCardsPreview() {
                 accent = AppTheme.colors.accentTertiary.color,
                 onClick = {},
                 tag = "Soon",
+                enabled = false,
             )
         }
     }

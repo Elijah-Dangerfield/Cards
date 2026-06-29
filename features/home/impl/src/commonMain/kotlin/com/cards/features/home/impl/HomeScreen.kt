@@ -254,6 +254,9 @@ private fun HomeScreenContent(
                 accent = AppTheme.colors.accentTertiary.color,
                 onClick = onTournament,
                 tag = stringResource(Res.string.home_tag_soon),
+                // Tournaments aren't shipped yet — render the row disabled so the
+                // "Soon" tag reads as a real not-ready state, not a dead tap.
+                enabled = false,
             )
 
             if (socialEnabled) {
