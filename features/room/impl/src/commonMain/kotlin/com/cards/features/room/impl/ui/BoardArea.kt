@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.room.impl.ui
 
+import com.dangerfield.cards.features.room.impl.HandResultView
 import com.dangerfield.cards.features.room.impl.TableUiState
 
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -26,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -36,6 +38,10 @@ import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_board_pot_pill_label
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
+import com.dangerfield.cards.libraries.gameplay.HandEvaluator
+import com.dangerfield.cards.libraries.gameplay.HandWinner
+import com.dangerfield.cards.libraries.gameplay.Rank
+import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.poker.LocalFeltAccentSurface
@@ -50,11 +56,29 @@ import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
+/**
+ * The board cards that compose the winning hand at showdown, derived from each
+ * winner's evaluated [com.dangerfield.cards.libraries.gameplay.HandRank.bestFive].
+ * Empty when the hand hasn't ended, was won by a fold (no showdown — nothing to
+ * highlight), or no winner carries an evaluated rank. The board cards in this set
+ * stay lit at showdown while the rest dim, so the hand that won reads at a glance.
+ */
+internal fun winningBoardCards(handResult: HandResultView?, communityCards: List<Card>): Set<Card> {
+    if (handResult == null) return emptySet()
+    if (handResult.winners.all { it.byFold }) return emptySet()
+    val best = handResult.winners.flatMapTo(mutableSetOf()) { it.handRank?.bestFive.orEmpty() }
+    if (best.isEmpty()) return emptySet()
+    return communityCards.filterTo(mutableSetOf()) { it in best }
+}
+
 @Composable
 internal fun BoardArea(table: TableUiState.Active, onPotClick: () -> Unit = {}) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         val cardSize = PlayingCardSize.Board
         val overlap = 28.dp
+        // At showdown light the board cards that made the winning hand and dim the
+        // rest; before showdown every dealt card renders at full strength.
+        val winningCards = winningBoardCards(table.handResult, table.communityCards)
         // Five community cards, overlapping. A single outlined well sits behind
         // the row spanning the full 5-slot region — dealt cards cover their
         // portion of the well, undealt portions read as one unified "cards land
@@ -78,18 +102,42 @@ internal fun BoardArea(table: TableUiState.Active, onPotClick: () -> Unit = {}) 
                         // an undealt slot stays a back until then).
                         PlayingCardBack(size = cardSize)
                     } else {
-                        BoardCard(
-                            card = c,
-                            revealDelayMs = streetIndexInStreet * 240,
-                            size = cardSize,
-                        )
+                        // Dim the losing board cards at showdown so the winning ones
+                        // stand out; full strength otherwise.
+                        val dimmed = winningCards.isNotEmpty() && c !in winningCards
+                        Box(modifier = Modifier.alpha(if (dimmed) 0.3f else 1f)) {
+                            BoardCard(
+                                card = c,
+                                revealDelayMs = streetIndexInStreet * 240,
+                                size = cardSize,
+                            )
+                        }
                     }
                 }
             }
         }
-        if (table.pot > 0) {
+        // Ship the pot: once the hand resolves, drain the pot pill from the awarded
+        // total down to 0 as the chips move to the winner (whose avatar already
+        // glows). Mid-hand the pill tracks the live pot. In a preview the chips
+        // sit at the full total so the moment is legible without a running clock.
+        val shippedTotal = table.handResult?.winners?.sumOf { it.amount } ?: 0L
+        val shipping = table.handResult != null && shippedTotal > 0
+        val inPreview = LocalInspectionMode.current
+        val shipAnim = remember { androidx.compose.animation.core.Animatable(0f) }
+        LaunchedEffect(table.handNumber, shipping, shippedTotal) {
+            if (shipping && !inPreview) {
+                shipAnim.snapTo(shippedTotal.toFloat())
+                shipAnim.animateTo(0f, animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing))
+            }
+        }
+        val potAmount = when {
+            !shipping -> table.pot
+            inPreview -> shippedTotal
+            else -> shipAnim.value.toLong()
+        }
+        if (potAmount > 0) {
             VerticalSpacerD600()
-            PotPill(amount = table.pot, onClick = onPotClick)
+            PotPill(amount = potAmount, onClick = onPotClick)
         }
     }
 }
@@ -242,6 +290,41 @@ private fun BoardAreaPreview_Turn() {
                 street = BettingRound.Turn,
                 communityCards = PreviewSamples.turnBoard(),
                 pot = 320,
+            ),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun BoardAreaPreview_Showdown() {
+    // Showdown: the winner's hand (a royal flush in hearts) lights the three heart
+    // board cards; the off-suit 3 and 7 dim. The pot pill sits at the awarded total.
+    val board = listOf(
+        Card(Rank.Ten, Suit.Hearts),
+        Card(Rank.Jack, Suit.Hearts),
+        Card(Rank.Queen, Suit.Hearts),
+        Card(Rank.Three, Suit.Clubs),
+        Card(Rank.Seven, Suit.Spades),
+    )
+    val winnerHole = listOf(Card(Rank.Ace, Suit.Hearts), Card(Rank.King, Suit.Hearts))
+    PreviewContent {
+        BoardArea(
+            table = PreviewSamples.activeTable(
+                street = BettingRound.Complete,
+                communityCards = board,
+                pot = 480,
+                handResult = HandResultView(
+                    winners = listOf(
+                        HandWinner(
+                            seatIndex = 1,
+                            amount = 480,
+                            handRank = HandEvaluator.evaluate(winnerHole + board),
+                            byFold = false,
+                        ),
+                    ),
+                    board = board,
+                ),
             ),
         )
     }

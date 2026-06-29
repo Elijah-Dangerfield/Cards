@@ -52,6 +52,8 @@ import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.poker.BustedStamp
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
+import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
+import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.poker.PulsingActiveRing
 import com.dangerfield.cards.libraries.ui.components.poker.TurnCountdownRing
 import com.dangerfield.cards.libraries.ui.components.poker.WinnerGlow
@@ -73,6 +75,12 @@ internal fun OpponentsRow(
 ) {
     val opponents = table.seats.filter { !it.isHuman }
     val winners = table.handResult?.winners?.map { it.seatIndex }?.toSet().orEmpty()
+    // At showdown the stack/bet slot under each still-in opponent morphs into
+    // their revealed hole cards until the next hand deals — the felt-native
+    // showdown that replaces the old full-screen dialog on money games. The
+    // projection only populates an opponent's holeCards once the hand reaches a
+    // reveal, so the per-seat gate reads the cards directly.
+    val handComplete = table.handResult != null
     // Turn token the countdown ring re-arms on — only the acting seat reads
     // it, and only when the table enforces a timer (MP). Null on solo tables
     // suppresses the ring entirely. See [TableUiState.Active.turnSequence].
@@ -82,6 +90,7 @@ internal fun OpponentsRow(
         ScrollingOpponentsRow(
             opponents = opponents,
             winners = winners,
+            handComplete = handComplete,
             actingSeatIndex = table.actingSeatIndex,
             turnTimerSeconds = turnTimerSeconds,
             turnKey = turnKey,
@@ -94,6 +103,7 @@ internal fun OpponentsRow(
         PackedOpponentsRow(
             opponents = opponents,
             winners = winners,
+            handComplete = handComplete,
             turnTimerSeconds = turnTimerSeconds,
             turnKey = turnKey,
             onBlindClick = onBlindClick,
@@ -110,6 +120,7 @@ private const val PackedOpponentLimit = 4
 private fun PackedOpponentsRow(
     opponents: List<SeatView>,
     winners: Set<Int>,
+    handComplete: Boolean,
     turnTimerSeconds: Int?,
     turnKey: Any,
     onBlindClick: () -> Unit,
@@ -135,6 +146,7 @@ private fun PackedOpponentsRow(
                     OpponentSeat(
                         seat = seat,
                         isWinner = seat.index in winners,
+                        handComplete = handComplete,
                         avatarSize = avatarSize,
                         turnTimerSeconds = turnTimerSeconds,
                         turnKey = turnKey,
@@ -153,6 +165,7 @@ private fun PackedOpponentsRow(
 private fun ScrollingOpponentsRow(
     opponents: List<SeatView>,
     winners: Set<Int>,
+    handComplete: Boolean,
     actingSeatIndex: Int?,
     turnTimerSeconds: Int?,
     turnKey: Any,
@@ -228,6 +241,7 @@ private fun ScrollingOpponentsRow(
                 OpponentSeat(
                     seat = seat,
                     isWinner = seat.index in winners,
+                    handComplete = handComplete,
                     avatarSize = ScrollingAvatarSize,
                     turnTimerSeconds = turnTimerSeconds,
                     turnKey = turnKey,
@@ -256,6 +270,7 @@ private val ScrollingRowOverhangPadding: Dp = 28.dp
 private fun OpponentSeat(
     seat: SeatView,
     isWinner: Boolean,
+    handComplete: Boolean,
     avatarSize: Dp,
     turnTimerSeconds: Int?,
     turnKey: Any,
@@ -359,29 +374,45 @@ private fun OpponentSeat(
             overflow = TextOverflow.Ellipsis,
             modifier = dimMod,
         )
+        // At showdown the under-avatar slot reveals this seat's two hole cards in
+        // place of the stack — the felt-native showdown. A folded (mucked) seat
+        // reveals nothing (its cards are scrubbed, so holeCards is empty); only a
+        // seat that went to showdown carries two cards here.
+        val revealHoleCards = handComplete && seat.holeCards.size == 2
         // Level / bot-difficulty badge intentionally omitted here — it's
         // surfaced on the [PlayerProfileSheet] that opens when the seat
         // is tapped. Keeping it inline made the opponents row too dense.
-        AnimatedVisibility(
-            visible = !busted,
-            enter = fadeIn(animationSpec = tween(tempo.duration(220))) +
-                slideInVertically(animationSpec = tween(tempo.duration(220))) { -it / 2 } +
-                expandVertically(animationSpec = tween(tempo.duration(220))),
-            exit = fadeOut(animationSpec = tween(tempo.duration(280))) +
-                slideOutVertically(animationSpec = tween(tempo.duration(360))) { it } +
-                shrinkVertically(animationSpec = tween(tempo.duration(360))),
-        ) {
-            ChipCoinAmount(
-                amount = seat.stack,
-                coinSize = 12.dp,
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.contentSecondary,
-                gap = 4.dp,
-                formatter = ::formatCompactChips,
+        if (revealHoleCards) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
                 modifier = dimMod,
-            )
+            ) {
+                seat.holeCards.forEach { card ->
+                    PlayingCard(card = card, size = PlayingCardSize.Mini)
+                }
+            }
+        } else {
+            AnimatedVisibility(
+                visible = !busted,
+                enter = fadeIn(animationSpec = tween(tempo.duration(220))) +
+                    slideInVertically(animationSpec = tween(tempo.duration(220))) { -it / 2 } +
+                    expandVertically(animationSpec = tween(tempo.duration(220))),
+                exit = fadeOut(animationSpec = tween(tempo.duration(280))) +
+                    slideOutVertically(animationSpec = tween(tempo.duration(360))) { it } +
+                    shrinkVertically(animationSpec = tween(tempo.duration(360))),
+            ) {
+                ChipCoinAmount(
+                    amount = seat.stack,
+                    coinSize = 12.dp,
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.contentSecondary,
+                    gap = 4.dp,
+                    formatter = ::formatCompactChips,
+                    modifier = dimMod,
+                )
+            }
         }
-        if (seat.contributedThisStreet > 0) {
+        if (!revealHoleCards && seat.contributedThisStreet > 0) {
             VerticalSpacerD100()
             ChipPill(
                 amount = seat.contributedThisStreet,
@@ -565,12 +596,20 @@ private fun OpponentsRowPreview_BustedOpponent() {
                         name = "David",
                         stack = 0,
                         participation = HandParticipation.AllIn,
+                        holeCards = listOf(
+                            PreviewSamples.card(com.dangerfield.cards.libraries.gameplay.Rank.King, com.dangerfield.cards.libraries.gameplay.Suit.Spades),
+                            PreviewSamples.card(com.dangerfield.cards.libraries.gameplay.Rank.King, com.dangerfield.cards.libraries.gameplay.Suit.Diamonds),
+                        ),
                         lastAction = PlayerAction.AllIn(amount = 1_000),
                     ),
                     PreviewSamples.botSeat(
                         index = 2,
                         name = "Jane",
                         stack = 2_000,
+                        holeCards = listOf(
+                            PreviewSamples.card(com.dangerfield.cards.libraries.gameplay.Rank.Ace, com.dangerfield.cards.libraries.gameplay.Suit.Hearts),
+                            PreviewSamples.card(com.dangerfield.cards.libraries.gameplay.Rank.Ace, com.dangerfield.cards.libraries.gameplay.Suit.Clubs),
+                        ),
                         lastAction = PlayerAction.Call(amount = 1_000),
                     ),
                 ),
