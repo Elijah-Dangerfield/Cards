@@ -12,6 +12,9 @@ import com.dangerfield.cards.features.room.impl.seatMuteKey
 // / IconButton.kt). Raw Material icons would tint, size, and bounce-click
 // differently from the rest of the app — DS routing keeps the chrome
 // consistent and the icon set centralized.
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -46,6 +50,8 @@ import cards.libraries.resources.generated.resources.room_loading_dealing_in
 import cards.libraries.resources.generated.resources.room_match_over_busted_rebuy_button
 import cards.libraries.resources.generated.resources.room_match_over_busted_title
 import cards.libraries.resources.generated.resources.room_match_over_winner_label
+import cards.libraries.resources.generated.resources.room_next_hand_countdown_label
+import cards.libraries.resources.generated.resources.room_next_hand_leave_button
 import cards.libraries.resources.generated.resources.room_practice_tier_bots_present
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
@@ -70,6 +76,7 @@ import com.dangerfield.cards.libraries.ui.components.PlayerBadge
 import com.dangerfield.cards.libraries.ui.components.formatBoostCountdown
 import com.dangerfield.cards.libraries.ui.components.rememberBoostRemainingMs
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.resolvePlayerBadges
 import com.dangerfield.cards.libraries.ui.components.Screen
@@ -309,6 +316,12 @@ fun PlayPokerScreen(
                 if (active == null) {
                     LoadingTable()
                 } else {
+                    // Felt countdown only on a real-chip table whose hand has ended
+                    // (the leave-with-winnings window). Practice tables keep their
+                    // celebratory result dialog + manual tap, so they pass null and
+                    // render the normal action bar slot.
+                    val feltCountdown = state.nextHandCountdown
+                        ?.takeIf { state.realChipsAtStake && active.handResult != null }
                     ActiveTable(
                         table = active,
                         humanWinOdds = state.humanWinOdds,
@@ -318,6 +331,8 @@ fun PlayPokerScreen(
                         onWinOddsFlipped = {
                             onAction(PlayPokerAction.MarkWinOddsFlipHintSeen)
                         },
+                        nextHandCountdown = feltCountdown,
+                        onLeaveWithWinnings = leaveTable,
                         onIntent = { onAction(PlayPokerAction.Submit(it)) },
                         onExpandRaise = { actionSheetOpen = true },
                         onBlindClick = { blindExplainerOpen = true },
@@ -633,7 +648,12 @@ fun PlayPokerScreen(
                     onDealMeIn = onDismiss,
                     subsidized = active.subsidizedBotTable,
                 )
-            } else {
+            } else if (!state.realChipsAtStake) {
+                // Practice (solo / bot-stacked MP): the celebratory result stays a
+                // full-screen modal and waits for a tap. On a real-chip table this
+                // branch is intentionally absent — the result lives on the felt and
+                // the auto-advance countdown (in the action slot) replaces the
+                // dialog so the player can leave with their winnings (north star).
                 ShowdownDialog(
                     result = handResult,
                     seats = active.seats,
@@ -807,6 +827,70 @@ private fun MatchOverCountdownBanner(
 }
 
 /**
+ * Between-hands auto-advance countdown, shown in the action slot in place of the
+ * bet bar on a real-chip table once the hand ends. "Next hand in 0:0X" with a
+ * draining fill makes the time remaining obvious, and a "Leave with winnings"
+ * button keeps the clean cash-out one tap away the whole window — the two halves
+ * of the north-star user story. The server holds the deal until the deadline, so
+ * the countdown is honest. Reuses the DS countdown ticker ([rememberBoostRemainingMs]).
+ */
+@Composable
+private fun NextHandCountdownBar(
+    countdown: com.dangerfield.cards.features.room.impl.session.NextHandCountdown,
+    onLeave: () -> Unit,
+) {
+    val remainingMs = rememberBoostRemainingMs(countdown.deadlineEpochMs)
+    val formatted = formatBoostCountdown(remainingMs)
+    // The first observed remaining is the beat's full length (a few server-held
+    // seconds); drain the fill from there to 0 as the deal nears, without the
+    // client needing to know the configured beat length.
+    val totalMs = remember(countdown.deadlineEpochMs) { remainingMs.coerceAtLeast(1L) }
+    val targetFraction = (remainingMs.toFloat() / totalMs).coerceIn(0f, 1f)
+    val fraction by animateFloatAsState(
+        targetValue = targetFraction,
+        animationSpec = tween(durationMillis = 1_000, easing = LinearEasing),
+        label = "next-hand-drain",
+    )
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = stringResource(Res.string.room_next_hand_countdown_label, formatted),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.content,
+                modifier = Modifier.weight(1f),
+            )
+            ButtonSecondary(onClick = onLeave, size = ButtonSize.Small) {
+                Text(text = stringResource(Res.string.room_next_hand_leave_button))
+            }
+        }
+        // Draining fill — empties as the next deal nears, so "how long do I have"
+        // reads at a glance without parsing the digits.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(Radii.Round.shape)
+                .background(AppTheme.colors.surfaceRaised.color),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(fraction)
+                    .height(6.dp)
+                    .clip(Radii.Round.shape)
+                    .background(AppTheme.colors.poker.chipGold.color),
+            )
+        }
+    }
+}
+
+/**
  * Table-side notice that this MP hand earns only practice-tier credit
  * because the table is bot-stacked (product-spec.md §5.4). Surfaced under
  * the top bar so the player understands why their XP / achievements read
@@ -939,6 +1023,13 @@ private fun ActiveTable(
     silentSwipeFold: Boolean = false,
     winOddsFlipHintSeen: Boolean = false,
     onWinOddsFlipped: () -> Unit = {},
+    /**
+     * The between-hands countdown to show in the action slot in place of the bet
+     * bar — non-null only on a real-chip table whose hand has ended. The window to
+     * leave with your winnings before the next hand auto-deals.
+     */
+    nextHandCountdown: com.dangerfield.cards.features.room.impl.session.NextHandCountdown? = null,
+    onLeaveWithWinnings: () -> Unit = {},
     onIntent: (PlayerIntent) -> Unit,
     onExpandRaise: () -> Unit,
     onBlindClick: () -> Unit,
@@ -1003,7 +1094,16 @@ private fun ActiveTable(
                 onSwipeFold = onSwipeFold,
                 onSelfTap = onSelfTap,
             )
-            QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
+            // Between hands on a real-chip table the bet bar is replaced by the
+            // auto-advance countdown + a leave-with-winnings affordance, so the
+            // player always knows how long they have to cash out (north star).
+            // Otherwise the normal action bar (collapsed when it isn't the human's
+            // turn). The two never coexist — a hand is either live or finished.
+            if (nextHandCountdown != null) {
+                NextHandCountdownBar(countdown = nextHandCountdown, onLeave = onLeaveWithWinnings)
+            } else {
+                QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
+            }
         }
     }
 }
@@ -1457,6 +1557,60 @@ private fun PlayPokerScreenPreview_BustDialog() {
                     handResult = result,
                 ),
                 lastHandXpAwarded = 12,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_NextHandCountdown() {
+    // Real-chip table between hands: the bet bar is replaced by the auto-advance
+    // countdown + a leave-with-winnings button, and the hand result lives on the
+    // felt (no showdown popup). The window to cash out before the next deal.
+    val board = listOf(
+        card(Rank.Ten, Suit.Hearts),
+        card(Rank.Jack, Suit.Hearts),
+        card(Rank.Queen, Suit.Hearts),
+        card(Rank.Three, Suit.Clubs),
+        card(Rank.Seven, Suit.Spades),
+    )
+    val seats = listOf(
+        previewHumanSeat(
+            stack = 1_240,
+            isActing = false,
+            holeCards = listOf(card(Rank.Ace, Suit.Hearts), card(Rank.Ace, Suit.Spades)),
+        ),
+        previewBotSeat(
+            index = 1,
+            name = "David",
+            stack = 760,
+            holeCards = listOf(card(Rank.King, Suit.Spades), card(Rank.King, Suit.Diamonds)),
+        ),
+    )
+    val result = HandResultView(
+        winners = listOf(HandWinner(seatIndex = 0, amount = 240, handRank = null, byFold = false)),
+        board = board,
+    )
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(
+                    street = BettingRound.Complete,
+                    communityCards = board,
+                    pot = 240,
+                    seats = seats,
+                    actingSeatIndex = null,
+                    isHumanTurn = false,
+                    humanLegalActions = null,
+                    handResult = result,
+                ),
+                xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER,
+                nextHandCountdown = com.dangerfield.cards.features.room.impl.session.NextHandCountdown(
+                    deadlineEpochMs = Long.MAX_VALUE,
+                ),
             ),
             onAction = {},
             onBack = {},

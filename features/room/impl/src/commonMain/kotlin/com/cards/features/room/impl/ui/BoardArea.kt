@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -73,7 +72,11 @@ internal fun BoardArea(table: TableUiState.Active, onPotClick: () -> Unit = {}) 
                     val c = table.communityCards.getOrNull(i)
                     val streetIndexInStreet = if (i < 3) i else 0
                     if (c == null) {
-                        Spacer(modifier = Modifier.size(width = cardSize.width, height = cardSize.height))
+                        // Undealt slot — a face-down back, not a blank gap. The five
+                        // backs fill the well at hand start and flip to faces per
+                        // street (the client only learns each card at its street, so
+                        // an undealt slot stays a back until then).
+                        PlayingCardBack(size = cardSize)
                     } else {
                         BoardCard(
                             card = c,
