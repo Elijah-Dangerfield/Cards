@@ -255,7 +255,7 @@ fun AchievementMedal(
             // The icon.
             val measured = textMeasurer.measure(
                 text = glyph,
-                style = TextStyle(fontSize = (r * 0.9f).toSp(), color = glyphColor),
+                style = TextStyle(fontSize = (r * 1.02f).toSp(), color = glyphColor),
             )
             drawText(
                 textLayoutResult = measured,
