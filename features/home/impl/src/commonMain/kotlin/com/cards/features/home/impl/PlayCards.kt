@@ -147,6 +147,8 @@ internal fun PlayRow(
                 text = tag,
                 background = AppTheme.colors.surfaceHigh,
                 foreground = AppTheme.colors.content,
+                // One step up from the pill default so "Soon" reads a touch bolder.
+                typography = AppTheme.typography.Caption.C300.SemiBold,
             )
         } else {
             Icon(

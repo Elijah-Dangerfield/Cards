@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
@@ -107,7 +108,7 @@ internal fun HomeHeader(
             Column(modifier = Modifier.weight(1f, fill = false)) {
                 Text(
                     text = displayName,
-                    typography = AppTheme.typography.Heading.H800,
+                    typography = AppTheme.typography.Heading.H700,
                     color = AppTheme.colors.content,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -126,11 +127,18 @@ internal fun HomeHeader(
             }
         }
         Spacer(modifier = Modifier.width(Dimension.D300))
+        // Pinned to the top of the header row (not vertically centered against the
+        // taller avatar) and given the same shadow as the Shop's floating wallet,
+        // so the chip badge lands in the exact same screen spot on Home and Shop —
+        // it reads as one shared element when you switch tabs.
         ChipBadge(
             amount = chips,
             onClick = onTapChips,
             revealFrom = chipsRevealFrom,
             revealKey = chipsRevealKey,
+            modifier = Modifier
+                .align(Alignment.Top)
+                .shadow(elevation = 6.dp, shape = Radii.Round.shape),
         )
     }
 }
