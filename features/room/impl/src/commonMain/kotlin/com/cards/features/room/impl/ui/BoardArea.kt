@@ -7,7 +7,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,7 +36,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.room_board_pot_pill_label
 import cards.libraries.resources.generated.resources.room_board_rankings_a11y
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
@@ -47,14 +45,13 @@ import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
-import com.dangerfield.cards.libraries.ui.components.poker.LocalFeltAccentSurface
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardBack
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
-import com.dangerfield.cards.system.VerticalSpacerD600
+import com.dangerfield.cards.system.VerticalSpacerD500
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -83,23 +80,19 @@ internal fun BoardArea(
     val rankingsLabel = stringResource(Res.string.room_board_rankings_a11y)
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         val cardSize = PlayingCardSize.Board
-        val overlap = 28.dp
+        // Chunky overlap so the five cards read as one bubbly stack. No outlined
+        // well behind them — the face-down backs already fill every slot from hand
+        // start, so the well was just clutter.
+        val overlap = 36.dp
         // At showdown light the board cards that made the winning hand and dim the
         // rest; before showdown every dealt card renders at full strength.
         val winningCards = winningBoardCards(table.handResult, table.communityCards)
-        // Five community cards, overlapping. A single outlined well sits behind
-        // the row spanning the full 5-slot region — dealt cards cover their
-        // portion of the well, undealt portions read as one unified "cards land
-        // here" zone instead of five disconnected outlines. Tapping the board
-        // opens the hand-rankings reference (moved off the top bar in the declutter).
+        // Tapping the board opens the hand-rankings reference (moved off the top bar
+        // in the declutter).
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.clickable(onClickLabel = rankingsLabel, onClick = onBoardClick),
         ) {
-            BoardWell(
-                width = cardSize.width * 5 - overlap * 4,
-                height = cardSize.height,
-            )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(-overlap),
                 verticalAlignment = Alignment.CenterVertically,
@@ -148,24 +141,48 @@ internal fun BoardArea(
             else -> shipAnim.value.toLong()
         }
         if (potAmount > 0) {
-            VerticalSpacerD600()
-            PotPill(amount = potAmount, onClick = onPotClick)
+            VerticalSpacerD500()
+            PotAmount(amount = potAmount, onClick = onPotClick)
         }
     }
 }
 
+/**
+ * The pot as a plain number under the board — a small gold coin + the amount, no
+ * pill, no "Pot" label. Minimal by design (the reference shows just the figure);
+ * still tappable for the pot explainer.
+ */
 @Composable
-private fun BoardWell(width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp) {
-    Box(
+private fun PotAmount(amount: Long, onClick: () -> Unit) {
+    // Publish the pot's bounds so the pot-ship coins know where to launch from.
+    val anchors = LocalTableRewardAnchors.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier
-            .size(width = width, height = height)
-            .clip(Radii.R700.shape)
-            .border(
-                width = 1.5.dp,
-                color = AppTheme.colors.poker.cardSlotOutline.color,
-                shape = Radii.R700.shape,
-            ),
-    )
+            .then(
+                if (anchors != null) {
+                    Modifier.onGloballyPositioned { anchors.potBounds = it.boundsInRoot() }
+                } else {
+                    Modifier
+                },
+            )
+            .clip(Radii.Round.shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(Radii.Round.shape)
+                .background(AppTheme.colors.poker.chipGold.color),
+        )
+        Text(
+            text = formatCompactChips(amount),
+            typography = AppTheme.typography.Heading.H800,
+            color = AppTheme.colors.content,
+        )
+    }
 }
 
 @Composable
@@ -240,45 +257,6 @@ private fun BoardCard(card: Card, revealDelayMs: Int, size: PlayingCardSize) {
     }
 }
 
-@Composable
-private fun PotPill(amount: Long, onClick: () -> Unit) {
-    val pillBackground = LocalFeltAccentSurface.current ?: AppTheme.colors.surfaceRaised.color
-    // Publish the pill's bounds so the pot-ship coins know where to launch from.
-    val anchors = LocalTableRewardAnchors.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier
-            .then(
-                if (anchors != null) {
-                    Modifier.onGloballyPositioned { anchors.potBounds = it.boundsInRoot() }
-                } else {
-                    Modifier
-                },
-            )
-            .clip(Radii.Round.shape)
-            .background(pillBackground)
-            .clickable(onClick = onClick)
-            .padding(start = 14.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(Radii.Round.shape)
-                .background(AppTheme.colors.poker.chipGold.color),
-        )
-        Text(
-            text = stringResource(Res.string.room_board_pot_pill_label),
-            typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.contentSecondary,
-        )
-        Text(
-            text = formatCompactChips(amount),
-            typography = AppTheme.typography.Heading.H600,
-            color = AppTheme.colors.content,
-        )
-    }
-}
 
 @Preview
 @Composable

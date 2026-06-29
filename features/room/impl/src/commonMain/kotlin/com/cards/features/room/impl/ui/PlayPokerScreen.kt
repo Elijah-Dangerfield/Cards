@@ -26,8 +26,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -95,8 +93,6 @@ import com.dangerfield.cards.system.HorizontalSpacerD100
 import com.dangerfield.cards.system.HorizontalSpacerD200
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD500
-import com.dangerfield.cards.system.VerticalSpacerD700
-import com.dangerfield.cards.system.VerticalSpacerD800
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -1087,21 +1083,17 @@ private fun ActiveTable(
     // No "Your turn" banner — the pulsing gold band on the active player
     // (human or bot) carries that signal visually.
     Column(modifier = Modifier.fillMaxSize()) {
+        // Opponents pinned near the top; the board floats centered in the space
+        // between them and the player's hand (weighted spacers above + below it)
+        // so the felt reads balanced and full rather than jammed up under the
+        // opponents with a slab of black below. Modest top clearance — the
+        // opponents row carries its own overhang padding for the chevron / pill.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
+                .weight(1f),
         ) {
-            // Clearance above the opponents row so the chevron + last-
-            // action pill (both rendered as TopCenter overlays on each
-            // avatar with negative Y offsets, ~24dp of upward overflow)
-            // have room to breathe instead of being clipped by the
-            // TopBar. The LazyRow's own top contentPadding
-            // (ScrollingRowOverhangPadding, 28dp) covers the overlay
-            // itself — this spacer is just visual breathing room from
-            // the TopBar, so it stays modest.
-            VerticalSpacerD700()
+            VerticalSpacerD500()
             OpponentsRow(
                 table = table,
                 onBlindClick = onBlindClick,
@@ -1109,9 +1101,9 @@ private fun ActiveTable(
                 onLastActionClick = onLastActionClick,
                 onAvatarTap = onOpponentTap,
             )
-
-            VerticalSpacerD800()
+            Spacer(modifier = Modifier.weight(1f))
             BoardArea(table = table, onPotClick = onPotClick, onBoardClick = onBoardClick)
+            Spacer(modifier = Modifier.weight(1f))
         }
 
         // Player row + action bar share a Column so that when the action bar

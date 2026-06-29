@@ -55,11 +55,12 @@ data class PlayingCardSize(val width: Dp, val height: Dp) {
         /** A deck-stack card. */
         val Deck = PlayingCardSize(36.dp, 50.dp)
 
-        /** Community board card. */
-        val Board = PlayingCardSize(92.dp, 126.dp)
+        /** Community board card — squarer + chunkier for the bubbly felt look. */
+        val Board = PlayingCardSize(94.dp, 118.dp)
 
-        /** A player's own hole card. */
-        val Hole = PlayingCardSize(104.dp, 142.dp)
+        /** A player's own hole card — a touch wider/squarer; height held so the
+         *  seat card sized to this row doesn't clip. */
+        val Hole = PlayingCardSize(108.dp, 140.dp)
     }
 }
 
@@ -492,8 +493,8 @@ private fun defaultSuitTypography(width: Dp): TypographyResource = when {
 }
 
 private fun cornerRadiusFor(width: Dp): Dp = when {
-    width >= 70.dp -> 12.dp
-    width >= 40.dp -> 8.dp
+    width >= 70.dp -> 18.dp
+    width >= 40.dp -> 10.dp
     else -> 6.dp
 }
 
