@@ -403,19 +403,13 @@ private fun HoleCardSlot(
         PlayingCardSlot(size = size)
         return
     }
-    val inPreview = LocalInspectionMode.current
-    val tempo = LocalTableTempo.current
-    val skip = inPreview || tempo.isInstant
+    // Compose previews don't drive animations to completion, so jump straight
+    // to the settled face-up state there.
+    val skip = LocalInspectionMode.current
     key(card) {
         var arrived by remember { mutableStateOf(skip) }
         var revealed by remember { mutableStateOf(skip) }
         var settled by remember { mutableStateOf(skip) }
-        // Key the effect on [skip] rather than gating its existence with an
-        // `if (!skip)`. The persisted Table-speed setting resolves a beat after
-        // the screen mounts, so [skip] can flip Normal -> Instant while a card
-        // is still mid-flight. Gating the effect would tear it down on that flip
-        // and freeze the card half-dealt; re-keying instead restarts it and the
-        // skip branch snaps the card straight to settled.
         LaunchedEffect(skip) {
             if (skip) {
                 arrived = true
@@ -423,11 +417,11 @@ private fun HoleCardSlot(
                 settled = true
                 return@LaunchedEffect
             }
-            delay(tempo.delay(dealDelayMs))
+            delay(dealDelayMs.toLong())
             arrived = true
-            delay(tempo.delay(320))
+            delay(320)
             revealed = true
-            delay(tempo.delay(420))
+            delay(420)
             settled = true
         }
         if (settled) {
@@ -466,12 +460,12 @@ private fun HoleCardSlot(
             val flightPx = with(LocalDensity.current) { flightDp.dp.toPx() }
             val translationY by animateFloatAsState(
                 targetValue = if (arrived) 0f else flightPx,
-                animationSpec = tween(tempo.duration(360), easing = FastOutSlowInEasing),
+                animationSpec = tween(360, easing = FastOutSlowInEasing),
                 label = "hole-fly",
             )
             val rotation by animateFloatAsState(
                 targetValue = if (revealed) 180f else 0f,
-                animationSpec = tween(tempo.duration(380)),
+                animationSpec = tween(380),
                 label = "hole-flip",
             )
             Box(

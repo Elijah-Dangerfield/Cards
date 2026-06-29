@@ -13,27 +13,14 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * In-memory + persistent cache for app-wide state that doesn't need to be in the database.
  */
 /**
- * The single "Game speed" control. One tier scales *both* halves of how fast a
- * hand plays so the user never has to reason about "table vs bots":
- *
- *  - [animationScale] paces the cosmetic card deal / reveal / result timings.
- *  - [botThinkScale] multiplies how long bots "think" before acting.
- *
- * Instant collapses the animations to zero and snaps bots to their hard floor,
- * so the whole hand resolves with no waiting.
+ * The "Game speed" control — how long bots "think" before acting. Some players
+ * like the pause (it reads as deliberation); others find it busywork. Fast
+ * trims it. Animations are never touched, so the table stays smooth either way.
  */
 @Serializable
-enum class GameSpeed(
-    val label: String,
-    val animationScale: Double,
-    val botThinkScale: Double,
-) {
-    /** Default pacing — calibrated poker tempo for cards and bots alike. */
-    Normal(label = "Normal", animationScale = 1.0, botThinkScale = 1.0),
-    /** Halves the cosmetic delays and the bot think time so hands move quicker. */
-    Fast(label = "Fast", animationScale = 0.5, botThinkScale = 0.55),
-    /** Skips the animations and snaps bots to their floor — no waiting. */
-    Instant(label = "Instant", animationScale = 0.0, botThinkScale = 0.0),
+enum class GameSpeed(val botThinkScale: Double) {
+    Normal(botThinkScale = 1.0),
+    Fast(botThinkScale = 0.5),
 }
 
 @Serializable
@@ -59,12 +46,7 @@ data class AppData(
     val feedbacksGiven: Int = 0,
     val bugsReported: Int = 0,
 
-    /**
-     * The single "Game speed" setting — paces both the cosmetic card-deal /
-     * reveal / result timings on the play screen *and* how long bots think
-     * before acting. "Instant" collapses the animations and snaps the bots so a
-     * hand resolves with no waiting. See [GameSpeed].
-     */
+    /** How long bots "think" before acting. See [GameSpeed]. */
     val gameSpeed: GameSpeed = GameSpeed.Normal,
 
     /** Cue played when it becomes the user's turn during a hand. */

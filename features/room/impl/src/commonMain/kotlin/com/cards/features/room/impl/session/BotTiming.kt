@@ -69,16 +69,15 @@ internal object BotTiming {
             0.75 + 0.25 * normalized
         } else 1.0
 
-        // The chosen Game speed scales the whole thing AFTER clamping. The Fast
-        // scale (0.55) can dip below the normal MIN floor — that's the explicit
-        // user preference, so we honor it rather than re-clamping. Instant's
-        // 0.0 scale collapses to the hard fast floor so bots snap.
+        // The chosen Game speed scales the whole thing AFTER clamping. Fast can
+        // dip below the normal MIN floor — that's the explicit user preference,
+        // so we honor it down to the hard fast floor rather than re-clamping.
         val base = (BASE_THINK_MS * personalityFactor * complexityFactor * userBlend)
             .toLong()
             .coerceIn(MIN_THINK_MS, MAX_THINK_MS)
         return (base * speed.botThinkScale).toLong().coerceAtLeast(MIN_THINK_FAST_MS)
     }
 
-    /** Hard floor even for Fast / Instant speed — anything quicker reads as a glitch. */
+    /** Hard floor even at Fast speed — anything quicker reads as a glitch. */
     private const val MIN_THINK_FAST_MS: Long = 250L
 }

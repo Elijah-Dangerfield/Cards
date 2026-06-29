@@ -34,7 +34,6 @@ import cards.libraries.resources.generated.resources.profile_debug_qa_headline
 import cards.libraries.resources.generated.resources.profile_debug_qa_supporting
 import cards.libraries.resources.generated.resources.profile_delete_account_button
 import cards.libraries.resources.generated.resources.profile_game_speed_fast
-import cards.libraries.resources.generated.resources.profile_game_speed_instant
 import cards.libraries.resources.generated.resources.profile_game_speed_normal
 import cards.libraries.resources.generated.resources.profile_gameplay_achievement_popups_headline
 import cards.libraries.resources.generated.resources.profile_gameplay_achievement_popups_supporting
@@ -449,7 +448,6 @@ private fun com.dangerfield.cards.libraries.cards.GameSpeed.labelResource(): Str
     when (this) {
         com.dangerfield.cards.libraries.cards.GameSpeed.Normal -> Res.string.profile_game_speed_normal
         com.dangerfield.cards.libraries.cards.GameSpeed.Fast -> Res.string.profile_game_speed_fast
-        com.dangerfield.cards.libraries.cards.GameSpeed.Instant -> Res.string.profile_game_speed_instant
     }
 
 private fun com.dangerfield.cards.libraries.cards.TurnFeedback.labelResource(): StringResource =

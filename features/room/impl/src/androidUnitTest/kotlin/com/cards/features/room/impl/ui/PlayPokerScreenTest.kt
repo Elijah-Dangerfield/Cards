@@ -1,9 +1,5 @@
 package com.dangerfield.cards.features.room.impl.ui
 
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
@@ -17,7 +13,6 @@ import com.dangerfield.cards.features.room.impl.PlayPokerAction
 import com.dangerfield.cards.features.room.impl.PlayPokerState
 import com.dangerfield.cards.features.room.impl.SeatView
 import com.dangerfield.cards.features.room.impl.TableUiState
-import com.dangerfield.cards.libraries.cards.GameSpeed
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.gameplay.BettingRound
@@ -200,38 +195,6 @@ class PlayPokerScreenTest {
             ),
         )
         onNodeWithText("dealt in", substring = true).assertIsDisplayed()
-    }
-
-    @Test
-    fun instantSpeedResolvingMidDeal_stillSettlesHoleCardsFaceUp() = runComposeUiTest {
-        // Regression (GAME-6): the persisted "Table speed" setting is mirrored
-        // into state asynchronously, so the screen first mounts at the Normal
-        // default and the hole-card deal animation begins. When the saved value
-        // resolves to Instant a beat later, the tempo flips Normal -> Instant
-        // mid-flight. The deal animator must still land the cards face-up — the
-        // bug froze them half-dealt (one face-down in place, one off-screen) and
-        // unresponsive because the gating LaunchedEffect was torn down.
-        var speed by mutableStateOf(GameSpeed.Normal)
-        mainClock.autoAdvance = false
-        setContent {
-            PreviewContent {
-                CompositionLocalProvider(LocalTableTempo provides TableTempo(speed)) {
-                    PlayerArea(
-                        table = activeTable(isHumanTurn = true, actingSeatIndex = HUMAN_SEAT),
-                    )
-                }
-            }
-        }
-        // Deal starts under Normal: cards are mid-flight and face-down.
-        waitForIdle()
-        // Saved setting resolves to Instant after mount — the real appCache mirror.
-        speed = GameSpeed.Instant
-        mainClock.advanceTimeBy(2_000)
-        waitForIdle()
-        // A♠ and K♠ are the human's hole cards; their rank pips only render on
-        // the face-up side, so seeing both proves the cards settled face-up.
-        onNodeWithText("A").assertIsDisplayed()
-        onNodeWithText("K").assertIsDisplayed()
     }
 
     @Test
