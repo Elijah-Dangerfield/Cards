@@ -69,25 +69,26 @@ internal fun HomeHeader(
                 .clickable(onClick = onTapLevel)
                 .padding(end = Dimension.D300),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Dimension.D400),
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
         ) {
             RingedAvatar(
                 name = displayName,
                 fraction = levelProgress.fraction,
                 emoji = avatarEmoji,
                 backgroundColorHex = avatarBackgroundColorHex,
+                avatarSize = 56.dp,
             )
             Column(modifier = Modifier.weight(1f, fill = false)) {
                 Text(
                     text = displayName,
-                    typography = AppTheme.typography.Body.B600,
+                    typography = AppTheme.typography.Heading.H800,
                     color = AppTheme.colors.content,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = stringResource(Res.string.ui_level_pill_label, levelProgress.level),
-                    typography = AppTheme.typography.Body.B400,
+                    typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.contentSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

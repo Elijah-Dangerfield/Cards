@@ -140,17 +140,17 @@ internal fun PlayTileCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(132.dp)
-                .clip(Radii.R900.shape)
+                .height(140.dp)
+                .clip(Radii.Card.shape)
                 .background(playGradient(accent))
                 .clickable(onClick = onClick)
-                .padding(Dimension.D600),
+                .padding(Dimension.D700),
         ) {
-            GlyphTile(glyph = glyph, size = 40.dp)
+            GlyphTile(glyph = glyph, size = 48.dp)
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = title,
-                typography = AppTheme.typography.Heading.H700,
+                typography = AppTheme.typography.Heading.H800,
                 color = AppTheme.colors.content,
             )
             Text(
@@ -210,7 +210,7 @@ internal fun PublicRoomsCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(Radii.R900.shape)
+            .clip(Radii.Card.shape)
             .background(playGradient(FeatureCardAccents.Blue))
             .clickable(onClick = onClick)
             .padding(Dimension.D800),
@@ -223,7 +223,7 @@ internal fun PublicRoomsCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    typography = AppTheme.typography.Heading.H700,
+                    typography = AppTheme.typography.Heading.H800,
                     color = AppTheme.colors.content,
                 )
                 Spacer(modifier = Modifier.height(2.dp))
@@ -238,6 +238,7 @@ internal fun PublicRoomsCard(
         Button(
             onClick = onClick,
             accent = ButtonAccent.Inverse,
+            size = ButtonSize.Large,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(cta)
@@ -260,7 +261,7 @@ internal fun PrivateRoomCard(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(Radii.R900.shape)
+            .clip(Radii.Card.shape)
             .background(playGradient(FeatureCardAccents.Gold))
             .clickable(onClick = onClick)
             .padding(horizontal = Dimension.D700, vertical = Dimension.D750),
@@ -271,7 +272,7 @@ internal fun PrivateRoomCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                typography = AppTheme.typography.Heading.H700,
+                typography = AppTheme.typography.Heading.H800,
                 color = AppTheme.colors.content,
             )
             Spacer(modifier = Modifier.height(2.dp))
