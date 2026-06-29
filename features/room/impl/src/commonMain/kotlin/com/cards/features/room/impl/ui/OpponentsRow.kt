@@ -283,9 +283,16 @@ private fun OpponentSeat(
     val busted = seat.isBusted
     val ringSize = avatarSize + 12.dp
     val hasBlindRole = seat.isDealer || seat.isSmallBlind || seat.isBigBlind
+    // A still-in seat that has already acted this street (has a last action, isn't
+    // the one on the clock) is gently scrimmed so attention stays on who still has
+    // to act — short of the heavier fold/bust fade. Never during the showdown
+    // reveal (every seat has a last action then) so the revealed cards stay lit.
+    val actedThisStreet = !handComplete && !folded && !busted && !seat.isActing &&
+        seat.participation == HandParticipation.InHand && seat.lastAction != null
     val dimAlpha = when {
         busted -> 0.35f
         folded -> 0.4f
+        actedThisStreet -> 0.7f
         else -> 1f
     }
     val dimMod = Modifier.alpha(dimAlpha)

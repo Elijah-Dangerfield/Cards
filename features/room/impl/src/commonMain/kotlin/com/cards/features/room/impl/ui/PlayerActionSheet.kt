@@ -43,7 +43,9 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
+import com.dangerfield.cards.libraries.ui.components.Slider
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import kotlin.math.roundToLong
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD200
@@ -132,6 +134,22 @@ internal fun PlayerActionSheet(
                 selected = selectedPreset,
                 onSelect = { selectPreset(it) },
             )
+
+            // Drag-to-size across the whole legal range — the continuous companion
+            // to the discrete presets and the ± stepper. Any total in [min, max] is
+            // a legal no-limit raise, so the slider maps the fraction straight onto
+            // it; dragging frees the user off a preset.
+            if (legal.maxRaiseTotal > legal.minRaiseTotal) {
+                val span = (legal.maxRaiseTotal - legal.minRaiseTotal).toFloat()
+                Slider(
+                    value = ((raiseTotal - legal.minRaiseTotal).toFloat() / span).coerceIn(0f, 1f),
+                    onValueChange = { fraction ->
+                        selectedPreset = null
+                        clampAndSet(legal.minRaiseTotal + (fraction * span).roundToLong())
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
 
             StepperRow(
                 amount = raiseTotal,
