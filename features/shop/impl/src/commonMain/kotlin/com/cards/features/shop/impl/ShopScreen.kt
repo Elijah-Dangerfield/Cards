@@ -865,7 +865,7 @@ private fun LockedFooter(requiredLevel: Int) {
         modifier = Modifier
             .clip(Radii.Round.shape)
             .background(AppTheme.colors.surfaceHigh.color)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
     ) {
         Text(
             text = stringResource(Res.string.shop_unlocks_at_level, requiredLevel),
@@ -888,7 +888,7 @@ private fun InsufficientChipsFooter(cost: Long, shortBy: Long) {
             modifier = Modifier
                 .clip(Radii.Round.shape)
                 .background(AppTheme.colors.danger.color.copy(alpha = 0.18f))
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
         ) {
             // ChipCoinAmount keeps the gold-coin + count shape aligned with
             // every other cost / balance surface; danger color carries the
@@ -935,7 +935,7 @@ private fun OwnedFooter() {
         modifier = Modifier
             .clip(Radii.Round.shape)
             .background(AppTheme.colors.success.color.copy(alpha = 0.18f))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
     ) {
         Text(
             text = stringResource(Res.string.shop_owned_badge),
@@ -952,7 +952,7 @@ private fun ChipCostFooter(cost: Long, canAfford: Boolean) {
         modifier = Modifier
             .clip(Radii.Round.shape)
             .background(bg)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
     ) {
         // ChipCoinAmount keeps the gold-coin + count shape aligned with
         // every other cost / balance surface (table pot, stack, header).
