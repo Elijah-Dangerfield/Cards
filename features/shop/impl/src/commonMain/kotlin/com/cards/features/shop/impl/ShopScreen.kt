@@ -50,6 +50,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import com.dangerfield.cards.features.shop.ShopCategory
 import kotlin.math.roundToInt
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -186,7 +187,9 @@ fun ShopScreen(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(screenHorizontalInsets)
-                        .padding(top = Dimension.D500),
+                        .padding(top = Dimension.D500)
+                        // Lift the floating wallet off the scrolling catalog.
+                        .shadow(elevation = 6.dp, shape = Radii.Round.shape),
                 )
             }
         }
