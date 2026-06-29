@@ -313,7 +313,9 @@ internal fun PlayerArea(
             contentAlignment = Alignment.Center,
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy((-28).dp),
+                // Overlap as a fraction of the card's own width — scales with the
+                // ratio-derived card size rather than a hardcoded dp.
+                horizontalArrangement = Arrangement.spacedBy(-(PlayingCardSize.Hole.width * 0.27f)),
                 modifier = Modifier.graphicsLayer {
                     translationY = dragOffsetY.value
                     // Light tilt + fade tied to drag progress so the cards
@@ -532,7 +534,7 @@ private fun PlayerInfoTile(
     // TopBar, so duplicating it inside their own card just inflates density.
     //
     // Dimensions are tuned tight so the content fits inside the locked
-    // hole-card row height (PlayingCardSize.Hole.height = 136.dp) without
+    // hole-card row height (PlayingCardSize.Hole.height = 140.dp) without
     // clipping the bottom chip pill. Adjust together if the row height changes.
     Column(
         modifier = modifier

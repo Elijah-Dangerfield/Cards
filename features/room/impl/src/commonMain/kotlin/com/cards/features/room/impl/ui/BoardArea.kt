@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -71,6 +72,9 @@ internal fun winningBoardCards(handResult: HandResultView?, communityCards: List
     return communityCards.filterTo(mutableSetOf()) { it in best }
 }
 
+/** How much each board card overlaps the previous, as a fraction of its own width. */
+private const val BoardOverlapFraction = 0.34f
+
 @Composable
 internal fun BoardArea(
     table: TableUiState.Active,
@@ -79,20 +83,24 @@ internal fun BoardArea(
 ) {
     val rankingsLabel = stringResource(Res.string.room_board_rankings_a11y)
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        val cardSize = PlayingCardSize.Board
-        // Chunky overlap so the five cards read as one bubbly stack. No outlined
-        // well behind them — the face-down backs already fill every slot from hand
-        // start, so the well was just clutter.
-        val overlap = 36.dp
         // At showdown light the board cards that made the winning hand and dim the
         // rest; before showdown every dealt card renders at full strength.
         val winningCards = winningBoardCards(table.handResult, table.communityCards)
-        // Tapping the board opens the hand-rankings reference (moved off the top bar
-        // in the declutter).
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.clickable(onClickLabel = rankingsLabel, onClick = onBoardClick),
+        // Size the five cards to fill the felt width rather than hardcoding their
+        // dimensions: each card overlaps the previous by [BoardOverlapFraction] of
+        // its own width, so width = available / (5 - 4·fraction) and the row spans
+        // exactly the space. Height follows from the card aspect ratio. No outlined
+        // well — the face-down backs already fill every slot from hand start.
+        // Tapping the board opens the hand-rankings reference (moved off the top bar).
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp)
+                .clickable(onClickLabel = rankingsLabel, onClick = onBoardClick),
         ) {
+            val cardWidth = maxWidth / (5f - 4f * BoardOverlapFraction)
+            val cardSize = PlayingCardSize.ofWidth(cardWidth)
+            val overlap = cardWidth * BoardOverlapFraction
             Row(
                 horizontalArrangement = Arrangement.spacedBy(-overlap),
                 verticalAlignment = Alignment.CenterVertically,
@@ -102,7 +110,7 @@ internal fun BoardArea(
                     val streetIndexInStreet = if (i < 3) i else 0
                     if (c == null) {
                         // Undealt slot — a face-down back, not a blank gap. The five
-                        // backs fill the well at hand start and flip to faces per
+                        // backs fill the row at hand start and flip to faces per
                         // street (the client only learns each card at its street, so
                         // an undealt slot stays a back until then).
                         PlayingCardBack(size = cardSize)

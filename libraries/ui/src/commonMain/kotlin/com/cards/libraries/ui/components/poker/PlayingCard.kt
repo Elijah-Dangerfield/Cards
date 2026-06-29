@@ -49,18 +49,31 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  */
 data class PlayingCardSize(val width: Dp, val height: Dp) {
     companion object {
+        /**
+         * Card aspect (width / height). A touch fatter than a real 0.71 poker card
+         * for a chunky, bubbly look. The one knob — every felt card derives its
+         * dimensions from this, sized to the space available rather than hardcoded.
+         */
+        const val Ratio = 0.74f
+
+        /** A card sized to a target [width]; height follows from [Ratio]. */
+        fun ofWidth(width: Dp): PlayingCardSize = PlayingCardSize(width, width / Ratio)
+
+        /** A card sized to a target [height]; width follows from [Ratio]. */
+        fun ofHeight(height: Dp): PlayingCardSize = PlayingCardSize(height * Ratio, height)
+
         /** Smallest readable card. Cheat-sheet examples and seat indicators. */
-        val Mini = PlayingCardSize(30.dp, 40.dp)
+        val Mini = ofHeight(40.dp)
 
         /** A deck-stack card. */
-        val Deck = PlayingCardSize(36.dp, 50.dp)
+        val Deck = ofHeight(50.dp)
 
-        /** Community board card — squarer + chunkier for the bubbly felt look. */
-        val Board = PlayingCardSize(94.dp, 118.dp)
+        /** A representative community board card — the felt ([BoardArea]) sizes its
+         *  cards to the available width instead; this is for previews / fallbacks. */
+        val Board = ofHeight(120.dp)
 
-        /** A player's own hole card — squarer + bubbly, but sized so the pair
-         *  renders at its natural width beside the seat tile without crowding it. */
-        val Hole = PlayingCardSize(102.dp, 136.dp)
+        /** A player's own hole card. */
+        val Hole = ofHeight(140.dp)
     }
 }
 
