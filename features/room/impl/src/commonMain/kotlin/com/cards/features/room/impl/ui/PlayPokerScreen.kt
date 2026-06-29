@@ -153,13 +153,22 @@ fun PlayPokerScreen(
     // resolves it the moment recordHand lands.
     var advanceRequested by remember { mutableStateOf(false) }
     val active = state.table as? TableUiState.Active
+    val humanStack = active?.seats?.firstOrNull { it.isHuman }?.stack ?: 0L
+    // On a real-chip table the finished hand shows the felt countdown instead of a
+    // result dialog (unless the human busted, which keeps the MultiplayerBustDialog).
+    // Nothing overlays the table then, so the freeze below must NOT apply — the
+    // winnings have to show live in the stack during the leave-with-winnings window,
+    // and the XP ring can fill on the uncovered top bar.
+    val feltCountdownReplacesDialog = active?.handResult != null &&
+        state.realChipsAtStake &&
+        humanStack > 0
     // The hand-result dialog and (in bot mode) the celebration sheet both
     // overlay the top-bar LevelPill, so any XP earned by this hand animates
     // behind the scrim — the user never sees the ring fill. Hold the pill at
     // its pre-hand value while either surface is visible; release once both
     // dismiss so `animateFloatAsState` inside `LevelPill` can play the
     // progress-ring change against an uncovered top bar.
-    val handResultOverlaying = active?.handResult != null
+    val handResultOverlaying = active?.handResult != null && !feltCountdownReplacesDialog
     val xpFrozen = handResultOverlaying || celebrationActive
     var displayedXp by remember { mutableStateOf(state.xp) }
     LaunchedEffect(state.xp, xpFrozen) {
@@ -171,8 +180,9 @@ fun PlayPokerScreen(
     // the overlay and the user never sees the count-up. Holding the
     // displayed value at its pre-hand number until both overlays dismiss
     // lets `AnimatedNumberText` (inside `ChipCoinAmount(animated = true)`)
-    // play the odometer roll against an uncovered tile.
-    val humanStack = active?.seats?.firstOrNull { it.isHuman }?.stack ?: 0L
+    // play the odometer roll against an uncovered tile. (When the felt
+    // countdown replaces the dialog, [xpFrozen] is false — the stack tracks
+    // live so the winnings show during the leave-with-winnings window.)
     var displayedHumanStack by remember { mutableStateOf(humanStack) }
     LaunchedEffect(humanStack, xpFrozen) {
         if (!xpFrozen) displayedHumanStack = humanStack
