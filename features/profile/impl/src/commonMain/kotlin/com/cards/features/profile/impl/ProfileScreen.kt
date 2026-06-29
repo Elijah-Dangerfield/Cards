@@ -94,6 +94,7 @@ import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.cutout
 import com.dangerfield.cards.libraries.ui.system.LocalLevelCurve
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
@@ -369,25 +370,24 @@ private fun ProfileHeader(
                 backgroundColorHex = settings.avatarBackgroundColor,
                 animationsEnabled = false,
             )
-            // The pencil edit affordance. We intentionally keep the pencil
-            // (the design's level bottom-badge is ignored per scope).
+            // The pencil edit affordance — a black pencil on a white disc, cut
+            // out of the page background so the ring reads clean (no stray edge).
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .size(28.dp)
-                    .clip(CircleShape)
-                    .background(AppTheme.colors.accentPrimary.color)
-                    .border(
-                        width = 2.dp,
-                        color = AppTheme.colors.background.color,
+                    .cutout(
+                        ringColor = AppTheme.colors.background.color,
+                        fillColor = AppTheme.colors.surfaceInverse.color,
                         shape = CircleShape,
+                        ringWidth = 2.dp,
                     ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     icon = Icons.Pencil(stringResource(Res.string.profile_avatar_edit_a11y)),
                     size = IconSize.Small,
-                    color = AppTheme.colors.content,
+                    color = AppTheme.colors.onSurfaceInverse,
                 )
             }
         }
