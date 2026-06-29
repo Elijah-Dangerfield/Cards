@@ -31,6 +31,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
@@ -231,10 +233,19 @@ private fun BoardCard(card: Card, revealDelayMs: Int, size: PlayingCardSize) {
 @Composable
 private fun PotPill(amount: Long, onClick: () -> Unit) {
     val pillBackground = LocalFeltAccentSurface.current ?: AppTheme.colors.surfaceRaised.color
+    // Publish the pill's bounds so the pot-ship coins know where to launch from.
+    val anchors = LocalTableRewardAnchors.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
+            .then(
+                if (anchors != null) {
+                    Modifier.onGloballyPositioned { anchors.potBounds = it.boundsInRoot() }
+                } else {
+                    Modifier
+                },
+            )
             .clip(Radii.Round.shape)
             .background(pillBackground)
             .clickable(onClick = onClick)

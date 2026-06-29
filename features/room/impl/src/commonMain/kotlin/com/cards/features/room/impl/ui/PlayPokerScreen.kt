@@ -196,6 +196,24 @@ fun PlayPokerScreen(
     val rewardAnchors = remember { TableRewardAnchors() }
     var rewardBurst by remember { mutableStateOf<RewardBurst?>(null) }
     var burstSeq by remember { mutableStateOf(0) }
+    // Pot-ship coins: on a real-chip table, when a hand finishes, stream coins from
+    // the pot pill to the winner's avatar so who won — and that chips moved to them
+    // — is unmistakable on the felt (no popup). Fires once per hand, keyed on the
+    // hand number; practice keeps its result dialog, so it stays felt-money-only.
+    var potShipBurst by remember { mutableStateOf<PotShipBurst?>(null) }
+    var potShipSeq by remember { mutableStateOf(0) }
+    var lastShippedHand by remember { mutableStateOf(-1) }
+    val shipWinnerSeats = active?.handResult?.winners?.map { it.seatIndex }?.distinct().orEmpty()
+    LaunchedEffect(active?.handNumber, active?.handResult != null, state.realChipsAtStake) {
+        val a = active ?: return@LaunchedEffect
+        if (state.realChipsAtStake && a.handResult != null &&
+            a.handNumber != lastShippedHand && shipWinnerSeats.isNotEmpty()
+        ) {
+            lastShippedHand = a.handNumber
+            potShipSeq += 1
+            potShipBurst = PotShipBurst(id = potShipSeq, winnerSeatIndexes = shipWinnerSeats)
+        }
+    }
     var wasXpFrozen by remember { mutableStateOf(xpFrozen) }
     // Baselines snapped the instant the gate freezes (the held displayed
     // values are still the pre-hand numbers at that point), so the release
@@ -723,6 +741,12 @@ fun PlayPokerScreen(
             burst = rewardBurst,
             anchors = rewardAnchors,
             onComplete = { rewardBurst = null },
+        )
+        // Pot-ship coins fly over the felt to the winner as the pot drains.
+        PotShipOverlay(
+            burst = potShipBurst,
+            anchors = rewardAnchors,
+            onComplete = { potShipBurst = null },
         )
     }
     } // close CompositionLocalProvider

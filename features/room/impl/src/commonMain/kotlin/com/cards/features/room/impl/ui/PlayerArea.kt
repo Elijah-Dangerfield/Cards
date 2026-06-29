@@ -559,9 +559,22 @@ private fun PlayerInfoTile(
             )
             VerticalSpacerD100()
         }
+        // Publish the human avatar's bounds so the pot-ship coins fly here when
+        // the local player wins (the opponent seats publish their own).
+        val seatAvatarAnchors = LocalTableRewardAnchors.current
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(56.dp),
+            modifier = Modifier
+                .size(56.dp)
+                .then(
+                    if (seatAvatarAnchors != null && seat.isHuman) {
+                        Modifier.onGloballyPositioned {
+                            seatAvatarAnchors.seatAvatarBounds[seat.index] = it.boundsInRoot()
+                        }
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
             if (countdownSeconds != null) {
                 TurnCountdownRing(

@@ -39,6 +39,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -74,7 +76,12 @@ internal fun OpponentsRow(
     onAvatarTap: (SeatView) -> Unit = {},
 ) {
     val opponents = table.seats.filter { !it.isHuman }
-    val winners = table.handResult?.winners?.map { it.seatIndex }?.toSet().orEmpty()
+    // Winner seat → amount won, so each seat can show both the glow and a "+N won"
+    // badge that names the take. A split pot sums a seat's slices.
+    val winnerAmounts = table.handResult?.winners
+        ?.groupBy { it.seatIndex }
+        ?.mapValues { (_, w) -> w.sumOf { it.amount } }
+        .orEmpty()
     // At showdown the stack/bet slot under each still-in opponent morphs into
     // their revealed hole cards until the next hand deals — the felt-native
     // showdown that replaces the old full-screen dialog on money games. The
@@ -89,7 +96,7 @@ internal fun OpponentsRow(
     if (opponents.size > PackedOpponentLimit) {
         ScrollingOpponentsRow(
             opponents = opponents,
-            winners = winners,
+            winnerAmounts = winnerAmounts,
             handComplete = handComplete,
             actingSeatIndex = table.actingSeatIndex,
             turnTimerSeconds = turnTimerSeconds,
@@ -102,7 +109,7 @@ internal fun OpponentsRow(
     } else {
         PackedOpponentsRow(
             opponents = opponents,
-            winners = winners,
+            winnerAmounts = winnerAmounts,
             handComplete = handComplete,
             turnTimerSeconds = turnTimerSeconds,
             turnKey = turnKey,
@@ -119,7 +126,7 @@ private const val PackedOpponentLimit = 4
 @Composable
 private fun PackedOpponentsRow(
     opponents: List<SeatView>,
-    winners: Set<Int>,
+    winnerAmounts: Map<Int, Long>,
     handComplete: Boolean,
     turnTimerSeconds: Int?,
     turnKey: Any,
@@ -145,7 +152,8 @@ private fun PackedOpponentsRow(
                 ) {
                     OpponentSeat(
                         seat = seat,
-                        isWinner = seat.index in winners,
+                        isWinner = seat.index in winnerAmounts,
+                        winAmount = winnerAmounts[seat.index] ?: 0L,
                         handComplete = handComplete,
                         avatarSize = avatarSize,
                         turnTimerSeconds = turnTimerSeconds,
@@ -164,7 +172,7 @@ private fun PackedOpponentsRow(
 @Composable
 private fun ScrollingOpponentsRow(
     opponents: List<SeatView>,
-    winners: Set<Int>,
+    winnerAmounts: Map<Int, Long>,
     handComplete: Boolean,
     actingSeatIndex: Int?,
     turnTimerSeconds: Int?,
@@ -240,7 +248,8 @@ private fun ScrollingOpponentsRow(
             ) {
                 OpponentSeat(
                     seat = seat,
-                    isWinner = seat.index in winners,
+                    isWinner = seat.index in winnerAmounts,
+                    winAmount = winnerAmounts[seat.index] ?: 0L,
                     handComplete = handComplete,
                     avatarSize = ScrollingAvatarSize,
                     turnTimerSeconds = turnTimerSeconds,
@@ -270,6 +279,7 @@ private val ScrollingRowOverhangPadding: Dp = 28.dp
 private fun OpponentSeat(
     seat: SeatView,
     isWinner: Boolean,
+    winAmount: Long,
     handComplete: Boolean,
     avatarSize: Dp,
     turnTimerSeconds: Int?,
@@ -297,6 +307,9 @@ private fun OpponentSeat(
     }
     val dimMod = Modifier.alpha(dimAlpha)
     val tempo = LocalTableTempo.current
+    // Publish this seat's avatar bounds so the pot-ship coins can fly to it when
+    // the seat wins. No-op when there's no anchor holder (previews / tutorial).
+    val rewardAnchors = LocalTableRewardAnchors.current
     // The fade-when-folded effect is applied per-element rather than on the
     // outer Column. A wrapping `Modifier.alpha` rasterizes into an offscreen
     // layer sized to the wrapped bounds, which clips the LastActionPill's
@@ -311,6 +324,15 @@ private fun OpponentSeat(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(ringSize)
+                .then(
+                    if (rewardAnchors != null) {
+                        Modifier.onGloballyPositioned {
+                            rewardAnchors.seatAvatarBounds[seat.index] = it.boundsInRoot()
+                        }
+                    } else {
+                        Modifier
+                    },
+                )
                 .clickable(onClick = onAvatarTap),
         ) {
             // Faded subtree — everything that's "the seat" semantically.
@@ -427,7 +449,22 @@ private fun OpponentSeat(
                 modifier = dimMod,
             )
         }
+        // The winner's take, named in gold under the seat for the whole showdown
+        // window — the persistent companion to the (transient) coins that flew here.
+        if (isWinner && handComplete && winAmount > 0) {
+            VerticalSpacerD100()
+            WinAmountBadge(amount = winAmount)
+        }
     }
+}
+
+@Composable
+private fun WinAmountBadge(amount: Long) {
+    Text(
+        text = "+${formatCompactChips(amount)}",
+        typography = AppTheme.typography.Body.B500,
+        color = AppTheme.colors.poker.chipGold,
+    )
 }
 
 /**
