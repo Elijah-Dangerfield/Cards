@@ -892,7 +892,9 @@
     <string name="room_celebration_cosmetic_attribution">from the %1$s achievement</string>
     <string name="room_celebration_tap_to_reveal">Tap to reveal</string>
 
-    <!-- Room - Hand-rankings cheat sheet (tap the ? icon on the table). -->
+    <!-- Room - How-to-play sheet (tap the ? icon in the top bar). -->
+    <string name="room_how_to_play_sheet_title">How to play</string>
+    <!-- Room - Hand-rankings cheat sheet (tap the board). -->
     <string name="room_cheat_sheet_hand_number_pill">HAND #%1$d</string>
     <string name="room_cheat_sheet_actions_heading">How to act</string>
     <string name="room_cheat_sheet_action_check_title">Check</string>

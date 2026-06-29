@@ -53,6 +53,7 @@ import cards.libraries.resources.generated.resources.room_next_hand_leave_button
 import cards.libraries.resources.generated.resources.room_practice_tier_bots_present
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
+import cards.libraries.resources.generated.resources.room_top_bar_hand_info_a11y
 import cards.libraries.resources.generated.resources.room_waiting_to_be_dealt_in
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
@@ -121,6 +122,7 @@ fun PlayPokerScreen(
 ) {
     var actionSheetOpen by remember { mutableStateOf(false) }
     var blindExplainerOpen by remember { mutableStateOf(false) }
+    var howToPlayOpen by remember { mutableStateOf(false) }
     var potExplainerOpen by remember { mutableStateOf(false) }
     var stackExplainerOpen by remember { mutableStateOf(false) }
     var practiceTierExplainerOpen by remember { mutableStateOf(false) }
@@ -307,6 +309,13 @@ fun PlayPokerScreen(
                     xpBoostExpiresAtEpochMs = state.xpBoostExpiresAtEpochMs,
                     onBack = requestLeave,
                     onTapXp = onTapXp,
+                    // Hide help in the tutorial (its own center slot is active) —
+                    // the coaching sheet would collide with the guided steps.
+                    onHelp = if (topBarCenterSlot == null) {
+                        { howToPlayOpen = true }
+                    } else {
+                        null
+                    },
                     showXpPill = showXpPill,
                     centerSlot = topBarCenterSlot,
                 )
@@ -404,12 +413,24 @@ fun PlayPokerScreen(
             val humanSeat = active?.seats?.firstOrNull { it.isHuman }
             HandRankingsCheatSheet(
                 onDismiss = { onAction(PlayPokerAction.ToggleCheatSheet) },
+                holeCards = humanSeat?.holeCards.orEmpty(),
+                boardCards = active?.communityCards.orEmpty(),
+                roomCode = state.roomCode,
+            )
+        }
+
+        // The question-mark in the top bar opens the situational coaching sheet
+        // (your hand, the stage, how to act) — separate from the board-tap
+        // rankings reference.
+        if (howToPlayOpen) {
+            val humanSeat = active?.seats?.firstOrNull { it.isHuman }
+            HowToPlaySheet(
+                onDismiss = { howToPlayOpen = false },
                 handNumber = active?.handNumber,
                 street = active?.street,
                 pot = active?.pot,
                 holeCards = humanSeat?.holeCards.orEmpty(),
                 boardCards = active?.communityCards.orEmpty(),
-                roomCode = state.roomCode,
             )
         }
 
@@ -932,12 +953,14 @@ private fun TopBar(
     xpBoostExpiresAtEpochMs: Long? = null,
     onBack: () -> Unit,
     onTapXp: () -> Unit = {},
+    onHelp: (() -> Unit)? = null,
     showXpPill: Boolean = true,
     centerSlot: (@Composable () -> Unit)? = null,
 ) {
-    // Minimal top bar — back, the live level pill + ring, and nothing on the
-    // right. The pill ticks up as the player earns XP and the gradient ring
-    // fills toward the next level, so progress reads even on a losing hand.
+    // Minimal top bar — back, the live level pill + ring, and a help (?) button
+    // on the right that opens the how-to-play sheet. The pill ticks up as the
+    // player earns XP and the gradient ring fills toward the next level, so
+    // progress reads even on a losing hand.
     //
     // The pill is overlay-positioned at true screen-center via Box alignment
     // rather than placed inline in a SpaceBetween Row, so it stays pinned to
@@ -952,6 +975,13 @@ private fun TopBar(
             onClick = onBack,
             modifier = Modifier.align(Alignment.CenterStart),
         )
+        if (onHelp != null) {
+            IconButton(
+                icon = Icons.Question(stringResource(Res.string.room_top_bar_hand_info_a11y)),
+                onClick = onHelp,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
         if (centerSlot != null) {
             // Caller-supplied content (e.g. the tutorial's step counter) owns
             // the centered slot — same spot the Level pill would sit, so it
