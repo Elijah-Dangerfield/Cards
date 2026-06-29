@@ -100,7 +100,7 @@ internal fun HomeHeader(
                     Text(
                         text = stringResource(Res.string.home_level_chip, levelProgress.level),
                         typography = AppTheme.typography.Label.L400,
-                        color = AppTheme.colors.poker.progressionCyan,
+                        color = AppTheme.colors.accentSecondary,
                     )
                 }
             }

@@ -17,7 +17,6 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -54,7 +53,7 @@ fun RingedAvatar(
         anim
     }
 
-    val ringColor = ColorResource.PokerProgressionCyan.color
+    val ringColor = AppTheme.colors.accentSecondary.color
     val trackColor = AppTheme.colors.surfaceHigh.color
     val stroke = avatarSize * (3f / 40f)
     val gap = 2.dp
