@@ -84,7 +84,6 @@ import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
-import com.dangerfield.cards.libraries.ui.components.poker.EmojiBlastOverlay
 import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import com.dangerfield.cards.libraries.ui.components.poker.LocalCardBackStyle
 import com.dangerfield.cards.libraries.ui.components.poker.LocalFeltAccentSurface
@@ -517,26 +516,17 @@ fun PlayPokerScreen(
             )
         }
 
-        // Full-screen emoji blast overlay. Renders at the top-level Box so
-        // it floats over the table without being clipped by the inner
-        // Column's padding. Emitter avatar is rendered beneath the emoji
-        // so the blast reads as "Bob just threw this", not just an
-        // anonymous emoji on the screen — sets up the MP visual now
-        // even though in V1 only the human emits.
+        // Table emote — pops out of the sender's avatar and floats up, attributed
+        // by *where* it appears rather than a full-screen blast with a name label.
+        // The emitter's avatar bounds come from the shared reward anchors; a null
+        // emitter seat is the local player's own outbound blast.
         state.emojiBlast?.let { blast ->
-            // Attribute to the emitting seat for an opponent's emote;
-            // fall back to the human seat for our own outbound blast.
-            val emitterSeat = state.emojiBlastEmitterSeatIndex
-                ?.let { idx -> active?.seats?.firstOrNull { it.index == idx } }
-                ?: active?.seats?.firstOrNull { it.isHuman }
-            EmojiBlastOverlay(
+            SeatEmoteOverlay(
                 blast = blast,
-                onAnimationComplete = { ts ->
-                    onAction(PlayPokerAction.EmojiBlastConsumed(ts))
-                },
-                emitterName = emitterSeat?.displayName,
-                emitterEmoji = emitterSeat?.emoji,
-                emitterColorHex = emitterSeat?.avatarBackgroundColorHex,
+                emitterSeatIndex = state.emojiBlastEmitterSeatIndex,
+                humanSeatIndex = active?.seats?.firstOrNull { it.isHuman }?.index,
+                anchors = rewardAnchors,
+                onComplete = { ts -> onAction(PlayPokerAction.EmojiBlastConsumed(ts)) },
             )
         }
 
