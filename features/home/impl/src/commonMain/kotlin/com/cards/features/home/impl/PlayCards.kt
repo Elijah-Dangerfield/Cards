@@ -189,7 +189,7 @@ private fun PlayCardsPreview() {
             PlayRow(
                 title = "Practice",
                 subtitle = "vs bots, no chips at stake",
-                emoji = "🦉",
+                emoji = "🤖",
                 accent = AppTheme.colors.league.amethyst.color,
                 onClick = {},
             )

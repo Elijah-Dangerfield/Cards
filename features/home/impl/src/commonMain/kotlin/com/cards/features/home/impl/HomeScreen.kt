@@ -242,7 +242,7 @@ private fun HomeScreenContent(
             PlayRow(
                 title = stringResource(Res.string.home_cta_practice_title),
                 subtitle = stringResource(Res.string.home_cta_practice_subtitle_short),
-                emoji = "🦉",
+                emoji = "🤖",
                 accent = AppTheme.colors.league.amethyst.color,
                 onClick = onPlayBots,
             )

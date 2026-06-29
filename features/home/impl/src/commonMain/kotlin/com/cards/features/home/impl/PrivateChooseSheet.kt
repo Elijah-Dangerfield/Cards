@@ -31,6 +31,8 @@ import cards.libraries.resources.generated.resources.private_choose_join_subtitl
 import cards.libraries.resources.generated.resources.private_choose_join_title
 import cards.libraries.resources.generated.resources.private_choose_title
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHandle
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.FeatureCardAccents
 import com.dangerfield.cards.system.AppTheme
@@ -54,23 +56,20 @@ internal fun PrivateChooseSheet(
     onDismiss: () -> Unit,
 ) {
     BottomSheet(
+        title = stringResource(Res.string.private_choose_title),
         onDismissRequest = onDismiss,
         backgroundColor = AppTheme.colors.background,
+        // Match the home row's lock glyph; flat bubble (no gradient panel).
+        dragHandle = topAccessoryEmoji(emoji = "🔒").asDragHandle(),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = stringResource(Res.string.private_choose_title),
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.content,
-            )
-            Spacer(modifier = Modifier.height(Dimension.D600))
-
-            // Create — gold gradient hero.
+            // Create — flat gold hero (the gradient panel read as inconsistent
+            // next to the now-flat Play cards).
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(Radii.R900.shape)
-                    .background(playGradient(FeatureCardAccents.Gold))
+                    .background(FeatureCardAccents.Gold.copy(alpha = 0.85f))
                     .clickable(onClick = onCreate)
                     .padding(Dimension.D800),
                 verticalAlignment = Alignment.CenterVertically,

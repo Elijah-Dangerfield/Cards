@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
@@ -67,9 +66,10 @@ internal fun HomeHeader(
         // takes the remaining space and the name ellipsizes, so a long name
         // can never smush the wallet.
         Row(
+            // No .clip here: it would crop the "LV N" chip that straddles the
+            // avatar's bottom edge, flattening its rounded underside.
             modifier = Modifier
                 .weight(1f)
-                .clip(Radii.R700.shape)
                 .clickable(onClick = onTapLevel)
                 .padding(end = Dimension.D300),
             verticalAlignment = Alignment.CenterVertically,

@@ -150,7 +150,7 @@ class HomeFeatureEntryPoint(
                     // Tournaments are a V2 surface — honest "coming soon".
                     comingSoon = ComingSoonContent(
                         title = tournamentTitle,
-                        emoji = "♛",
+                        emoji = "🏆",
                         body = tournamentBody,
                     )
                 },

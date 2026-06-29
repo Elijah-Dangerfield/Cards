@@ -53,7 +53,7 @@ internal fun BotTableSetupSheet(
     var seatCount by remember { mutableStateOf(4) }
     BottomSheet(
         onDismissRequest = onDismiss,
-        dragHandle = topAccessoryEmoji(emoji = "♠").asDragHandle(),
+        dragHandle = topAccessoryEmoji(emoji = "🤖").asDragHandle(),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
