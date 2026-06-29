@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.typography.TypographyResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -37,8 +38,10 @@ fun OutlinedTextField(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     readOnly: Boolean = false,
+    // Inputs read one notch larger than body copy — chunkier, friendlier fields
+    // in the spirit of the bigger/bubblier pass.
     typographyToken: TypographyResource = LocalTextConfig.current.typography
-        ?: AppTheme.typography.Default,
+        ?: AppTheme.typography.Body.B600,
     label: @Composable (() -> Unit)? = null,
     placeholder: @Composable (() -> Unit)? = null,
     leadingIcon: @Composable (() -> Unit)? = null,
@@ -119,9 +122,16 @@ fun OutlinedTextField(
     )
 }
 
+// Roomier than the Material default so fields feel taller and more tappable —
+// the same bubbly sizing language the buttons and cards now use.
 private val outlineTextFieldPadding
     @Composable
-    get() = OutlinedTextFieldDefaults.contentPadding()
+    get() = OutlinedTextFieldDefaults.contentPadding(
+        start = Dimension.D800,
+        top = Dimension.D700,
+        end = Dimension.D800,
+        bottom = Dimension.D700,
+    )
 
 private val outlinedTextFieldColors
     @Composable
