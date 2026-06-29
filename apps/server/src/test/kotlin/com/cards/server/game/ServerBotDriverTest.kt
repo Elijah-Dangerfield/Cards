@@ -12,10 +12,13 @@ import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
 import com.dangerfield.cards.server.domain.BotSeat
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.random.Random
 import kotlin.test.Test
@@ -60,7 +63,7 @@ class ServerBotDriverTest {
             random = Random(seed = 7),
             equityIterations = 20,
             thinkDelay = { _, _, _ -> 0 },
-            mixedNextHandDelayMs = 0,
+            nextHandBeatMs = 0,
         )
         driver.updateRoster(listOf(human, bot))
         driver.start()
@@ -170,12 +173,15 @@ class ServerBotDriverTest {
     }
 
     /**
-     * The flip side of CARDS-16: a pure all-human table must NOT auto-advance —
-     * those players continue at their own pace via client "next hand" taps. The
-     * driver only advances tables that contain a bot.
+     * Play-screen overhaul: a pure all-human table (the host-run Private case) now
+     * auto-advances too — manual "next hand" pacing was traded for one simple
+     * lifecycle, so the lowest-seat human stands in as the advancer. This used to
+     * be the "all-human tables never auto-advance" guard; the universal beat flips
+     * it. The countdown's deadline is announced to clients before the beat (see
+     * [allHumanTable_announcesNextHandCountdown_beforeDealing]).
      */
     @Test
-    fun allHumanTable_doesNotAutoAdvance_atHandEnd() = runTest {
+    fun allHumanTable_autoAdvances_underUniversalBeat() = runTest {
         val session = GameSession(random = Random(seed = 3))
         val driver = unconfinedDriver(session)
         driver.start()
@@ -183,53 +189,8 @@ class ServerBotDriverTest {
         val human2 = SeatOccupant(seatIndex = 1, userId = "human-2", displayName = "Peer", isBot = false)
         session.startHand(listOf(human, human2), settings)
 
-        // Play hand 1 to completion with both humans acting.
-        var guard = 0
-        while (guard++ < 100 && session.state.value!!.street != BettingRound.Complete) {
-            advanceUntilIdle()
-            val state = session.state.value!!
-            if (state.street == BettingRound.Complete) break
-            val acting = state.actingSeatIndex ?: continue
-            val seat = state.seats.first { it.index == acting }
-            val toCall = state.currentBetThisStreet - seat.contributedThisStreet
-            val intent = if (toCall > 0) PlayerIntent.Fold(acting) else PlayerIntent.Check(acting)
-            session.applyIntent(seat.playerId!!, intent, "h-$guard")
-        }
-
-        assertEquals(BettingRound.Complete, session.state.value!!.street, "hand 1 reaches completion")
-        val handAtComplete = session.state.value!!.handNumber
-
-        // Let the scheduler drain fully — with no bot at the table nothing advances.
-        advanceUntilIdle()
-
-        assertEquals(
-            handAtComplete,
-            session.state.value!!.handNumber,
-            "an all-human table never auto-advances; it waits for a client next-hand tap",
-        )
-        assertEquals(BettingRound.Complete, session.state.value!!.street)
-    }
-
-    /**
-     * CARDS-25 regression. A server-dealt (Open / Public) table that converges to
-     * all-human — every matchmaking bot trimmed or busted out — has no client
-     * "next hand" control: the server is its dealer. It used to stall at hand end
-     * because the driver only advanced bot-occupied tables. With [setServerDealt]
-     * true the driver advances it too (a human stands in for the absent bot), so
-     * consecutive hands deal without a single next-hand tap.
-     */
-    @Test
-    fun serverDealtAllHumanTable_autoAdvances_withoutNextHandTap() = runTest {
-        val session = GameSession(random = Random(seed = 5))
-        val driver = unconfinedDriver(session)
-        driver.setServerDealt(true)
-        driver.start()
-
-        val human2 = SeatOccupant(seatIndex = 1, userId = "human-2", displayName = "Peer", isBot = false)
-        session.startHand(listOf(human, human2), settings)
-
-        // Play only the humans' in-hand turns — never call requestNextHand. A
-        // server-dealt table must carry itself across hand boundaries.
+        // Play only the humans' in-hand turns — never call requestNextHand. The
+        // universal beat must carry an all-human table across hand boundaries.
         var guard = 0
         while (guard++ < 300 && session.state.value!!.handNumber < 3) {
             advanceUntilIdle()
@@ -245,8 +206,61 @@ class ServerBotDriverTest {
 
         assertTrue(
             session.state.value!!.handNumber >= 3,
-            "a server-dealt all-human table advances consecutive hands with no next-hand tap",
+            "an all-human table advances consecutive hands with no client next-hand tap",
         )
+    }
+
+    /**
+     * The between-hands beat announces its deadline on [GameSession.nextHandEvents]
+     * before it deals, so clients can render an honest "Next hand in 0:0X" countdown
+     * (and leave with their winnings) for the whole window. The deadline is in the
+     * future relative to when the hand completed.
+     */
+    @Test
+    fun allHumanTable_announcesNextHandCountdown_beforeDealing() = runTest {
+        val session = GameSession(random = Random(seed = 3))
+        val events = mutableListOf<NextHandEvent>()
+        backgroundScope.launch { session.nextHandEvents.collect { events += it } }
+        // A non-zero beat so the Pending is observable before the deal fires.
+        val driver = ServerBotDriver(
+            session = session,
+            scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
+            cpuDispatcher = UnconfinedTestDispatcher(testScheduler),
+            random = Random(seed = 3),
+            equityIterations = 20,
+            thinkDelay = { _, _, _ -> 0 },
+            nextHandBeatMs = 1_000,
+        )
+        driver.start()
+
+        val human2 = SeatOccupant(seatIndex = 1, userId = "human-2", displayName = "Peer", isBot = false)
+        session.startHand(listOf(human, human2), settings)
+
+        // Play hand 1 to completion with both humans acting.
+        var guard = 0
+        while (guard++ < 100 && session.state.value!!.street != BettingRound.Complete) {
+            runCurrent()
+            val state = session.state.value!!
+            if (state.street == BettingRound.Complete) break
+            val acting = state.actingSeatIndex ?: continue
+            val seat = state.seats.first { it.index == acting }
+            val toCall = state.currentBetThisStreet - seat.contributedThisStreet
+            val intent = if (toCall > 0) PlayerIntent.Fold(acting) else PlayerIntent.Check(acting)
+            session.applyIntent(seat.playerId!!, intent, "h-$guard")
+        }
+        assertEquals(BettingRound.Complete, session.state.value!!.street, "hand 1 reaches completion")
+
+        // The countdown is announced immediately at completion, before the beat elapses.
+        runCurrent()
+        val pending = events.filterIsInstance<NextHandEvent.Pending>().firstOrNull()
+        assertNotNull(pending, "a completed, advanceable hand announces a next-hand countdown")
+        assertTrue(pending.deadlineEpochMs > 0, "the countdown carries a wall-clock deadline")
+        assertEquals(1, session.state.value!!.handNumber, "the deal is held until the beat elapses")
+
+        // Once the beat passes, the next hand deals.
+        advanceTimeBy(1_001)
+        runCurrent()
+        assertEquals(2, session.state.value!!.handNumber, "the next hand deals when the beat elapses")
     }
 
     /**
@@ -343,7 +357,6 @@ class ServerBotDriverTest {
         session.queueJoiner(joiner)
 
         val driver = unconfinedDriver(session)
-        driver.setServerDealt(true)
         driver.start()
         advanceUntilIdle()
 
@@ -371,6 +384,6 @@ class ServerBotDriverTest {
             random = Random(seed = 7),
             equityIterations = 20,
             thinkDelay = { _, _, _ -> 0 },
-            mixedNextHandDelayMs = 0,
+            nextHandBeatMs = 0,
         )
 }

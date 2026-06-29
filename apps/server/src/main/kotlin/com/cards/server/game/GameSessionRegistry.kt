@@ -71,10 +71,6 @@ interface GameSessionRegistry {
         code: String,
         occupants: List<SeatOccupant>,
         settings: RoomSettings,
-        // Open / Public tables are server-dealt: no client drives "next hand", so
-        // the bot driver must auto-advance them even once all-human. Defaults
-        // false so a host-run Private table keeps tapping next-hand itself.
-        serverDealt: Boolean = false,
     ): IntentResult
 
     suspend fun applyIntent(
@@ -189,11 +185,12 @@ class DefaultGameSessionRegistry(
     // Scope the per-session bot drivers launch on. SupervisorJob so one bot's
     // failure can't tear down the others. Defaulted for direct test construction.
     private val botDriverScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-    // Settle delay before a server-driven (bot or server-dealt) table deals its
-    // next hand — lets a human see the result first. Defaulted to production;
-    // integration tests over the real wire shrink it so a multi-hand test isn't
-    // gated on real seconds per hand boundary.
-    private val mixedNextHandDelayMs: Long = 4_000,
+    // The universal between-hands beat: how long every auto-advancing table holds
+    // before dealing the next hand, so a player sees the result and can leave with
+    // their winnings first. Defaulted to production (~6s); integration tests over
+    // the real wire shrink it so a multi-hand test isn't gated on real seconds per
+    // hand boundary.
+    private val nextHandBeatMs: Long = 6_000,
     // Fixed per-bot-turn pause override, in ms. Null keeps the production
     // humanlike timing ([serverThinkDelayMs]); a value pins every bot turn to it
     // so an integration test over the real wire isn't gated on real bot
@@ -232,16 +229,11 @@ class DefaultGameSessionRegistry(
         code: String,
         occupants: List<SeatOccupant>,
         settings: RoomSettings,
-        serverDealt: Boolean,
     ): IntentResult {
         val session = obtain(code)
         // Seed the driver's personality roster from this hand's occupants before
-        // the hand opens, so the first bot to act already knows how to play, and
-        // mark whether this table is server-dealt so it auto-advances when all-human.
-        peekDriver(code)?.apply {
-            updateRoster(occupants)
-            setServerDealt(serverDealt)
-        }
+        // the hand opens, so the first bot to act already knows how to play.
+        peekDriver(code)?.updateRoster(occupants)
         return session.startHand(occupants, settings)
     }
 
@@ -351,7 +343,8 @@ class DefaultGameSessionRegistry(
             thinkDelay = botThinkDelayMsOverride
                 ?.let { fixed -> { _, _, _ -> fixed } }
                 ?: ::serverThinkDelayMs,
-            mixedNextHandDelayMs = mixedNextHandDelayMs,
+            clock = clock,
+            nextHandBeatMs = nextHandBeatMs,
         ).also { it.start() }
         turnTimerDrivers.remove(code)?.cancel()
         turnTimerDrivers[code] = TurnTimerDriver(session = session, scope = botDriverScope).also { it.start() }

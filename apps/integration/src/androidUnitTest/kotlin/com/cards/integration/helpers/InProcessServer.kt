@@ -124,13 +124,13 @@ class InProcessServer(
         override suspend fun end(code: String) = registry.end(code)
     }
 
-    // Shrink the next-hand settle delay + bot think-time so a multi-hand test
-    // over the real wire isn't gated on real seconds per hand (production uses 4s
-    // settle and a humanlike per-turn pause that can tank to several seconds).
+    // Shrink the between-hands beat + bot think-time so a multi-hand test over the
+    // real wire isn't gated on real seconds per hand (production holds ~6s between
+    // hands and a humanlike per-turn pause that can tank to several seconds).
     private fun buildRegistry(): GameSessionRegistry = DefaultGameSessionRegistry(
         snapshots,
         Clock.System,
-        mixedNextHandDelayMs = 50,
+        nextHandBeatMs = 50,
         botThinkDelayMsOverride = 0,
         matchOverGraceMillis = matchOverGraceMillis,
         deckSource = { code, handNumber -> deckScripts[code]?.invoke(handNumber) },

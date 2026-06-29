@@ -786,7 +786,6 @@ private suspend fun dealFundedHand(
         room.code,
         funded.occupants,
         room.settings,
-        serverDealt = room.visibility != RoomVisibility.Private,
     )
     if (result is IntentResult.Accepted) {
         rooms.markPlaying(room.code)

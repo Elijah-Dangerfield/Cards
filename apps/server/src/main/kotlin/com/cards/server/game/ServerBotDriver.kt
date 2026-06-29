@@ -18,6 +18,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import kotlin.random.Random
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 /**
  * Drives every bot seat in one [GameSession] entirely server-side. Nothing on
@@ -45,7 +47,16 @@ import kotlin.random.Random
  *    fallback personality to any bot seat it doesn't recognize, so bots keep
  *    playing. The exact personality may differ from before the restart — an
  *    accepted trade vs. a schema change for a rare mid-hand restart.
+ *
+ * The driver also owns the **universal between-hands beat**: when a hand completes
+ * and the table can deal another, it holds the deal for [nextHandBeatMs], announces
+ * the deadline on [GameSession.nextHandEvents] so clients render an honest
+ * countdown, then deals exactly when the beat elapses. Every table with at least
+ * one human and two chip-holders auto-advances this way (private host-run tables
+ * included — they lost manual pacing in the play-screen overhaul); an all-bot
+ * table still idles rather than simulate to an empty room.
  */
+@OptIn(ExperimentalTime::class)
 class ServerBotDriver(
     private val session: GameSession,
     private val scope: CoroutineScope,
@@ -53,10 +64,15 @@ class ServerBotDriver(
     private val random: Random = Random.Default,
     private val equityIterations: Int = 200,
     private val thinkDelay: (BotPersonality, BotThought, Random) -> Long = ::serverThinkDelayMs,
-    // Settle before the bot deals the next hand at a mixed (human + bot) table,
-    // so the next hand doesn't deal out from under the human before they've seen
-    // the showdown / result. All-bot and all-human tables aren't auto-advanced.
-    private val mixedNextHandDelayMs: Long = 4_000,
+    // Wall clock, used to stamp the next-hand deadline broadcast to clients. The
+    // client ticks its countdown against the same instant the driver deals at, so
+    // the countdown can never be a lie the server deals under.
+    private val clock: Clock = Clock.System,
+    // The between-hands beat: how long the table holds before dealing the next
+    // hand, so the human sees the showdown / result first and can leave with their
+    // winnings before being dealt back in. Config (start ~6s, tune). Tests shrink
+    // it so a multi-hand run isn't gated on real seconds per boundary.
+    private val nextHandBeatMs: Long = 6_000,
 ) {
     // playerId -> bot truth. Mutated only from the single collector coroutine
     // (drive loop) and from updateRoster; updateRoster runs before/around
@@ -66,14 +82,11 @@ class ServerBotDriver(
     @Volatile
     private var roster: Map<String, BotSeat> = emptyMap()
 
-    // True once a hand starts on a server-dealt table (Open / Public). Those have
-    // no client "next hand" control — the server is the dealer — so the driver
-    // must advance them at hand end even after they converge to all-human (every
-    // bot trimmed or busted out). A host-driven Private table leaves this false:
-    // its humans tap "next hand" at their own pace. Set per startHand by the
-    // registry, which is the only place the room's visibility is known.
-    @Volatile
-    private var serverDealt: Boolean = false
+    // True while a next-hand countdown has been announced to clients and not yet
+    // cancelled. Mutated only from the single collector coroutine (drive loop), so
+    // a plain field is enough. Guards the Cleared emit so we only announce a
+    // cancellation for a countdown we actually opened.
+    private var nextHandArmed: Boolean = false
 
     private var job: Job? = null
 
@@ -82,11 +95,6 @@ class ServerBotDriver(
         val additions = occupants.mapNotNull { occ -> occ.bot?.let { occ.userId to it } }
         if (additions.isEmpty()) return
         roster = roster + additions
-    }
-
-    /** Mark whether this session's table is server-dealt (Open / Public). */
-    fun setServerDealt(serverDealt: Boolean) {
-        this.serverDealt = serverDealt
     }
 
     fun start() {
@@ -103,9 +111,13 @@ class ServerBotDriver(
 
     private suspend fun drive(state: GameState) {
         if (state.street == BettingRound.Complete) {
-            maybeAdvanceBotTable(state)
+            maybeScheduleNextHand(state)
             return
         }
+        // A live hand is in progress — any countdown we'd announced is moot (the
+        // next hand already dealt, or the table un-completed). Clear it so a stale
+        // "Next hand in 0:0X" never lingers on the felt.
+        clearNextHandCountdownIfArmed()
         val acting = state.actingSeatIndex ?: return
         val seat = state.seats.firstOrNull { it.index == acting } ?: return
         if (!seat.isBot || !seat.canAct) return
@@ -143,48 +155,61 @@ class ServerBotDriver(
     }
 
     /**
-     * When a hand completes at a **mixed** table (at least one human AND at least
-     * one bot, two seats still with chips), the lowest-seat bot advances the next
-     * hand — a bot is always willing, so the table never stalls waiting on the
-     * human to tap "next hand" (CARDS-16: a `1H + NB` room used to freeze at hand
-     * end). The settle delay ([mixedNextHandDelayMs]) lets the human see the
-     * result first; `collectLatest` cancels it if a human taps next-hand first,
-     * and `requestNextHand` re-checks `street == Complete` + dedupes by nonce, so
-     * a benign race is a no-op.
+     * Universal between-hands beat. When a hand completes and the table can deal
+     * another, hold the deal for [nextHandBeatMs] and announce the deadline on
+     * [GameSession.nextHandEvents] so clients render an honest "Next hand in 0:0X"
+     * countdown (and, on a real-chip table, can leave with their winnings the whole
+     * window) — then deal exactly when the beat elapses. The lowest-seat chip-holder
+     * stands in as the advancer; `requestNextHand` is server-internal and
+     * userId-agnostic, so a bot or a human is equally valid here.
      *
-     * An **all-human** table advances here only when it's [serverDealt] (Open /
-     * Public): those have no client "next hand" control, so the server is the
-     * dealer for them too — the lowest-seat human drives the next hand, exactly
-     * as a bot would on a mixed table. A server-dealt table that trims its last
-     * bot (or busts it out) used to stall at hand end with every seat's next-hand
-     * control inert (CARDS-25); driving it server-side closes that. A host-run
-     * **Private** all-human table is left alone — its humans tap at their own pace.
+     * `collectLatest` cancels the pending [delay] the instant a newer state arrives
+     * (a rebuy, a leave, a manual tap on a practice table), and `requestNextHand`
+     * re-checks `street == Complete` + dedupes by nonce, so a benign race is a no-op.
+     *
+     * Every table with a human and two chip-holders auto-advances — public, open,
+     * and **private host-run** alike (private tables traded manual pacing for one
+     * simple lifecycle in the play-screen overhaul). Counted toward the two-with-chips
+     * gate is any mid-hand joiner waiting in the session queue (CARDS-24), so a table
+     * that drops to a lone survivor still deals when a searcher is waiting to fill it.
      *
      * Still deliberately NOT advanced:
      *  - **All-bot** — a table with no human left (the lone human quit a bot
      *    fallback table, or every human dropped from a private bot room) goes
-     *    idle instead of simulating hands forever to an empty room. The idle
-     *    session burns no CPU and its room is reclaimed by the orphan sweep.
+     *    idle instead of simulating hands forever to an empty room.
+     *  - **Single survivor, no joiner** — a heads-up bust leaves one chip-holder;
+     *    that's the rebuy-grace window's job ([MatchOverGraceDriver]), not ours.
      */
-    private suspend fun maybeAdvanceBotTable(state: GameState) {
+    private suspend fun maybeScheduleNextHand(state: GameState) {
         val seated = state.seats.filter { it.playerId != null }
-        if (seated.none { !it.isBot }) return // all-bot table: idle, don't simulate to nobody
+        if (seated.none { !it.isBot }) { clearNextHandCountdownIfArmed(); return } // all-bot: idle
         val seatsWithChips = seated.filter { it.stack > 0 }
         // A mid-hand joiner sits in the session's pending queue, not in [state.seats],
         // and is folded into the deal by [requestNextHand]. Count them toward the
         // "enough players to deal" gate: a table that drops to a single seated player
-        // with chips must still advance when a joiner is waiting to fill it (CARDS-24),
-        // or the queued player is stranded forever because requestNextHand never fires.
+        // with chips must still advance when a joiner is waiting to fill it (CARDS-24).
         val pendingJoiners = session.pendingJoinerIds.count { it !in seatsWithChips.mapNotNull { seat -> seat.playerId } }
-        if (seatsWithChips.size + pendingJoiners < 2) return
-        // A bot is always willing to deal; on a server-dealt all-human table the
-        // lowest-seat human stands in (no client tap exists to drive it). A joiner
-        // hasn't a seat yet, so the advancer is always a current seat-holder.
-        val advancer = seatsWithChips.filter { it.isBot }.minByOrNull { it.index }
-            ?: seatsWithChips.takeIf { serverDealt }?.minByOrNull { it.index }
-            ?: return
-        delay(mixedNextHandDelayMs)
-        session.requestNextHand(advancer.playerId!!, "bot-next:${session.id}:${state.handNumber}")
+        if (seatsWithChips.size + pendingJoiners < 2) { clearNextHandCountdownIfArmed(); return }
+        val advancer = seatsWithChips.minByOrNull { it.index } ?: run { clearNextHandCountdownIfArmed(); return }
+
+        nextHandArmed = true
+        session.emitNextHandEvent(
+            NextHandEvent.Pending(deadlineEpochMs = clock.now().toEpochMilliseconds() + nextHandBeatMs),
+        )
+        delay(nextHandBeatMs)
+
+        nextHandArmed = false
+        val result = session.requestNextHand(advancer.playerId!!, "next:${session.id}:${state.handNumber}")
+        // A rejection here means the deal didn't happen and no fresh hand snapshot
+        // will arrive to clear the client countdown (e.g. a race emptied the table).
+        // Announce the cancellation so the felt countdown doesn't hang at 0:00.
+        if (result is IntentResult.Rejected) session.emitNextHandEvent(NextHandEvent.Cleared)
+    }
+
+    private fun clearNextHandCountdownIfArmed() {
+        if (!nextHandArmed) return
+        nextHandArmed = false
+        session.emitNextHandEvent(NextHandEvent.Cleared)
     }
 
     /**

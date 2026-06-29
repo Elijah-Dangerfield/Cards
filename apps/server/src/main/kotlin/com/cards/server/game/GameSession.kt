@@ -151,6 +151,21 @@ class GameSession internal constructor(
     }
 
     /**
+     * Between-hands countdown channel — the auto-advance beat's deadline +
+     * cancellation, driven by [ServerBotDriver] and forwarded by the socket
+     * fan-out. Like [matchOverEvents] it carries no engine state and isn't mutex-
+     * guarded; the driver `tryEmit`s onto it. A small buffer so a Pending + its
+     * Cleared aren't dropped if a subscriber is momentarily slow; replay-less so a
+     * stale countdown can't re-fire on a late subscriber.
+     */
+    private val _nextHandEvents = MutableSharedFlow<NextHandEvent>(extraBufferCapacity = 8)
+    val nextHandEvents: SharedFlow<NextHandEvent> get() = _nextHandEvents.asSharedFlow()
+
+    internal fun emitNextHandEvent(event: NextHandEvent) {
+        _nextHandEvents.tryEmit(event)
+    }
+
+    /**
      * Deferred-settlement channel for players who left the room while **all-in**
      * in a live hand. An all-in seat keeps its showdown right (the engine never
      * folds it — see `GameEngine.forfeitSeat`), so we can't cash the leaver out at
