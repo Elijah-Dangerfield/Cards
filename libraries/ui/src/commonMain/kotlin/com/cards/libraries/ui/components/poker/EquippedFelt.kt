@@ -94,6 +94,14 @@ fun feltAccentSurface(felt: EquippedFelt): Color = when (felt) {
 val LocalFeltAccentSurface: ProvidableCompositionLocal<Color?> = compositionLocalOf { null }
 
 /**
+ * The base felt/table surface the seats sit on — the play-screen container paint
+ * ([feltSurfaceColor]). Read by the opponent seats to paint their cutout ring in
+ * the exact backdrop color so the avatar reads as punched out of the felt. Null
+ * outside the play screen falls back to the app background.
+ */
+val LocalTableSurface: ProvidableCompositionLocal<Color?> = compositionLocalOf { null }
+
+/**
  * Catalog productId → [CardBackStyle]. Same shape as
  * [feltForProductId] — single place to extend, fallback to
  * [CardBackStyle.Default] on unknown ids so a server-side catalog

@@ -84,6 +84,7 @@ import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import com.dangerfield.cards.libraries.ui.components.poker.LocalCardBackStyle
 import com.dangerfield.cards.libraries.ui.components.poker.LocalFeltAccentSurface
+import com.dangerfield.cards.libraries.ui.components.poker.LocalTableSurface
 import com.dangerfield.cards.libraries.ui.components.poker.feltAccentSurface
 import com.dangerfield.cards.libraries.ui.components.poker.feltSurfaceColor
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -287,6 +288,7 @@ fun PlayPokerScreen(
     CompositionLocalProvider(
         LocalCardBackStyle provides state.equippedCardBack,
         LocalFeltAccentSurface provides feltAccent,
+        LocalTableSurface provides tableSurface,
         LocalTableRewardAnchors provides rewardAnchors,
     ) {
     Screen(modifier = modifier, containerColor = tableSurface) { padding ->
