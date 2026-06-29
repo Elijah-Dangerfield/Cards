@@ -203,7 +203,10 @@ internal fun PlayerArea(
     ) {
         Box(
             modifier = Modifier
-                .weight(1f)
+                // Natural width (wraps the overlapping card pair) — NOT weight(1f),
+                // which crammed two Hole cards into half the row, overflowing the
+                // rounded border and clipping one card so the two looked unequal.
+                // The seat tile takes the remaining space via its own weight(1f).
                 .fillMaxHeight()
                 .alpha(if (folded) 0.35f else 1f)
                 .pointerInput(swipeFoldEnabled, foldCommitPx, foldFlickVelocityPxPerSec) {
@@ -529,7 +532,7 @@ private fun PlayerInfoTile(
     // TopBar, so duplicating it inside their own card just inflates density.
     //
     // Dimensions are tuned tight so the content fits inside the locked
-    // hole-card row height (PlayingCardSize.Hole.height = 140.dp) without
+    // hole-card row height (PlayingCardSize.Hole.height = 136.dp) without
     // clipping the bottom chip pill. Adjust together if the row height changes.
     Column(
         modifier = modifier

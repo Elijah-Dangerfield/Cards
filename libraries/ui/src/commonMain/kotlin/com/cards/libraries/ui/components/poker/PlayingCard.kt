@@ -58,9 +58,9 @@ data class PlayingCardSize(val width: Dp, val height: Dp) {
         /** Community board card — squarer + chunkier for the bubbly felt look. */
         val Board = PlayingCardSize(94.dp, 118.dp)
 
-        /** A player's own hole card — a touch wider/squarer; height held so the
-         *  seat card sized to this row doesn't clip. */
-        val Hole = PlayingCardSize(108.dp, 140.dp)
+        /** A player's own hole card — squarer + bubbly, but sized so the pair
+         *  renders at its natural width beside the seat tile without crowding it. */
+        val Hole = PlayingCardSize(102.dp, 136.dp)
     }
 }
 
