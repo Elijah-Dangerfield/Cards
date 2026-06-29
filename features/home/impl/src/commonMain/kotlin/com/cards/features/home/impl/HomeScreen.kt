@@ -6,7 +6,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,9 +39,8 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
-import com.dangerfield.cards.libraries.ui.system.color.FeatureCardAccents
 import com.dangerfield.cards.libraries.ui.screenContentPadding
-import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD600
 import com.dangerfield.cards.system.VerticalSpacerD800
@@ -223,9 +221,9 @@ private fun HomeScreenContent(
             VerticalSpacerD800()
             SectionHeader(title = stringResource(Res.string.home_section_play))
             VerticalSpacerD600()
-            // Rooms-forward home (SPEC §5): Public rooms is the hero (pick a
-            // buy-in, auto-seated), Private room opens the create/join sheet,
-            // and Practice / Tournament sit below as the two smaller tiles.
+            // Rooms-forward home: Public rooms is the flat hero (pick a buy-in,
+            // auto-seated), then Private / Practice / Tournament as flat rows with
+            // emoji-circle tiles in their accent colours.
             PublicRoomsCard(
                 title = stringResource(Res.string.home_cta_public_rooms_title),
                 subtitle = stringResource(Res.string.home_play_public_rooms_subtitle),
@@ -233,31 +231,30 @@ private fun HomeScreenContent(
                 onClick = onPublicRooms,
             )
             VerticalSpacerD500()
-            PrivateRoomCard(
+            PlayRow(
                 title = stringResource(Res.string.home_cta_private_room_title),
                 subtitle = stringResource(Res.string.home_play_private_room_subtitle),
+                emoji = "🔒",
+                accent = AppTheme.colors.accentSecondary.color,
                 onClick = onPrivateRoom,
             )
             VerticalSpacerD500()
-            Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D500)) {
-                PlayTileCard(
-                    title = stringResource(Res.string.home_cta_practice_title),
-                    subtitle = stringResource(Res.string.home_cta_practice_subtitle_short),
-                    glyph = "♠",
-                    accent = FeatureCardAccents.Green,
-                    onClick = onPlayBots,
-                    modifier = Modifier.weight(1f),
-                )
-                PlayTileCard(
-                    title = stringResource(Res.string.home_cta_tournament_title),
-                    subtitle = stringResource(Res.string.home_cta_tournament_subtitle),
-                    glyph = "♛",
-                    accent = FeatureCardAccents.Magenta,
-                    onClick = onTournament,
-                    modifier = Modifier.weight(1f),
-                    tag = stringResource(Res.string.home_tag_soon),
-                )
-            }
+            PlayRow(
+                title = stringResource(Res.string.home_cta_practice_title),
+                subtitle = stringResource(Res.string.home_cta_practice_subtitle_short),
+                emoji = "🦉",
+                accent = AppTheme.colors.league.amethyst.color,
+                onClick = onPlayBots,
+            )
+            VerticalSpacerD500()
+            PlayRow(
+                title = stringResource(Res.string.home_cta_tournament_title),
+                subtitle = stringResource(Res.string.home_cta_tournament_subtitle),
+                emoji = "🏆",
+                accent = AppTheme.colors.accentTertiary.color,
+                onClick = onTournament,
+                tag = stringResource(Res.string.home_tag_soon),
+            )
 
             if (socialEnabled) {
                 VerticalSpacerD1100()
