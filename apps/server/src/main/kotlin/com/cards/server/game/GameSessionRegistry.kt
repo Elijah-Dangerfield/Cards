@@ -187,10 +187,10 @@ class DefaultGameSessionRegistry(
     private val botDriverScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     // The universal between-hands beat: how long every auto-advancing table holds
     // before dealing the next hand, so a player sees the result and can leave with
-    // their winnings first. Defaulted to production (~6s); integration tests over
+    // their winnings first. Defaulted to production (8s); integration tests over
     // the real wire shrink it so a multi-hand test isn't gated on real seconds per
     // hand boundary.
-    private val nextHandBeatMs: Long = 6_000,
+    private val nextHandBeatMs: Long = 8_000,
     // Fixed per-bot-turn pause override, in ms. Null keeps the production
     // humanlike timing ([serverThinkDelayMs]); a value pins every bot turn to it
     // so an integration test over the real wire isn't gated on real bot

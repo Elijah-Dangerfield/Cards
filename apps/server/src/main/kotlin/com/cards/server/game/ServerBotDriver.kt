@@ -70,9 +70,9 @@ class ServerBotDriver(
     private val clock: Clock = Clock.System,
     // The between-hands beat: how long the table holds before dealing the next
     // hand, so the human sees the showdown / result first and can leave with their
-    // winnings before being dealt back in. Config (start ~6s, tune). Tests shrink
-    // it so a multi-hand run isn't gated on real seconds per boundary.
-    private val nextHandBeatMs: Long = 6_000,
+    // winnings before being dealt back in. Config (8s, tune). Tests shrink it so a
+    // multi-hand run isn't gated on real seconds per boundary.
+    private val nextHandBeatMs: Long = 8_000,
 ) {
     // playerId -> bot truth. Mutated only from the single collector coroutine
     // (drive loop) and from updateRoster; updateRoster runs before/around
