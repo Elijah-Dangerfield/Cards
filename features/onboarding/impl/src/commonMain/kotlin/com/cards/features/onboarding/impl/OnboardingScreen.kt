@@ -779,10 +779,7 @@ private fun HowItWorksStep(
             title = stringResource(Res.string.onboarding_how_card_chips_title),
             subtitle = stringResource(Res.string.onboarding_how_card_chips_subtitle),
         ) {
-            ChipCoin(
-                size = 48.dp,
-                textTypography = AppTheme.typography.Heading.H700,
-            )
+            ChipCoin(size = 48.dp)
         }
         Spacer(modifier = Modifier.height(Dimension.D500))
         InfoCard(
@@ -905,10 +902,7 @@ private fun StarterGrantStep(
 
             // The radiant centerpiece — a slow sun dial framing the chip coin.
             RotatingDial {
-                ChipCoin(
-                    size = 96.dp,
-                    textTypography = AppTheme.typography.Display.D1100,
-                )
+                ChipCoin(size = 96.dp)
             }
 
             Spacer(modifier = Modifier.height(Dimension.D700))

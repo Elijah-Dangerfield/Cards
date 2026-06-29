@@ -129,10 +129,7 @@ fun RotatingDial(
 private fun RotatingDialPreview() {
     PreviewContent {
         RotatingDial {
-            ChipCoin(
-                size = 96.dp,
-                textTypography = AppTheme.typography.Display.D1100,
-            )
+            ChipCoin(size = 96.dp)
         }
     }
 }

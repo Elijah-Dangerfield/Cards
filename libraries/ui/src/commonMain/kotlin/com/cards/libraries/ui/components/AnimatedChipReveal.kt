@@ -41,10 +41,7 @@ fun AnimatedChipReveal(
     coinSize: Dp = 40.dp,
 ) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        ChipCoin(
-            size = coinSize,
-            textTypography = AppTheme.typography.Heading.H700,
-        )
+        ChipCoin(size = coinSize)
         Spacer(Modifier.width(12.dp))
         AnimatedCountUpText(
             amount = amount,

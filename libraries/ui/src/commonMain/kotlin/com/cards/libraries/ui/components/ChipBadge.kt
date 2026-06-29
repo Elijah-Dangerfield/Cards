@@ -27,7 +27,7 @@ fun ChipBadge(
         onClick = onClick,
         // The wallet is a prominent affordance — grow it past the family default.
         contentPadding = PaddingValues(horizontal = Dimension.D500, vertical = Dimension.D400),
-        leading = { ChipCoin(size = 28.dp, textTypography = AppTheme.typography.Body.B600) },
+        leading = { ChipCoin(size = 28.dp) },
         trailing = {
             if (amount == null) {
                 // Null = local Room hasn't emitted yet (first-launch /
