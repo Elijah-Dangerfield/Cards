@@ -36,9 +36,20 @@ fun AnimatedNumberText(
     modifier: Modifier = Modifier,
     formatter: (Long) -> String = { formatThousands(it) },
     durationMillis: Int = 700,
+    /**
+     * Optional direction tints. When set, the digits flash [gainColor] while
+     * counting up to a larger value and [lossColor] while counting down to a
+     * smaller one, then settle back to [color] — e.g. a chip balance reading green
+     * on a win and red on a loss when you return from a game. Null (default) keeps
+     * the number a constant [color].
+     */
+    gainColor: ColorResource? = null,
+    lossColor: ColorResource? = null,
 ) {
     val animated = remember { Animatable(initialValue = value.toFloat()) }
     var displayed by remember { mutableStateOf(value) }
+    // The active direction tint while a change animates; null settles back to [color].
+    var tint by remember { mutableStateOf<ColorResource?>(null) }
     // Warm-up window: snap silently for the first MOUNT_SETTLE_MS so the
     // common "ViewModel emits its default 0, then emits the real value" path
     // doesn't animate from 0 → real on every tab switch / screen entry. After
@@ -49,21 +60,33 @@ fun AnimatedNumberText(
         if (warmUp) {
             animated.snapTo(value.toFloat())
             displayed = value
+            tint = null
         } else {
+            val previous = displayed
+            tint = when {
+                value > previous -> gainColor
+                value < previous -> lossColor
+                else -> null
+            }
             animated.animateTo(
                 targetValue = value.toFloat(),
                 animationSpec = tween(durationMillis, easing = FastOutSlowInEasing),
             ) {
                 displayed = this.value.toLong()
             }
+            // Hold the tint a beat past the roll so the win/loss registers, then
+            // settle back to the base color.
+            kotlinx.coroutines.delay(TINT_HOLD_MS)
+            tint = null
         }
     }
     Text(
         text = formatter(displayed),
         typography = typography,
-        color = color,
+        color = tint ?: color,
         modifier = modifier,
     )
 }
 
 private const val MOUNT_SETTLE_MS = 300L
+private const val TINT_HOLD_MS = 600L

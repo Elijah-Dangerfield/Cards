@@ -33,6 +33,11 @@ fun ChipBadge(
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.content,
                     formatter = { formatThousands(it) },
+                    // Flash green when the wallet grows and red when it shrinks —
+                    // the post-game balance change reads as a win or a loss at a
+                    // glance, then settles back to the normal colour.
+                    gainColor = AppTheme.colors.success,
+                    lossColor = AppTheme.colors.danger,
                 )
             }
         },
