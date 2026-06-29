@@ -92,6 +92,16 @@ internal sealed interface RoomSocketEventDto {
     data class MatchOverResolved(
         val winnerUserId: String,
     ) : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("next_hand_pending")
+    data class NextHandPending(
+        val deadlineEpochMs: Long,
+    ) : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("next_hand_cleared")
+    data object NextHandCleared : RoomSocketEventDto
 }
 
 /**
@@ -122,6 +132,8 @@ internal fun RoomSocketEventDto.summary(): String = when (this) {
         "recv match_over_pending busted=$bustedSeatIndex deadline=$deadlineEpochMs"
     RoomSocketEventDto.MatchOverCleared -> "recv match_over_cleared"
     is RoomSocketEventDto.MatchOverResolved -> "recv match_over_resolved winner=$winnerUserId"
+    is RoomSocketEventDto.NextHandPending -> "recv next_hand_pending deadline=$deadlineEpochMs"
+    RoomSocketEventDto.NextHandCleared -> "recv next_hand_cleared"
 }
 
 private fun GameEvent.summary(): String = when (this) {

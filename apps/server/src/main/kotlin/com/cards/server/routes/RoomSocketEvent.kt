@@ -110,6 +110,23 @@ sealed interface RoomSocketEventDto {
     @SerialName("match_over_cleared")
     data object MatchOverCleared : RoomSocketEventDto
 
+    /**
+     * Between-hands auto-advance countdown. [NextHandPending] opens the beat:
+     * clients tick a live "Next hand in 0:0X" countdown to [deadlineEpochMs], the
+     * same instant the server deals the next hand, so the two stay in lockstep.
+     * [NextHandCleared] fires if the pending advance is cancelled before it deals
+     * (the table can no longer deal — a leave / bust-down to one survivor).
+     */
+    @Serializable
+    @SerialName("next_hand_pending")
+    data class NextHandPending(
+        val deadlineEpochMs: Long,
+    ) : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("next_hand_cleared")
+    data object NextHandCleared : RoomSocketEventDto
+
     @Serializable
     @SerialName("match_over_resolved")
     data class MatchOverResolved(

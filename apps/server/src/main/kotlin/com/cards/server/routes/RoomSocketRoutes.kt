@@ -13,6 +13,7 @@ import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.game.IntentResult
 import com.dangerfield.cards.server.game.MatchOverEvent
+import com.dangerfield.cards.server.game.NextHandEvent
 import com.dangerfield.cards.server.game.SeatOccupant
 import com.dangerfield.cards.server.game.stackFor
 import java.util.UUID
@@ -378,6 +379,25 @@ fun Route.roomSocketRoutes(
                                             link = null,
                                         )
                                     },
+                                // Between-hands auto-advance countdown. The server
+                                // holds the next deal until the beat's deadline and
+                                // announces it here so each client renders an honest
+                                // "Next hand in 0:0X" countdown (and can leave with
+                                // their winnings the whole window). No span link —
+                                // it doesn't originate from an intent / state mutation.
+                                session.nextHandEvents.map { event ->
+                                    OutboundGameFrame(
+                                        when (event) {
+                                            is NextHandEvent.Pending ->
+                                                RoomSocketEventDto.NextHandPending(
+                                                    deadlineEpochMs = event.deadlineEpochMs,
+                                                )
+                                            NextHandEvent.Cleared ->
+                                                RoomSocketEventDto.NextHandCleared
+                                        },
+                                        link = null,
+                                    )
+                                },
                             )
                         }
                         .collect { sendTraced(it.event, code, userIdString, link = it.link) }

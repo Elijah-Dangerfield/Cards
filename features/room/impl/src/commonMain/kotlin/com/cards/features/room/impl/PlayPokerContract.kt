@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.features.room.impl.session.MatchOverCountdown
+import com.dangerfield.cards.features.room.impl.session.NextHandCountdown
 import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
 import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
 import com.dangerfield.cards.features.room.impl.usecase.WinOddsEngine
@@ -148,6 +149,14 @@ data class PlayPokerState(
      */
     val matchOverCountdown: MatchOverCountdown? = null,
     /**
+     * Live between-hands auto-advance countdown (or null between/within hands).
+     * On a real-chip table the screen renders "Next hand in 0:0X" with a draining
+     * fill in the action area — the window to leave with your winnings before the
+     * next hand auto-deals. Null and unused on practice tables (they wait on a tap)
+     * and solo. See [realChipsAtStake].
+     */
+    val nextHandCountdown: NextHandCountdown? = null,
+    /**
      * Set when the heads-up match resolved (the rebuy grace expired) — drives the
      * match-over result overlay (MP-14). The screen shows a win/loss result, then
      * routes off when the player dismisses it. Null until the terminal resolve;
@@ -252,6 +261,15 @@ sealed interface PlayPokerAction {
      */
     data class MatchOverCountdownChanged(
         val countdown: com.dangerfield.cards.features.room.impl.session.MatchOverCountdown?,
+    ) : PlayPokerAction
+
+    /**
+     * Fired by the session's next-hand countdown subscription. Non-null opens the
+     * between-hands "Next hand in 0:0X" countdown; null clears it (the next hand
+     * dealt, or the advance was cancelled).
+     */
+    data class NextHandCountdownChanged(
+        val countdown: NextHandCountdown?,
     ) : PlayPokerAction
 
     /**

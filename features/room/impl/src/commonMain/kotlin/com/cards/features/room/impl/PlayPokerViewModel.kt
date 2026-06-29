@@ -271,6 +271,15 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.MatchOverCountdownChanged(countdown))
             }
         }
+        // Between-hands auto-advance countdown → on-felt "Next hand in 0:0X". Opens
+        // when the server holds the next deal, clears when it deals. The screen only
+        // renders it on real-chip tables (the leave-with-winnings window); practice
+        // keeps its result dialog. Never fires for solo bots.
+        viewModelScope.launch {
+            session.nextHandCountdown.collect { countdown ->
+                takeAction(PlayPokerAction.NextHandCountdownChanged(countdown))
+            }
+        }
         // XP mirror
         viewModelScope.launch {
             progressionRepository.observeProgression().collect { progression ->
@@ -876,6 +885,9 @@ class PlayPokerViewModel @Inject constructor(
             }
             is PlayPokerAction.MatchOverCountdownChanged -> action.updateState {
                 it.copy(matchOverCountdown = action.countdown)
+            }
+            is PlayPokerAction.NextHandCountdownChanged -> action.updateState {
+                it.copy(nextHandCountdown = action.countdown)
             }
             is PlayPokerAction.LeaveTable -> {
                 if (sessionFactory.xpMode == XpMode.BOTS) {

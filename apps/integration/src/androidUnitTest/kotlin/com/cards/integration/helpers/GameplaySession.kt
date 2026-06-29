@@ -36,6 +36,9 @@ class GameplaySession(
     private val emotes = MutableSharedFlow<GameplayFrame.EmojiBlast>(replay = 32, extraBufferCapacity = 64)
     private val connection = MutableStateFlow<RoomConnection?>(null)
 
+    /** The between-hands countdown frames the server fanned out, for lifecycle assertions. */
+    val nextHandCountdowns = MutableSharedFlow<GameplayFrame.NextHandPending>(replay = 32, extraBufferCapacity = 64)
+
     init {
         scope.launch { handle.connection.collect { connection.value = it } }
         scope.launch {
@@ -47,6 +50,8 @@ class GameplaySession(
                     is GameplayFrame.Event -> Unit
                     is GameplayFrame.MatchOverPending -> Unit
                     is GameplayFrame.MatchOverCleared -> Unit
+                    is GameplayFrame.NextHandPending -> nextHandCountdowns.emit(frame)
+                    is GameplayFrame.NextHandCleared -> Unit
                 }
             }
         }
