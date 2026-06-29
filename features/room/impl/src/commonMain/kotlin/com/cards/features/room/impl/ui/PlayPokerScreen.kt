@@ -55,7 +55,7 @@ import cards.libraries.resources.generated.resources.room_next_hand_leave_button
 import cards.libraries.resources.generated.resources.room_practice_tier_bots_present
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
-import cards.libraries.resources.generated.resources.room_top_bar_hand_info_a11y
+import cards.libraries.resources.generated.resources.room_top_bar_overflow_a11y
 import cards.libraries.resources.generated.resources.room_waiting_to_be_dealt_in
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
@@ -131,6 +131,7 @@ fun PlayPokerScreen(
     var practiceTierExplainerOpen by remember { mutableStateOf(false) }
     var practiceTierExplainerAutoShown by remember { mutableStateOf(false) }
     var leaveConfirmOpen by remember { mutableStateOf(false) }
+    var overflowOpen by remember { mutableStateOf(false) }
     var swipeFoldConfirmOpen by remember { mutableStateOf(false) }
     var profileSheetSeat by remember { mutableStateOf<SeatView?>(null) }
     var selfCardOpen by remember { mutableStateOf(false) }
@@ -311,7 +312,7 @@ fun PlayPokerScreen(
                     xp = displayedXp,
                     xpBoostExpiresAtEpochMs = state.xpBoostExpiresAtEpochMs,
                     onBack = requestLeave,
-                    onCheatSheet = { onAction(PlayPokerAction.ToggleCheatSheet) },
+                    onOverflow = { overflowOpen = true },
                     onTapXp = onTapXp,
                     showXpPill = showXpPill,
                     centerSlot = topBarCenterSlot,
@@ -364,6 +365,7 @@ fun PlayPokerScreen(
                         onExpandRaise = { actionSheetOpen = true },
                         onBlindClick = { blindExplainerOpen = true },
                         onPotClick = { potExplainerOpen = true },
+                        onBoardClick = { onAction(PlayPokerAction.ToggleCheatSheet) },
                         onBetPillClick = { name, amount -> betPillDialog = name to amount },
                         onLastActionClick = { name, action -> lastActionDialog = name to action },
                         onStackClick = { stackExplainerOpen = true },
@@ -406,6 +408,19 @@ fun PlayPokerScreen(
                     },
                 )
             }
+        }
+
+        if (overflowOpen) {
+            TableOverflowSheet(
+                handNumber = active?.handNumber ?: 0,
+                street = active?.street ?: BettingRound.Preflop,
+                sessionWon = state.sessionHandsWon,
+                sessionLost = state.sessionHandsLost,
+                walletChips = state.chipBalance,
+                tableStack = humanStack,
+                roomCode = state.roomCode,
+                onDismiss = { overflowOpen = false },
+            )
         }
 
         if (state.cheatSheetOpen) {
@@ -947,7 +962,7 @@ private fun TopBar(
     xp: Long,
     xpBoostExpiresAtEpochMs: Long? = null,
     onBack: () -> Unit,
-    onCheatSheet: () -> Unit,
+    onOverflow: () -> Unit,
     onTapXp: () -> Unit = {},
     showXpPill: Boolean = true,
     centerSlot: (@Composable () -> Unit)? = null,
@@ -1018,10 +1033,10 @@ private fun TopBar(
             }
             IconButton(
                 backgroundColor = AppTheme.colors.surface,
-                icon = Icons.Question(
-                    stringResource(Res.string.room_top_bar_hand_info_a11y),
+                icon = Icons.MoreHoriz(
+                    stringResource(Res.string.room_top_bar_overflow_a11y),
                 ),
-                onClick = onCheatSheet,
+                onClick = onOverflow,
             )
         }
     }
@@ -1058,6 +1073,7 @@ private fun ActiveTable(
     onExpandRaise: () -> Unit,
     onBlindClick: () -> Unit,
     onPotClick: () -> Unit,
+    onBoardClick: () -> Unit = {},
     onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit = { _, _ -> },
     onStackClick: () -> Unit = {},
@@ -1095,7 +1111,7 @@ private fun ActiveTable(
             )
 
             VerticalSpacerD800()
-            BoardArea(table = table, onPotClick = onPotClick)
+            BoardArea(table = table, onPotClick = onPotClick, onBoardClick = onBoardClick)
         }
 
         // Player row + action bar share a Column so that when the action bar

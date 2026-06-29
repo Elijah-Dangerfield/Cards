@@ -871,6 +871,18 @@
     <string name="room_next_hand_countdown_label">Next hand in %1$s</string>
     <string name="room_next_hand_leave_button">Leave with winnings</string>
 
+    <!-- Room - "…" overflow sheet (game state, session record, balances, room code). -->
+    <string name="room_overflow_title">Table info</string>
+    <string name="room_overflow_hand_label">Current hand</string>
+    <!-- %1$d is the hand number, %2$s the street name (e.g. "Hand 7 · Flop"). -->
+    <string name="room_overflow_hand_value">Hand %1$d · %2$s</string>
+    <string name="room_overflow_session_label">This session</string>
+    <!-- %1$d hands won, %2$d hands lost (e.g. "3 won · 5 lost"). -->
+    <string name="room_overflow_session_value">%1$d won · %2$d lost</string>
+    <string name="room_overflow_wallet_label">Wallet</string>
+    <string name="room_overflow_stack_label">At this table</string>
+    <string name="room_overflow_room_code_label">Room code</string>
+
     <!-- Room - match-over result shown when the rebuy grace expired and the match ended. -->
     <string name="room_match_over_result_win_title">You won the match</string>
     <string name="room_match_over_result_win_body">Your opponent ran out of chips and didn't rebuy. The table's all yours.</string>
@@ -1069,6 +1081,8 @@
     <string name="room_connection_lost_banner">Connection lost. We're keeping your seat warm. Back in a moment.</string>
     <string name="room_top_bar_back_a11y">Back</string>
     <string name="room_top_bar_hand_info_a11y">Hand info and rankings</string>
+    <string name="room_top_bar_overflow_a11y">Table info</string>
+    <string name="room_board_rankings_a11y">View hand rankings</string>
     <string name="room_loading_dealing_in">Dealing in…</string>
     <string name="room_waiting_to_be_dealt_in">You'll be dealt in next hand</string>
     <string name="room_practice_tier_bots_present">Practice tier · bots present</string>

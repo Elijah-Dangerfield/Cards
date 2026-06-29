@@ -637,7 +637,7 @@ private fun categoryNameResource(category: HandCategory): StringResource = when 
     HandCategory.HighCard -> Res.string.room_cheat_sheet_ranking_high_card_name
 }
 
-private fun streetLabelResourceFor(street: BettingRound): StringResource = when (street) {
+internal fun streetLabelResourceFor(street: BettingRound): StringResource = when (street) {
     BettingRound.Preflop -> Res.string.room_cheat_sheet_street_label_preflop
     BettingRound.Flop -> Res.string.room_cheat_sheet_street_label_flop
     BettingRound.Turn -> Res.string.room_cheat_sheet_street_label_turn

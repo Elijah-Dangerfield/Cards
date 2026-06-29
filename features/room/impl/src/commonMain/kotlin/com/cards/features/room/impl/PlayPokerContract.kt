@@ -140,6 +140,10 @@ data class PlayPokerState(
      * to share.
      */
     val roomCode: String? = null,
+    /** Hands the local player has won this session — shown in the "…" overflow sheet. */
+    val sessionHandsWon: Int = 0,
+    /** Hands the local player was dealt into but didn't win this session. */
+    val sessionHandsLost: Int = 0,
     /**
      * Live heads-up rebuy-grace countdown (MP-14), or null when no match-over is
      * pending. Drives the on-table countdown banner: the busted player sees
@@ -345,6 +349,9 @@ sealed interface PlayPokerAction {
     /** Opening a human opponent's card; fetches their public style if the reader is owned. */
     data class RequestOpponentStyle(val userId: String) : PlayPokerAction
     data class OpponentStyleLoaded(val userId: String, val playStyle: PlayStyleAxes?) : PlayPokerAction
+
+    /** Fired once per finished hand the human played; updates the session win-loss tally. */
+    data class SessionRecordChanged(val won: Int, val lost: Int) : PlayPokerAction
 
     /** "Add friend" on a human opponent's player card — sends a friend request. */
     data class AddFriend(val userId: String) : PlayPokerAction

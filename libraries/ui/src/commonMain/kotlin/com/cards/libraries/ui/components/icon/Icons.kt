@@ -59,6 +59,7 @@ import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Pin
 import androidx.compose.material.icons.rounded.QuestionMark
 import androidx.compose.material.icons.rounded.Receipt
+import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.ThumbDown
@@ -186,6 +187,10 @@ enum class Icons(
 
     Question(
         default = androidx.compose.material.icons.Icons.Rounded.QuestionMark,
+    ),
+
+    MoreHoriz(
+        default = androidx.compose.material.icons.Icons.Rounded.MoreHoriz,
     ),
 
     Chat(

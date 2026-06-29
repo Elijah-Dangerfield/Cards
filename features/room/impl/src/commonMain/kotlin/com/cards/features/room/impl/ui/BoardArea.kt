@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_board_pot_pill_label
+import cards.libraries.resources.generated.resources.room_board_rankings_a11y
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.HandEvaluator
@@ -74,7 +75,12 @@ internal fun winningBoardCards(handResult: HandResultView?, communityCards: List
 }
 
 @Composable
-internal fun BoardArea(table: TableUiState.Active, onPotClick: () -> Unit = {}) {
+internal fun BoardArea(
+    table: TableUiState.Active,
+    onPotClick: () -> Unit = {},
+    onBoardClick: () -> Unit = {},
+) {
+    val rankingsLabel = stringResource(Res.string.room_board_rankings_a11y)
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         val cardSize = PlayingCardSize.Board
         val overlap = 28.dp
@@ -84,8 +90,12 @@ internal fun BoardArea(table: TableUiState.Active, onPotClick: () -> Unit = {}) 
         // Five community cards, overlapping. A single outlined well sits behind
         // the row spanning the full 5-slot region — dealt cards cover their
         // portion of the well, undealt portions read as one unified "cards land
-        // here" zone instead of five disconnected outlines.
-        Box(contentAlignment = Alignment.Center) {
+        // here" zone instead of five disconnected outlines. Tapping the board
+        // opens the hand-rankings reference (moved off the top bar in the declutter).
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.clickable(onClickLabel = rankingsLabel, onClick = onBoardClick),
+        ) {
             BoardWell(
                 width = cardSize.width * 5 - overlap * 4,
                 height = cardSize.height,
