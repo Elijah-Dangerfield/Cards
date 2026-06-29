@@ -220,6 +220,23 @@ class RunningMpScenario internal constructor(
     }
 
     /**
+     * Server opens the between-hands auto-advance countdown: the next hand is held
+     * until [deadlineEpochMs]. Mirrors the `NextHandPending` wire frame — on a
+     * real-chip table the screen renders the "Next hand in 0:0X" leave-with-winnings
+     * window against it.
+     */
+    suspend fun serverNextHandPending(deadlineEpochMs: Long) {
+        handle.pushFrame(GameplayFrame.NextHandPending(deadlineEpochMs = deadlineEpochMs))
+        scope.advanceUntilIdle()
+    }
+
+    /** Server clears the between-hands countdown (the next hand dealt, or the advance was cancelled). */
+    suspend fun serverNextHandCleared() {
+        handle.pushFrame(GameplayFrame.NextHandCleared)
+        scope.advanceUntilIdle()
+    }
+
+    /**
      * Server resolves the match-over: the grace expired, [winnerUserId] took the
      * table. Arrives as a terminal connection close (the socket layer maps the
      * `MatchOverResolved` wire frame to [ClosedReason.MatchOver]).

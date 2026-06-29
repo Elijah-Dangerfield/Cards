@@ -18,7 +18,7 @@ import kotlin.test.assertTrue
 class ChaosPlayTest : IntegrationTest() {
 
     @Test
-    fun clientDropsMidHand_reconnects_andStillSeesHandComplete() = integration {
+    fun clientDropsMidHand_reconnects_andStillSeesHandComplete() = integration(nextHandBeatMs = 5_000L) {
         val table = seatTwoAndConnect()
         table.hostGame.startHand()
 
@@ -41,7 +41,7 @@ class ChaosPlayTest : IntegrationTest() {
     }
 
     @Test
-    fun clientDropsMidHand_reconnects_andSeesTheAwardedPot() = integration {
+    fun clientDropsMidHand_reconnects_andSeesTheAwardedPot() = integration(nextHandBeatMs = 5_000L) {
         val table = seatTwoAndConnect()
         table.hostGame.startHand()
 
@@ -94,7 +94,7 @@ class ChaosPlayTest : IntegrationTest() {
      * server, then a resume.
      */
     @Test
-    fun idleClientBackgrounded_opponentActs_idleResumesAndResyncsToLiveState() = integration {
+    fun idleClientBackgrounded_opponentActs_idleResumesAndResyncsToLiveState() = integration(nextHandBeatMs = 5_000L) {
         val table = seatTwoAndConnect()
         table.hostGame.startHand()
 

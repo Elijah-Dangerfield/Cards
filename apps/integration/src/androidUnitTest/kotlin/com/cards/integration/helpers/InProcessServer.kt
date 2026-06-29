@@ -64,6 +64,12 @@ class InProcessServer(
     // but long enough that a rebuy test can fire its rebuy before the window
     // closes. Safe because no passive-play test ever busts a seat to trigger it.
     private val matchOverGraceMillis: Long = 1_500L,
+    // The universal between-hands beat. Tiny by default so a multi-hand test isn't
+    // gated on real seconds per boundary; a reconnect/resync test that needs to
+    // observe the *completed* hand before it auto-advances passes a larger window
+    // so the table parks there across the reconnect (as a real client would see
+    // during the beat).
+    private val nextHandBeatMs: Long = 50L,
 ) : AutoCloseable {
 
     /** Per-server wallet + escrow fakes, exposed so escrow tests can read balances. */
@@ -130,7 +136,7 @@ class InProcessServer(
     private fun buildRegistry(): GameSessionRegistry = DefaultGameSessionRegistry(
         snapshots,
         Clock.System,
-        nextHandBeatMs = 50,
+        nextHandBeatMs = nextHandBeatMs,
         botThinkDelayMsOverride = 0,
         matchOverGraceMillis = matchOverGraceMillis,
         deckSource = { code, handNumber -> deckScripts[code]?.invoke(handNumber) },

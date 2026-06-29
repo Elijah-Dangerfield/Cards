@@ -53,9 +53,13 @@ abstract class IntegrationTest {
      */
     protected fun integration(
         reaperGrace: Duration = DEFAULT_REAPER_GRACE,
+        // The between-hands beat the server holds before auto-dealing. Tiny by
+        // default so multi-hand tests run fast; a reconnect/resync test that must
+        // observe the completed hand before it advances passes a larger window.
+        nextHandBeatMs: Long = 50L,
         block: suspend Harness.() -> Unit,
     ) = runBlocking {
-        InProcessServer(reaperGrace).use { server ->
+        InProcessServer(reaperGrace, nextHandBeatMs = nextHandBeatMs).use { server ->
             val harness = Harness(server)
             try {
                 harness.block()

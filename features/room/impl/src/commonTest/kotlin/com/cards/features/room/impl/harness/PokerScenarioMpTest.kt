@@ -18,6 +18,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -364,6 +365,62 @@ class PokerScenarioMpTest : PokerScenarioTest() {
         val countdown = s.vm.state.matchOverCountdown
         assertEquals(60_000L, countdown?.deadlineEpochMs)
         assertTrue(countdown?.localPlayerIsBusted == true, "local player is the busted seat")
+    }
+
+    /**
+     * The leave-with-winnings window (north star). When a real-chip hand finishes
+     * the server opens the between-hands countdown; the screen renders it (in place
+     * of the showdown popup) so the player always knows how long they have to cash
+     * out before the next hand auto-deals.
+     */
+    @Test
+    fun nextHandPending_realChipTable_armsTheLeaveWithWinningsCountdown() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        // A finished two-human heads-up hand — real chips at stake, result on the felt.
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 1_240),
+                    mpSeat(1, playerId = "peer", stack = 760),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+
+        s.serverNextHandPending(deadlineEpochMs = 6_000L)
+
+        assertEquals(6_000L, s.vm.state.nextHandCountdown?.deadlineEpochMs)
+        assertTrue(
+            s.vm.state.realChipsAtStake,
+            "a two-human MP table stakes real chips, so the felt countdown shows in place of the showdown dialog",
+        )
+        val table = s.vm.state.table
+        assertTrue(
+            table is TableUiState.Active && table.handResult != null,
+            "the finished hand's result lives on the felt during the countdown",
+        )
+    }
+
+    /** A live-hand resume (the next hand dealt) clears the between-hands countdown. */
+    @Test
+    fun nextHandCleared_dropsTheCountdown() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 1_000),
+                    mpSeat(1, playerId = "peer", stack = 1_000),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+        s.serverNextHandPending(deadlineEpochMs = 6_000L)
+        assertEquals(6_000L, s.vm.state.nextHandCountdown?.deadlineEpochMs)
+
+        s.serverNextHandCleared()
+        assertNull(s.vm.state.nextHandCountdown, "clearing the beat drops the countdown")
     }
 
     @Test
