@@ -134,7 +134,7 @@ fun BugReportScreen(
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
             )
 
-            VerticalSpacerD500()
+            VerticalSpacerD1000()
 
             OutlinedTextField(
                 value = state.email,
