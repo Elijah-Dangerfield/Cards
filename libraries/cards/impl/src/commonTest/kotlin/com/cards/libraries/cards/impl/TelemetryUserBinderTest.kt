@@ -226,6 +226,7 @@ class TelemetryUserBinderTest : CoroutineTest() {
             eventId: String?,
             errorCode: Int?,
             email: String?,
+            screenshots: List<ByteArray>,
         ) = Unit
     }
 
