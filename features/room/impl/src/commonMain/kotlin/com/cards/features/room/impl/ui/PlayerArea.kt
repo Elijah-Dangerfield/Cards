@@ -196,9 +196,12 @@ internal fun PlayerArea(
     // align — the tile's content is sized tight enough to fit in this height
     // without clipping (see PlayerInfoTile).
     Row(
+        // No .clip here: the emote + win-odds badges straddle the info-tile's
+        // corners (half cut-out into the felt), so the row must let them hang
+        // past its bounds instead of cropping them. The active-turn border still
+        // renders rounded without a clip.
         modifier = Modifier
             .fillMaxWidth()
-            .clip(Radii.R800.shape)
             .border(borderWidth, borderColor, Radii.R800.shape)
             .padding(horizontal = 8.dp, vertical = 8.dp)
             .height(PlayingCardSize.Hole.height),
@@ -378,9 +381,12 @@ internal fun PlayerArea(
                     emojis = availableEmojis,
                     cooldownEndsAtEpochMs = emojiCooldownEndsAtMs,
                     onBlast = onBlastEmoji,
+                    // Straddle the tile's bottom-right corner (hangs out into the
+                    // felt) so it reads as cut into the corner, not a button
+                    // floating inside the card.
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .offset(x = (-2).dp, y = (-2).dp),
+                        .offset(x = 16.dp, y = 8.dp),
                 )
             }
         }
@@ -808,9 +814,11 @@ private fun FlippablePlayerInfoTile(
             if (canFlip) {
                 FlipAffordance(
                     onClick = { toggleFlipped(true) },
+                    // Straddle the tile's top-right corner, matching the emote
+                    // badge's cut-out treatment.
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(x = (-2).dp, y = 2.dp),
+                        .offset(x = 8.dp, y = (-8).dp),
                 )
             }
         } else {
