@@ -36,13 +36,13 @@ fun ChipBadge(
                 // flash before sync lands.
                 Text(
                     text = "—",
-                    typography = AppTheme.typography.Heading.H700,
+                    typography = AppTheme.typography.Heading.H600,
                     color = AppTheme.colors.contentSecondary,
                 )
             } else {
                 AnimatedNumberText(
                     value = amount,
-                    typography = AppTheme.typography.Heading.H700,
+                    typography = AppTheme.typography.Heading.H600,
                     color = AppTheme.colors.content,
                     formatter = { formatThousands(it) },
                     // Flash green when the wallet grows and red when it shrinks —

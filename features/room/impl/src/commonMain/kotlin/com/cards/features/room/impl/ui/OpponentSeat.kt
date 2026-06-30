@@ -257,7 +257,9 @@ internal fun OpponentSeat(
             ) {
                 ChipCoinAmount(
                     amount = seat.stack,
-                    coinSize = 12.dp,
+                    // A hair bigger than the old 12dp so the "$" sits centered
+                    // rather than cramped on the small opponent coin.
+                    coinSize = 14.dp,
                     typography = AppTheme.typography.Body.B400,
                     color = AppTheme.colors.contentSecondary,
                     gap = 4.dp,

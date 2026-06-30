@@ -21,13 +21,13 @@ import com.dangerfield.cards.libraries.ui.border
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.typography.TypographyResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Gold casino-chip icon — the one canonical way to render "this is chips" in
- * UI. A solid [PokerColors.chipGold] dot (no sigil — the gold disc alone is the
- * chip mark, matching the pot's gold dot).
+ * UI. Solid [PokerColors.chipGold] circle with a "$" sigil inside.
  *
  * Use this anywhere a chip count, balance, or cost is rendered next to a
  * number. The whole point is that **the chip icon looks identical** on the
@@ -35,16 +35,17 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * mental shortcut: "gold circle = chips."
  *
  * Sizing: pick a [size] that roughly matches the line height of the text
- * sitting next to it.
+ * sitting next to it; the "$" sigil scales to the coin automatically. Pass
+ * [showSymbol] = false for the tightest surfaces where a centered "$" reads
+ * cramped (a bare gold dot still says "chips").
  *
- * Prefer this over inlining the gold-circle pattern. Replaces also: the grey
- * "🪙" emoji used in the shop redesign, which renders inconsistently across
- * platforms and reads as tarnished copper on dark surfaces.
+ * Prefer this over inlining the gold-circle pattern.
  */
 @Composable
 fun ChipCoin(
     modifier: Modifier = Modifier,
     size: Dp = 18.dp,
+    showSymbol: Boolean = true,
 ) {
     Box(
         modifier = modifier
@@ -58,7 +59,16 @@ fun ChipCoin(
                     48.dp -> 3.dp
                     else -> 0.dp
                 }, AppTheme.colors.poker.chipGoldOutline.color, CircleShape),
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        if (showSymbol) {
+            Text(
+                text = "$",
+                typography = coinSymbolTypographyFor(size),
+                color = AppTheme.colors.background,
+            )
+        }
+    }
 }
 
 /**
@@ -106,6 +116,19 @@ fun ChipCoinAmount(
             )
         }
     }
+}
+
+/**
+ * Pick a "$" sigil scale for a given coin diameter so the sigil stays balanced
+ * from a 12dp inline coin up to a 96dp hero coin, without callers reasoning
+ * about the inner typography.
+ */
+@Composable
+private fun coinSymbolTypographyFor(size: Dp): TypographyResource = when {
+    size <= Dimension.D700 -> AppTheme.typography.Body.B400
+    size <= Dimension.D1050 -> AppTheme.typography.Body.B600
+    size <= Dimension.D1300 -> AppTheme.typography.Heading.H700
+    else -> AppTheme.typography.Heading.H800
 }
 
 @Preview
