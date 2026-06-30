@@ -10,6 +10,8 @@ import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.navigation.Router
+import com.dangerfield.cards.libraries.ui.MAX_FEEDBACK_SCREENSHOTS
+import com.dangerfield.cards.libraries.ui.PickedImage
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -46,8 +48,18 @@ class FeedbackViewModel(
             FeedbackAction.Back -> router.goBack()
             is FeedbackAction.MessageChanged -> action.updateMessage()
             is FeedbackAction.EmailChanged -> action.updateEmail()
+            is FeedbackAction.ScreenshotsPicked -> action.addScreenshots()
+            is FeedbackAction.ScreenshotRemoved -> action.removeScreenshot()
             FeedbackAction.Submit -> action.submitFeedback()
         }
+    }
+
+    private suspend fun FeedbackAction.ScreenshotsPicked.addScreenshots() {
+        updateState { it.copy(screenshots = (it.screenshots + images).take(MAX_FEEDBACK_SCREENSHOTS)) }
+    }
+
+    private suspend fun FeedbackAction.ScreenshotRemoved.removeScreenshot() {
+        updateState { it.copy(screenshots = it.screenshots.filterIndexed { i, _ -> i != index }) }
     }
 
     private suspend fun FeedbackAction.MessageChanged.updateMessage() {
@@ -71,6 +83,7 @@ class FeedbackViewModel(
                 message = current.message.trim(),
                 isBugReport = false,
                 email = current.email.takeIf { it.isNotBlank() },
+                screenshots = current.screenshots.map { it.bytes },
             )
         }.await().eitherWay {
             appCache.update { it.copy(feedbacksGiven = it.feedbacksGiven + 1) }
@@ -89,6 +102,7 @@ data class FeedbackState(
     val email: String = "",
     val isSubmitting: Boolean = false,
     val errorMessage: FeedbackError? = null,
+    val screenshots: List<PickedImage> = emptyList(),
 )
 
 sealed interface FeedbackError {
@@ -99,5 +113,7 @@ sealed interface FeedbackAction {
     data object Back : FeedbackAction
     data class MessageChanged(val value: String) : FeedbackAction
     data class EmailChanged(val value: String) : FeedbackAction
+    data class ScreenshotsPicked(val images: List<PickedImage>) : FeedbackAction
+    data class ScreenshotRemoved(val index: Int) : FeedbackAction
     data object Submit : FeedbackAction
 }

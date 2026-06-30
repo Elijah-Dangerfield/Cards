@@ -144,6 +144,7 @@ internal class ControllableFeedbackRepository(
         logId: String?,
         errorCode: Int?,
         email: String?,
+        screenshots: List<ByteArray>,
     ): Result<Unit> {
         submitStarted += 1
         val outcome = gate.await()
@@ -176,6 +177,7 @@ internal object NoopFeedbackRepository : FeedbackRepository {
         logId: String?,
         errorCode: Int?,
         email: String?,
+        screenshots: List<ByteArray>,
     ): Result<Unit> = Result.success(Unit)
 }
 

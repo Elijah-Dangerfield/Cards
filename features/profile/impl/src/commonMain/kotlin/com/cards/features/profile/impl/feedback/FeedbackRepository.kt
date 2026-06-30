@@ -14,6 +14,7 @@ interface FeedbackRepository {
         logId: String? = null,
         errorCode: Int? = null,
         email: String? = null,
+        screenshots: List<ByteArray> = emptyList(),
     ): Result<Unit>
 }
 
@@ -28,6 +29,7 @@ class FeedbackRepositoryImpl @Inject constructor(
         logId: String?,
         errorCode: Int?,
         email: String?,
+        screenshots: List<ByteArray>,
     ): Result<Unit> {
         return Catching {
             telemetry.captureUserFeedback(
@@ -36,6 +38,7 @@ class FeedbackRepositoryImpl @Inject constructor(
                 eventId = logId,
                 errorCode = errorCode,
                 email = email,
+                screenshots = screenshots,
             )
         }
     }

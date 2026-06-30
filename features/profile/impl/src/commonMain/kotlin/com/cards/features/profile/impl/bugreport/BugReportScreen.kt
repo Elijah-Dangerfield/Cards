@@ -36,6 +36,7 @@ import com.dangerfield.cards.system.VerticalSpacerD1000
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.ScreenshotAttachmentField
 import com.dangerfield.cards.libraries.ui.components.SectionCard
 import com.dangerfield.cards.libraries.ui.components.SummaryRow
 import com.dangerfield.cards.libraries.ui.components.button.Button
@@ -157,6 +158,14 @@ fun BugReportScreen(
                         }
                     }
                 )
+            )
+
+            VerticalSpacerD1000()
+
+            ScreenshotAttachmentField(
+                screenshots = state.screenshots,
+                onPicked = { onAction(BugReportAction.ScreenshotsPicked(it)) },
+                onRemove = { onAction(BugReportAction.ScreenshotRemoved(it)) },
             )
 
             VerticalSpacerD500()

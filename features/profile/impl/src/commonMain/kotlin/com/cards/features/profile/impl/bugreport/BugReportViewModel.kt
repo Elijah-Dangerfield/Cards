@@ -11,6 +11,8 @@ import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.navigation.Router
+import com.dangerfield.cards.libraries.ui.MAX_FEEDBACK_SCREENSHOTS
+import com.dangerfield.cards.libraries.ui.PickedImage
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -52,8 +54,18 @@ class BugReportViewModel(
             BugReportAction.Back -> router.goBack()
             is BugReportAction.MessageChanged -> action.updateMessage()
             is BugReportAction.EmailChanged -> action.updateEmail()
+            is BugReportAction.ScreenshotsPicked -> action.addScreenshots()
+            is BugReportAction.ScreenshotRemoved -> action.removeScreenshot()
             BugReportAction.Submit -> action.submitBugReport()
         }
+    }
+
+    private suspend fun BugReportAction.ScreenshotsPicked.addScreenshots() {
+        updateState { it.copy(screenshots = (it.screenshots + images).take(MAX_FEEDBACK_SCREENSHOTS)) }
+    }
+
+    private suspend fun BugReportAction.ScreenshotRemoved.removeScreenshot() {
+        updateState { it.copy(screenshots = it.screenshots.filterIndexed { i, _ -> i != index }) }
     }
 
     private suspend fun BugReportAction.MessageChanged.updateMessage() {
@@ -79,6 +91,7 @@ class BugReportViewModel(
                 logId = current.logId,
                 errorCode = current.errorCode,
                 email = current.email.takeIf { it.isNotBlank() },
+                screenshots = current.screenshots.map { it.bytes },
             )
         }.await().eitherWay {
             appCache.update { it.copy(bugsReported = it.bugsReported + 1) }
@@ -100,6 +113,7 @@ data class BugReportState(
     val logId: String? = null,
     val errorCode: Int? = null,
     val contextMessage: String? = null,
+    val screenshots: List<PickedImage> = emptyList(),
 ) {
     val hasContext: Boolean
         get() = !contextMessage.isNullOrBlank() || !logId.isNullOrBlank() || errorCode != null
@@ -113,6 +127,7 @@ sealed interface BugReportAction {
     data object Back : BugReportAction
     data class MessageChanged(val value: String) : BugReportAction
     data class EmailChanged(val value: String) : BugReportAction
+    data class ScreenshotsPicked(val images: List<PickedImage>) : BugReportAction
+    data class ScreenshotRemoved(val index: Int) : BugReportAction
     data object Submit : BugReportAction
-
 }
