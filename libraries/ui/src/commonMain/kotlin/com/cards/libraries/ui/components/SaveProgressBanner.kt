@@ -35,6 +35,9 @@ fun SaveProgressBanner(
     Banner(
         type = BannerType.Trust,
         modifier = modifier,
+        // The whole card is a tap target — not just the pill — so a guest can
+        // tap anywhere to start claiming their account.
+        onClick = onSignIn,
         leading = {
             Icon(
                 icon = Icons.Lock(null),

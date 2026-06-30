@@ -16,8 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.bounceClick
 import com.dangerfield.cards.libraries.ui.components.text.ProvideTextConfig
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.system.thenIf
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -49,11 +51,13 @@ fun Banner(
     modifier: Modifier = Modifier,
     leading: (@Composable () -> Unit)? = null,
     action: (@Composable () -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
 ) = Banner(
     type = type,
     modifier = modifier,
     leading = leading,
     action = action,
+    onClick = onClick,
     title = { Text(text = title) },
     body = { Text(text = body) },
 )
@@ -76,6 +80,9 @@ fun Banner(
     modifier: Modifier = Modifier,
     leading: (@Composable () -> Unit)? = null,
     action: (@Composable () -> Unit)? = null,
+    /** When set, the whole banner is a tap target (with a press bounce) — not
+     *  just the trailing [action]. */
+    onClick: (() -> Unit)? = null,
 ) {
     val palette = type.palette()
     val shape = Radii.Banner.shape
@@ -92,6 +99,7 @@ fun Banner(
             }
         )
         .border(1.dp, palette.edge.color, shape)
+        .thenIf(onClick != null) { bounceClick(onClick = onClick!!) }
         .padding(horizontal = Dimension.D800, vertical = Dimension.D750)
 
     Row(
