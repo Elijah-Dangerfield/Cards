@@ -267,7 +267,7 @@
     <string name="home_cta_practice_subtitle_short">vs bots</string>
     <string name="home_cta_tournament_title">Tournament</string>
     <string name="home_cta_tournament_subtitle">Royal Flush</string>
-    <string name="home_tag_soon">Soon</string>
+    <string name="home_tag_soon">Coming soon</string>
 
     <!-- Public rooms - Find a table (SPEC §4). Visual shell; no live matchmaking. -->
     <string name="public_find_title">Find a table</string>

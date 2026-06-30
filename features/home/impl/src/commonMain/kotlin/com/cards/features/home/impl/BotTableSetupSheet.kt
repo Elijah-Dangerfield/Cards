@@ -58,7 +58,7 @@ internal fun BotTableSetupSheet(
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = stringResource(Res.string.home_bot_setup_title),
-                typography = AppTheme.typography.Heading.H700,
+                typography = AppTheme.typography.Heading.H800,
                 color = AppTheme.colors.content,
             )
             VerticalSpacerD300()

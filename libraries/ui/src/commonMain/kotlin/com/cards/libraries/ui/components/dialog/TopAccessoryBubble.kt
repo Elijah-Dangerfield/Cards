@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.sp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
@@ -118,7 +119,10 @@ internal fun TopAccessoryBubble(
     accessory: TopAccessory,
     fallbackSurface: BubbleSurface,
     contentColor: ColorResource,
-    emojiTypography: TypographyResource = AppTheme.typography.Heading.H1100,
+    // A hair larger than H1100 so the glyph fills the bubble a touch more.
+    emojiTypography: TypographyResource = AppTheme.typography.Heading.H1100.let {
+        it.copy(fontSize = (it.fontSize.value * 1.08f).sp)
+    },
     modifier: Modifier = Modifier,
 ) {
     val size = TopAccessoryDefaults.Size
