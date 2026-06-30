@@ -72,6 +72,7 @@ import com.dangerfield.cards.libraries.ui.components.BadgePlacement
 import com.dangerfield.cards.libraries.ui.components.BadgedBox
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
 import com.dangerfield.cards.libraries.ui.components.ChipBadge
+import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.CircularLoadingIndicator
@@ -368,25 +369,6 @@ private fun shopSectionFor(productId: String): ShopSection = when {
     productId.startsWith("avatars_") -> ShopSection.Avatars
     productId.startsWith("tool_") -> ShopSection.Tools
     else -> ShopSection.Other
-}
-
-@Composable
-private fun SectionHeader(title: String, subtitle: String? = null, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
-        Text(
-            text = title,
-            typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.content,
-        )
-        subtitle?.let {
-            VerticalSpacerD100()
-            Text(
-                text = it,
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-            )
-        }
-    }
 }
 
 /**
