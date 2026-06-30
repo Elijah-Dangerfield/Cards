@@ -364,7 +364,8 @@ private fun ProfileHeader(
         ) {
             AvatarCircle(
                 name = settings.displayName,
-                size = Dimension.D1900,
+                // A hair past the D1900 (100dp) token — the largest in the scale.
+                size = 108.dp,
                 typography = AppTheme.typography.Heading.H1000,
                 emoji = settings.avatarEmoji,
                 backgroundColorHex = settings.avatarBackgroundColor,
@@ -375,7 +376,7 @@ private fun ProfileHeader(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .size(28.dp)
+                    .size(32.dp)
                     .cutout(
                         ringColor = AppTheme.colors.background.color,
                         fillColor = AppTheme.colors.surfaceInverse.color,
@@ -402,7 +403,7 @@ private fun ProfileHeader(
             VerticalSpacerD100()
             Text(
                 text = joined,
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )

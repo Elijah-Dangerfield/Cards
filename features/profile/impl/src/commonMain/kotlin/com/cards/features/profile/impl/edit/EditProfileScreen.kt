@@ -67,6 +67,7 @@ import cards.libraries.resources.generated.resources.profile_player_card_view_bl
 import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
+import com.dangerfield.cards.libraries.ui.bounceClick
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.BadgeDetailSheet
 import com.dangerfield.cards.libraries.ui.components.PlayerBadge
@@ -639,7 +640,9 @@ private fun AvatarTile(
                 .clip(CircleShape)
                 .background(AppTheme.colors.surfaceRaised.color)
                 .border(borderWidth, borderColor, CircleShape)
-                .clickable(enabled = enabled, onClick = onClick),
+                // bounceClick after the border so the selected ring scales with
+                // the press, not independently of it.
+                .bounceClick(enabled = enabled, onClick = onClick),
         ) {
             Text(
                 text = emoji,
@@ -700,7 +703,9 @@ private fun ColorSwatch(
             .clip(CircleShape)
             .background(swatchColor)
             .border(borderWidth, borderColor, CircleShape)
-            .clickable(enabled = enabled, onClick = onClick),
+            // bounceClick after the border so the selected ring scales with the
+            // press as one piece.
+            .bounceClick(enabled = enabled, onClick = onClick),
     )
 }
 
