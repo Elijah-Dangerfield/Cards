@@ -985,6 +985,12 @@
     <!-- Debug-only action; surfaced from the shake dialog only on debug builds. -->
     <string name="ui_shake_dialog_inspect_network_cta">Network inspector</string>
 
+    <!-- UI library - ScreenshotAttachmentField (feedback / bug report photo attach). -->
+    <string name="ui_screenshot_attach_label">Attach screenshots</string>
+    <string name="ui_screenshot_count">%1$d/%2$d</string>
+    <string name="ui_screenshot_add_a11y">Add screenshot</string>
+    <string name="ui_screenshot_remove_a11y">Remove screenshot</string>
+
     <!-- UI library - AppBottomBar tab icon a11y labels (announced by TalkBack / VoiceOver). -->
     <string name="ui_bottom_bar_home_a11y">Home</string>
     <string name="ui_bottom_bar_shop_a11y">Shop</string>
