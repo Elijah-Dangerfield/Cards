@@ -213,6 +213,7 @@ private class ConfiguredTelemetry(
         eventId: String?,
         errorCode: Int?,
         email: String?,
+        screenshots: List<ByteArray>,
     ) {
         val payload = message.trim()
         if (payload.isBlank()) {
@@ -266,6 +267,15 @@ private class ConfiguredTelemetry(
                     Attachment(mpStateDump.encodeToByteArray(), "client-state.json", "application/json"),
                 )
             }
+            // User-attached screenshots ride along as image attachments, so a
+            // triager sees the report and what it's about side by side. Capped
+            // and skip-empty defensively; the picker already downscales them.
+            screenshots.asSequence()
+                .filter { it.isNotEmpty() }
+                .take(MAX_FEEDBACK_SCREENSHOTS)
+                .forEachIndexed { index, bytes ->
+                    scope.addAttachment(Attachment(bytes, "screenshot-${index + 1}.jpg", "image/jpeg"))
+                }
         }
 
         val feedback = UserFeedback(sentryId).apply {
@@ -318,6 +328,11 @@ private const val OPPONENT_USER_IDS_KEY = "opponent_user_ids"
 // shared "User feedback" / "Bug report" message.
 private const val FEEDBACK_EVENT_TAG = "feedback_event"
 private const val FEEDBACK_FINGERPRINT = "feedback"
+
+// Hard cap on attached screenshots, mirrored on the UI side
+// (`MAX_FEEDBACK_SCREENSHOTS` in :libraries:ui). Defensive: the picker already
+// limits selection, this just guarantees a malformed caller can't flood Sentry.
+private const val MAX_FEEDBACK_SCREENSHOTS = 3
 
 // All platforms / build types report to the single `cards` Sentry project.
 // The `environment` tag (releaseChannel-platform-buildType) and the

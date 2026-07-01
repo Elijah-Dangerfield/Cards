@@ -429,6 +429,18 @@ class ReconnectingRoomSocket @Inject constructor(
                                 )
                             RoomSocketEventDto.MatchOverCleared ->
                                 _gameplayFrames.emit(GameplayFrame.MatchOverCleared)
+                            // Between-hands auto-advance countdown. Surfaced as a
+                            // gameplay frame so the play VM can render the live
+                            // "Next hand in 0:0X" countdown and clear it when the
+                            // next hand deals (or the advance is cancelled).
+                            is RoomSocketEventDto.NextHandPending ->
+                                _gameplayFrames.emit(
+                                    GameplayFrame.NextHandPending(
+                                        deadlineEpochMs = event.deadlineEpochMs,
+                                    ),
+                                )
+                            RoomSocketEventDto.NextHandCleared ->
+                                _gameplayFrames.emit(GameplayFrame.NextHandCleared)
                             // Terminal: grace expired, the match is over. Close as
                             // ClosedReason.MatchOver (not RoomDeleted) so the screen
                             // shows a match-over result naming the winner instead of

@@ -1,7 +1,7 @@
 package com.dangerfield.cards.features.home.impl
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,190 +13,43 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonAccent
-import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
+import com.dangerfield.cards.libraries.ui.components.icon.Icon
+import com.dangerfield.cards.libraries.ui.components.icon.IconSize
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.FeatureCardAccents
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Home's "Play" picker, per the redesign: one large [PlayFeatureCard] hero
- * over a row of two half-width [PlayTileCard]s. Each card is an accent-tinted
- * gradient panel with a card-suit glyph tile; tapping opens the matching
- * bottom sheet (or routes onward). Accent comes from [FeatureCardAccents] so
- * the play options keep a stable colour identity across the app.
- *
- * Home-local (like the old HomeCtaCard) — lift to :libraries:ui if a second
- * screen ever wants the same shape.
+ * Vertical accent wash — kept for [TutorialBanner] / [PrivateChooseSheet], which
+ * still render a gradient panel. The Play cards themselves are flat now.
  */
-
-/** Vertical accent wash — brighter at the top, settling into the dark bg.
- *  Shared with [TutorialBanner] so the Play cards + the "New here?" banner
- *  read as the same gradient family. */
 internal fun playGradient(accent: Color): Brush = Brush.verticalGradient(
     colors = listOf(accent.copy(alpha = 0.95f), accent.copy(alpha = 0.68f)),
 )
 
-@Composable
-private fun GlyphTile(glyph: String, size: Dp) {
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(Radii.R600.shape)
-            .background(AppTheme.colors.content.color.copy(alpha = 0.14f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = glyph,
-            typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.content,
-        )
-    }
-}
-
 /**
- * The hero play option (Practice): glyph tile, title + subtitle, and a
- * trailing [cta] button. The whole card is tappable; the button is the
- * matching affordance.
- */
-@Composable
-internal fun PlayFeatureCard(
-    title: String,
-    subtitle: String,
-    glyph: String,
-    accent: Color,
-    cta: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(Radii.R900.shape)
-            .background(playGradient(accent))
-            .clickable(onClick = onClick)
-            .padding(horizontal = Dimension.D700, vertical = Dimension.D900),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
-    ) {
-        GlyphTile(glyph = glyph, size = 52.dp)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                typography = AppTheme.typography.Heading.H600,
-                color = AppTheme.colors.content,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = subtitle,
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.content.withAlpha(0.78f),
-            )
-        }
-        ButtonSecondary(onClick = onClick, size = ButtonSize.Small) {
-            Text(cta)
-        }
-    }
-}
-
-/**
- * A half-width play option (Quick Match, Friend Game): glyph tile at the top,
- * title + short subtitle anchored to the bottom. Pass `Modifier.weight(1f)`
- * from the caller so two sit side by side. An optional [tag] renders a small
- * status pill in the top-right corner — used to mark a not-yet-shipped option
- * as "Coming soon".
- */
-@Composable
-internal fun PlayTileCard(
-    title: String,
-    subtitle: String,
-    glyph: String,
-    accent: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    tag: String? = null,
-) {
-    Box(modifier = modifier) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(132.dp)
-                .clip(Radii.R900.shape)
-                .background(playGradient(accent))
-                .clickable(onClick = onClick)
-                .padding(Dimension.D600),
-        ) {
-            GlyphTile(glyph = glyph, size = 40.dp)
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                text = title,
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.content,
-            )
-            Text(
-                text = subtitle,
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.content.withAlpha(0.78f),
-            )
-        }
-        tag?.let {
-            StatusPill(
-                text = it,
-                background = AppTheme.colors.surfaceHigh,
-                foreground = AppTheme.colors.content,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(Dimension.D400),
-            )
-        }
-    }
-}
-
-// --------------------------------------------------------------------------
-// Rooms-redesign Play section (SPEC §5): a blue "Public rooms" hero with an
-// inner "Find a table" CTA, and a gold "Private room" row that opens the
-// create/join sheet. Both lean on [playGradient]/[FeatureCardAccents] so they
-// stay in the same gradient family as the Practice/Tournament tiles below.
-// --------------------------------------------------------------------------
-
-/** White-line glyph drawn on the gradient — needs no icon asset. */
-@Composable
-private fun GradientGlyphTile(size: Dp, draw: DrawScope.() -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(Radii.R600.shape)
-            .background(AppTheme.colors.content.color.copy(alpha = 0.10f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(modifier = Modifier.size(size * 0.52f), onDraw = draw)
-    }
-}
-
-/**
- * The PUBLIC rooms hero — pick a buy-in, get auto-seated. Blue [info] gradient,
- * globe glyph, and a full-width inverse "Find a table" CTA. Tapping the card or
- * the button both route into the public Find flow.
+ * The PUBLIC rooms hero — a flat surface card with an emoji tile, a short pitch,
+ * and a full-width gold "Find a table" CTA. Clean and bubbly: no gradient, no
+ * hand-drawn glyphs (Apple over Microsoft).
  */
 @Composable
 internal fun PublicRoomsCard(
@@ -206,38 +59,39 @@ internal fun PublicRoomsCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val line = AppTheme.colors.content.color
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(Radii.R900.shape)
-            .background(playGradient(FeatureCardAccents.Blue))
+            .clip(Radii.Card.shape)
+            .background(AppTheme.colors.surface.color)
+            .border(1.dp, AppTheme.colors.border.color, Radii.Card.shape)
             .clickable(onClick = onClick)
-            .padding(Dimension.D800),
+            .padding(Dimension.D700),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
         ) {
-            GradientGlyphTile(54.dp) { drawGlobe(line) }
+            EmojiTile(emoji = "🌐", background = AppTheme.colors.surfaceRaised.color, shape = Radii.R600.shape)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    typography = AppTheme.typography.Heading.H700,
+                    typography = AppTheme.typography.Heading.H800,
                     color = AppTheme.colors.content,
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.content.withAlpha(0.78f),
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.contentSecondary,
                 )
             }
         }
         Spacer(modifier = Modifier.height(Dimension.D600))
         Button(
             onClick = onClick,
-            accent = ButtonAccent.Inverse,
+            accent = ButtonAccent.Primary,
+            size = ButtonSize.Large,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(cta)
@@ -246,28 +100,35 @@ internal fun PublicRoomsCard(
 }
 
 /**
- * The PRIVATE room row — invite-only, create or join by code. Gold gradient,
- * lock glyph, trailing chevron. Tapping opens the create/join bottom sheet.
+ * A flat play-option row — an emoji circle in the option's accent colour, a title
+ * + subtitle, and a trailing chevron (or a [tag] pill for a not-yet-shipped
+ * option). Used for Private room, Practice, Tournament.
  */
 @Composable
-internal fun PrivateRoomCard(
+internal fun PlayRow(
     title: String,
     subtitle: String,
+    emoji: String,
+    accent: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    tag: String? = null,
+    enabled: Boolean = true,
 ) {
-    val line = AppTheme.colors.content.color
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(Radii.R900.shape)
-            .background(playGradient(FeatureCardAccents.Gold))
-            .clickable(onClick = onClick)
-            .padding(horizontal = Dimension.D700, vertical = Dimension.D750),
+            .clip(Radii.Card.shape)
+            .background(AppTheme.colors.surface.color)
+            // A disabled option (e.g. a not-yet-shipped mode) reads as greyed out
+            // and ignores taps, so it advertises "coming" without leading anywhere.
+            .alpha(if (enabled) 1f else 0.45f)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = Dimension.D700, vertical = Dimension.D700),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
     ) {
-        GradientGlyphTile(50.dp) { drawLock(line) }
+        EmojiTile(emoji = emoji, background = accent, shape = CircleShape)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -277,56 +138,36 @@ internal fun PrivateRoomCard(
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = subtitle,
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.content.withAlpha(0.78f),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.contentSecondary,
             )
         }
-        Canvas(modifier = Modifier.size(16.dp)) { drawChevron(line) }
+        if (tag != null) {
+            StatusPill(
+                text = tag,
+                background = AppTheme.colors.surfaceHigh,
+                foreground = AppTheme.colors.content,
+                // One step up from the pill default so "Soon" reads a touch bolder.
+                typography = AppTheme.typography.Caption.C300.SemiBold,
+            )
+        } else {
+            Icon(
+                icon = Icons.ChevronRight(""),
+                size = IconSize.Small,
+                color = AppTheme.colors.contentSecondary,
+            )
+        }
     }
 }
 
-private fun DrawScope.drawGlobe(color: androidx.compose.ui.graphics.Color) {
-    val r = size.minDimension / 2f
-    val c = Offset(size.width / 2f, size.height / 2f)
-    val w = size.minDimension * 0.07f
-    drawCircle(color, radius = r * 0.96f, center = c, style = Stroke(width = w))
-    drawLine(color, Offset(c.x - r * 0.96f, c.y), Offset(c.x + r * 0.96f, c.y), strokeWidth = w)
-    drawOval(
-        color = color,
-        topLeft = Offset(c.x - r * 0.42f, c.y - r * 0.96f),
-        size = Size(r * 0.84f, r * 1.92f),
-        style = Stroke(width = w),
-    )
-}
-
-private fun DrawScope.drawLock(color: androidx.compose.ui.graphics.Color) {
-    val w = size.width
-    val h = size.height
-    val s = w * 0.1f
-    drawRoundRect(
-        color = color,
-        topLeft = Offset(w * 0.16f, h * 0.42f),
-        size = Size(w * 0.68f, h * 0.5f),
-        cornerRadius = CornerRadius(w * 0.1f, w * 0.1f),
-        style = Stroke(width = s),
-    )
-    drawArc(
-        color = color,
-        startAngle = 180f,
-        sweepAngle = 180f,
-        useCenter = false,
-        topLeft = Offset(w * 0.3f, h * 0.1f),
-        size = Size(w * 0.4f, h * 0.5f),
-        style = Stroke(width = s),
-    )
-}
-
-private fun DrawScope.drawChevron(color: androidx.compose.ui.graphics.Color) {
-    val w = size.width
-    val h = size.height
-    val s = w * 0.16f
-    drawLine(color, Offset(w * 0.3f, h * 0.2f), Offset(w * 0.7f, h * 0.5f), strokeWidth = s)
-    drawLine(color, Offset(w * 0.7f, h * 0.5f), Offset(w * 0.3f, h * 0.8f), strokeWidth = s)
+@Composable
+private fun EmojiTile(emoji: String, background: Color, shape: Shape, size: Dp = 48.dp) {
+    Box(
+        modifier = Modifier.size(size).clip(shape).background(background),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = emoji, typography = AppTheme.typography.Heading.H800)
+    }
 }
 
 @Preview
@@ -336,34 +177,33 @@ private fun PlayCardsPreview() {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             PublicRoomsCard(
                 title = "Public rooms",
-                subtitle = "Pick your buy-in — we seat you instantly",
+                subtitle = "Play against anyone, seated instantly",
                 cta = "Find a table",
                 onClick = {},
             )
-            PrivateRoomCard(
+            PlayRow(
                 title = "Private room",
-                subtitle = "Play with friends · create or join by code",
+                subtitle = "Join by code",
+                emoji = "🔒",
+                accent = AppTheme.colors.accentSecondary.color,
                 onClick = {},
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                PlayTileCard(
-                    title = "Practice",
-                    subtitle = "vs bots",
-                    glyph = "♠",
-                    accent = FeatureCardAccents.Green,
-                    onClick = {},
-                    modifier = Modifier.weight(1f),
-                )
-                PlayTileCard(
-                    title = "Tournament",
-                    subtitle = "Royal Flush",
-                    glyph = "♛",
-                    accent = FeatureCardAccents.Magenta,
-                    onClick = {},
-                    modifier = Modifier.weight(1f),
-                    tag = "Soon",
-                )
-            }
+            PlayRow(
+                title = "Practice",
+                subtitle = "vs bots, no chips at stake",
+                emoji = "🤖",
+                accent = AppTheme.colors.league.amethyst.color,
+                onClick = {},
+            )
+            PlayRow(
+                title = "Tournament",
+                subtitle = "Royal Flush",
+                emoji = "🏆",
+                accent = AppTheme.colors.accentTertiary.color,
+                onClick = {},
+                tag = "Soon",
+                enabled = false,
+            )
         }
     }
 }

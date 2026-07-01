@@ -4,6 +4,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,6 +43,11 @@ import cards.libraries.resources.generated.resources.public_searching_error_body
 import cards.libraries.resources.generated.resources.public_searching_error_back
 import cards.libraries.resources.generated.resources.public_searching_error_insufficient
 import cards.libraries.resources.generated.resources.public_searching_error_retry
+import cards.libraries.resources.generated.resources.public_searching_joined_leave
+import cards.libraries.resources.generated.resources.public_searching_joined_players_count
+import cards.libraries.resources.generated.resources.public_searching_joined_ready_to_deal
+import cards.libraries.resources.generated.resources.public_searching_joined_title
+import cards.libraries.resources.generated.resources.public_searching_joined_waiting_for_players
 import cards.libraries.resources.generated.resources.public_searching_joining_bots_body
 import cards.libraries.resources.generated.resources.public_searching_joining_bots_title
 import cards.libraries.resources.generated.resources.public_searching_offer_body
@@ -58,10 +65,16 @@ import cards.libraries.resources.generated.resources.public_searching_rotate_5
 import cards.libraries.resources.generated.resources.public_searching_rotate_6
 import cards.libraries.resources.generated.resources.public_searching_title
 import com.dangerfield.cards.libraries.cards.formatThousands
+import com.dangerfield.cards.libraries.rooms.Room
+import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.isReduceMotionEnabled
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
+import com.dangerfield.cards.libraries.ui.components.NonLazyVerticalGrid
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.room.RoomSeat
+import com.dangerfield.cards.libraries.ui.components.room.RoomSeatPlayer
+import com.dangerfield.cards.libraries.ui.components.room.RoomSeatStatus
 import com.dangerfield.cards.libraries.ui.components.button.ButtonGhost
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
@@ -112,6 +125,7 @@ fun PublicSearchingScreen(
             when {
                 state.error != null -> ErrorContent(state.error, onAction)
                 state.phase == SearchPhase.Choosing -> ChoosingContent(state.candidates, onAction)
+                state.phase == SearchPhase.Joined -> JoinedTableContent(state, onAction)
                 state.phase == SearchPhase.BotFallbackOffer -> BotFallbackContent(state.subsidyNotice, onAction)
                 state.phase == SearchPhase.JoiningBots -> JoiningBotsContent()
                 else -> SearchingContent(state, onAction)
@@ -246,6 +260,93 @@ private fun CandidateCard(candidate: TableCandidate, onJoin: () -> Unit) {
         }
     }
 }
+
+@Composable
+private fun ColumnScope.JoinedTableContent(
+    state: PublicSearchingState,
+    onAction: (PublicSearchingAction) -> Unit,
+) {
+    // ROOM-11: after the user explicitly takes a seat from the chooser, this is
+    // their pre-deal lobby — visibly a *joined table* (seated players + a deal is
+    // imminent), not the still-hunting radar. The deal flips us straight onto the
+    // live multiplayer screen, so nothing here drives the deal; it just waits.
+    val room = state.joinedRoom ?: return
+    val others = state.realPlayersFound
+    Spacer(Modifier.height(Dimension.D500))
+    Text(
+        text = stringResource(Res.string.public_searching_joined_title),
+        typography = AppTheme.typography.Heading.H800,
+        color = AppTheme.colors.content,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(Dimension.D200))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(
+                    if (others > 0) AppTheme.colors.success.color else AppTheme.colors.contentTertiary.color,
+                ),
+        )
+        Spacer(Modifier.size(Dimension.D200))
+        Text(
+            text = if (others > 0) {
+                stringResource(Res.string.public_searching_joined_ready_to_deal)
+            } else {
+                stringResource(Res.string.public_searching_joined_waiting_for_players)
+            },
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.contentSecondary,
+        )
+    }
+    Spacer(Modifier.height(Dimension.D600))
+    Text(
+        text = stringResource(
+            Res.string.public_searching_joined_players_count,
+            room.seatCount,
+            room.maxSeats,
+        ),
+        typography = AppTheme.typography.Label.L400,
+        color = AppTheme.colors.contentTertiary,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(Dimension.D400))
+
+    val seats: List<RoomMember?> = (0 until room.maxSeats).map { index ->
+        room.members.firstOrNull { it.seatIndex == index }
+    }
+    NonLazyVerticalGrid(
+        columns = 3,
+        data = seats,
+        horizontalSpacing = Dimension.D500,
+        verticalSpacing = Dimension.D500,
+        modifier = Modifier.fillMaxWidth(),
+    ) { _, member ->
+        RoomSeat(player = member?.toSeatPlayer(state.localUserId))
+    }
+
+    Spacer(Modifier.weight(1f))
+    BuyInRangeCard(state.minBuyIn, state.maxBuyIn)
+    Spacer(Modifier.height(Dimension.D500))
+    ButtonSecondary(
+        onClick = { onAction(PublicSearchingAction.Cancel) },
+        style = ButtonStyle.Outlined,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(stringResource(Res.string.public_searching_joined_leave))
+    }
+    Spacer(Modifier.height(Dimension.D800))
+}
+
+private fun RoomMember.toSeatPlayer(localUserId: String?): RoomSeatPlayer = RoomSeatPlayer(
+    name = displayName,
+    emoji = avatarEmoji,
+    avatarBackgroundColorHex = avatarBackgroundColorHex,
+    isBot = isBot,
+    isYou = userId == localUserId,
+    status = if (isConnected) RoomSeatStatus.Seated else RoomSeatStatus.Joining,
+)
 
 @Composable
 private fun RotatingReassurance() {
@@ -464,6 +565,77 @@ private fun PublicSearchingChooserPreview() {
         )
     }
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun PublicSearchingJoinedWaitingPreview() {
+    PreviewContent {
+        PublicSearchingScreen(
+            state = PublicSearchingState(
+                phase = SearchPhase.Joined,
+                minBuyIn = 1_000,
+                maxBuyIn = 25_000,
+                localUserId = "me",
+                realPlayersFound = 0,
+                joinedRoom = previewRoom(
+                    members = listOf(previewMember("me", "You", "🦊", seatIndex = 0)),
+                ),
+            ),
+            onAction = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun PublicSearchingJoinedReadyPreview() {
+    PreviewContent {
+        PublicSearchingScreen(
+            state = PublicSearchingState(
+                phase = SearchPhase.Joined,
+                minBuyIn = 1_000,
+                maxBuyIn = 25_000,
+                localUserId = "me",
+                realPlayersFound = 2,
+                joinedRoom = previewRoom(
+                    members = listOf(
+                        previewMember("me", "You", "🦊", seatIndex = 0),
+                        previewMember("p1", "Jordan", "🐱", seatIndex = 1),
+                        previewMember("p2", "Priya", "🐼", seatIndex = 2),
+                    ),
+                ),
+            ),
+            onAction = {},
+        )
+    }
+}
+
+private fun previewMember(
+    userId: String,
+    name: String,
+    emoji: String,
+    seatIndex: Int,
+): RoomMember = RoomMember(
+    userId = userId,
+    displayName = name,
+    seatIndex = seatIndex,
+    joinedAtEpochMs = 0,
+    isConnected = true,
+    avatarEmoji = emoji,
+    avatarBackgroundColorHex = "#5894E4",
+)
+
+private fun previewRoom(members: List<RoomMember>): Room = Room(
+    code = "ABC123",
+    hostUserId = "host",
+    createdAtEpochMs = 0,
+    maxSeats = 6,
+    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+    members = members,
+    buyIn = 5_000,
+    smallBlind = 25,
+    bigBlind = 50,
+)
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable

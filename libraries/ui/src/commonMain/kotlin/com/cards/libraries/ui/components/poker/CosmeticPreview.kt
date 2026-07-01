@@ -119,9 +119,9 @@ private fun FeltSwatch(productId: String, size: Dp, modifier: Modifier = Modifie
     Box(
         modifier = modifier
             .size(size)
-            .clip(Radii.R500.shape)
+            .clip(Radii.R600.shape)
             .background(color)
-            .border(1.dp, border, Radii.R500.shape),
+            .border(1.dp, border, Radii.R600.shape),
     )
 }
 
@@ -166,9 +166,19 @@ private fun EmojiTile(
     ) {
         Text(
             text = emoji,
-            typography = AppTheme.typography.Heading.H600,
+            // Scale the glyph to the tile — a fixed H600 looked tiny on the big
+            // 100dp profile shelf tiles. Bigger tile, bigger emoji.
+            typography = emojiTypographyFor(size),
         )
     }
+}
+
+@Composable
+private fun emojiTypographyFor(size: Dp) = when {
+    size >= 80.dp -> AppTheme.typography.Display.D1000
+    size >= 56.dp -> AppTheme.typography.Heading.H1000
+    size >= 40.dp -> AppTheme.typography.Heading.H800
+    else -> AppTheme.typography.Heading.H600
 }
 
 @Preview

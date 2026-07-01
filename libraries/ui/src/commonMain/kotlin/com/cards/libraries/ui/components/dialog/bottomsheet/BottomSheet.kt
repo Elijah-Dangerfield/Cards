@@ -113,6 +113,10 @@ fun BottomSheet(
                     IconButton(
                         icon = Icons.Close(stringResource(Res.string.ui_close_a11y)),
                         onClick = state::dismiss,
+                        // Raised a level above the sheet surface so the button
+                        // reads as a real affordance (like the top-bar back
+                        // button does against the page), not a flat glyph.
+                        backgroundColor = AppTheme.colors.surfaceRaised,
                     )
                 }
             } else {

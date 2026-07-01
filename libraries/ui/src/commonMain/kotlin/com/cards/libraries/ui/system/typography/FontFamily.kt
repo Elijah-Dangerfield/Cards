@@ -8,12 +8,6 @@ import org.jetbrains.compose.resources.Font
 import cards.libraries.ui.generated.resources.DMSerifText_Italic
 import cards.libraries.ui.generated.resources.DMSerifText_Regular
 import cards.libraries.ui.generated.resources.Res
-import cards.libraries.ui.generated.resources.Roboto_Bold
-import cards.libraries.ui.generated.resources.Roboto_Light
-import cards.libraries.ui.generated.resources.Roboto_Medium
-import cards.libraries.ui.generated.resources.Roboto_Regular
-import cards.libraries.ui.generated.resources.Roboto_SemiBold
-import cards.libraries.ui.generated.resources.lust_script_regular
 import cards.libraries.ui.generated.resources.poppins_bold
 import cards.libraries.ui.generated.resources.poppins_light
 import cards.libraries.ui.generated.resources.poppins_medium
@@ -23,15 +17,15 @@ import cards.libraries.ui.generated.resources.poppins_semibold
 val SansSerifFontFamily: FontFamily
     @Composable get() = FontFamily(
         Font(
-            resource = Res.font.Roboto_Light, weight = FontWeight.Light
+            resource = Res.font.poppins_light, weight = FontWeight.Light
         ), Font(
-            resource = Res.font.Roboto_Regular, weight = FontWeight.Normal
+            resource = Res.font.poppins_regular, weight = FontWeight.Normal
         ), Font(
-            resource = Res.font.Roboto_Medium, weight = FontWeight.Medium
+            resource = Res.font.poppins_medium, weight = FontWeight.Medium
         ), Font(
-            resource = Res.font.Roboto_Bold, weight = FontWeight.Bold
+            resource = Res.font.poppins_bold, weight = FontWeight.Bold
         ), Font(
-            resource = Res.font.Roboto_SemiBold, weight = FontWeight.SemiBold
+            resource = Res.font.poppins_semibold, weight = FontWeight.SemiBold
         )
     )
 

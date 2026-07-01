@@ -57,7 +57,9 @@ fun CardsFan(
     }
 }
 
-private val DEFAULT_FAN_SIZE = PlayingCardSize(width = 94.dp, height = 112.dp)
+// Derive the width from the canonical card ratio (don't hardcode it) so the fan
+// reads as the same shape as the cards on the felt. Height is preserved.
+private val DEFAULT_FAN_SIZE = PlayingCardSize.ofHeight(112.dp)
 
 private val FAN_CARDS = listOf(
     Card(Rank.Ace, Suit.Spades),
@@ -90,7 +92,7 @@ private fun CardsFanPreview_Splash() {
     PreviewContent {
         CardsFan(
             fanProgress = 1f,
-            cardSize = PlayingCardSize(width = 88.dp, height = 124.dp),
+            cardSize = PlayingCardSize.ofHeight(124.dp),
         )
     }
 }

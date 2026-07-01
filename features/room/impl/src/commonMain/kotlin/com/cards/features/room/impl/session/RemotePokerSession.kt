@@ -165,6 +165,16 @@ internal class RemotePokerSession(
         _matchOverCountdown.asStateFlow()
 
     /**
+     * Live between-hands auto-advance countdown. Set on a `NextHandPending` frame,
+     * cleared on `NextHandCleared` and whenever a live-hand snapshot lands (the
+     * next hand dealt). The screen renders it on real-chip tables as the
+     * leave-with-winnings window; practice tables ignore it and keep their dialog.
+     */
+    private val _nextHandCountdown = MutableStateFlow<NextHandCountdown?>(null)
+    override val nextHandCountdown: StateFlow<NextHandCountdown?> =
+        _nextHandCountdown.asStateFlow()
+
+    /**
      * Host-chosen table cosmetics (SHOP-3), pinned from the room snapshot's
      * [com.dangerfield.cards.libraries.rooms.Room.feltProductId] /
      * [com.dangerfield.cards.libraries.rooms.Room.cardBackProductId]. Set on the
@@ -311,6 +321,12 @@ internal class RemotePokerSession(
                         // applies stay silent (too noisy); the stale-drop above
                         // is debug.
                         val wasLoading = _gameStateFlow.value.seats.isEmpty()
+                        // A live-hand snapshot means the next hand dealt — clear any
+                        // between-hands countdown (belt-and-suspenders alongside the
+                        // server's NextHandCleared, in case it's dropped/raced).
+                        if (frame.state.street != BettingRound.Complete) {
+                            _nextHandCountdown.value = null
+                        }
                         _gameStateFlow.value = frame.state
                         if (frame.state.seats.isNotEmpty()) {
                             lastNonEmptyState = frame.state
@@ -351,6 +367,9 @@ internal class RemotePokerSession(
                     )
                 }
                 GameplayFrame.MatchOverCleared -> _matchOverCountdown.value = null
+                is GameplayFrame.NextHandPending ->
+                    _nextHandCountdown.value = NextHandCountdown(deadlineEpochMs = frame.deadlineEpochMs)
+                GameplayFrame.NextHandCleared -> _nextHandCountdown.value = null
             }
         }
     }
@@ -582,6 +601,8 @@ private fun GameplayFrame.summary(): String = when (this) {
     is GameplayFrame.MatchOverPending ->
         "MatchOverPending busted=$bustedSeatIndex deadline=$deadlineEpochMs"
     GameplayFrame.MatchOverCleared -> "MatchOverCleared"
+    is GameplayFrame.NextHandPending -> "NextHandPending deadline=$deadlineEpochMs"
+    GameplayFrame.NextHandCleared -> "NextHandCleared"
 }
 
 /**

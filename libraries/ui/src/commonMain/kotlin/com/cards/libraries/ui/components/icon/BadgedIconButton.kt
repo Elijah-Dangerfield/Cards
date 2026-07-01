@@ -46,7 +46,9 @@ fun BadgedIconButton(
 ) {
     BadgedBox(
         modifier = modifier,
-        badgeTranslation = DpOffset(x = (-4).dp, y = 4.dp),
+        // Tucked down-and-left so it overlaps the icon more (reads as a sticker on
+        // the gear) and stays clear of the screen's top edge.
+        badgeTranslation = DpOffset(x = (-8).dp, y = 8.dp),
         badge = {
             when {
                 badgeCount > 0 -> Badge(
@@ -64,7 +66,7 @@ fun BadgedIconButton(
                     ) {
                         Text(
                             text = if (badgeCount > 99) "99+" else badgeCount.toString(),
-                            typography = AppTheme.typography.Caption.C200.SemiBold,
+                            typography = AppTheme.typography.Caption.C400.SemiBold,
                         )
                     }
                 }

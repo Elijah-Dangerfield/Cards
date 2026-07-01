@@ -213,7 +213,7 @@ sealed interface TableUiState {
                     winners = ev.winners,
                     board = ev.board,
                 )
-            }
+            } ?: synthesizeHandResult(gameState, handComplete)
             return Active(
                 street = gameState.street,
                 communityCards = gameState.community,
@@ -538,6 +538,42 @@ sealed class SeatBadge {
     data class Level(val level: Int) : SeatBadge()
     data class BotWithDifficulty(val difficulty: String) : SeatBadge()
     data object BotPlain : SeatBadge()
+}
+
+/**
+ * Reconstruct a hand-result from a terminal [BettingRound.Complete] snapshot when
+ * the transient [GameEvent.HandEnded] never reached us (MP-26 / MP-25 family). A
+ * heads-up opponent timing out preflop sends the non-acting player only the
+ * `Complete` snapshot — no `ActionTaken(Fold)`, no `HandEnded`, no `PotAwarded` —
+ * so without this the table sits dead with no winner banner and no Next Hand path.
+ *
+ * The pot's [Pot.eligibleSeatIndexes] pin who took it; when the snapshot already
+ * scrubbed the pots (awarded), fall back to the seats still in the hand. `byFold`
+ * is inferred from whether a single contender remained (an uncontested win) versus
+ * a showdown that reached [BettingRound.Complete] with multiple seats live.
+ */
+private fun synthesizeHandResult(gameState: GameState, handComplete: Boolean): HandResultView? {
+    if (!handComplete) return null
+    val contenders = gameState.seats.filter { it.isInHand }
+    val winnerSeats = gameState.pots
+        .flatMap { it.eligibleSeatIndexes }
+        .distinct()
+        .ifEmpty { contenders.map { it.index } }
+    if (winnerSeats.isEmpty()) return null
+    val potTotal = gameState.pots.sumOf { it.amount }
+    val byFold = contenders.size <= 1
+    val perWinner = if (winnerSeats.isEmpty()) 0L else potTotal / winnerSeats.size
+    return HandResultView(
+        winners = winnerSeats.map { seatIndex ->
+            HandWinner(
+                seatIndex = seatIndex,
+                amount = perWinner,
+                handRank = null,
+                byFold = byFold,
+            )
+        },
+        board = gameState.community,
+    )
 }
 
 private fun previewHandLabel(holeCards: List<Card>, community: List<Card>): String? {

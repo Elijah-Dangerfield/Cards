@@ -50,6 +50,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import com.dangerfield.cards.features.shop.ShopCategory
 import kotlin.math.roundToInt
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -70,7 +71,8 @@ import com.dangerfield.cards.libraries.ui.border
 import com.dangerfield.cards.libraries.ui.components.BadgePlacement
 import com.dangerfield.cards.libraries.ui.components.BadgedBox
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
-import com.dangerfield.cards.libraries.ui.components.BalancePillSlot
+import com.dangerfield.cards.libraries.ui.components.ChipBadge
+import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.CircularLoadingIndicator
@@ -177,6 +179,20 @@ fun ShopScreen(
                         .padding(horizontal = 16.dp, vertical = 16.dp),
                 )
             }
+
+            // Wallet balance pinned to the top-right like a FAB — it stays put
+            // while the catalog scrolls under it. Only while the catalog shows.
+            if (state.hasLoaded && !state.catalog.isEmpty) {
+                ChipBadge(
+                    amount = state.chipBalance,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(screenHorizontalInsets)
+                        .padding(top = Dimension.D500)
+                        // Lift the floating wallet off the scrolling catalog.
+                        .shadow(elevation = 6.dp, shape = Radii.Round.shape),
+                )
+            }
         }
         // The purchase confirmation sheet used to render here as
         // overlay UI driven by `state.pendingPurchase`. It's now its
@@ -232,7 +248,7 @@ private fun CatalogContent(
         // Nullable on purpose: null = balance hasn't hydrated yet (first launch
         // or post account-switch wipe). The pill renders "—" rather than a
         // fake "0" until the sync lands — same as Home.
-        ShopHeader(chips = state.chipBalance)
+        ShopHeader()
         VerticalSpacerD700()
 
         GetChipsSection(
@@ -300,18 +316,13 @@ private fun IdeaFooter(onClick: () -> Unit) {
 }
 
 @Composable
-private fun ShopHeader(chips: Long?) {
+private fun ShopHeader() {
     Column {
-        // Only the title is the pill's leading element, so the chip centers on
-        // the title line and lands at the same vertical band as Home's header
-        // chip. The subtitle stacks below the whole pill row.
-        BalancePillSlot(chips = chips) {
-            Text(
-                text = stringResource(Res.string.shop_header_title),
-                typography = AppTheme.typography.Heading.H1000,
-                color = AppTheme.colors.content,
-            )
-        }
+        Text(
+            text = stringResource(Res.string.shop_header_title),
+            typography = AppTheme.typography.Heading.H1000,
+            color = AppTheme.colors.content,
+        )
         VerticalSpacerD100()
         Text(
             text = stringResource(Res.string.shop_header_subtitle),
@@ -358,25 +369,6 @@ private fun shopSectionFor(productId: String): ShopSection = when {
     productId.startsWith("avatars_") -> ShopSection.Avatars
     productId.startsWith("tool_") -> ShopSection.Tools
     else -> ShopSection.Other
-}
-
-@Composable
-private fun SectionHeader(title: String, subtitle: String? = null, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
-        Text(
-            text = title,
-            typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.content,
-        )
-        subtitle?.let {
-            VerticalSpacerD100()
-            Text(
-                text = it,
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-            )
-        }
-    }
 }
 
 /**
@@ -855,7 +847,7 @@ private fun LockedFooter(requiredLevel: Int) {
         modifier = Modifier
             .clip(Radii.Round.shape)
             .background(AppTheme.colors.surfaceHigh.color)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
     ) {
         Text(
             text = stringResource(Res.string.shop_unlocks_at_level, requiredLevel),
@@ -878,7 +870,7 @@ private fun InsufficientChipsFooter(cost: Long, shortBy: Long) {
             modifier = Modifier
                 .clip(Radii.Round.shape)
                 .background(AppTheme.colors.danger.color.copy(alpha = 0.18f))
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
         ) {
             // ChipCoinAmount keeps the gold-coin + count shape aligned with
             // every other cost / balance surface; danger color carries the
@@ -925,7 +917,7 @@ private fun OwnedFooter() {
         modifier = Modifier
             .clip(Radii.Round.shape)
             .background(AppTheme.colors.success.color.copy(alpha = 0.18f))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
     ) {
         Text(
             text = stringResource(Res.string.shop_owned_badge),
@@ -942,7 +934,7 @@ private fun ChipCostFooter(cost: Long, canAfford: Boolean) {
         modifier = Modifier
             .clip(Radii.Round.shape)
             .background(bg)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
     ) {
         // ChipCoinAmount keeps the gold-coin + count shape aligned with
         // every other cost / balance surface (table pot, stack, header).

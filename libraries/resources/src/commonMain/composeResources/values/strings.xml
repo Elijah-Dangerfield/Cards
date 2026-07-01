@@ -246,6 +246,10 @@
     <string name="onboarding_identity_name_requirements">%1$d to %2$d characters, no emoji</string>
     <string name="onboarding_identity_continue_button">Continue</string>
 
+    <!-- Home - header XP line under the username (e.g. "320 / 500 XP"). %1$s into-level XP, %2$s for-this-level XP. -->
+    <string name="home_header_xp">%1$s / %2$s XP</string>
+    <!-- Home - compact level chip on the avatar (e.g. "LV 2"). %1$d is the level. -->
+    <string name="home_level_chip">LV %1$d</string>
     <!-- Home - Play section (Public rooms hero + Private room row + Practice / Tournament tiles). -->
     <string name="home_section_play">Play</string>
     <string name="home_cta_practice_title">Practice</string>
@@ -263,7 +267,7 @@
     <string name="home_cta_practice_subtitle_short">vs bots</string>
     <string name="home_cta_tournament_title">Tournament</string>
     <string name="home_cta_tournament_subtitle">Royal Flush</string>
-    <string name="home_tag_soon">Soon</string>
+    <string name="home_tag_soon">Coming soon</string>
 
     <!-- Public rooms - Find a table (SPEC §4). Visual shell; no live matchmaking. -->
     <string name="public_find_title">Find a table</string>
@@ -310,6 +314,12 @@
     <string name="public_searching_offer_subsidy_exhausted">Heads up: you've used today's bonus chips. You can still play bots, but winnings won't be topped up until tomorrow.</string>
     <string name="public_searching_joining_bots_title">Setting up your table</string>
     <string name="public_searching_joining_bots_body">Seating your opponents and dealing you in…</string>
+    <!-- Joined-table pre-deal lobby (ROOM-11): the user took a seat and is waiting on the deal. -->
+    <string name="public_searching_joined_title">You're in</string>
+    <string name="public_searching_joined_waiting_for_players">Waiting for more players to sit down…</string>
+    <string name="public_searching_joined_ready_to_deal">Dealing you in any moment now…</string>
+    <string name="public_searching_joined_players_count">%1$d of %2$d seated</string>
+    <string name="public_searching_joined_leave">Leave table</string>
     <!-- Search failed (network / rate limit / rejected). -->
     <string name="public_searching_error_body">We couldn't reach the tables just now. Check your connection and try again.</string>
     <string name="public_searching_error_insufficient">That buy-in is more than your balance. Go back and lower your range.</string>
@@ -480,14 +490,13 @@
     <string name="profile_gameplay_tutorial_headline">How to play</string>
     <string name="profile_gameplay_tutorial_supporting">Replay the 2-minute poker tutorial</string>
     <string name="profile_gameplay_game_speed_headline">Game speed</string>
-    <string name="profile_gameplay_game_speed_supporting">How fast hands play — bot pace and card animations. Instant snaps the action.</string>
+    <string name="profile_gameplay_game_speed_supporting">How long bots take to act. Fast trims the wait.</string>
     <string name="profile_gameplay_turn_feedback_headline">Your turn feedback</string>
     <string name="profile_gameplay_turn_feedback_supporting">Cue when it becomes your turn</string>
     <string name="profile_gameplay_achievement_popups_headline">Achievement pop-ups</string>
     <string name="profile_gameplay_achievement_popups_supporting">Celebrate unlocks with a pop-up. They're still earned when off.</string>
     <string name="profile_game_speed_normal">Normal</string>
     <string name="profile_game_speed_fast">Fast</string>
-    <string name="profile_game_speed_instant">Instant</string>
     <string name="profile_turn_feedback_mute">Mute</string>
     <string name="profile_turn_feedback_vibrate">Vibrate</string>
     <string name="profile_turn_feedback_sound">Sound</string>
@@ -758,20 +767,8 @@
     <string name="room_blind_roles_big_blind_title">Big blind</string>
     <string name="room_blind_roles_big_blind_description">Forced full bet, posted left of the small blind. The minimum opening bet for the hand.</string>
 
-    <!-- Room - Last-action explainer (tap a player's "Folded" / "Called 10" / etc. pill). -->
-    <string name="room_last_action_headline_fold">%1$s folded</string>
-    <string name="room_last_action_headline_check">%1$s checked</string>
-    <string name="room_last_action_headline_call">%1$s called %2$s</string>
-    <string name="room_last_action_headline_bet">%1$s bet %2$s</string>
-    <string name="room_last_action_headline_raise">%1$s raised to %2$s</string>
-    <string name="room_last_action_headline_all_in">%1$s went all in for %2$s</string>
-    <string name="room_last_action_body_fold">Fold means giving up the hand. Any chips already in the pot stay there. They don't come back.</string>
-    <string name="room_last_action_body_check">Check passes the action without putting any chips in. Only legal when there's nothing to call.</string>
-    <string name="room_last_action_body_call">Call matches the current bet so they can stay in the hand. No raise, just keeping up.</string>
-    <string name="room_last_action_body_bet">Bet opens the betting on this street. Everyone else now has to call, raise, or fold.</string>
-    <string name="room_last_action_body_raise">Raise increases the current bet. Everyone else who wants to stay in has to match the new total.</string>
-    <string name="room_last_action_body_all_in">All in means pushing their entire stack into the pot. They can't act again this hand.</string>
-    <string name="room_last_action_cheat_sheet_hint">Tap the ? icon up top for the full list of actions.</string>
+    <!-- Room - Player card: the seat's most recent action this round. -->
+    <string name="room_player_profile_last_move_heading">Last move</string>
 
     <!-- Room - Hand-label explainer (tap the human's hand-label pill: "Pair", "Two pair", etc.). -->
     <string name="room_hand_label_body_royal_flush">Ten through Ace, all the same suit. The strongest hand in poker.</string>
@@ -861,6 +858,10 @@
     <!-- Room - match-over countdown shown to the winner while they wait out the busted player's rebuy grace. %1$s is a m:ss countdown. -->
     <string name="room_match_over_winner_label">Opponent busted. Auto-continues in %1$s</string>
 
+    <!-- Room - between-hands auto-advance countdown on a real-chip table. %1$s is a m:ss countdown. The Leave button cashes the player out with their current stack before the next hand deals. -->
+    <string name="room_next_hand_countdown_label">Next hand in %1$s</string>
+    <string name="room_next_hand_leave_button">Leave with winnings</string>
+
     <!-- Room - match-over result shown when the rebuy grace expired and the match ended. -->
     <string name="room_match_over_result_win_title">You won the match</string>
     <string name="room_match_over_result_win_body">Your opponent ran out of chips and didn't rebuy. The table's all yours.</string>
@@ -891,7 +892,9 @@
     <string name="room_celebration_cosmetic_attribution">from the %1$s achievement</string>
     <string name="room_celebration_tap_to_reveal">Tap to reveal</string>
 
-    <!-- Room - Hand-rankings cheat sheet (tap the ? icon on the table). -->
+    <!-- Room - How-to-play sheet (tap the ? icon in the top bar). -->
+    <string name="room_how_to_play_sheet_title">How to play</string>
+    <!-- Room - Hand-rankings cheat sheet (tap the board). -->
     <string name="room_cheat_sheet_hand_number_pill">HAND #%1$d</string>
     <string name="room_cheat_sheet_actions_heading">How to act</string>
     <string name="room_cheat_sheet_action_check_title">Check</string>
@@ -982,6 +985,12 @@
     <!-- Debug-only action; surfaced from the shake dialog only on debug builds. -->
     <string name="ui_shake_dialog_inspect_network_cta">Network inspector</string>
 
+    <!-- UI library - ScreenshotAttachmentField (feedback / bug report photo attach). -->
+    <string name="ui_screenshot_attach_label">Attach screenshots</string>
+    <string name="ui_screenshot_count">%1$d/%2$d</string>
+    <string name="ui_screenshot_add_a11y">Add screenshot</string>
+    <string name="ui_screenshot_remove_a11y">Remove screenshot</string>
+
     <!-- UI library - AppBottomBar tab icon a11y labels (announced by TalkBack / VoiceOver). -->
     <string name="ui_bottom_bar_home_a11y">Home</string>
     <string name="ui_bottom_bar_shop_a11y">Shop</string>
@@ -1059,6 +1068,7 @@
     <string name="room_connection_lost_banner">Connection lost. We're keeping your seat warm. Back in a moment.</string>
     <string name="room_top_bar_back_a11y">Back</string>
     <string name="room_top_bar_hand_info_a11y">Hand info and rankings</string>
+    <string name="room_board_rankings_a11y">View hand rankings</string>
     <string name="room_loading_dealing_in">Dealing in…</string>
     <string name="room_waiting_to_be_dealt_in">You'll be dealt in next hand</string>
     <string name="room_practice_tier_bots_present">Practice tier · bots present</string>

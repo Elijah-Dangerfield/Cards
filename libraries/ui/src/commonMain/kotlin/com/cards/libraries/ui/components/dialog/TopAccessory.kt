@@ -94,20 +94,20 @@ sealed interface TopAccessory {
 enum class AccessoryShape { Circle, Squircle }
 
 /**
- * Theme-aware factory for [TopAccessory.Emoji]. Default [surface] is a light
- * inverse disc (with a dark on-content color) so the bubble reads as a bright
- * "stamp" against the dark sheet/dialog and any emoji — including monochrome
- * glyphs like suit pips — stays legible on it. Pass `null` to match the host
- * surface for a seamless top edge, or an explicit accent / gradient when the
- * bubble should carry a specific color.
+ * Theme-aware factory for [TopAccessory.Emoji]. Default [surface] is a raised
+ * gray disc — a shade lighter than the sheet/dialog surface — so the bubble
+ * reads as a softly elevated "stamp" without the odd dark-lip tint it used to
+ * carry. Monochrome glyphs (suit pips, "$") use the light content color so they
+ * stay legible. Pass `null` to match the host surface for a seamless top edge,
+ * or an explicit accent / gradient when the bubble should carry a specific color.
  */
 @Composable
 fun topAccessoryEmoji(
     emoji: String,
     style: AccessoryShape = AccessoryShape.Circle,
     surface: BubbleSurface? = BubbleSurface.Solid(
-        color = AppTheme.colors.surfaceInverseDeep,
-        onContentColor = AppTheme.colors.onSurfaceInverse,
+        color = AppTheme.colors.surfaceHigh,
+        onContentColor = AppTheme.colors.content,
     ),
 ): TopAccessory.Emoji = TopAccessory.Emoji(emoji, style, surface)
 

@@ -35,20 +35,17 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * mental shortcut: "gold circle = chips."
  *
  * Sizing: pick a [size] that roughly matches the line height of the text
- * sitting next to it. [textTypography] controls the "$" sigil only; pick a
- * scale that visually balances the chosen [size] (a 56dp coin doesn't want
- * a Body.B400 dollar sign).
+ * sitting next to it; the "$" sigil scales to the coin automatically. Pass
+ * [showSymbol] = false for the tightest surfaces where a centered "$" reads
+ * cramped (a bare gold dot still says "chips").
  *
- * Prefer this over inlining the gold-circle-with-dollar pattern. Replaces
- * also: the grey "🪙" emoji used in the shop redesign, which renders
- * inconsistently across platforms and reads as tarnished copper on dark
- * surfaces.
+ * Prefer this over inlining the gold-circle pattern.
  */
 @Composable
 fun ChipCoin(
     modifier: Modifier = Modifier,
     size: Dp = 18.dp,
-    textTypography: TypographyResource = AppTheme.typography.Body.B400,
+    showSymbol: Boolean = true,
 ) {
     Box(
         modifier = modifier
@@ -61,15 +58,16 @@ fun ChipCoin(
                     28.dp -> 2.dp
                     48.dp -> 3.dp
                     else -> 0.dp
-                }, AppTheme.colors.poker.chipGoldOutline.color, CircleShape)
-        ,
+                }, AppTheme.colors.poker.chipGoldOutline.color, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = "$",
-            typography = textTypography,
-            color = AppTheme.colors.background,
-        )
+        if (showSymbol) {
+            Text(
+                text = "$",
+                typography = coinSymbolTypographyFor(size),
+                color = AppTheme.colors.background,
+            )
+        }
     }
 }
 
@@ -91,7 +89,6 @@ fun ChipCoinAmount(
     typography: TypographyResource = AppTheme.typography.Body.B500,
     color: ColorResource = AppTheme.colors.content,
     gap: Dp = 6.dp,
-    coinSymbolTypography: TypographyResource = coinSymbolTypographyFor(coinSize),
     formatter: (Long) -> String = ::formatThousands,
     animated: Boolean = false,
 ) {
@@ -99,7 +96,7 @@ fun ChipCoinAmount(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ChipCoin(size = coinSize, textTypography = coinSymbolTypography)
+        ChipCoin(size = coinSize)
         Spacer(modifier = Modifier.width(gap))
         if (animated) {
             AnimatedNumberText(
@@ -122,15 +119,13 @@ fun ChipCoinAmount(
 }
 
 /**
- * Pick a sensible "$" sigil scale for a given coin diameter. Keeps callers
- * from having to reason about the inner typography for the common case while
- * still letting them override [ChipCoinAmount.coinSymbolTypography] for the
- * outlier cases.
+ * Pick a "$" sigil scale for a given coin diameter so the sigil stays balanced
+ * from a 12dp inline coin up to a 96dp hero coin, without callers reasoning
+ * about the inner typography.
  */
 @Composable
 private fun coinSymbolTypographyFor(size: Dp): TypographyResource = when {
     size <= Dimension.D700 -> AppTheme.typography.Body.B400
-    size <= Dimension.D850 -> AppTheme.typography.Body.B400
     size <= Dimension.D1050 -> AppTheme.typography.Body.B600
     size <= Dimension.D1300 -> AppTheme.typography.Heading.H700
     else -> AppTheme.typography.Heading.H800
@@ -141,13 +136,13 @@ private fun coinSymbolTypographyFor(size: Dp): TypographyResource = when {
 private fun ChipCoinPreview_SizeScale() {
     PreviewContent {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ChipCoin(size = 14.dp, textTypography = AppTheme.typography.Body.B400)
+            ChipCoin(size = 14.dp)
             Spacer(modifier = Modifier.width(8.dp))
             ChipCoin()
             Spacer(modifier = Modifier.width(8.dp))
-            ChipCoin(size = 28.dp, textTypography = AppTheme.typography.Body.B600)
+            ChipCoin(size = 28.dp)
             Spacer(modifier = Modifier.width(8.dp))
-            ChipCoin(size = 48.dp, textTypography = AppTheme.typography.Heading.H700)
+            ChipCoin(size = 48.dp)
         }
     }
 }

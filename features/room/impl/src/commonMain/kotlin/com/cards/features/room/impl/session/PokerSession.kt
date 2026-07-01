@@ -117,6 +117,18 @@ interface PokerSession {
     val matchOverCountdown: StateFlow<MatchOverCountdown?> get() = NoMatchOver
 
     /**
+     * The live between-hands auto-advance countdown, or null when no hand has just
+     * finished. Set when the server opens the beat (carrying the deadline the deal
+     * fires at), cleared when the next hand deals or the advance is cancelled. The
+     * screen renders a "Next hand in 0:0X" countdown to
+     * [NextHandCountdown.deadlineEpochMs] on real-chip tables, where it doubles as
+     * the window to leave with your winnings. Defaults to a constant-null flow so
+     * solo / local-bots sessions and test fakes don't override it — practice tables
+     * keep their celebratory result dialog and advance on a tap, not a timer.
+     */
+    val nextHandCountdown: StateFlow<NextHandCountdown?> get() = NoNextHandCountdown
+
+    /**
      * Host-chosen table cosmetics (SHOP-3): the felt + card-back catalog product
      * ids the room's host had equipped at create time, applied table-wide so every
      * player renders the host's look. Null when the host set no override for a slot
@@ -173,6 +185,7 @@ interface PokerSession {
 private val NeverEmits: SharedFlow<Nothing> = MutableSharedFlow()
 private val NeverRefused: SharedFlow<NextHandRefusal> = MutableSharedFlow()
 private val NoMatchOver: StateFlow<MatchOverCountdown?> = MutableStateFlow(null)
+private val NoNextHandCountdown: StateFlow<NextHandCountdown?> = MutableStateFlow(null)
 private val NoTableCosmetics: StateFlow<TableCosmetics?> = MutableStateFlow(null)
 
 /**
@@ -218,6 +231,16 @@ enum class NextHandRefusal {
 data class MatchOverCountdown(
     val deadlineEpochMs: Long,
     val localPlayerIsBusted: Boolean,
+)
+
+/**
+ * The live state of the between-hands auto-advance beat. [deadlineEpochMs] is the
+ * wall-clock instant the next hand deals; the screen ticks a "Next hand in 0:0X"
+ * countdown to it. Server-held, so the countdown can never be a lie the server
+ * deals under. Only real-chip tables render it — practice tables wait on a tap.
+ */
+data class NextHandCountdown(
+    val deadlineEpochMs: Long,
 )
 
 /**

@@ -10,5 +10,6 @@ actual fun AppleSignInButton(
     enabled: Boolean,
     isLoading: Boolean,
     kind: AppleSignInButtonKind,
+    style: AppleSignInButtonStyle,
     onClick: () -> Unit,
-) = ComposeAppleSignInButton(modifier, enabled, isLoading, kind, onClick)
+) = ComposeAppleSignInButton(modifier, enabled, isLoading, kind, style, onClick)

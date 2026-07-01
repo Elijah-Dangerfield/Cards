@@ -49,7 +49,9 @@ import cards.libraries.resources.generated.resources.profile_claim_title
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.ui.components.AppleSignInButton
 import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonKind
+import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonStyle
 import com.dangerfield.cards.libraries.ui.components.GoogleSignInButton
+import com.dangerfield.cards.libraries.ui.components.GoogleSignInButtonTheme
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.button.Button
@@ -208,6 +210,7 @@ fun ClaimAccountScreen(
                             text = stringResource(Res.string.profile_claim_provider_google),
                             enabled = !state.isSubmitting,
                             isLoading = state.isSubmitting,
+                            theme = GoogleSignInButtonTheme.Dark,
                             onClick = {
                                 onAction(ClaimAccountAction.ClaimWith(OAuthProvider.Google))
                             },
@@ -223,6 +226,7 @@ fun ClaimAccountScreen(
                             enabled = !state.isSubmitting,
                             isLoading = state.isSubmitting,
                             kind = AppleSignInButtonKind.ContinueFlow,
+                            style = AppleSignInButtonStyle.Dark,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }

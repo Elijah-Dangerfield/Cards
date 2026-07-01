@@ -97,7 +97,9 @@ sealed class ColorResource(val color: Color, val designSystemName: String) {
 
     // ── Achievement rarity tiers (colors.rarity.*) ───────────────
     // Fixed identity per tier; Epic intentionally reuses the chip gold.
-    object RarityCommon : ColorResource(Color(0xFFB08D57), "rarity-common")
+    // Coppery bronze — pushed toward orange so Common reads clearly distinct
+    // from the yellow Epic chip-gold (they were too close before).
+    object RarityCommon : ColorResource(Color(0xFFC06B34), "rarity-common")
     object RarityRare : ColorResource(Color(0xFFB0B0B8), "rarity-rare")
     object RarityLegendary : ColorResource(Color(0xFFE07AB1), "rarity-legendary")
 

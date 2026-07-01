@@ -82,6 +82,15 @@ class NetworkClientImpl(
             install(WebSockets) {
                 pingIntervalMillis = 15.seconds.inWholeMilliseconds
             }
+            if (BuildInfo.isDebug) {
+                // Wiretap's WS capture (ENG-8) — the gameplay room socket runs
+                // through this authenticated client, so this surfaces every
+                // sent/received frame + connect/close in the same inspector as
+                // HTTP. Installed AFTER WebSockets so it can wrap the raw session
+                // before WebSockets transforms it. Debug-only + noop in release,
+                // same as the HTTP capture.
+                installWebSocketInspector()
+            }
         }
     }
 

@@ -94,6 +94,7 @@ import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.cutout
 import com.dangerfield.cards.libraries.ui.system.LocalLevelCurve
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
@@ -363,38 +364,38 @@ private fun ProfileHeader(
         ) {
             AvatarCircle(
                 name = settings.displayName,
-                size = Dimension.D1900,
+                // A hair past the D1900 (100dp) token — the largest in the scale.
+                size = 108.dp,
                 typography = AppTheme.typography.Heading.H1000,
                 emoji = settings.avatarEmoji,
                 backgroundColorHex = settings.avatarBackgroundColor,
                 animationsEnabled = false,
             )
-            // The pencil edit affordance. We intentionally keep the pencil
-            // (the design's level bottom-badge is ignored per scope).
+            // The pencil edit affordance — a black pencil on a white disc, cut
+            // out of the page background so the ring reads clean (no stray edge).
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(AppTheme.colors.accentPrimary.color)
-                    .border(
-                        width = 2.dp,
-                        color = AppTheme.colors.background.color,
+                    .size(32.dp)
+                    .cutout(
+                        ringColor = AppTheme.colors.background.color,
+                        fillColor = AppTheme.colors.surfaceInverse.color,
                         shape = CircleShape,
+                        ringWidth = 2.dp,
                     ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     icon = Icons.Pencil(stringResource(Res.string.profile_avatar_edit_a11y)),
                     size = IconSize.Small,
-                    color = AppTheme.colors.onAccentPrimary,
+                    color = AppTheme.colors.onSurfaceInverse,
                 )
             }
         }
         VerticalSpacerD500()
         Text(
             text = settings.displayName,
-            typography = AppTheme.typography.Display.D1100,
+            typography = AppTheme.typography.Heading.H900,
             color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
         )
@@ -402,7 +403,7 @@ private fun ProfileHeader(
             VerticalSpacerD100()
             Text(
                 text = joined,
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
@@ -533,7 +534,7 @@ private fun StatsStyleBanner(
         radius = Radii.Card,
         onClick = onClick,
         bounceScale = 0.98f,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(Dimension.D600),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(Dimension.D800),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -544,27 +545,27 @@ private fun StatsStyleBanner(
             // else the decorative teaser shape.
             Box(
                 modifier = Modifier
-                    .size(52.dp)
-                    .clip(Radii.R600.shape)
+                    .size(60.dp)
+                    .clip(Radii.R700.shape)
                     .background(AppTheme.colors.surfaceRaised.color),
                 contentAlignment = Alignment.Center,
             ) {
                 val markAxes = derived?.toRadarAxes()
                 if (markAxes != null) {
-                    PlayStyleRadarMark(modifier = Modifier.size(36.dp), axes = markAxes)
+                    PlayStyleRadarMark(modifier = Modifier.size(42.dp), axes = markAxes)
                 } else {
-                    PlayStyleRadarMark(modifier = Modifier.size(36.dp))
+                    PlayStyleRadarMark(modifier = Modifier.size(42.dp))
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(Res.string.profile_stats_banner_title),
-                    typography = AppTheme.typography.Body.B600,
+                    typography = AppTheme.typography.Body.B600.Bold,
                     color = AppTheme.colors.content,
                 )
                 Text(
                     text = subtitleAnnotated,
-                    typography = AppTheme.typography.Body.B400,
+                    typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.contentSecondary,
                 )
             }
@@ -618,9 +619,9 @@ private fun AchievementsSection(
         VerticalSpacerD200()
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
-            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
-            maxItemsInEachRow = 4,
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D600),
+            verticalArrangement = Arrangement.spacedBy(Dimension.D600),
+            maxItemsInEachRow = AchievementsPerRow,
         ) {
             display.forEach { achievement ->
                 val isEarned = progress.isEarned(achievement.id)
@@ -654,16 +655,19 @@ private fun AchievementsSection(
                 }
             }
             // Pad the final row so medals stay left-aligned in their columns.
-            val remainder = display.size % 4
+            val remainder = display.size % AchievementsPerRow
             if (remainder != 0) {
-                repeat(4 - remainder) { Box(modifier = Modifier.weight(1f)) }
+                repeat(AchievementsPerRow - remainder) { Box(modifier = Modifier.weight(1f)) }
             }
         }
     }
     VerticalSpacerD800()
 }
 
-private const val AchievementDisplayCount = 8
+// Show fewer, larger medals: two rows of three reads bolder than the old
+// 4-up grid and keeps the preview focused on the headline achievements.
+private const val AchievementDisplayCount = 6
+private const val AchievementsPerRow = 3
 
 // ---- Owned items grouped by type --------------------------------------
 
@@ -942,8 +946,8 @@ private fun OwnedCosmeticTile(
     Box(modifier = modifier) {
         Box(
             modifier = Modifier
-                .clip(Radii.R500.shape)
-                .border(2.dp, AppTheme.colors.accentPrimary.color.copy(alpha = pulseAlpha), Radii.R500.shape)
+                .clip(Radii.R600.shape)
+                .border(2.dp, AppTheme.colors.accentPrimary.color.copy(alpha = pulseAlpha), Radii.R600.shape)
                 .clickable(onClick = onClick),
         ) {
             CosmeticPreview(
@@ -960,16 +964,19 @@ private fun OwnedCosmeticTile(
 }
 
 /** Cosmetic shelf tile preview edge — a touch larger than the old grid tiles. */
-private val CosmeticTileSize = 80.dp
+private val CosmeticTileSize = 100.dp
 
 @Composable
 private fun EquippedBadge(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .size(22.dp)
-            .clip(CircleShape)
-            .background(AppTheme.colors.accentPrimary.color)
-            .border(2.dp, AppTheme.colors.background.color, CircleShape),
+            .size(CosmeticBadgeSize)
+            .cutout(
+                ringColor = AppTheme.colors.background.color,
+                fillColor = AppTheme.colors.accentPrimary.color,
+                shape = CircleShape,
+                ringWidth = 2.dp,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -979,6 +986,9 @@ private fun EquippedBadge(modifier: Modifier = Modifier) {
         )
     }
 }
+
+/** Corner-badge edge for the equipped / locked markers on a cosmetic tile. */
+private val CosmeticBadgeSize = 24.dp
 
 /**
  * A not-yet-owned cosmetic shown after the owned tiles on a shoppable shelf —
@@ -990,7 +1000,7 @@ private fun EquippedBadge(modifier: Modifier = Modifier) {
 private fun BuyableCosmeticTile(item: BuyableCosmetic, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .clip(Radii.R500.shape)
+            .clip(Radii.R600.shape)
             .clickable(onClick = onClick),
     ) {
         // Only the preview dims — the lock badge stays full-opacity so
@@ -1003,7 +1013,7 @@ private fun BuyableCosmeticTile(item: BuyableCosmetic, onClick: () -> Unit) {
                 packEmojis = item.packEmojis,
             )
         }
-        LockedBadge(modifier = Modifier.align(Alignment.BottomEnd))
+        LockedBadge(modifier = Modifier.align(Alignment.TopEnd))
     }
 }
 
@@ -1014,10 +1024,13 @@ private const val BuyableTileAlpha = 0.45f
 private fun LockedBadge(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .size(22.dp)
-            .clip(CircleShape)
-            .background(AppTheme.colors.surfaceHigh.color)
-            .border(2.dp, AppTheme.colors.background.color, CircleShape),
+            .size(CosmeticBadgeSize)
+            .cutout(
+                ringColor = AppTheme.colors.background.color,
+                fillColor = AppTheme.colors.surfaceHigh.color,
+                shape = CircleShape,
+                ringWidth = 2.dp,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

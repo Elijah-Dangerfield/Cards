@@ -148,6 +148,12 @@ class PlayPokerViewModel @Inject constructor(
     // resync), which would otherwise double-award XP and re-fire the celebration.
     private var lastCreditedHand: Int? = null
 
+    // Running session win-loss tally, surfaced in the "…" overflow sheet. Bumped
+    // once per finished hand the human played (guarded by lastCreditedHand, which
+    // gates handleHandEnded against re-delivered HandEnded events).
+    private var sessionHandsWon: Int = 0
+    private var sessionHandsLost: Int = 0
+
     // Hand number of the last hole-card render projection we logged (GAME-8).
     // Guards the once-per-hand "what the table projected for my seat" line so it
     // fires once cards are dealt, never per snapshot/frame.
@@ -269,6 +275,15 @@ class PlayPokerViewModel @Inject constructor(
         viewModelScope.launch {
             session.matchOverCountdown.collect { countdown ->
                 takeAction(PlayPokerAction.MatchOverCountdownChanged(countdown))
+            }
+        }
+        // Between-hands auto-advance countdown → on-felt "Next hand in 0:0X". Opens
+        // when the server holds the next deal, clears when it deals. The screen only
+        // renders it on real-chip tables (the leave-with-winnings window); practice
+        // keeps its result dialog. Never fires for solo bots.
+        viewModelScope.launch {
+            session.nextHandCountdown.collect { countdown ->
+                takeAction(PlayPokerAction.NextHandCountdownChanged(countdown))
             }
         }
         // XP mirror
@@ -517,6 +532,15 @@ class PlayPokerViewModel @Inject constructor(
             humanSeatIndex = humanSeatIndex,
             mode = sessionFactory.xpMode,
         )
+        // Session win-loss tally for the overflow sheet. Count only hands the human
+        // actually played (a seatless spectator/joiner produces a no-participation
+        // summary); a win is a pot taken, everything else dealt-in is a loss.
+        val participated = summary.wasFold || summary.reachedShowdown ||
+            summary.wonPot || summary.chipsCommitted > 0
+        if (participated) {
+            if (summary.wonPot) sessionHandsWon += 1 else sessionHandsLost += 1
+            takeAction(PlayPokerAction.SessionRecordChanged(sessionHandsWon, sessionHandsLost))
+        }
         // One-off audio/haptic feedback for the hand result (pure derivation —
         // empty when the human isn't seated, so no other seat's outcome leaks).
         HandEndProgression.feedbackEvents(event, state, humanSeatIndex)
@@ -876,6 +900,12 @@ class PlayPokerViewModel @Inject constructor(
             }
             is PlayPokerAction.MatchOverCountdownChanged -> action.updateState {
                 it.copy(matchOverCountdown = action.countdown)
+            }
+            is PlayPokerAction.NextHandCountdownChanged -> action.updateState {
+                it.copy(nextHandCountdown = action.countdown)
+            }
+            is PlayPokerAction.SessionRecordChanged -> action.updateState {
+                it.copy(sessionHandsWon = action.won, sessionHandsLost = action.lost)
             }
             is PlayPokerAction.LeaveTable -> {
                 if (sessionFactory.xpMode == XpMode.BOTS) {

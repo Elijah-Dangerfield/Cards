@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.features.room.impl.session.MatchOverCountdown
+import com.dangerfield.cards.features.room.impl.session.NextHandCountdown
 import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
 import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
 import com.dangerfield.cards.features.room.impl.usecase.WinOddsEngine
@@ -139,6 +140,10 @@ data class PlayPokerState(
      * to share.
      */
     val roomCode: String? = null,
+    /** Hands the local player has won this session — shown in the "…" overflow sheet. */
+    val sessionHandsWon: Int = 0,
+    /** Hands the local player was dealt into but didn't win this session. */
+    val sessionHandsLost: Int = 0,
     /**
      * Live heads-up rebuy-grace countdown (MP-14), or null when no match-over is
      * pending. Drives the on-table countdown banner: the busted player sees
@@ -147,6 +152,14 @@ data class PlayPokerState(
      * screen off instead. Always null for solo / bot sessions.
      */
     val matchOverCountdown: MatchOverCountdown? = null,
+    /**
+     * Live between-hands auto-advance countdown (or null between/within hands).
+     * On a real-chip table the screen renders "Next hand in 0:0X" with a draining
+     * fill in the action area — the window to leave with your winnings before the
+     * next hand auto-deals. Null and unused on practice tables (they wait on a tap)
+     * and solo. See [realChipsAtStake].
+     */
+    val nextHandCountdown: NextHandCountdown? = null,
     /**
      * Set when the heads-up match resolved (the rebuy grace expired) — drives the
      * match-over result overlay (MP-14). The screen shows a win/loss result, then
@@ -172,18 +185,6 @@ data class PlayPokerState(
     val realChipsAtStake: Boolean
         get() = isRealMultiplayer ||
             (table as? TableUiState.Active)?.subsidizedBotTable == true
-
-    /**
-     * The animation pacing the table actually renders at (GAME-8). The global
-     * "Game speed" setting tunes solo / practice tables, but a real-chips game
-     * always keeps the calibrated [GameSpeed.Normal] deal / reveal animations,
-     * so an Instant preference set for solo practice can't strip the card flips
-     * off a game where chips are on the line. Bot think-time scaling is
-     * unaffected — that runs server-side for these tables and is read from the
-     * raw [gameSpeed] elsewhere.
-     */
-    val effectiveTableSpeed: GameSpeed
-        get() = if (realChipsAtStake) GameSpeed.Normal else gameSpeed
 }
 
 sealed interface PlayPokerAction {
@@ -252,6 +253,15 @@ sealed interface PlayPokerAction {
      */
     data class MatchOverCountdownChanged(
         val countdown: com.dangerfield.cards.features.room.impl.session.MatchOverCountdown?,
+    ) : PlayPokerAction
+
+    /**
+     * Fired by the session's next-hand countdown subscription. Non-null opens the
+     * between-hands "Next hand in 0:0X" countdown; null clears it (the next hand
+     * dealt, or the advance was cancelled).
+     */
+    data class NextHandCountdownChanged(
+        val countdown: NextHandCountdown?,
     ) : PlayPokerAction
 
     /**
@@ -327,6 +337,9 @@ sealed interface PlayPokerAction {
     /** Opening a human opponent's card; fetches their public style if the reader is owned. */
     data class RequestOpponentStyle(val userId: String) : PlayPokerAction
     data class OpponentStyleLoaded(val userId: String, val playStyle: PlayStyleAxes?) : PlayPokerAction
+
+    /** Fired once per finished hand the human played; updates the session win-loss tally. */
+    data class SessionRecordChanged(val won: Int, val lost: Int) : PlayPokerAction
 
     /** "Add friend" on a human opponent's player card — sends a friend request. */
     data class AddFriend(val userId: String) : PlayPokerAction

@@ -34,7 +34,6 @@ import cards.libraries.resources.generated.resources.profile_debug_qa_headline
 import cards.libraries.resources.generated.resources.profile_debug_qa_supporting
 import cards.libraries.resources.generated.resources.profile_delete_account_button
 import cards.libraries.resources.generated.resources.profile_game_speed_fast
-import cards.libraries.resources.generated.resources.profile_game_speed_instant
 import cards.libraries.resources.generated.resources.profile_game_speed_normal
 import cards.libraries.resources.generated.resources.profile_gameplay_achievement_popups_headline
 import cards.libraries.resources.generated.resources.profile_gameplay_achievement_popups_supporting
@@ -320,37 +319,26 @@ private fun SignOutConfirmDialog(
     } else {
         stringResource(Res.string.profile_sign_out_dialog_claimed_body)
     }
+    // Use the DS title preset so the headline inherits the unified dialog
+    // typography (it was hand-rolling its own Heading before).
     com.dangerfield.cards.libraries.ui.components.dialog.Dialog(
+        title = title,
         onDismissRequest = onDismiss,
         topAccessory = com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji(emoji = "👋"),
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text(
-                text = title,
-                typography = AppTheme.typography.Heading.H600,
-                color = AppTheme.colors.content,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = body,
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-            com.dangerfield.cards.libraries.ui.components.button.Button(
-                onClick = onConfirm,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(Res.string.profile_sign_out_dialog_confirm_button))
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            com.dangerfield.cards.libraries.ui.components.button.Button(
-                onClick = onDismiss,
-                style = ButtonStyle.Text,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(Res.string.profile_sign_out_dialog_cancel_button))
-            }
+        Text(text = body)
+        com.dangerfield.cards.libraries.ui.components.button.Button(
+            onClick = onConfirm,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(Res.string.profile_sign_out_dialog_confirm_button))
+        }
+        com.dangerfield.cards.libraries.ui.components.button.Button(
+            onClick = onDismiss,
+            style = ButtonStyle.Text,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(Res.string.profile_sign_out_dialog_cancel_button))
         }
     }
 }
@@ -449,7 +437,6 @@ private fun com.dangerfield.cards.libraries.cards.GameSpeed.labelResource(): Str
     when (this) {
         com.dangerfield.cards.libraries.cards.GameSpeed.Normal -> Res.string.profile_game_speed_normal
         com.dangerfield.cards.libraries.cards.GameSpeed.Fast -> Res.string.profile_game_speed_fast
-        com.dangerfield.cards.libraries.cards.GameSpeed.Instant -> Res.string.profile_game_speed_instant
     }
 
 private fun com.dangerfield.cards.libraries.cards.TurnFeedback.labelResource(): StringResource =

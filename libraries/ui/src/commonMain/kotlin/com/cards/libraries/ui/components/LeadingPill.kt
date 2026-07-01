@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -10,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -25,8 +27,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * progression-family badge — keeps the three the same height + same
  * padding without three separate copies of the recipe.
  *
- * Sizing recipe (pinned for the family):
- *  - horizontal padding 10dp, vertical 6dp
+ * Sizing recipe (pinned for the family by default; [contentPadding] /
+ * [spacing] let a caller like a prominent chip balance grow bigger):
+ *  - horizontal + vertical padding 10dp
  *  - 8dp spacer between leading and trailing
  *
  * The [trailing] slot is a `@Composable`, not a plain string, so
@@ -41,6 +44,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun LeadingPill(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    contentPadding: PaddingValues = PaddingValues(horizontal = Dimension.D400, vertical = Dimension.D400),
+    spacing: Dp = 8.dp,
     leading: @Composable () -> Unit,
     trailing: @Composable () -> Unit,
 ) {
@@ -49,11 +54,11 @@ fun LeadingPill(
             .clip(Radii.Round.shape)
             .background(AppTheme.colors.surfaceRaised.color)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = Dimension.D400, vertical = Dimension.D400),
+            .padding(contentPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading()
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(spacing))
         trailing()
     }
 }

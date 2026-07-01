@@ -52,12 +52,12 @@ object Radii {
     val None = Radius(SquareCornerSize)
 
     val Default get() = None
-    val Button get() = R700   // was CornerSize(percent = 50) — full pill → 16dp springy rect
+    val Button get() = R800   // 20dp — chunky, bubbly rect
     val IconButton get() = Round
-    val Banner get() = R600   // was R400 → 14dp
-    val Callout get() = R500
+    val Banner get() = R750   // 18dp
+    val Callout get() = R600  // 14dp
     val Header get() = None
-    val Card get() = R750     // was R400 → 18dp, bubblier
+    val Card get() = R900     // 24dp — bubbly
 }
 
 

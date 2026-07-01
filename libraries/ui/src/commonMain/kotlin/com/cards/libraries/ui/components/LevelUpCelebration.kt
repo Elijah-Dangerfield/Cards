@@ -150,7 +150,10 @@ fun LevelUpCelebration(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top,
         ) {
-            Spacer(modifier = Modifier.height(Dimension.D1000))
+            // Weighted top spacer drops the dial out of the very top edge into
+            // roughly the top third — it reads less cramped than pinned up high.
+            // Paired with the weight(1f) spacer above Continue (≈0.5 : 1 split).
+            Spacer(modifier = Modifier.weight(0.5f))
             RotatingDial(
                 size = 248.dp,
                 rayColor = AppTheme.colors.accentSecondary,

@@ -38,7 +38,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * Self-contained: callers render it only while a *human* seat is acting on a
  * timer-enforced table (bots act fast server-side and aren't timed). Caller
  * controls the size via the modifier — typically the same outer-ring size the
- * [PulsingActiveRing] would occupy, so it bleeds around the avatar's edge.
+ * active-turn ring would occupy, so it bleeds around the avatar's edge.
  */
 @Composable
 fun TurnCountdownRing(

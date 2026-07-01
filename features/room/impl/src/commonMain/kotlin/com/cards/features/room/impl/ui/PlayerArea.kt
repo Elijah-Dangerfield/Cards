@@ -79,6 +79,7 @@ import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.cutout
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
@@ -89,6 +90,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.AvatarBackOverlay
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
+import com.dangerfield.cards.libraries.ui.components.poker.LocalTableSurface
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardBack
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
@@ -119,11 +121,13 @@ internal fun PlayerArea(
     onWinOddsFlipped: () -> Unit = {},
     onBlindClick: () -> Unit = {},
     onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
-    onLastActionClick: (seatName: String, action: com.dangerfield.cards.libraries.gameplay.PlayerAction) -> Unit = { _, _ -> },
     onStackClick: () -> Unit = {},
     onHandLabelClick: (label: String) -> Unit = {},
     onSwipeFold: () -> Unit = {},
     onSelfTap: () -> Unit = {},
+    availableEmojis: List<String> = emptyList(),
+    emojiCooldownEndsAtMs: Long = 0L,
+    onBlastEmoji: ((String) -> Unit)? = null,
 ) {
     val human = table.seats.firstOrNull { it.isHuman } ?: return
     val folded = human.participation == HandParticipation.Folded
@@ -192,9 +196,12 @@ internal fun PlayerArea(
     // align — the tile's content is sized tight enough to fit in this height
     // without clipping (see PlayerInfoTile).
     Row(
+        // No .clip here: the emote + win-odds badges straddle the info-tile's
+        // corners (half cut-out into the felt), so the row must let them hang
+        // past its bounds instead of cropping them. The active-turn border still
+        // renders rounded without a clip.
         modifier = Modifier
             .fillMaxWidth()
-            .clip(Radii.R800.shape)
             .border(borderWidth, borderColor, Radii.R800.shape)
             .padding(horizontal = 8.dp, vertical = 8.dp)
             .height(PlayingCardSize.Hole.height),
@@ -203,7 +210,10 @@ internal fun PlayerArea(
     ) {
         Box(
             modifier = Modifier
-                .weight(1f)
+                // Natural width (wraps the overlapping card pair) — NOT weight(1f),
+                // which crammed two Hole cards into half the row, overflowing the
+                // rounded border and clipping one card so the two looked unequal.
+                // The seat tile takes the remaining space via its own weight(1f).
                 .fillMaxHeight()
                 .alpha(if (folded) 0.35f else 1f)
                 .pointerInput(swipeFoldEnabled, foldCommitPx, foldFlickVelocityPxPerSec) {
@@ -310,7 +320,9 @@ internal fun PlayerArea(
             contentAlignment = Alignment.Center,
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy((-28).dp),
+                // Overlap as a fraction of the card's own width — scales with the
+                // ratio-derived card size rather than a hardcoded dp.
+                horizontalArrangement = Arrangement.spacedBy(-(PlayingCardSize.Hole.width * 0.27f)),
                 modifier = Modifier.graphicsLayer {
                     translationY = dragOffsetY.value
                     // Light tilt + fade tied to drag progress so the cards
@@ -340,36 +352,52 @@ internal fun PlayerArea(
                 )
             }
         }
-        FlippablePlayerInfoTile(
-            seat = human,
-            handLabel = table.humanHandLabel,
-            isWinner = isWinner,
-            stackOverride = humanStackOverride,
-            // Acting human on a timer-enforced (MP) table gets the depleting
-            // countdown ring around their avatar; null on solo tables (no
-            // enforcement) suppresses it. Re-arms on the turn token.
-            countdownSeconds = table.turnTimerSeconds?.takeIf { human.isActing },
-            turnKey = table.handNumber to table.turnSequence,
-            winOdds = humanWinOdds,
-            winOddsFlipHintSeen = winOddsFlipHintSeen,
-            onFirstFlip = onWinOddsFlipped,
-            onBlindClick = onBlindClick,
-            onBetPillClick = onBetPillClick,
-            onLastActionClick = onLastActionClick,
-            onStackClick = onStackClick,
-            onHandLabelClick = onHandLabelClick,
-            onSelfTap = onSelfTap,
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-        )
+        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            FlippablePlayerInfoTile(
+                seat = human,
+                handLabel = table.humanHandLabel,
+                isWinner = isWinner,
+                stackOverride = humanStackOverride,
+                // Acting human on a timer-enforced (MP) table gets the depleting
+                // countdown ring around their avatar; null on solo tables (no
+                // enforcement) suppresses it. Re-arms on the turn token.
+                countdownSeconds = table.turnTimerSeconds?.takeIf { human.isActing },
+                turnKey = table.handNumber to table.turnSequence,
+                winOdds = humanWinOdds,
+                winOddsFlipHintSeen = winOddsFlipHintSeen,
+                onFirstFlip = onWinOddsFlipped,
+                onBlindClick = onBlindClick,
+                onBetPillClick = onBetPillClick,
+                onStackClick = onStackClick,
+                onHandLabelClick = onHandLabelClick,
+                onSelfTap = onSelfTap,
+                modifier = Modifier.fillMaxSize(),
+            )
+            // Emote blast lives here as a cutout badge in the seat's bottom-right
+            // corner (moved off the top bar). Null when emotes aren't available
+            // (e.g. the tutorial), which hides the affordance entirely.
+            if (onBlastEmoji != null) {
+                SeatEmoteBadge(
+                    emojis = availableEmojis,
+                    cooldownEndsAtEpochMs = emojiCooldownEndsAtMs,
+                    onBlast = onBlastEmoji,
+                    // Straddle the tile's bottom-right corner (hangs out into the
+                    // felt) so it reads as cut into the corner, not a button
+                    // floating inside the card.
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 16.dp, y = 8.dp),
+                )
+            }
+        }
     }
 }
 
 /**
  * Drives the active-turn pulse for the human's player-area border. The
- * opponent ring uses its own self-contained `PulsingActiveRing` in
- * `libraries/ui`; we keep this helper local because the border alpha is
- * woven into a `Color.copy(alpha = ...)` derivation that doesn't fit the
- * library component's API.
+ * opponent seats draw their own gold ring; we keep this helper local because
+ * the border alpha is woven into a `Color.copy(alpha = ...)` derivation that
+ * doesn't fit a shared component's API.
  */
 @Composable
 private fun pulseAlpha(low: Float = 0.32f, high: Float = 0.78f): Float {
@@ -398,19 +426,13 @@ private fun HoleCardSlot(
         PlayingCardSlot(size = size)
         return
     }
-    val inPreview = LocalInspectionMode.current
-    val tempo = LocalTableTempo.current
-    val skip = inPreview || tempo.isInstant
+    // Compose previews don't drive animations to completion, so jump straight
+    // to the settled face-up state there.
+    val skip = LocalInspectionMode.current
     key(card) {
         var arrived by remember { mutableStateOf(skip) }
         var revealed by remember { mutableStateOf(skip) }
         var settled by remember { mutableStateOf(skip) }
-        // Key the effect on [skip] rather than gating its existence with an
-        // `if (!skip)`. The persisted Table-speed setting resolves a beat after
-        // the screen mounts, so [skip] can flip Normal -> Instant while a card
-        // is still mid-flight. Gating the effect would tear it down on that flip
-        // and freeze the card half-dealt; re-keying instead restarts it and the
-        // skip branch snaps the card straight to settled.
         LaunchedEffect(skip) {
             if (skip) {
                 arrived = true
@@ -418,11 +440,11 @@ private fun HoleCardSlot(
                 settled = true
                 return@LaunchedEffect
             }
-            delay(tempo.delay(dealDelayMs))
+            delay(dealDelayMs.toLong())
             arrived = true
-            delay(tempo.delay(320))
+            delay(320)
             revealed = true
-            delay(tempo.delay(420))
+            delay(420)
             settled = true
         }
         if (settled) {
@@ -461,12 +483,12 @@ private fun HoleCardSlot(
             val flightPx = with(LocalDensity.current) { flightDp.dp.toPx() }
             val translationY by animateFloatAsState(
                 targetValue = if (arrived) 0f else flightPx,
-                animationSpec = tween(tempo.duration(360), easing = FastOutSlowInEasing),
+                animationSpec = tween(360, easing = FastOutSlowInEasing),
                 label = "hole-fly",
             )
             val rotation by animateFloatAsState(
                 targetValue = if (revealed) 180f else 0f,
-                animationSpec = tween(tempo.duration(380)),
+                animationSpec = tween(380),
                 label = "hole-flip",
             )
             Box(
@@ -502,7 +524,6 @@ private fun PlayerInfoTile(
     turnKey: Any,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
-    onLastActionClick: (seatName: String, action: com.dangerfield.cards.libraries.gameplay.PlayerAction) -> Unit,
     onStackClick: () -> Unit,
     onHandLabelClick: (label: String) -> Unit,
     onSelfTap: () -> Unit = {},
@@ -529,7 +550,7 @@ private fun PlayerInfoTile(
     // TopBar, so duplicating it inside their own card just inflates density.
     //
     // Dimensions are tuned tight so the content fits inside the locked
-    // hole-card row height (PlayingCardSize.Hole.height = 142.dp) without
+    // hole-card row height (PlayingCardSize.Hole.height = 140.dp) without
     // clipping the bottom chip pill. Adjust together if the row height changes.
     Column(
         modifier = modifier
@@ -559,9 +580,22 @@ private fun PlayerInfoTile(
             )
             VerticalSpacerD100()
         }
+        // Publish the human avatar's bounds so the pot-ship coins fly here when
+        // the local player wins (the opponent seats publish their own).
+        val seatAvatarAnchors = LocalTableRewardAnchors.current
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(56.dp),
+            modifier = Modifier
+                .size(56.dp)
+                .then(
+                    if (seatAvatarAnchors != null && seat.isHuman) {
+                        Modifier.onGloballyPositioned {
+                            seatAvatarAnchors.seatAvatarBounds[seat.index] = it.boundsInRoot()
+                        }
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
             if (countdownSeconds != null) {
                 TurnCountdownRing(
@@ -596,16 +630,18 @@ private fun PlayerInfoTile(
                     backgroundColorHex = seat.avatarBackgroundColorHex,
                 )
             }
+            // Top-left corner badge (matches the opponent-seat convention), cut
+            // out of the player tile's own surface — not the page background — so
+            // the ring reads as the tile color.
             BlindMarker(
                 isDealer = seat.isDealer,
                 isSmallBlind = seat.isSmallBlind,
                 isBigBlind = seat.isBigBlind,
+                cutoutColor = AppTheme.colors.surface.color,
                 onClick = if (hasBlindRole) onBlindClick else null,
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    // Small inward inset so the chip overlaps the avatar's
-                    // bottom-right corner rather than floating off it.
-                    .offset(x = (-4).dp, y = (-4).dp),
+                    .align(Alignment.TopStart)
+                    .offset(x = 2.dp, y = 2.dp),
             )
         }
         VerticalSpacerD100()
@@ -659,7 +695,9 @@ private fun PlayerInfoTile(
                 VerticalSpacerD100()
                 LastActionPill(
                     label = seat.lastAction.shortLabel(),
-                    onClick = { onLastActionClick("You", seat.lastAction) },
+                    // Tap surfaces your own Player Card (which echoes the move) —
+                    // same destination as tapping your avatar.
+                    onClick = onSelfTap,
                 )
             }
         }
@@ -692,7 +730,6 @@ private fun FlippablePlayerInfoTile(
     onFirstFlip: () -> Unit,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
-    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
     onStackClick: () -> Unit,
     onHandLabelClick: (label: String) -> Unit,
     onSelfTap: () -> Unit = {},
@@ -769,7 +806,6 @@ private fun FlippablePlayerInfoTile(
                 turnKey = turnKey,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
-                onLastActionClick = onLastActionClick,
                 onStackClick = onStackClick,
                 onHandLabelClick = onHandLabelClick,
                 onSelfTap = onSelfTap,
@@ -778,9 +814,11 @@ private fun FlippablePlayerInfoTile(
             if (canFlip) {
                 FlipAffordance(
                     onClick = { toggleFlipped(true) },
+                    // Straddle the tile's top-right corner, matching the emote
+                    // badge's cut-out treatment.
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(x = (-2).dp, y = 2.dp),
+                        .offset(x = 8.dp, y = (-8).dp),
                 )
             }
         } else {
@@ -912,12 +950,19 @@ private fun FlipAffordance(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Cut out of the table background (same convention as the emote badge and the
+    // opponent seats) so the glyph reads as punched into the tile's corner.
+    val cutoutColor = LocalTableSurface.current ?: AppTheme.colors.background.color
     Box(
         modifier = modifier
-            .size(20.dp)
-            .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(AppTheme.colors.surfaceRaised.color)
-            .clickable(onClick = onClick),
+            .size(24.dp)
+            .clickable(onClick = onClick)
+            .cutout(
+                ringColor = cutoutColor,
+                fillColor = AppTheme.colors.surfaceRaised.color,
+                shape = androidx.compose.foundation.shape.CircleShape,
+                ringWidth = 3.dp,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

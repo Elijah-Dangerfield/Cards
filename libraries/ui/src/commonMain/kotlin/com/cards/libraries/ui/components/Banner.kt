@@ -16,10 +16,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.bounceClick
 import com.dangerfield.cards.libraries.ui.components.text.ProvideTextConfig
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.system.thenIf
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import com.dangerfield.cards.libraries.ui.system.color.SaveProgressGradient
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -50,11 +51,13 @@ fun Banner(
     modifier: Modifier = Modifier,
     leading: (@Composable () -> Unit)? = null,
     action: (@Composable () -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
 ) = Banner(
     type = type,
     modifier = modifier,
     leading = leading,
     action = action,
+    onClick = onClick,
     title = { Text(text = title) },
     body = { Text(text = body) },
 )
@@ -77,6 +80,9 @@ fun Banner(
     modifier: Modifier = Modifier,
     leading: (@Composable () -> Unit)? = null,
     action: (@Composable () -> Unit)? = null,
+    /** When set, the whole banner is a tap target (with a press bounce) — not
+     *  just the trailing [action]. */
+    onClick: (() -> Unit)? = null,
 ) {
     val palette = type.palette()
     val shape = Radii.Banner.shape
@@ -85,15 +91,16 @@ fun Banner(
         .clip(shape)
         .then(
             when (type) {
-                // Promo rides the gold accent gradient; Trust (the guest
-                // "Save your progress" sign-in card) the cool blue one.
+                // Promo rides the gold accent gradient. Everything else (incl.
+                // Trust, the guest "Save your progress" card) is a flat tinted
+                // fill — the gradient read as dated next to the flat surfaces.
                 BannerType.Promo -> Modifier.background(AppTheme.colors.accentPrimaryGradient)
-                BannerType.Trust -> Modifier.background(SaveProgressGradient)
                 else -> Modifier.background(palette.fill.color)
             }
         )
         .border(1.dp, palette.edge.color, shape)
-        .padding(horizontal = Dimension.D750, vertical = Dimension.D700)
+        .thenIf(onClick != null) { bounceClick(onClick = onClick!!) }
+        .padding(horizontal = Dimension.D800, vertical = Dimension.D750)
 
     Row(
         modifier = modifier.then(container),
@@ -103,8 +110,8 @@ fun Banner(
         if (leading != null) {
             Box(
                 modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(palette.iconWell.color),
                 contentAlignment = Alignment.Center,
             ) { leading() }
@@ -145,8 +152,8 @@ private fun BannerType.palette(): BannerPalette = with(AppTheme.colors) {
         BannerType.Danger -> BannerPalette(dangerSubtle, danger, dangerSubtle)
         // Promo: gold gradient fill (handled in Banner), gold edge, translucent gold well
         BannerType.Promo -> BannerPalette(accentPrimarySubtle, accentPrimary, accentPrimarySubtle)
-        // Trust: blue gradient fill (handled in Banner). A faint white rim +
-        // a lighter white well so the lock tile reads as raised on the gradient.
+        // Trust: a flat cool-blue tint (the "Save your progress" card). A faint
+        // white rim + a lighter white well so the lock tile reads as raised.
         BannerType.Trust -> BannerPalette(
             fill = infoSubtle,
             edge = ColorResource.White.withAlpha(0.12f),

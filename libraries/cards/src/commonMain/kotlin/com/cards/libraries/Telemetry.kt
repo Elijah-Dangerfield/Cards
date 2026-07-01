@@ -91,11 +91,18 @@ interface Telemetry {
      */
     fun setMpStateProvider(provider: (() -> String?)?)
 
+    /**
+     * [screenshots] are JPEG-compressed image bytes the user chose to attach
+     * (already downscaled by the picker). Each rides along on the carrier event
+     * as its own image attachment, so a triager sees exactly what the reporter
+     * saw. Empty by default.
+     */
     fun captureUserFeedback(
         message: String,
         isBugReport: Boolean,
         eventId: String?,
         errorCode: Int?,
         email: String? = null,
+        screenshots: List<ByteArray> = emptyList(),
     )
 }

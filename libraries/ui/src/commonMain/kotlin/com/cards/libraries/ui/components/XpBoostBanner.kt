@@ -66,7 +66,7 @@ fun XpBoostBanner(
         color = AppTheme.colors.accentSecondarySubtle,
         contentColor = AppTheme.colors.content,
         radius = Radii.Card,
-        contentPadding = PaddingValues(Dimension.D600),
+        contentPadding = PaddingValues(Dimension.D800),
     ) {
         if (isActive) {
             ActiveBoostContent(remainingMs = remainingMs)

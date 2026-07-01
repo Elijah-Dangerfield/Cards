@@ -1,32 +1,26 @@
 package com.dangerfield.cards.features.room.impl.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_blind_roles_big_blind_description
-import cards.libraries.resources.generated.resources.room_blind_roles_big_blind_label
 import cards.libraries.resources.generated.resources.room_blind_roles_big_blind_title
 import cards.libraries.resources.generated.resources.room_blind_roles_dealer_description
-import cards.libraries.resources.generated.resources.room_blind_roles_dealer_label
 import cards.libraries.resources.generated.resources.room_blind_roles_dealer_title
 import cards.libraries.resources.generated.resources.room_blind_roles_small_blind_description
-import cards.libraries.resources.generated.resources.room_blind_roles_small_blind_label
 import cards.libraries.resources.generated.resources.room_blind_roles_small_blind_title
 import cards.libraries.resources.generated.resources.room_blind_roles_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -56,21 +50,20 @@ internal fun BlindRolesExplainer(onDismiss: () -> Unit) {
         },
         itemSpacing = Dimension.D800,
     ) {
+        // Show the exact markers the felt renders (white "cutout" chips), so the
+        // legend can't drift from the table — we no longer use colored chips.
         RoleRow(
-            label = stringResource(Res.string.room_blind_roles_dealer_label),
-            bg = AppTheme.colors.poker.dealerWhite.color,
+            isDealer = true,
             title = stringResource(Res.string.room_blind_roles_dealer_title),
             description = stringResource(Res.string.room_blind_roles_dealer_description),
         )
         RoleRow(
-            label = stringResource(Res.string.room_blind_roles_small_blind_label),
-            bg = AppTheme.colors.poker.chipGold.color,
+            isSmallBlind = true,
             title = stringResource(Res.string.room_blind_roles_small_blind_title),
             description = stringResource(Res.string.room_blind_roles_small_blind_description),
         )
         RoleRow(
-            label = stringResource(Res.string.room_blind_roles_big_blind_label),
-            bg = AppTheme.colors.poker.blindRed.color,
+            isBigBlind = true,
             title = stringResource(Res.string.room_blind_roles_big_blind_title),
             description = stringResource(Res.string.room_blind_roles_big_blind_description),
         )
@@ -78,23 +71,27 @@ internal fun BlindRolesExplainer(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun RoleRow(label: String, bg: Color, title: String, description: String) {
+private fun RoleRow(
+    title: String,
+    description: String,
+    isDealer: Boolean = false,
+    isSmallBlind: Boolean = false,
+    isBigBlind: Boolean = false,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(bg),
+            modifier = Modifier.size(34.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = label,
-                typography = AppTheme.typography.Body.B500.Bold,
-                color = AppTheme.colors.background,
+            BlindMarker(
+                isDealer = isDealer,
+                isSmallBlind = isSmallBlind,
+                isBigBlind = isBigBlind,
+                cutoutColor = AppTheme.colors.surface.color,
             )
         }
         Column(modifier = Modifier.fillMaxWidth()) {

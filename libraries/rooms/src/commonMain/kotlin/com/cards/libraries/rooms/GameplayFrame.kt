@@ -59,4 +59,17 @@ sealed interface GameplayFrame {
 
     /** The grace window cleared without a match-over (the busted seat rebought). */
     data object MatchOverCleared : GameplayFrame
+
+    /**
+     * The between-hands auto-advance countdown opened: the next hand is held until
+     * [deadlineEpochMs], the same instant the server deals it. On a real-chip table
+     * the screen renders a live "Next hand in 0:0X" countdown so the player always
+     * knows how long they have to leave with their winnings.
+     */
+    data class NextHandPending(
+        val deadlineEpochMs: Long,
+    ) : GameplayFrame
+
+    /** The pending advance was cancelled before it dealt — the table can no longer deal. */
+    data object NextHandCleared : GameplayFrame
 }

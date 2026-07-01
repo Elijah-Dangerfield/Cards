@@ -57,12 +57,15 @@ import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.profile.DisplayNameRules
 import com.dangerfield.cards.libraries.ui.components.AppleSignInButton
 import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonKind
+import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonStyle
 import com.dangerfield.cards.libraries.ui.components.AnimatedCountUpText
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.Card
 import com.dangerfield.cards.libraries.ui.components.CardsFan
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.GoogleSignInButton
+import com.dangerfield.cards.libraries.ui.components.GoogleSignInButtonTheme
+import com.dangerfield.cards.libraries.ui.components.HorizontalDivider
 import com.dangerfield.cards.libraries.ui.components.RotatingDial
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.StatusPill
@@ -383,7 +386,11 @@ private fun WelcomeStep(
                 OAuthOptions(state = state, onAction = onAction, oauthBusy = oauthBusy)
             }
 
-            Spacer(modifier = Modifier.height(Dimension.D500))
+            // The sign-in link is a tap target, so it gets real breathing room on
+            // both sides — generous above to clear the provider buttons, and a
+            // thin DS hairline below it before the legal footnote, so it reads as
+            // its own action rather than being jammed between the two (AUTH-10).
+            Spacer(modifier = Modifier.height(Dimension.D700))
             // "Already have an account? Sign in" — the trailing "Sign in" is the
             // tappable link out to the email/password flow. Suppressed mid-auth
             // so a returning-user tap can't race an in-flight guest/OAuth call.
@@ -399,7 +406,9 @@ private fun WelcomeStep(
                 textAlign = TextAlign.Center,
             )
 
-            Spacer(modifier = Modifier.height(Dimension.D500))
+            Spacer(modifier = Modifier.height(Dimension.D700))
+            HorizontalDivider(modifier = Modifier.fillMaxWidth(0.5f))
+            Spacer(modifier = Modifier.height(Dimension.D600))
             // Passive consent — every sign-in path (guest / Apple / Google /
             // email) funnels through this step, so one line covers all of them.
             // The two phrases are tappable links to the hosted documents.
@@ -434,6 +443,9 @@ private fun OAuthOptions(
     onAction: (OnboardingAction) -> Unit,
     oauthBusy: Boolean,
 ) {
+    // The welcome page is on the app's dark felt, so the providers render their
+    // dark brand variants (AUTH-10) rather than punching white slabs into the
+    // page next to the gold guest CTA.
     if (state.appleEnabled && state.googleEnabled) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -444,6 +456,7 @@ private fun OAuthOptions(
                 enabled = !oauthBusy,
                 isLoading = state.oauthInFlight == OAuthProvider.Apple,
                 kind = AppleSignInButtonKind.ContinueFlow,
+                style = AppleSignInButtonStyle.Dark,
                 modifier = Modifier.weight(1f),
             )
             GoogleSignInButton(
@@ -451,6 +464,7 @@ private fun OAuthOptions(
                 onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
                 enabled = !oauthBusy,
                 isLoading = state.oauthInFlight == OAuthProvider.Google,
+                theme = GoogleSignInButtonTheme.Dark,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -460,6 +474,7 @@ private fun OAuthOptions(
             enabled = !oauthBusy,
             isLoading = state.oauthInFlight == OAuthProvider.Apple,
             kind = AppleSignInButtonKind.ContinueFlow,
+            style = AppleSignInButtonStyle.Dark,
             modifier = Modifier.fillMaxWidth(),
         )
     } else if (state.googleEnabled) {
@@ -468,6 +483,7 @@ private fun OAuthOptions(
             onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
             enabled = !oauthBusy,
             isLoading = state.oauthInFlight == OAuthProvider.Google,
+            theme = GoogleSignInButtonTheme.Dark,
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -763,10 +779,7 @@ private fun HowItWorksStep(
             title = stringResource(Res.string.onboarding_how_card_chips_title),
             subtitle = stringResource(Res.string.onboarding_how_card_chips_subtitle),
         ) {
-            ChipCoin(
-                size = 48.dp,
-                textTypography = AppTheme.typography.Heading.H700,
-            )
+            ChipCoin(size = 48.dp)
         }
         Spacer(modifier = Modifier.height(Dimension.D500))
         InfoCard(
@@ -889,10 +902,7 @@ private fun StarterGrantStep(
 
             // The radiant centerpiece — a slow sun dial framing the chip coin.
             RotatingDial {
-                ChipCoin(
-                    size = 96.dp,
-                    textTypography = AppTheme.typography.Display.D1100,
-                )
+                ChipCoin(size = 96.dp)
             }
 
             Spacer(modifier = Modifier.height(Dimension.D700))

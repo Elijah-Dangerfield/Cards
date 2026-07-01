@@ -1,21 +1,33 @@
 package com.dangerfield.cards.libraries.ui.components
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
 
 @Composable
 fun ChipBadge(
     amount: Long?,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    /**
+     * Replay trigger for the odometer — when [revealKey] flips, the count rolls
+     * from [revealFrom] to [amount]. Home uses this to animate a balance change
+     * that landed while the user was on another screen; other callers leave it null.
+     */
+    revealFrom: Long? = null,
+    revealKey: Any? = null,
 ) {
     LeadingPill(
         modifier = modifier,
         onClick = onClick,
-        leading = { ChipCoin() },
+        // The wallet is a prominent affordance — grow it past the family default.
+        contentPadding = PaddingValues(horizontal = Dimension.D500, vertical = Dimension.D400),
+        leading = { ChipCoin(size = 28.dp) },
         trailing = {
             if (amount == null) {
                 // Null = local Room hasn't emitted yet (first-launch /
@@ -24,15 +36,22 @@ fun ChipBadge(
                 // flash before sync lands.
                 Text(
                     text = "—",
-                    typography = AppTheme.typography.Body.B500,
+                    typography = AppTheme.typography.Heading.H600,
                     color = AppTheme.colors.contentSecondary,
                 )
             } else {
                 AnimatedNumberText(
                     value = amount,
-                    typography = AppTheme.typography.Body.B500,
+                    typography = AppTheme.typography.Heading.H600,
                     color = AppTheme.colors.content,
                     formatter = { formatThousands(it) },
+                    // Flash green when the wallet grows and red when it shrinks —
+                    // the post-game balance change reads as a win or a loss at a
+                    // glance, then settles back to the normal colour.
+                    gainColor = AppTheme.colors.success,
+                    lossColor = AppTheme.colors.danger,
+                    revealFrom = revealFrom,
+                    revealKey = revealKey,
                 )
             }
         },

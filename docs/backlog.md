@@ -4,6 +4,14 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
+## Multiplayer wallet/payout test coverage across table sizes + leave timing
+
+**Idea (owner directive 2026-06-28, Sentry [CARDS-61](https://elijah-dangerfield.sentry.io/issues/CARDS-61)):** Owner wants much broader testing around multiplayer games of varying sizes and player behavior — betting, checking, leaving mid-hand — to verify the correct wallet actions fire: that the pot is split as expected, that the right players get paid and others don't, and that opting out of the next hand settles a player out with exactly the expected amount. This is a test-coverage / scenario-harness effort (the poker scenario harness exists for the play screen), not a single bug fix; spans engine, server settlement, and client wallet reconcile. Concrete bugs found along the way (e.g. MP-26, MP-27) get their own todos.
+
+**Status:** Backlog. Cross-cutting QA/test-harness investment; pull when MP money handling gets a dedicated hardening pass.
+
+---
+
 ## More achievements + early-stage pacing rebalance
 
 **Idea (owner feedback 2026-06-22, Sentry [CARDS-1A](https://elijah-dangerfield.sentry.io/issues/CARDS-1A)):** The achievement set is thin and early-stage achievements come too easily / too many fire up front, which risks spamming a new user. Two threads: (1) design a much larger achievement catalog (owner figures we could easily have ~100), and (2) rebalance early-game pacing so we don't dump a pile of trivial unlocks on the user in their first session. Needs a content/design pass on the achievement list + unlock curve, not just code.

@@ -354,10 +354,12 @@ fun Dialog(
  *  because [NotchedSheetShape] takes Dp directly. */
 private val DialogCardCornerRadius = 18.dp
 
-/** The felt-world signature for a dialog headline: serif Display, italic. Every
- *  Dialog overload provides this to its title slot so dialogs stay congruent. */
+/** The signature for a dialog headline: a bold sans Heading (the italic serif
+ *  Display read as too precious here — that's reserved for hero moments like the
+ *  level-up screen). Every Dialog overload provides this to its title slot so
+ *  dialogs stay congruent. */
 private val DialogTitleTypography: TypographyResource
-    @Composable get() = AppTheme.typography.Display.D900.Italic
+    @Composable get() = AppTheme.typography.Heading.H800
 
 @Preview
 @Composable

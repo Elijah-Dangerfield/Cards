@@ -6,7 +6,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +17,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.home_cta_practice_subtitle_short
@@ -38,9 +39,8 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
-import com.dangerfield.cards.libraries.ui.system.color.FeatureCardAccents
 import com.dangerfield.cards.libraries.ui.screenContentPadding
-import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD600
 import com.dangerfield.cards.system.VerticalSpacerD800
@@ -67,6 +67,11 @@ fun HomeScreen(
     scrollState: ScrollState = rememberScrollState(),
 ) {
     val state by viewModel.stateFlow.collectAsStateWithLifecycle()
+    // On every return to Home, replay any chip change that landed while the user
+    // was away (won/lost chips on another screen) so the odometer always animates
+    // it — checked against the local source of truth, no backend hit.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.takeAction(HomeAction.ScreenResumed) }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { viewModel.takeAction(HomeAction.ScreenPaused) }
     // [recent-achievements-delay] One line per recomposition of HomeScreen
     // — pin whether the VM state actually carries achievements at the
     // moment Compose pulls it. If `vm=<hash>` stays constant across tab
@@ -92,6 +97,8 @@ fun HomeScreen(
         // placeholder ("—") in that state rather than flashing "0"
         // before the sync lands.
         chips = state.chips,
+        chipsRevealFrom = state.chipsRevealFrom,
+        chipsRevealKey = state.chipsRevealKey,
         activeRooms = state.activeRooms,
         showTutorialBanner = !state.tutorialBannerDismissed,
         onStartTutorial = onStartTutorial,
@@ -121,6 +128,8 @@ fun HomeScreen(
 private fun HomeScreenContent(
     levelProgress: LevelProgress,
     chips: Long?,
+    chipsRevealFrom: Long? = null,
+    chipsRevealKey: Int = 0,
     // Identity defaults keep the many previews terse; production always
     // passes the real values from HomeState.
     displayName: String = "QuietAce72",
@@ -176,6 +185,8 @@ private fun HomeScreenContent(
                 avatarEmoji = avatarEmoji,
                 avatarBackgroundColorHex = avatarBackgroundColorHex,
                 chips = chips,
+                chipsRevealFrom = chipsRevealFrom,
+                chipsRevealKey = chipsRevealKey,
                 onTapLevel = onTapLevel,
                 onTapChips = onTapCash,
             )
@@ -190,7 +201,7 @@ private fun HomeScreenContent(
                     fadeOut(animationSpec = tween(140)),
             ) {
                 Column {
-                    VerticalSpacerD800()
+                    VerticalSpacerD1100()
                     TutorialBanner(
                         onStart = onStartTutorial,
                         onDismiss = onDismissTutorialBanner,
@@ -210,9 +221,9 @@ private fun HomeScreenContent(
             VerticalSpacerD800()
             SectionHeader(title = stringResource(Res.string.home_section_play))
             VerticalSpacerD600()
-            // Rooms-forward home (SPEC §5): Public rooms is the hero (pick a
-            // buy-in, auto-seated), Private room opens the create/join sheet,
-            // and Practice / Tournament sit below as the two smaller tiles.
+            // Rooms-forward home: Public rooms is the flat hero (pick a buy-in,
+            // auto-seated), then Private / Practice / Tournament as flat rows with
+            // emoji-circle tiles in their accent colours.
             PublicRoomsCard(
                 title = stringResource(Res.string.home_cta_public_rooms_title),
                 subtitle = stringResource(Res.string.home_play_public_rooms_subtitle),
@@ -220,31 +231,33 @@ private fun HomeScreenContent(
                 onClick = onPublicRooms,
             )
             VerticalSpacerD500()
-            PrivateRoomCard(
+            PlayRow(
                 title = stringResource(Res.string.home_cta_private_room_title),
                 subtitle = stringResource(Res.string.home_play_private_room_subtitle),
+                emoji = "🔒",
+                accent = AppTheme.colors.accentSecondary.color,
                 onClick = onPrivateRoom,
             )
             VerticalSpacerD500()
-            Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D500)) {
-                PlayTileCard(
-                    title = stringResource(Res.string.home_cta_practice_title),
-                    subtitle = stringResource(Res.string.home_cta_practice_subtitle_short),
-                    glyph = "♠",
-                    accent = FeatureCardAccents.Green,
-                    onClick = onPlayBots,
-                    modifier = Modifier.weight(1f),
-                )
-                PlayTileCard(
-                    title = stringResource(Res.string.home_cta_tournament_title),
-                    subtitle = stringResource(Res.string.home_cta_tournament_subtitle),
-                    glyph = "♛",
-                    accent = FeatureCardAccents.Magenta,
-                    onClick = onTournament,
-                    modifier = Modifier.weight(1f),
-                    tag = stringResource(Res.string.home_tag_soon),
-                )
-            }
+            PlayRow(
+                title = stringResource(Res.string.home_cta_practice_title),
+                subtitle = stringResource(Res.string.home_cta_practice_subtitle_short),
+                emoji = "🤖",
+                accent = AppTheme.colors.league.amethyst.color,
+                onClick = onPlayBots,
+            )
+            VerticalSpacerD500()
+            PlayRow(
+                title = stringResource(Res.string.home_cta_tournament_title),
+                subtitle = stringResource(Res.string.home_cta_tournament_subtitle),
+                emoji = "🏆",
+                accent = AppTheme.colors.accentTertiary.color,
+                onClick = onTournament,
+                tag = stringResource(Res.string.home_tag_soon),
+                // Tournaments aren't shipped yet — render the row disabled so the
+                // "Soon" tag reads as a real not-ready state, not a dead tap.
+                enabled = false,
+            )
 
             if (socialEnabled) {
                 VerticalSpacerD1100()

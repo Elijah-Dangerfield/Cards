@@ -4,6 +4,7 @@ import com.dangerfield.cards.features.room.impl.session.LocalBotsSession
 
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * Proof scenarios for the behaviour-driven harness — each drives a real
@@ -66,5 +67,29 @@ class PokerScenarioSoloTest : PokerScenarioTest() {
             street(BettingRound.Flop)
             humanHandLabel("Pair")
         }
+    }
+
+    @Test
+    fun humanFolds_recordsASessionLoss_overflowSheetReadsOneLoss() = runUnitTest {
+        val s = soloScenario().seats(2).start()
+
+        s.iFold()
+
+        assertEquals(0, s.vm.state.sessionHandsWon, "a fold isn't a win")
+        assertEquals(1, s.vm.state.sessionHandsLost, "the played hand counts as a session loss")
+    }
+
+    @Test
+    fun humanWinsWhenOpponentFolds_recordsASessionWin() = runUnitTest {
+        val s = soloScenario()
+            .seats(2)
+            .scriptOpponent(1) { folds() }
+            .start()
+
+        // Human (SB) raises; the BB bot folds to it → the human takes the pot.
+        s.iRaiseTo(30)
+
+        assertEquals(1, s.vm.state.sessionHandsWon, "winning the pot counts as a session win")
+        assertEquals(0, s.vm.state.sessionHandsLost)
     }
 }

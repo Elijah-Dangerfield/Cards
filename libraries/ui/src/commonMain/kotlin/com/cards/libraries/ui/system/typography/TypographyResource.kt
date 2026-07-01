@@ -274,7 +274,7 @@ class DefaultTypography(
     override val Label: LabelTypography = LabelTypographyImpl(sansSerifFontFamily)
     override val Caption: CaptionTypography = CaptionTypographyImpl(sansSerifFontFamily)
 
-    override val Default: TypographyResource = Body.B600
+    override val Default: TypographyResource = Body.B500
 }
 
 class DisplayTypographyImpl(

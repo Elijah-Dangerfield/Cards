@@ -189,10 +189,10 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
         advanceUntilIdle()
 
         vm.testAppCache.emit(
-            com.dangerfield.cards.libraries.cards.AppData(gameSpeed = GameSpeed.Instant),
+            com.dangerfield.cards.libraries.cards.AppData(gameSpeed = GameSpeed.Fast),
         )
 
-        assertEquals(GameSpeed.Instant, vm.testFactory.gameSpeedProvider?.invoke())
+        assertEquals(GameSpeed.Fast, vm.testFactory.gameSpeedProvider?.invoke())
     }
 
     // ---------- Helpers ----------

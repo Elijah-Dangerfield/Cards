@@ -31,6 +31,8 @@ Real-device checklist run by a human before each release. Organised by feature. 
 
 **Expected:** Lands on Home. Welcome grant dialog shows 10,000 chips + welcome copy. Dismissing reveals Home with the 10K balance already displayed — no 0 → 10K flicker, no spinner.
 
+- Landing layout (AUTH-10): on the welcome page the bottom actions are clearly spaced — the guest CTA, the provider buttons, the "Sign in" link, and the Terms/Privacy footnote each read as separate, comfortably tappable, with a hairline divider above the legal footnote so "Sign in" is no longer jammed against it. The Apple and Google buttons render their dark brand variants (dark fill) rather than white slabs on the dark page.
+
 ---
 
 ### `ONB-2` 🚨 📱 Fresh install, online, email sign-up (new email)
@@ -278,6 +280,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 - On Device B, enter a 6-character code that is not a real room and tap Join. A "room not found" error appears in place under the code field; the screen does **not** move, navigate, or recompose — the input + keyboard stay put. Editing a character clears the error. (Covers todo ROOM-5.)
 - Create the room on Device A with a non-zero buy-in. After Device B joins, both devices' lobby show the real buy-in (and matching blinds) — never $0 — and it stays correct as the second seat fills in. (Covers MP-24.)
+- On a fresh account (10,000-chip grant), the create-table screen opens with the buy-in pre-set to 1,000 (blinds 5 / 10), not 5,000 — a sensible ~10% of the bankroll for a first-time host. The slider still drags up to the full balance. (Covers ROOM-13.)
 
 ---
 
@@ -304,6 +307,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - When the bot-fallback offer appears and you've already drawn down some of today's house-funded subsidy, the offer shows a heads-up line naming the remaining bonus chips (or "you've used today's bonus chips" once exhausted). With full headroom no caveat shows. Tapping "Keep waiting" clears the line (MP-6).
 - The no-results state reads as a calm centered message ("We couldn't find anyone right now" + a supportive line), not a promotional banner. "Keep waiting for players" is the primary action; "Play bots for real chips" sits below it as a secondary offer; "Try again later" is the quiet exit. The subsidy disclosure (above) stays legible in this treatment (ROOM-9).
 - Two devices, same buy-in range (including a tight range that falls between the round stakes, e.g. 3k-4k): Device A searches first and opens a table; Device B searches the same range and is seated *with A* (two members at one table), never stranded on its own empty table (MP-15).
+- Staggered start (ROOM-12): Device A searches and falls through to its own waiting table (no candidates yet). A few seconds later Device B starts a search in the same range. A must still discover B's table while waiting and the two end up at one table — neither sits alone forever. (The older of the two tables wins, so exactly one device migrates.)
+- Joined-table lobby (ROOM-11): when the chooser lists candidates and you tap Join on one, you land on a distinct joined-table screen ("You're in") showing the seat grid with the seated players and a "waiting for more players" / "dealing you in" line — NOT the spinning radar. Once a hand deals you go straight to the live table. (Falling through to the genuine wait, with no candidate picked, still shows the radar.)
 
 ---
 
@@ -318,6 +323,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 - **XP + stats credit (PROG-4):** finishing the hand awards XP (the Home/Profile XP total rises, and the hand-end XP burst shows) and advances player-stats — same as a solo bots hand, just at the full MULTIPLAYER multiplier on an all-human table. A finished MP hand must never silently award zero XP.
 - **Showdown reveal survives a reconnect blip (MP-25):** carry a multiway hand to a river showdown, then background/foreground one device right as the hand resolves (so its socket reconnects on the Complete state). On resume that device must STILL show the opponents' revealed hole cards for the just-finished hand — the showdown isn't skipped just because the device missed the live hand-end event. Opponents who folded earlier stay mucked (no cards shown).
+- **Opponent times out / folds preflop (MP-26):** heads-up, let the opponent's 30s turn timer run out preflop (or have them fold) so they never act. The non-acting player (the BB) must NOT be left on a frozen board — they see the hand result (winner takes the pot) and a Next Hand path, not a dead table with no acting seat and no winner. Works even though that device only ever received the terminal Complete snapshot.
 
 ---
 
@@ -508,3 +514,16 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 4. Buy the **same** pack a second time.
 
 **Expected:** Real prices come from StoreKit (not the fallback). After confirming, the chips are credited once and the balance updates. The second purchase of the same pack succeeds again (consumable was finished — no "already purchased" dead end). Cancelling the sheet returns silently with no credit and no error toast. With `billing.realPurchasesEnabled` on, the balance reflects the server-returned authoritative total (no local double-credit). The account token pins to the signed-in user (a mismatched receipt is rejected server-side). Anonymous accounts hard-gate before the sheet ever opens.
+
+---
+
+## Tooling & debug
+
+### `ENG-8` ℹ️ 📱 Wiretap captures the gameplay WebSocket
+
+**State:** a debug build (the inspector is debug-only; on iOS the framework must be built with `cards.wiretap.ios` left on). Be in or about to start a multiplayer game.
+
+1. Join/host an MP table so the gameplay room socket connects, and play a hand (act, see opponents act).
+2. Shake the device to open the Network inspector; find the WebSocket / sockets tab.
+
+**Expected:** The gameplay socket connection appears in the inspector (URL `…/v1/rooms/<code>/socket`) alongside the HTTP calls, listing its inbound frames (game_state snapshots, game_event, intent_ack, emoji) and outbound frames (your submitted intents, next-hand requests), plus the connect and the close/error when you leave. A release build never shows the inspector. (Covers todo ENG-8.)

@@ -247,26 +247,26 @@ private val SmallButtonWithIconPadding = PaddingValues(
 )
 
 private val MediumButtonPadding = PaddingValues(
-    horizontal = Dimension.D800,  // 24dp horizontal
-    vertical = Dimension.D600      // 14dp vertical
+    horizontal = Dimension.D800,  // 20dp horizontal
+    vertical = Dimension.D500      // 12dp vertical
 )
 
 private val MediumButtonWithIconPadding = PaddingValues(
     start = Dimension.D700,       // 16dp start (reduced, icon adds weight)
     end = Dimension.D900,          // 24dp end (extra space for icon)
-    top = Dimension.D600,          // 14dp vertical (same as text-only)
-    bottom = Dimension.D600
+    top = Dimension.D500,          // 12dp vertical (same as text-only)
+    bottom = Dimension.D500
 )
 
 private val LargeButtonPadding = PaddingValues(
-    horizontal = Dimension.D800,
-    vertical = Dimension.D700
+    horizontal = Dimension.D800,  // 20dp horizontal
+    vertical = Dimension.D700      // 16dp vertical
 )
 
 private val LargeButtonWithIconPadding = PaddingValues(
-    start = Dimension.D700,       // 20dp start (reduced, icon adds weight)
-    end = Dimension.D800,          // 24dp end (extra space for icon)
-    top = Dimension.D700,          // 16dp vertical (same as text-only)
+    start = Dimension.D700,       // 16dp start (reduced, icon adds weight)
+    end = Dimension.D800,          // 20dp end (extra space for icon)
+    top = Dimension.D700,          // 16dp vertical (matches text-only)
     bottom = Dimension.D700
 )
 

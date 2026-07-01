@@ -168,24 +168,24 @@ private fun XpHero(progress: LevelProgress) {
     ) {
         Box(
             modifier = Modifier
-                .size(72.dp)
+                .size(96.dp)
                 .clip(CircleShape)
                 .background(LevelProgressGradient),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = progress.level.toString(),
-                typography = AppTheme.typography.Heading.H700,
+                typography = AppTheme.typography.Heading.H900,
                 color = AppTheme.colors.content,
             )
         }
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(14.dp))
         Text(
             text = "Level ${progress.level}",
-            typography = AppTheme.typography.Heading.H700,
+            typography = AppTheme.typography.Heading.H800,
             color = AppTheme.colors.content,
         )
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "${formatThousands(progress.totalXp)} XP",
             typography = AppTheme.typography.Body.B500,

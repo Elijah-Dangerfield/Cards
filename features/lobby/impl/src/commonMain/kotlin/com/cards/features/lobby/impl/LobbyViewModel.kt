@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.lobby.impl
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.equippedTableCosmetics
 import com.dangerfield.cards.libraries.core.Catching
@@ -64,6 +65,7 @@ class LobbyViewModel(
     private val auth: AuthRepository,
     private val profile: ProfileRepository,
     private val equipment: EquipmentRepository,
+    private val chips: ChipsRepository,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<LobbyState, LobbyEvent, LobbyAction>(
     initialStateArg = LobbyState(codeInput = prefilledCode?.uppercase().orEmpty()),
@@ -228,11 +230,20 @@ class LobbyViewModel(
             }
 
             LobbyAction.Leave -> action.run {
-                val code = state.room?.code ?: return@run
+                val room = state.room ?: return@run
+                val code = room.code
                 connectionJob?.cancel()
                 connectionJob = null
                 currentHandle = null
                 updateState { it.copy(leaving = true) }
+                // MP-27: leaving a real-chip room (here usually after an
+                // opponent-left kick collapsed the play screen back to this
+                // lobby) must re-pull the wallet, or the client keeps showing
+                // the buy-in as escrowed until the next foreground forces a
+                // sync. The server already settled the stack; this just makes
+                // the client read the authoritative balance. Fire-and-forget on
+                // appScope so it survives the lobby screen popping (CARDS-5Q).
+                reconcileWalletAfterRoom(room)
                 val outcome = appScope.async { rooms.leaveRoom(code) }.await()
                 when (outcome) {
                     LeaveRoomOutcome.Success,
@@ -460,6 +471,30 @@ class LobbyViewModel(
                     }
                 }
             }
+        }
+    }
+
+    // Latches so the post-room wallet sync fires at most once per room
+    // teardown. The lobby Leave is the only trigger today, but latching keeps
+    // it single-shot if a future close-under-us path also reconciles.
+    private var walletReconciled = false
+
+    /**
+     * Re-pull the authoritative wallet after leaving a real-chip room (MP-27).
+     * The server settles the buy-in/stack when the room ends, but the client
+     * only learns the new balance on the next [ChipsRepository.sync]; without
+     * this the lobby exit lands Home on a stale balance showing the buy-in as
+     * still escrowed (CARDS-5Q). No-op for a free table ([Room.buyIn] == 0).
+     * Fire-and-forget on [appScope] so it completes even if the lobby screen
+     * pops mid-sync.
+     */
+    private fun reconcileWalletAfterRoom(room: Room) {
+        if (room.buyIn <= 0L) return
+        if (walletReconciled) return
+        walletReconciled = true
+        appScope.launch {
+            Catching { chips.sync() }
+                .onFailure { e -> logger.w(e) { "wallet sync after leaving room failed" } }
         }
     }
 

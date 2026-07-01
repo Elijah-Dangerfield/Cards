@@ -12,6 +12,9 @@ import com.dangerfield.cards.features.room.impl.seatMuteKey
 // / IconButton.kt). Raw Material icons would tint, size, and bounce-click
 // differently from the rest of the app — DS routing keeps the chrome
 // consistent and the icon set centralized.
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,9 +24,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +48,8 @@ import cards.libraries.resources.generated.resources.room_loading_dealing_in
 import cards.libraries.resources.generated.resources.room_match_over_busted_rebuy_button
 import cards.libraries.resources.generated.resources.room_match_over_busted_title
 import cards.libraries.resources.generated.resources.room_match_over_winner_label
+import cards.libraries.resources.generated.resources.room_next_hand_countdown_label
+import cards.libraries.resources.generated.resources.room_next_hand_leave_button
 import cards.libraries.resources.generated.resources.room_practice_tier_bots_present
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
@@ -70,6 +74,7 @@ import com.dangerfield.cards.libraries.ui.components.PlayerBadge
 import com.dangerfield.cards.libraries.ui.components.formatBoostCountdown
 import com.dangerfield.cards.libraries.ui.components.rememberBoostRemainingMs
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.resolvePlayerBadges
 import com.dangerfield.cards.libraries.ui.components.Screen
@@ -77,20 +82,17 @@ import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
-import com.dangerfield.cards.libraries.ui.components.poker.EmojiBlastOverlay
 import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import com.dangerfield.cards.libraries.ui.components.poker.LocalCardBackStyle
 import com.dangerfield.cards.libraries.ui.components.poker.LocalFeltAccentSurface
+import com.dangerfield.cards.libraries.ui.components.poker.LocalTableSurface
 import com.dangerfield.cards.libraries.ui.components.poker.feltAccentSurface
 import com.dangerfield.cards.libraries.ui.components.poker.feltSurfaceColor
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.HorizontalSpacerD100
-import com.dangerfield.cards.system.HorizontalSpacerD200
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD500
-import com.dangerfield.cards.system.VerticalSpacerD700
-import com.dangerfield.cards.system.VerticalSpacerD800
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -120,6 +122,7 @@ fun PlayPokerScreen(
 ) {
     var actionSheetOpen by remember { mutableStateOf(false) }
     var blindExplainerOpen by remember { mutableStateOf(false) }
+    var howToPlayOpen by remember { mutableStateOf(false) }
     var potExplainerOpen by remember { mutableStateOf(false) }
     var stackExplainerOpen by remember { mutableStateOf(false) }
     var practiceTierExplainerOpen by remember { mutableStateOf(false) }
@@ -131,9 +134,9 @@ fun PlayPokerScreen(
     // A badge/title chip tapped on the player-profile sheet — opens its
     // read-about-it detail sheet.
     var selectedBadge by remember { mutableStateOf<PlayerBadge?>(null) }
-    // Action / bet / hand-label explainers carry their own context so each
-    // dialog can render specific copy instead of opening the whole cheat sheet.
-    var lastActionDialog by remember { mutableStateOf<Pair<String, PlayerAction>?>(null) }
+    // Bet / hand-label explainers carry their own context so each dialog can
+    // render specific copy instead of opening the whole cheat sheet. (The last
+    // action no longer pops a dialog — it surfaces on the tapped Player Card.)
     var betPillDialog by remember { mutableStateOf<Pair<String, Long>?>(null) }
     var handLabelDialog by remember { mutableStateOf<String?>(null) }
     // Achievement-celebration sequencing — declared up here so the displayed-XP
@@ -146,13 +149,22 @@ fun PlayPokerScreen(
     // resolves it the moment recordHand lands.
     var advanceRequested by remember { mutableStateOf(false) }
     val active = state.table as? TableUiState.Active
+    val humanStack = active?.seats?.firstOrNull { it.isHuman }?.stack ?: 0L
+    // On a real-chip table the finished hand shows the felt countdown instead of a
+    // result dialog (unless the human busted, which keeps the MultiplayerBustDialog).
+    // Nothing overlays the table then, so the freeze below must NOT apply — the
+    // winnings have to show live in the stack during the leave-with-winnings window,
+    // and the XP ring can fill on the uncovered top bar.
+    val feltCountdownReplacesDialog = active?.handResult != null &&
+        state.realChipsAtStake &&
+        humanStack > 0
     // The hand-result dialog and (in bot mode) the celebration sheet both
     // overlay the top-bar LevelPill, so any XP earned by this hand animates
     // behind the scrim — the user never sees the ring fill. Hold the pill at
     // its pre-hand value while either surface is visible; release once both
     // dismiss so `animateFloatAsState` inside `LevelPill` can play the
     // progress-ring change against an uncovered top bar.
-    val handResultOverlaying = active?.handResult != null
+    val handResultOverlaying = active?.handResult != null && !feltCountdownReplacesDialog
     val xpFrozen = handResultOverlaying || celebrationActive
     var displayedXp by remember { mutableStateOf(state.xp) }
     LaunchedEffect(state.xp, xpFrozen) {
@@ -164,8 +176,9 @@ fun PlayPokerScreen(
     // the overlay and the user never sees the count-up. Holding the
     // displayed value at its pre-hand number until both overlays dismiss
     // lets `AnimatedNumberText` (inside `ChipCoinAmount(animated = true)`)
-    // play the odometer roll against an uncovered tile.
-    val humanStack = active?.seats?.firstOrNull { it.isHuman }?.stack ?: 0L
+    // play the odometer roll against an uncovered tile. (When the felt
+    // countdown replaces the dialog, [xpFrozen] is false — the stack tracks
+    // live so the winnings show during the leave-with-winnings window.)
     var displayedHumanStack by remember { mutableStateOf(humanStack) }
     LaunchedEffect(humanStack, xpFrozen) {
         if (!xpFrozen) displayedHumanStack = humanStack
@@ -179,6 +192,24 @@ fun PlayPokerScreen(
     val rewardAnchors = remember { TableRewardAnchors() }
     var rewardBurst by remember { mutableStateOf<RewardBurst?>(null) }
     var burstSeq by remember { mutableStateOf(0) }
+    // Pot-ship coins: on a real-chip table, when a hand finishes, stream coins from
+    // the pot pill to the winner's avatar so who won — and that chips moved to them
+    // — is unmistakable on the felt (no popup). Fires once per hand, keyed on the
+    // hand number; practice keeps its result dialog, so it stays felt-money-only.
+    var potShipBurst by remember { mutableStateOf<PotShipBurst?>(null) }
+    var potShipSeq by remember { mutableStateOf(0) }
+    var lastShippedHand by remember { mutableStateOf(-1) }
+    val shipWinnerSeats = active?.handResult?.winners?.map { it.seatIndex }?.distinct().orEmpty()
+    LaunchedEffect(active?.handNumber, active?.handResult != null, state.realChipsAtStake) {
+        val a = active ?: return@LaunchedEffect
+        if (state.realChipsAtStake && a.handResult != null &&
+            a.handNumber != lastShippedHand && shipWinnerSeats.isNotEmpty()
+        ) {
+            lastShippedHand = a.handNumber
+            potShipSeq += 1
+            potShipBurst = PotShipBurst(id = potShipSeq, winnerSeatIndexes = shipWinnerSeats)
+        }
+    }
     var wasXpFrozen by remember { mutableStateOf(xpFrozen) }
     // Baselines snapped the instant the gate freezes (the held displayed
     // values are still the pre-hand numbers at that point), so the release
@@ -259,8 +290,8 @@ fun PlayPokerScreen(
     CompositionLocalProvider(
         LocalCardBackStyle provides state.equippedCardBack,
         LocalFeltAccentSurface provides feltAccent,
+        LocalTableSurface provides tableSurface,
         LocalTableRewardAnchors provides rewardAnchors,
-        LocalTableTempo provides TableTempo(state.effectiveTableSpeed),
     ) {
     Screen(modifier = modifier, containerColor = tableSurface) { padding ->
         Box(
@@ -277,15 +308,16 @@ fun PlayPokerScreen(
                     xp = displayedXp,
                     xpBoostExpiresAtEpochMs = state.xpBoostExpiresAtEpochMs,
                     onBack = requestLeave,
-                    onCheatSheet = { onAction(PlayPokerAction.ToggleCheatSheet) },
                     onTapXp = onTapXp,
+                    // Hide help in the tutorial (its own center slot is active) —
+                    // the coaching sheet would collide with the guided steps.
+                    onHelp = if (topBarCenterSlot == null) {
+                        { howToPlayOpen = true }
+                    } else {
+                        null
+                    },
                     showXpPill = showXpPill,
                     centerSlot = topBarCenterSlot,
-                    availableEmojis = state.availableEmojis,
-                    emojiCooldownEndsAtEpochMs = state.emojiCooldownEndsAtMs,
-                    onBlastEmoji = { emoji ->
-                        onAction(PlayPokerAction.BlastEmoji(emoji))
-                    },
                 )
 
                 if (active?.practiceTierBotsPresent == true) {
@@ -309,6 +341,12 @@ fun PlayPokerScreen(
                 if (active == null) {
                     LoadingTable()
                 } else {
+                    // Felt countdown only on a real-chip table whose hand has ended
+                    // (the leave-with-winnings window). Practice tables keep their
+                    // celebratory result dialog + manual tap, so they pass null and
+                    // render the normal action bar slot.
+                    val feltCountdown = state.nextHandCountdown
+                        ?.takeIf { state.realChipsAtStake && active.handResult != null }
                     ActiveTable(
                         table = active,
                         humanWinOdds = state.humanWinOdds,
@@ -318,12 +356,14 @@ fun PlayPokerScreen(
                         onWinOddsFlipped = {
                             onAction(PlayPokerAction.MarkWinOddsFlipHintSeen)
                         },
+                        nextHandCountdown = feltCountdown,
+                        onLeaveWithWinnings = leaveTable,
                         onIntent = { onAction(PlayPokerAction.Submit(it)) },
                         onExpandRaise = { actionSheetOpen = true },
                         onBlindClick = { blindExplainerOpen = true },
                         onPotClick = { potExplainerOpen = true },
+                        onBoardClick = { onAction(PlayPokerAction.ToggleCheatSheet) },
                         onBetPillClick = { name, amount -> betPillDialog = name to amount },
-                        onLastActionClick = { name, action -> lastActionDialog = name to action },
                         onStackClick = { stackExplainerOpen = true },
                         onHandLabelClick = { label -> handLabelDialog = label },
                         onSwipeFold = {
@@ -339,6 +379,9 @@ fun PlayPokerScreen(
                             seatMuteKey(seat)?.let { profileSheetSeat = seat }
                         },
                         onSelfTap = { selfCardOpen = true },
+                        availableEmojis = state.availableEmojis,
+                        emojiCooldownEndsAtMs = state.emojiCooldownEndsAtMs,
+                        onBlastEmoji = { emoji -> onAction(PlayPokerAction.BlastEmoji(emoji)) },
                     )
                 }
             }
@@ -370,12 +413,24 @@ fun PlayPokerScreen(
             val humanSeat = active?.seats?.firstOrNull { it.isHuman }
             HandRankingsCheatSheet(
                 onDismiss = { onAction(PlayPokerAction.ToggleCheatSheet) },
+                holeCards = humanSeat?.holeCards.orEmpty(),
+                boardCards = active?.communityCards.orEmpty(),
+                roomCode = state.roomCode,
+            )
+        }
+
+        // The question-mark in the top bar opens the situational coaching sheet
+        // (your hand, the stage, how to act) — separate from the board-tap
+        // rankings reference.
+        if (howToPlayOpen) {
+            val humanSeat = active?.seats?.firstOrNull { it.isHuman }
+            HowToPlaySheet(
+                onDismiss = { howToPlayOpen = false },
                 handNumber = active?.handNumber,
                 street = active?.street,
                 pot = active?.pot,
                 holeCards = humanSeat?.holeCards.orEmpty(),
                 boardCards = active?.communityCards.orEmpty(),
-                roomCode = state.roomCode,
             )
         }
 
@@ -411,14 +466,6 @@ fun PlayPokerScreen(
                 botsOnly = active?.practiceTierBotsOnly == true,
                 subsidized = active?.subsidizedBotTable == true,
                 onDismiss = { practiceTierExplainerOpen = false },
-            )
-        }
-
-        lastActionDialog?.let { (name, action) ->
-            LastActionExplainer(
-                seatName = name,
-                action = action,
-                onDismiss = { lastActionDialog = null },
             )
         }
 
@@ -474,26 +521,17 @@ fun PlayPokerScreen(
             )
         }
 
-        // Full-screen emoji blast overlay. Renders at the top-level Box so
-        // it floats over the table without being clipped by the inner
-        // Column's padding. Emitter avatar is rendered beneath the emoji
-        // so the blast reads as "Bob just threw this", not just an
-        // anonymous emoji on the screen — sets up the MP visual now
-        // even though in V1 only the human emits.
+        // Table emote — pops out of the sender's avatar and floats up, attributed
+        // by *where* it appears rather than a full-screen blast with a name label.
+        // The emitter's avatar bounds come from the shared reward anchors; a null
+        // emitter seat is the local player's own outbound blast.
         state.emojiBlast?.let { blast ->
-            // Attribute to the emitting seat for an opponent's emote;
-            // fall back to the human seat for our own outbound blast.
-            val emitterSeat = state.emojiBlastEmitterSeatIndex
-                ?.let { idx -> active?.seats?.firstOrNull { it.index == idx } }
-                ?: active?.seats?.firstOrNull { it.isHuman }
-            EmojiBlastOverlay(
+            SeatEmoteOverlay(
                 blast = blast,
-                onAnimationComplete = { ts ->
-                    onAction(PlayPokerAction.EmojiBlastConsumed(ts))
-                },
-                emitterName = emitterSeat?.displayName,
-                emitterEmoji = emitterSeat?.emoji,
-                emitterColorHex = emitterSeat?.avatarBackgroundColorHex,
+                emitterSeatIndex = state.emojiBlastEmitterSeatIndex,
+                humanSeatIndex = active?.seats?.firstOrNull { it.isHuman }?.index,
+                anchors = rewardAnchors,
+                onComplete = { ts -> onAction(PlayPokerAction.EmojiBlastConsumed(ts)) },
             )
         }
 
@@ -633,7 +671,12 @@ fun PlayPokerScreen(
                     onDealMeIn = onDismiss,
                     subsidized = active.subsidizedBotTable,
                 )
-            } else {
+            } else if (!state.realChipsAtStake) {
+                // Practice (solo / bot-stacked MP): the celebratory result stays a
+                // full-screen modal and waits for a tap. On a real-chip table this
+                // branch is intentionally absent — the result lives on the felt and
+                // the auto-advance countdown (in the action slot) replaces the
+                // dialog so the player can leave with their winnings (north star).
                 ShowdownDialog(
                     result = handResult,
                     seats = active.seats,
@@ -693,6 +736,12 @@ fun PlayPokerScreen(
             burst = rewardBurst,
             anchors = rewardAnchors,
             onComplete = { rewardBurst = null },
+        )
+        // Pot-ship coins fly over the felt to the winner as the pot drains.
+        PotShipOverlay(
+            burst = potShipBurst,
+            anchors = rewardAnchors,
+            onComplete = { potShipBurst = null },
         )
     }
     } // close CompositionLocalProvider
@@ -807,6 +856,70 @@ private fun MatchOverCountdownBanner(
 }
 
 /**
+ * Between-hands auto-advance countdown, shown in the action slot in place of the
+ * bet bar on a real-chip table once the hand ends. "Next hand in 0:0X" with a
+ * draining fill makes the time remaining obvious, and a "Leave with winnings"
+ * button keeps the clean cash-out one tap away the whole window — the two halves
+ * of the north-star user story. The server holds the deal until the deadline, so
+ * the countdown is honest. Reuses the DS countdown ticker ([rememberBoostRemainingMs]).
+ */
+@Composable
+private fun NextHandCountdownBar(
+    countdown: com.dangerfield.cards.features.room.impl.session.NextHandCountdown,
+    onLeave: () -> Unit,
+) {
+    val remainingMs = rememberBoostRemainingMs(countdown.deadlineEpochMs)
+    val formatted = formatBoostCountdown(remainingMs)
+    // The first observed remaining is the beat's full length (a few server-held
+    // seconds); drain the fill from there to 0 as the deal nears, without the
+    // client needing to know the configured beat length.
+    val totalMs = remember(countdown.deadlineEpochMs) { remainingMs.coerceAtLeast(1L) }
+    val targetFraction = (remainingMs.toFloat() / totalMs).coerceIn(0f, 1f)
+    val fraction by animateFloatAsState(
+        targetValue = targetFraction,
+        animationSpec = tween(durationMillis = 1_000, easing = LinearEasing),
+        label = "next-hand-drain",
+    )
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = stringResource(Res.string.room_next_hand_countdown_label, formatted),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.content,
+                modifier = Modifier.weight(1f),
+            )
+            ButtonSecondary(onClick = onLeave, size = ButtonSize.Small) {
+                Text(text = stringResource(Res.string.room_next_hand_leave_button))
+            }
+        }
+        // Draining fill — empties as the next deal nears, so "how long do I have"
+        // reads at a glance without parsing the digits.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(Radii.Round.shape)
+                .background(AppTheme.colors.surfaceRaised.color),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(fraction)
+                    .height(6.dp)
+                    .clip(Radii.Round.shape)
+                    .background(AppTheme.colors.poker.chipGold.color),
+            )
+        }
+    }
+}
+
+/**
  * Table-side notice that this MP hand earns only practice-tier credit
  * because the table is bot-stacked (product-spec.md §5.4). Surfaced under
  * the top bar so the player understands why their XP / achievements read
@@ -839,29 +952,19 @@ private fun TopBar(
     xp: Long,
     xpBoostExpiresAtEpochMs: Long? = null,
     onBack: () -> Unit,
-    onCheatSheet: () -> Unit,
     onTapXp: () -> Unit = {},
+    onHelp: (() -> Unit)? = null,
     showXpPill: Boolean = true,
     centerSlot: (@Composable () -> Unit)? = null,
-    availableEmojis: List<String> = emptyList(),
-    emojiCooldownEndsAtEpochMs: Long = 0L,
-    onBlastEmoji: ((String) -> Unit)? = null,
 ) {
-    // Minimal top bar — navigation, level + ring, info. The level pill
-    // ticks up live as the player earns XP, and the gradient ring fills
-    // toward the next level so the player feels progress even when they
-    // lose a hand. Emoji blast lives here alongside the cheat sheet
-    // (right-side action cluster) — the trigger always renders so the
-    // affordance is visible; the tray itself swaps to an empty-state
-    // popup (greyed preview + caption) when the user owns no pack — no
-    // in-game shop navigation, which would forfeit the seat.
+    // Minimal top bar — back, the live level pill + ring, and a help (?) button
+    // on the right that opens the how-to-play sheet. The pill ticks up as the
+    // player earns XP and the gradient ring fills toward the next level, so
+    // progress reads even on a losing hand.
     //
-    // The pill is overlay-positioned at true screen-center via Box
-    // alignment rather than placed inline in a SpaceBetween Row.
-    // SpaceBetween distributes children based on side widths, so the
-    // pill drifts off-center whenever the right cluster grows (e.g. the
-    // emoji button appears). Box(CenterStart/Center/CenterEnd) keeps
-    // the pill pinned to the screen midpoint regardless.
+    // The pill is overlay-positioned at true screen-center via Box alignment
+    // rather than placed inline in a SpaceBetween Row, so it stays pinned to
+    // the screen midpoint regardless of what flanks it.
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -872,6 +975,13 @@ private fun TopBar(
             onClick = onBack,
             modifier = Modifier.align(Alignment.CenterStart),
         )
+        if (onHelp != null) {
+            IconButton(
+                icon = Icons.Question(stringResource(Res.string.room_top_bar_hand_info_a11y)),
+                onClick = onHelp,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
         if (centerSlot != null) {
             // Caller-supplied content (e.g. the tutorial's step counter) owns
             // the centered slot — same spot the Level pill would sit, so it
@@ -894,26 +1004,6 @@ private fun TopBar(
                             Modifier
                         },
                     ),
-            )
-        }
-        Row(
-            modifier = Modifier.align(Alignment.CenterEnd),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (onBlastEmoji != null) {
-                TopBarEmojiButton(
-                    emojis = availableEmojis,
-                    cooldownEndsAtEpochMs = emojiCooldownEndsAtEpochMs,
-                    onBlast = onBlastEmoji,
-                )
-                HorizontalSpacerD200()
-            }
-            IconButton(
-                backgroundColor = AppTheme.colors.surface,
-                icon = Icons.Question(
-                    stringResource(Res.string.room_top_bar_hand_info_a11y),
-                ),
-                onClick = onCheatSheet,
             )
         }
     }
@@ -939,48 +1029,52 @@ private fun ActiveTable(
     silentSwipeFold: Boolean = false,
     winOddsFlipHintSeen: Boolean = false,
     onWinOddsFlipped: () -> Unit = {},
+    /**
+     * The between-hands countdown to show in the action slot in place of the bet
+     * bar — non-null only on a real-chip table whose hand has ended. The window to
+     * leave with your winnings before the next hand auto-deals.
+     */
+    nextHandCountdown: com.dangerfield.cards.features.room.impl.session.NextHandCountdown? = null,
+    onLeaveWithWinnings: () -> Unit = {},
     onIntent: (PlayerIntent) -> Unit,
     onExpandRaise: () -> Unit,
     onBlindClick: () -> Unit,
     onPotClick: () -> Unit,
+    onBoardClick: () -> Unit = {},
     onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
-    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit = { _, _ -> },
     onStackClick: () -> Unit = {},
     onHandLabelClick: (label: String) -> Unit = {},
     onSwipeFold: () -> Unit = {},
     onOpponentTap: (SeatView) -> Unit = {},
     onSelfTap: () -> Unit = {},
+    availableEmojis: List<String> = emptyList(),
+    emojiCooldownEndsAtMs: Long = 0L,
+    onBlastEmoji: ((String) -> Unit)? = null,
 ) {
     // Pinned-bottom layout: opponents + board scroll if needed, but the
     // player's hand and the action bar always sit at the bottom in reach.
     // No "Your turn" banner — the pulsing gold band on the active player
     // (human or bot) carries that signal visually.
     Column(modifier = Modifier.fillMaxSize()) {
+        // Opponents pinned near the top; the board floats centered in the space
+        // between them and the player's hand (weighted spacers above + below it)
+        // so the felt reads balanced and full rather than jammed up under the
+        // opponents with a slab of black below. Modest top clearance — the
+        // opponents row carries its own overhang padding for the chevron / pill.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
+                .weight(1f),
         ) {
-            // Clearance above the opponents row so the chevron + last-
-            // action pill (both rendered as TopCenter overlays on each
-            // avatar with negative Y offsets, ~24dp of upward overflow)
-            // have room to breathe instead of being clipped by the
-            // TopBar. The LazyRow's own top contentPadding
-            // (ScrollingRowOverhangPadding, 28dp) covers the overlay
-            // itself — this spacer is just visual breathing room from
-            // the TopBar, so it stays modest.
-            VerticalSpacerD700()
+            VerticalSpacerD500()
             OpponentsRow(
                 table = table,
                 onBlindClick = onBlindClick,
-                onBetPillClick = onBetPillClick,
-                onLastActionClick = onLastActionClick,
                 onAvatarTap = onOpponentTap,
             )
-
-            VerticalSpacerD800()
-            BoardArea(table = table, onPotClick = onPotClick)
+            Spacer(modifier = Modifier.weight(1f))
+            BoardArea(table = table, onPotClick = onPotClick, onBoardClick = onBoardClick)
+            Spacer(modifier = Modifier.weight(1f))
         }
 
         // Player row + action bar share a Column so that when the action bar
@@ -997,13 +1091,24 @@ private fun ActiveTable(
                 onWinOddsFlipped = onWinOddsFlipped,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
-                onLastActionClick = onLastActionClick,
                 onStackClick = onStackClick,
                 onHandLabelClick = onHandLabelClick,
                 onSwipeFold = onSwipeFold,
                 onSelfTap = onSelfTap,
+                availableEmojis = availableEmojis,
+                emojiCooldownEndsAtMs = emojiCooldownEndsAtMs,
+                onBlastEmoji = onBlastEmoji,
             )
-            QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
+            // Between hands on a real-chip table the bet bar is replaced by the
+            // auto-advance countdown + a leave-with-winnings affordance, so the
+            // player always knows how long they have to cash out (north star).
+            // Otherwise the normal action bar (collapsed when it isn't the human's
+            // turn). The two never coexist — a hand is either live or finished.
+            if (nextHandCountdown != null) {
+                NextHandCountdownBar(countdown = nextHandCountdown, onLeave = onLeaveWithWinnings)
+            } else {
+                QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
+            }
         }
     }
 }
@@ -1457,6 +1562,60 @@ private fun PlayPokerScreenPreview_BustDialog() {
                     handResult = result,
                 ),
                 lastHandXpAwarded = 12,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_NextHandCountdown() {
+    // Real-chip table between hands: the bet bar is replaced by the auto-advance
+    // countdown + a leave-with-winnings button, and the hand result lives on the
+    // felt (no showdown popup). The window to cash out before the next deal.
+    val board = listOf(
+        card(Rank.Ten, Suit.Hearts),
+        card(Rank.Jack, Suit.Hearts),
+        card(Rank.Queen, Suit.Hearts),
+        card(Rank.Three, Suit.Clubs),
+        card(Rank.Seven, Suit.Spades),
+    )
+    val seats = listOf(
+        previewHumanSeat(
+            stack = 1_240,
+            isActing = false,
+            holeCards = listOf(card(Rank.Ace, Suit.Hearts), card(Rank.Ace, Suit.Spades)),
+        ),
+        previewBotSeat(
+            index = 1,
+            name = "David",
+            stack = 760,
+            holeCards = listOf(card(Rank.King, Suit.Spades), card(Rank.King, Suit.Diamonds)),
+        ),
+    )
+    val result = HandResultView(
+        winners = listOf(HandWinner(seatIndex = 0, amount = 240, handRank = null, byFold = false)),
+        board = board,
+    )
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(
+                    street = BettingRound.Complete,
+                    communityCards = board,
+                    pot = 240,
+                    seats = seats,
+                    actingSeatIndex = null,
+                    isHumanTurn = false,
+                    humanLegalActions = null,
+                    handResult = result,
+                ),
+                xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER,
+                nextHandCountdown = com.dangerfield.cards.features.room.impl.session.NextHandCountdown(
+                    deadlineEpochMs = Long.MAX_VALUE,
+                ),
             ),
             onAction = {},
             onBack = {},

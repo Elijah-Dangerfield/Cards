@@ -138,7 +138,7 @@ private fun Medallion(modifier: Modifier = Modifier) {
             ),
         contentAlignment = Alignment.Center,
     ) {
-        ChipCoin(size = 40.dp, textTypography = AppTheme.typography.Heading.H700)
+        ChipCoin(size = 40.dp)
     }
 }
 

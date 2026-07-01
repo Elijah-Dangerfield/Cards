@@ -19,6 +19,7 @@ import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.ConfettiBurst
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementUnlockReveal
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
@@ -63,6 +64,7 @@ internal fun AchievementUnlockedDialog(
         onDismissRequest = onDismiss,
         topAccessory = topAccessoryEmoji("🏆")
     ) {
+        Box {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -94,7 +96,7 @@ internal fun AchievementUnlockedDialog(
                 VerticalSpacerD800()
                 Text(
                     text = achievement.name,
-                    typography = AppTheme.typography.Heading.H800.Italic,
+                    typography = AppTheme.typography.Heading.H800,
                     color = AppTheme.colors.content,
                     textAlign = TextAlign.Center,
                 )
@@ -118,6 +120,10 @@ internal fun AchievementUnlockedDialog(
             }
 
             VerticalSpacerD1000()
+        }
+            // Same celebratory confetti the level-up takeover rains — fires once
+            // when the unlock lands, showering over the card.
+            ConfettiBurst(modifier = Modifier.matchParentSize())
         }
     }
 }

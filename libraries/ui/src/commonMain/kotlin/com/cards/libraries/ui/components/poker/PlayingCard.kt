@@ -49,17 +49,32 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  */
 data class PlayingCardSize(val width: Dp, val height: Dp) {
     companion object {
-        /** Smallest readable card. Cheat-sheet examples and seat indicators. */
-        val Mini = PlayingCardSize(30.dp, 40.dp)
+        /**
+         * Card aspect (width / height). A touch fatter than a real 0.71 poker card
+         * for a chunky, bubbly look. The one knob — every felt card derives its
+         * dimensions from this, sized to the space available rather than hardcoded.
+         */
+        const val Ratio = 0.74f
+
+        /** A card sized to a target [width]; height follows from [Ratio]. */
+        fun ofWidth(width: Dp): PlayingCardSize = PlayingCardSize(width, width / Ratio)
+
+        /** A card sized to a target [height]; width follows from [Ratio]. */
+        fun ofHeight(height: Dp): PlayingCardSize = PlayingCardSize(height * Ratio, height)
+
+        /** Smallest readable card. Cheat-sheet examples and seat indicators.
+         *  Sized so a two-glyph rank ("10") clears the padding without clipping. */
+        val Mini = ofHeight(46.dp)
 
         /** A deck-stack card. */
-        val Deck = PlayingCardSize(36.dp, 50.dp)
+        val Deck = ofHeight(50.dp)
 
-        /** Community board card. */
-        val Board = PlayingCardSize(92.dp, 126.dp)
+        /** A representative community board card — the felt ([BoardArea]) sizes its
+         *  cards to the available width instead; this is for previews / fallbacks. */
+        val Board = ofHeight(120.dp)
 
         /** A player's own hole card. */
-        val Hole = PlayingCardSize(104.dp, 142.dp)
+        val Hole = ofHeight(140.dp)
     }
 }
 
@@ -97,6 +112,8 @@ fun PlayingCard(
                 typography = resolvedRankType,
                 color = color,
                 textAlign = TextAlign.Start,
+                maxLines = 1,
+                softWrap = false,
             )
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
                 Text(
@@ -478,29 +495,31 @@ fun PlayingCardSlot(
 
 @Composable
 private fun defaultRankTypography(width: Dp): TypographyResource = when {
-    width >= 90.dp -> AppTheme.typography.Heading.H1000
-    width >= 60.dp -> AppTheme.typography.Heading.H800
-    width >= 40.dp -> AppTheme.typography.Body.B700
-    else -> AppTheme.typography.Body.B600
+    width >= 84.dp -> AppTheme.typography.Display.D1100
+    width >= 54.dp -> AppTheme.typography.Display.D1000
+    width >= 38.dp -> AppTheme.typography.Heading.H800
+    else -> AppTheme.typography.Body.B700
 }
 
 @Composable
 private fun defaultSuitTypography(width: Dp): TypographyResource = when {
-    width >= 90.dp -> AppTheme.typography.Heading.H1000
-    width >= 60.dp -> AppTheme.typography.Body.B600
-    else -> AppTheme.typography.Body.B500
+    width >= 84.dp -> AppTheme.typography.Heading.H1000
+    width >= 54.dp -> AppTheme.typography.Heading.H800
+    else -> AppTheme.typography.Body.B600
 }
 
 private fun cornerRadiusFor(width: Dp): Dp = when {
-    width >= 70.dp -> 12.dp
-    width >= 40.dp -> 8.dp
+    width >= 70.dp -> 18.dp
+    width >= 40.dp -> 10.dp
     else -> 6.dp
 }
 
 private fun paddingFor(width: Dp): Dp = when {
     width >= 70.dp -> 8.dp
     width >= 40.dp -> 4.dp
-    else -> 3.dp
+    // Tight padding on the smallest cards so a two-glyph rank still fits the
+    // narrow content box (it was clipping in the hand-rankings cheat sheet).
+    else -> 2.dp
 }
 
 private fun shadowElevation(width: Dp): Dp = when {

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -58,6 +59,11 @@ internal data class RewardBurst(
 internal class TableRewardAnchors {
     var levelPillBounds: Rect? by mutableStateOf(null)
     var chipStackBounds: Rect? by mutableStateOf(null)
+    // The pot pill's on-screen bounds — the launch point for the pot-ship coins.
+    var potBounds: Rect? by mutableStateOf(null)
+    // Each seat's avatar bounds in root coordinates, keyed by seat index, so the
+    // pot-ship overlay can fly coins to whichever seat(s) won — human or opponent.
+    val seatAvatarBounds = mutableStateMapOf<Int, Rect>()
 }
 
 internal val LocalTableRewardAnchors = staticCompositionLocalOf<TableRewardAnchors?> { null }
@@ -165,12 +171,15 @@ private fun FlyingToken(
     target: Offset,
     bowPx: Float,
     onArrive: () -> Unit,
+    delayMs: Int = 0,
+    durationMs: Int = 700,
     content: @Composable () -> Unit,
 ) {
     val progress = remember(id) { Animatable(0f) }
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(id) {
-        progress.animateTo(1f, tween(durationMillis = 700, easing = FastOutSlowInEasing))
+        if (delayMs > 0) kotlinx.coroutines.delay(delayMs.toLong())
+        progress.animateTo(1f, tween(durationMillis = durationMs, easing = FastOutSlowInEasing))
         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         onArrive()
     }
@@ -198,5 +207,86 @@ private fun FlyingToken(
         },
     ) {
         content()
+    }
+}
+
+/**
+ * One "ship the pot to the winner" event, fired by [PlayPokerScreen] when a
+ * real-chip hand ends. [winnerSeatIndexes] are the seats that took the pot (more
+ * than one on a split). [id] is a monotonic sequence so each burst re-keys its
+ * animation. Money-game only — practice keeps its result dialog, so the felt
+ * isn't where its reward reads.
+ */
+internal data class PotShipBurst(
+    val id: Int,
+    val winnerSeatIndexes: List<Int>,
+)
+
+/**
+ * Streams a handful of gold coins from the pot pill up to the winner's avatar as
+ * the pot counts down to 0, so who won — and that chips moved to them — is
+ * unmistakable on the felt without a popup. Targets come from [anchors] (the pot
+ * pill + each seat's avatar publish their bounds); a missing anchor skips that
+ * coin. Once every coin lands, [onComplete] clears the caller's burst state.
+ */
+@Composable
+internal fun PotShipOverlay(
+    burst: PotShipBurst?,
+    anchors: TableRewardAnchors,
+    onComplete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val current = burst ?: return
+    var overlayOrigin by remember(current.id) { mutableStateOf(Offset.Zero) }
+    var overlaySize by remember(current.id) { mutableStateOf(IntSize.Zero) }
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onGloballyPositioned {
+                overlayOrigin = it.positionInRoot()
+                overlaySize = it.size
+            },
+    ) {
+        // Backstop: clear the burst after a beat even if anchors never measure or
+        // a coin is skipped, so it can never stick non-null. Races the all-landed
+        // completion below; onComplete just nulls the caller's state, so whichever
+        // fires first wins and the other is a harmless no-op.
+        LaunchedEffect(current.id) {
+            kotlinx.coroutines.delay(1_500)
+            onComplete()
+        }
+        if (overlaySize == IntSize.Zero) return@Box
+        val pot = anchors.potBounds
+        val targets = current.winnerSeatIndexes.mapNotNull { anchors.seatAvatarBounds[it] }
+        // Anchors not measured yet — wait. This recomposes when they publish (they
+        // are snapshot state), and the backstop above cleans up if they never do.
+        if (pot == null || targets.isEmpty()) return@Box
+
+        val origin = pot.center - overlayOrigin
+        val coinTargets = targets.map { it.center - overlayOrigin }
+        // A few coins per winner so the stream reads as "the pot", not a single chip.
+        val coinCount = (coinTargets.size * 3).coerceIn(3, 9)
+        var completed by remember(current.id) { mutableStateOf(0) }
+        LaunchedEffect(current.id, completed) {
+            if (completed >= coinCount) onComplete()
+        }
+
+        val density = LocalDensity.current
+        val spreadPx = with(density) { 8.dp.toPx() }
+        val bowPx = with(density) { 22.dp.toPx() }
+        for (i in 0 until coinCount) {
+            val target = coinTargets[i % coinTargets.size]
+            FlyingToken(
+                id = "potcoin-${current.id}-$i",
+                origin = origin + Offset(((i % 3) - 1) * spreadPx, 0f),
+                target = target,
+                bowPx = if (i % 2 == 0) bowPx else -bowPx,
+                delayMs = i * 70,
+                durationMs = 620,
+                onArrive = { completed++ },
+            ) {
+                ChipCoin(size = 14.dp)
+            }
+        }
     }
 }

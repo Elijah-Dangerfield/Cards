@@ -1,10 +1,12 @@
 :root {
-    --bg: #111214;
-    --surface: #1a1b1e;
-    --text: #f5f5f5;
-    --text-muted: #a0a0a0;
-    --accent: #EC407A;
-    --border: #2a2b2e;
+    /* Matches the app's warm "espresso + gold" palette (see ColorResource.kt)
+       so the legal pages read as part of Cards, not a pink stranger. */
+    --bg: #121110;
+    --surface: #1C1A18;
+    --text: #F5F1EA;
+    --text-muted: #A39B8F;
+    --accent: #E0B863;
+    --border: #262320;
 }
 
 * {

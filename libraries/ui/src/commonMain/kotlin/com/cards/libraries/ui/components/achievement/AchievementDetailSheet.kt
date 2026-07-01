@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.ui.components.achievement
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -31,6 +34,7 @@ import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSh
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD300
 import com.dangerfield.cards.system.VerticalSpacerD400
@@ -120,7 +124,7 @@ fun AchievementDetailSheet(
             AchievementMedal(
                 achievement = achievement,
                 earned = earned,
-                modifier = Modifier.size(120.dp),
+                modifier = Modifier.size(132.dp),
                 earnedAtEpochMs = earnedAtEpochMs,
                 progress = progress,
                 flipOnInit = true,
@@ -133,7 +137,7 @@ fun AchievementDetailSheet(
                 } else {
                     achievement.name
                 },
-                typography = AppTheme.typography.Heading.H700,
+                typography = AppTheme.typography.Heading.H800,
                 color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
@@ -165,7 +169,7 @@ fun AchievementDetailSheet(
                 }
                 Text(
                     text = achievement.description,
-                    typography = AppTheme.typography.Body.B500,
+                    typography = AppTheme.typography.Body.B600,
                     color = AppTheme.colors.contentSecondary,
                     textAlign = TextAlign.Center,
                 )
@@ -187,12 +191,21 @@ fun AchievementDetailSheet(
             }
 
             VerticalSpacerD400()
-            Text(
-                text = rewardLabel(achievement),
-                typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.poker.chipGold,
-                textAlign = TextAlign.Center,
-            )
+            // The reward reads as a "chip" — a rounded gold-tinted pill with a
+            // bold gold label — so it stands out as the payoff.
+            Box(
+                modifier = Modifier
+                    .clip(Radii.Round.shape)
+                    .background(AppTheme.colors.poker.chipGold.color.copy(alpha = 0.16f))
+                    .padding(horizontal = Dimension.D600, vertical = Dimension.D300),
+            ) {
+                Text(
+                    text = rewardLabel(achievement),
+                    typography = AppTheme.typography.Body.B600.Bold,
+                    color = AppTheme.colors.poker.chipGold,
+                    textAlign = TextAlign.Center,
+                )
+            }
 
             cosmeticRewardFor(achievement.id)?.let { cosmetic ->
                 VerticalSpacerD200()
@@ -212,7 +225,7 @@ fun AchievementDetailSheet(
                 ).label()
                 Text(
                     text = stringResource(Res.string.ui_achievement_medallion_earned_back, ago),
-                    typography = AppTheme.typography.Body.B400,
+                    typography = AppTheme.typography.Body.B500.Bold,
                     color = AppTheme.colors.contentSecondary,
                 )
             }
