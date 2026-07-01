@@ -165,6 +165,54 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun create_withPickedCosmetics_forwardsThePick_overEquipped() = runUnitTest {
+        // SHOP-5: the create screen's explicit picker wins over the host's
+        // equipped look — even though the host has felt/card back B equipped, the
+        // picked A ids pin onto the room.
+        val rooms = FakeRoomRepository(createOutcome = CreateRoomOutcome.Success(sampleRoom()))
+        val equipment = FakeEquipmentRepository(equipped = listOf("cardback_gold", "felt_royal_red"))
+        val vm = buildVm(
+            rooms = rooms,
+            equipment = equipment,
+            pickedFeltProductId = "felt_midnight_blue",
+            pickedCardBackProductId = "cardback_marble",
+        )
+
+        vm.takeAction(LobbyAction.CreateRoom)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.room == null) last = awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        assertEquals("felt_midnight_blue", rooms.createdFeltProductId)
+        assertEquals("cardback_marble", rooms.createdCardBackProductId)
+    }
+
+    @Test
+    fun create_withOnlyFeltPicked_fallsBackToEquippedForCardBack() = runUnitTest {
+        // A partial pick (only felt) still uses the equipped card back — each slot
+        // resolves independently, picked-first then equipped-fallback.
+        val rooms = FakeRoomRepository(createOutcome = CreateRoomOutcome.Success(sampleRoom()))
+        val equipment = FakeEquipmentRepository(equipped = listOf("cardback_gold", "felt_royal_red"))
+        val vm = buildVm(
+            rooms = rooms,
+            equipment = equipment,
+            pickedFeltProductId = "felt_midnight_blue",
+        )
+
+        vm.takeAction(LobbyAction.CreateRoom)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.room == null) last = awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        assertEquals("felt_midnight_blue", rooms.createdFeltProductId)
+        assertEquals("cardback_gold", rooms.createdCardBackProductId)
+    }
+
+    @Test
     fun create_networkError_staysIdle_andSurfacesMessage() = runUnitTest {
         val rooms = FakeRoomRepository(
             createOutcome = CreateRoomOutcome.NetworkError(RuntimeException("simulated network error")),
@@ -395,7 +443,7 @@ class LobbyViewModelTest : CoroutineTest() {
         vm.viewModelScope.coroutineContext.job.cancel()
         runCurrent()
 
-        gate.complete(LeaveRoomOutcome.Success)
+        gate.complete(LeaveRoomOutcome.Success())
         runCurrent()
         assertEquals(1, rooms.leaveFinished, "leaveRoom must complete despite VM teardown")
     }
@@ -405,7 +453,7 @@ class LobbyViewModelTest : CoroutineTest() {
         val room = sampleRoom()
         val rooms = FakeRoomRepository(
             createOutcome = CreateRoomOutcome.Success(room),
-            leaveOutcome = LeaveRoomOutcome.Success,
+            leaveOutcome = LeaveRoomOutcome.Success(),
         )
         val vm = buildVm(rooms = rooms)
         vm.takeAction(LobbyAction.CreateRoom)
@@ -440,7 +488,7 @@ class LobbyViewModelTest : CoroutineTest() {
         )
         val rooms = FakeRoomRepository(
             createOutcome = CreateRoomOutcome.Success(room),
-            leaveOutcome = LeaveRoomOutcome.Success,
+            leaveOutcome = LeaveRoomOutcome.Success(),
         )
         val chips = FakeChipsRepository()
         val vm = buildVm(rooms = rooms, chips = chips)
@@ -458,13 +506,44 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun leave_realChipRoom_settledBalance_appliesDirectly_noSync() = runUnitTest {
+        // MP-29: when the leave returns the server's post-cash-out balance, the
+        // lobby applies it directly instead of a speculative sync racing the
+        // settlement commit (CARDS-5Q).
+        val room = roomWithStakes(
+            buyIn = 5000,
+            smallBlind = 25,
+            bigBlind = 50,
+            members = listOf(member(LOCAL_USER, "You", isConnected = true)),
+        )
+        val rooms = FakeRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(room),
+            leaveOutcome = LeaveRoomOutcome.Success(settledBalance = 8_800L),
+        )
+        val chips = FakeChipsRepository()
+        val vm = buildVm(rooms = rooms, chips = chips)
+        vm.takeAction(LobbyAction.CreateRoom)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.room == null) last = awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        vm.takeAction(LobbyAction.Leave)
+        runCurrent()
+
+        assertEquals(8_800L, chips.lastSetBalance, "applies the server's settled balance")
+        assertEquals(0, chips.syncCalls, "a settled leave must not also fire a sync")
+    }
+
+    @Test
     fun leave_freeTable_doesNotSyncTheWallet() = runUnitTest {
         // A free table (buyIn == 0) never escrowed chips, so there's nothing to
         // reconcile — leaving must not fire a needless wallet sync.
         val room = sampleRoom()
         val rooms = FakeRoomRepository(
             createOutcome = CreateRoomOutcome.Success(room),
-            leaveOutcome = LeaveRoomOutcome.Success,
+            leaveOutcome = LeaveRoomOutcome.Success(),
         )
         val chips = FakeChipsRepository()
         val vm = buildVm(rooms = rooms, chips = chips)
@@ -964,6 +1043,8 @@ class LobbyViewModelTest : CoroutineTest() {
         maxSeats: Int? = null,
         buyIn: Long? = null,
         open: Boolean = false,
+        pickedFeltProductId: String? = null,
+        pickedCardBackProductId: String? = null,
         equipment: EquipmentRepository = FakeEquipmentRepository(),
         chips: ChipsRepository = FakeChipsRepository(),
     ): LobbyViewModel = LobbyViewModel(
@@ -972,6 +1053,8 @@ class LobbyViewModelTest : CoroutineTest() {
         maxSeats = maxSeats,
         buyIn = buyIn,
         open = open,
+        pickedFeltProductId = pickedFeltProductId,
+        pickedCardBackProductId = pickedCardBackProductId,
         rooms = rooms,
         auth = identity,
         profile = profile,
@@ -1090,7 +1173,7 @@ class LobbyViewModelTest : CoroutineTest() {
         ): CreateRoomOutcome = createOutcome
         override suspend fun joinRoom(code: String): JoinRoomOutcome =
             JoinRoomOutcome.NetworkError(RuntimeException("not used"))
-        override suspend fun leaveRoom(code: String): LeaveRoomOutcome = LeaveRoomOutcome.Success
+        override suspend fun leaveRoom(code: String): LeaveRoomOutcome = LeaveRoomOutcome.Success()
         override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome {
             addBotSeatIndexes += seatIndex
             return AddBotOutcome.Success(
@@ -1176,7 +1259,7 @@ class LobbyViewModelTest : CoroutineTest() {
     private class FakeRoomRepository(
         private val createOutcome: CreateRoomOutcome = CreateRoomOutcome.NetworkError(RuntimeException("simulated network error")),
         private val joinOutcome: JoinRoomOutcome = JoinRoomOutcome.NetworkError(RuntimeException("simulated network error")),
-        private val leaveOutcome: LeaveRoomOutcome = LeaveRoomOutcome.Success,
+        private val leaveOutcome: LeaveRoomOutcome = LeaveRoomOutcome.Success(),
         private val activeRoomsOutcome: GetActiveRoomsOutcome = GetActiveRoomsOutcome.Success(emptyList()),
         private val observe: (String) -> Flow<RoomConnection> = { flow {} },
     ) : RoomRepository {
@@ -1261,6 +1344,8 @@ class LobbyViewModelTest : CoroutineTest() {
     private class FakeChipsRepository : ChipsRepository {
         var syncCalls: Int = 0
             private set
+        var lastSetBalance: Long? = null
+            private set
         private val balance = MutableStateFlow<Long?>(1000L)
         override fun observeBalance(): Flow<Long?> = balance.asStateFlow()
         override suspend fun getBalance(): Long? = balance.value
@@ -1269,6 +1354,7 @@ class LobbyViewModelTest : CoroutineTest() {
         override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
         override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
         override suspend fun setBalance(authoritativeBalance: Long) {
+            lastSetBalance = authoritativeBalance
             balance.value = authoritativeBalance
         }
         override suspend fun deleteAll() = Unit

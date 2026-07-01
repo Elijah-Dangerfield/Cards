@@ -133,6 +133,19 @@ class ShopViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun chipBalanceReconciling_mirrorsRepository() = runUnitTest {
+        val chips = FakeChipsRepository(initialBalance = 42_000)
+        val vm = buildVm(chipsRepository = chips)
+        assertEquals(false, vm.state.chipBalanceReconciling)
+
+        chips.reconciling.value = true
+        assertEquals(true, vm.state.chipBalanceReconciling)
+
+        chips.reconciling.value = false
+        assertEquals(false, vm.state.chipBalanceReconciling)
+    }
+
+    @Test
     fun inventory_mirrorsRepository_intoOwnedProductIds() = runUnitTest {
         val inv = FakeInventoryRepository().apply {
             emit(listOf(SAMPLE_PENDING_INVENTORY_ITEM))
@@ -637,6 +650,8 @@ class ShopViewModelTest : CoroutineTest() {
         val appliedDeltas = mutableListOf<Triple<Long, String, String?>>()
 
         override val walletJustCreated = MutableStateFlow(false)
+        val reconciling = MutableStateFlow(false)
+        override val isReconciling = reconciling
         override fun observeBalance(): Flow<Long?> = state.asStateFlow()
         override suspend fun getBalance(): Long? = state.value
         override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {

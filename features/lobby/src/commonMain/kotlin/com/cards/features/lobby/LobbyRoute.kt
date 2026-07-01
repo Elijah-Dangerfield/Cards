@@ -33,4 +33,10 @@ data class LobbyRoute(
     /** "Open to anyone": create the room matchmaker-discoverable + server-dealt.
      *  Only meaningful with [autoCreate]. */
     val open: Boolean = false,
+    /** Host-picked table felt (SHOP-5), carried from the create screen's picker.
+     *  Null falls back to the host's equipped felt. Only meaningful with [autoCreate]. */
+    val feltProductId: String? = null,
+    /** Host-picked card back (SHOP-5). Null falls back to the host's equipped
+     *  card back. Only meaningful with [autoCreate]. */
+    val cardBackProductId: String? = null,
 ) : Route(authRequirement = AuthRequirement.Account)

@@ -36,6 +36,14 @@ enum class GateReason {
 
     /** Has a guest account but the action needs a claimed one — offer to save it. */
     NeedClaimedAccount,
+
+    /**
+     * The session couldn't be confirmed because the device is offline, not
+     * because the user has no account. Tell them they're offline (and it'll
+     * resolve when connectivity returns) instead of the misleading "account
+     * needed" — an onboarded guest reads that as "my progress is gone."
+     */
+    Offline,
 }
 
 /**

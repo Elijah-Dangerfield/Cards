@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.db.RoomMembersTable
 import com.dangerfield.cards.server.db.RoomsTable
@@ -127,7 +128,7 @@ class PostgresRoomStore(
                         BotSeat(
                             personality = personalityForName(name),
                             difficulty = row[RoomMembersTable.botDifficulty]
-                                ?.let { runCatching { BotDifficulty.valueOf(it) }.getOrNull() }
+                                ?.let { Catching { BotDifficulty.valueOf(it) }.getOrNull() }
                                 ?: BotDifficulty.Standard,
                             revealed = row[RoomMembersTable.botRevealed] ?: true,
                         )

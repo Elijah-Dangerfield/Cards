@@ -32,6 +32,7 @@ import cards.libraries.resources.generated.resources.home_play_public_rooms_butt
 import cards.libraries.resources.generated.resources.home_play_public_rooms_subtitle
 import cards.libraries.resources.generated.resources.home_section_play
 import cards.libraries.resources.generated.resources.home_tag_soon
+import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
@@ -45,6 +46,7 @@ import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD600
 import com.dangerfield.cards.system.VerticalSpacerD800
 import com.dangerfield.cards.system.VerticalSpacerD1100
+import kotlin.time.Clock
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -72,18 +74,6 @@ fun HomeScreen(
     // it — checked against the local source of truth, no backend hit.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.takeAction(HomeAction.ScreenResumed) }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { viewModel.takeAction(HomeAction.ScreenPaused) }
-    // [recent-achievements-delay] One line per recomposition of HomeScreen
-    // — pin whether the VM state actually carries achievements at the
-    // moment Compose pulls it. If `vm=<hash>` stays constant across tab
-    // switches and `items` is non-empty immediately on return, the delay
-    // is *somewhere downstream of this read* (animation, layout, etc).
-    // If `items=0` for the first few frames, the VM state was reset.
-    com.dangerfield.cards.libraries.core.logging.KLog
-        .withTag("HomeScreen")
-        .i {
-            "[recent-achievements-delay] compose — vm=${viewModel.hashCode()} " +
-                "items=${state.recentAchievements.size}"
-        }
     // The level-up celebration is a routed full-screen destination
     // ([LevelUpRoute]); the Home entry point navigates to it off
     // `state.levelUpCelebration`. Home itself just renders its content.
@@ -99,6 +89,7 @@ fun HomeScreen(
         chips = state.chips,
         chipsRevealFrom = state.chipsRevealFrom,
         chipsRevealKey = state.chipsRevealKey,
+        chipsReconciling = state.chipsReconciling,
         activeRooms = state.activeRooms,
         showTutorialBanner = !state.tutorialBannerDismissed,
         onStartTutorial = onStartTutorial,
@@ -130,6 +121,7 @@ private fun HomeScreenContent(
     chips: Long?,
     chipsRevealFrom: Long? = null,
     chipsRevealKey: Int = 0,
+    chipsReconciling: Boolean = false,
     // Identity defaults keep the many previews terse; production always
     // passes the real values from HomeState.
     displayName: String = "QuietAce72",
@@ -187,6 +179,7 @@ private fun HomeScreenContent(
                 chips = chips,
                 chipsRevealFrom = chipsRevealFrom,
                 chipsRevealKey = chipsRevealKey,
+                chipsReconciling = chipsReconciling,
                 onTapLevel = onTapLevel,
                 onTapChips = onTapCash,
             )
@@ -319,8 +312,6 @@ private fun defaultOnlineFriends(): List<FriendOnline> = listOf(
         tableLabel = "Quick match",
     ),
 )
-
-private fun defaultRecentAchievements(): List<RecentAchievement> = emptyList()
 
 private fun defaultRecentOpponents(): List<RecentOpponent> = listOf(
     RecentOpponent(
@@ -522,9 +513,9 @@ private fun HomeScreenPreview_Landscape() {
  * never see at runtime.
  */
 private fun previewRecentAchievements(): List<RecentAchievement> {
-    val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
+    val now = Clock.System.now().toEpochMilliseconds()
     val day = 24L * 60L * 60L * 1000L
-    return com.dangerfield.cards.libraries.cards.AllAchievements
+    return AllAchievements
         .filter { !it.isMystery }
         .take(4)
         .mapIndexed { index, achievement ->

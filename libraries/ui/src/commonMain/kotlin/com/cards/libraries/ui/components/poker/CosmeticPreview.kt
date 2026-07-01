@@ -138,7 +138,13 @@ private fun CardBackPreview(productId: String, size: Dp, modifier: Modifier = Mo
     } else {
         null
     }
-    Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
+    // Start-align, not center: a card back is narrower than its square
+    // footprint, so centering insets its visible left edge from the tile
+    // start. Every other preview kind (felt, pack, emoji) fills or
+    // start-aligns its footprint, so a centered card made the card-back
+    // shelf's tiles begin further in than the felt/emote shelves under the
+    // same header. Start-aligning lines all shelves up (SHOP-6).
+    Box(modifier = modifier.size(size), contentAlignment = Alignment.CenterStart) {
         PlayingCardBack(size = cardSize, style = style, avatarOverlay = avatarOverlay)
     }
 }

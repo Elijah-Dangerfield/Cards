@@ -36,7 +36,6 @@ import cards.libraries.resources.generated.resources.profile_items_equipped
 import cards.libraries.resources.generated.resources.profile_my_items_button_equip
 import cards.libraries.resources.generated.resources.profile_my_items_button_unequip
 import cards.libraries.resources.generated.resources.profile_my_items_personal_cosmetic_tag
-import com.dangerfield.cards.libraries.cards.AcquisitionSource
 import com.dangerfield.cards.libraries.cards.CosmeticSlot
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.cards.formatThousands
@@ -112,7 +111,7 @@ fun CosmeticDetailSheet(
 
             Text(
                 text = earnedInfo?.title?.let { stringResource(it) } ?: item.title,
-                typography = AppTheme.typography.Heading.H700,
+                typography = AppTheme.typography.Heading.H800,
                 color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
@@ -123,7 +122,7 @@ fun CosmeticDetailSheet(
                 VerticalSpacerD200()
                 Text(
                     text = desc,
-                    typography = AppTheme.typography.Body.B500,
+                    typography = AppTheme.typography.Body.B600,
                     color = AppTheme.colors.contentSecondary,
                     textAlign = TextAlign.Center,
                 )
@@ -231,7 +230,7 @@ private fun FoundingMemberSheet(onDismiss: () -> Unit) {
             VerticalSpacerD500()
             Text(
                 text = stringResource(Res.string.earned_founding_member_title),
-                typography = AppTheme.typography.Heading.H700,
+                typography = AppTheme.typography.Heading.H800,
                 color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
@@ -293,14 +292,14 @@ fun LockedCosmeticSheet(
 
             Text(
                 text = item.title,
-                typography = AppTheme.typography.Heading.H700,
+                typography = AppTheme.typography.Heading.H800,
                 color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
             VerticalSpacerD200()
             Text(
                 text = stringResource(Res.string.profile_item_sheet_locked_not_owned),
-                typography = AppTheme.typography.Body.B500,
+                typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
@@ -390,7 +389,7 @@ private fun PackContents(emojis: List<String>) {
             emojis.forEach { emoji ->
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(56.dp)
                         .clip(CircleShape)
                         .background(AppTheme.colors.surfaceRaised.color),
                     contentAlignment = Alignment.Center,
@@ -424,11 +423,11 @@ private fun CosmeticHero(
         CosmeticSlot.Felt -> FeltVignette(productId)
         // Packs (avatars / emotes) read as a stack of their contents.
         else -> if (emojiOverride == null && packEmojis.size >= 2) {
-            CosmeticPackThumbnail(emojis = packEmojis, size = 120.dp)
+            CosmeticPackThumbnail(emojis = packEmojis, size = 132.dp)
         } else {
             Box(
                 modifier = Modifier
-                    .size(120.dp)
+                    .size(132.dp)
                     .clip(Radii.R700.shape)
                     .background(AppTheme.colors.surfaceRaised.color),
                 contentAlignment = Alignment.Center,
@@ -505,15 +504,15 @@ private fun FeltVignette(productId: String) {
 
 @Composable
 private fun acquisitionLine(item: OwnedItem): String? {
-    if (item.acquiredAtEpochMs <= 0L) return null
+    val kind = acquisitionLineKind(item) ?: return null
     val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
     val ago = earnedAgo(item.acquiredAtEpochMs, now).label()
-    return when {
-        item.acquisitionSource == AcquisitionSource.Earned ->
+    return when (kind) {
+        AcquisitionLineKind.Earned ->
             stringResource(Res.string.profile_item_sheet_earned, ago)
-        item.costChipsAtPurchase > 0L ->
-            stringResource(Res.string.profile_item_sheet_bought, ago, formatThousands(item.costChipsAtPurchase))
-        else ->
+        is AcquisitionLineKind.Bought ->
+            stringResource(Res.string.profile_item_sheet_bought, ago, formatThousands(kind.costChips))
+        AcquisitionLineKind.BoughtFree ->
             stringResource(Res.string.profile_item_sheet_bought_free, ago)
     }
 }

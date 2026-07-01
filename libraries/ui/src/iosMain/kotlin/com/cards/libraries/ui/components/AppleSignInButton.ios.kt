@@ -10,6 +10,8 @@ import androidx.compose.ui.viewinterop.UIKitView
 import com.dangerfield.cards.libraries.ui.nativeviews.LocalNativeViewFactory
 import com.dangerfield.cards.libraries.ui.nativeviews.NativeAppleSignInButtonKind
 import com.dangerfield.cards.libraries.ui.nativeviews.NativeAppleSignInButtonStyle
+import com.dangerfield.cards.system.Radii
+import com.dangerfield.cards.system.cornerRadiusDp
 
 /**
  * Renders the system `ASAuthorizationAppleIDButton` through the native view
@@ -43,9 +45,10 @@ actual fun AppleSignInButton(
             val view = factory.createAppleSignInButton(
                 kind = kind.toNativeKind(),
                 style = style.toNativeStyle(),
-                // Matches the app's button radius (Radii.Button = 16dp) so the
-                // Apple button reads as part of the set, not a square slab.
-                cornerRadius = 16f,
+                // Reads the DS button radius directly (points ≡ dp for the native
+                // button) so the Apple button rounds identically to the Google
+                // button instead of a stale literal that drifts when the token moves.
+                cornerRadius = Radii.Button.cornerRadiusDp.value,
                 onTap = { latestOnClick() },
             )
             factory.updateAppleSignInButton(view, effectiveEnabled) { latestOnClick() }

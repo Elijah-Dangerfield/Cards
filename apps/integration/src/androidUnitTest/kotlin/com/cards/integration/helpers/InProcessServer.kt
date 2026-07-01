@@ -167,7 +167,13 @@ class InProcessServer(
             installWebSockets()
             installAuthentication(IntegrationAuth.verification)
             routing {
-                roomRoutes(rooms, FakeProfiles, wallets)
+                roomRoutes(
+                    rooms = rooms,
+                    profiles = FakeProfiles,
+                    wallets = wallets,
+                    gameSessions = registry,
+                    tableSessions = tableSessions,
+                )
                 matchmakingRoutes(
                     rooms = rooms,
                     friends = FakeFriends,

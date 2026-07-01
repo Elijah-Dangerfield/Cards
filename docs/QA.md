@@ -146,6 +146,7 @@ Two variants, both must pass:
 1. Open the app from the home screen.
 
 **Expected:** Skips onboarding. Lands on Home with cached profile + cached chip balance. "Connection issues" banner appears at the top. No "account needed" dialog when navigating Home surfaces. Creating / joining a multiplayer room surfaces a *connection* error ("Couldn't reach the server"), not the account-less "Sign in first to create a room" copy. Real-money purchase still hard-gates. *(AUTH-6.)*
+- If the offline cold boot never resolved a session (guest session couldn't refresh), a route that requires an account (create/join room) shows the **"You're offline"** gate sheet — "Your progress is safe. Try again once you're back online." — not the "Account needed" sheet. Reconnect and retry the same action; the account resolves and the route opens. *(AUTH-11.)*
 
 ---
 
@@ -213,6 +214,18 @@ Two variants, both must pass:
 2. Walk through onboarding quickly; arrive at Home with the welcome dialog still showing.
 
 **Expected:** Dialog renders even if the wallet fetch hasn't completed — chip count shows a placeholder (em-dash or similar). Once the wallet response lands, the chip count updates in place to 10K. No crash if the dialog is dismissed before the count lands.
+
+---
+
+### `ONB-17` 🚨 📱 Guest claims their account with Google, claim prompts clear (AUTH-12)
+
+**State:** signed in as a guest (played a few hands as "Continue as guest"), online.
+
+1. Open the "Save your progress" nudge (Profile, or the rank-detail "Claim your account" sheet).
+2. Tap "Continue with Google" and complete Google's sheet.
+3. Return to the app.
+
+**Expected:** The claim reports success and, with no app restart, every "sign in and claim your account" / "Save your progress" prompt disappears — the account now reads as claimed everywhere. Progress (chips, XP, profile) carries over unchanged. Force-quit and relaunch: still claimed, no prompts return.
 
 ---
 
@@ -376,6 +389,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - **Back-button / iOS swipe leave (MP-23):** the same immediate reconcile holds when leaving via the top back-arrow, the Android system back, AND the iOS edge-swipe-back gesture — not only the in-room Leave button. After winning a pot, leave a real-chip table via the iOS swipe-back: the wallet shows the settled balance on the screen you land on, without backgrounding/foregrounding. No double credit if you confirm a leave dialog and the gesture both fire.
 - After leaving a real-chip table with chips at your seat (Variant A), a toast confirms the credit on the screen you land on ("N chips from your seat went back to your wallet. New balance: M.") — the amounts match the wallet change. Leaving with nothing credited (lost the stack, or a bots-only practice table) shows no toast (MP-6).
 - **Net-settle preview (ROOM-4):** on a real-chip table, the leave-confirm dialog states the *net* this leave settles to the wallet (stack minus buy-in, shown as e.g. "+1,250" up or red when down). If you have a posted blind / chips already in the live hand, a sub-note calls out the amount you forfeit by leaving now. A practice / solo table shows no settle line. The net shown matches the wallet change after leaving.
+- **Reconciling affordance (MP-30):** during the brief window after a game/leave while the wallet sync is in flight, the Home header and Shop wallet render the chip badge as *updating* — the number dims and a small spinner sits beside it — then snaps back to full-strength once the authoritative balance confirms. A settled, idle wallet never shows the spinner. (Easiest to see on a slow connection.)
+- **Synchronous leave cash-out (MP-29):** the balance shown after leaving must be correct on the *first* screen you land on even on a slow / flaky connection — the leave call itself settles the stack and returns the balance, so there's no window where the buy-in still reads as escrowed. Leave a real-chip table right after a hand, ideally with the network throttled: the wallet reflects the settled amount immediately, and a repeated back-tap (dead-button guard) never double-credits.
 
 ---
 
@@ -453,14 +468,15 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
-### `MP-14` ⚠️ 📱 Host's felt + card back show on every player's table
+### `MP-14` ⚠️ 📱 Host's picked felt + card back show on every player's table
 
-**State:** two devices, both signed in, online. Device A (the host) owns + has equipped a non-default felt and a non-default card back (equip them in My Items first). Device B has different (or default) cosmetics. (Covers todo SHOP-3.)
+**State:** two devices, both signed in, online. Device A (the host) owns a non-default felt and a non-default card back (buy/earn them first). Device B has different (or default) cosmetics. (Covers todo SHOP-3 + SHOP-5.)
 
-1. Device A: create a private room, then add a bot or have Device B join.
-2. Play a hand so both devices see the felt + opponents' card backs.
+1. Device A: on the create-room screen, the "Table felt" + "Card back" rows show only cosmetics the host owns (defaults always present), pre-selected to the host's equipped look. Pick a non-default felt B and card back B (different from what's equipped).
+2. Create the private room, then add a bot or have Device B join.
+3. Play a hand so both devices see the felt + opponents' card backs.
 
-**Expected:** Both devices render the *host's* felt color under the table and the host's card-back style on the face-down cards — Device B sees Device A's look, not its own. If the host had nothing equipped in a slot, that slot falls back to each player's own equipped cosmetic. The host swapping a felt in My Items only changes future rooms (the cosmetics pin at create time), not the live one.
+**Expected:** The picker only ever lists owned cosmetics. Both devices render the felt + card back the host *picked* (B) — Device B sees Device A's picked look, not its own. Explicitly picking the Default felt/card back forces the plain default for the whole table. The look pins at create time: swapping cosmetics in My Items afterward doesn't change the live room.
 
 ---
 
@@ -475,6 +491,9 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 3. Equip a non-default felt (if one is owned), then re-check the default felt and the default card back.
 
 **Expected:** On the fresh account both the default felt and default card back render the "Equipped" badge even though the user never explicitly equipped them. Equipping a non-default felt moves the badge off the default felt; the default card back keeps its badge because its slot is untouched. (Covers todo ITEM-1.)
+
+- Acquisition line (SHOP-4): tapping the default felt or default card back opens its detail sheet with **no** "Earned"/"Bought … ago" line — they're granted at account creation, not earned. A genuinely earned or purchased cosmetic still shows its acquisition line.
+- Shelf start-alignment (SHOP-6): the first tile of every cosmetic shelf (card backs, felts, emotes/avatars) starts at the same left inset — flush under its section header. The card-back shelf's first tile lines up with the felt and emote shelves' first tiles rather than sitting further in.
 
 ### `PROF-2` ℹ️ 📱 Table speed setting scales the deal/reveal animations
 
@@ -498,7 +517,18 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Finish the hand and let the table return to Home (tap back / Next hand through to Home).
 3. Repeat once more for a second level-up later in the session.
 
-**Expected:** The full-screen level-up celebration presents every time a level is crossed — including the very first level-up of a fresh session — with the correct level number and any chip/boost/cosmetic reward rows. It never silently drops the user back to Home with no fanfare. A multi-level jump shows a single celebration for the net level. (Covers todo PROG-3; the fix anchors the celebration watermark in the reward granter so a first-session level-up can't be eaten by a seeding race.)
+**Expected:** The full-screen level-up celebration presents every time a level is crossed — including the very first level-up of a fresh session — with the correct level number and any chip/boost/cosmetic reward rows. It never silently drops the user back to Home with no fanfare. A multi-level jump shows a single celebration for the net level. (Covers todo PROG-3 + PROG-5; the reward granter anchors the celebration watermark, and the Home notification arbiter presents the crossing once Home is settled so it can't be swept away before it plays.)
+
+---
+
+### `PROG-6` ⚠️ 📱 Play-style unlock celebration fires once at ~20 hands
+
+**State:** an account whose play-style is not yet unlocked (fewer than 20 recorded hands — reach via a fresh account, or check Stats shows the "keep playing to reveal your style" state).
+
+1. Play bot hands until you have played roughly 20 hands (the play-style sample threshold).
+2. Return to Home and let it settle.
+
+**Expected:** A one-shot "your play style is unlocked" dialog appears exactly once while you are settled on Home, with a "See my style" CTA that routes to Stats (where the radar now shows a shape) and a "Later" that dismisses. It does not re-appear on later Home visits or after backgrounding. If a level-up is also pending, the level-up celebration shows first (higher priority) and the play-style dialog follows on a later Home settle. (Covers todo PROG-6, routed through the PROG-5 Home notification arbiter.)
 
 ---
 
@@ -518,6 +548,15 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 ---
 
 ## Tooling & debug
+
+### `GAME-11` ⚠️ 📱 Shake feedback surface sits above an open bottom sheet
+
+**State:** any screen that opens a bottom sheet (e.g. the shop product sheet, or a lobby picker). Debug build so the shake surface is reachable.
+
+1. Open a bottom sheet so it's expanded on screen.
+2. With the sheet still up, shake the device to bring up the "sun" feedback dialog (and, from it, tap through to the feedback form).
+
+**Expected:** The shake dialog — and the feedback form it opens — render fully on top of the bottom sheet and its scrim, never behind it. Tapping the dialog scrim / back dismisses the dialog and returns to the sheet. (Covers todo GAME-11.)
 
 ### `ENG-8` ℹ️ 📱 Wiretap captures the gameplay WebSocket
 

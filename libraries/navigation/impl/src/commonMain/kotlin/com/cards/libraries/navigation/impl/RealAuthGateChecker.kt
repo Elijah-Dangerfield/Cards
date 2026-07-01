@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.navigation.impl
 
+import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
@@ -42,6 +43,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class RealAuthGateChecker(
     authRepository: AuthRepository,
     guestAccountCreator: GuestAccountCreator,
+    private val appState: AppState,
     appScope: AppCoroutineScope,
 ) : AuthGateChecker, AutoInit {
 
@@ -82,6 +84,10 @@ class RealAuthGateChecker(
         // No account yet, but one is actively being created (degraded) — it heals.
         creationState.value is AccountCreationState.InProgress ||
             creationState.value is AccountCreationState.Failed -> GateReason.FinishingSetup
+        // Offline: the session couldn't be confirmed because we can't reach the
+        // server, not because there's no account. Don't tell an onboarded guest
+        // "account needed" — it reads as "your progress is gone."
+        appState.isOffline.value -> GateReason.Offline
         else -> GateReason.NeedAccount
     }
 }

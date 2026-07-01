@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.cards
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -44,6 +45,23 @@ interface ChipsRepository {
      * never triggers the reveal, even right after switching into it.
      */
     val walletJustCreated: StateFlow<Boolean>
+
+    /**
+     * Live signal that a wallet reconcile ([sync]) is in flight — true from the
+     * moment a sync starts until its round-trip resolves (success or failure).
+     *
+     * Wallet balances are server-authoritative, so there's a window after a game
+     * / leave where the local balance is a *pre-settlement guess* the server
+     * hasn't confirmed yet. Balance surfaces (Home, Shop) render the number as
+     * "updating" while this is true, rather than showing a wrong-but-confident
+     * value the user trusts. Distinct from [observeBalance] returning null (that's
+     * "not hydrated at all"); this is "hydrated, but settling."
+     *
+     * Defaulted to a constant `false` flow so fakes that don't drive sync needn't
+     * implement it; the production impl overrides.
+     */
+    val isReconciling: StateFlow<Boolean>
+        get() = NeverReconciling
 
     /**
      * Optimistic credit. Updates the singleton row by `+amount` AND
@@ -95,3 +113,5 @@ interface ChipsRepository {
      */
     suspend fun sync(): Result<Unit>
 }
+
+private val NeverReconciling: StateFlow<Boolean> = MutableStateFlow(false)

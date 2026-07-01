@@ -258,6 +258,19 @@ data class AppData(
     val highestLevelRewarded: Int = 0,
 
     /**
+     * Whether the one-time "your play style is unlocked" Home celebration has
+     * been shown. False until the user crosses the play-style sample threshold
+     * ([com.dangerfield.cards.libraries.cards.PlayStyleAxes.MIN_SAMPLE] hands)
+     * *and* the celebration actually surfaces on a settled Home — flips true
+     * only after a confirmed present, so a crossing that happens while the user
+     * is off Home replays when they return rather than being silently consumed.
+     * Account-scoped (see [resetAccountScoped]): a fresh account earns its own
+     * unlock moment. Distinct from the play-style data itself, which is derived
+     * server-side and cached separately.
+     */
+    val playStyleUnlockSeen: Boolean = false,
+
+    /**
      * The `LegalUrls.LEGAL_VERSION` the user last accepted by proceeding past
      * the onboarding Welcome step (the passive "by continuing, you agree to
      * Terms + Privacy" consent). `0` means no acceptance has been recorded.
@@ -318,6 +331,10 @@ fun AppData.resetAccountScoped(): AppData = copy(
     // previous user's dismissal (AUTH-6). Distinct from a within-account device
     // persistence: the flag still survives backgrounding for the *same* user.
     tutorialBannerDismissed = false,
+    // The play-style unlock is a first-run milestone reveal — a fresh account
+    // earns its own once it crosses the sample threshold, rather than inheriting
+    // the previous user's "already saw it".
+    playStyleUnlockSeen = false,
 )
 
 interface AppCache : Cache<AppData>

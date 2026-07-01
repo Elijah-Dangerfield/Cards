@@ -61,6 +61,8 @@ class LobbyViewModel(
     @Assisted private val maxSeats: Int?,
     @Assisted private val buyIn: Long?,
     @Assisted private val open: Boolean,
+    @Assisted private val pickedFeltProductId: String?,
+    @Assisted private val pickedCardBackProductId: String?,
     private val rooms: RoomRepository,
     private val auth: AuthRepository,
     private val profile: ProfileRepository,
@@ -128,19 +130,27 @@ class LobbyViewModel(
                 val current = state
                 if (current.isBusy) return@run
                 updateState { it.copy(creating = true, error = null) }
-                // SHOP-3: pin the host's equipped felt + card back onto the room so
-                // every player sees the host's table look. Best-effort — a read
-                // failure falls back to no override (each player's own cosmetic),
-                // never blocks room creation.
-                val cosmetics = Catching { equippedTableCosmetics(equipment.observeEquipped().first()) }
-                    .getOrNull()
+                // SHOP-5: pin the host's *picked* felt + card back onto the room so
+                // every player sees the host's chosen table look. The create screen
+                // pre-seeds its picker from the equipped look (SHOP-3), so a route
+                // that carries a pick uses it directly; a create path with no pick
+                // (e.g. a future quick-create) falls back to reading the equipped
+                // cosmetics here. Best-effort — a read failure falls back to no
+                // override (each player's own cosmetic), never blocks room creation.
+                val equipped = if (pickedFeltProductId == null || pickedCardBackProductId == null) {
+                    Catching { equippedTableCosmetics(equipment.observeEquipped().first()) }.getOrNull()
+                } else {
+                    null
+                }
+                val feltProductId = pickedFeltProductId ?: equipped?.feltProductId
+                val cardBackProductId = pickedCardBackProductId ?: equipped?.cardBackProductId
                 when (
                     val outcome = rooms.createRoom(
                         maxSeats = maxSeats,
                         buyIn = buyIn,
                         open = open,
-                        feltProductId = cosmetics?.feltProductId,
-                        cardBackProductId = cosmetics?.cardBackProductId,
+                        feltProductId = feltProductId,
+                        cardBackProductId = cardBackProductId,
                     )
                 ) {
                     is CreateRoomOutcome.Success -> startConnection(outcome.room)
@@ -236,17 +246,18 @@ class LobbyViewModel(
                 connectionJob = null
                 currentHandle = null
                 updateState { it.copy(leaving = true) }
-                // MP-27: leaving a real-chip room (here usually after an
+                // MP-27 / MP-29: leaving a real-chip room (here usually after an
                 // opponent-left kick collapsed the play screen back to this
-                // lobby) must re-pull the wallet, or the client keeps showing
-                // the buy-in as escrowed until the next foreground forces a
-                // sync. The server already settled the stack; this just makes
-                // the client read the authoritative balance. Fire-and-forget on
-                // appScope so it survives the lobby screen popping (CARDS-5Q).
-                reconcileWalletAfterRoom(room)
+                // lobby) must reconcile the wallet, or the client keeps showing
+                // the buy-in as escrowed until the next foreground. The leave
+                // call itself now cashes out synchronously and returns the
+                // authoritative balance, so we apply that directly below — no
+                // speculative sync racing the server settlement (CARDS-5Q).
+                // Fire-and-forget on appScope so it survives the lobby popping.
                 val outcome = appScope.async { rooms.leaveRoom(code) }.await()
+                reconcileWalletAfterRoom(room, outcome)
                 when (outcome) {
-                    LeaveRoomOutcome.Success,
+                    is LeaveRoomOutcome.Success,
                     LeaveRoomOutcome.NotFound,
                     LeaveRoomOutcome.NotInRoom,
                         -> resetToIdle(error = null)
@@ -474,27 +485,28 @@ class LobbyViewModel(
         }
     }
 
-    // Latches so the post-room wallet sync fires at most once per room
-    // teardown. The lobby Leave is the only trigger today, but latching keeps
-    // it single-shot if a future close-under-us path also reconciles.
-    private var walletReconciled = false
-
     /**
-     * Re-pull the authoritative wallet after leaving a real-chip room (MP-27).
-     * The server settles the buy-in/stack when the room ends, but the client
-     * only learns the new balance on the next [ChipsRepository.sync]; without
-     * this the lobby exit lands Home on a stale balance showing the buy-in as
-     * still escrowed (CARDS-5Q). No-op for a free table ([Room.buyIn] == 0).
-     * Fire-and-forget on [appScope] so it completes even if the lobby screen
-     * pops mid-sync.
+     * Reconcile the authoritative wallet after leaving a real-chip room
+     * (MP-27 / MP-29). The [LeaveRoomOutcome.Success.settledBalance] the leave
+     * returned is the server's post-cash-out balance, so we apply it directly —
+     * the leave call *is* the reconcile, no speculative sync racing the
+     * settlement commit (CARDS-5Q). When the leave settled nothing (a free table,
+     * or an all-in-live deferral whose balance lands later over the socket) we
+     * fall back to a sync so a deferred settlement still reflects. No-op for a
+     * free table ([Room.buyIn] == 0). Fire-and-forget on [appScope] so it
+     * completes even if the lobby screen pops.
      */
-    private fun reconcileWalletAfterRoom(room: Room) {
+    private fun reconcileWalletAfterRoom(room: Room, outcome: LeaveRoomOutcome) {
         if (room.buyIn <= 0L) return
-        if (walletReconciled) return
-        walletReconciled = true
+        val settledBalance = (outcome as? LeaveRoomOutcome.Success)?.settledBalance
         appScope.launch {
-            Catching { chips.sync() }
-                .onFailure { e -> logger.w(e) { "wallet sync after leaving room failed" } }
+            Catching {
+                if (settledBalance != null) {
+                    chips.setBalance(settledBalance)
+                } else {
+                    chips.sync()
+                }
+            }.onFailure { e -> logger.w(e) { "wallet reconcile after leaving room failed" } }
         }
     }
 

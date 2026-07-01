@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.ui.components.dialog
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
@@ -12,6 +13,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,6 +66,19 @@ internal data class DialogHostEntry(
     val content: @Composable BoxScope.() -> Unit,
 )
 
+/**
+ * Draws every hosted dialog inside a top-most [Popup] so a hosted dialog
+ * always sits above Material's [androidx.compose.material3.ModalBottomSheet],
+ * which renders in its own platform window and would otherwise occlude a
+ * dialog drawn inline in the main composition. Only the dialog's own scrim +
+ * dismissal (owned by [DialogOverlay]) drive interaction, so the popup itself
+ * doesn't intercept back/outside-tap — [DialogOverlay]'s [BackHandler] handles
+ * back, and it needs the popup to be focusable for that to fire.
+ *
+ * When there are no entries the popup is not shown at all, so a fresh dialog
+ * registered while a sheet is up creates its window *after* the sheet's — and
+ * therefore on top of it.
+ */
 @Composable
 fun DialogHost(
     modifier: Modifier = Modifier,
@@ -74,7 +91,7 @@ fun DialogHost(
         return
     }
 
-    Box(modifier = modifier) {
+    val hostedEntries: @Composable () -> Unit = {
         entries.forEach { entry ->
             val onDismissed = remember(entry.id, entry.onDismissed) {
                 {
@@ -93,6 +110,24 @@ fun DialogHost(
                 contentAlignment = entry.contentAlignment,
                 content = entry.content
             )
+        }
+    }
+
+    // Compose Popups don't render in the @Preview inspection surface, so fall
+    // back to inline rendering there — otherwise every dialog preview goes
+    // blank. At runtime the popup is what lifts the dialog above bottom sheets.
+    if (LocalInspectionMode.current) {
+        Box(modifier = modifier) { hostedEntries() }
+    } else {
+        Popup(
+            properties = PopupProperties(
+                focusable = true,
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+                clippingEnabled = false,
+            ),
+        ) {
+            Box(modifier = Modifier.fillMaxSize().then(modifier)) { hostedEntries() }
         }
     }
 }

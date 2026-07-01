@@ -96,6 +96,8 @@ class TestClient(
         maxSeats: Int? = null,
         buyIn: Long? = null,
         open: Boolean = false,
+        pickedFeltProductId: String? = null,
+        pickedCardBackProductId: String? = null,
     ): LobbyViewModel =
         LobbyViewModel(
             prefilledCode = prefilledCode,
@@ -103,6 +105,8 @@ class TestClient(
             maxSeats = maxSeats,
             buyIn = buyIn,
             open = open,
+            pickedFeltProductId = pickedFeltProductId,
+            pickedCardBackProductId = pickedCardBackProductId,
             rooms = repository,
             auth = FakeAuthRepository(userId),
             profile = NoProfileRepository,

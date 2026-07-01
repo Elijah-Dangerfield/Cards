@@ -93,6 +93,7 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Edit-profile UI: display name field + emoji avatar grid + save button.
@@ -717,7 +718,7 @@ private fun EditProfileDisplayNameError.message(): String = when (this) {
         stringResource(Res.string.profile_edit_display_name_error_invalid)
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun EditProfileScreenPreview_Loaded() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -741,7 +742,7 @@ private fun EditProfileScreenPreview_Loaded() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun EditProfileScreenPreview_TwoPacksOwned() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -768,7 +769,7 @@ private fun EditProfileScreenPreview_TwoPacksOwned() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun EditProfileScreenPreview_UnownedPacksLinkToShop() {
     // Pins the wardrobe-not-storefront behavior: only the owned starter
@@ -805,7 +806,7 @@ private fun EditProfileScreenPreview_UnownedPacksLinkToShop() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun EditProfileScreenPreview_Loading() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -823,7 +824,7 @@ private fun EditProfileScreenPreview_Loading() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun EditProfileScreenPreview_LongPalette() {
     // Pins the horizontal-scroll fix on BackgroundColorPicker — a palette
@@ -851,7 +852,7 @@ private fun EditProfileScreenPreview_LongPalette() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun EditProfileScreenPreview_Submitting() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -872,7 +873,7 @@ private fun EditProfileScreenPreview_Submitting() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun EditProfileScreenPreview_AvatarLoadError() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -893,7 +894,7 @@ private fun EditProfileScreenPreview_AvatarLoadError() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun EditProfileScreenPreview_DisplayNameTaken() {
     // Pins the inline "name is taken" error treatment on the name

@@ -15,7 +15,7 @@ import com.dangerfield.cards.server.game.IntentResult
 import com.dangerfield.cards.server.game.MatchOverEvent
 import com.dangerfield.cards.server.game.NextHandEvent
 import com.dangerfield.cards.server.game.SeatOccupant
-import com.dangerfield.cards.server.game.stackFor
+import com.dangerfield.cards.server.game.settleLeaver
 import java.util.UUID
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.SpanAttrs
@@ -245,29 +245,16 @@ fun Route.roomSocketRoutes(
                                 // funded leaver is a no-op). Pot chips already
                                 // committed are forfeit — stackFor excludes them.
                                 deltas.filterIsInstance<RoomSocketEventDto.MemberLeft>().forEach { left ->
-                                    val leftUserId = runCatching { UserId(UUID.fromString(left.userId)) }.getOrNull()
+                                    val leftUserId = Catching { UserId(UUID.fromString(left.userId)) }.getOrNull()
                                     if (leftUserId != null) {
-                                        val session = gameSessions.peek(code)
-                                        // An all-in leaver keeps their showdown right (the engine never
-                                        // folds an all-in seat), so their committed chips are still live.
-                                        // Decided atomically against the hand: if they're all-in in a live
-                                        // hand, defer — cashing out their stackFor of 0 now would burn a
-                                        // pot they go on to win (MP-17); departedSettlements pays their
-                                        // resolved stack when the hand completes. Otherwise cash out now.
-                                        val deferred = session?.deferSettlementIfAllInLive(left.userId) ?: false
-                                        if (!deferred) {
-                                            // Live seat stack if they're still seated; else the stack
-                                            // they settled with last hand (0 for a busted-and-dropped
-                                            // player) — never a full-escrow refund, which would mint
-                                            // their lost stake (MP-13). Null only when never dealt in.
-                                            val stack = session?.state?.value?.stackFor(leftUserId)
-                                                ?: session?.lastKnownStack(leftUserId.value.toString())
-                                            Catching { tableSessions.cashOut(leftUserId, stack) }
-                                                .onFailure { e ->
-                                                    LoggerFactory.getLogger("RoomSocket")
-                                                        .warn("cashOut failed for room=$code user=${left.userId}", e)
-                                                }
-                                        }
+                                        // Same settlement decision the REST leave runs (MP-29): defer an
+                                        // all-in-live leaver, else cash out at their stackFor. Keyed +
+                                        // idempotent, so a socket reap and a REST leave that both fire
+                                        // settle exactly once. The balance the helper returns is dropped
+                                        // here — the client learns it from the REST leave response; a
+                                        // socket-only reap folds it into the terminal frame the client
+                                        // reads on teardown.
+                                        settleLeaver(code, leftUserId, gameSessions, tableSessions)
                                     }
                                     // Drop them from the mid-hand-join queue if they
                                     // left while still waiting to be dealt in, so the
@@ -420,7 +407,7 @@ fun Route.roomSocketRoutes(
                     gameSessions.observeSession(code)
                         .flatMapLatest { session -> session?.departedSettlements ?: emptyFlow() }
                         .collect { settlement ->
-                            val settledUserId = runCatching { UserId(UUID.fromString(settlement.userId)) }.getOrNull()
+                            val settledUserId = Catching { UserId(UUID.fromString(settlement.userId)) }.getOrNull()
                                 ?: return@collect
                             Catching { tableSessions.cashOut(settledUserId, settlement.resolvedStack) }
                                 .onFailure { e ->

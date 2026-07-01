@@ -108,6 +108,17 @@ data class GetRoomResponseDto(
     val room: RoomDto,
 )
 
+/**
+ * DELETE /v1/rooms/{code}/me 200 body (MP-29). [balance] is the authoritative
+ * post-cash-out wallet balance. A leave with nothing to settle returns 204 with
+ * no body, so the repo only decodes this on a 200.
+ */
+@Serializable
+data class LeaveRoomResponseDto(
+    val schemaVersion: Int = 1,
+    val balance: Long,
+)
+
 @Serializable
 data class AddBotRequestDto(
     val seatIndex: Int? = null,

@@ -45,6 +45,7 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Type-to-confirm destructive screen. Lists exactly what gets deleted so
@@ -177,7 +178,7 @@ fun DeleteAccountScreen(
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun DeleteAccountScreenPreview_Empty() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -185,7 +186,7 @@ private fun DeleteAccountScreenPreview_Empty() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun DeleteAccountScreenPreview_Confirmed() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -197,7 +198,7 @@ private fun DeleteAccountScreenPreview_Confirmed() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun DeleteAccountScreenPreview_Error() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -212,7 +213,7 @@ private fun DeleteAccountScreenPreview_Error() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun DeleteAccountScreenPreview_Submitting() {
     com.dangerfield.cards.libraries.ui.PreviewContent {

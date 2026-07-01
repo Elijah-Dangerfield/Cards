@@ -192,6 +192,55 @@ class PlayPokerViewModelMpLeaveTest : CoroutineTest() {
     }
 
     @Test
+    fun leaveTable_settledBalanceFromServer_appliesDirectly_noSync() = runUnitTest {
+        // MP-29 / CARDS-5R: the DELETE /me leave now cashes out synchronously and
+        // returns the authoritative post-settlement balance, so the leave *is* the
+        // reconcile. The VM must apply that balance directly (setBalance) and NOT
+        // fire a speculative sync that could race the server's settlement commit.
+        val scenario = MpScenarioBuilder(this, dispatchers, LOCAL)
+            .withLeaveSettledBalance(7_200L)
+            .start()
+        scenario.serverConnection(connected(humans = listOf(LOCAL, PEER)))
+        scenario.serverSnapshot(twoHumanTable(actingSeatIndex = 0))
+        scenario.chipsRepository.emit(1_000L)
+
+        scenario.vm.takeAction(PlayPokerAction.LeaveTable)
+        advanceUntilIdle()
+
+        assertEquals(
+            7_200L,
+            scenario.chipsRepository.lastSetBalance,
+            "the server's post-cash-out balance is applied directly",
+        )
+        assertEquals(
+            0,
+            scenario.chipsRepository.syncCount,
+            "a settled leave must NOT race a speculative sync (that was the bug)",
+        )
+    }
+
+    @Test
+    fun leaveTable_settledBalanceCredit_confirmsWithoutSync() = runUnitTest {
+        // The credit confirmation (MP-6) must still fire off the directly-applied
+        // settled balance, so the wallet bump is explained without any sync.
+        val scenario = MpScenarioBuilder(this, dispatchers, LOCAL)
+            .withLeaveSettledBalance(1_500L)
+            .start()
+        scenario.serverConnection(connected(humans = listOf(LOCAL, PEER)))
+        scenario.serverSnapshot(twoHumanTable(actingSeatIndex = 0))
+        scenario.chipsRepository.emit(900L)
+
+        scenario.vm.takeAction(PlayPokerAction.LeaveTable)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(FakeLeaveCashOutNotifier.Credit(credited = 600L, balanceAfter = 1_500L)),
+            scenario.leaveCashOutNotifier.credits,
+        )
+        assertEquals(0, scenario.chipsRepository.syncCount)
+    }
+
+    @Test
     fun leaveGameFromBust_onRealChipTable_syncsWallet() = runUnitTest {
         val scenario = MpScenarioBuilder(this, dispatchers, LOCAL).start()
         scenario.serverConnection(connected(humans = listOf(LOCAL, PEER)))

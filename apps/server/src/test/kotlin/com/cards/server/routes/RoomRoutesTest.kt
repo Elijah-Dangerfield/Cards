@@ -262,6 +262,47 @@ class RoomRoutesTest {
     }
 
     @Test
+    fun leave_200_cashesOutSynchronously_andReturnsSettledBalance() = runTest {
+        // MP-29: a member holding a table stack must have it cashed out *in* the
+        // leave call, and the DELETE returns the authoritative post-settlement
+        // balance so the client's leave *is* the wallet reconcile — no racy sync.
+        withSettlingRooms { client, tableSessions, wallets ->
+            wallets.setBalance(alice, 10_000L)
+            val room = client.createRoom(asUser = host).body<CreateRoomResponse>().room
+            client.joinRoom(room.code, asUser = alice)
+            // Seat alice: buy-in debits the wallet; leaving with no live stack
+            // refunds the full funded amount, so the balance returns to 10_000.
+            val sit = tableSessions.sitDown(
+                userId = alice,
+                roomCode = room.code,
+                buyIn = 2_000L,
+                enforceEntryBar = false,
+            )
+            assertTrue(sit is com.dangerfield.cards.server.domain.SitDownResult.Funded)
+
+            val resp = client.leaveRoom(room.code, asUser = alice)
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val settled = resp.body<LeaveRoomResponse>()
+            assertEquals(10_000L, settled.balance, "leave returns the post-cash-out balance")
+            assertEquals(10_000L, wallets.balanceOf(alice), "wallet was actually settled")
+            // Idempotent: a re-issued leave once the session is closed settles
+            // nothing and falls back to 204 (the dead-back-button guard).
+            assertEquals(HttpStatusCode.NoContent, client.leaveRoom(room.code, asUser = alice).status)
+        }
+    }
+
+    @Test
+    fun leave_204_whenNothingToSettle() = runTest {
+        // A member who never sat at a real-chip table (lobby-only leave) has no
+        // stack to cash out — the leave settles nothing, so it stays a 204.
+        withSettlingRooms { client, _, _ ->
+            val room = client.createRoom(asUser = host).body<CreateRoomResponse>().room
+            client.joinRoom(room.code, asUser = alice)
+            assertEquals(HttpStatusCode.NoContent, client.leaveRoom(room.code, asUser = alice).status)
+        }
+    }
+
+    @Test
     fun leave_204_whenNotInRoom_isIdempotent() = runTest {
         withRooms { client ->
             val room = client.createRoom(asUser = host).body<CreateRoomResponse>().room
@@ -414,12 +455,57 @@ class RoomRoutesTest {
                 installSerialization()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { roomRoutes(rooms, profiles, wallets) }
+                routing {
+                    roomRoutes(
+                        rooms = rooms,
+                        profiles = profiles,
+                        wallets = wallets,
+                        gameSessions = newRegistry(),
+                        tableSessions = InMemoryTestTableSessionService(InMemoryTestWalletRepository()),
+                    )
+                }
             }
             val raw = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
             }
             block(RoomsTestClient(this, raw))
+        }
+    }
+
+    /**
+     * MP-29 variant that wires a real settlement stack: an
+     * [InMemoryTestTableSessionService] over a shared wallet, so a member who
+     * sat down (has an open table session) cashes out synchronously on leave and
+     * the DELETE returns the authoritative post-settlement balance. Exposes the
+     * table-session service + wallet so the test can seat the leaver first.
+     */
+    private suspend fun withSettlingRooms(
+        block: suspend (RoomsTestClient, InMemoryTestTableSessionService, InMemoryTestWalletRepository) -> Unit,
+    ) {
+        val rooms = InMemoryRoomService(clock = FixedClock(), random = Random(0L))
+        val profiles = FakeProfileRepository { uid -> "P-${uid.value.toString().take(4)}" }
+        val wallets = FixedBalanceWalletRepository { Long.MAX_VALUE }
+        val settlementWallets = InMemoryTestWalletRepository()
+        val tableSessions = InMemoryTestTableSessionService(settlementWallets)
+        testApplication {
+            application {
+                installSerialization()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing {
+                    roomRoutes(
+                        rooms = rooms,
+                        profiles = profiles,
+                        wallets = wallets,
+                        gameSessions = newRegistry(),
+                        tableSessions = tableSessions,
+                    )
+                }
+            }
+            val raw = createClient {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+            block(RoomsTestClient(this, raw), tableSessions, settlementWallets)
         }
     }
 

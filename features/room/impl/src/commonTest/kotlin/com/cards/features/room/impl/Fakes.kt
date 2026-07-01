@@ -126,6 +126,9 @@ class FakePokerSession(
     val sentEmotes = mutableListOf<String>()
     var requestNextHandCount: Int = 0
     var leaveCount: Int = 0
+    // The authoritative post-cash-out balance leave() returns (MP-29). Null models
+    // a leave that settled nothing (deferral / failure / free table).
+    var leaveSettledBalance: Long? = null
     var rebuyCount: Int = 0
 
     // When set, [submit] records the intent then throws it — modelling a
@@ -171,8 +174,9 @@ class FakePokerSession(
         rebuyError?.let { throw it }
     }
 
-    override suspend fun leave() {
+    override suspend fun leave(): Long? {
         leaveCount += 1
+        return leaveSettledBalance
     }
 
     override suspend fun sendEmote(emoji: String) {
@@ -567,6 +571,13 @@ class FakeChipsRepository(
     var syncCount: Int = 0
         private set
 
+    /** How many times [setBalance] was called + the last value — MP-29 applies the
+     *  server's post-cash-out balance directly on a settled leave, instead of a sync. */
+    var setBalanceCount: Int = 0
+        private set
+    var lastSetBalance: Long? = null
+        private set
+
     /**
      * Credit applied to the balance on the next [sync], simulating the
      * server cashing a leaver's seat stack back into the wallet. Consumed
@@ -583,7 +594,11 @@ class FakeChipsRepository(
     override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) {
         balance.value = (balance.value ?: 0L) - amount
     }
-    override suspend fun setBalance(authoritativeBalance: Long) { balance.value = authoritativeBalance }
+    override suspend fun setBalance(authoritativeBalance: Long) {
+        setBalanceCount += 1
+        lastSetBalance = authoritativeBalance
+        balance.value = authoritativeBalance
+    }
     override suspend fun deleteAll() { balance.value = null }
     override suspend fun sync(): Result<Unit> {
         syncCount += 1

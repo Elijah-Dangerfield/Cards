@@ -21,6 +21,9 @@ import cards.libraries.resources.generated.resources.auth_gate_need_account_titl
 import cards.libraries.resources.generated.resources.auth_gate_need_claimed_body
 import cards.libraries.resources.generated.resources.auth_gate_need_claimed_cta
 import cards.libraries.resources.generated.resources.auth_gate_need_claimed_title
+import cards.libraries.resources.generated.resources.auth_gate_offline_body
+import cards.libraries.resources.generated.resources.auth_gate_offline_cta
+import cards.libraries.resources.generated.resources.auth_gate_offline_title
 import com.dangerfield.cards.libraries.navigation.GateReason
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -45,6 +48,8 @@ import org.jetbrains.compose.resources.stringResource
  *  - [GateReason.NeedAccount] — no account; offer to get started (onboarding).
  *  - [GateReason.NeedClaimedAccount] — a guest doing something that needs a
  *    claimed account; offer to save it.
+ *  - [GateReason.Offline] — the session couldn't be confirmed because the device
+ *    is offline; reassure them their progress is safe and to try again online.
  *
  * Pure / callback-driven so the host wires the CTAs to navigation.
  */
@@ -86,6 +91,7 @@ fun AuthGateSheet(
 
             val primaryAction = when (reason) {
                 GateReason.FinishingSetup -> onDismiss
+                GateReason.Offline -> onDismiss
                 GateReason.NeedAccount -> onCreateAccount
                 GateReason.NeedClaimedAccount -> onSaveAccount
             }
@@ -96,9 +102,9 @@ fun AuthGateSheet(
                 Text(copy.primaryCta)
             }
 
-            // Degraded "wait a moment" has no secondary path — the single
-            // "Got it" already dismisses.
-            if (reason != GateReason.FinishingSetup) {
+            // "Wait a moment" / "you're offline" have no secondary path — their
+            // single "Got it" already dismisses.
+            if (reason != GateReason.FinishingSetup && reason != GateReason.Offline) {
                 Spacer(Modifier.height(Dimension.D300))
                 Button(
                     onClick = onDismiss,
@@ -138,5 +144,11 @@ private fun GateReason.rememberCopy(): GateCopy = when (this) {
         title = stringResource(Res.string.auth_gate_need_claimed_title),
         body = stringResource(Res.string.auth_gate_need_claimed_body),
         primaryCta = stringResource(Res.string.auth_gate_need_claimed_cta),
+    )
+    GateReason.Offline -> GateCopy(
+        emoji = "📡",
+        title = stringResource(Res.string.auth_gate_offline_title),
+        body = stringResource(Res.string.auth_gate_offline_body),
+        primaryCta = stringResource(Res.string.auth_gate_offline_cta),
     )
 }

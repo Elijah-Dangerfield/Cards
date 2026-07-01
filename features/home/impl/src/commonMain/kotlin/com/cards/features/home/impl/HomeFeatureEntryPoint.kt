@@ -22,6 +22,7 @@ import cards.libraries.resources.generated.resources.ui_level_up_reward_xp_boost
 import org.jetbrains.compose.resources.stringResource
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.home.LevelUpRoute
+import com.dangerfield.cards.features.home.PlayStyleUnlockedRoute
 import com.dangerfield.cards.features.home.WelcomeDialogRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.lobby.PrivateCreateRoute
@@ -84,6 +85,9 @@ class HomeFeatureEntryPoint(
                                 chips = payload.chips,
                             )
                         )
+                    }
+                    is HomeEvent.OpenPlayStyleUnlocked -> {
+                        router.navigate(PlayStyleUnlockedRoute())
                     }
                 }
             }
@@ -234,6 +238,22 @@ class HomeFeatureEntryPoint(
                 avatarEmoji = route.avatarEmoji,
                 avatarBackgroundColorHex = route.avatarBackgroundColorHex,
                 chips = route.chips,
+                onDismiss = { router.goBack() },
+            )
+        }
+
+        // Play-style-unlock celebration (PROG-6). The VM fires
+        // OpenPlayStyleUnlocked once its arbiter resolves this on a settled Home;
+        // "See my style" pops the dialog and routes to Stats, "Later" just pops.
+        dialog<PlayStyleUnlockedRoute> { _, dialogState ->
+            PlayStyleUnlockedDialog(
+                state = dialogState,
+                onSeeStyle = {
+                    router.batch {
+                        goBack()
+                        navigate(StatsRoute())
+                    }
+                },
                 onDismiss = { router.goBack() },
             )
         }

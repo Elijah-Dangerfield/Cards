@@ -2,6 +2,8 @@
 
 Guidelines for AI agents working in the Cards repository.
 
+> Also read [`docs/agent/ai-style-guide.md`](docs/agent/ai-style-guide.md) — a short "do this / not that" checklist of AI-tells to avoid, distilled from real cleanups.
+
 ## Overview
 
 KMP (Kotlin Multiplatform) app with Compose Multiplatform. Modular architecture with Room database, navigation, and SEAViewModel pattern. Most code is shared; platform features (permissions, sensors, native APIs) need platform-specific impls — follow `docs/practices/swift-kotlin.md`.

@@ -58,6 +58,9 @@ internal fun HomeHeader(
      *  [chipsRevealFrom] to [chips] when [chipsRevealKey] flips. */
     chipsRevealFrom: Long? = null,
     chipsRevealKey: Int = 0,
+    /** True while a wallet reconcile is in flight — renders the balance as
+     *  "updating" rather than a confidently-wrong pre-settlement value. */
+    chipsReconciling: Boolean = false,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -136,6 +139,7 @@ internal fun HomeHeader(
             onClick = onTapChips,
             revealFrom = chipsRevealFrom,
             revealKey = chipsRevealKey,
+            isReconciling = chipsReconciling,
             modifier = Modifier
                 .align(Alignment.Top)
                 .shadow(elevation = 6.dp, shape = Radii.Round.shape),

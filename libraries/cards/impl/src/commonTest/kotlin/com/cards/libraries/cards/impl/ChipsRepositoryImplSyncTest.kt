@@ -24,6 +24,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -294,6 +295,40 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
             walletDao.getAll().map { it.idempotencyKey },
             "only the unknown event stays — everything else is resolved (incl. rejected)",
         )
+    }
+
+    @Test
+    fun isReconciling_isTrueWhileSyncInFlight_falseBeforeAndAfter() = runUnitTest {
+        val handlerEntered = MutableStateFlow(false)
+        val releaseHandler = MutableStateFlow(false)
+        val repo = buildRepo(FakeChipsDao(seedBalance = 0L), FakeWalletEventDao()) {
+            handlerEntered.value = true
+            // Hold the response open until the test has observed the in-flight window.
+            releaseHandler.first { it }
+            respondJson("""{"schemaVersion":1,"balance":10000,"results":[]}""")
+        }
+
+        assertEquals(false, repo.isReconciling.value, "idle before any sync")
+
+        val job = async { repo.sync() }
+        handlerEntered.first { it }
+        assertEquals(true, repo.isReconciling.value, "true while the POST is in flight")
+
+        releaseHandler.value = true
+        assertTrue(job.await().isSuccess)
+        assertEquals(false, repo.isReconciling.value, "back to false once the sync resolves")
+    }
+
+    @Test
+    fun isReconciling_returnsToFalse_onNetworkFailure() = runUnitTest {
+        val repo = buildRepo(FakeChipsDao(seedBalance = 4242L), FakeWalletEventDao()) {
+            respond(content = ByteReadChannel(""), status = HttpStatusCode.InternalServerError)
+        }
+
+        val result = repo.sync()
+
+        assertTrue(result.isFailure)
+        assertEquals(false, repo.isReconciling.value, "the flag clears even when the sync fails")
     }
 
     @Test

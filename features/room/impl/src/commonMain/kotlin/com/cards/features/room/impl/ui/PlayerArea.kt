@@ -189,6 +189,17 @@ internal fun PlayerArea(
             dragOffsetY.snapTo(0f)
         }
     }
+    // A silent swipe-fold flings the cards to `-foldFlightPx` (off the top) and
+    // leaves them there; the gate-keyed reset above only fires once it's the
+    // human's turn again, so between the fold and the next turn the freshly
+    // dealt cards render stuck up top in a "ghost" placement (GAME-10). Snap
+    // back on every new deal — keyed on the hole cards, which change identity
+    // each hand — so the next hand always starts at rest regardless of turn.
+    LaunchedEffect(human.holeCards) {
+        if (dragOffsetY.value != 0f) {
+            dragOffsetY.snapTo(0f)
+        }
+    }
     // Fixed row height — children inside use `fillMaxHeight()`, so this MUST
     // be bounded. `heightIn(min)` would let `fillMaxHeight` expand to the
     // parent's full offered height and the row would eat the whole screen.
@@ -381,12 +392,13 @@ internal fun PlayerArea(
                     emojis = availableEmojis,
                     cooldownEndsAtEpochMs = emojiCooldownEndsAtMs,
                     onBlast = onBlastEmoji,
-                    // Straddle the tile's bottom-right corner (hangs out into the
-                    // felt) so it reads as cut into the corner, not a button
-                    // floating inside the card.
+                    // Inset into the tile's bottom-right corner so it reads as a
+                    // cutout of the card, not a chip hanging off the edge into
+                    // the felt. Small outward nudge keeps the cutout ring clear
+                    // of the tile border.
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .offset(x = 16.dp, y = 8.dp),
+                        .offset(x = 6.dp, y = 2.dp),
                 )
             }
         }
@@ -814,11 +826,11 @@ private fun FlippablePlayerInfoTile(
             if (canFlip) {
                 FlipAffordance(
                     onClick = { toggleFlipped(true) },
-                    // Straddle the tile's top-right corner, matching the emote
-                    // badge's cut-out treatment.
+                    // Inset into the tile's top-right corner, matching the emote
+                    // badge's cutout treatment.
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(x = 8.dp, y = (-8).dp),
+                        .offset(x = 6.dp, y = (-2).dp),
                 )
             }
         } else {
@@ -950,18 +962,20 @@ private fun FlipAffordance(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Cut out of the table background (same convention as the emote badge and the
-    // opponent seats) so the glyph reads as punched into the tile's corner.
+    // Cut out of the player-area card surface (same convention as the emote
+    // badge) so the glyph reads as punched into the tile's corner rather than a
+    // chip floating on top. The felt-toned ring separates the cutout from the
+    // tile border.
     val cutoutColor = LocalTableSurface.current ?: AppTheme.colors.background.color
     Box(
         modifier = modifier
-            .size(24.dp)
+            .size(22.dp)
             .clickable(onClick = onClick)
             .cutout(
                 ringColor = cutoutColor,
-                fillColor = AppTheme.colors.surfaceRaised.color,
+                fillColor = AppTheme.colors.surface.color,
                 shape = androidx.compose.foundation.shape.CircleShape,
-                ringWidth = 3.dp,
+                ringWidth = 2.dp,
             ),
         contentAlignment = Alignment.Center,
     ) {

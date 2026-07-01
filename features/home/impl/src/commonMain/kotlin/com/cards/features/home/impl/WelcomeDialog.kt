@@ -31,6 +31,7 @@ import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * One-shot starter-grant intro shown the first time a new account lands
@@ -142,7 +143,7 @@ internal fun WelcomeDialog(
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun WelcomeDialogPreview_WithHex() {
     PreviewContent {
@@ -156,7 +157,7 @@ private fun WelcomeDialogPreview_WithHex() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun WelcomeDialogPreview_NoHex() {
     PreviewContent {
@@ -170,7 +171,7 @@ private fun WelcomeDialogPreview_NoHex() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun WelcomeDialogPreview_LargerGrant() {
     PreviewContent {

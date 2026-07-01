@@ -30,6 +30,7 @@ import cards.libraries.resources.generated.resources.private_choose_create_title
 import cards.libraries.resources.generated.resources.private_choose_join_subtitle
 import cards.libraries.resources.generated.resources.private_choose_join_title
 import cards.libraries.resources.generated.resources.private_choose_title
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
@@ -39,6 +40,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Private-room entry sheet (SPEC §1) — a momentary two-way fork presented over
@@ -168,10 +170,10 @@ private fun DrawScope.drawSheetChevron(color: Color) {
     drawLine(color, Offset(w * 0.7f, h * 0.5f), Offset(w * 0.35f, h * 0.8f), strokeWidth = s)
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PrivateChooseSheetPreview() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         PrivateChooseSheet(onCreate = {}, onJoin = {}, onDismiss = {})
     }
 }

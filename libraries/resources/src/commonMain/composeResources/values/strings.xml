@@ -127,6 +127,8 @@
     <string name="private_create_max_players_label">Max players</string>
     <string name="private_create_open_label">Open to anyone</string>
     <string name="private_create_open_caption">Let strangers fill empty seats</string>
+    <string name="private_create_felt_label">Table felt</string>
+    <string name="private_create_card_back_label">Card back</string>
     <string name="private_create_invite_note">Invite only. You'll get a code to share once it's created.</string>
     <string name="private_create_open_note">Anyone searching can join, and the table deals on its own once players arrive. You still get a code to share with friends.</string>
     <string name="private_create_cta">Create room</string>
@@ -379,6 +381,12 @@
     <string name="home_welcome_dialog_chip_use_line">Use these to play against other players and buy upgrades.</string>
     <string name="home_welcome_dialog_daily_grant_line">Open the app every day this week and we'll add another 500 chips, on us.</string>
     <string name="home_welcome_dialog_primary_cta">Let's play</string>
+
+    <!-- Home - Play-style unlocked celebration (one-shot, after ~20 hands). -->
+    <string name="home_play_style_unlocked_title">Your play style is unlocked</string>
+    <string name="home_play_style_unlocked_body">You've played enough hands for us to read your game. See where you land on tight, aggressive, patient, and bluff.</string>
+    <string name="home_play_style_unlocked_primary_cta">See my style</string>
+    <string name="home_play_style_unlocked_secondary_cta">Later</string>
 
     <!-- Home - Practice (bot-table) setup dialog. -->
     <string name="home_bot_setup_title">Practice table</string>
@@ -1285,6 +1293,9 @@
     <string name="auth_gate_need_claimed_title">Save your account</string>
     <string name="auth_gate_need_claimed_body">Save your account first so this stays yours across devices.</string>
     <string name="auth_gate_need_claimed_cta">Save account</string>
+    <string name="auth_gate_offline_title">You're offline</string>
+    <string name="auth_gate_offline_body">We can't reach the server right now, so we couldn't confirm your account. Your progress is safe. Try again once you're back online.</string>
+    <string name="auth_gate_offline_cta">Got it</string>
 
     <!-- Generic top-of-screen offline strip shown whenever the device has no
          connection. -->

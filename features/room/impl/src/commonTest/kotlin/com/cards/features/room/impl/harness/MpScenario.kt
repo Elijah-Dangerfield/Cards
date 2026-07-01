@@ -54,6 +54,15 @@ class MpScenarioBuilder(
     private val chipsRepository = FakeChipsRepository()
     private val leaveCashOutNotifier = FakeLeaveCashOutNotifier()
 
+    // The balance the server's synchronous leave cash-out returns (MP-29). Null
+    // (default) models a leave that settled nothing → the VM falls back to a sync.
+    private var leaveSettledBalance: Long? = null
+
+    /** Pin the settled balance the DELETE /me leave returns (MP-29). */
+    fun withLeaveSettledBalance(balance: Long?): MpScenarioBuilder = apply {
+        leaveSettledBalance = balance
+    }
+
     /** Pre-seed frames before the VM mounts (e.g. the subscribe-after-deal case). */
     internal suspend fun preSeed(block: suspend FakeRoomConnectionHandle.() -> Unit): MpScenarioBuilder = apply {
         handle.block()
@@ -96,7 +105,10 @@ class MpScenarioBuilder(
             roomCode = "ABCDEF",
             localUserId = localUserId,
             isPublicTable = false,
-            roomRepository = HarnessRoomRepository(connectionHandle),
+            roomRepository = HarnessRoomRepository(
+                handle = connectionHandle,
+                leaveOutcome = { LeaveRoomOutcome.Success(settledBalance = leaveSettledBalance) },
+            ),
             telemetry = HarnessTelemetry,
         )
         val vm = PlayPokerViewModel(
@@ -361,9 +373,16 @@ fun mpTable(
 
 // ---------- Minimal collaborators ----------
 
-/** Only [connect] is exercised by the MP factory; the rest belong to the lobby. */
+/**
+ * Only [connect] + [leaveRoom] are exercised by the MP factory; the rest belong
+ * to the lobby. [leaveOutcome] models the server's leave response — MP-29 has the
+ * DELETE cash out synchronously and return the settled balance, so a test can pin
+ * whether the play-screen leave applies that balance directly vs falls back to a
+ * sync.
+ */
 private class HarnessRoomRepository(
     private val handle: RoomConnectionHandle,
+    private val leaveOutcome: () -> LeaveRoomOutcome = { LeaveRoomOutcome.Success() },
 ) : RoomRepository {
     override suspend fun createRoom(
         maxSeats: Int?,
@@ -373,7 +392,7 @@ private class HarnessRoomRepository(
         cardBackProductId: String?,
     ): CreateRoomOutcome = error("unused")
     override suspend fun joinRoom(code: String): JoinRoomOutcome = error("unused")
-    override suspend fun leaveRoom(code: String): LeaveRoomOutcome = error("unused")
+    override suspend fun leaveRoom(code: String): LeaveRoomOutcome = leaveOutcome()
     override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome = error("unused")
     override suspend fun removeBot(code: String, botUserId: String): RemoveBotOutcome = error("unused")
     override suspend fun getActiveRooms(): GetActiveRoomsOutcome = error("unused")

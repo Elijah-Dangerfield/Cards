@@ -868,3 +868,39 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch if revisited:** create a `:libraries:gameplay:testing` module (mirrors `:libraries:flowroutines:testing`) exporting `cards()` + `stackedDeck()`, depend on it from the three `commonTest`/`androidUnitTest`/server-test sources, and delete the three copies. Small, mechanical; the only friction is wiring a new Gradle module + its `jvm()`/android/ios targets to match each consumer.
 
 **Status:** Backlog. Pure test-infra DRY; no product impact. Kept the inline copy in MP-25's fix to avoid a module refactor riding on a bug fix.
+
+## Achievement award timing — the delayed-drip queue reads as "earned a while ago"
+
+**Idea (owner feedback 2026-06-30, Sentry [CARDS-72](https://elijah-dangerfield.sentry.io/issues/CARDS-72)):** Achievements aren't surfaced when they're earned — they drip out roughly a hand late, as if there's a queue that only shows ~two at a time. Against bots, where unlocks come fast, that backs up into a queue the user never catches up on, so an achievement toast for something that happened several hands ago is confusing. Two entangled threads: (1) the **presentation queue/pacing** — show earned achievements promptly (or at least labelled to when they were earned), don't let a backlog form; and (2) the **root cause of the flood** — too many achievements are trivially earnable, several against bots, so consider gating some behind real (non-bot) play and, per the existing catalog item, growing the set (owner floats 75–100). Thread (2) overlaps the existing backlog item "More achievements + early-stage pacing rebalance" (CARDS-1A) — fold them together when this gets a pass; this item adds the award-*timing*/queue defect.
+
+**Status:** Backlog. Product + UX call on the achievement drip/queue plus a content pass; pull with the achievement-system rework. Owner directive.
+
+---
+
+## Fold the settled balance into the terminal room frame for involuntary teardowns (MP-29 follow-up)
+
+**Idea (from MP-29, 2026-06-30):** MP-29 made a *voluntary* leave a synchronous cash-out — `DELETE /v1/rooms/{code}/me` returns the settled balance in its body, so the leave call *is* the wallet reconcile. The **involuntary** teardown paths (heads-up match-over, last-opponent-left, host-closed-room, kick) have no REST leave to answer, so they still reconcile client-side via a `ChipsRepository.sync()` fallback in `PlayPokerViewModel.reconcileWalletAfterGame()`. That sync is no longer latched (it can retry, which fixes the "stuck stale until foreground" half), but it's still a *pull* that can momentarily read a pre-settlement balance before landing the right one.
+
+**Sketch if revisited:** the server already cashes these players out over the per-room socket (`RoomSocketRoutes` — `settleLeaver` on `MemberLeft`, the `departedSettlements` settler, the match-over/teardown paths). Attach the resulting authoritative balance to the terminal frame the client reads on teardown (`RoomConnection.Closed` / the match-over / opponents-left signals) so the client applies it via `setBalance` exactly like the voluntary path, and drops the `sync()` fallback entirely. Needs a wire field on the terminal socket events + the client threading it into `reconcileWalletAfterGame(settledBalance = …)` (the param already exists).
+
+**Status:** Backlog. The voluntary-leave half (the recurring CARDS-5R / 3E cluster) shipped in MP-29; this closes the residual pre-settlement-flash window on the auto-end paths. Money is safe either way — this is a UI-freshness hardening.
+
+---
+
+## Server-side ownership check for host-picked table cosmetics (SHOP-5 follow-up)
+
+**Idea (from SHOP-5, 2026-06-30):** The create-room table-look picker offers only the host's owned felt / card back (built from `inventory ∩ catalog` in `LobbyFeatureEntryPoint`), so ownership is enforced by construction on the client. The server accepts the picked ids verbatim without re-checking ownership. A hand-crafted request could pin a felt / card back the caller does not own onto a room — cosmetic only, no economy impact (nothing is spent or granted), but it is a trust gap. If we ever attach paid stakes or unlock-gating to specific cosmetics, validate the picked ids against the caller's server-side inventory in the create-room handler.
+
+**Sketch if revisited:** validate `feltProductId` / `cardBackProductId` against the caller's wallet/inventory in the room create path; on a miss, drop the override (fall back to default) rather than reject the create.
+
+**Status:** Backlog. Freemium cosmetics, low stakes — the render path is additive-only, so an unknown / unowned id degrades to the default table look rather than crashing (covered by the cross-version rule above). Deferred as a hardening, not a bug.
+
+---
+
+## Restore a guest identity offline for account-gated surfaces (AUTH-11 follow-up)
+
+**Idea (from AUTH-11, 2026-06-30):** AUTH-11 fixed the misleading *copy* an onboarded guest saw on a cold offline boot — an account-gated route now shows an honest "you're offline, progress is safe" sheet instead of "account needed." It does **not** restore a live guest identity offline: solo / practice play already runs offline (it is not auth-gated), but anything that genuinely needs a confirmed identity while offline still can't proceed until connectivity returns. Persisting and restoring the guest Supabase session locally would let those surfaces work fully offline.
+
+**Sketch if revisited:** persist the guest session tokens locally and rehydrate the auth state on cold boot so an account-gated action has a usable identity without a network round-trip.
+
+**Status:** Backlog. Only load-bearing if a future feature needs a confirmed identity offline; solo play already works offline today, so this is latent until then.

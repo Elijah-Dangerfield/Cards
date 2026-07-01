@@ -103,6 +103,7 @@ import com.dangerfield.cards.libraries.ui.components.toRadarAxes
 import com.dangerfield.cards.libraries.ui.components.toStyleCopy
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
+import com.dangerfield.cards.libraries.ui.components.achievement.MedalSize
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
 import com.dangerfield.cards.libraries.ui.components.AccountSetupRetryBanner
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
@@ -634,7 +635,7 @@ private fun AchievementsSection(
                         achievement = achievement,
                         earnedAtEpochMs = progress.earned[achievement.id],
                         progress = achievement.currentProgress(progress),
-                        modifier = Modifier.fillMaxWidth(),
+                        size = MedalSize.Small,
                     )
                     VerticalSpacerD100()
                     Text(

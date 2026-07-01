@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.data.AppConfigTargetingEngine
 import com.dangerfield.cards.server.data.ConfigSchema
@@ -223,7 +224,7 @@ private suspend fun resolveFlags(
         installId = request.installId?.takeUnless { it.isBlank() },
     )
     val userId = request.userId?.takeUnless { it.isBlank() }
-        ?.let { runCatching { UserId(UUID.fromString(it)) }.getOrNull() }
+        ?.let { Catching { UserId(UUID.fromString(it)) }.getOrNull() }
 
     val dbByPath = repository.listFlags().associateBy { it.path }
     val manifestByPath = manifestRepository.getManifest(request.buildNumber).associateBy { it.path }

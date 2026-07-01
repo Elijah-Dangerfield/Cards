@@ -660,43 +660,62 @@ class PlayPokerViewModel @Inject constructor(
     private suspend fun leaveAndReconcileWallet() {
         if (leaveInitiated) return
         leaveInitiated = true
-        Catching { session.leave() }
+        // The leave call cashes out synchronously and returns the authoritative
+        // post-settlement balance (MP-29); apply it directly so the wallet
+        // reconciles off the leave itself, no speculative sync racing the
+        // server's settlement commit. A null (deferral / failure / solo) falls
+        // back to a sync inside reconcileWalletAfterGame.
+        val settledBalance = Catching { session.leave() }
             .onFailure { e -> logger.w(e) { "room leave failed" } }
-        reconcileWalletAfterGame()
+            .getOrNull()
+        reconcileWalletAfterGame(settledBalance)
     }
 
-    // Latches so the wallet syncs at most once per session-end. A user-initiated
-    // leave and an auto-terminal signal can both fire (e.g. the player taps Leave
-    // as the room closes); the credit confirmation is one-shot, so a second sync
-    // would re-confirm a now-zero delta or double a real one.
-    private var walletReconciled = false
+    // Guards the leave-cash-out *confirmation* toast to one per session-end. A
+    // user-initiated leave and an auto-terminal signal can both reconcile (e.g.
+    // the player taps Leave as the room closes); the reconcile itself is now
+    // idempotent + retry-safe (MP-29 dropped the single-shot sync latch), but the
+    // credit toast must still fire at most once so a second reconcile doesn't
+    // re-confirm a now-zero delta or double a real one.
+    private var creditConfirmed = false
 
     /**
      * Reconcile the wallet after the table ends — whether the player left, busted
      * out, the last opponent left, the heads-up match resolved, or the room
      * closed. On a real-chip table the server cashes the finished stack back to
-     * the wallet, but the client only learns the new balance on the next sync.
-     * Without this the settled balance stays invisible until the next cold boot /
-     * foreground (CARDS-3C / CARDS-4B: "lost a game but the balance didn't update
-     * until I backgrounded and foregrounded"). No-op for solo bots.
+     * the wallet.
+     *
+     * When a voluntary leave already carried the authoritative post-settlement
+     * balance ([settledBalance], MP-29), we apply it directly via [setBalance] —
+     * the leave call *was* the reconcile, so there's no speculative sync racing
+     * the server's settlement commit (the CARDS-5R / 3E cluster). Otherwise (an
+     * involuntary teardown whose settled balance arrives over the socket, a
+     * deferred all-in settlement, or a leave that never reached the server) we
+     * fall back to a [sync], which now also *retries* — the single-shot latch is
+     * gone, so a first sync that lost the race no longer strands the balance
+     * stale until the next foreground (CARDS-3C / CARDS-4B). No-op for solo bots.
      */
-    private suspend fun reconcileWalletAfterGame() {
+    private suspend fun reconcileWalletAfterGame(settledBalance: Long? = null) {
         if (sessionFactory.xpMode != XpMode.MULTIPLAYER) return
-        if (walletReconciled) return
-        walletReconciled = true
 
         val balanceBefore = chipsRepository.getBalance()
-        Catching { chipsRepository.sync() }
-            .onFailure { e -> logger.w(e) { "wallet sync after game-end failed" } }
-        // MP-6: the sync above reconciles the credited stack into the balance,
-        // but a silent number change reads as a glitch. Confirm the credit on
-        // the surface the player lands on so the wallet bump never surprises
-        // them (Sentry CARDS-2N / 2Y). Only fire on a real gain — a lost stack
-        // or empty leave stays quiet.
+        if (settledBalance != null) {
+            Catching { chipsRepository.setBalance(settledBalance) }
+                .onFailure { e -> logger.w(e) { "applying settled balance after leave failed" } }
+        } else {
+            Catching { chipsRepository.sync() }
+                .onFailure { e -> logger.w(e) { "wallet sync after game-end failed" } }
+        }
+        // MP-6: the reconcile above lands the credited stack in the balance, but
+        // a silent number change reads as a glitch. Confirm the credit on the
+        // surface the player lands on so the wallet bump never surprises them
+        // (Sentry CARDS-2N / 2Y). Only fire on a real gain — a lost stack or
+        // empty leave stays quiet.
         val balanceAfter = chipsRepository.getBalance()
         if (balanceBefore == null || balanceAfter == null) return
         val credited = balanceAfter - balanceBefore
-        if (credited > 0L) {
+        if (credited > 0L && !creditConfirmed) {
+            creditConfirmed = true
             leaveCashOutNotifier.confirmCredit(credited = credited, balanceAfter = balanceAfter)
         }
     }
