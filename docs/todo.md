@@ -23,9 +23,3 @@ The live punch list of actionable engineering work. Every item is something a wo
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
 ---
-
-## SHOP. Consumables & rewards
-
-**SHOP-8 [P2] — Unslop the Supabase-served cosmetic strings (owner directive).** An em-dash is showing through in the backend cosmetic copy served from Supabase; run the unslop-text pass over it (Sentry [CARDS-70](https://elijah-dangerfield.sentry.io/issues/CARDS-70)).
-- **Acceptance:** Supabase-served cosmetic strings are cleaned of em-dashes / slop.
-- **Hints:** This is a content pass on the Supabase-served cosmetic copy (run `unslop-text`) — it lives in the DB, not this repo, so it may belong in developer-todo. Owner directive, no case file.

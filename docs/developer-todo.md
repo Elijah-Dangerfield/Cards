@@ -24,6 +24,12 @@ Fully QA the build
 - [ ] **Verify Google sign-in end-to-end on a real device (both platforms).** The browser OAuth return trip (2026-06-27, see [decisions.md](./decisions.md)) can't be tested in CI — it needs a real browser + the Supabase dashboard config below. Steps, run on a physical Android device and an iPhone: (1) launch the app, go to onboarding sign-in (or Profile → claim account); (2) tap **Continue with Google** — the system browser / Custom Tab opens to Google's consent screen; (3) pick an account and approve; (4) the browser should redirect to `cards://login-callback#...` and bounce **back into the app**; (5) confirm you land authenticated (Home, not back on the sign-in screen) and that Profile shows the Google email, `isAnonymous = false`. Also test the **cancel** path (back out of the consent screen → app stays put, no crash, no error spam) and the **claim** path from an anonymous guest (progress should carry — same supabase user id, anon → claimed). If the redirect opens a browser tab that just sits on `cards://login-callback` instead of returning to the app, the scheme isn't registering — re-check the manifest/Info.plist and that the Supabase redirect-URL allowlist (below) contains the exact `cards://login-callback`.
 ---
 
+## Content writing
+
+- [ ] **Unslop the Supabase-served cosmetic strings.** An em-dash is showing through in the backend cosmetic copy served from Supabase (Sentry [CARDS-70](https://elijah-dangerfield.sentry.io/issues/CARDS-70)); run an `unslop-text` pass over the cosmetic copy. The strings live in the Supabase DB, not this repo, so this is a content edit in the dashboard, not worker-pickable (was SHOP-8 in todo.md).
+
+---
+
 ## Legal / compliance
 
 - [ ] **Have a lawyer review the Terms before launch — especially the arbitration clause.** The 2026-06-27 rewrite (AUTH-7, see [decisions.md](./decisions.md)) added a binding-arbitration + class-action-waiver block to [pages/terms.html](../pages/terms.html). It's a reasonable standard version (AAA Consumer Rules, NY seat, small-claims + IP carve-outs, 30-day opt-out, one-year limit) but enforceability turns on drafting and on consumer-arbitration law that shifts by state — get counsel to review before it goes live. While there, sanity-check the 18+ age gate and the limitation-of-liability cap against your actual entity and jurisdiction.
