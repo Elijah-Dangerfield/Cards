@@ -1,7 +1,5 @@
 package com.dangerfield.cards.features.room.impl.ui
 
-import com.dangerfield.cards.features.room.impl.shortLabel
-
 import com.dangerfield.cards.features.room.impl.HandResultView
 import com.dangerfield.cards.features.room.impl.SeatView
 import com.dangerfield.cards.features.room.impl.TableUiState
@@ -88,8 +86,6 @@ import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.poker.AvatarBackOverlay
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
-import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
-import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
 import com.dangerfield.cards.libraries.ui.components.poker.LocalTableSurface
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardBack
@@ -655,8 +651,28 @@ private fun PlayerInfoTile(
                     .align(Alignment.TopStart)
                     .offset(x = 2.dp, y = 2.dp),
             )
+            // Bet / last-action badge, cut into the avatar's bottom edge exactly
+            // like the opponent seats (shared [SeatActionChip]) — a check tick, a
+            // neutral call pill, or a gold bet/raise/all-in pill. This used to stack
+            // as a full pill *below* the chip count, which pushed the column past
+            // the locked row height and clipped the amount the human bet
+            // (CARDS-78 / CARDS-7A). As a corner badge it costs no column height and
+            // matches how opponents read. Cut out of the tile surface — the human
+            // avatar sits on the card, not the felt.
+            seat.lastAction?.let { action ->
+                SeatActionChip(
+                    action = action,
+                    cutoutColor = AppTheme.colors.surface.color,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .offset(y = 7.dp)
+                        .clickable { onBetPillClick("You", seat.contributedThisStreet) },
+                )
+            }
         }
-        VerticalSpacerD100()
+        // Clearance for the action badge that straddles the avatar's bottom edge
+        // (matches the opponent seats' 8dp gap) so it never sits on the name.
+        VerticalSpacerD300()
         // Name only — the equipped title surfaces on the Player Card, not in
         // the seat's cramped name area.
         Text(
@@ -690,29 +706,9 @@ private fun PlayerInfoTile(
                 )
                 .clickable(onClick = onStackClick),
         )
-        // Show the chip contribution (gold pill) OR the last-action label, not
-        // both — they overlap in meaning ("Call 30" + a 30-chip pill duplicates
-        // info) and stacking them blew the column past the locked row height
-        // and clipped the bottom of the pill. Chip pill wins when there's a
-        // contribution; the text fills in for fold/check/all-in.
-        when {
-            seat.contributedThisStreet > 0 -> {
-                VerticalSpacerD100()
-                ChipPill(
-                    amount = seat.contributedThisStreet,
-                    onClick = { onBetPillClick("You", seat.contributedThisStreet) },
-                )
-            }
-            seat.lastAction != null && !seat.isActing -> {
-                VerticalSpacerD100()
-                LastActionPill(
-                    label = seat.lastAction.shortLabel(),
-                    // Tap surfaces your own Player Card (which echoes the move) —
-                    // same destination as tapping your avatar.
-                    onClick = onSelfTap,
-                )
-            }
-        }
+        // The bet / last-action badge is no longer stacked here — it now cuts into
+        // the avatar's bottom edge above (matching the opponent seats), so the
+        // column stays inside the locked row height without clipping.
     }
 }
 
