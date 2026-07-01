@@ -3,6 +3,7 @@ package com.dangerfield.cards.server.routes
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.domain.AddBotResult
+import com.dangerfield.cards.server.domain.CashOutResult
 import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.LeaveResult
@@ -10,8 +11,11 @@ import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.RemoveBotResult
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomVisibility
+import com.dangerfield.cards.server.domain.TableSessionService
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.WalletRepository
+import com.dangerfield.cards.server.game.GameSessionRegistry
+import com.dangerfield.cards.server.game.settleLeaver
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
@@ -59,7 +63,13 @@ import io.ktor.server.routing.route
  *  - 400 — malformed body (e.g. maxSeats out of range)
  *  - 401 — missing / invalid JWT (the auth plugin handles this for us)
  */
-fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository, wallets: WalletRepository) {
+fun Route.roomRoutes(
+    rooms: RoomService,
+    profiles: ProfileRepository,
+    wallets: WalletRepository,
+    gameSessions: GameSessionRegistry,
+    tableSessions: TableSessionService,
+) {
     authenticate(SUPABASE_JWT_AUTH) {
         route("/v1/rooms") {
             post {
@@ -205,16 +215,36 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository, wallets: W
                 val code = call.parameters["code"]?.uppercase()
                     ?: return@delete call.respond(HttpStatusCode.BadRequest)
                 val userId = call.userId() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
+                // Cash out synchronously BEFORE freeing the seat so the leave
+                // call itself returns the authoritative post-settlement balance
+                // (MP-29). The client then treats the leave response *as* the
+                // wallet reconcile — no racy speculative sync that could read a
+                // pre-settlement balance. settleLeaver defers an all-in-live
+                // leaver (balance not final yet → null) and is keyed/idempotent,
+                // so the socket's MemberLeft reap that also fires is a no-op.
+                val cashOut = settleLeaver(code, userId, gameSessions, tableSessions)
                 // Leave is idempotent: room-gone and already-not-a-member
                 // both mean the caller is no longer in the room, which is
-                // exactly what they asked for. 204 across the board so a
-                // re-issued or post-settlement leave never reads as a
-                // failure (the dead back button in CARDS-2R / CARDS-34).
+                // exactly what they asked for. So a re-issued or post-settlement
+                // leave never reads as a failure (the dead back button in
+                // CARDS-2R / CARDS-34).
                 when (rooms.leave(code, userId)) {
                     is LeaveResult.Success,
                     LeaveResult.RoomNotFound,
                     LeaveResult.NotInRoom,
-                    -> call.respond(HttpStatusCode.NoContent)
+                    -> {
+                        val balance = (cashOut as? CashOutResult.CashedOut)?.balanceAfter
+                        // 200 + balance when we settled a stack this call; 204
+                        // when there was nothing to cash out (a lobby/bot-only
+                        // leave, or an all-in-live deferral whose balance lands
+                        // later over the socket). The client falls back to its
+                        // own sync only on the 204 case.
+                        if (balance != null) {
+                            call.respond(HttpStatusCode.OK, LeaveRoomResponse(balance = balance))
+                        } else {
+                            call.respond(HttpStatusCode.NoContent)
+                        }
+                    }
                 }
             }
 

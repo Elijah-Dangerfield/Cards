@@ -246,17 +246,18 @@ class LobbyViewModel(
                 connectionJob = null
                 currentHandle = null
                 updateState { it.copy(leaving = true) }
-                // MP-27: leaving a real-chip room (here usually after an
+                // MP-27 / MP-29: leaving a real-chip room (here usually after an
                 // opponent-left kick collapsed the play screen back to this
-                // lobby) must re-pull the wallet, or the client keeps showing
-                // the buy-in as escrowed until the next foreground forces a
-                // sync. The server already settled the stack; this just makes
-                // the client read the authoritative balance. Fire-and-forget on
-                // appScope so it survives the lobby screen popping (CARDS-5Q).
-                reconcileWalletAfterRoom(room)
+                // lobby) must reconcile the wallet, or the client keeps showing
+                // the buy-in as escrowed until the next foreground. The leave
+                // call itself now cashes out synchronously and returns the
+                // authoritative balance, so we apply that directly below — no
+                // speculative sync racing the server settlement (CARDS-5Q).
+                // Fire-and-forget on appScope so it survives the lobby popping.
                 val outcome = appScope.async { rooms.leaveRoom(code) }.await()
+                reconcileWalletAfterRoom(room, outcome)
                 when (outcome) {
-                    LeaveRoomOutcome.Success,
+                    is LeaveRoomOutcome.Success,
                     LeaveRoomOutcome.NotFound,
                     LeaveRoomOutcome.NotInRoom,
                         -> resetToIdle(error = null)
@@ -484,27 +485,28 @@ class LobbyViewModel(
         }
     }
 
-    // Latches so the post-room wallet sync fires at most once per room
-    // teardown. The lobby Leave is the only trigger today, but latching keeps
-    // it single-shot if a future close-under-us path also reconciles.
-    private var walletReconciled = false
-
     /**
-     * Re-pull the authoritative wallet after leaving a real-chip room (MP-27).
-     * The server settles the buy-in/stack when the room ends, but the client
-     * only learns the new balance on the next [ChipsRepository.sync]; without
-     * this the lobby exit lands Home on a stale balance showing the buy-in as
-     * still escrowed (CARDS-5Q). No-op for a free table ([Room.buyIn] == 0).
-     * Fire-and-forget on [appScope] so it completes even if the lobby screen
-     * pops mid-sync.
+     * Reconcile the authoritative wallet after leaving a real-chip room
+     * (MP-27 / MP-29). The [LeaveRoomOutcome.Success.settledBalance] the leave
+     * returned is the server's post-cash-out balance, so we apply it directly —
+     * the leave call *is* the reconcile, no speculative sync racing the
+     * settlement commit (CARDS-5Q). When the leave settled nothing (a free table,
+     * or an all-in-live deferral whose balance lands later over the socket) we
+     * fall back to a sync so a deferred settlement still reflects. No-op for a
+     * free table ([Room.buyIn] == 0). Fire-and-forget on [appScope] so it
+     * completes even if the lobby screen pops.
      */
-    private fun reconcileWalletAfterRoom(room: Room) {
+    private fun reconcileWalletAfterRoom(room: Room, outcome: LeaveRoomOutcome) {
         if (room.buyIn <= 0L) return
-        if (walletReconciled) return
-        walletReconciled = true
+        val settledBalance = (outcome as? LeaveRoomOutcome.Success)?.settledBalance
         appScope.launch {
-            Catching { chips.sync() }
-                .onFailure { e -> logger.w(e) { "wallet sync after leaving room failed" } }
+            Catching {
+                if (settledBalance != null) {
+                    chips.setBalance(settledBalance)
+                } else {
+                    chips.sync()
+                }
+            }.onFailure { e -> logger.w(e) { "wallet reconcile after leaving room failed" } }
         }
     }
 

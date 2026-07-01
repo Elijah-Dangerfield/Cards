@@ -141,7 +141,7 @@ class PrivateJoinViewModelTest : CoroutineTest() {
             joinCalls += 1
             return joinOutcome
         }
-        override suspend fun leaveRoom(code: String): LeaveRoomOutcome = LeaveRoomOutcome.Success
+        override suspend fun leaveRoom(code: String): LeaveRoomOutcome = LeaveRoomOutcome.Success()
         override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome = error("not used")
         override suspend fun removeBot(code: String, botUserId: String): RemoveBotOutcome =
             RemoveBotOutcome.Success

@@ -16,6 +16,7 @@ import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -85,7 +86,7 @@ class RemotePokerSessionFactory @Inject constructor(
         return RemotePokerSession(
             handle = handle,
             localUserId = localUserId,
-            onLeave = { roomRepository.leaveRoom(roomCode) },
+            onLeave = { (roomRepository.leaveRoom(roomCode) as? LeaveRoomOutcome.Success)?.settledBalance },
             onHandEnded = onHandEnded,
         )
     }

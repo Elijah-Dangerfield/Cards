@@ -127,7 +127,15 @@ sealed interface GetActiveRoomsOutcome {
 }
 
 sealed interface LeaveRoomOutcome {
-    data object Success : LeaveRoomOutcome
+    /**
+     * Left the room. [settledBalance] is the authoritative post-cash-out wallet
+     * balance the server returned when the leave settled the player's table stack
+     * (MP-29) — so the leave call itself reconciles the wallet. Null when there
+     * was nothing to settle (a lobby / bot-only leave, or an all-in-live deferral
+     * whose settled balance lands later over the socket), in which case the caller
+     * falls back to a wallet sync.
+     */
+    data class Success(val settledBalance: Long? = null) : LeaveRoomOutcome
     data object NotFound : LeaveRoomOutcome
     data object NotInRoom : LeaveRoomOutcome
     data class NetworkError(val cause: Throwable) : LeaveRoomOutcome

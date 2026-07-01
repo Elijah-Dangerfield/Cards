@@ -901,7 +901,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
 
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome {
             leftCodes += code
-            return LeaveRoomOutcome.Success
+            return LeaveRoomOutcome.Success()
         }
 
         override suspend fun joinRoom(code: String): JoinRoomOutcome {

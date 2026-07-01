@@ -146,9 +146,17 @@ class RoomRepositoryImpl(
     }
 
     override suspend fun leaveRoom(code: String): LeaveRoomOutcome = try {
-        api.leave(code)
+        val response = api.leave(code)
         removeActiveRoom(code)
-        LeaveRoomOutcome.Success
+        // A 200 carries the authoritative post-cash-out balance (MP-29); a 204
+        // (nothing settled — lobby / bot-only / all-in-live deferral) has no
+        // body, so the balance stays null and the caller falls back to a sync.
+        val settledBalance = if (response.status == HttpStatusCode.OK) {
+            response.bodyOrNull<LeaveRoomResponseDto>()?.balance
+        } else {
+            null
+        }
+        LeaveRoomOutcome.Success(settledBalance = settledBalance)
     } catch (e: ClientRequestException) {
         when (e.response.status) {
             HttpStatusCode.NotFound -> {

@@ -178,9 +178,19 @@ class RoomRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun leaveRoom_204_returnsSuccess() = runTest {
+    fun leaveRoom_204_returnsSuccess_withNoSettledBalance() = runTest {
         val repo = newRepo(MockEngine { respond(content = "", status = HttpStatusCode.NoContent) })
-        assertIs<LeaveRoomOutcome.Success>(repo.leaveRoom("ABC123"))
+        val success = assertIs<LeaveRoomOutcome.Success>(repo.leaveRoom("ABC123"))
+        assertEquals(null, success.settledBalance)
+    }
+
+    @Test
+    fun leaveRoom_200_returnsSuccess_withServerSettledBalance() = runTest {
+        // MP-29: the leave cashed out synchronously; the response body carries the
+        // authoritative post-settlement balance so the leave *is* the reconcile.
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, """{"balance":4200}""") })
+        val success = assertIs<LeaveRoomOutcome.Success>(repo.leaveRoom("ABC123"))
+        assertEquals(4200L, success.settledBalance)
     }
 
     @Test

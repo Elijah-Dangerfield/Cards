@@ -976,7 +976,7 @@ class HomeViewModelTest : CoroutineTest() {
 
     private class FakeRoomRepository(
         private val activeRoomsOutcome: GetActiveRoomsOutcome = GetActiveRoomsOutcome.Success(emptyList()),
-        private val leaveOutcome: LeaveRoomOutcome = LeaveRoomOutcome.Success,
+        private val leaveOutcome: LeaveRoomOutcome = LeaveRoomOutcome.Success(),
     ) : RoomRepository {
         var getActiveRoomsCalls: Int = 0
             private set

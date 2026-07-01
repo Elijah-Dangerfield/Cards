@@ -171,8 +171,16 @@ interface PokerSession {
      * room and no-op. Best-effort — a failure here only means the seat
      * lingers until the server's grace sweep, never blocks the user's
      * exit, so callers fire it without awaiting a result.
+     *
+     * Returns the authoritative post-cash-out wallet balance when the leave
+     * settled the player's table stack synchronously (MP-29) — the caller
+     * applies it directly instead of a speculative sync that could race the
+     * server's settlement commit. Null when nothing settled (a lobby / bot-only
+     * leave, an all-in-live deferral whose balance lands later over the socket,
+     * a solo table, or a leave that failed to reach the server), in which case
+     * the caller falls back to a wallet sync.
      */
-    suspend fun leave()
+    suspend fun leave(): Long?
 
     /**
      * Blast a table emote to the rest of the room. Fire-and-forget — the

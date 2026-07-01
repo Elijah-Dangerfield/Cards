@@ -124,6 +124,20 @@ data class GetRoomResponse(
 )
 
 /**
+ * DELETE /v1/rooms/{code}/me response body, returned with 200 when the leave
+ * cashed the player's table stack back to their wallet (MP-29). [balance] is the
+ * authoritative post-settlement wallet balance, so the client's leave call *is*
+ * the reconcile — no speculative sync that could race the server's cash-out. A
+ * leave with nothing to settle (lobby / bot-only / an all-in-live deferral whose
+ * balance lands later over the socket) returns 204 with no body instead.
+ */
+@Serializable
+data class LeaveRoomResponse(
+    val schemaVersion: Int = 1,
+    val balance: Long,
+)
+
+/**
  * POST /v1/rooms/{code}/bots body. [seatIndex] null fills the next free seat.
  * [difficulty] is the bot tier name ("Casual" | "Standard" | "Challenging");
  * null defaults to Standard. Personality is auto-assigned server-side.

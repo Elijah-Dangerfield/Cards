@@ -876,3 +876,11 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Status:** Backlog. Product + UX call on the achievement drip/queue plus a content pass; pull with the achievement-system rework. Owner directive.
 
 ---
+
+## Fold the settled balance into the terminal room frame for involuntary teardowns (MP-29 follow-up)
+
+**Idea (from MP-29, 2026-06-30):** MP-29 made a *voluntary* leave a synchronous cash-out — `DELETE /v1/rooms/{code}/me` returns the settled balance in its body, so the leave call *is* the wallet reconcile. The **involuntary** teardown paths (heads-up match-over, last-opponent-left, host-closed-room, kick) have no REST leave to answer, so they still reconcile client-side via a `ChipsRepository.sync()` fallback in `PlayPokerViewModel.reconcileWalletAfterGame()`. That sync is no longer latched (it can retry, which fixes the "stuck stale until foreground" half), but it's still a *pull* that can momentarily read a pre-settlement balance before landing the right one.
+
+**Sketch if revisited:** the server already cashes these players out over the per-room socket (`RoomSocketRoutes` — `settleLeaver` on `MemberLeft`, the `departedSettlements` settler, the match-over/teardown paths). Attach the resulting authoritative balance to the terminal frame the client reads on teardown (`RoomConnection.Closed` / the match-over / opponents-left signals) so the client applies it via `setBalance` exactly like the voluntary path, and drops the `sync()` fallback entirely. Needs a wire field on the terminal socket events + the client threading it into `reconcileWalletAfterGame(settledBalance = …)` (the param already exists).
+
+**Status:** Backlog. The voluntary-leave half (the recurring CARDS-5R / 3E cluster) shipped in MP-29; this closes the residual pre-settlement-flash window on the auto-end paths. Money is safe either way — this is a UI-freshness hardening.

@@ -70,11 +70,12 @@ internal class RemotePokerSession(
      */
     private val localUserId: String = "",
     /**
-     * Sends the durable room-leave (the HTTP DELETE) when the player
-     * exits. Injected as a lambda so the session stays decoupled from
-     * `RoomRepository` + the room code, which only the factory holds.
+     * Sends the durable room-leave (the HTTP DELETE) when the player exits and
+     * returns the authoritative post-cash-out balance the server settled (MP-29),
+     * or null when nothing settled. Injected as a lambda so the session stays
+     * decoupled from `RoomRepository` + the room code, which only the factory holds.
      */
-    private val onLeave: suspend () -> Unit = {},
+    private val onLeave: suspend () -> Long? = { null },
     /**
      * Fired once per finished hand with the terminating [GameEvent.HandEnded],
      * the latest [GameState], and the local human's stack at the start of that
@@ -533,10 +534,10 @@ internal class RemotePokerSession(
         }
     }
 
-    override suspend fun leave() {
+    override suspend fun leave(): Long? =
         Catching { onLeave() }
             .onFailure { e -> logger.w(e) { "room leave send failed" } }
-    }
+            .getOrNull()
 
     override suspend fun sendEmote(emoji: String) {
         handle.send(ClientFrame.SendEmoji(emoji = emoji, clientNonce = newNonce()))
