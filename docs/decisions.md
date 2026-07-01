@@ -29,6 +29,16 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-30 — Gold seat ring means "on the clock" only; the aggressor loses its ring (GAME-9)
+
+**Decision:** An opponent seat's gold ring now signals exactly one thing — this seat is to-act (the pulsing "to act" ring, or the timer-enforced countdown ring). The solid gold *aggressor* ring (shown after a bet/raise/all-in and persisting through the street) is removed. The aggressor's "chips going in" meaning is still carried by their gold bet/raise/all-in **action chip** at the bottom-center of the seat.
+
+**Why:** Two semantically-different gold rings on the same seat (to-act vs aggressor) are indistinguishable at a glance, so a bettor's lingering aggressor ring read as a turn indicator that never cleared (Sentry CARDS-6D). Collapsing the ring to a single meaning is the only treatment where a bettor who is no longer to-act can't be mistaken for "still your turn." If we ever reintroduce an aggressor emphasis, it must not be gold.
+
+**Alternatives considered:** (1) Recolor the aggressor ring to a non-gold tone — rejected: the DS has no aggressor token, and `seatActive`/`chipGold` are both golds, so a swap wouldn't create enough distinction without inventing a color; the action chip already conveys "chips in," making a second aggressor affordance redundant noise. (2) Restyle it thinner/dashed — rejected: still reads as a ring around the avatar, i.e. still turn-adjacent; motion/weight alone didn't disambiguate. (3) Keep both but make the to-act ring pulse harder — rejected: doesn't fix a *static* aggressor ring on a seat that isn't acting.
+
+**Status:** Locked.
+
 ## 2026-06-27 — iOS IAP = a Swift StoreKit 2 coordinator injected like AppleSignInCoordinator; JWS is the one purchaseToken (BILL-4)
 
 **Decision:** iOS gets real IAP via `StoreKitBillingClient` (in `:libraries:billing:impl/iosMain`), which selects Fake-in-debug / real-in-release exactly like `PlayBillingClient` does on Android. The real arm is a thin Kotlin shell over a Swift `IOSStoreKitCoordinator`, injected through `IosAppComponent` + `iOSApp.swift` — the same seam as `AppleSignInCoordinator`, because StoreKit 2's `Product.purchase()` / `Transaction` are Swift-only `async` APIs that can't be driven from Kotlin/Native. The Kotlin/Native boundary is a non-suspend, callback-shaped `StoreKitCoordinator` interface (in `:libraries:billing`) trading in flattened primitive shapes (`StoreKitProduct`, `StoreKitPurchaseResult`) so the Swift side never constructs a Kotlin sealed type; the result→`PurchaseResult`/`BillingProduct` mapping lives in commonMain (`toPurchaseResult`/`toBillingProduct`) and is the unit-tested seam. Android binds a no-op `AndroidStoreKitCoordinator` so its graph still compiles (StoreKit is iOS-only), mirroring `AndroidAppleSignInCoordinator`.

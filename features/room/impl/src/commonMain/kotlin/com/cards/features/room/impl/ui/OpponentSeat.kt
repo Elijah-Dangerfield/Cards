@@ -75,8 +75,8 @@ private val SeatGoldRing: Dp = 2.5.dp
  *  - **Position** (top-left, whole hand): white `D` / `SB` / `BB` badge.
  *  - **Action** (bottom-center, this round): green check / neutral call pill /
  *    gold bet-raise-allin pill. Gold == chips going in.
- *  - **Turn** (ring): the gold countdown (timed human), a pulsing gold "to act"
- *    ring (untimed bot/solo), or the solid gold aggressor ring.
+ *  - **Turn** (ring): the gold countdown (timed human) or a pulsing gold "to act"
+ *    ring (untimed bot/solo). Gold ring == on the clock, nothing else.
  *  - **Out** recolors the whole avatar: folded greys + mucks; busted greys + ✕.
  *
  * The avatar is ringed by a felt-colored cutout so it reads as punched out of the
@@ -125,11 +125,12 @@ internal fun OpponentSeat(
     )
     val rewardAnchors = LocalTableRewardAnchors.current
 
-    // Ring zone: the depleting countdown (timer-enforced human), a pulsing gold
-    // "to act" ring (bots / solo, untimed), or the solid gold aggressor ring after
-    // a bet/raise/all-in. All gold, mutually exclusive — never two on one seat.
+    // Ring zone means exactly one thing now: this seat is on the clock. The
+    // depleting countdown (timer-enforced human) or a pulsing gold "to act" ring
+    // (bots / solo, untimed). The aggressor no longer gets a gold ring — that
+    // read as a stuck turn ring lingering through the street (GAME-9); their gold
+    // bet/raise/all-in action chip already carries "chips in" unambiguously.
     val countdownSeconds = turnTimerSeconds?.takeIf { seat.isActing && !seat.isBot && !outOfHand }
-    val aggressor = !outOfHand && !handComplete && seat.lastAction.isAggressive()
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -161,8 +162,7 @@ internal fun OpponentSeat(
                     durationSeconds = countdownSeconds,
                     modifier = Modifier.size(ringSize),
                 )
-                !outOfHand && seat.isActing -> GoldSeatRing(pulsing = true, modifier = Modifier.size(ringSize))
-                aggressor -> GoldSeatRing(pulsing = false, modifier = Modifier.size(ringSize))
+                !outOfHand && seat.isActing -> GoldSeatRing(modifier = Modifier.size(ringSize))
             }
             if (isWinner) WinnerGlow(modifier = Modifier.size(ringSize))
 
@@ -281,9 +281,6 @@ internal fun OpponentSeat(
 @Composable
 private fun seatCutoutColor(): Color = LocalTableSurface.current ?: AppTheme.colors.background.color
 
-private fun PlayerAction?.isAggressive(): Boolean =
-    this is PlayerAction.Bet || this is PlayerAction.Raise || this is PlayerAction.AllIn
-
 @Composable
 private fun WinAmountBadge(amount: Long) {
     Text(
@@ -294,27 +291,23 @@ private fun WinAmountBadge(amount: Long) {
 }
 
 /**
- * The gold ring that wraps an avatar — solid for an aggressor (bet/raise/all-in),
- * or a slow pulse for an untimed "to act" seat (bots / solo, where there's no
- * server clock to deplete). The timer-enforced countdown uses [TurnCountdownRing].
+ * The gold "to act" ring that wraps an avatar — a slow pulse for an untimed seat
+ * (bots / solo, where there's no server clock to deplete). The timer-enforced
+ * countdown uses [TurnCountdownRing] instead. Gold ring == this seat is on the
+ * clock; nothing else reuses it (see GAME-9).
  */
 @Composable
-private fun GoldSeatRing(pulsing: Boolean, modifier: Modifier = Modifier) {
-    val alpha = if (pulsing) {
-        val transition = rememberInfiniteTransition(label = "to-act")
-        val pulse by transition.animateFloat(
-            initialValue = 0.5f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(900, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse,
-            ),
-            label = "to-act-alpha",
-        )
-        pulse
-    } else {
-        1f
-    }
+private fun GoldSeatRing(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "to-act")
+    val alpha by transition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "to-act-alpha",
+    )
     Box(
         modifier = modifier.border(
             width = SeatGoldRing,
