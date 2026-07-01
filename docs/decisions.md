@@ -1,5 +1,7 @@
 # Decision Log
 
+> **Keep this log small.** Most work does not belong here — see "What goes here" below. If you're unsure whether a change earns an entry, it doesn't. A bug fix, refactor, or exit-path patch is carried by its commit message, not this file. This log is for calls future-you would otherwise *re-derive*, and it should grow slowly.
+
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
 The canonical V1 plan lives at `~/.claude/plans/this-is-going-to-vast-kahn.md` outside the repo; this log is for in-repo continuity and future sessions.
