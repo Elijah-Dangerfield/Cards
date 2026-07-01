@@ -1,14 +1,10 @@
 package com.dangerfield.cards.features.room.impl.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_leave_bots_body
@@ -60,79 +56,59 @@ internal fun LeaveBotsConfirmDialog(
     forfeitedThisHand: Long = 0,
 ) {
     Dialog(
+        title = stringResource(Res.string.room_leave_bots_title),
         onDismissRequest = onStay,
         topAccessory = topAccessoryEmoji(emoji = "🚪"),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = stringResource(Res.string.room_leave_bots_title),
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.content,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = if (subsidized) {
-                    stringResource(
-                        Res.string.room_leave_bots_subsidized_body,
-                        formatThousands(cashOutChips),
-                    )
-                } else {
-                    stringResource(Res.string.room_leave_bots_body)
-                },
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-                textAlign = TextAlign.Center,
-            )
-            if (showSettle) {
-                Text(
-                    text = if (netSettleChips == 0L) {
-                        stringResource(Res.string.room_leave_settle_even)
-                    } else {
-                        stringResource(
-                            Res.string.room_leave_settle_up,
-                            netSettleChips.signedChips(),
-                        )
-                    },
-                    typography = AppTheme.typography.Body.B600,
-                    color = if (netSettleChips < 0L) {
-                        AppTheme.colors.danger
-                    } else {
-                        AppTheme.colors.content
-                    },
-                    textAlign = TextAlign.Center,
+        // Body slot: the DS owns the title's typography (H800) and the body's
+        // default config (B500 / contentSecondary / centered), so the description
+        // is a bare Text. The settle emphasis and forfeit footnote keep explicit
+        // typography/color overrides — the money math should still stand out.
+        Text(
+            text = if (subsidized) {
+                stringResource(
+                    Res.string.room_leave_bots_subsidized_body,
+                    formatThousands(cashOutChips),
                 )
-                if (forfeitedThisHand > 0L) {
-                    Text(
-                        text = stringResource(
-                            Res.string.room_leave_forfeit_note,
-                            formatThousands(forfeitedThisHand),
-                        ),
-                        typography = AppTheme.typography.Body.B400,
-                        color = AppTheme.colors.contentSecondary,
-                        textAlign = TextAlign.Center,
+            } else {
+                stringResource(Res.string.room_leave_bots_body)
+            },
+        )
+        if (showSettle) {
+            Text(
+                text = if (netSettleChips == 0L) {
+                    stringResource(Res.string.room_leave_settle_even)
+                } else {
+                    stringResource(
+                        Res.string.room_leave_settle_up,
+                        netSettleChips.signedChips(),
                     )
-                }
+                },
+                typography = AppTheme.typography.Body.B600,
+                color = if (netSettleChips < 0L) AppTheme.colors.danger else AppTheme.colors.content,
+            )
+            if (forfeitedThisHand > 0L) {
+                Text(
+                    text = stringResource(
+                        Res.string.room_leave_forfeit_note,
+                        formatThousands(forfeitedThisHand),
+                    ),
+                    typography = AppTheme.typography.Body.B400,
+                )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                ButtonSecondary(
-                    onClick = onStay,
-                    modifier = Modifier.weight(1f),
-                ) { Text(text = stringResource(Res.string.room_leave_bots_stay_button)) }
-                ButtonPrimary(
-                    onClick = onLeave,
-                    modifier = Modifier
-                        .weight(1f),
-                ) { Text(text = stringResource(Res.string.room_leave_bots_leave_button)) }
-            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ButtonSecondary(
+                onClick = onStay,
+                modifier = Modifier.weight(1f),
+            ) { Text(text = stringResource(Res.string.room_leave_bots_stay_button)) }
+            ButtonPrimary(
+                onClick = onLeave,
+                modifier = Modifier.weight(1f),
+            ) { Text(text = stringResource(Res.string.room_leave_bots_leave_button)) }
         }
     }
 }
