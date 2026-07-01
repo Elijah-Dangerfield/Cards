@@ -189,6 +189,17 @@ internal fun PlayerArea(
             dragOffsetY.snapTo(0f)
         }
     }
+    // A silent swipe-fold flings the cards to `-foldFlightPx` (off the top) and
+    // leaves them there; the gate-keyed reset above only fires once it's the
+    // human's turn again, so between the fold and the next turn the freshly
+    // dealt cards render stuck up top in a "ghost" placement (GAME-10). Snap
+    // back on every new deal — keyed on the hole cards, which change identity
+    // each hand — so the next hand always starts at rest regardless of turn.
+    LaunchedEffect(human.holeCards) {
+        if (dragOffsetY.value != 0f) {
+            dragOffsetY.snapTo(0f)
+        }
+    }
     // Fixed row height — children inside use `fillMaxHeight()`, so this MUST
     // be bounded. `heightIn(min)` would let `fillMaxHeight` expand to the
     // parent's full offered height and the row would eat the whole screen.
