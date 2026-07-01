@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlinx.coroutines.delay
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.cards.xpAtStartOfLevel
@@ -619,7 +620,7 @@ private fun previewConfiguredValues(map: AppConfigMap): Set<QaConfigValue> = set
     },
 )
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun QaMenuScreenPreview_SignedIn() {
     val configMap = previewConfigMap()
@@ -635,7 +636,7 @@ private fun QaMenuScreenPreview_SignedIn() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun QaMenuScreenPreview_UnresolvedIdentity() {
     val configMap = previewConfigMap()
@@ -651,7 +652,7 @@ private fun QaMenuScreenPreview_UnresolvedIdentity() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun QaMenuScreenPreview_OverridesActive() {
     val configMap = PreviewAppConfigMap(

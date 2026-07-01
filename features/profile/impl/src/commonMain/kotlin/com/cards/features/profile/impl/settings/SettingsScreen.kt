@@ -90,6 +90,7 @@ import com.dangerfield.cards.system.VerticalSpacerD800
 import com.dangerfield.cards.system.VerticalSpacerD1100
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * App settings — the gear destination from the Profile. Holds everything
@@ -473,7 +474,9 @@ private fun <T> DropdownAccessory(
             }
         }
     }
-}@org.jetbrains.compose.ui.tooling.preview.Preview
+}
+
+@Preview
 @Composable
 private fun SettingsScreenPreview_Guest() {
     PreviewContent {

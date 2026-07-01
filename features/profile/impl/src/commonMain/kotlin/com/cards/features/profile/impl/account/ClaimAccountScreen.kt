@@ -67,6 +67,7 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Combined claim-account screen — email/password form at the top, OAuth
@@ -327,7 +328,7 @@ private fun ClaimAccountError.message(): String = when (this) {
         stringResource(Res.string.auth_claim_error_invalid_email)
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun ClaimAccountScreenPreview_EmailOnly() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -335,7 +336,7 @@ private fun ClaimAccountScreenPreview_EmailOnly() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun ClaimAccountScreenPreview_BothProvidersEnabled() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -347,7 +348,7 @@ private fun ClaimAccountScreenPreview_BothProvidersEnabled() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun ClaimAccountScreenPreview_Filled() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -365,7 +366,7 @@ private fun ClaimAccountScreenPreview_Filled() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun ClaimAccountScreenPreview_PasswordMismatch() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -383,7 +384,7 @@ private fun ClaimAccountScreenPreview_PasswordMismatch() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun ClaimAccountScreenPreview_Submitting() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -402,7 +403,7 @@ private fun ClaimAccountScreenPreview_Submitting() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun ClaimAccountScreenPreview_Conflict() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
