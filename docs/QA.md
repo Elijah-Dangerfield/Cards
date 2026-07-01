@@ -536,6 +536,15 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ## Tooling & debug
 
+### `GAME-11` ⚠️ 📱 Shake feedback surface sits above an open bottom sheet
+
+**State:** any screen that opens a bottom sheet (e.g. the shop product sheet, or a lobby picker). Debug build so the shake surface is reachable.
+
+1. Open a bottom sheet so it's expanded on screen.
+2. With the sheet still up, shake the device to bring up the "sun" feedback dialog (and, from it, tap through to the feedback form).
+
+**Expected:** The shake dialog — and the feedback form it opens — render fully on top of the bottom sheet and its scrim, never behind it. Tapping the dialog scrim / back dismisses the dialog and returns to the sheet. (Covers todo GAME-11.)
+
 ### `ENG-8` ℹ️ 📱 Wiretap captures the gameplay WebSocket
 
 **State:** a debug build (the inspector is debug-only; on iOS the framework must be built with `cards.wiretap.ios` left on). Be in or about to start a multiplayer game.

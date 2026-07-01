@@ -329,10 +329,7 @@ fun App(appComponent: AppComponent) {
                     router = router,
                 )
 
-                DialogHost(
-                    modifier = Modifier.matchParentSize(),
-                    hostState = dialogHostState
-                )
+                DialogHost(hostState = dialogHostState)
 
                 // Read the back-stack entry *inside* a nested composable so
                 // App() itself doesn't recompose on every navigation event.

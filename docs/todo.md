@@ -35,15 +35,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ---
 
-## GAME. Gameplay & table UX
-
-**GAME-11 [P2] — The in-app feedback dialog renders behind bottom sheets.** The global "sun" feedback surface is occluded when opened while a bottom sheet is up; it should sit on top of everything, including sheets and dialogs (Sentry [CARDS-6Y](https://elijah-dangerfield.sentry.io/issues/CARDS-6Y)).
-- **Problem:** The feedback presenter draws at a compositing layer below Compose `ModalBottomSheet`, so a sheet occludes it.
-- **Acceptance:** Opening feedback with a bottom sheet (or dialog) already visible shows the feedback surface on top of it.
-- **Hints:** App-root overlay/presenter layering — `libraries/ui/.../snackbar/SnackbarHost` and the `Screen`/root overlay wiring in `libraries/ui`, plus the `FeedbackRoute` presentation. The reporter's "global setting" instinct is right: present it at the top-most app overlay. Case `docs/agent/feedback-cases/4e58157fc813433a9b84edda1ff2ad5c.md`.
-
----
-
 ## SHOP. Consumables & rewards
 
 **SHOP-6 [P2] — Cosmetic horizontal rows (emotes, felts) start flush with the screen edge; give them the card-back row's start padding (owner directive).** The felt and emote rows begin at the screen edge, while the card-back row's tiles line up under the section header. Match the card-back treatment for emotes, felts, and the other horizontal rows — a start padding — while keeping the edge-to-edge scroll (tiles still scroll off to the edge) (Sentry [CARDS-6T](https://elijah-dangerfield.sentry.io/issues/CARDS-6T)).
@@ -53,11 +44,3 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 **SHOP-8 [P2] — Unslop the Supabase-served cosmetic strings (owner directive).** An em-dash is showing through in the backend cosmetic copy served from Supabase; run the unslop-text pass over it (Sentry [CARDS-70](https://elijah-dangerfield.sentry.io/issues/CARDS-70)).
 - **Acceptance:** Supabase-served cosmetic strings are cleaned of em-dashes / slop.
 - **Hints:** This is a content pass on the Supabase-served cosmetic copy (run `unslop-text`) — it lives in the DB, not this repo, so it may belong in developer-todo. Owner directive, no case file.
-
----
-
-## ENG. Engineering / structural
-
-**ENG-2 [P2] — Profile screens ship without `@Preview` coverage (proposed 2026-07-01).** AGENTS.md requires every public screen composable in a `:features:*:impl` module to carry at least one `@Preview`; five screens in `:features:profile:impl` have none.
-- **Acceptance:** `SettingsScreen`, `EditProfileScreen`, `ClaimAccountScreen`, `DeleteAccountScreen`, and `QaMenuScreen` each have at least one `@Preview` wrapped in `PreviewContent { }`.
-- **Hints:** `SettingsScreen.kt` is the easy start — it already takes raw inputs (`ProfileSettings` + callbacks, no ViewModel) and imports `PreviewContent`. Screens taking a ViewModel directly need the stateless-`XxxScreenContent` extraction from AGENTS.md → previews.
