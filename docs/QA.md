@@ -476,6 +476,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** On the fresh account both the default felt and default card back render the "Equipped" badge even though the user never explicitly equipped them. Equipping a non-default felt moves the badge off the default felt; the default card back keeps its badge because its slot is untouched. (Covers todo ITEM-1.)
 
+- Acquisition line (SHOP-4): tapping the default felt or default card back opens its detail sheet with **no** "Earned"/"Bought … ago" line — they're granted at account creation, not earned. A genuinely earned or purchased cosmetic still shows its acquisition line.
+
 ### `PROF-2` ℹ️ 📱 Table speed setting scales the deal/reveal animations
 
 **State:** any account; Settings → Gameplay shows the "Table speed" picker (Normal / Fast / Instant).

@@ -36,7 +36,6 @@ import cards.libraries.resources.generated.resources.profile_items_equipped
 import cards.libraries.resources.generated.resources.profile_my_items_button_equip
 import cards.libraries.resources.generated.resources.profile_my_items_button_unequip
 import cards.libraries.resources.generated.resources.profile_my_items_personal_cosmetic_tag
-import com.dangerfield.cards.libraries.cards.AcquisitionSource
 import com.dangerfield.cards.libraries.cards.CosmeticSlot
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.cards.formatThousands
@@ -505,15 +504,15 @@ private fun FeltVignette(productId: String) {
 
 @Composable
 private fun acquisitionLine(item: OwnedItem): String? {
-    if (item.acquiredAtEpochMs <= 0L) return null
+    val kind = acquisitionLineKind(item) ?: return null
     val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
     val ago = earnedAgo(item.acquiredAtEpochMs, now).label()
-    return when {
-        item.acquisitionSource == AcquisitionSource.Earned ->
+    return when (kind) {
+        AcquisitionLineKind.Earned ->
             stringResource(Res.string.profile_item_sheet_earned, ago)
-        item.costChipsAtPurchase > 0L ->
-            stringResource(Res.string.profile_item_sheet_bought, ago, formatThousands(item.costChipsAtPurchase))
-        else ->
+        is AcquisitionLineKind.Bought ->
+            stringResource(Res.string.profile_item_sheet_bought, ago, formatThousands(kind.costChips))
+        AcquisitionLineKind.BoughtFree ->
             stringResource(Res.string.profile_item_sheet_bought_free, ago)
     }
 }
