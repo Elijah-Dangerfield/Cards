@@ -46,9 +46,9 @@ fun ShakeDialog(
             )
         },
         content = {
+            // Typography inherits the DS body standard (B500) from ModalContent.
             Text(
                 text = stringResource(Res.string.ui_shake_dialog_body),
-                typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),

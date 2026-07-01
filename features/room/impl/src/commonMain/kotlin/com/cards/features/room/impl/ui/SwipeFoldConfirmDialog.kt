@@ -2,7 +2,6 @@ package com.dangerfield.cards.features.room.impl.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,7 +12,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_swipe_fold_body
@@ -28,7 +26,6 @@ import com.dangerfield.cards.libraries.ui.components.checkbox.Checkbox
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -39,60 +36,42 @@ internal fun SwipeFoldConfirmDialog(
 ) {
     var dontShowAgain by remember { mutableStateOf(true) }
     Dialog(
+        title = stringResource(Res.string.room_swipe_fold_title),
         onDismissRequest = onCancel,
         topAccessory = topAccessoryEmoji(emoji = "🃏"),
     ) {
-        Column(
+        // Body slot: the DS owns the title (H800) and body (B500 / contentSecondary
+        // / centered) typography, so the copy is bare Text.
+        Text(text = stringResource(Res.string.room_swipe_fold_body))
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .clickable { dontShowAgain = !dontShowAgain }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = stringResource(Res.string.room_swipe_fold_title),
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.content,
-                textAlign = TextAlign.Center,
+            Checkbox(
+                checked = dontShowAgain,
+                onCheckedChange = { dontShowAgain = it },
             )
             Text(
-                text = stringResource(Res.string.room_swipe_fold_body),
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-                textAlign = TextAlign.Center,
+                text = stringResource(Res.string.room_swipe_fold_dont_show_again),
+                modifier = Modifier.padding(start = 8.dp),
             )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { dontShowAgain = !dontShowAgain }
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = dontShowAgain,
-                    onCheckedChange = { dontShowAgain = it },
-                )
-                Text(
-                    text = stringResource(Res.string.room_swipe_fold_dont_show_again),
-                    typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.contentSecondary,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                ButtonSecondary(
-                    onClick = onCancel,
-                    modifier = Modifier.weight(1f),
-                ) { Text(text = stringResource(Res.string.room_swipe_fold_cancel_button)) }
-                ButtonPrimary(
-                    onClick = { onConfirmFold(dontShowAgain) },
-                    modifier = Modifier.weight(1f),
-                ) { Text(text = stringResource(Res.string.room_swipe_fold_confirm_button)) }
-            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ButtonSecondary(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f),
+            ) { Text(text = stringResource(Res.string.room_swipe_fold_cancel_button)) }
+            ButtonPrimary(
+                onClick = { onConfirmFold(dontShowAgain) },
+                modifier = Modifier.weight(1f),
+            ) { Text(text = stringResource(Res.string.room_swipe_fold_confirm_button)) }
         }
     }
 }

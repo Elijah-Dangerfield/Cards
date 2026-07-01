@@ -2,15 +2,9 @@ package com.dangerfield.cards.features.room.impl.tutorial
 
 import com.dangerfield.cards.features.room.impl.ui.PlayPokerScreen
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.tutorial_leave_dialog_back_to_basics_cta
 import cards.libraries.resources.generated.resources.tutorial_leave_dialog_body_already_basics
@@ -26,7 +20,6 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -49,65 +42,51 @@ internal fun TutorialLeaveDialog(
     onDismiss: () -> Unit,
 ) {
     Dialog(
+        title = stringResource(Res.string.tutorial_leave_dialog_title),
         onDismissRequest = onDismiss,
         topAccessory = topAccessoryEmoji(emoji = "🤨"),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = stringResource(Res.string.tutorial_leave_dialog_title),
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.content,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = if (showBackToBasics) {
-                    stringResource(Res.string.tutorial_leave_dialog_body_with_basics)
-                } else {
-                    stringResource(Res.string.tutorial_leave_dialog_body_already_basics)
-                },
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-                textAlign = TextAlign.Center,
-            )
-            if (showBackToBasics) {
-                // Three-button stack: back-to-basics is the primary
-                // action (we're inviting the player back to the
-                // safety of the rules), exit is secondary, cancel is
-                // tertiary. Order intentional: most-encouraged path
-                // at the top, escape hatch at the bottom.
-                ButtonPrimary(
-                    onClick = onBackToBasics,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(Res.string.tutorial_leave_dialog_back_to_basics_cta)) }
-                ButtonSecondary(
-                    onClick = onExit,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(Res.string.tutorial_leave_dialog_exit_cta)) }
-
-                Button(
-                    onClick = onDismiss,
-                    type = ButtonType.Ghost,
-                    content = { Text(stringResource(Res.string.tutorial_leave_dialog_cancel_cta)) }
-                )
+        // Body slot: the DS owns the title (H800) and body (B500 / contentSecondary
+        // / centered) typography, so the copy is bare Text.
+        Text(
+            text = if (showBackToBasics) {
+                stringResource(Res.string.tutorial_leave_dialog_body_with_basics)
             } else {
-                // On basics steps there's nothing to "go back to",
-                // so the dialog collapses to a two-button choice:
-                // exit (primary) or cancel (secondary).
-                ButtonPrimary(
-                    onClick = onExit,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(Res.string.tutorial_leave_dialog_exit_cta)) }
-                ButtonSecondary(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(Res.string.tutorial_leave_dialog_cancel_cta)) }
-            }
+                stringResource(Res.string.tutorial_leave_dialog_body_already_basics)
+            },
+        )
+        if (showBackToBasics) {
+            // Three-button stack: back-to-basics is the primary
+            // action (we're inviting the player back to the
+            // safety of the rules), exit is secondary, cancel is
+            // tertiary. Order intentional: most-encouraged path
+            // at the top, escape hatch at the bottom.
+            ButtonPrimary(
+                onClick = onBackToBasics,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(Res.string.tutorial_leave_dialog_back_to_basics_cta)) }
+            ButtonSecondary(
+                onClick = onExit,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(Res.string.tutorial_leave_dialog_exit_cta)) }
+
+            Button(
+                onClick = onDismiss,
+                type = ButtonType.Ghost,
+                content = { Text(stringResource(Res.string.tutorial_leave_dialog_cancel_cta)) }
+            )
+        } else {
+            // On basics steps there's nothing to "go back to",
+            // so the dialog collapses to a two-button choice:
+            // exit (primary) or cancel (secondary).
+            ButtonPrimary(
+                onClick = onExit,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(Res.string.tutorial_leave_dialog_exit_cta)) }
+            ButtonSecondary(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(Res.string.tutorial_leave_dialog_cancel_cta)) }
         }
     }
 }
