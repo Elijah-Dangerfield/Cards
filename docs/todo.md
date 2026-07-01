@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-30 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-07-01 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -53,3 +53,15 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 **SHOP-8 [P2] — Cosmetic detail bottom sheets should adopt the bigger, "bubbly" achievement-sheet style; also unslop backend cosmetic strings (owner directive).** The bottom sheets for belts, card backs, and similar cosmetics should match the larger bubbly UI of the achievement-tap sheet. Separately, run the unslop-text pass over the backend/Supabase cosmetic strings — an em-dash is showing through in the copy (Sentry [CARDS-70](https://elijah-dangerfield.sentry.io/issues/CARDS-70)).
 - **Acceptance:** Cosmetic detail sheets use the achievement-sheet visual treatment; Supabase-served cosmetic strings are cleaned of em-dashes / slop.
 - **Hints:** Restyle `features/profile/impl/.../items/CosmeticDetailSheet.kt` to match the achievement-tap sheet treatment; the string cleanup is a content pass on the Supabase-served cosmetic copy (run `unslop-text`). Owner directive, no case file.
+
+---
+
+## ENG. Engineering / structural
+
+**ENG-1 [P2] — Server still uses `runCatching` in five production callsites; convert to `Catching {}` (proposed 2026-07-01).** AGENTS.md mandates `Catching {}` over `runCatching` everywhere (it rethrows `CancellationException`); `apps/server` already depends on `:libraries:core` and imports `Catching`, yet five server callsites still call raw `runCatching`.
+- **Acceptance:** No `runCatching` remains in `apps/server/src/main`; the five callsites use `Catching {}`.
+- **Hints:** `RoomSocketRoutes.kt:248,410`, `ConfigAdminRoutes.kt:226`, `PostgresRoomStore.kt:130`, `WebhookConfigChangeNotifier.kt:39`. Mechanical swap; `Catching` is already imported in `RoomSocketRoutes.kt`.
+
+**ENG-2 [P2] — Profile screens ship without `@Preview` coverage (proposed 2026-07-01).** AGENTS.md requires every public screen composable in a `:features:*:impl` module to carry at least one `@Preview`; five screens in `:features:profile:impl` have none.
+- **Acceptance:** `SettingsScreen`, `EditProfileScreen`, `ClaimAccountScreen`, `DeleteAccountScreen`, and `QaMenuScreen` each have at least one `@Preview` wrapped in `PreviewContent { }`.
+- **Hints:** `SettingsScreen.kt` is the easy start — it already takes raw inputs (`ProfileSettings` + callbacks, no ViewModel) and imports `PreviewContent`. Screens taking a ViewModel directly need the stateless-`XxxScreenContent` extraction from AGENTS.md → previews.
