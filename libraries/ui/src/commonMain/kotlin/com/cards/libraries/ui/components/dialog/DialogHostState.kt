@@ -120,14 +120,25 @@ fun DialogHost(
         Box(modifier = modifier) { hostedEntries() }
     } else {
         Popup(
-            properties = PopupProperties(
-                focusable = true,
-                dismissOnBackPress = false,
-                dismissOnClickOutside = false,
-                clippingEnabled = false,
-            ),
+            // Full-screen, edge-to-edge popup. On skiko platforms (iOS/desktop)
+            // this must opt out of platform-inset padding, or the popup is inset by
+            // the safe area and the dialog's scrim stops short of the screen edges,
+            // reading as a floating panel rather than a full-screen dim (CARDS-78).
+            // `usePlatformInsets` lives only on the skiko `PopupProperties`, not
+            // Android's, so the value is supplied per-platform via [fullScreenDialogPopupProperties].
+            properties = fullScreenDialogPopupProperties(),
         ) {
             Box(modifier = Modifier.fillMaxSize().then(modifier)) { hostedEntries() }
         }
     }
 }
+
+/**
+ * [PopupProperties] for the top-most dialog host popup: focusable (so
+ * [DialogOverlay]'s BackHandler fires), non-self-dismissing, non-clipping, and
+ * full-screen. The full-screen part is platform-specific — skiko targets must
+ * pass `usePlatformInsets = false` to reach under the safe area, a parameter that
+ * doesn't exist on Android's [PopupProperties] (Android popups already fill the
+ * window).
+ */
+internal expect fun fullScreenDialogPopupProperties(): PopupProperties
