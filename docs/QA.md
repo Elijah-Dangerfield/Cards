@@ -493,6 +493,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 **Expected:** On the fresh account both the default felt and default card back render the "Equipped" badge even though the user never explicitly equipped them. Equipping a non-default felt moves the badge off the default felt; the default card back keeps its badge because its slot is untouched. (Covers todo ITEM-1.)
 
 - Acquisition line (SHOP-4): tapping the default felt or default card back opens its detail sheet with **no** "Earned"/"Bought … ago" line — they're granted at account creation, not earned. A genuinely earned or purchased cosmetic still shows its acquisition line.
+- Shelf start-alignment (SHOP-6): the first tile of every cosmetic shelf (card backs, felts, emotes/avatars) starts at the same left inset — flush under its section header. The card-back shelf's first tile lines up with the felt and emote shelves' first tiles rather than sitting further in.
 
 ### `PROF-2` ℹ️ 📱 Table speed setting scales the deal/reveal animations
 

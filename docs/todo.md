@@ -26,10 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## SHOP. Consumables & rewards
 
-**SHOP-6 [P2] — Cosmetic horizontal rows (emotes, felts) start flush with the screen edge; give them the card-back row's start padding (owner directive).** The felt and emote rows begin at the screen edge, while the card-back row's tiles line up under the section header. Match the card-back treatment for emotes, felts, and the other horizontal rows — a start padding — while keeping the edge-to-edge scroll (tiles still scroll off to the edge) (Sentry [CARDS-6T](https://elijah-dangerfield.sentry.io/issues/CARDS-6T)).
-- **Acceptance:** Emote/felt/other cosmetic rows start-align with the section header like the card-back row, and still scroll edge-to-edge.
-- **Hints:** `EdgeToEdgeRow` (`libraries/ui/.../components/EdgeToEdgeRow.kt`) content-vs-first-item padding; the shop/profile cosmetic shelves in `ShopComponents.kt` / `ShopScreen.kt` / `ProfileScreen.kt`. Owner directive, no case file.
-
 **SHOP-8 [P2] — Unslop the Supabase-served cosmetic strings (owner directive).** An em-dash is showing through in the backend cosmetic copy served from Supabase; run the unslop-text pass over it (Sentry [CARDS-70](https://elijah-dangerfield.sentry.io/issues/CARDS-70)).
 - **Acceptance:** Supabase-served cosmetic strings are cleaned of em-dashes / slop.
 - **Hints:** This is a content pass on the Supabase-served cosmetic copy (run `unslop-text`) — it lives in the DB, not this repo, so it may belong in developer-todo. Owner directive, no case file.
