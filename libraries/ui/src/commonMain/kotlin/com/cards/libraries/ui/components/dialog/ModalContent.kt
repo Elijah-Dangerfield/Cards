@@ -40,8 +40,10 @@ fun ModalContent(
 
         ProvideContentColor(color = contentColor) {
 
-            // Serif felt-signature headline — a bare Text in topContent is correct by default.
-            ProvideTextConfig(AppTheme.typography.Display.D900.Italic) {
+            // Big plain header — the standard dialog title ([DialogTitleTypography],
+            // a bold sans Heading), NOT the serif brand display type. A bare Text in
+            // topContent is correct by default.
+            ProvideTextConfig(DialogTitleTypography) {
                 topContent()
             }
 
