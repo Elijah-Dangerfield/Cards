@@ -125,10 +125,32 @@ private fun FeltSwatch(productId: String, size: Dp, modifier: Modifier = Modifie
     )
 }
 
+/**
+ * Fraction of a square cosmetic tile that a card-back preview's card actually
+ * paints horizontally. A card back is portrait, so it's narrower than its square
+ * footprint and start-aligned inside it — the remaining `1 - fraction` on the
+ * trailing side is dead space. Corner overlays (equipped / locked badges) use
+ * [cardBackBadgeTrailingInset] to hug the card instead of floating in that gap.
+ */
+const val CardBackPreviewWidthFraction: Float = 0.7f
+
+/**
+ * How far to pull a corner badge in from a cosmetic tile's trailing edge so it
+ * lands on the artwork. Card backs leave dead space on the right (see
+ * [CardBackPreviewWidthFraction]); every other cosmetic fills its square
+ * footprint, so their badge stays at the corner (inset 0).
+ */
+fun cardBackBadgeTrailingInset(productId: String, tileSize: Dp): Dp =
+    if (cosmeticSlotFor(productId) == CosmeticSlot.CardBack) {
+        tileSize * (1f - CardBackPreviewWidthFraction)
+    } else {
+        0.dp
+    }
+
 @Composable
 private fun CardBackPreview(productId: String, size: Dp, modifier: Modifier = Modifier) {
     val style = cardBackForProductId(productId)
-    val cardSize = PlayingCardSize(width = size * 0.7f, height = size)
+    val cardSize = PlayingCardSize(width = size * CardBackPreviewWidthFraction, height = size)
     // Avatar back is personal — without an overlay it would render as
     // the Default gray gradient in shop tiles, which understates what
     // the user is buying. Pass a generic placeholder emoji + color so
