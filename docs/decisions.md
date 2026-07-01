@@ -29,6 +29,16 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-30 — Auth gate distinguishes "offline" from "no account" (AUTH-11)
+
+**Decision:** `RealAuthGateChecker` now injects `AppState` and, when a route's `Account` requirement is unmet and the session is unresolved but the device `isOffline`, gates with a new `GateReason.Offline` ("You're offline — your progress is safe, try again once you're back online") instead of `GateReason.NeedAccount` ("Account needed"). Offline is checked *after* the still-healing (`FinishingSetup`) branch, so an actively-creating guest keeps its setup copy.
+
+**Why:** An onboarded anon guest who cold-boots offline can't refresh its Supabase session (5 attempts exhausted, `GuestSessionHealer` SKIP_OFFLINE), so the gate saw "no session" and told the user "account needed" — which an onboarded guest reads as "my progress is gone" (Sentry CARDS-6J). The gate had no way to tell "offline, can't confirm your account" from "genuinely no account." `AppState.isOffline` is a synchronous `StateFlow`, so the check stays a cheap non-suspending peek on the navigate path.
+
+**Alternatives considered:** (1) Persist/restore the guest session locally so an offline cold boot still has an in-memory identity — larger surface (touches the Supabase session store and every gated path), and a real fix for the *identity* gap but not required to fix the *message* gap this case is about; left for a follow-up if solo-offline needs a live session. (2) Branch the copy inside each calling screen — rejected: the gate is the one central place that already owns the reason→copy mapping; per-screen branching would drift. (3) Read `hasUserOnboarded` from `AppCache` to be sure they're a returning guest — rejected as unnecessary coupling: `isOffline` + unresolved-session is already the exact "can't confirm" signal, and a genuinely-new offline user seeing "you're offline" is still more honest than "account needed."
+
+**Status:** Locked.
+
 ## 2026-06-30 — Gold seat ring means "on the clock" only; the aggressor loses its ring (GAME-9)
 
 **Decision:** An opponent seat's gold ring now signals exactly one thing — this seat is to-act (the pulsing "to act" ring, or the timer-enforced countdown ring). The solid gold *aggressor* ring (shown after a bet/raise/all-in and persisting through the street) is removed. The aggressor's "chips going in" meaning is still carried by their gold bet/raise/all-in **action chip** at the bottom-center of the seat.

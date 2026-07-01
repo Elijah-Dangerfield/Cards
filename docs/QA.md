@@ -146,6 +146,7 @@ Two variants, both must pass:
 1. Open the app from the home screen.
 
 **Expected:** Skips onboarding. Lands on Home with cached profile + cached chip balance. "Connection issues" banner appears at the top. No "account needed" dialog when navigating Home surfaces. Creating / joining a multiplayer room surfaces a *connection* error ("Couldn't reach the server"), not the account-less "Sign in first to create a room" copy. Real-money purchase still hard-gates. *(AUTH-6.)*
+- If the offline cold boot never resolved a session (guest session couldn't refresh), a route that requires an account (create/join room) shows the **"You're offline"** gate sheet — "Your progress is safe. Try again once you're back online." — not the "Account needed" sheet. Reconnect and retry the same action; the account resolves and the route opens. *(AUTH-11.)*
 
 ---
 

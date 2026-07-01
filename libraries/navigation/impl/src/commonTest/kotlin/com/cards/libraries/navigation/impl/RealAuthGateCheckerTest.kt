@@ -16,6 +16,7 @@ import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
 import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
+import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.navigation.AuthGateRoute
 import com.dangerfield.cards.libraries.navigation.AuthRequirement
 import com.dangerfield.cards.libraries.navigation.GateReason
@@ -23,6 +24,8 @@ import com.dangerfield.cards.libraries.navigation.Route
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -61,6 +64,43 @@ class RealAuthGateCheckerTest : CoroutineTest() {
 
         val gated = assertIs<AuthGateRoute>(checker.gate(accountRoute))
         assertEquals(GateReason.NeedAccount, gated.reason)
+    }
+
+    @Test
+    fun account_whenUnauthenticatedAndOffline_gatesWithOffline() = runUnitTest {
+        val auth = FakeAuthRepository()
+        val appState = FakeAppState(offline = true)
+        val checker = build(auth = auth, appState = appState)
+        auth.emit(AuthState.Unauthenticated())
+        advanceUntilIdle()
+
+        val gated = assertIs<AuthGateRoute>(checker.gate(accountRoute))
+        assertEquals(
+            GateReason.Offline,
+            gated.reason,
+            "offline + unresolved session should read as offline, not 'account needed'",
+        )
+    }
+
+    @Test
+    fun account_whenCreationPendingAndOffline_prefersFinishingSetupOverOffline() = runUnitTest {
+        val auth = FakeAuthRepository()
+        val creator = FakeGuestAccountCreator(
+            initial = AccountCreationState.Failed(
+                PendingIdentity("Foxy", "🦊", null),
+                cause = RuntimeException("offline"),
+            ),
+        )
+        val checker = build(auth = auth, creator = creator, appState = FakeAppState(offline = true))
+        auth.emit(AuthState.Unauthenticated())
+        advanceUntilIdle()
+
+        val gated = assertIs<AuthGateRoute>(checker.gate(accountRoute))
+        assertEquals(
+            GateReason.FinishingSetup,
+            gated.reason,
+            "an actively-healing guest should still be told setup is finishing",
+        )
     }
 
     @Test
@@ -113,11 +153,18 @@ class RealAuthGateCheckerTest : CoroutineTest() {
     private fun build(
         auth: AuthRepository = FakeAuthRepository(),
         creator: GuestAccountCreator = FakeGuestAccountCreator(),
+        appState: AppState = FakeAppState(offline = false),
     ) = RealAuthGateChecker(
         authRepository = auth,
         guestAccountCreator = creator,
+        appState = appState,
         appScope = AppCoroutineScope(dispatchers),
     )
+
+    private class FakeAppState(offline: Boolean) : AppState {
+        override val isOffline: StateFlow<Boolean> = MutableStateFlow(offline).asStateFlow()
+        override val isBlockActive: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
+    }
 
     private class FakeGuestAccountCreator(
         initial: AccountCreationState = AccountCreationState.Idle,
