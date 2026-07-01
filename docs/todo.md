@@ -33,6 +33,15 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 - **Acceptance:** Offline start-game surfaces an honest "you're offline" state (not "account needed") and/or solo bots play works offline for an onboarded guest. Reproduce with a failing test: onboarded anon + offline cold boot → start game asserts the offline branch, not the account-needed branch.
 - **Hints:** `AuthRepository` resolve/`GuestSessionHealer` (SKIP_OFFLINE), the start-game session gate, and `ConnectivityObserver` for the branch. Distinct from the backlog "Offline-aware retry / deferred queue" (that's write retries). Case `docs/agent/feedback-cases/19e065615f1149bfaabe4f0650966c61.md`.
 
+**AUTH-12 [P1] — Google claim reports success but the app still says "sign in and claim your account."** A guest claimed his account with Google, the link reported success, yet the claim prompts persisted — the in-app session stayed anonymous while the identity was attached at Supabase (Sentry [CARDS-76](https://elijah-dangerfield.sentry.io/issues/CARDS-76)). Worse than cosmetic: the user believes progress is saved while the local `AuthState` is still an anon session.
+- **Problem:** After a successful `linkOAuthIdentity(Google)`, `AuthState.Authenticated.isAnonymous` didn't flip to false for the reporter, so every `isAnonymous`-gated surface (`RankDetailSheet` "Claim your account", Save-your-progress) still shows the claim CTA.
+- **Acceptance:** Completing a Google link flips the observed `AuthState` to non-anonymous and clears all claim CTAs, with no app restart. Reproduce with a failing test first: guest → Google link Success → assert `observe()` emits `Authenticated(isAnonymous=false)` and the claim gate is cleared.
+- **Hints:** `completeOAuthRedirect` (Link path) in `SupabaseAuthRepositoryImpl.kt` already force-`refreshSession()`s to fix the exact "GET /user leaves is_anonymous=true" hazard (see its in-code comment) — so **first confirm the reporter's build sha** (release string is unbumped, Sentry can't date it) to tell "predates the fix" from a residual gap: (a) a screen caching pre-link `isAnonymous` and not recomposing off the new emission, or (b) the `cards://login-callback` redirect not routing back into `completeOAuthRedirect` so no emit happens though the browser attached the identity. Case `docs/agent/feedback-cases/483178fee6a648949011f79134b8d50f.md`.
+
+**AUTH-13 [P2] — "Sign in with Apple" button is a plain rectangle (owner directive).** The Apple auth button renders rectangular; confirm whether that's intended and align it with the Google button / HIG (Sentry [CARDS-74](https://elijah-dangerfield.sentry.io/issues/CARDS-74) — "The apple button is a rectangular. I'm not sure if that's on purpose.").
+- **Acceptance:** The Apple sign-in button matches the intended styling (rounded to match the Google button and Sign in with Apple HIG) on the claim/onboarding screens.
+- **Hints:** The Apple button on `ClaimAccountScreen.kt` and the onboarding auth screen; align corner radius/shape with the sibling Google button. Owner directive, no case file.
+
 ---
 
 ## MP. Multiplayer hardening
@@ -56,6 +65,20 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 - **Acceptance:** The active-turn (to-act) ring is visually distinct from the aggressor ring so neither is mistaken for the other; a bettor who is no longer to-act doesn't read as "still your turn."
 - **Hints:** `features/room/impl/.../ui/OpponentSeat.kt` — `GoldSeatRing(pulsing=…)` for both cases; either restyle/recolor the aggressor ring or reconsider showing it. Before designing, spin up an investigation subagent to (a) confirm the report still reproduces on current develop given the 2026-06-29 `OpponentSeat` rewrite, and (b) check whether the design system already has a distinct token/treatment for "aggressor" vs "to act" so this stays DS-first. Case `docs/agent/feedback-cases/2667ba4d80654aa8ac3bb88732eed634.md`.
 
+**GAME-10 [P2] — After folding, the reporter's hole cards hang in a "ghost" state at the top until his next turn.** In solo (vs bots), after folding, the *next* hand's hole-card view stays raised in a ghost placement and only drops to its resting spot once it's the reporter's turn to act (Sentry [CARDS-6P](https://elijah-dangerfield.sentry.io/issues/CARDS-6P)). Non-blocking, self-corrects, but visibly wrong.
+- **Problem:** The player-hand/hole-card container's placement (or visibility/animation key) keys off turn/`isActing` state rather than deal-completion, so between "new hand dealt" and "my turn" it renders in the wrong slot.
+- **Acceptance:** After a fold, the reporter's hole cards sit in their resting placement from the start of the next hand — no ghost/raised state before his turn. Reproduce with a test over the deal→pre-turn window in the hand *after* a fold.
+- **Hints:** `features/room/impl/.../ui/PlayerArea.kt` / the hole-card composable in `features/room/impl/.../ui/`; check what drives the card container's position/visibility across a hand boundary. Case `docs/agent/feedback-cases/5210e09fbd7344a8a0fffd91b09c393e.md`.
+
+**GAME-11 [P2] — The in-app feedback dialog renders behind bottom sheets.** The global "sun" feedback surface is occluded when opened while a bottom sheet is up; it should sit on top of everything, including sheets and dialogs (Sentry [CARDS-6Y](https://elijah-dangerfield.sentry.io/issues/CARDS-6Y)).
+- **Problem:** The feedback presenter draws at a compositing layer below Compose `ModalBottomSheet`, so a sheet occludes it.
+- **Acceptance:** Opening feedback with a bottom sheet (or dialog) already visible shows the feedback surface on top of it.
+- **Hints:** App-root overlay/presenter layering — `libraries/ui/.../snackbar/SnackbarHost` and the `Screen`/root overlay wiring in `libraries/ui`, plus the `FeedbackRoute` presentation. The reporter's "global setting" instinct is right: present it at the top-most app overlay. Case `docs/agent/feedback-cases/4e58157fc813433a9b84edda1ff2ad5c.md`.
+
+**GAME-12 [P2] — Emote corner badge + gold ring polish on the player area (owner directive).** Give the seat's emote corner badge the same surface color as the player-area card so it reads as a cutout, make it slightly smaller and inset, and space the gold ring so it doesn't overlap; apply the same treatment to the win-ratio button. Removing overall-screen horizontal padding to fit is acceptable (Sentry [CARDS-6M](https://elijah-dangerfield.sentry.io/issues/CARDS-6M)).
+- **Acceptance:** Emote corner badge matches the player-area surface (cutout look), is smaller/inset, and the gold ring no longer overlaps it; the win-ratio button gets the same treatment.
+- **Hints:** `features/room/impl/.../ui/SeatEmoteOverlay.kt` + `PlayerArea.kt` for the badge/ring geometry and surface color; find the win-ratio button in the same seat UI. Owner directive, no case file.
+
 ---
 
 ## PROG. Progression / XP / stats
@@ -68,6 +91,10 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 **PROG-6 [P2] — Announce play-style unlock with a global dialog (owner directive) — first new client of the PROG-5 arbiter.** After a user plays enough hands to unlock their play-style metric (~20 hands), tell them their style is now unlocked (Sentry [CARDS-6B](https://elijah-dangerfield.sentry.io/issues/CARDS-6B)).
 - **Acceptance:** Crossing the play-style-unlock threshold surfaces a one-shot "your play style is unlocked" celebration, shown exactly once while the user is settled on Home.
 - **Hints:** Build this as a `HomeNotification.PlayStyleUnlocked` variant + one rule in `GetHomeScreenNotification` + one persisted "unlock-seen" watermark in `AppCache` — **do not** add a fifth bespoke gate. Gate on the play-style sample count (`PlayStyleRepository` unlock threshold). Sequence after PROG-5 lands (or land them together); owner directive, no case file.
+
+**PROG-7 [P2] — Shrink the achievements on the profile screen to match the home-screen size (owner directive).** The profile-screen achievement tiles are larger than the home-screen ones; make them the same, smaller size (Sentry [CARDS-6R](https://elijah-dangerfield.sentry.io/issues/CARDS-6R)).
+- **Acceptance:** Profile-screen achievement tiles render at the same (smaller) size as the home-screen achievements strip.
+- **Hints:** The achievements section in `features/profile/impl/.../ProfileScreen.kt`; mirror the tile sizing used by `RecentAchievementsStrip.kt` on Home. Owner directive, no case file.
 
 ---
 
@@ -82,3 +109,15 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 - **Problem:** Host can't choose the table's felt/card back in-flow; the room just copies their equipped cosmetics, so there's no intent and no "from items I own" surface.
 - **Acceptance:** Create-room shows a horizontally-scrollable Felt row + Card back row of the host's **owned** cosmetics (defaults always present), pre-selected to their equipped look; the selection pins on the room and renders for every joiner. Owned-only enforced by construction. Existing MP-14 QA still passes (update it: look is now an explicit pick). Cover the VM with a test: `CreateRoom` forwards the picked ids and falls back to equipped when none passed.
 - **Hints:** Full written plan (design, files, edge cases, verification) at [`docs/plans/shop-5-host-table-cosmetics-picker.md`](plans/shop-5-host-table-cosmetics-picker.md) — **delete that plan doc when SHOP-5 ships.** Reuse `EdgeToEdgeRow` (horizontal shelf) + `CosmeticPreview(productId=…)` (felt swatch / mini card-back) + selection ring from `OwnedCosmeticTile` in `ProfileScreen.kt`; classify owned inventory into slots via `cosmeticSlotFor(id)`; seed the default selection from `equippedTableCosmetics(...)`. Seams: `PrivateCreateScreen.kt` (new picker rows + local selection), `LobbyFeatureEntryPoint.kt` (inject inventory/products/equipment, build owned lists, thread ids), `LobbyRoute.kt` (+`feltProductId`/`cardBackProductId` nullable), `LobbyViewModel.kt` `CreateRoom` (prefer picked ids over the equipped fallback). Out of scope, note as known limitations: server-side ownership validation (freemium, low-stakes) and forward-compatible rendering when a host's cosmetic is newer than a viewer's client (unknown id still → default felt, no crash).
+
+**SHOP-6 [P2] — Cosmetic horizontal rows (emotes, felts) start flush with the screen edge; give them the card-back row's start padding (owner directive).** The felt and emote rows begin at the screen edge, while the card-back row's tiles line up under the section header. Match the card-back treatment for emotes, felts, and the other horizontal rows — a start padding — while keeping the edge-to-edge scroll (tiles still scroll off to the edge) (Sentry [CARDS-6T](https://elijah-dangerfield.sentry.io/issues/CARDS-6T)).
+- **Acceptance:** Emote/felt/other cosmetic rows start-align with the section header like the card-back row, and still scroll edge-to-edge.
+- **Hints:** `EdgeToEdgeRow` (`libraries/ui/.../components/EdgeToEdgeRow.kt`) content-vs-first-item padding; the shop/profile cosmetic shelves in `ShopComponents.kt` / `ShopScreen.kt` / `ProfileScreen.kt`. Owner directive, no case file.
+
+**SHOP-7 [P2] — Make the specialty (shop) items slightly smaller for a congruent screen (owner directive).** Reduce the specialty-item tile size so the shop screen feels visually congruent (Sentry [CARDS-6W](https://elijah-dangerfield.sentry.io/issues/CARDS-6W)).
+- **Acceptance:** Specialty-item tiles render slightly smaller and the shop screen reads as visually consistent.
+- **Hints:** Specialty-item tile sizing in `features/shop/impl/.../ShopComponents.kt` / `ShopScreen.kt`. Owner directive, no case file.
+
+**SHOP-8 [P2] — Cosmetic detail bottom sheets should adopt the bigger, "bubbly" achievement-sheet style; also unslop backend cosmetic strings (owner directive).** The bottom sheets for belts, card backs, and similar cosmetics should match the larger bubbly UI of the achievement-tap sheet. Separately, run the unslop-text pass over the backend/Supabase cosmetic strings — an em-dash is showing through in the copy (Sentry [CARDS-70](https://elijah-dangerfield.sentry.io/issues/CARDS-70)).
+- **Acceptance:** Cosmetic detail sheets use the achievement-sheet visual treatment; Supabase-served cosmetic strings are cleaned of em-dashes / slop.
+- **Hints:** Restyle `features/profile/impl/.../items/CosmeticDetailSheet.kt` to match the achievement-tap sheet treatment; the string cleanup is a content pass on the Supabase-served cosmetic copy (run `unslop-text`). Owner directive, no case file.

@@ -868,3 +868,11 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch if revisited:** create a `:libraries:gameplay:testing` module (mirrors `:libraries:flowroutines:testing`) exporting `cards()` + `stackedDeck()`, depend on it from the three `commonTest`/`androidUnitTest`/server-test sources, and delete the three copies. Small, mechanical; the only friction is wiring a new Gradle module + its `jvm()`/android/ios targets to match each consumer.
 
 **Status:** Backlog. Pure test-infra DRY; no product impact. Kept the inline copy in MP-25's fix to avoid a module refactor riding on a bug fix.
+
+## Achievement award timing — the delayed-drip queue reads as "earned a while ago"
+
+**Idea (owner feedback 2026-06-30, Sentry [CARDS-72](https://elijah-dangerfield.sentry.io/issues/CARDS-72)):** Achievements aren't surfaced when they're earned — they drip out roughly a hand late, as if there's a queue that only shows ~two at a time. Against bots, where unlocks come fast, that backs up into a queue the user never catches up on, so an achievement toast for something that happened several hands ago is confusing. Two entangled threads: (1) the **presentation queue/pacing** — show earned achievements promptly (or at least labelled to when they were earned), don't let a backlog form; and (2) the **root cause of the flood** — too many achievements are trivially earnable, several against bots, so consider gating some behind real (non-bot) play and, per the existing catalog item, growing the set (owner floats 75–100). Thread (2) overlaps the existing backlog item "More achievements + early-stage pacing rebalance" (CARDS-1A) — fold them together when this gets a pass; this item adds the award-*timing*/queue defect.
+
+**Status:** Backlog. Product + UX call on the achievement drip/queue plus a content pass; pull with the achievement-system rework. Owner directive.
+
+---
