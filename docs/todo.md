@@ -92,10 +92,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 - **Acceptance:** Crossing the play-style-unlock threshold surfaces a one-shot "your play style is unlocked" celebration, shown exactly once while the user is settled on Home.
 - **Hints:** Build this as a `HomeNotification.PlayStyleUnlocked` variant + one rule in `GetHomeScreenNotification` + one persisted "unlock-seen" watermark in `AppCache` — **do not** add a fifth bespoke gate. Gate on the play-style sample count (`PlayStyleRepository` unlock threshold). Sequence after PROG-5 lands (or land them together); owner directive, no case file.
 
-**PROG-7 [P2] — Shrink the achievements on the profile screen to match the home-screen size (owner directive).** The profile-screen achievement tiles are larger than the home-screen ones; make them the same, smaller size (Sentry [CARDS-6R](https://elijah-dangerfield.sentry.io/issues/CARDS-6R)).
-- **Acceptance:** Profile-screen achievement tiles render at the same (smaller) size as the home-screen achievements strip.
-- **Hints:** The achievements section in `features/profile/impl/.../ProfileScreen.kt`; mirror the tile sizing used by `RecentAchievementsStrip.kt` on Home. Owner directive, no case file.
-
 ---
 
 ## SHOP. Consumables & rewards
