@@ -33,10 +33,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 - **Acceptance:** Completing a Google link flips the observed `AuthState` to non-anonymous and clears all claim CTAs, no app restart. Reproduce with a failing test first: guest → Google link Success → assert `observe()` emits `Authenticated(isAnonymous=false)`.
 - **Hints:** `completeOAuthRedirect` (Link path) in `SupabaseAuthRepositoryImpl.kt` *already* force-`refreshSession()`s for this exact hazard, so this is a residual gap, not the base fix — check (a) a screen caching pre-link `isAnonymous` and not recomposing off the new emission, or (b) the `cards://login-callback` redirect not routing back into `completeOAuthRedirect`. Case `docs/agent/feedback-cases/483178fee6a648949011f79134b8d50f.md`.
 
-**AUTH-13 [P2] — "Sign in with Apple" button is a plain rectangle (owner directive).** The Apple auth button renders rectangular; confirm whether that's intended and align it with the Google button / HIG (Sentry [CARDS-74](https://elijah-dangerfield.sentry.io/issues/CARDS-74) — "The apple button is a rectangular. I'm not sure if that's on purpose.").
-- **Acceptance:** The Apple sign-in button matches the intended styling (rounded to match the Google button and Sign in with Apple HIG) on the claim/onboarding screens.
-- **Hints:** The reporter is on iOS, where the Apple button is the *system-drawn* `ASAuthorizationAppleIDButton` (via `ClaimAccountScreen.kt`), not the Compose `AppleSignInButton` — that Compose fallback already clips to `Radii.Button.shape`, so don't "fix" it. The fix is the native button's corner style / the `AppleSignInButtonKind`+`Style` inputs. Owner directive, no case file.
-
 ---
 
 ## MP. Multiplayer hardening

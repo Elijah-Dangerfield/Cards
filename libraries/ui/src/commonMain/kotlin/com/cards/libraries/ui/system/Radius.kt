@@ -37,6 +37,16 @@ fun Radius.cornerRadius(density: Density, size: Size): Float {
     }
 }
 
+/**
+ * The corner radius in `dp` for radii backed by an absolute [Dp] corner (all the
+ * `R*`/`Button`/`Card` tokens — not [Radii.Round], which is percentage-based).
+ * Lets a native surface that takes points (`ASAuthorizationAppleIDButton`,
+ * platform sheets) match the Compose radius from the same token instead of a
+ * hardcoded literal that drifts when the token changes.
+ */
+val Radius.cornerRadiusDp: Dp
+    get() = with(Density(density = 1f)) { cornerSize.toPx(Size.Unspecified, this).toDp() }
+
 object Radii {
     val Round = Radius(CornerSize(percent = 50))
     val R300 = Radius(CornerSize(DimensionResource.D300.dp))
