@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.data
 
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.domain.ConfigChangeEvent
 import com.dangerfield.cards.server.domain.ConfigChangeNotifier
 import kotlinx.coroutines.CoroutineScope
@@ -36,7 +37,7 @@ class WebhookConfigChangeNotifier(
     override fun changed(event: ConfigChangeEvent) {
         val url = webhookUrl?.takeIf { it.isNotBlank() } ?: return
         scope.launch(Dispatchers.IO) {
-            runCatching {
+            Catching {
                 val request = HttpRequest.newBuilder(URI.create(url))
                     .timeout(Duration.ofSeconds(10))
                     .header("Content-Type", "application/json")

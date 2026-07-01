@@ -245,7 +245,7 @@ fun Route.roomSocketRoutes(
                                 // funded leaver is a no-op). Pot chips already
                                 // committed are forfeit — stackFor excludes them.
                                 deltas.filterIsInstance<RoomSocketEventDto.MemberLeft>().forEach { left ->
-                                    val leftUserId = runCatching { UserId(UUID.fromString(left.userId)) }.getOrNull()
+                                    val leftUserId = Catching { UserId(UUID.fromString(left.userId)) }.getOrNull()
                                     if (leftUserId != null) {
                                         // Same settlement decision the REST leave runs (MP-29): defer an
                                         // all-in-live leaver, else cash out at their stackFor. Keyed +
@@ -407,7 +407,7 @@ fun Route.roomSocketRoutes(
                     gameSessions.observeSession(code)
                         .flatMapLatest { session -> session?.departedSettlements ?: emptyFlow() }
                         .collect { settlement ->
-                            val settledUserId = runCatching { UserId(UUID.fromString(settlement.userId)) }.getOrNull()
+                            val settledUserId = Catching { UserId(UUID.fromString(settlement.userId)) }.getOrNull()
                                 ?: return@collect
                             Catching { tableSessions.cashOut(settledUserId, settlement.resolvedStack) }
                                 .onFailure { e ->

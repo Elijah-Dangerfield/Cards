@@ -58,10 +58,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 
 ## ENG. Engineering / structural
 
-**ENG-1 [P2] — Server still uses `runCatching` in five production callsites; convert to `Catching {}` (proposed 2026-07-01).** AGENTS.md mandates `Catching {}` over `runCatching` everywhere (it rethrows `CancellationException`); `apps/server` already depends on `:libraries:core` and imports `Catching`, yet five server callsites still call raw `runCatching`.
-- **Acceptance:** No `runCatching` remains in `apps/server/src/main`; the five callsites use `Catching {}`.
-- **Hints:** `RoomSocketRoutes.kt:248,410`, `ConfigAdminRoutes.kt:226`, `PostgresRoomStore.kt:130`, `WebhookConfigChangeNotifier.kt:39`. Mechanical swap; `Catching` is already imported in `RoomSocketRoutes.kt`.
-
 **ENG-2 [P2] — Profile screens ship without `@Preview` coverage (proposed 2026-07-01).** AGENTS.md requires every public screen composable in a `:features:*:impl` module to carry at least one `@Preview`; five screens in `:features:profile:impl` have none.
 - **Acceptance:** `SettingsScreen`, `EditProfileScreen`, `ClaimAccountScreen`, `DeleteAccountScreen`, and `QaMenuScreen` each have at least one `@Preview` wrapped in `PreviewContent { }`.
 - **Hints:** `SettingsScreen.kt` is the easy start — it already takes raw inputs (`ProfileSettings` + callbacks, no ViewModel) and imports `PreviewContent`. Screens taking a ViewModel directly need the stateless-`XxxScreenContent` extraction from AGENTS.md → previews.
