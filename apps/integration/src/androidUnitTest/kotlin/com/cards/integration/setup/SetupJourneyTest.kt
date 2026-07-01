@@ -137,7 +137,10 @@ class SetupJourneyTest : IntegrationTest() {
 
         val promotion = joinerVm.awaitEvent<LobbyEvent.HostPromoted>()
         assertTrue(promotion.isLocalUser, "the joiner should become the effective host")
-        assertEquals(joiner.userId, joinerVm.state.effectiveHostUserId)
+        // The HostPromoted event lands a beat before the state reducer commits
+        // the new effective host, so await convergence rather than reading the
+        // field the instant the event fires.
+        joinerVm.stateFlow.awaitState { it.effectiveHostUserId == joiner.userId }
     }
 
     @Test
