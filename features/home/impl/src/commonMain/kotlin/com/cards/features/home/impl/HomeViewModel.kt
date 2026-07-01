@@ -5,12 +5,20 @@ import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.LevelReward
+import com.dangerfield.cards.libraries.cards.Progression
+import com.dangerfield.cards.libraries.cards.PlayStyleAxes
+import com.dangerfield.cards.libraries.cards.PlayStyleRepository
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.levelProgressFor
+import com.dangerfield.cards.features.home.impl.notification.GetHomeScreenNotification
+import com.dangerfield.cards.features.home.impl.notification.HomeNotification
+import com.dangerfield.cards.features.home.impl.notification.HomeNotificationSnapshot
+import com.dangerfield.cards.features.home.impl.notification.seedsNeeded
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -29,10 +37,9 @@ import com.dangerfield.cards.libraries.social.SocialEnabled
 import com.dangerfield.cards.libraries.ui.system.DialogIntroDelay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 
@@ -45,6 +52,7 @@ class HomeViewModel(
     private val profileRepository: ProfileRepository,
     private val recentOpponentsRepository: RecentOpponentsRepository,
     private val friendRepository: FriendRepository,
+    private val playStyleRepository: PlayStyleRepository,
     private val progressionConfig: ProgressionConfig,
     private val appCache: AppCache,
     private val appScope: AppCoroutineScope,
@@ -66,9 +74,20 @@ class HomeViewModel(
     private val requestedFriendIds = mutableSetOf<String>()
 
     // True while Home is the foreground screen. Gates whether a live balance change
-    // updates the "last seen" baseline (see the chips collector). Mutated only from
-    // the action loop. See [HomeAction.ScreenResumed] / [HomeAction.ScreenPaused].
+    // updates the "last seen" baseline (see the chips collector), and whether a
+    // pending blocking notification is allowed to present. Mutated only from the
+    // action loop. See [HomeAction.ScreenResumed] / [HomeAction.ScreenPaused].
     private var homeResumed = false
+
+    // The most recent notification snapshot the arbiter reasons over. Latched so a
+    // notification that resolves while Home is off-screen can be re-presented the
+    // instant Home settles again. Mutated only from the action loop.
+    private var latestNotificationSnapshot: HomeNotificationSnapshot? = null
+
+    // One-shot latches so a re-entrant snapshot (or a resume) can't double-fire the
+    // welcome / play-style events after they've already been sent this VM's life.
+    private var welcomePresented = false
+    private var playStyleUnlockPresented = false
 
     init {
         // [recent-achievements-delay] If this fires every time you tap the
@@ -94,22 +113,7 @@ class HomeViewModel(
                 )
             }
         }
-        viewModelScope.launch {
-            // Full-screen level-up celebration, derived (not event-fired) so it
-            // survives the table→home trip + process death and shows the net
-            // level once on a multi-level jump. See decisions.md 2026-06-06.
-            combine(
-                progressionRepository.observeProgression(),
-                appCache.updates,
-            ) { progression, appData ->
-                LevelCelebrationGate(
-                    currentLevel = levelProgressFor(progression.totalXp, progressionConfig.levelCurve()).level,
-                    watermark = appData.lastCelebratedLevel,
-                )
-            }
-                .distinctUntilChanged()
-                .collect { gate -> takeAction(HomeAction.EvaluateLevelUp(gate)) }
-        }
+        observeHomeNotifications()
         viewModelScope.launch {
             chipsRepository.observeBalance().collect { balance ->
                 takeAction(HomeAction.ChipsChanged(balance))
@@ -200,81 +204,82 @@ class HomeViewModel(
                 takeAction(HomeAction.TutorialBannerDismissedChanged(data.tutorialBannerDismissed))
             }
         }
-        observeWelcomeGate()
     }
 
     /**
-     * One-shot starter-grant welcome trigger.
+     * The single arbiter for every "when the user lands on Home, show X"
+     * blocking moment (starter-grant welcome, level-up celebration, play-style
+     * unlock). Each of these used to be gated independently — its own flag, its
+     * own `combine`/`first`, its own race — and the level-up celebration lost
+     * two ways (a fresh seed swallowing a real crossing, and being swept off
+     * Home before it played). Folding them into one [HomeNotificationSnapshot]
+     * → [GetHomeScreenNotification] pass puts priority and the seed-vs-crossing
+     * rule in exactly one place.
      *
-     * Combines two upstream signals — server profile and the [AppData]
-     * "already seen" flag — and emits exactly one
-     * [HomeEvent.OpenWelcomeDialog] event the first time both align. The
-     * view layer responds by navigating to
-     * [com.dangerfield.cards.features.home.WelcomeDialogRoute].
-     *
-     * Chip balance rides along as a *latest snapshot* — the dialog renders
-     * with a placeholder when chips haven't hydrated yet, instead of
-     * blocking the welcome on the wallet round-trip.
-     *
-     * Note we no longer gate on `isFirstEverSession`. That flag flipped to
-     * `false` the first time the app backgrounded, which permanently locked
-     * a user out of the welcome if their profile failed to load before
-     * they backgrounded (e.g. /v1/me timed out on a Fly cold-boot →
-     * Profile.Fallback → user backgrounds → flag flips → welcome never
-     * fires again). `hasSeenStarterWelcome` is now the sole "have we shown
-     * this user the welcome yet" signal, set only when the dialog
-     * *actually opens*.
-     *
-     * Persists `hasSeenStarterWelcome=true` *at emit time* (optimistic), so
-     * a process death between event and dismissal doesn't cause a re-show.
-     * The user has the chips either way; missing the dialog on a crash is
-     * fine.
+     * Discipline this enforces:
+     * - **Seed, don't celebrate.** An unset watermark (fresh install / account
+     *   switch) is seeded to the current state via [seedsNeeded] with no reveal.
+     *   Seeding is kept out of [GetHomeScreenNotification] so a silent seed can
+     *   never eat a real crossing.
+     * - **Present only when settled.** A pending blocking notification is only
+     *   handed to the view once Home is the foreground screen ([homeResumed]) —
+     *   the same signal the chip odometer uses — so a celebration can't fire
+     *   while the user is being swept elsewhere.
+     * - **Advance the watermark only after a confirmed present.** For the level
+     *   celebration the entry point fires [HomeAction.MarkLevelUpShown] at
+     *   navigate-time; for welcome + play-style the mark happens here at present
+     *   time. Either way the "we showed it" write follows the present, not
+     *   precedes it.
      */
-    private fun observeWelcomeGate() {
+    private fun observeHomeNotifications() {
         viewModelScope.launch {
-            combine(
-                chipsRepository.observeBalance(),
-                profileRepository.observe(),
-                appCache.updates,
-                chipsRepository.walletJustCreated,
-            ) { chips, profile, appData, walletJustCreated ->
-                WelcomeGate(
-                    chips = chips,
-                    profile = profile,
-                    walletJustCreated = walletJustCreated,
-                    didSeeInitialGrantInOnboarding = appData.didSeeInitialGrantInOnboarding,
-                )
-            }
+            homeNotificationSnapshots()
                 .distinctUntilChanged()
-                .onEach { gate ->
-                    homeLogger.i {
-                        "welcomeGates: resolved=${gate.payload() != null} " +
-                            "walletJustCreated=${gate.walletJustCreated} " +
-                            "didSeeInOnboarding=${gate.didSeeInitialGrantInOnboarding} " +
-                            "profile=${gate.profile.debugKind()} " +
-                            "chips=${gate.chips}"
-                    }
-                }
-                // Suspends until the first emission whose gates all align —
-                // including a hydrated balance, since the dialog's whole job
-                // is to reveal the authoritative number. No state churn
-                // after — the cache flip below makes the predicate
-                // unsatisfiable for the rest of this VM's life.
-                .first { it.payload() != null }
-                .let { gate ->
-                    val payload = gate.payload()!!
-                    // Monotonic: record that we've now shown the grant so it
-                    // can't re-fire (even though walletJustCreated stays true
-                    // for the rest of this session).
-                    appCache.update { it.copy(didSeeInitialGrantInOnboarding = true) }
-                    // Beat between Home rendering and the welcome popping;
-                    // without it the dialog grabs focus before the user has
-                    // oriented on the new screen. See `DialogIntroDelay`.
-                    delay(DialogIntroDelay)
-                    sendEvent(HomeEvent.OpenWelcomeDialog(payload))
-                }
+                .collect { snapshot -> takeAction(HomeAction.EvaluateNotifications(snapshot)) }
         }
     }
+
+    private fun homeNotificationSnapshots(): Flow<HomeNotificationSnapshot> =
+        combine(
+            progressionRepository.observeProgression(),
+            chipsRepository.observeBalance(),
+            profileRepository.observe(),
+            playStyleRepository.observeOwnStyle(),
+            appCache.updates,
+            chipsRepository.walletJustCreated,
+        ) { values ->
+            val progression = values[0] as Progression
+            val chips = values[1] as Long?
+            val profile = values[2] as Profile
+            val playStyle = values[3] as PlayStyleAxes?
+            val appData = values[4] as AppData
+            val walletJustCreated = values[5] as Boolean
+
+            val currentLevel = levelProgressFor(progression.totalXp, progressionConfig.levelCurve()).level
+            val auth = profile as? Profile.Authenticated
+            HomeNotificationSnapshot(
+                currentLevel = currentLevel,
+                lastCelebratedLevel = appData.lastCelebratedLevel,
+                crossedLevelRewards = crossedLevelRewards(
+                    fromExclusive = appData.lastCelebratedLevel,
+                    toInclusive = currentLevel,
+                ),
+                walletJustCreated = walletJustCreated,
+                didSeeInitialGrantInOnboarding = appData.didSeeInitialGrantInOnboarding,
+                welcomeIdentity = auth?.let {
+                    HomeNotificationSnapshot.WelcomeIdentity(
+                        displayName = it.displayName,
+                        avatarEmoji = it.avatarEmoji,
+                        avatarBackgroundColorHex = it.avatarBackgroundColor,
+                    )
+                },
+                playStyleSampleSize = playStyle?.sampleSize,
+                playStyleUnlockThreshold = PlayStyleAxes.MIN_SAMPLE,
+                playStyleUnlockSeen = appData.playStyleUnlockSeen,
+                chipBalance = chips,
+                lastShownChipBalance = appData.lastShownChipBalance,
+            )
+        }
 
     override suspend fun handleAction(action: HomeAction) {
         when (action) {
@@ -291,6 +296,10 @@ class HomeViewModel(
             is HomeAction.ScreenResumed -> {
                 homeResumed = true
                 takeAction(HomeAction.ReconcileChipReveal)
+                // Home just settled — flush any blocking notification that was
+                // pending while we were off-screen (the exact case a celebration
+                // used to be swept away in).
+                action.presentPendingBlocking()
             }
             is HomeAction.ScreenPaused -> homeResumed = false
             is HomeAction.ReconcileChipReveal -> {
@@ -341,46 +350,23 @@ class HomeViewModel(
             is HomeAction.DismissTutorialBanner -> {
                 appCache.update { it.copy(tutorialBannerDismissed = true) }
             }
-            is HomeAction.EvaluateLevelUp -> {
-                // `watermark == 0` is the unset sentinel: silently seed it to
-                // the current level (no celebration) so a fresh install /
-                // account switch / reinstall never blasts a celebration for a
-                // level the user already had. Thereafter, a current level above
-                // the watermark surfaces the overlay for the *current* level.
-                val gate = action.gate
-                when {
-                    gate.watermark == 0 -> {
-                        homeLogger.i {
-                            "level-up celebration skipped because watermark unset " +
-                                "(seeding to level ${gate.currentLevel})"
-                        }
-                        appCache.update { it.copy(lastCelebratedLevel = gate.currentLevel) }
-                    }
-                    gate.currentLevel > gate.watermark -> {
-                        homeLogger.i {
-                            "level-up celebration enqueued for level ${gate.currentLevel} " +
-                                "(from watermark ${gate.watermark})"
-                        }
-                        action.updateState {
-                            it.copy(
-                                levelUpCelebration = gate.currentLevel,
-                                levelUpRewards = crossedLevelRewards(
-                                    fromExclusive = gate.watermark,
-                                    toInclusive = gate.currentLevel,
-                                ),
-                            )
-                        }
-                    }
-                    else ->
-                        action.updateState {
-                            it.copy(levelUpCelebration = null, levelUpRewards = emptyList())
-                        }
+            is HomeAction.EvaluateNotifications -> {
+                latestNotificationSnapshot = action.snapshot
+                // Seed unset watermarks to the current state with no reveal — a
+                // fresh install / account switch adopts its level as the baseline
+                // rather than blasting a celebration for a level it already had.
+                // Kept out of the arbiter so a silent seed can't eat a real
+                // crossing (the PROG-5 failure mode).
+                action.snapshot.seedsNeeded().seedCelebratedLevel?.let { seedLevel ->
+                    homeLogger.i { "home notification: seeding celebration watermark to level $seedLevel" }
+                    appCache.update { it.copy(lastCelebratedLevel = seedLevel) }
                 }
+                action.presentPendingBlocking()
             }
             is HomeAction.MarkLevelUpShown -> {
                 // Fired by the entry point the instant it navigates to the
                 // routed celebration. Advance the watermark to the level we're
-                // showing so the derived gate goes quiet and we can't re-navigate
+                // showing so the arbiter goes quiet and we can't re-navigate
                 // (e.g. when Home resumes behind the celebration). Clearing the
                 // state immediately is what makes the navigation idempotent — by
                 // the time Home is visible again, there's nothing to re-fire.
@@ -393,6 +379,61 @@ class HomeViewModel(
                     appCache.update { it.copy(lastCelebratedLevel = reached) }
                 }
             }
+        }
+    }
+
+    /**
+     * Run the arbiter over the latest snapshot and present its single blocking
+     * pick — but only while Home is settled ([homeResumed]). A pending
+     * notification that resolves while the user is off Home stays latched in
+     * [latestNotificationSnapshot] and flushes on the next [HomeAction.ScreenResumed].
+     *
+     * The "we showed it" write follows the present: level-up advances via
+     * [HomeAction.MarkLevelUpShown] at navigate-time; welcome + play-style mark
+     * their watermarks here, immediately after the event is sent, so they can't
+     * re-fire.
+     */
+    private suspend fun HomeAction.presentPendingBlocking() {
+        if (!homeResumed) return
+        val snapshot = latestNotificationSnapshot ?: return
+        when (val notification = GetHomeScreenNotification(snapshot)) {
+            is HomeNotification.LevelUp -> {
+                if (stateFlow.value.levelUpCelebration == notification.level) return
+                homeLogger.i { "home notification: level-up celebration for level ${notification.level}" }
+                updateState {
+                    it.copy(
+                        levelUpCelebration = notification.level,
+                        levelUpRewards = notification.rewards,
+                    )
+                }
+            }
+            is HomeNotification.Welcome -> {
+                if (welcomePresented) return
+                welcomePresented = true
+                homeLogger.i { "home notification: starter-grant welcome (chips=${notification.chips})" }
+                // Monotonic mark first so a re-entrant snapshot can't double-fire.
+                appCache.update { it.copy(didSeeInitialGrantInOnboarding = true) }
+                delay(DialogIntroDelay)
+                sendEvent(
+                    HomeEvent.OpenWelcomeDialog(
+                        WelcomePayload(
+                            displayName = notification.displayName,
+                            avatarEmoji = notification.avatarEmoji,
+                            avatarBackgroundColorHex = notification.avatarBackgroundColorHex,
+                            chips = notification.chips,
+                        ),
+                    ),
+                )
+            }
+            is HomeNotification.PlayStyleUnlocked -> {
+                if (playStyleUnlockPresented) return
+                playStyleUnlockPresented = true
+                homeLogger.i { "home notification: play-style unlocked" }
+                appCache.update { it.copy(playStyleUnlockSeen = true) }
+                delay(DialogIntroDelay)
+                sendEvent(HomeEvent.OpenPlayStyleUnlocked)
+            }
+            null -> Unit
         }
     }
 
@@ -484,38 +525,8 @@ class HomeViewModel(
 }
 
 /**
- * Snapshot of all four welcome-dialog preconditions. Lifted to a value
- * type so the trace log can show every gate's current value on a single
- * line and so [payload] is the only place the "all aligned" rule lives.
- */
-private data class WelcomeGate(
-    val chips: Long?,
-    val profile: Profile?,
-    val walletJustCreated: Boolean,
-    val didSeeInitialGrantInOnboarding: Boolean,
-) {
-    fun payload(): WelcomePayload? {
-        // Fire only for a brand-new wallet we haven't already revealed in
-        // onboarding. The "just created" half is live + server-sourced, so a
-        // pre-existing account never triggers this — no cross-switch leak.
-        if (!walletJustCreated || didSeeInitialGrantInOnboarding) return null
-        val auth = profile as? Profile.Authenticated ?: return null
-        // Require a hydrated balance — the dialog's whole purpose is to
-        // reveal the authoritative number, so we wait for it rather than
-        // flashing a placeholder.
-        val chips = chips ?: return null
-        return WelcomePayload(
-            displayName = auth.displayName,
-            avatarEmoji = auth.avatarEmoji,
-            avatarBackgroundColorHex = auth.avatarBackgroundColor,
-            chips = chips,
-        )
-    }
-}
-
-/**
  * Eager payload for the welcome route. All fields — including the
- * authoritative chip balance — have resolved by gate-fire time, so the
+ * authoritative chip balance — have resolved by present time, so the
  * dialog paints the real number on first frame.
  */
 data class WelcomePayload(
@@ -595,16 +606,6 @@ data class HomeState(
 )
 
 /**
- * Inputs the level-up gate derives from — the user's current derived level and
- * the persisted "last celebrated" watermark. Lifted to a value type so the
- * `combine` emits a single `distinctUntilChanged`-able value.
- */
-data class LevelCelebrationGate(
-    val currentLevel: Int,
-    val watermark: Int,
-)
-
-/**
  * Pluck the most-recently-earned achievements from [AchievementProgress]
  * and shape them for the Home shelf. Carries the full [Achievement] so
  * the rendering can reuse the shared
@@ -635,18 +636,15 @@ private fun RecentOpponentProfile.toRecentOpponent(requestSent: Boolean): Recent
         requestSent = requestSent,
     )
 
-private fun Profile?.debugKind(): String = when (this) {
-    null -> "null"
-    is Profile.Authenticated -> if (isAnonymous) "Authenticated(anon)" else "Authenticated"
-    is Profile.Fallback -> "Fallback"
-}
-
 data class ActiveRoomSummary(
     val code: String,
 )
 
 sealed interface HomeEvent {
     data class OpenWelcomeDialog(val payload: WelcomePayload) : HomeEvent
+
+    /** The user just crossed the play-style sample threshold — announce it once. */
+    data object OpenPlayStyleUnlocked : HomeEvent
 }
 
 sealed interface HomeAction {
@@ -676,6 +674,9 @@ sealed interface HomeAction {
     data class FriendRequestFailed(val opponentId: String) : HomeAction
     data class TutorialBannerDismissedChanged(val dismissed: Boolean) : HomeAction
     data object DismissTutorialBanner : HomeAction
-    data class EvaluateLevelUp(val gate: LevelCelebrationGate) : HomeAction
+
+    /** A fresh notification snapshot resolved — seed unset watermarks and, if Home
+     *  is settled, present the single highest-priority blocking notification. */
+    data class EvaluateNotifications(val snapshot: HomeNotificationSnapshot) : HomeAction
     data object MarkLevelUpShown : HomeAction
 }

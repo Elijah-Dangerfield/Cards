@@ -13,6 +13,9 @@ import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
 import com.dangerfield.cards.libraries.cards.DefaultLevelRewards
 import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.LevelReward
+import com.dangerfield.cards.libraries.cards.PlayStyleAxes
+import com.dangerfield.cards.libraries.cards.PlayStyleHandSummary
+import com.dangerfield.cards.libraries.cards.PlayStyleRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
@@ -298,6 +301,8 @@ class HomeViewModelTest : CoroutineTest() {
         val progression = FakeProgressionRepository(initial = Progression.Empty)
         val appCache = FakeAppCache()
         val vm = buildVm(progression = progression, appCache = appCache)
+        // A blocking notification only presents once Home is settled (PROG-5).
+        vm.takeAction(HomeAction.ScreenResumed)
         vm.stateFlow.test {
             var last = awaitItem()
             // Seed settles to level 1.
@@ -329,6 +334,7 @@ class HomeViewModelTest : CoroutineTest() {
         val progression = FakeProgressionRepository(initial = Progression.Empty.copy(totalXp = 150L))
         val appCache = FakeAppCache(initial = AppData(lastCelebratedLevel = 1))
         val vm = buildVm(progression = progression, appCache = appCache)
+        vm.takeAction(HomeAction.ScreenResumed)
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.levelUpCelebration == null) last = awaitItem()
@@ -346,6 +352,7 @@ class HomeViewModelTest : CoroutineTest() {
         val progression = FakeProgressionRepository(initial = Progression.Empty)
         val appCache = FakeAppCache()
         val vm = buildVm(progression = progression, appCache = appCache)
+        vm.takeAction(HomeAction.ScreenResumed)
         vm.stateFlow.test {
             var last = awaitItem()
             while (appCache.get().lastCelebratedLevel != 1) last = awaitItem()
@@ -355,6 +362,69 @@ class HomeViewModelTest : CoroutineTest() {
             while (last.levelUpCelebration == null) last = awaitItem()
             assertEquals(3, last.levelUpCelebration)
             assertEquals(listOf(LevelReward.Chips(1_000)), last.levelUpRewards)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun levelUp_crossingWhileHomeNotSettled_isNotConsumed_firesWhenHomeSettles() = runUnitTest {
+        // PROG-5: the cited missed-celebration. A level crossing that resolves
+        // while Home isn't the settled/foreground screen must NOT be silently
+        // consumed — it has to fire once Home settles. Here we never call
+        // ScreenResumed until after the crossing has landed.
+        val progression = FakeProgressionRepository(initial = Progression.Empty)
+        val appCache = FakeAppCache(initial = AppData(lastCelebratedLevel = 1))
+        val vm = buildVm(progression = progression, appCache = appCache)
+
+        // Crossing lands while Home is NOT settled — nothing should present yet.
+        progression.progression.value = progression.progression.value.copy(totalXp = 150L)
+        advanceUntilIdle()
+        assertNull(
+            vm.stateFlow.value.levelUpCelebration,
+            "a crossing while Home isn't settled must not present yet",
+        )
+
+        // Home settles — the pending crossing now fires exactly once.
+        vm.takeAction(HomeAction.ScreenResumed)
+        advanceUntilIdle()
+        assertEquals(2, vm.stateFlow.value.levelUpCelebration, "pending crossing fires on settle")
+    }
+
+    @Test
+    fun playStyleUnlock_crossingThreshold_firesOnceOnSettledHome_thenMarksSeen() = runUnitTest {
+        // PROG-6: crossing the play-style sample threshold surfaces a one-shot
+        // unlock celebration, gated on a settled Home, and marks the watermark
+        // only after the present.
+        val playStyle = FakePlayStyleRepository(initial = null)
+        val appCache = FakeAppCache()
+        val vm = buildVm(playStyle = playStyle, appCache = appCache)
+        vm.takeAction(HomeAction.ScreenResumed)
+
+        vm.eventFlow.test {
+            expectNoEvents()
+            // Enough sampled hands land to cross MIN_SAMPLE.
+            playStyle.style.value = PlayStyleAxes.Empty.copy(sampleSize = PlayStyleAxes.MIN_SAMPLE)
+            val event = awaitItem()
+            assertTrue(event is HomeEvent.OpenPlayStyleUnlocked)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertTrue(
+            appCache.get().playStyleUnlockSeen,
+            "the unlock watermark is marked only after the celebration presents",
+        )
+    }
+
+    @Test
+    fun playStyleUnlock_alreadySeen_doesNotFire() = runUnitTest {
+        val playStyle = FakePlayStyleRepository(
+            initial = PlayStyleAxes.Empty.copy(sampleSize = 40),
+        )
+        val appCache = FakeAppCache(initial = AppData(playStyleUnlockSeen = true))
+        val vm = buildVm(playStyle = playStyle, appCache = appCache)
+        vm.takeAction(HomeAction.ScreenResumed)
+
+        vm.eventFlow.test {
+            expectNoEvents()
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -499,6 +569,8 @@ class HomeViewModelTest : CoroutineTest() {
         val chips = FakeChipsRepository(initial = null, walletJustCreatedInitial = true)
         val appCache = FakeAppCache() // didSeeInitialGrantInOnboarding = false
         val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
+        // A blocking notification only presents once Home is settled (PROG-5).
+        vm.takeAction(HomeAction.ScreenResumed)
 
         vm.eventFlow.test {
             expectNoEvents()
@@ -560,6 +632,7 @@ class HomeViewModelTest : CoroutineTest() {
         val chips = FakeChipsRepository(initial = 10_000L, walletJustCreatedInitial = true)
         val appCache = FakeAppCache()
         val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
+        vm.takeAction(HomeAction.ScreenResumed)
 
         vm.eventFlow.test {
             expectNoEvents()
@@ -748,6 +821,7 @@ class HomeViewModelTest : CoroutineTest() {
         profile: FakeProfileRepository = FakeProfileRepository(),
         recentOpponents: FakeRecentOpponentsRepository = FakeRecentOpponentsRepository(),
         friends: FakeFriendRepository = FakeFriendRepository(),
+        playStyle: FakePlayStyleRepository = FakePlayStyleRepository(),
         appCache: FakeAppCache = FakeAppCache(),
         progressionConfig: ProgressionConfig = FakeProgressionConfig(),
         socialEnabled: Boolean = true,
@@ -759,6 +833,7 @@ class HomeViewModelTest : CoroutineTest() {
         profileRepository = profile,
         recentOpponentsRepository = recentOpponents,
         friendRepository = friends,
+        playStyleRepository = playStyle,
         progressionConfig = progressionConfig,
         appCache = appCache,
         appScope = AppCoroutineScope(dispatchers),
@@ -1004,6 +1079,18 @@ class HomeViewModelTest : CoroutineTest() {
             error("recordTutorialComplete not used by HomeViewModel")
         override suspend fun sync(): Result<Unit> = Result.success(Unit)
         override suspend fun deleteAll() { /* not used */ }
+    }
+
+    private class FakePlayStyleRepository(
+        initial: PlayStyleAxes? = null,
+    ) : PlayStyleRepository {
+        val style = MutableStateFlow(initial)
+        override fun observeOwnStyle(): Flow<PlayStyleAxes?> = style
+        override suspend fun getOwnStyle(): PlayStyleAxes? = style.value
+        override suspend fun recordHand(summary: PlayStyleHandSummary) = Unit
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
+        override suspend fun getStyleFor(userId: String): Result<PlayStyleAxes?> = Result.success(null)
+        override suspend fun deleteAll() { style.value = null }
     }
 
     private class FakeAppCache(initial: AppData = AppData()) : AppCache {

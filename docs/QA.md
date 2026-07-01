@@ -503,7 +503,18 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Finish the hand and let the table return to Home (tap back / Next hand through to Home).
 3. Repeat once more for a second level-up later in the session.
 
-**Expected:** The full-screen level-up celebration presents every time a level is crossed — including the very first level-up of a fresh session — with the correct level number and any chip/boost/cosmetic reward rows. It never silently drops the user back to Home with no fanfare. A multi-level jump shows a single celebration for the net level. (Covers todo PROG-3; the fix anchors the celebration watermark in the reward granter so a first-session level-up can't be eaten by a seeding race.)
+**Expected:** The full-screen level-up celebration presents every time a level is crossed — including the very first level-up of a fresh session — with the correct level number and any chip/boost/cosmetic reward rows. It never silently drops the user back to Home with no fanfare. A multi-level jump shows a single celebration for the net level. (Covers todo PROG-3 + PROG-5; the reward granter anchors the celebration watermark, and the Home notification arbiter presents the crossing once Home is settled so it can't be swept away before it plays.)
+
+---
+
+### `PROG-6` ⚠️ 📱 Play-style unlock celebration fires once at ~20 hands
+
+**State:** an account whose play-style is not yet unlocked (fewer than 20 recorded hands — reach via a fresh account, or check Stats shows the "keep playing to reveal your style" state).
+
+1. Play bot hands until you have played roughly 20 hands (the play-style sample threshold).
+2. Return to Home and let it settle.
+
+**Expected:** A one-shot "your play style is unlocked" dialog appears exactly once while you are settled on Home, with a "See my style" CTA that routes to Stats (where the radar now shows a shape) and a "Later" that dismisses. It does not re-appear on later Home visits or after backgrounding. If a level-up is also pending, the level-up celebration shows first (higher priority) and the play-style dialog follows on a later Home settle. (Covers todo PROG-6, routed through the PROG-5 Home notification arbiter.)
 
 ---
 

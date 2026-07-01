@@ -382,6 +382,12 @@
     <string name="home_welcome_dialog_daily_grant_line">Open the app every day this week and we'll add another 500 chips, on us.</string>
     <string name="home_welcome_dialog_primary_cta">Let's play</string>
 
+    <!-- Home - Play-style unlocked celebration (one-shot, after ~20 hands). -->
+    <string name="home_play_style_unlocked_title">Your play style is unlocked</string>
+    <string name="home_play_style_unlocked_body">You've played enough hands for us to read your game. See where you land on tight, aggressive, patient, and bluff.</string>
+    <string name="home_play_style_unlocked_primary_cta">See my style</string>
+    <string name="home_play_style_unlocked_secondary_cta">Later</string>
+
     <!-- Home - Practice (bot-table) setup dialog. -->
     <string name="home_bot_setup_title">Practice table</string>
     <string name="home_bot_setup_subtitle_heads_up">Heads-up against one %1$s bot. Fast and aggressive, so you're always in the action.</string>
