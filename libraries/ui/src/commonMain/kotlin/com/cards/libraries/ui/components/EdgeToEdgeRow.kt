@@ -55,14 +55,24 @@ fun EdgeToEdgeRow(
  * as `contentPadding`.
  */
 private fun Modifier.escapeHorizontalScreenPadding(): Modifier = layout { measurable, constraints ->
-    val insetPx = screenHorizontalInsets.calculateLeftPadding(LayoutDirection.Ltr).roundToPx()
-    val expanded = if (constraints.maxWidth == Int.MAX_VALUE) {
-        constraints
-    } else {
-        constraints.copy(maxWidth = constraints.maxWidth + insetPx * 2)
+    // Unbounded width (rare — a horizontally-scrolling parent): nothing to escape,
+    // measure and place as-is.
+    if (constraints.maxWidth == Int.MAX_VALUE) {
+        val placeable = measurable.measure(constraints)
+        return@layout layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
     }
-    val placeable = measurable.measure(expanded)
-    layout(placeable.width, placeable.height) {
+    val insetPx = screenHorizontalInsets.calculateLeftPadding(LayoutDirection.Ltr).roundToPx()
+    val placeable = measurable.measure(
+        constraints.copy(maxWidth = constraints.maxWidth + insetPx * 2),
+    )
+    // Report the in-flow (un-expanded) width so the parent's screen padding keeps
+    // positioning this row at its normal start inset — then draw shifted left by
+    // that inset so the row still bleeds to the physical screen edge. Reporting the
+    // expanded `placeable.width` made the parent treat the row as an oversized
+    // child and drop the start inset entirely on iOS, so items hugged the screen
+    // edge to the left of their section header (CARDS-7C). The LazyRow's own
+    // `contentPadding` start re-insets item 0 to line up with the header.
+    layout(constraints.maxWidth, placeable.height) {
         placeable.placeRelative(-insetPx, 0)
     }
 }
