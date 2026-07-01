@@ -90,16 +90,7 @@ class HomeViewModel(
     private var playStyleUnlockPresented = false
 
     init {
-        // [recent-achievements-delay] If this fires every time you tap the
-        // Home tab, the VM is being recreated (saveState/restoreState path
-        // is broken). If it only fires once per app session, the VM is
-        // retained as expected and the delay you're seeing is downstream
-        // of the VM.
-        homeLogger.i { "[recent-achievements-delay] HomeViewModel init — instance=${this.hashCode()}" }
         viewModelScope.launch {
-            // Reactive active-room presence: the banner reflects the room
-            // set the instant a join / forfeit lands, no manual refresh. The
-            // collector is a pure projection (newest room → banner).
             roomRepository.observeActiveRooms().collect { rooms ->
                 takeAction(HomeAction.ActiveRoomsChanged(rooms))
             }
@@ -130,22 +121,8 @@ class HomeViewModel(
             }
         }
         viewModelScope.launch {
-            // Drive the "Recent unlocks" shelf on Home. The earned map
-            // carries per-achievement unlock timestamps; we sort desc and
-            // take the head so the shelf reads "what did I just do."
-            // Strip auto-hides when the list is empty (fresh user).
             achievementRepository.observeProgress().collect { progress ->
-                val items = progress.toRecentUnlocks(limit = 5)
-                // [recent-achievements-delay] Every emission from the
-                // upstream Room flow. If this only fires once per app
-                // session, the flow is retained — the delay you see when
-                // returning to Home is purely a re-render concern, not a
-                // re-fetch.
-                homeLogger.i {
-                    "[recent-achievements-delay] observeProgress emission — " +
-                        "items=${items.size} earnedKeys=${items.map { it.achievement.id.name }}"
-                }
-                takeAction(HomeAction.RecentUnlocksChanged(items))
+                takeAction(HomeAction.RecentUnlocksChanged(progress.toRecentUnlocks(limit = 5)))
             }
         }
         viewModelScope.launch {

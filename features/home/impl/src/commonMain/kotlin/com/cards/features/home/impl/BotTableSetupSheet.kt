@@ -21,6 +21,7 @@ import cards.libraries.resources.generated.resources.home_bot_setup_subtitle_hea
 import cards.libraries.resources.generated.resources.home_bot_setup_subtitle_other
 import cards.libraries.resources.generated.resources.home_bot_setup_subtitle_six
 import cards.libraries.resources.generated.resources.home_bot_setup_title
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.OptionPillRow
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
@@ -32,6 +33,7 @@ import com.dangerfield.cards.system.VerticalSpacerD300
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Pre-game configuration sheet for the Practice (bot) table. Picks both
@@ -140,10 +142,10 @@ private fun seatSummaryLabel(seatCount: Int): String =
         stringResource(Res.string.home_bot_setup_seat_summary_other, seatCount - 1, seatCount)
     }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun BotTableSetupSheetPreview() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         BotTableSetupSheet(
             onStart = { _, _ -> },
             onDismiss = {},
