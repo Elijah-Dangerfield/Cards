@@ -884,3 +884,23 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch if revisited:** the server already cashes these players out over the per-room socket (`RoomSocketRoutes` — `settleLeaver` on `MemberLeft`, the `departedSettlements` settler, the match-over/teardown paths). Attach the resulting authoritative balance to the terminal frame the client reads on teardown (`RoomConnection.Closed` / the match-over / opponents-left signals) so the client applies it via `setBalance` exactly like the voluntary path, and drops the `sync()` fallback entirely. Needs a wire field on the terminal socket events + the client threading it into `reconcileWalletAfterGame(settledBalance = …)` (the param already exists).
 
 **Status:** Backlog. The voluntary-leave half (the recurring CARDS-5R / 3E cluster) shipped in MP-29; this closes the residual pre-settlement-flash window on the auto-end paths. Money is safe either way — this is a UI-freshness hardening.
+
+---
+
+## Server-side ownership check for host-picked table cosmetics (SHOP-5 follow-up)
+
+**Idea (from SHOP-5, 2026-06-30):** The create-room table-look picker offers only the host's owned felt / card back (built from `inventory ∩ catalog` in `LobbyFeatureEntryPoint`), so ownership is enforced by construction on the client. The server accepts the picked ids verbatim without re-checking ownership. A hand-crafted request could pin a felt / card back the caller does not own onto a room — cosmetic only, no economy impact (nothing is spent or granted), but it is a trust gap. If we ever attach paid stakes or unlock-gating to specific cosmetics, validate the picked ids against the caller's server-side inventory in the create-room handler.
+
+**Sketch if revisited:** validate `feltProductId` / `cardBackProductId` against the caller's wallet/inventory in the room create path; on a miss, drop the override (fall back to default) rather than reject the create.
+
+**Status:** Backlog. Freemium cosmetics, low stakes — the render path is additive-only, so an unknown / unowned id degrades to the default table look rather than crashing (covered by the cross-version rule above). Deferred as a hardening, not a bug.
+
+---
+
+## Restore a guest identity offline for account-gated surfaces (AUTH-11 follow-up)
+
+**Idea (from AUTH-11, 2026-06-30):** AUTH-11 fixed the misleading *copy* an onboarded guest saw on a cold offline boot — an account-gated route now shows an honest "you're offline, progress is safe" sheet instead of "account needed." It does **not** restore a live guest identity offline: solo / practice play already runs offline (it is not auth-gated), but anything that genuinely needs a confirmed identity while offline still can't proceed until connectivity returns. Persisting and restoring the guest Supabase session locally would let those surfaces work fully offline.
+
+**Sketch if revisited:** persist the guest session tokens locally and rehydrate the auth state on cold boot so an account-gated action has a usable identity without a network round-trip.
+
+**Status:** Backlog. Only load-bearing if a future feature needs a confirmed identity offline; solo play already works offline today, so this is latent until then.
