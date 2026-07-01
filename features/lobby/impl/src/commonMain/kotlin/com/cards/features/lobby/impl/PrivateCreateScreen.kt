@@ -24,9 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.lazy.items
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.private_create_card_back_label
 import cards.libraries.resources.generated.resources.private_create_cta
 import cards.libraries.resources.generated.resources.private_create_default_room_name
+import cards.libraries.resources.generated.resources.private_create_felt_label
 import cards.libraries.resources.generated.resources.private_create_invite_note
 import cards.libraries.resources.generated.resources.private_create_blinds_caption
 import cards.libraries.resources.generated.resources.private_create_buyin_label
@@ -41,10 +44,12 @@ import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
+import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Slider
 import com.dangerfield.cards.libraries.ui.components.Switch
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
 import com.dangerfield.cards.libraries.ui.components.room.RoomHeader
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
@@ -53,6 +58,17 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.color.ProvideContentColor
 import org.jetbrains.compose.resources.stringResource
+
+/**
+ * A single selectable cosmetic in the create-room felt / card-back picker.
+ * Owned-only by construction (the entry point builds these lists from
+ * inventory), so the host can never pick something they don't own.
+ */
+data class CosmeticChoice(
+    val productId: String,
+    val label: String,
+    val emoji: String,
+)
 
 /**
  * Private "Create a room" screen (SPEC §6) — set the room name, table rules,
@@ -68,10 +84,29 @@ import org.jetbrains.compose.resources.stringResource
 fun PrivateCreateScreen(
     chipBalance: Long?,
     onBack: () -> Unit,
-    onCreate: (maxPlayers: Int, buyIn: Long, openToAnyone: Boolean) -> Unit,
+    onCreate: (
+        maxPlayers: Int,
+        buyIn: Long,
+        openToAnyone: Boolean,
+        feltProductId: String?,
+        cardBackProductId: String?,
+    ) -> Unit,
+    felts: List<CosmeticChoice> = emptyList(),
+    cardBacks: List<CosmeticChoice> = emptyList(),
+    initialFeltProductId: String? = null,
+    initialCardBackProductId: String? = null,
 ) {
     var maxPlayers by remember { mutableStateOf(6) }
     var openToAnyone by remember { mutableStateOf(false) }
+    // Seed the picker from the host's equipped look (SHOP-3), then let them
+    // change it. Falls back to the first owned option so a shelf is never
+    // "nothing selected" if the equipped id isn't in the list.
+    var selectedFelt by remember(initialFeltProductId, felts) {
+        mutableStateOf(initialFeltProductId ?: felts.firstOrNull()?.productId)
+    }
+    var selectedCardBack by remember(initialCardBackProductId, cardBacks) {
+        mutableStateOf(initialCardBackProductId ?: cardBacks.firstOrNull()?.productId)
+    }
     // The buy-in tops out at what the host can actually afford (their chip
     // balance); until the balance loads we cap at the default. The slider can
     // never go below the engine's minimum valid buy-in.
@@ -152,6 +187,24 @@ fun PrivateCreateScreen(
                     checked = openToAnyone,
                     onCheckedChange = { openToAnyone = it },
                 )
+                if (felts.isNotEmpty()) {
+                    RuleDivider()
+                    CosmeticPickerRow(
+                        label = stringResource(Res.string.private_create_felt_label),
+                        choices = felts,
+                        selectedProductId = selectedFelt,
+                        onSelect = { selectedFelt = it },
+                    )
+                }
+                if (cardBacks.isNotEmpty()) {
+                    RuleDivider()
+                    CosmeticPickerRow(
+                        label = stringResource(Res.string.private_create_card_back_label),
+                        choices = cardBacks,
+                        selectedProductId = selectedCardBack,
+                        onSelect = { selectedCardBack = it },
+                    )
+                }
             }
 
             Spacer(Modifier.height(Dimension.D600))
@@ -165,7 +218,10 @@ fun PrivateCreateScreen(
             )
 
             Spacer(Modifier.weight(1f))
-            ButtonPrimary(onClick = { onCreate(maxPlayers, buyIn, openToAnyone) }, modifier = Modifier.fillMaxWidth()) {
+            ButtonPrimary(
+                onClick = { onCreate(maxPlayers, buyIn, openToAnyone, selectedFelt, selectedCardBack) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 Text(stringResource(Res.string.private_create_cta))
             }
             Spacer(Modifier.height(Dimension.D800))
@@ -271,6 +327,64 @@ private fun OpenToAnyoneRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit
     }
 }
 
+/**
+ * A labelled horizontally-scrolling shelf of owned cosmetics (felts or card
+ * backs). Each tile is a live [CosmeticPreview]; the selected one carries an
+ * accent ring. Owned-only by construction — [choices] is the host's inventory.
+ */
+@Composable
+private fun CosmeticPickerRow(
+    label: String,
+    choices: List<CosmeticChoice>,
+    selectedProductId: String?,
+    onSelect: (String) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = Dimension.D400),
+    ) {
+        Text(
+            text = label,
+            typography = AppTheme.typography.Label.L500,
+            color = AppTheme.colors.content,
+            modifier = Modifier.padding(horizontal = Dimension.D600),
+        )
+        Spacer(Modifier.height(Dimension.D300))
+        EdgeToEdgeRow {
+            items(items = choices, key = { it.productId }) { choice ->
+                CosmeticPickerTile(
+                    choice = choice,
+                    selected = choice.productId == selectedProductId,
+                    onClick = { onSelect(choice.productId) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CosmeticPickerTile(
+    choice: CosmeticChoice,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val ringColor = if (selected) AppTheme.colors.accentPrimary.color else AppTheme.colors.border.color
+    Box(
+        modifier = Modifier
+            .clip(Radii.R600.shape)
+            .border(if (selected) 2.dp else 1.dp, ringColor, Radii.R600.shape)
+            .clickable(onClick = onClick)
+            .padding(Dimension.D200),
+    ) {
+        CosmeticPreview(
+            productId = choice.productId,
+            emoji = choice.emoji,
+            size = 56.dp,
+        )
+    }
+}
+
 @Composable
 private fun MaxPlayersRow(value: Int, onDecrement: () -> Unit, onIncrement: () -> Unit) {
     Row(
@@ -335,6 +449,21 @@ private fun RuleDivider() {
 @Composable
 private fun PrivateCreateScreenPreview() {
     PreviewContent {
-        PrivateCreateScreen(chipBalance = 25_000, onBack = {}, onCreate = { _, _, _ -> })
+        PrivateCreateScreen(
+            chipBalance = 25_000,
+            onBack = {},
+            onCreate = { _, _, _, _, _ -> },
+            felts = listOf(
+                CosmeticChoice("felt_default", "Default", "🟩"),
+                CosmeticChoice("felt_royal_red", "Royal Red", "🟥"),
+                CosmeticChoice("felt_midnight_blue", "Midnight", "🟦"),
+            ),
+            cardBacks = listOf(
+                CosmeticChoice("cardback_default", "Classic", "🂠"),
+                CosmeticChoice("cardback_marble", "Marble", "🃏"),
+            ),
+            initialFeltProductId = "felt_royal_red",
+            initialCardBackProductId = "cardback_default",
+        )
     }
 }

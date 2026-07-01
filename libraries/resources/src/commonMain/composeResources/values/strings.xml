@@ -127,6 +127,8 @@
     <string name="private_create_max_players_label">Max players</string>
     <string name="private_create_open_label">Open to anyone</string>
     <string name="private_create_open_caption">Let strangers fill empty seats</string>
+    <string name="private_create_felt_label">Table felt</string>
+    <string name="private_create_card_back_label">Card back</string>
     <string name="private_create_invite_note">Invite only. You'll get a code to share once it's created.</string>
     <string name="private_create_open_note">Anyone searching can join, and the table deals on its own once players arrive. You still get a code to share with friends.</string>
     <string name="private_create_cta">Create room</string>

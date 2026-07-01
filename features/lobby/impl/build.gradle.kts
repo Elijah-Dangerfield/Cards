@@ -15,6 +15,7 @@ kotlin {
             implementation(projects.features.room)
             implementation(projects.libraries.rooms)
             implementation(projects.libraries.cards)
+            implementation(projects.libraries.products)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)

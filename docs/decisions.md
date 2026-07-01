@@ -83,6 +83,20 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-30 — Create-room gets an explicit felt + card-back picker, replacing the equipped-read (SHOP-5)
+
+**Decision:** The create-room screen now shows two horizontally-scrollable rows (Table felt, Card back) of **only cosmetics the host owns**, each a live `CosmeticPreview` tile, pre-selected to the host's currently-equipped look. The pick threads through the route (`LobbyRoute.feltProductId` / `cardBackProductId`, nullable) into `LobbyViewModel.CreateRoom`, which prefers the picked id per-slot and falls back to reading `equippedTableCosmetics(...)` only when a slot's pick is null (preserving any create path that doesn't go through the picker). The wire format + render path from SHOP-3 are unchanged — the picked ids pin onto the room exactly as the equipped ids used to. Owned-only is enforced by construction: the entry point builds the lists from `inventory ∩ catalog`, so a spoofed/unowned pick isn't reachable from the UI. An explicit pick of `felt_default` / `cardback_default` now *forces* the plain default table-wide (more expressive than SHOP-3's model, where a null slot meant "each player keeps their own").
+
+**Why:** This is the explicit-picker alternative SHOP-3 deferred, now that the owner asked for it directly. It gives the host intent ("choose the table look") and a "from items I own" surface that reinforces buying cosmetics, without a new source of truth: the picker seeds from the equipped look, so the default behavior matches SHOP-3 unless the host actively changes it. Every seam reuses existing plumbing (`EdgeToEdgeRow`, `CosmeticPreview`, `cosmeticSlotFor`, `equippedTableCosmetics`), so the render + wire contract is untouched.
+
+**Alternatives considered:**
+- **Keep the silent equipped-read (SHOP-3 as-is).** Rejected per the owner directive — no in-flow choice, and the create screen can't show what options the host has.
+- **A separate cosmetics-picker screen/sheet.** Rejected: two inline rows on the existing Rules card keep the create flow one screen deep and reuse the shelf primitive; a dedicated screen doubles navigation for a two-choice pick.
+
+**Out of scope (known limitations, flagged for later):** server-side ownership validation of the picked ids (freemium, a spoofed cosmetic is pure vanity, not money) and forward-compatible rendering when a host picks a cosmetic newer than a viewer's client (unknown id still resolves to the default felt/back client-side — no crash, but the table looks different across client versions; the fix is the room carrying render data, not just the id).
+
+---
+
 ## 2026-06-27 — Force-update gate raises on the next foreground transition, not mid-session (ENG-6)
 
 **Decision:** The app-wide upgrade / maintenance overlay (`AppGuardGate` → `AppGuardState.from`, drawn by `AppGuardLayer` above the whole nav graph) is the live, screen-independent gate for the cross-version rule (CARDS-4S). It recomputes on every streamed-config emission, so bumping `upgrade.minSupportedVersionCode` above a running client's `VERSION_CODE` raises the blocking overlay over *any* screen — including an in-session play screen — **on the client's next foreground transition** (config is fetched on foreground, throttled; `OfflineFirstAppConfigRepository` deliberately does **not** poll mid-session). A client that stays continuously foregrounded mid-hand won't see the gate until it backgrounds/foregrounds. This is accepted as-is for V1; verified by `AppGuardStateTest`.

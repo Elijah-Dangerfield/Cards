@@ -61,6 +61,8 @@ class LobbyViewModel(
     @Assisted private val maxSeats: Int?,
     @Assisted private val buyIn: Long?,
     @Assisted private val open: Boolean,
+    @Assisted private val pickedFeltProductId: String?,
+    @Assisted private val pickedCardBackProductId: String?,
     private val rooms: RoomRepository,
     private val auth: AuthRepository,
     private val profile: ProfileRepository,
@@ -128,19 +130,27 @@ class LobbyViewModel(
                 val current = state
                 if (current.isBusy) return@run
                 updateState { it.copy(creating = true, error = null) }
-                // SHOP-3: pin the host's equipped felt + card back onto the room so
-                // every player sees the host's table look. Best-effort — a read
-                // failure falls back to no override (each player's own cosmetic),
-                // never blocks room creation.
-                val cosmetics = Catching { equippedTableCosmetics(equipment.observeEquipped().first()) }
-                    .getOrNull()
+                // SHOP-5: pin the host's *picked* felt + card back onto the room so
+                // every player sees the host's chosen table look. The create screen
+                // pre-seeds its picker from the equipped look (SHOP-3), so a route
+                // that carries a pick uses it directly; a create path with no pick
+                // (e.g. a future quick-create) falls back to reading the equipped
+                // cosmetics here. Best-effort — a read failure falls back to no
+                // override (each player's own cosmetic), never blocks room creation.
+                val equipped = if (pickedFeltProductId == null || pickedCardBackProductId == null) {
+                    Catching { equippedTableCosmetics(equipment.observeEquipped().first()) }.getOrNull()
+                } else {
+                    null
+                }
+                val feltProductId = pickedFeltProductId ?: equipped?.feltProductId
+                val cardBackProductId = pickedCardBackProductId ?: equipped?.cardBackProductId
                 when (
                     val outcome = rooms.createRoom(
                         maxSeats = maxSeats,
                         buyIn = buyIn,
                         open = open,
-                        feltProductId = cosmetics?.feltProductId,
-                        cardBackProductId = cosmetics?.cardBackProductId,
+                        feltProductId = feltProductId,
+                        cardBackProductId = cardBackProductId,
                     )
                 ) {
                     is CreateRoomOutcome.Success -> startConnection(outcome.room)

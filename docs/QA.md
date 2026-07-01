@@ -453,14 +453,15 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
-### `MP-14` ⚠️ 📱 Host's felt + card back show on every player's table
+### `MP-14` ⚠️ 📱 Host's picked felt + card back show on every player's table
 
-**State:** two devices, both signed in, online. Device A (the host) owns + has equipped a non-default felt and a non-default card back (equip them in My Items first). Device B has different (or default) cosmetics. (Covers todo SHOP-3.)
+**State:** two devices, both signed in, online. Device A (the host) owns a non-default felt and a non-default card back (buy/earn them first). Device B has different (or default) cosmetics. (Covers todo SHOP-3 + SHOP-5.)
 
-1. Device A: create a private room, then add a bot or have Device B join.
-2. Play a hand so both devices see the felt + opponents' card backs.
+1. Device A: on the create-room screen, the "Table felt" + "Card back" rows show only cosmetics the host owns (defaults always present), pre-selected to the host's equipped look. Pick a non-default felt B and card back B (different from what's equipped).
+2. Create the private room, then add a bot or have Device B join.
+3. Play a hand so both devices see the felt + opponents' card backs.
 
-**Expected:** Both devices render the *host's* felt color under the table and the host's card-back style on the face-down cards — Device B sees Device A's look, not its own. If the host had nothing equipped in a slot, that slot falls back to each player's own equipped cosmetic. The host swapping a felt in My Items only changes future rooms (the cosmetics pin at create time), not the live one.
+**Expected:** The picker only ever lists owned cosmetics. Both devices render the felt + card back the host *picked* (B) — Device B sees Device A's picked look, not its own. Explicitly picking the Default felt/card back forces the plain default for the whole table. The look pins at create time: swapping cosmetics in My Items afterward doesn't change the live room.
 
 ---
 

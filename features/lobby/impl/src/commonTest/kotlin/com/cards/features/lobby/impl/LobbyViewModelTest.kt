@@ -165,6 +165,54 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun create_withPickedCosmetics_forwardsThePick_overEquipped() = runUnitTest {
+        // SHOP-5: the create screen's explicit picker wins over the host's
+        // equipped look — even though the host has felt/card back B equipped, the
+        // picked A ids pin onto the room.
+        val rooms = FakeRoomRepository(createOutcome = CreateRoomOutcome.Success(sampleRoom()))
+        val equipment = FakeEquipmentRepository(equipped = listOf("cardback_gold", "felt_royal_red"))
+        val vm = buildVm(
+            rooms = rooms,
+            equipment = equipment,
+            pickedFeltProductId = "felt_midnight_blue",
+            pickedCardBackProductId = "cardback_marble",
+        )
+
+        vm.takeAction(LobbyAction.CreateRoom)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.room == null) last = awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        assertEquals("felt_midnight_blue", rooms.createdFeltProductId)
+        assertEquals("cardback_marble", rooms.createdCardBackProductId)
+    }
+
+    @Test
+    fun create_withOnlyFeltPicked_fallsBackToEquippedForCardBack() = runUnitTest {
+        // A partial pick (only felt) still uses the equipped card back — each slot
+        // resolves independently, picked-first then equipped-fallback.
+        val rooms = FakeRoomRepository(createOutcome = CreateRoomOutcome.Success(sampleRoom()))
+        val equipment = FakeEquipmentRepository(equipped = listOf("cardback_gold", "felt_royal_red"))
+        val vm = buildVm(
+            rooms = rooms,
+            equipment = equipment,
+            pickedFeltProductId = "felt_midnight_blue",
+        )
+
+        vm.takeAction(LobbyAction.CreateRoom)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.room == null) last = awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        assertEquals("felt_midnight_blue", rooms.createdFeltProductId)
+        assertEquals("cardback_gold", rooms.createdCardBackProductId)
+    }
+
+    @Test
     fun create_networkError_staysIdle_andSurfacesMessage() = runUnitTest {
         val rooms = FakeRoomRepository(
             createOutcome = CreateRoomOutcome.NetworkError(RuntimeException("simulated network error")),
@@ -964,6 +1012,8 @@ class LobbyViewModelTest : CoroutineTest() {
         maxSeats: Int? = null,
         buyIn: Long? = null,
         open: Boolean = false,
+        pickedFeltProductId: String? = null,
+        pickedCardBackProductId: String? = null,
         equipment: EquipmentRepository = FakeEquipmentRepository(),
         chips: ChipsRepository = FakeChipsRepository(),
     ): LobbyViewModel = LobbyViewModel(
@@ -972,6 +1022,8 @@ class LobbyViewModelTest : CoroutineTest() {
         maxSeats = maxSeats,
         buyIn = buyIn,
         open = open,
+        pickedFeltProductId = pickedFeltProductId,
+        pickedCardBackProductId = pickedCardBackProductId,
         rooms = rooms,
         auth = identity,
         profile = profile,
