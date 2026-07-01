@@ -75,10 +75,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 - **Acceptance:** Opening feedback with a bottom sheet (or dialog) already visible shows the feedback surface on top of it.
 - **Hints:** App-root overlay/presenter layering — `libraries/ui/.../snackbar/SnackbarHost` and the `Screen`/root overlay wiring in `libraries/ui`, plus the `FeedbackRoute` presentation. The reporter's "global setting" instinct is right: present it at the top-most app overlay. Case `docs/agent/feedback-cases/4e58157fc813433a9b84edda1ff2ad5c.md`.
 
-**GAME-12 [P2] — Emote corner badge + gold ring polish on the player area (owner directive).** Give the seat's emote corner badge the same surface color as the player-area card so it reads as a cutout, make it slightly smaller and inset, and space the gold ring so it doesn't overlap; apply the same treatment to the win-ratio button. Removing overall-screen horizontal padding to fit is acceptable (Sentry [CARDS-6M](https://elijah-dangerfield.sentry.io/issues/CARDS-6M)).
-- **Acceptance:** Emote corner badge matches the player-area surface (cutout look), is smaller/inset, and the gold ring no longer overlaps it; the win-ratio button gets the same treatment.
-- **Hints:** `features/room/impl/.../ui/SeatEmoteOverlay.kt` + `PlayerArea.kt` for the badge/ring geometry and surface color; find the win-ratio button in the same seat UI. Owner directive, no case file.
-
 ---
 
 ## PROG. Progression / XP / stats

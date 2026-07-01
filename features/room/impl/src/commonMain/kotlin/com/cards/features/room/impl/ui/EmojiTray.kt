@@ -99,12 +99,15 @@ internal fun SeatEmoteBadge(
         if (cooling) {
             CooldownChip(remainingSeconds = remainingSeconds)
         } else {
-            // Cut out of the table background (matching the win-odds badge and the
-            // opponent seats) so the emoji reads as punched into the card corner.
+            // Cut out of the player-area card surface (matching the win-odds
+            // badge) so the emoji reads as punched into the card corner rather
+            // than a chip floating on top of it. The felt-toned ring separates
+            // the cutout from the tile border + any active-turn ring so they
+            // never merge.
             Box(
                 modifier = Modifier.cutout(
                     ringColor = LocalTableSurface.current ?: AppTheme.colors.background.color,
-                    fillColor = AppTheme.colors.surfaceRaised.color,
+                    fillColor = AppTheme.colors.surface.color,
                     shape = CircleShape,
                     ringWidth = CutoutBorder,
                 ),
@@ -311,12 +314,12 @@ private fun rememberSecondTicker(active: Boolean): Long {
     return now
 }
 
-private val TriggerSize = IconButton.Size.Medium
+private val TriggerSize = IconButton.Size.Small
 private val CellSize = IconButton.Size.Large
 private const val TriggerEmoji = "😀"
 
 /** Thickness of the cutout ring around the seat badge. */
-private val CutoutBorder = 3.dp
+private val CutoutBorder = 2.dp
 
 // Pivot anchored to the tray's bottom-right corner so the scale animation
 // reads as "unfurling upward from the badge" — which sits at the popup's
