@@ -65,6 +65,9 @@ class ChipsRepositoryImpl(
     private val _walletJustCreated = MutableStateFlow(false)
     override val walletJustCreated: StateFlow<Boolean> = _walletJustCreated.asStateFlow()
 
+    private val _isReconciling = MutableStateFlow(false)
+    override val isReconciling: StateFlow<Boolean> = _isReconciling.asStateFlow()
+
     override fun observeBalance(): Flow<Long?> = chipsDao.observeChips().map { it?.balance }
 
     override suspend fun getBalance(): Long? = chipsDao.getChips()?.balance
@@ -130,6 +133,15 @@ class ChipsRepositoryImpl(
     }
 
     override suspend fun sync(): Result<Unit> = syncMutex.withLock {
+        _isReconciling.value = true
+        try {
+            syncLocked()
+        } finally {
+            _isReconciling.value = false
+        }
+    }
+
+    private suspend fun syncLocked(): Result<Unit> =
         // Always POST — an empty events list is a valid "hydrate
         // balance" call. That's how a second device picks up a chip
         // grant the user collected elsewhere.
@@ -192,7 +204,6 @@ class ChipsRepositoryImpl(
             }
             Unit
         }
-    }
 
     private fun WalletEventEntity.toDto(): WalletEventDto = WalletEventDto(
         idempotencyKey = idempotencyKey,

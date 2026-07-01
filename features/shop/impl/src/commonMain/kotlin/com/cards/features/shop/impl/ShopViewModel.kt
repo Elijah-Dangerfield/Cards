@@ -91,6 +91,11 @@ class ShopViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            chipsRepository.isReconciling.collect { reconciling ->
+                takeAction(ShopAction.ChipsReconcilingChanged(reconciling))
+            }
+        }
+        viewModelScope.launch {
             inventoryRepository.observeInventory().collect { inventory ->
                 takeAction(ShopAction.InventoryChanged(inventory))
             }
@@ -177,6 +182,9 @@ class ShopViewModel @Inject constructor(
             }
             is ShopAction.ChipsChanged -> action.updateState {
                 it.copy(chipBalance = action.balance)
+            }
+            is ShopAction.ChipsReconcilingChanged -> action.updateState {
+                it.copy(chipBalanceReconciling = action.reconciling)
             }
             is ShopAction.InventoryChanged -> action.updateState {
                 it.copy(
@@ -341,6 +349,9 @@ data class ShopState(
      *  Affordance gates ([canAfford], [classify], [sheetModeFor]) treat
      *  null as "can't afford anything" so the buy CTA stays disabled. */
     val chipBalance: Long? = null,
+    /** True while a wallet reconcile is in flight — the floating wallet renders
+     *  the balance as "updating" so a pre-settlement value doesn't read as final. */
+    val chipBalanceReconciling: Boolean = false,
     /** Set when a catalog refresh fails; drives the persistent error banner.
      *  The banner copy is screen-owned (resolved from resources) rather than
      *  carried as free text from the VM. */
@@ -506,6 +517,7 @@ sealed interface ShopAction {
     data object RefreshFailed : ShopAction
     data class CatalogChanged(val catalog: ProductCatalog) : ShopAction
     data class ChipsChanged(val balance: Long?) : ShopAction
+    data class ChipsReconcilingChanged(val reconciling: Boolean) : ShopAction
     data class InventoryChanged(val inventory: List<InventoryItem>) : ShopAction
     data class PlayerLevelChanged(val level: Int) : ShopAction
     data class TimeAnchorChanged(val anchor: CatalogTimeAnchor?) : ShopAction

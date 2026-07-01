@@ -99,6 +99,7 @@ fun HomeScreen(
         chips = state.chips,
         chipsRevealFrom = state.chipsRevealFrom,
         chipsRevealKey = state.chipsRevealKey,
+        chipsReconciling = state.chipsReconciling,
         activeRooms = state.activeRooms,
         showTutorialBanner = !state.tutorialBannerDismissed,
         onStartTutorial = onStartTutorial,
@@ -130,6 +131,7 @@ private fun HomeScreenContent(
     chips: Long?,
     chipsRevealFrom: Long? = null,
     chipsRevealKey: Int = 0,
+    chipsReconciling: Boolean = false,
     // Identity defaults keep the many previews terse; production always
     // passes the real values from HomeState.
     displayName: String = "QuietAce72",
@@ -187,6 +189,7 @@ private fun HomeScreenContent(
                 chips = chips,
                 chipsRevealFrom = chipsRevealFrom,
                 chipsRevealKey = chipsRevealKey,
+                chipsReconciling = chipsReconciling,
                 onTapLevel = onTapLevel,
                 onTapChips = onTapCash,
             )

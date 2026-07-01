@@ -185,6 +185,7 @@ fun ShopScreen(
             if (state.hasLoaded && !state.catalog.isEmpty) {
                 ChipBadge(
                     amount = state.chipBalance,
+                    isReconciling = state.chipBalanceReconciling,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(screenHorizontalInsets)

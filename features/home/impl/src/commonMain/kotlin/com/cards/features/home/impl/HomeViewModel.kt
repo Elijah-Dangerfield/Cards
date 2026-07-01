@@ -121,6 +121,11 @@ class HomeViewModel(
             }
         }
         viewModelScope.launch {
+            chipsRepository.isReconciling.collect { reconciling ->
+                takeAction(HomeAction.ChipsReconcilingChanged(reconciling))
+            }
+        }
+        viewModelScope.launch {
             // Drive the "Recent unlocks" shelf on Home. The earned map
             // carries per-achievement unlock timestamps; we sort desc and
             // take the head so the shelf reads "what did I just do."
@@ -280,6 +285,9 @@ class HomeViewModel(
                 it.copy(levelProgress = action.progress)
             }
             is HomeAction.ChipsChanged -> action.updateState { it.copy(chips = action.balance) }
+            is HomeAction.ChipsReconcilingChanged -> action.updateState {
+                it.copy(chipsReconciling = action.reconciling)
+            }
             is HomeAction.ScreenResumed -> {
                 homeResumed = true
                 takeAction(HomeAction.ReconcileChipReveal)
@@ -540,6 +548,9 @@ data class HomeState(
     /** Bumped each time a chip-change reveal is armed, so the odometer fires once
      *  per missed change rather than on every recomposition. */
     val chipsRevealKey: Int = 0,
+    /** True while a wallet reconcile is in flight — the header renders the chip
+     *  balance as "updating" so a pre-settlement value doesn't read as final. */
+    val chipsReconciling: Boolean = false,
     val isAnonymous: Boolean = true,
     val activeRooms: List<ActiveRoomSummary> = emptyList(),
     /** Most-recent achievement unlocks (newest first), capped at 5. Empty
@@ -644,6 +655,7 @@ sealed interface HomeAction {
     data class Forfeit(val code: String) : HomeAction
     data class ProgressionChanged(val progress: LevelProgress) : HomeAction
     data class ChipsChanged(val balance: Long?) : HomeAction
+    data class ChipsReconcilingChanged(val reconciling: Boolean) : HomeAction
 
     /** Home became visible — start reconciling the chip odometer against what the
      *  user last saw, replaying any change they missed while away. */

@@ -152,6 +152,22 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun chipsReconciling_propagatesToState() = runUnitTest {
+        val chips = FakeChipsRepository(initial = 10_000L)
+        val vm = buildVm(chips = chips)
+        advanceUntilIdle()
+        assertEquals(false, vm.stateFlow.value.chipsReconciling, "idle by default")
+
+        chips.reconciling.value = true
+        advanceUntilIdle()
+        assertTrue(vm.stateFlow.value.chipsReconciling, "reconcile in flight shows on the header")
+
+        chips.reconciling.value = false
+        advanceUntilIdle()
+        assertEquals(false, vm.stateFlow.value.chipsReconciling, "settles back to final")
+    }
+
+    @Test
     fun resumeAfterAwayChange_armsOdometerReplayFromLastSeen() = runUnitTest {
         // The user last saw 10k; while away they won 1k, so the local source of
         // truth is now 11k. Returning to Home must replay the count-up.
@@ -864,6 +880,8 @@ class HomeViewModelTest : CoroutineTest() {
     ) : ChipsRepository {
         val balance = MutableStateFlow(initial)
         override val walletJustCreated = MutableStateFlow(walletJustCreatedInitial)
+        val reconciling = MutableStateFlow(false)
+        override val isReconciling = reconciling
         override fun observeBalance(): Flow<Long?> = balance
         override suspend fun getBalance(): Long? = balance.value
         override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {

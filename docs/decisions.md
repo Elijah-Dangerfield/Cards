@@ -29,6 +29,16 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-30 — Wallet reconcile exposes an `isReconciling` flow (MP-30)
+
+**Decision:** `ChipsRepository` gains `val isReconciling: StateFlow<Boolean>`, true from the moment a `sync()` starts (inside the sync mutex) until its round-trip resolves — success or failure. Home and Shop collect it and render the chip badge as "updating" (dimmed number + inline spinner) while true, via a new `isReconciling` param on the `ChipBadge` DS primitive. The interface member has a **default** that returns a shared constant `false` flow so the ~15 existing `ChipsRepository` fakes don't need touching; only the real impl and the two consumer VMs' fakes override it.
+
+**Why:** Balances are server-authoritative, so there's a post-game window where the local balance is a pre-settlement guess the server hasn't confirmed. `observeBalance()` is `Long?` where null only means "not hydrated" — it can't express "hydrated but settling," so the UI showed a wrong-but-confident number the user trusts (worse than a spinner). This is the honest-window half of the MP wallet-staleness work; MP-29 removes the race itself, this surfaces the residual window rather than hiding it.
+
+**Alternatives considered:** (1) Make `observeBalance()` return a richer type (`Balance(value, isSettling)`) — rejected: churns every read site and conflates two orthogonal facts (what the number is vs. whether it's confirmed); a separate flow keeps callers that don't care unchanged. (2) Add the member with no default and update every fake — rejected as needless churn across 15 files for a signal most fakes don't exercise; the constant-false default is the same "fakes needn't implement it" pattern `walletJustCreated`'s neighbours use. (3) Drive the "updating" look from a screen-local timer around the leave call — rejected: the repo is the one place that actually knows a sync is in flight (incl. session-rollover / foreground syncs the screen never initiated).
+
+**Status:** Locked.
+
 ## 2026-06-30 — Auth gate distinguishes "offline" from "no account" (AUTH-11)
 
 **Decision:** `RealAuthGateChecker` now injects `AppState` and, when a route's `Account` requirement is unmet and the session is unresolved but the device `isOffline`, gates with a new `GateReason.Offline` ("You're offline — your progress is safe, try again once you're back online") instead of `GateReason.NeedAccount` ("Account needed"). Offline is checked *after* the still-healing (`FinishingSetup`) branch, so an actively-creating guest keeps its setup copy.

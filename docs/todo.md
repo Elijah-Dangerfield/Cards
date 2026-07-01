@@ -46,11 +46,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 - **Acceptance:** Leaving reflects the authoritative post-settlement balance without a foreground/background. Reproduce the race with a failing test first (settlement commits *after* the leave pull) — red, then green. Cover the involuntary teardown paths too (match-over / opponents-left / host-closed / kick), which currently rely on the same racy pull or, in the lobby, no reconcile at all.
 - **Hints:** Preferred shape — `DELETE /v1/rooms/{code}/me` cashes out synchronously and returns the new balance in its body so the leave call *is* the reconcile (all REST, no socket). For teardown-while-connected, fold the settled balance into the terminal room frame the per-room socket already delivers (there is no global socket). Retire the single-shot latch or make it retry.
 
-**MP-30 [P1] — Expose a wallet reconciling/loading state so a stale balance renders as "updating," not confidently-wrong.** Today `ChipsRepository.observeBalance()` is `Long?` where null only means "not hydrated"; there's no "server hasn't confirmed yet" signal, so during any post-game reconcile window the UI shows a wrong-but-confident number the user trusts (worse than a spinner).
-- **Problem:** No way for Home/Shop to tell "this balance is settling" from "this balance is final."
-- **Acceptance:** An `isReconciling`/`syncing` flow that's true while a post-game `sync()` (or the MP-29 leave settlement) is in flight; Home + Shop render the balance as updating during it.
-- **Hints:** Complements MP-29 — MP-29 removes the race, this covers the residual window honestly. Broad MP wallet/payout test coverage (pot splits, who-gets-paid, sit-out settlement — Sentry CARDS-62) is already filed in [backlog.md](./backlog.md); don't duplicate it here.
-
 ---
 
 ## GAME. Gameplay & table UX
