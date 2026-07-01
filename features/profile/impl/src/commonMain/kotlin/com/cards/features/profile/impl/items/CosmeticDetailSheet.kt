@@ -111,7 +111,7 @@ fun CosmeticDetailSheet(
 
             Text(
                 text = earnedInfo?.title?.let { stringResource(it) } ?: item.title,
-                typography = AppTheme.typography.Heading.H700,
+                typography = AppTheme.typography.Heading.H800,
                 color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
@@ -122,7 +122,7 @@ fun CosmeticDetailSheet(
                 VerticalSpacerD200()
                 Text(
                     text = desc,
-                    typography = AppTheme.typography.Body.B500,
+                    typography = AppTheme.typography.Body.B600,
                     color = AppTheme.colors.contentSecondary,
                     textAlign = TextAlign.Center,
                 )
@@ -230,7 +230,7 @@ private fun FoundingMemberSheet(onDismiss: () -> Unit) {
             VerticalSpacerD500()
             Text(
                 text = stringResource(Res.string.earned_founding_member_title),
-                typography = AppTheme.typography.Heading.H700,
+                typography = AppTheme.typography.Heading.H800,
                 color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
@@ -292,14 +292,14 @@ fun LockedCosmeticSheet(
 
             Text(
                 text = item.title,
-                typography = AppTheme.typography.Heading.H700,
+                typography = AppTheme.typography.Heading.H800,
                 color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
             VerticalSpacerD200()
             Text(
                 text = stringResource(Res.string.profile_item_sheet_locked_not_owned),
-                typography = AppTheme.typography.Body.B500,
+                typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
@@ -389,7 +389,7 @@ private fun PackContents(emojis: List<String>) {
             emojis.forEach { emoji ->
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(56.dp)
                         .clip(CircleShape)
                         .background(AppTheme.colors.surfaceRaised.color),
                     contentAlignment = Alignment.Center,
@@ -423,11 +423,11 @@ private fun CosmeticHero(
         CosmeticSlot.Felt -> FeltVignette(productId)
         // Packs (avatars / emotes) read as a stack of their contents.
         else -> if (emojiOverride == null && packEmojis.size >= 2) {
-            CosmeticPackThumbnail(emojis = packEmojis, size = 120.dp)
+            CosmeticPackThumbnail(emojis = packEmojis, size = 132.dp)
         } else {
             Box(
                 modifier = Modifier
-                    .size(120.dp)
+                    .size(132.dp)
                     .clip(Radii.R700.shape)
                     .background(AppTheme.colors.surfaceRaised.color),
                 contentAlignment = Alignment.Center,
