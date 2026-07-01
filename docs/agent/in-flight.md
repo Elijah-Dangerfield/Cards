@@ -11,3 +11,9 @@
 **Problem:** The default felt + card back render an "Earned"/"Bought free … ago" line in their detail sheet, even though they're granted at account creation, not earned — a fresh account's seeded `acquiredAtEpochMs` resolves to "today".
 **Approach:** Extracted the "which acquisition line, if any" decision out of the Composable into a pure `acquisitionLineKind(item)` (in `items/AcquisitionLine.kt`) so it has a real regression guard, returning null for `isDefaultCosmetic(...)` ids (and rows with no acquisition timestamp). `CosmeticDetailSheet.acquisitionLine` renders off the pure kind. Test-first: `AcquisitionLineTest` asserts default felt/card back → null, earned → Earned, bought → Bought(cost), free grant → BoughtFree.
 **Reviewer notes:** The "earned badge" the todo named is really this detail-sheet line — there's no separate corner "earned" badge on the tile (corner badges are equipped/locked only). Pairs with the backlog "Earn-source attribution on My Items 'Earned' rows."
+
+## fix(shop): shrink specialty offer icons for a congruent grid (SHOP-7)
+
+**Problem:** The specialty (cosmetic) offer cards in the shop used a 64dp product icon, making the two-column grid read icon-heavy vs. the rest of the screen.
+**Approach:** Introduced a `SpecialtyIconSize` (56dp) used by both the `CosmeticPreview` and `ProductIcon` branches of `ChipOfferCard`, so the specialty tiles read a touch smaller and more congruent. Chip-pack tiles keep their 64dp icon.
+**Reviewer notes:** Direction call — 56dp over a larger reduction so the swatch/preview stays legible. No test; sizing-only, covered by the shop previews.

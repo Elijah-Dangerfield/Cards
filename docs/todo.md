@@ -105,10 +105,6 @@ _Other follow-ups live in [developer-todo.md](./developer-todo.md); deferred ide
 - **Acceptance:** Emote/felt/other cosmetic rows start-align with the section header like the card-back row, and still scroll edge-to-edge.
 - **Hints:** `EdgeToEdgeRow` (`libraries/ui/.../components/EdgeToEdgeRow.kt`) content-vs-first-item padding; the shop/profile cosmetic shelves in `ShopComponents.kt` / `ShopScreen.kt` / `ProfileScreen.kt`. Owner directive, no case file.
 
-**SHOP-7 [P2] — Make the specialty (shop) items slightly smaller for a congruent screen (owner directive).** Reduce the specialty-item tile size so the shop screen feels visually congruent (Sentry [CARDS-6W](https://elijah-dangerfield.sentry.io/issues/CARDS-6W)).
-- **Acceptance:** Specialty-item tiles render slightly smaller and the shop screen reads as visually consistent.
-- **Hints:** Specialty-item tile sizing in `features/shop/impl/.../ShopComponents.kt` / `ShopScreen.kt`. Owner directive, no case file.
-
 **SHOP-8 [P2] — Cosmetic detail bottom sheets should adopt the bigger, "bubbly" achievement-sheet style; also unslop backend cosmetic strings (owner directive).** The bottom sheets for belts, card backs, and similar cosmetics should match the larger bubbly UI of the achievement-tap sheet. Separately, run the unslop-text pass over the backend/Supabase cosmetic strings — an em-dash is showing through in the copy (Sentry [CARDS-70](https://elijah-dangerfield.sentry.io/issues/CARDS-70)).
 - **Acceptance:** Cosmetic detail sheets use the achievement-sheet visual treatment; Supabase-served cosmetic strings are cleaned of em-dashes / slop.
 - **Hints:** Restyle `features/profile/impl/.../items/CosmeticDetailSheet.kt` to match the achievement-tap sheet treatment; the string cleanup is a content pass on the Supabase-served cosmetic copy (run `unslop-text`). Owner directive, no case file.

@@ -634,6 +634,13 @@ private fun ChipTierRowCard(
 // ---------------------------------------------------------------------------
 
 /**
+ * Product-icon edge on a specialty (cosmetic) offer card. A touch smaller than
+ * the chip-pack tiles so the two-column specialty grid reads as congruent
+ * rather than icon-heavy (SHOP-7).
+ */
+private val SpecialtyIconSize = 56.dp
+
+/**
  * Chip-offer grid card. Visual treatment dispatches on [cardState]:
  *
  *  - [ChipOfferCardState.Available] → normal card, ChipCostFooter
@@ -692,13 +699,14 @@ private fun ChipOfferCard(
                         CosmeticPreview(
                             productId = offer.id,
                             emoji = offer.iconEmoji,
-                            size = 64.dp,
+                            size = SpecialtyIconSize,
                             modifier = Modifier.alpha(dimmableAlpha),
                         )
                     } else {
                         ProductIcon(
                             emoji = offer.iconEmoji,
                             tone = IconTone.Accent,
+                            size = SpecialtyIconSize,
                             modifier = Modifier.alpha(dimmableAlpha),
                         )
                     }
