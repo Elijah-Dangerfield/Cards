@@ -48,10 +48,14 @@ class RealSupabaseAuthGateway(
     override fun currentSession(): GatewaySession? {
         val session = supabase.auth.currentSessionOrNull() ?: return null
         val user = session.user ?: return null
-        // Anonymous users have no identity providers attached. supabase-kt
-        // doesn't expose a first-class "is anonymous" field at this layer,
-        // so we read `identities.isEmpty()`.
-        val isAnon = user.identities.isNullOrEmpty()
+        // The JWT's `is_anonymous` claim is the authoritative signal the server
+        // trusts and the only one that reliably flips after a link/claim refresh;
+        // `user.identities` doesn't always repopulate on the client. Prefer the
+        // claim, fall back to the identities heuristic. See AuthClaims / AUTH-12.
+        val isAnon = deriveIsAnonymous(
+            accessToken = session.accessToken,
+            hasNoIdentities = user.identities.isNullOrEmpty(),
+        )
         return GatewaySession(
             userId = user.id,
             email = if (isAnon) null else user.email,

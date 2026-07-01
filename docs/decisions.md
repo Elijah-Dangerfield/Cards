@@ -29,6 +29,16 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-07-01 — Session anonymity is read from the JWT `is_anonymous` claim, not supabase-kt's `user.identities` (AUTH-12)
+
+**Decision:** `RealSupabaseAuthGateway.currentSession()` now derives `isAnonymous` from the access token's `is_anonymous` JWT claim (decoded by a pure `deriveIsAnonymous` / `isAnonymousFromToken` in `AuthClaims.kt`), falling back to the old `user.identities.isNullOrEmpty()` heuristic only when the token can't be decoded or omits the claim. The claim decode is signature-*unverified* on the client (the server verifies it; we only read a claim off a token we already hold).
+
+**Why:** After a guest claims their account (Google/Apple link → `refreshSession()`), the refreshed JWT reliably stamps `is_anonymous=false`, but supabase-kt's `user.identities` list doesn't always repopulate on the client (device/version-dependent) — so a just-claimed user kept reading as anonymous and every "Save your progress" / "sign in and claim" prompt persisted (CARDS-76). The claim is the same signal the server trusts (`Authentication.kt`), so reading it makes client and server agree by construction. If supabase-kt ever guarantees `identities` repopulates synchronously after a link+refresh, the fallback alone would suffice and the claim read becomes belt-and-suspenders.
+
+**Alternatives considered:** (1) Keep re-fetching / re-refreshing the user until `identities` populates — rejected: unbounded, still races the same non-deterministic client state, and the repo already forces one refresh on the link path. (2) Derive anonymity server-side and surface it on `/v1/me` — rejected as the primary signal: it adds a network round-trip to a decision the client already holds the authoritative token for, and leaves the offline/cold-boot session read (which never hits `/v1/me`) still wrong. `/v1/me`'s `isAnonymous` remains a consistent secondary read. (3) Make `RealSupabaseAuthGateway` unit-testable end-to-end — rejected: it wraps a real `SupabaseClient` with no test seam; extracting the claim decode into a pure function gives the testable unit (`AuthClaimsTest`) without booting supabase-kt.
+
+**Status:** Locked. The claim decode is unit-tested; the end-to-end device behaviour is covered by `docs/QA.md` ONB-17.
+
 ## 2026-07-01 — App-root DialogHost renders in a top-most Popup so DS dialogs sit above bottom sheets (GAME-11)
 
 **Decision:** The app-root `DialogHost` now draws its hosted entries inside an `androidx.compose.ui.window.Popup` (full-screen, focusable, non-clipping, and *not* self-dismissing — `DialogOverlay` still owns the scrim / back / outside-tap). Every DS `Dialog` / `BaseDialog` registers with `DialogHostState`, so this single change lifts all of them — including the shake "sun" feedback dialog — above Material's `ModalBottomSheet`. In `@Preview` inspection mode the host falls back to inline rendering, because Compose popups don't paint on the preview surface.

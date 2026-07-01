@@ -217,6 +217,18 @@ Two variants, both must pass:
 
 ---
 
+### `ONB-17` 🚨 📱 Guest claims their account with Google, claim prompts clear (AUTH-12)
+
+**State:** signed in as a guest (played a few hands as "Continue as guest"), online.
+
+1. Open the "Save your progress" nudge (Profile, or the rank-detail "Claim your account" sheet).
+2. Tap "Continue with Google" and complete Google's sheet.
+3. Return to the app.
+
+**Expected:** The claim reports success and, with no app restart, every "sign in and claim your account" / "Save your progress" prompt disappears — the account now reads as claimed everywhere. Progress (chips, XP, profile) carries over unchanged. Force-quit and relaunch: still claimed, no prompts return.
+
+---
+
 ## Offline gating
 
 Every network-required surface follows one rule off a cached / fallback identity (no confirmed server session): **reads render cached content**, **server-mutating surfaces soft-gate** (visible, affordances stay tappable but failures surface as a connection error rather than success), and **money + multiplayer hard-gate**. The matrix below walks each surface once so a single offline pass confirms the whole app honors it (AUTH-5).
