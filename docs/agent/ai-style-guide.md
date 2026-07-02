@@ -27,8 +27,13 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 ## Naming & clarity
 - Don't shadow an outer `val` with an inner one of the same name — rename the inner (e.g. `previousHumans` → `priorHumans`) so each read is unambiguous.
 
+## Wiring & testability
+- Never ship an empty-lambda callback stub (`onClaimAccount = {}`) at an entry point — it renders a dead button. Wire it, or leave a WHY comment if it truly can't be wired yet.
+- Pull list-building/formatting logic out of composables into internal pure functions (`achievementHighlights()`) so it's unit-testable without a compose harness.
+
 ## Misdirection
 - No passthrough re-exports *or* private re-implementations of a shared util (a local `formatChips` that re-does `formatThousands`) — grep `libraries/` first, call the real one.
+- Don't clone a private composable into a sibling file under a dodge-the-clash rename (`SheetInfoCard` == `InfoCard`) — share one internal impl in the package.
 - Kill enum params whose branches all resolve to the same value (`IconTone.Gold` == `IconTone.Accent`) — a distinction the renderer ignores is a lie.
 - User-facing strings go in `:libraries:resources`, even inside enums (`ShopSection("Card backs")` was a violation) — no inline English.
 

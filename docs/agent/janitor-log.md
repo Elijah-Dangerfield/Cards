@@ -30,3 +30,13 @@ last touched. Don't re-clean anything from the last ~30 days — pick a fresh sl
 | 2026-07-02 | features/lobby/impl/.../LobbyFeatureEntryPoint.kt | Imported `Flow` instead of inline FQN return type |
 | 2026-07-02 | libraries/resources/.../strings.xml | Removed dead `lobby_error_start_coming_soon` string |
 | 2026-07-02 | features/lobby/impl/.../LobbyViewModelTest.kt | +5 tests: ConnectionUpdated Closed reasons (RoomDeleted/Rejected/IncompatibleVersion/ReconnectFailed) + leave NetworkError |
+| 2026-07-02 | features/progression/impl/.../RankDetailSheetEntryPoint.kt | Wired dead `onClaimAccount = {}` stub → `ClaimAccountRoute` (anon rank CTA did nothing) |
+| 2026-07-02 | features/progression/impl/.../StatsScreen.kt | All inline copy → string resources; `Achievement` FQNs → import; highlights slot logic extracted to testable `achievementHighlights()`; `percentOf` internal |
+| 2026-07-02 | features/progression/impl/.../AchievementsScreen.kt | Copy → string resources; `kotlin.time.Clock` FQNs → import |
+| 2026-07-02 | features/progression/impl/.../RankDetailSheet.kt | Copy → string resources; private InfoCard/Bullet → shared internal impl |
+| 2026-07-02 | features/progression/impl/.../StatsExplainersSheet.kt | Copy → string resources; duplicate Sheet-prefixed InfoCard/Bullet deleted |
+| 2026-07-02 | features/progression/impl/.../InfoCard.kt | NEW — shared internal `InfoCard` + `Bullet` for the progression screens |
+| 2026-07-02 | libraries/resources/.../strings.xml | +55 progression strings (stats/achievements/rank/explainer screens) |
+| 2026-07-02 | features/progression/impl/.../ProgressionFakes.kt | Absorbed the NeverEmitting* repository fakes (were duplicated, FQN-littered, in two test classes) |
+| 2026-07-02 | features/progression/impl/.../StatsViewModelTest.kt, AchievementsViewModelTest.kt | Private NeverEmitting fake dupes removed; use shared fakes |
+| 2026-07-02 | features/progression/impl/.../StatsScreenHelpersTest.kt | NEW — +7 tests: highlights ordering/back-fill/cap, percentOf dash + rounding |
