@@ -22,6 +22,4 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-- `[P1]` **PROG-8 — Make the level-up celebration fire exactly once and stay long enough to see.** Owner still gets no full-screen celebration on some level-ups (CARDS-7K) and saw the level-5 one play twice (CARDS-7N); CARDS-86 breadcrumbs show the notification emitted twice for the same level and `LevelUpRoute` navigated then immediately popped.
-  **Acceptance:** every earned level shows its celebration exactly once, not auto-dismissed early; enqueue/consume logged at Info so future misses are diagnosable.
-  **Hints:** `HomeViewModel` level-up notification → `DelegatingRouter` LevelUpRoute enqueue/go-back; `LevelUpRewardGranter`; supersedes retired PROG-3/PROG-5; case `docs/agent/feedback-cases/f5eb19e9da6c4d129454a5751c682509.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-7J
+_No open items — the punch list is clear. New work lands here from feedback triage and the backlog._
