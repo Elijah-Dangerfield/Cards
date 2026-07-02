@@ -14,7 +14,16 @@ import cards.libraries.resources.generated.resources.shop_idea_footer_button
 import cards.libraries.resources.generated.resources.shop_need_chips_more
 import cards.libraries.resources.generated.resources.shop_owned_badge
 import cards.libraries.resources.generated.resources.shop_personal_cosmetic_hint
+import cards.libraries.resources.generated.resources.shop_section_avatars
+import cards.libraries.resources.generated.resources.shop_section_boosts
+import cards.libraries.resources.generated.resources.shop_section_card_backs
+import cards.libraries.resources.generated.resources.shop_section_emotes
+import cards.libraries.resources.generated.resources.shop_section_felts
+import cards.libraries.resources.generated.resources.shop_section_more
+import cards.libraries.resources.generated.resources.shop_section_tables
+import cards.libraries.resources.generated.resources.shop_section_tools
 import cards.libraries.resources.generated.resources.shop_unlocks_at_level
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -271,7 +280,7 @@ private fun CatalogContent(
         offerSections.forEachIndexed { index, (section, items) ->
             if (index > 0) VerticalSpacerD800()
             SectionHeader(
-                title = section.title,
+                title = stringResource(section.title),
                 modifier = section.category?.let { category ->
                     Modifier.onGloballyPositioned { coordinates ->
                         sectionOffsets[category] = coordinates.positionInParent().y.roundToInt()
@@ -339,15 +348,15 @@ private fun ShopHeader() {
  * `tool_`). Titles are unlock-only (earned, not bought) so they never reach
  * the shop and get no shelf here.
  */
-private enum class ShopSection(val title: String, val category: ShopCategory?) {
-    Boosts("Boosts", ShopCategory.Boosts),
-    CardBacks("Card backs", ShopCategory.CardBacks),
-    Felts("Felts", ShopCategory.Felts),
-    Tables("Table themes", ShopCategory.Tables),
-    Emotes("Emote packs", ShopCategory.Emotes),
-    Avatars("Avatar packs", ShopCategory.Avatars),
-    Tools("Tools", ShopCategory.Tools),
-    Other("More", null),
+private enum class ShopSection(val title: StringResource, val category: ShopCategory?) {
+    Boosts(Res.string.shop_section_boosts, ShopCategory.Boosts),
+    CardBacks(Res.string.shop_section_card_backs, ShopCategory.CardBacks),
+    Felts(Res.string.shop_section_felts, ShopCategory.Felts),
+    Tables(Res.string.shop_section_tables, ShopCategory.Tables),
+    Emotes(Res.string.shop_section_emotes, ShopCategory.Emotes),
+    Avatars(Res.string.shop_section_avatars, ShopCategory.Avatars),
+    Tools(Res.string.shop_section_tools, ShopCategory.Tools),
+    Other(Res.string.shop_section_more, null),
 }
 
 private val ShopSectionOrder = listOf(

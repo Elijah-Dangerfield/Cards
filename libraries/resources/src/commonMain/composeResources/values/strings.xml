@@ -83,6 +83,16 @@
     <string name="shop_personal_cosmetic_hint">Only you see this</string>
     <string name="shop_also_earnable_hint">Also earnable</string>
 
+    <!-- Shop - shelf titles for the chip-offer sections. -->
+    <string name="shop_section_boosts">Boosts</string>
+    <string name="shop_section_card_backs">Card backs</string>
+    <string name="shop_section_felts">Felts</string>
+    <string name="shop_section_tables">Table themes</string>
+    <string name="shop_section_emotes">Emote packs</string>
+    <string name="shop_section_avatars">Avatar packs</string>
+    <string name="shop_section_tools">Tools</string>
+    <string name="shop_section_more">More</string>
+
     <!-- Shop - empty state. -->
     <string name="shop_empty_title">Shop is empty for now</string>
     <string name="shop_empty_subtitle">Might be a bug? New chip packs and cosmetics drop weekly. Check back soon.</string>
