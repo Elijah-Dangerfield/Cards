@@ -1,7 +1,6 @@
 package com.dangerfield.cards.features.room.impl.session
 
 import com.dangerfield.cards.features.room.impl.TableUiState
-import com.dangerfield.cards.features.room.impl.ui.label
 import com.dangerfield.cards.features.room.impl.usecase.MultiplayerCredit
 
 import com.dangerfield.cards.libraries.bots.BotPersonality
@@ -11,12 +10,15 @@ import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.game.Personality
+import com.dangerfield.cards.libraries.game.PlayStyle
 import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
+import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -28,7 +30,7 @@ import me.tatarka.inject.annotations.Inject
 
 /**
  * Production [PokerSessionFactory] for multiplayer sessions. Opens
- * a [com.dangerfield.cards.libraries.rooms.RoomConnectionHandle] via
+ * a [RoomConnectionHandle] via
  * [RoomRepository.connect] and hands it to a [RemotePokerSession] that
  * routes server-side gameplay frames into the [PokerSession] surface
  * the VM already consumes.
@@ -70,7 +72,7 @@ class RemotePokerSessionFactory @Inject constructor(
      * the per-code cache on the socket — this handle is just our
      * view of it.
      */
-    private lateinit var handle: com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
+    private lateinit var handle: RoomConnectionHandle
 
     override fun create(
         humanSeatIndex: Int,
@@ -180,9 +182,9 @@ class RemotePokerSessionFactory @Inject constructor(
                 seat.isBot -> SeatOccupant.Bot(
                     seatIndex = seat.index,
                     displayName = seat.displayName,
-                    personality = com.dangerfield.cards.libraries.game.Personality(
+                    personality = Personality(
                         label = seat.displayName,
-                        style = com.dangerfield.cards.libraries.game.PlayStyle.Unknown,
+                        style = PlayStyle.Unknown,
                     ),
                 )
                 else -> SeatOccupant.Human(
