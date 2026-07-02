@@ -324,6 +324,48 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun levelUp_staleSnapshotAfterMarkShown_doesNotRefireAlreadyShownLevel() = runUnitTest {
+        // PROG-8 / CARDS-7N: the celebration played twice. Mark-shown clears the
+        // trigger and advances the watermark through an async appCache write; a
+        // snapshot computed just before that write lands still carries the OLD
+        // watermark and re-derives the same LevelUp. With the trigger already
+        // cleared the old guard let it fire again. The in-memory latch must
+        // suppress it, so the next celebration the user sees is only a genuinely
+        // new level.
+        val progression = FakeProgressionRepository(initial = Progression.Empty)
+        val appCache = FakeAppCache()
+        val vm = buildVm(progression = progression, appCache = appCache)
+        vm.takeAction(HomeAction.ScreenResumed)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (appCache.get().lastCelebratedLevel != 1) last = awaitItem()
+
+            // Cross to level 2, see it, and mark it shown (watermark → 2).
+            progression.progression.value =
+                progression.progression.value.copy(totalXp = xpAtStartOfLevel(2))
+            while (last.levelUpCelebration == null) last = awaitItem()
+            assertEquals(2, last.levelUpCelebration)
+            vm.takeAction(HomeAction.MarkLevelUpShown)
+            while (last.levelUpCelebration != null) last = awaitItem()
+            assertEquals(2, appCache.get().lastCelebratedLevel)
+
+            // A stale snapshot still carrying the pre-mark watermark re-arrives,
+            // then the user genuinely reaches level 3. The next (and only)
+            // celebration must be level 3 — never a re-fire of the shown level 2.
+            appCache.update { it.copy(lastCelebratedLevel = 1) }
+            progression.progression.value =
+                progression.progression.value.copy(totalXp = xpAtStartOfLevel(3))
+            while (last.levelUpCelebration == null) last = awaitItem()
+            assertEquals(
+                3,
+                last.levelUpCelebration,
+                "an already-shown level must not re-fire from a stale snapshot (PROG-8)",
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun levelUp_gateFirstSeesLeveledUpXp_butWatermarkAnchored_stillCelebrates() = runUnitTest {
         // PROG-3 regression: the celebration was silently dropped when the gate's
         // FIRST progression emission already reflected a level-up earned this

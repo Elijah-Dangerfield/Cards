@@ -89,6 +89,15 @@ class HomeViewModel(
     private var welcomePresented = false
     private var playStyleUnlockPresented = false
 
+    // Highest level whose celebration we've already presented this VM's life.
+    // The persisted [AppData.lastCelebratedLevel] is the durable watermark, but
+    // it's advanced through an async appCache round-trip at mark-shown time; a
+    // snapshot computed just before that write lands still carries the old
+    // watermark and would re-derive the same LevelUp after the state was cleared,
+    // firing the celebration twice (PROG-8, CARDS-7N). This in-memory latch closes
+    // that window synchronously — a level presented once never presents again.
+    private var highestCelebrationPresented = 0
+
     init {
         viewModelScope.launch {
             roomRepository.observeActiveRooms().collect { rooms ->
@@ -336,6 +345,9 @@ class HomeViewModel(
                 // crossing (the PROG-5 failure mode).
                 action.snapshot.seedsNeeded().seedCelebratedLevel?.let { seedLevel ->
                     homeLogger.i { "home notification: seeding celebration watermark to level $seedLevel" }
+                    // Keep the in-memory latch in step with the durable seed so a
+                    // freshly-seeded account never re-celebrates a level it already had.
+                    highestCelebrationPresented = maxOf(highestCelebrationPresented, seedLevel)
                     appCache.update { it.copy(lastCelebratedLevel = seedLevel) }
                 }
                 action.presentPendingBlocking()
@@ -353,6 +365,7 @@ class HomeViewModel(
                 val reached = stateFlow.value.levelUpCelebration
                 action.updateState { it.copy(levelUpCelebration = null, levelUpRewards = emptyList()) }
                 if (reached != null) {
+                    homeLogger.i { "home notification: level-up celebration consumed for level $reached" }
                     appCache.update { it.copy(lastCelebratedLevel = reached) }
                 }
             }
@@ -375,8 +388,12 @@ class HomeViewModel(
         val snapshot = latestNotificationSnapshot ?: return
         when (val notification = GetHomeScreenNotification(snapshot)) {
             is HomeNotification.LevelUp -> {
+                // Synchronous idempotency: a stale snapshot re-deriving this level
+                // after mark-shown cleared the state can't fire it again (PROG-8).
+                if (notification.level <= highestCelebrationPresented) return
                 if (stateFlow.value.levelUpCelebration == notification.level) return
-                homeLogger.i { "home notification: level-up celebration for level ${notification.level}" }
+                highestCelebrationPresented = notification.level
+                homeLogger.i { "home notification: level-up celebration enqueued for level ${notification.level}" }
                 updateState {
                     it.copy(
                         levelUpCelebration = notification.level,
