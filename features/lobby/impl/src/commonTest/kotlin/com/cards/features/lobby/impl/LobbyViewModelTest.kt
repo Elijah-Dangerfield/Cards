@@ -230,34 +230,14 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun create_notSignedIn_onAFallbackProfile_readsAsAConnectionProblem() = runUnitTest {
-        // AUTH-6: an offline cold boot off a cached profile never minted a
-        // server session, so a 401 on create is a connection problem — not the
-        // account-less "sign in first" copy.
+    fun create_notSignedIn_readsAsSignInFirst() = runUnitTest {
+        // NotSignedIn is honest by construction now: the repo only produces it
+        // for a confirmed account problem (typed AuthUnready). Offline arrives
+        // as NetworkError — no per-profile recoloring in the VM.
         val rooms = FakeRoomRepository(
-            createOutcome = CreateRoomOutcome.NotSignedIn(RuntimeException("401")),
+            createOutcome = CreateRoomOutcome.NotSignedIn(RuntimeException("auth")),
         )
-        val vm = buildVm(rooms = rooms, profile = EmittingProfileRepository(fallbackProfile()))
-        runCurrent()
-        vm.takeAction(LobbyAction.CreateRoom)
-
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error == null) last = awaitItem()
-            assertEquals(LobbyError.CreateNetworkError, last.error)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun create_notSignedIn_onARealAccount_stillReadsAsSignInFirst() = runUnitTest {
-        // A genuine signed-in account whose token chain ran dry keeps the
-        // account-less copy — only the Fallback case is recolored.
-        val rooms = FakeRoomRepository(
-            createOutcome = CreateRoomOutcome.NotSignedIn(RuntimeException("401")),
-        )
-        val vm = buildVm(rooms = rooms, profile = EmittingProfileRepository(authenticatedProfile()))
-        runCurrent()
+        val vm = buildVm(rooms = rooms)
         vm.takeAction(LobbyAction.CreateRoom)
 
         vm.stateFlow.test {
@@ -269,19 +249,18 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun join_notSignedIn_onAFallbackProfile_readsAsAConnectionProblem() = runUnitTest {
+    fun join_notSignedIn_readsAsSignInFirst() = runUnitTest {
         val rooms = FakeRoomRepository(
-            joinOutcome = JoinRoomOutcome.NotSignedIn(RuntimeException("401")),
+            joinOutcome = JoinRoomOutcome.NotSignedIn(RuntimeException("auth")),
         )
-        val vm = buildVm(rooms = rooms, profile = EmittingProfileRepository(fallbackProfile()))
-        runCurrent()
+        val vm = buildVm(rooms = rooms)
         vm.takeAction(LobbyAction.CodeChanged("ABCDEF"))
         vm.takeAction(LobbyAction.SubmitJoin)
 
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
-            assertEquals(LobbyError.JoinNetworkError, last.error)
+            assertEquals(LobbyError.JoinNotSignedIn, last.error)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -1062,36 +1041,6 @@ class LobbyViewModelTest : CoroutineTest() {
         chips = chips,
         appScope = AppCoroutineScope(dispatchers),
     )
-
-    private fun fallbackProfile() =
-        com.dangerfield.cards.libraries.identity.profile.Profile.Fallback(id = "local-uuid")
-
-    private fun authenticatedProfile() =
-        com.dangerfield.cards.libraries.identity.profile.Profile.Authenticated(
-            id = "11111111-1111-1111-1111-111111111111",
-            displayName = "You",
-            avatarEmoji = "🃏",
-            avatarBackgroundColor = null,
-            email = null,
-            isAnonymous = true,
-            createdAt = kotlin.time.Instant.fromEpochMilliseconds(1_700_000_000_000),
-        )
-
-    /** Emits a single fixed profile so the VM can resolve the Fallback/Authenticated shape. */
-    private class EmittingProfileRepository(
-        private val profile: com.dangerfield.cards.libraries.identity.profile.Profile,
-    ) : com.dangerfield.cards.libraries.identity.profile.ProfileRepository {
-        override suspend fun current() = profile
-        override fun observe() =
-            MutableStateFlow(profile).asStateFlow()
-        override suspend fun update(
-            displayName: String?,
-            avatarEmoji: String?,
-            avatarBackgroundColor: String?,
-            clearAvatarBackgroundColor: Boolean,
-        ) = error("not used")
-        override suspend fun fetchAvatarPack() = error("not used")
-    }
 
     /** Lobby tests don't exercise the avatar; never emits a profile. */
     private object NoProfileRepository : com.dangerfield.cards.libraries.identity.profile.ProfileRepository {

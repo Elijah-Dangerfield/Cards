@@ -1,5 +1,8 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
+import com.dangerfield.cards.libraries.core.AuthReason
+import com.dangerfield.cards.libraries.core.AuthRequirement
+import com.dangerfield.cards.libraries.core.AuthVerdict
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.rooms.CandidatesOutcome
 import com.dangerfield.cards.libraries.rooms.FindTableOutcome
@@ -62,9 +65,28 @@ class MatchmakingRepositoryImplTest {
     }
 
     @Test
-    fun findTable_401_returnsNotSignedIn() = runTest {
+    fun findTable_raw401_returnsNetworkError() = runTest {
+        // Post-gate, a raw 401 is a transient refresh failure — connectivity,
+        // not account. Confirmed account problems arrive as typed AuthUnready.
         val repo = newRepo(MockEngine { respondError(HttpStatusCode.Unauthorized) })
+        assertIs<FindTableOutcome.NetworkError>(repo.findTable(1_000, 5_000))
+    }
+
+    @Test
+    fun findTable_authUnready_needAccount_returnsNotSignedIn() = runTest {
+        val engine = MockEngine { respondError(HttpStatusCode.InternalServerError) }
+        val repo = newRepo(engine, verdict = AuthVerdict.Blocked(AuthReason.NeedAccount))
         assertIs<FindTableOutcome.NotSignedIn>(repo.findTable(1_000, 5_000))
+        assertTrue(engine.requestHistory.isEmpty(), "a blocked call must never reach the wire")
+    }
+
+    @Test
+    fun findTable_authUnready_offline_returnsNetworkError() = runTest {
+        val repo = newRepo(
+            MockEngine { respondError(HttpStatusCode.InternalServerError) },
+            verdict = AuthVerdict.Blocked(AuthReason.Offline),
+        )
+        assertIs<FindTableOutcome.NetworkError>(repo.findTable(1_000, 5_000))
     }
 
     @Test
@@ -127,9 +149,9 @@ class MatchmakingRepositoryImplTest {
     }
 
     @Test
-    fun playBots_401_returnsNotSignedIn() = runTest {
+    fun playBots_raw401_returnsNetworkError() = runTest {
         val repo = newRepo(MockEngine { respondError(HttpStatusCode.Unauthorized) })
-        assertIs<PlayBotsOutcome.NotSignedIn>(repo.playBots("ABC123"))
+        assertIs<PlayBotsOutcome.NetworkError>(repo.playBots("ABC123"))
     }
 
     @Test
@@ -179,9 +201,9 @@ class MatchmakingRepositoryImplTest {
     }
 
     @Test
-    fun candidates_401_returnsNotSignedIn() = runTest {
+    fun candidates_raw401_returnsNetworkError() = runTest {
         val repo = newRepo(MockEngine { respondError(HttpStatusCode.Unauthorized) })
-        assertIs<CandidatesOutcome.NotSignedIn>(repo.findCandidates(1_000, 5_000))
+        assertIs<CandidatesOutcome.NetworkError>(repo.findCandidates(1_000, 5_000))
     }
 
     // ---------- subsidyBudget ----------
@@ -196,9 +218,9 @@ class MatchmakingRepositoryImplTest {
     }
 
     @Test
-    fun subsidyBudget_401_returnsNotSignedIn() = runTest {
+    fun subsidyBudget_raw401_returnsNetworkError() = runTest {
         val repo = newRepo(MockEngine { respondError(HttpStatusCode.Unauthorized) })
-        assertIs<SubsidyBudgetOutcome.NotSignedIn>(repo.subsidyBudget())
+        assertIs<SubsidyBudgetOutcome.NetworkError>(repo.subsidyBudget())
     }
 
     @Test
@@ -219,21 +241,28 @@ class MatchmakingRepositoryImplTest {
 
     private class SimulatedNetworkError(message: String) : RuntimeException(message)
 
-    private fun newRepo(engine: MockEngine): MatchmakingRepositoryImpl {
+    private fun newRepo(
+        engine: MockEngine,
+        verdict: AuthVerdict = AuthVerdict.Ready,
+    ): MatchmakingRepositoryImpl {
         val client = HttpClient(engine) {
             install(ContentNegotiation) {
                 json(Json { ignoreUnknownKeys = true })
             }
             expectSuccess = true
         }
-        return MatchmakingRepositoryImpl(HttpMatchmakingApi(FakeNetworkClient(client)))
+        return MatchmakingRepositoryImpl(HttpMatchmakingApi(FakeNetworkClient(client, verdict)))
     }
 
     @OptIn(com.dangerfield.cards.libraries.networking.InternalNetworkingApi::class)
-    private class FakeNetworkClient(private val httpClient: HttpClient) : NetworkClient {
+    private class FakeNetworkClient(
+        private val httpClient: HttpClient,
+        private val verdict: AuthVerdict = AuthVerdict.Ready,
+    ) : NetworkClient {
         override val client: HttpClient get() = httpClient
         override val authenticatedClient: HttpClient get() = httpClient
         override suspend fun awaitAuthReady() = Unit
+        override suspend fun authVerdict(requirement: AuthRequirement): AuthVerdict = verdict
     }
 
     private fun io.ktor.client.engine.mock.MockRequestHandleScope.respondJson(

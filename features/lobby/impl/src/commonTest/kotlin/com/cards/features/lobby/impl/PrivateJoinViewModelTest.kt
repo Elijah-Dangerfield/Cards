@@ -2,8 +2,6 @@ package com.dangerfield.cards.features.lobby.impl
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.profile.Profile
-import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.rooms.AddBotOutcome
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
@@ -16,8 +14,6 @@ import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.rooms.RoomStatus
 import com.dangerfield.cards.libraries.rooms.RoomVisibility
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -35,7 +31,7 @@ class PrivateJoinViewModelTest : CoroutineTest() {
     @Test
     fun `bad code surfaces inline error and emits no navigation`() = runUnitTest {
         val rooms = FakeRoomRepository(joinOutcome = JoinRoomOutcome.NotFound)
-        val vm = PrivateJoinViewModel(rejectedCode = null, rooms = rooms, profile = AuthedProfileRepository)
+        val vm = PrivateJoinViewModel(rejectedCode = null, rooms = rooms)
 
         vm.eventFlow.test {
             vm.takeAction(PrivateJoinAction.CodeChanged("wxyz12"))
@@ -54,7 +50,7 @@ class PrivateJoinViewModelTest : CoroutineTest() {
         val rooms = FakeRoomRepository(
             joinOutcome = JoinRoomOutcome.Success(room = sampleRoom("ABC123"), alreadyJoined = false),
         )
-        val vm = PrivateJoinViewModel(rejectedCode = null, rooms = rooms, profile = AuthedProfileRepository)
+        val vm = PrivateJoinViewModel(rejectedCode = null, rooms = rooms)
 
         vm.eventFlow.test {
             vm.takeAction(PrivateJoinAction.CodeChanged("abc123"))
@@ -68,7 +64,7 @@ class PrivateJoinViewModelTest : CoroutineTest() {
     @Test
     fun `rejected deep-link code seeds the field and inline error without rejoining`() = runUnitTest {
         val rooms = FakeRoomRepository(joinOutcome = JoinRoomOutcome.NotFound)
-        val vm = PrivateJoinViewModel(rejectedCode = "gffddf", rooms = rooms, profile = AuthedProfileRepository)
+        val vm = PrivateJoinViewModel(rejectedCode = "gffddf", rooms = rooms)
 
         assertEquals("GFFDDF", vm.state.code)
         val error = assertIs<PrivateJoinError.RoomNotFound>(vm.state.error)
@@ -78,7 +74,7 @@ class PrivateJoinViewModelTest : CoroutineTest() {
 
     @Test
     fun `code is uppercased and capped at six chars`() = runUnitTest {
-        val vm = PrivateJoinViewModel(rejectedCode = null, rooms = FakeRoomRepository(), profile = AuthedProfileRepository)
+        val vm = PrivateJoinViewModel(rejectedCode = null, rooms = FakeRoomRepository())
         vm.takeAction(PrivateJoinAction.CodeChanged("abcd1234"))
         assertEquals("ABCD12", vm.state.code)
         assertTrue(vm.state.canSubmit)
@@ -101,27 +97,6 @@ class PrivateJoinViewModelTest : CoroutineTest() {
         ),
         visibility = RoomVisibility.Private,
     )
-
-    private object AuthedProfileRepository : ProfileRepository {
-        private val profile = Profile.Authenticated(
-            id = "11111111-1111-1111-1111-111111111111",
-            displayName = "You",
-            avatarEmoji = "🃏",
-            avatarBackgroundColor = null,
-            email = null,
-            isAnonymous = true,
-            createdAt = kotlin.time.Instant.fromEpochMilliseconds(1_700_000_000_000),
-        )
-        override suspend fun current() = profile
-        override fun observe() = MutableStateFlow<Profile>(profile).asStateFlow()
-        override suspend fun update(
-            displayName: String?,
-            avatarEmoji: String?,
-            avatarBackgroundColor: String?,
-            clearAvatarBackgroundColor: Boolean,
-        ) = error("not used")
-        override suspend fun fetchAvatarPack() = error("not used")
-    }
 
     private class FakeRoomRepository(
         private val joinOutcome: JoinRoomOutcome =

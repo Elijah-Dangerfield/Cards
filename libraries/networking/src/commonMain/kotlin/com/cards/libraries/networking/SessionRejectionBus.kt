@@ -27,4 +27,14 @@ interface SessionRejectionBus {
 
     /** Observed by the auth layer to tear down the rejected session. */
     val rejections: Flow<Rejection>
+
+    /**
+     * Monotonic count of confirmed rejections this process. Bumped synchronously
+     * at the top of [signalRejected] — which runs inside the bearer plugin's
+     * token refresh, i.e. strictly *before* the failing request's final 401 can
+     * propagate — so [authedCall] can compare before/after a failed request and
+     * classify that 401 as session-death rather than a transient auth hiccup.
+     * Defaulted so test fakes that never reject compile unchanged.
+     */
+    val rejectionEpoch: Long get() = 0
 }

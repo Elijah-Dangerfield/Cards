@@ -22,11 +22,14 @@ kotlin {
             api(libs.ktor.client.core)
             api(libs.kotlinx.serialization.json)
 
-            implementation(projects.libraries.core)
+            // api: authedCall / NetworkClient.authVerdict expose core's auth
+            // vocabulary (AuthRequirement, AuthVerdict, AuthUnready).
+            api(projects.libraries.core)
         }
         commonTest.dependencies {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.libraries.core)
+            implementation(libs.ktor.client.mock)
         }
     }
 }

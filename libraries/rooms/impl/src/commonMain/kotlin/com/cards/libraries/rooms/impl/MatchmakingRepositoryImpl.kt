@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.rooms.FindTableOutcome
 import com.dangerfield.cards.libraries.rooms.MatchmakingRepository
 import com.dangerfield.cards.libraries.rooms.PlayBotsOutcome
 import com.dangerfield.cards.libraries.rooms.SubsidyBudgetOutcome
+import com.dangerfield.cards.libraries.core.AuthUnready
 import io.ktor.client.call.body
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.HttpRequestTimeoutException
@@ -32,6 +33,8 @@ class MatchmakingRepositoryImpl(
         val response = api.findTable(MatchmakingFindRequestDto(minBuyIn = minBuyIn, maxBuyIn = maxBuyIn))
         val body = response.body<MatchmakingFindResponseDto>()
         FindTableOutcome.Success(room = body.room.toDomain(), created = body.created)
+    } catch (e: AuthUnready) {
+        if (e.isAccountProblem) FindTableOutcome.NotSignedIn(e) else FindTableOutcome.NetworkError(e)
     } catch (e: ClientRequestException) {
         when (e.response.status) {
             HttpStatusCode.BadRequest ->
@@ -40,7 +43,7 @@ class MatchmakingRepositoryImpl(
                 } else {
                     FindTableOutcome.InvalidRange(extractMessage(e) ?: "Invalid buy-in range")
                 }
-            HttpStatusCode.Unauthorized -> FindTableOutcome.NotSignedIn(e)
+            HttpStatusCode.Unauthorized -> FindTableOutcome.NetworkError(e)
             HttpStatusCode.TooManyRequests -> FindTableOutcome.RateLimited(e)
             else -> FindTableOutcome.Unknown(e)
         }
@@ -56,6 +59,8 @@ class MatchmakingRepositoryImpl(
         val response = api.candidates(minBuyIn = minBuyIn, maxBuyIn = maxBuyIn)
         val body = response.body<MatchmakingCandidatesResponseDto>()
         CandidatesOutcome.Success(rooms = body.rooms.map { it.toDomain() })
+    } catch (e: AuthUnready) {
+        if (e.isAccountProblem) CandidatesOutcome.NotSignedIn(e) else CandidatesOutcome.NetworkError(e)
     } catch (e: ClientRequestException) {
         when (e.response.status) {
             HttpStatusCode.BadRequest ->
@@ -64,7 +69,7 @@ class MatchmakingRepositoryImpl(
                 } else {
                     CandidatesOutcome.InvalidRange(extractMessage(e) ?: "Invalid buy-in range")
                 }
-            HttpStatusCode.Unauthorized -> CandidatesOutcome.NotSignedIn(e)
+            HttpStatusCode.Unauthorized -> CandidatesOutcome.NetworkError(e)
             HttpStatusCode.TooManyRequests -> CandidatesOutcome.RateLimited(e)
             else -> CandidatesOutcome.Unknown(e)
         }
@@ -79,6 +84,8 @@ class MatchmakingRepositoryImpl(
     override suspend fun playBots(code: String): PlayBotsOutcome = try {
         val response = api.playBots(code)
         PlayBotsOutcome.Success(room = response.body<MatchmakingFindResponseDto>().room.toDomain())
+    } catch (e: AuthUnready) {
+        if (e.isAccountProblem) PlayBotsOutcome.NotSignedIn(e) else PlayBotsOutcome.NetworkError(e)
     } catch (e: ClientRequestException) {
         when (e.response.status) {
             HttpStatusCode.NotFound -> PlayBotsOutcome.RoomNotFound
@@ -88,7 +95,7 @@ class MatchmakingRepositoryImpl(
                 "real_player_present" -> PlayBotsOutcome.RealPlayerJoined
                 else -> PlayBotsOutcome.Unknown(e)
             }
-            HttpStatusCode.Unauthorized -> PlayBotsOutcome.NotSignedIn(e)
+            HttpStatusCode.Unauthorized -> PlayBotsOutcome.NetworkError(e)
             else -> PlayBotsOutcome.Unknown(e)
         }
     } catch (e: HttpRequestTimeoutException) {
@@ -106,9 +113,11 @@ class MatchmakingRepositoryImpl(
             cap = body.cap,
             remaining = body.remaining,
         )
+    } catch (e: AuthUnready) {
+        if (e.isAccountProblem) SubsidyBudgetOutcome.NotSignedIn(e) else SubsidyBudgetOutcome.NetworkError(e)
     } catch (e: ClientRequestException) {
         when (e.response.status) {
-            HttpStatusCode.Unauthorized -> SubsidyBudgetOutcome.NotSignedIn(e)
+            HttpStatusCode.Unauthorized -> SubsidyBudgetOutcome.NetworkError(e)
             else -> SubsidyBudgetOutcome.Unknown(e)
         }
     } catch (e: HttpRequestTimeoutException) {

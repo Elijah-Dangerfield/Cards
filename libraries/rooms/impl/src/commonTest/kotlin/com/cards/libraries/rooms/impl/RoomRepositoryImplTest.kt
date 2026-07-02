@@ -2,6 +2,9 @@ package com.dangerfield.cards.libraries.rooms.impl
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AppEvent
+import com.dangerfield.cards.libraries.core.AuthReason
+import com.dangerfield.cards.libraries.core.AuthRequirement
+import com.dangerfield.cards.libraries.core.AuthVerdict
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.networking.NetworkClient
@@ -65,9 +68,29 @@ class RoomRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun createRoom_401_returnsNotSignedIn() = runTest {
+    fun createRoom_raw401_returnsNetworkError() = runTest {
+        // Post-gate, a raw 401 means a transient token-refresh failure while
+        // holding a session — connectivity, not account. Confirmed account
+        // problems arrive as typed AuthUnready (tests below).
         val repo = newRepo(MockEngine { respondError(HttpStatusCode.Unauthorized) })
+        assertIs<CreateRoomOutcome.NetworkError>(repo.createRoom())
+    }
+
+    @Test
+    fun createRoom_authUnready_needAccount_returnsNotSignedIn() = runTest {
+        val engine = MockEngine { respondJson(HttpStatusCode.OK, ROOM_RESPONSE_JSON) }
+        val repo = newRepo(engine, verdict = AuthVerdict.Blocked(AuthReason.NeedAccount))
         assertIs<CreateRoomOutcome.NotSignedIn>(repo.createRoom())
+        assertTrue(engine.requestHistory.isEmpty(), "a blocked call must never reach the wire")
+    }
+
+    @Test
+    fun createRoom_authUnready_finishingSetup_returnsNetworkError() = runTest {
+        val repo = newRepo(
+            MockEngine { respondJson(HttpStatusCode.OK, ROOM_RESPONSE_JSON) },
+            verdict = AuthVerdict.Blocked(AuthReason.FinishingSetup),
+        )
+        assertIs<CreateRoomOutcome.NetworkError>(repo.createRoom())
     }
 
     @Test
@@ -206,6 +229,15 @@ class RoomRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
+    fun joinRoom_authUnready_offline_returnsNetworkError() = runTest {
+        val repo = newRepo(
+            MockEngine { respondJson(HttpStatusCode.OK, ROOM_RESPONSE_JSON) },
+            verdict = AuthVerdict.Blocked(AuthReason.Offline),
+        )
+        assertIs<JoinRoomOutcome.NetworkError>(repo.joinRoom("ABC123"))
+    }
+
+    @Test
     fun joinRoom_transportError_returnsNetworkError() = runTest {
         val repo = newRepo(MockEngine { throw SimulatedNetworkError("connection refused") })
         val outcome = repo.joinRoom("ABC123")
@@ -231,8 +263,17 @@ class RoomRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun getActiveRooms_401_returnsNotSignedIn() = runTest {
+    fun getActiveRooms_raw401_returnsNetworkError() = runTest {
         val repo = newRepo(MockEngine { respondError(HttpStatusCode.Unauthorized) })
+        assertIs<GetActiveRoomsOutcome.NetworkError>(repo.getActiveRooms())
+    }
+
+    @Test
+    fun getActiveRooms_authUnready_sessionExpired_returnsNotSignedIn() = runTest {
+        val repo = newRepo(
+            MockEngine { respondJson(HttpStatusCode.OK, ROOM_RESPONSE_JSON) },
+            verdict = AuthVerdict.Blocked(AuthReason.SessionExpired),
+        )
         assertIs<GetActiveRoomsOutcome.NotSignedIn>(repo.getActiveRooms())
     }
 
@@ -353,14 +394,17 @@ class RoomRepositoryImplTest : CoroutineTest() {
 
     // ---------- scaffolding ----------
 
-    private fun newRepo(engine: MockEngine): RoomRepositoryImpl {
+    private fun newRepo(
+        engine: MockEngine,
+        verdict: AuthVerdict = AuthVerdict.Ready,
+    ): RoomRepositoryImpl {
         val client = HttpClient(engine) {
             install(ContentNegotiation) {
                 json(Json { ignoreUnknownKeys = true })
             }
             expectSuccess = true
         }
-        val api = HttpRoomApi(FakeNetworkClient(client))
+        val api = HttpRoomApi(FakeNetworkClient(client, verdict))
         // The socket isn't exercised here — an empty handle keeps the
         // repo's connect delegation off the critical path.
         val socket = object : RoomSocket {
@@ -374,10 +418,14 @@ class RoomRepositoryImplTest : CoroutineTest() {
     }
 
     @OptIn(com.dangerfield.cards.libraries.networking.InternalNetworkingApi::class)
-    private class FakeNetworkClient(private val httpClient: HttpClient) : NetworkClient {
+    private class FakeNetworkClient(
+        private val httpClient: HttpClient,
+        private val verdict: AuthVerdict = AuthVerdict.Ready,
+    ) : NetworkClient {
         override val client: HttpClient get() = httpClient
         override val authenticatedClient: HttpClient get() = httpClient
         override suspend fun awaitAuthReady() = Unit
+        override suspend fun authVerdict(requirement: AuthRequirement): AuthVerdict = verdict
     }
 
     private fun io.ktor.client.engine.mock.MockRequestHandleScope.respondJson(

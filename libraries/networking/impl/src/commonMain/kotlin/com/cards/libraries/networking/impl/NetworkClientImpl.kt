@@ -1,8 +1,12 @@
 package com.dangerfield.cards.libraries.networking.impl
 
+import com.dangerfield.cards.libraries.core.AuthGate
+import com.dangerfield.cards.libraries.core.AuthRequirement
+import com.dangerfield.cards.libraries.core.AuthVerdict
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.networking.AccessDeniedBus
+import com.dangerfield.cards.libraries.networking.SessionRejectionBus
 import com.dangerfield.cards.libraries.networking.AuthTokenProvider
 import com.dangerfield.cards.libraries.networking.ClientHeaders
 import com.dangerfield.cards.libraries.networking.InternalNetworkingApi
@@ -44,6 +48,10 @@ class NetworkClientImpl(
     private val headersProvider: ClientHeadersProvider,
     private val reachability: NetworkReachability,
     private val accessDeniedBus: AccessDeniedBus,
+    private val sessionRejectionBus: SessionRejectionBus,
+    // Lazy: AuthGate's impl (identity) reaches NetworkClient through its own
+    // deps, so a direct injection would cycle at construction time.
+    private val authGate: () -> AuthGate,
 ) : NetworkClient {
 
     override val client: HttpClient by lazy {
@@ -97,6 +105,12 @@ class NetworkClientImpl(
     override suspend fun awaitAuthReady() {
         tokenProvider.awaitReady()
     }
+
+    override suspend fun authVerdict(requirement: AuthRequirement): AuthVerdict =
+        authGate().awaitVerdict(requirement)
+
+    override val sessionRejectionEpoch: Long
+        get() = sessionRejectionBus.rejectionEpoch
 }
 
 private fun HttpClientConfig<*>.applyCommonConfig(

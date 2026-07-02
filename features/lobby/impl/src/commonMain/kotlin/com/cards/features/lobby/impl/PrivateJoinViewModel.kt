@@ -2,8 +2,6 @@ package com.dangerfield.cards.features.lobby.impl
 
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
-import com.dangerfield.cards.libraries.identity.profile.Profile
-import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import me.tatarka.inject.annotations.Assisted
@@ -27,7 +25,6 @@ private const val RoomCodeLength = 6
 class PrivateJoinViewModel(
     @Assisted private val rejectedCode: String?,
     private val rooms: RoomRepository,
-    private val profile: ProfileRepository,
 ) : SEAViewModel<PrivateJoinState, PrivateJoinEvent, PrivateJoinAction>(
     initialStateArg = rejectedCode?.uppercase()?.takeIf { it.isNotBlank() }?.let { code ->
         // Deep-link bounce: a tapped invite carried a dead code. Seed the field +
@@ -71,18 +68,10 @@ class PrivateJoinViewModel(
                     is JoinRoomOutcome.OverBalance -> updateState {
                         it.copy(joining = false, error = PrivateJoinError.OverBalance(outcome.message))
                     }
-                    is JoinRoomOutcome.NotSignedIn -> {
-                        val isFallback = profile.current() is Profile.Fallback
-                        updateState {
-                            it.copy(
-                                joining = false,
-                                error = if (isFallback) {
-                                    PrivateJoinError.NetworkError
-                                } else {
-                                    PrivateJoinError.NotSignedIn
-                                },
-                            )
-                        }
+                    is JoinRoomOutcome.NotSignedIn -> updateState {
+                        // The repo only produces this for a confirmed account
+                        // problem; offline arrives as NetworkError.
+                        it.copy(joining = false, error = PrivateJoinError.NotSignedIn)
                     }
                     is JoinRoomOutcome.NetworkError -> updateState {
                         it.copy(joining = false, error = PrivateJoinError.NetworkError)
