@@ -11,6 +11,7 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 ## Comments
 - Keep only genuine WHY (a gotcha, a regression it guards, "why this way not the obvious way"). Delete narration that restates the next line.
 - Don't delete a substantive WHY just because it's long — over-trimming good context is worse than leaving it.
+- Fix KDoc that describes code that no longer exists (renamed actions, removed flows, "used to render here" history) — a wrong doc misleads worse than none.
 
 ## Compose & previews
 - Import `Preview` from `org.jetbrains.compose.ui.tooling.preview.Preview` — never write the fully-qualified `@org.jetbrains…Preview` inline.
@@ -24,6 +25,11 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 
 ## Naming & clarity
 - Don't shadow an outer `val` with an inner one of the same name — rename the inner (e.g. `previousHumans` → `priorHumans`) so each read is unambiguous.
+
+## Misdirection
+- No passthrough re-exports (`formatChips` = `formatThousands`) — call the real function.
+- Kill enum params whose branches all resolve to the same value (`IconTone.Gold` == `IconTone.Accent`) — a distinction the renderer ignores is a lie.
+- User-facing strings go in `:libraries:resources`, even inside enums (`ShopSection("Card backs")` was a violation) — no inline English.
 
 ## Not slop — leave alone
 - Emoji that are the affordance (avatar glyphs, reward icons, suit marks) are intentional here; don't strip them.

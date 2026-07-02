@@ -17,3 +17,9 @@ last touched. Don't re-clean anything from the last ~30 days — pick a fresh sl
 | 2026-07-02 | features/room/impl/.../session/SoloBotsPokerSessionFactory.kt | Dead `ui.label` import removed; imported `PlayStyle` instead of inline FQN |
 | 2026-07-02 | features/room/impl/.../session/PokerSessionFactory.kt | Dead `ui.label` import removed |
 | 2026-07-02 | features/room/impl/.../RemotePokerSessionTest.kt | +7 tests: tableCosmetics pin/non-regress, nextHandCountdown lifecycle, onHandEnded (PROG-4), leave() cash-out balance |
+| 2026-07-02 | features/shop/impl/.../ShopScreen.kt | Shelf titles → string resources; stale KDoc (RequestPurchase, hero card) fixed; banners + orphaned comments deleted; FQN → import |
+| 2026-07-02 | features/shop/impl/.../ShopViewModel.kt | Dead `val action` removed; stale class KDoc (init refresh, BillingClient) rewritten; narration trimmed |
+| 2026-07-02 | features/shop/impl/.../ShopComponents.kt | IconTone enum collapsed (all tones same color, Neutral unused); formatChips passthrough deleted; preview FQNs → imports |
+| 2026-07-02 | features/shop/impl/.../PurchaseConfirmSheet.kt | CatalogTimeAnchor / BuildInfo / Platform imports instead of FQN; formatChips → formatThousands |
+| 2026-07-02 | features/shop/impl/.../CountdownBadge.kt | Tick threshold reads `1.hours`; preview FQNs → imports; narration trimmed |
+| 2026-07-02 | features/shop/impl/.../ShopStateTest.kt, CountdownFormatTest.kt, ShopViewModelTest.kt | +17 tests: classify/sheetModeFor priorities, isExpired anchor math, formatCountdown ladder, expired-offer confirm path |
