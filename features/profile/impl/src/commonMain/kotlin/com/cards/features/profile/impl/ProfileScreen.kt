@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
@@ -123,7 +122,6 @@ import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
-import com.dangerfield.cards.libraries.ui.components.poker.cardBackBadgeTrailingInset
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
@@ -962,12 +960,9 @@ private fun OwnedCosmeticTile(
         }
         if (showEquippedBadge) {
             EquippedBadge(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    // Card backs paint a portrait card start-aligned in the square
-                    // tile, so a plain TopEnd badge floated in the dead space to its
-                    // right. Pull it in onto the card's own corner (owner feedback).
-                    .offset(x = -cardBackBadgeTrailingInset(item.productId, CosmeticTileSize)),
+                // The preview footprint now hugs the card (SHOP-9), so a plain
+                // TopEnd badge already lands on the artwork — no trailing inset.
+                modifier = Modifier.align(Alignment.TopEnd),
             )
         }
     }
@@ -1024,11 +1019,9 @@ private fun BuyableCosmeticTile(item: BuyableCosmetic, onClick: () -> Unit) {
             )
         }
         LockedBadge(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                // Same card-back correction as the equipped badge — hug the card,
-                // not the empty trailing gap of the square tile.
-                .offset(x = -cardBackBadgeTrailingInset(item.productId, CosmeticTileSize)),
+            // Preview footprint hugs the card now (SHOP-9); TopEnd sits on the
+            // artwork corner without a trailing inset.
+            modifier = Modifier.align(Alignment.TopEnd),
         )
     }
 }

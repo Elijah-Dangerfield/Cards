@@ -126,26 +126,12 @@ private fun FeltSwatch(productId: String, size: Dp, modifier: Modifier = Modifie
 }
 
 /**
- * Fraction of a square cosmetic tile that a card-back preview's card actually
- * paints horizontally. A card back is portrait, so it's narrower than its square
- * footprint and start-aligned inside it — the remaining `1 - fraction` on the
- * trailing side is dead space. Corner overlays (equipped / locked badges) use
- * [cardBackBadgeTrailingInset] to hug the card instead of floating in that gap.
+ * A card back is portrait, so its preview is this fraction of the tile height
+ * wide. The preview footprint hugs the card at that width (see [CardBackPreview])
+ * rather than sitting in a square tile, so there's no trailing dead space and a
+ * corner badge lands on the artwork with no inset compensation.
  */
 const val CardBackPreviewWidthFraction: Float = 0.7f
-
-/**
- * How far to pull a corner badge in from a cosmetic tile's trailing edge so it
- * lands on the artwork. Card backs leave dead space on the right (see
- * [CardBackPreviewWidthFraction]); every other cosmetic fills its square
- * footprint, so their badge stays at the corner (inset 0).
- */
-fun cardBackBadgeTrailingInset(productId: String, tileSize: Dp): Dp =
-    if (cosmeticSlotFor(productId) == CosmeticSlot.CardBack) {
-        tileSize * (1f - CardBackPreviewWidthFraction)
-    } else {
-        0.dp
-    }
 
 @Composable
 private fun CardBackPreview(productId: String, size: Dp, modifier: Modifier = Modifier) {
@@ -160,13 +146,14 @@ private fun CardBackPreview(productId: String, size: Dp, modifier: Modifier = Mo
     } else {
         null
     }
-    // Start-align, not center: a card back is narrower than its square
-    // footprint, so centering insets its visible left edge from the tile
-    // start. Every other preview kind (felt, pack, emoji) fills or
-    // start-aligns its footprint, so a centered card made the card-back
-    // shelf's tiles begin further in than the felt/emote shelves under the
-    // same header. Start-aligning lines all shelves up (SHOP-6).
-    Box(modifier = modifier.size(size), contentAlignment = Alignment.CenterStart) {
+    // Footprint hugs the portrait card (width = height × fraction), not a square
+    // tile. A square footprint left dead space on the trailing side that read as
+    // lopsided right padding wherever the tile was centered — shop grid cells,
+    // pickers — and forced corner badges to compensate with a trailing inset
+    // (SHOP-9). Sizing to the card removes the gap: the card still starts at the
+    // tile's leading edge, so per-type shelves stay left-aligned with felt/emote
+    // shelves (SHOP-6), and centered callers now center the card, not card+gap.
+    Box(modifier = modifier.size(width = cardSize.width, height = cardSize.height)) {
         PlayingCardBack(size = cardSize, style = style, avatarOverlay = avatarOverlay)
     }
 }
