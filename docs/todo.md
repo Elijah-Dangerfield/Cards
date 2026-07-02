@@ -25,11 +25,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P1]` **PROG-8 — Make the level-up celebration fire exactly once and stay long enough to see.** Owner still gets no full-screen celebration on some level-ups (CARDS-7K) and saw the level-5 one play twice (CARDS-7N); CARDS-86 breadcrumbs show the notification emitted twice for the same level and `LevelUpRoute` navigated then immediately popped.
   **Acceptance:** every earned level shows its celebration exactly once, not auto-dismissed early; enqueue/consume logged at Info so future misses are diagnosable.
   **Hints:** `HomeViewModel` level-up notification → `DelegatingRouter` LevelUpRoute enqueue/go-back; `LevelUpRewardGranter`; supersedes retired PROG-3/PROG-5; case `docs/agent/feedback-cases/f5eb19e9da6c4d129454a5751c682509.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-7J
-
-- `[P2]` **ROOM-14 — Rework the create-room screen layout.** The card-back preview isn't centered in the selected option and the tiles read over-justified/clunky; owner wants the minimalist-bubbly "Duolingo but black/gold/white" feel (CARDS-7F).
-  **Acceptance:** create-room option tiles center their preview with balanced DS spacing — no clipped or justified-edge look.
-  **Hints:** create-room screen in `:features:rooms`; owner directive; https://elijah-dangerfield.sentry.io/issues/CARDS-7E
-
-- `[P2]` **MP-31 — Require leave-confirmation when exiting an active real-chip MP game to Home.** Owner got into a "weird state" in a bots-for-chips MP game and could back out to Home with no confirmation (CARDS-7S); pairs with the MP freeze (MP-26).
-  **Acceptance:** backing out of an active real-chip MP game prompts a leave/forfeit confirmation, including when the table is stuck/degraded.
-  **Hints:** play-screen back handler + MP leave-confirm dialog; relates to MP-26 freeze; incident session not pinnable (report filed later, no room_code) — degraded correlation; https://elijah-dangerfield.sentry.io/issues/CARDS-7R
