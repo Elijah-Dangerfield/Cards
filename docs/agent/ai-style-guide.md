@@ -22,12 +22,13 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 - Delete unused private helpers as you touch a file. A `default…()`/factory with no caller is dead, not "kept for later."
 - Production code reachable only from its own tests is dead — flag it (its tests may be masking that nothing else uses it).
 - Delete unused imports as you touch a file. A copy-pasted import can *look* used but isn't — a named argument `label = x` does not use an imported `label` symbol.
+- A sealed/enum case mapped in the UI but never *emitted* is dead — check the producer, not just the consumer (a rendered `…ComingSoon` no VM sets). Drop the case, its mapping, and its string.
 
 ## Naming & clarity
 - Don't shadow an outer `val` with an inner one of the same name — rename the inner (e.g. `previousHumans` → `priorHumans`) so each read is unambiguous.
 
 ## Misdirection
-- No passthrough re-exports (`formatChips` = `formatThousands`) — call the real function.
+- No passthrough re-exports *or* private re-implementations of a shared util (a local `formatChips` that re-does `formatThousands`) — grep `libraries/` first, call the real one.
 - Kill enum params whose branches all resolve to the same value (`IconTone.Gold` == `IconTone.Accent`) — a distinction the renderer ignores is a lie.
 - User-facing strings go in `:libraries:resources`, even inside enums (`ShopSection("Card backs")` was a violation) — no inline English.
 

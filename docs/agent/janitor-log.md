@@ -23,3 +23,10 @@ last touched. Don't re-clean anything from the last ~30 days — pick a fresh sl
 | 2026-07-02 | features/shop/impl/.../PurchaseConfirmSheet.kt | CatalogTimeAnchor / BuildInfo / Platform imports instead of FQN; formatChips → formatThousands |
 | 2026-07-02 | features/shop/impl/.../CountdownBadge.kt | Tick threshold reads `1.hours`; preview FQNs → imports; narration trimmed |
 | 2026-07-02 | features/shop/impl/.../ShopStateTest.kt, CountdownFormatTest.kt, ShopViewModelTest.kt | +17 tests: classify/sheetModeFor priorities, isExpired anchor math, formatCountdown ladder, expired-offer confirm path |
+| 2026-07-02 | features/lobby/impl/.../LobbyViewModel.kt | Removed dead `StartGameComingSoon` error (mapped, never emitted); imported `RemoveBotOutcome` instead of inline FQN |
+| 2026-07-02 | features/lobby/impl/.../LobbyScreen.kt | 15 FQN `@Preview` + `PreviewContent`/`Room`/`RoomStatus`/`ButtonDanger`/`TextAlign`/`PaddingValues` → imports; private `formatChips` → shared `formatThousands`; dead error branch dropped |
+| 2026-07-02 | features/lobby/impl/.../PrivateCreateScreen.kt | FQN `Preview`/`ColorResource` → imports; private `formatChips` → `formatThousands`; rewrote stale "selectors are presentational" KDoc (they're wired to create) |
+| 2026-07-02 | features/lobby/impl/.../PrivateJoinScreen.kt | FQN `@Preview` → import |
+| 2026-07-02 | features/lobby/impl/.../LobbyFeatureEntryPoint.kt | Imported `Flow` instead of inline FQN return type |
+| 2026-07-02 | libraries/resources/.../strings.xml | Removed dead `lobby_error_start_coming_soon` string |
+| 2026-07-02 | features/lobby/impl/.../LobbyViewModelTest.kt | +5 tests: ConnectionUpdated Closed reasons (RoomDeleted/Rejected/IncompatibleVersion/ReconnectFailed) + leave NetworkError |
