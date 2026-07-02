@@ -19,6 +19,13 @@ interface WalletEventDao : ClearableDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(entity: WalletEventEntity)
 
+    /** Number of events already recorded under [key] (0 or 1, since it's the
+     *  primary key). Lets the repository skip a re-applied delta whose event
+     *  the IGNORE insert would silently drop — the balance delta isn't
+     *  key-aware, so without this check a duplicate key double-counts locally. */
+    @Query("SELECT COUNT(*) FROM wallet_events WHERE idempotency_key = :key")
+    suspend fun countByKey(key: String): Int
+
     @Query("DELETE FROM wallet_events WHERE idempotency_key IN (:keys)")
     suspend fun deleteByKeys(keys: List<String>)
 

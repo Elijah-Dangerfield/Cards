@@ -84,18 +84,25 @@ class ChipsRepositoryImpl(
 
     /**
      * Shared path for both directions. Order matters:
-     * 1. Insert the ledger row (idempotent on the key).
-     * 2. Insert a zero-balance row if missing — UPDATE needs something
+     * 1. Bail if this key was already applied — the ledger insert dedups on the
+     *    key, but the balance delta below is not key-aware, so re-applying the
+     *    same key would double-count the optimistic local balance.
+     * 2. Insert the ledger row (idempotent on the key).
+     * 3. Insert a zero-balance row if missing — UPDATE needs something
      *    to update. First optimistic write before the first sync lands
      *    here; the row stays at the delta until sync hydrates it. A
      *    crash between enqueue + UPDATE leaves the user with the right
      *    pending event, the wrong local balance — the next sync still
      *    arrives at the authoritative answer.
-     * 3. Apply the delta.
+     * 4. Apply the delta.
      */
     private suspend fun applyDeltaInternal(delta: Long, reason: String, idempotencyKey: String?) {
         val nowEpochMs = clock.now().toEpochMilliseconds()
         val key = idempotencyKey ?: Uuid.random().toString()
+        // A caller-supplied key that's already on the ledger means this exact
+        // mutation already landed (event + delta). Skip the whole write so the
+        // local balance isn't double-applied. A generated key never collides.
+        if (walletEventDao.countByKey(key) > 0) return
         walletEventDao.insert(
             WalletEventEntity(
                 idempotencyKey = key,
