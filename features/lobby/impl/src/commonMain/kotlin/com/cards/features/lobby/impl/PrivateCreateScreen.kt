@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.items
@@ -363,6 +364,9 @@ private fun CosmeticPickerRow(
     }
 }
 
+/** Preview edge inside a picker tile — the square the felt/card-back centers in. */
+private val PickerPreviewSize = 56.dp
+
 @Composable
 private fun CosmeticPickerTile(
     choice: CosmeticChoice,
@@ -370,18 +374,32 @@ private fun CosmeticPickerTile(
     onClick: () -> Unit,
 ) {
     val ringColor = if (selected) AppTheme.colors.accentPrimary.color else AppTheme.colors.border.color
+    // Bubbly rounded tile with a constant 2dp ring (accent when picked, border
+    // otherwise) so selecting never nudges the row's layout, plus a faint accent
+    // wash on the picked tile. The preview centers in a fixed square footprint so
+    // felts (square) and card backs (portrait) both sit balanced — no lopsided
+    // gap or clipped edge (ROOM-14).
     Box(
         modifier = Modifier
-            .clip(Radii.R600.shape)
-            .border(if (selected) 2.dp else 1.dp, ringColor, Radii.R600.shape)
+            .clip(Radii.Button.shape)
+            .background(
+                if (selected) AppTheme.colors.accentPrimary.color.copy(alpha = 0.12f) else Color.Transparent,
+            )
+            .border(2.dp, ringColor, Radii.Button.shape)
             .clickable(onClick = onClick)
-            .padding(Dimension.D200),
+            .padding(Dimension.D400),
+        contentAlignment = Alignment.Center,
     ) {
-        CosmeticPreview(
-            productId = choice.productId,
-            emoji = choice.emoji,
-            size = 56.dp,
-        )
+        Box(
+            modifier = Modifier.size(PickerPreviewSize),
+            contentAlignment = Alignment.Center,
+        ) {
+            CosmeticPreview(
+                productId = choice.productId,
+                emoji = choice.emoji,
+                size = PickerPreviewSize,
+            )
+        }
     }
 }
 
