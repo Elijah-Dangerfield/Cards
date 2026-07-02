@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
+import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
@@ -28,7 +29,7 @@ class RankDetailSheetEntryPoint(
             RankDetailSheet(
                 state = state,
                 onBack = router::goBack,
-                onClaimAccount = {},
+                onClaimAccount = { router.navigate(ClaimAccountRoute()) },
             )
         }
     }
