@@ -30,6 +30,8 @@ kotlin {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.libraries.core)
             implementation(libs.ktor.client.mock)
+            implementation(libs.ktor.client.contentNegotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
         }
     }
 }

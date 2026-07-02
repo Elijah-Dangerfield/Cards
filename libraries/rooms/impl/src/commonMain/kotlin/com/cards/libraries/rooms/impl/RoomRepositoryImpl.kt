@@ -11,6 +11,8 @@ import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.core.AuthUnready
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
+import com.dangerfield.cards.libraries.networking.apiErrorCode
+import com.dangerfield.cards.libraries.networking.apiErrorMessage
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.rooms.preferRealOver
 import com.dangerfield.cards.libraries.rooms.Room
@@ -108,7 +110,7 @@ class RoomRepositoryImpl(
     } catch (e: ClientRequestException) {
         when (e.response.status) {
             HttpStatusCode.BadRequest ->
-                CreateRoomOutcome.InvalidMaxSeats(extractMessage(e) ?: "maxSeats must be 2..9")
+                CreateRoomOutcome.InvalidMaxSeats(e.apiErrorMessage() ?: "maxSeats must be 2..9")
             HttpStatusCode.Unauthorized -> CreateRoomOutcome.NetworkError(e)
             else -> CreateRoomOutcome.Unknown(e)
         }
@@ -132,12 +134,12 @@ class RoomRepositoryImpl(
         when (e.response.status) {
             HttpStatusCode.NotFound -> JoinRoomOutcome.NotFound
             HttpStatusCode.BadRequest ->
-                if (extractCode(e) == "insufficient_balance") {
-                    JoinRoomOutcome.OverBalance(extractMessage(e) ?: "Not enough chips for that buy-in")
+                if (e.apiErrorCode() == "insufficient_balance") {
+                    JoinRoomOutcome.OverBalance(e.apiErrorMessage() ?: "Not enough chips for that buy-in")
                 } else {
                     JoinRoomOutcome.Unknown(e)
                 }
-            HttpStatusCode.Conflict -> when (extractCode(e)) {
+            HttpStatusCode.Conflict -> when (e.apiErrorCode()) {
                 "room_full" -> JoinRoomOutcome.Full
                 "room_not_joinable" -> JoinRoomOutcome.NotJoinable
                 else -> JoinRoomOutcome.Unknown(e)
@@ -213,7 +215,7 @@ class RoomRepositoryImpl(
         when (e.response.status) {
             HttpStatusCode.NotFound -> AddBotOutcome.NotFound
             HttpStatusCode.Forbidden -> AddBotOutcome.NotHost
-            HttpStatusCode.Conflict -> when (extractCode(e)) {
+            HttpStatusCode.Conflict -> when (e.apiErrorCode()) {
                 "room_full" -> AddBotOutcome.Full
                 "room_not_joinable" -> AddBotOutcome.NotJoinable
                 else -> AddBotOutcome.Unknown(e)
@@ -254,15 +256,4 @@ class RoomRepositoryImpl(
         current.filterNot { it.code == code }
     }
 
-    private suspend fun extractMessage(e: ClientRequestException): String? = try {
-        e.response.body<ProblemEnvelopeDto>().error.message
-    } catch (_: Throwable) {
-        null
-    }
-
-    private suspend fun extractCode(e: ClientRequestException): String? = try {
-        e.response.body<ProblemEnvelopeDto>().error.code
-    } catch (_: Throwable) {
-        null
-    }
 }

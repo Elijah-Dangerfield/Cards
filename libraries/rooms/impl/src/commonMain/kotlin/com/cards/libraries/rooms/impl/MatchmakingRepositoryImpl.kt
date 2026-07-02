@@ -6,6 +6,8 @@ import com.dangerfield.cards.libraries.rooms.MatchmakingRepository
 import com.dangerfield.cards.libraries.rooms.PlayBotsOutcome
 import com.dangerfield.cards.libraries.rooms.SubsidyBudgetOutcome
 import com.dangerfield.cards.libraries.core.AuthUnready
+import com.dangerfield.cards.libraries.networking.apiErrorCode
+import com.dangerfield.cards.libraries.networking.apiErrorMessage
 import io.ktor.client.call.body
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.HttpRequestTimeoutException
@@ -38,10 +40,10 @@ class MatchmakingRepositoryImpl(
     } catch (e: ClientRequestException) {
         when (e.response.status) {
             HttpStatusCode.BadRequest ->
-                if (extractCode(e) == "insufficient_balance") {
-                    FindTableOutcome.InsufficientBalance(extractMessage(e) ?: "Not enough chips for that buy-in")
+                if (e.apiErrorCode() == "insufficient_balance") {
+                    FindTableOutcome.InsufficientBalance(e.apiErrorMessage() ?: "Not enough chips for that buy-in")
                 } else {
-                    FindTableOutcome.InvalidRange(extractMessage(e) ?: "Invalid buy-in range")
+                    FindTableOutcome.InvalidRange(e.apiErrorMessage() ?: "Invalid buy-in range")
                 }
             HttpStatusCode.Unauthorized -> FindTableOutcome.NetworkError(e)
             HttpStatusCode.TooManyRequests -> FindTableOutcome.RateLimited(e)
@@ -64,10 +66,10 @@ class MatchmakingRepositoryImpl(
     } catch (e: ClientRequestException) {
         when (e.response.status) {
             HttpStatusCode.BadRequest ->
-                if (extractCode(e) == "insufficient_balance") {
-                    CandidatesOutcome.InsufficientBalance(extractMessage(e) ?: "Not enough chips for that buy-in")
+                if (e.apiErrorCode() == "insufficient_balance") {
+                    CandidatesOutcome.InsufficientBalance(e.apiErrorMessage() ?: "Not enough chips for that buy-in")
                 } else {
-                    CandidatesOutcome.InvalidRange(extractMessage(e) ?: "Invalid buy-in range")
+                    CandidatesOutcome.InvalidRange(e.apiErrorMessage() ?: "Invalid buy-in range")
                 }
             HttpStatusCode.Unauthorized -> CandidatesOutcome.NetworkError(e)
             HttpStatusCode.TooManyRequests -> CandidatesOutcome.RateLimited(e)
@@ -91,7 +93,7 @@ class MatchmakingRepositoryImpl(
             HttpStatusCode.NotFound -> PlayBotsOutcome.RoomNotFound
             // The server refuses to bot-fill a table a human already joined; for
             // us that's the win condition — keep the real game.
-            HttpStatusCode.Conflict -> when (extractCode(e)) {
+            HttpStatusCode.Conflict -> when (e.apiErrorCode()) {
                 "real_player_present" -> PlayBotsOutcome.RealPlayerJoined
                 else -> PlayBotsOutcome.Unknown(e)
             }
@@ -128,15 +130,4 @@ class MatchmakingRepositoryImpl(
         SubsidyBudgetOutcome.NetworkError(e)
     }
 
-    private suspend fun extractMessage(e: ClientRequestException): String? = try {
-        e.response.body<ProblemEnvelopeDto>().error.message
-    } catch (_: Throwable) {
-        null
-    }
-
-    private suspend fun extractCode(e: ClientRequestException): String? = try {
-        e.response.body<ProblemEnvelopeDto>().error.code
-    } catch (_: Throwable) {
-        null
-    }
 }
