@@ -5,21 +5,9 @@ import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.auth.AuthRepository
-import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
-import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
-import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
-import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
-import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
-import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
-import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
-import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
-import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.job
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
@@ -253,18 +241,15 @@ class DeleteAccountViewModelTest : CoroutineTest() {
     )
 }
 
+/** Gates [deleteAccount] on a caller-controlled latch so the test can assert the
+ *  call is in-flight, tear the VM down, then let it finish. */
 private class GatedDeleteAuth(
     private val gate: CompletableDeferred<DeleteAccountOutcome>,
-) : AuthRepository {
+) : StubAuthRepository() {
     var deleteStarted: Int = 0
         private set
     var deleteFinished: Int = 0
         private set
-
-    private val state = MutableStateFlow<AuthState>(AuthState.Unauthenticated())
-    override suspend fun current(): AuthState = state.value
-    override fun observe(): Flow<AuthState> = state
-    override suspend fun retry(): AuthState = state.value
 
     override suspend fun deleteAccount(): DeleteAccountOutcome {
         deleteStarted += 1
@@ -272,14 +257,4 @@ private class GatedDeleteAuth(
         deleteFinished += 1
         return outcome
     }
-
-    override suspend fun signInWithEmail(email: String, password: String): SignInOutcome = error("unused")
-    override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome = error("unused")
-    override suspend fun refreshSession(): RefreshOutcome = error("unused")
-    override suspend fun resendVerificationEmail(email: String): ResendOutcome = error("unused")
-    override suspend fun sendPasswordResetEmail(email: String): SendResetOutcome = error("unused")
-    override suspend fun signOut() = Unit
-    override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome = error("unused")
-    override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome = error("unused")
-    override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome = error("unused")
 }
