@@ -23,6 +23,7 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 - Production code reachable only from its own tests is dead — flag it (its tests may be masking that nothing else uses it).
 - Delete unused imports as you touch a file. A copy-pasted import can *look* used but isn't — a named argument `label = x` does not use an imported `label` symbol.
 - A sealed/enum case mapped in the UI but never *emitted* is dead — check the producer, not just the consumer (a rendered `…ComingSoon` no VM sets). Drop the case, its mapping, and its string.
+- A branch a prior guard already covers is dead — `if (!canSubmit) return` then `if (pw != confirm) …` never fires when `canSubmit` requires the match. Drop the re-check (and any error variant only it set).
 
 ## Naming & clarity
 - Don't shadow an outer `val` with an inner one of the same name — rename the inner (e.g. `previousHumans` → `priorHumans`) so each read is unambiguous.
@@ -30,6 +31,7 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 ## Wiring & testability
 - Never ship an empty-lambda callback stub (`onClaimAccount = {}`) at an entry point — it renders a dead button. Wire it, or leave a WHY comment if it truly can't be wired yet.
 - Pull list-building/formatting logic out of composables into internal pure functions (`achievementHighlights()`) so it's unit-testable without a compose harness.
+- Don't re-stub a whole interface in every fake — one abstract `StubX` base that `error`s on all methods, then each fake overrides only the calls its test exercises. Unexpected calls fail loudly.
 
 ## Misdirection
 - No passthrough re-exports *or* private re-implementations of a shared util (a local `formatChips` that re-does `formatThousands`) — grep `libraries/` first, call the real one.

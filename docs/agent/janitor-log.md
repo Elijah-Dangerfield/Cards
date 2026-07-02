@@ -40,3 +40,10 @@ last touched. Don't re-clean anything from the last ~30 days — pick a fresh sl
 | 2026-07-02 | features/progression/impl/.../ProgressionFakes.kt | Absorbed the NeverEmitting* repository fakes (were duplicated, FQN-littered, in two test classes) |
 | 2026-07-02 | features/progression/impl/.../StatsViewModelTest.kt, AchievementsViewModelTest.kt | Private NeverEmitting fake dupes removed; use shared fakes |
 | 2026-07-02 | features/progression/impl/.../StatsScreenHelpersTest.kt | NEW — +7 tests: highlights ordering/back-fill/cap, percentOf dash + rounding |
+| 2026-07-02 | features/profile/impl/.../account/ClaimAccountViewModel.kt | Dropped unreachable `PasswordsDontMatch` Submit branch + sealed variant (canSubmit already requires the match) |
+| 2026-07-02 | features/profile/impl/.../account/ClaimAccountScreen.kt | Removed dead `PasswordsDontMatch` `.message()` case + its string import; `PreviewContent` FQN → import |
+| 2026-07-02 | features/profile/impl/.../account/DeleteAccountScreen.kt | `PreviewContent` FQN → import |
+| 2026-07-02 | libraries/resources/.../strings.xml | Removed dead `auth_claim_error_passwords_dont_match` string |
+| 2026-07-02 | features/profile/impl/.../account/AccountViewModelFakes.kt | Extracted `StubAuthRepository` base (error-stubs the interface); `FakeAuthRepository` extends it; `Instant` FQN → import |
+| 2026-07-02 | features/profile/impl/.../account/DeleteAccountViewModelTest.kt, AccountActionsViewModelTest.kt | Gated fakes extend `StubAuthRepository` (dropped ~40 lines of duplicated `error("unused")` stubs); pruned now-unused imports |
+| 2026-07-02 | features/profile/impl/.../account/ClaimAccountViewModelTest.kt | +1 assertion: Submit-with-mismatch surfaces no error (locks the dead-branch removal) |
