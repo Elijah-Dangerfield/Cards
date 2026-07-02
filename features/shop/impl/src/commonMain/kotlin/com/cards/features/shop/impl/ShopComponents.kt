@@ -1,8 +1,10 @@
 package com.dangerfield.cards.features.shop.impl
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -13,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.CosmeticSlot
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.products.Product
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -21,6 +24,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.Radius
 import com.dangerfield.cards.system.clip
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Shared building blocks used by [ShopScreen] grid cells and
@@ -33,16 +37,6 @@ import com.dangerfield.cards.system.clip
  */
 
 /**
- * Tile background tone for a product icon. Three options that match the
- * three "kinds" of thing in the shop:
- *  - [Gold] — chip packs (chips are gold across the app)
- *  - [Accent] — chip-purchasable items (table themes, emotes, etc.)
- *  - [Neutral] — anything that doesn't need to scream (used by the
- *    cannot-afford / pending state)
- */
-internal enum class IconTone { Gold, Accent, Neutral }
-
-/**
  * Square rounded-rect tile with the product's emoji at center.
  *
  * The emoji is the server-authoritative product visual — there's no
@@ -53,21 +47,15 @@ internal enum class IconTone { Gold, Accent, Neutral }
 @Composable
 internal fun ProductIcon(
     emoji: String,
-    tone: IconTone,
     size: Dp = 64.dp,
     radius: Radius = Radii.R800,
     modifier: Modifier = Modifier,
 ) {
-    val bg = when (tone) {
-        IconTone.Gold -> AppTheme.colors.accentPrimary.color.copy(alpha = 0.18f)
-        IconTone.Accent -> AppTheme.colors.accentPrimary.color.copy(alpha = 0.18f)
-        IconTone.Neutral -> AppTheme.colors.surfaceRaised.color
-    }
     Box(
         modifier = modifier
             .size(size)
             .clip(radius)
-            .background(bg),
+            .background(AppTheme.colors.accentPrimary.color.copy(alpha = 0.18f)),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -129,7 +117,7 @@ private val SHOP_PILL_PADDING = PaddingValues(horizontal = 10.dp, vertical = 4.d
  *  - Chip pack → the accent gradient backdrop (every chip tier wears it now,
  *    not just the featured one, matching the gradient chip cards in the grid).
  *    Keeps the visual line continuous from tap → sheet.
- *  - Chip-purchasable offer → accent tint (matches [IconTone.Accent]).
+ *  - Chip-purchasable offer → accent tint.
  *
  * Tint alpha matches [ProductIcon] so the bubble reads as the same chip
  * the user just tapped, not a fresh visual.
@@ -160,49 +148,33 @@ internal fun productBubbleSurface(product: Product): BubbleSurface = when (produ
 internal fun hasCosmeticPreview(productId: String): Boolean =
     cosmeticSlotFor(productId).let { it == CosmeticSlot.Felt || it == CosmeticSlot.CardBack }
 
-/**
- * Re-export of the shared thousands-separator formatter so the shop
- * module's existing callsites keep their familiar `formatChips(...)`
- * import path. The canonical implementation lives in
- * [com.dangerfield.cards.libraries.cards.formatThousands].
- */
-internal fun formatChips(amount: Long): String =
-    com.dangerfield.cards.libraries.cards.formatThousands(amount)
-
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
-private fun ProductIconPreview_AllTones() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
-        androidx.compose.foundation.layout.Row(
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
-        ) {
-            ProductIcon(emoji = "💰", tone = IconTone.Gold)
-            ProductIcon(emoji = "🎭", tone = IconTone.Accent)
-            ProductIcon(emoji = "🪙", tone = IconTone.Neutral)
+private fun ProductIconPreview() {
+    PreviewContent {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ProductIcon(emoji = "💰")
+            ProductIcon(emoji = "🎭")
         }
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun BadgePillPreview() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
-        androidx.compose.foundation.layout.Row(
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-        ) {
+    PreviewContent {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             BadgePill(text = "NEW", accent = AppTheme.colors.accentPrimary)
             BadgePill(text = "+20% BONUS", accent = AppTheme.colors.accentPrimary)
         }
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun OverhangBadgePreview() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
-        androidx.compose.foundation.layout.Row(
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-        ) {
+    PreviewContent {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OverhangBadge(text = "BEST VALUE", accent = AppTheme.colors.accentPrimary)
             OverhangBadge(text = "LIMITED", accent = AppTheme.colors.accentPrimary)
         }

@@ -22,12 +22,15 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.products.CatalogTimeAnchor
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.color.defaultColors
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.ui.tooling.preview.Preview
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -72,12 +75,11 @@ internal fun CountdownBadge(
     // tick per minute so we don't recompose 60× more often than needed.
     LaunchedEffect(timeAnchor, availableUntilEpochMs) {
         while (remainingMs > 0L) {
-            val tick = if (remainingMs < 1.minutes.inWholeMilliseconds * 60) 1.seconds else 1.minutes
+            val tick = if (remainingMs < 1.hours.inWholeMilliseconds) 1.seconds else 1.minutes
             delay(tick)
             val refreshed = timeAnchor.remainingMsUntil(availableUntilEpochMs) ?: 0L
             remainingMs = refreshed
         }
-        // Fell out of the loop: time's up.
         onExpired()
     }
 
@@ -189,10 +191,10 @@ internal fun formatCountdown(remainingMs: Long): String {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun CountdownBadgePreview_Comfortable() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         CountdownBadge(
             timeAnchor = CatalogTimeAnchor.capture(serverNowEpochMs = 0L),
             availableUntilEpochMs = 3L * 86_400_000L,
@@ -201,10 +203,10 @@ private fun CountdownBadgePreview_Comfortable() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun CountdownBadgePreview_Urgent() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         CountdownBadge(
             timeAnchor = CatalogTimeAnchor.capture(serverNowEpochMs = 0L),
             availableUntilEpochMs = 45L * 60_000L,
@@ -213,10 +215,10 @@ private fun CountdownBadgePreview_Urgent() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun CountdownBadgePreview_Critical() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         CountdownBadge(
             timeAnchor = CatalogTimeAnchor.capture(serverNowEpochMs = 0L),
             availableUntilEpochMs = 30L * 1_000L,
