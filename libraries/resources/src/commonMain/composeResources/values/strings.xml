@@ -684,7 +684,7 @@
     <string name="profile_feedback_submit_button">Send</string>
     <string name="profile_feedback_submit_button_progress">Sending…</string>
     <string name="profile_feedback_error_message_required">Add a quick note before sending.</string>
-    <string name="profile_feedback_snackbar_thanks">Got it. Thank you!</string>
+    <string name="profile_feedback_snackbar_thanks">Thanks for your feedback!</string>
 
     <!-- Profile - Report a bug form. -->
     <string name="profile_bug_title">Report a bug</string>
@@ -700,7 +700,7 @@
     <string name="profile_bug_submit_button">Send</string>
     <string name="profile_bug_submit_button_progress">Sending…</string>
     <string name="profile_bug_error_message_required">Add a quick note before sending.</string>
-    <string name="profile_bug_snackbar_thanks">Thanks for reporting this!</string>
+    <string name="profile_bug_snackbar_thanks">Thanks for reporting that! We'll get right on it.</string>
 
     <!-- Profile - My items inventory screen. -->
     <!-- Reused by the profile owned-item detail sheet (CosmeticDetailSheet). -->
@@ -902,6 +902,7 @@
 
     <!-- Room - How-to-play sheet (tap the ? icon in the top bar). -->
     <string name="room_how_to_play_sheet_title">How to play</string>
+    <string name="room_how_to_play_full_tutorial_footer">Want the full walkthrough? Replay the tutorial anytime from Settings → How to play.</string>
     <!-- Room - Hand-rankings cheat sheet (tap the board). -->
     <string name="room_cheat_sheet_hand_number_pill">HAND #%1$d</string>
     <string name="room_cheat_sheet_actions_heading">How to act</string>

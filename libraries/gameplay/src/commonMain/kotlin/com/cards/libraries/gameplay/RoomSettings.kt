@@ -45,12 +45,21 @@ data class RoomSettings(
          */
         const val DEFAULT_HOST_BUY_IN: Long = 1_000
 
+        /**
+         * Per-turn shot clock. 20s is the small-stakes online standard — long
+         * enough to think through a real decision, short enough that a table
+         * never stalls waiting on one seat (GAME-15). Down from the old 30s,
+         * which owner felt dragged. Enforced server-side in MP only; solo tables
+         * pass it through but never arm the clock (see TableUiState).
+         */
+        const val DEFAULT_TURN_TIMER_SECONDS: Int = 20
+
         val Default: RoomSettings = RoomSettings(
             smallBlind = 5,
             bigBlind = 10,
             startingStack = 1_000,
             maxSeats = 6,
-            turnTimerSeconds = 30,
+            turnTimerSeconds = DEFAULT_TURN_TIMER_SECONDS,
         )
 
         /**
@@ -69,7 +78,7 @@ data class RoomSettings(
                 bigBlind = bigBlind,
                 startingStack = stack,
                 maxSeats = maxSeats,
-                turnTimerSeconds = 30,
+                turnTimerSeconds = DEFAULT_TURN_TIMER_SECONDS,
             )
         }
     }
