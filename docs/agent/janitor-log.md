@@ -11,3 +11,9 @@ last touched. Don't re-clean anything from the last ~30 days — pick a fresh sl
 | 2026-07-01 | features/home/impl/.../PlayStyleUnlockedDialog.kt | Imported `@Preview` instead of fully-qualified annotation |
 | 2026-07-01 | features/home/impl/.../BotTableSetupSheet.kt | Imported `@Preview` + `PreviewContent` instead of FQN |
 | 2026-07-01 | features/home/impl/.../PrivateChooseSheet.kt | Imported `@Preview` + `PreviewContent` instead of FQN |
+| 2026-07-02 | features/room/impl/.../session/RemotePokerSession.kt | Dropped unused `TableUiState` import; renamed shadowed `previous` → `priorHumans` in the opponent-departure diff |
+| 2026-07-02 | features/room/impl/.../session/LocalBotsSession.kt | Imported `GameSpeed` + inlined-FQN `PlayerIntent` fixed; removed per-bot-iteration + duplicate debug logs |
+| 2026-07-02 | features/room/impl/.../session/RemotePokerSessionFactory.kt | Dead `ui.label` import removed; imported `RoomConnectionHandle`/`Personality`/`PlayStyle` instead of inline FQN |
+| 2026-07-02 | features/room/impl/.../session/SoloBotsPokerSessionFactory.kt | Dead `ui.label` import removed; imported `PlayStyle` instead of inline FQN |
+| 2026-07-02 | features/room/impl/.../session/PokerSessionFactory.kt | Dead `ui.label` import removed |
+| 2026-07-02 | features/room/impl/.../RemotePokerSessionTest.kt | +7 tests: tableCosmetics pin/non-regress, nextHandCountdown lifecycle, onHandEnded (PROG-4), leave() cash-out balance |

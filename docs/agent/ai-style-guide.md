@@ -20,6 +20,10 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 ## Dead code
 - Delete unused private helpers as you touch a file. A `default…()`/factory with no caller is dead, not "kept for later."
 - Production code reachable only from its own tests is dead — flag it (its tests may be masking that nothing else uses it).
+- Delete unused imports as you touch a file. A copy-pasted import can *look* used but isn't — a named argument `label = x` does not use an imported `label` symbol.
+
+## Naming & clarity
+- Don't shadow an outer `val` with an inner one of the same name — rename the inner (e.g. `previousHumans` → `priorHumans`) so each read is unambiguous.
 
 ## Not slop — leave alone
 - Emoji that are the affordance (avatar glyphs, reward icons, suit marks) are intentional here; don't strip them.
