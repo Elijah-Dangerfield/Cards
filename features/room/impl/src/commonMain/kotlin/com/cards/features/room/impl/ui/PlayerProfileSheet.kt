@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -116,9 +118,14 @@ internal fun PlayerProfileSheet(
     ) {
         // [ModalContent] places this content slot in a Box, so the stacked
         // sections must bring their own vertical layout — without this Column
-        // they'd all render at the same origin and overlap.
+        // they'd all render at the same origin and overlap. The scroll keeps
+        // tall cards (bot style radar + tenure + difficulty + settings) reachable
+        // on short screens instead of clipping at the sheet's max height (GAME-13),
+        // matching HowToPlaySheet.
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Identity block — shared with the Edit Profile preview so the card
