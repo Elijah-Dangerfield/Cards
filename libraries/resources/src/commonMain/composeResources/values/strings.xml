@@ -1296,6 +1296,9 @@
     <string name="auth_gate_offline_title">You're offline</string>
     <string name="auth_gate_offline_body">We can't reach the server right now, so we couldn't confirm your account. Your progress is safe. Try again once you're back online.</string>
     <string name="auth_gate_offline_cta">Got it</string>
+    <string name="auth_gate_session_expired_title">Session expired</string>
+    <string name="auth_gate_session_expired_body">Your session has expired. Sign in again to keep playing.</string>
+    <string name="auth_gate_session_expired_cta">Sign in</string>
 
     <!-- Generic top-of-screen offline strip shown whenever the device has no
          connection. -->

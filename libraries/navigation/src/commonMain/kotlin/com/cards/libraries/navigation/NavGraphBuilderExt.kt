@@ -15,6 +15,7 @@ import androidx.navigation.compose.ComposeNavigator
 import androidx.navigation.compose.ComposeNavigatorDestinationBuilder
 import androidx.navigation.get
 import androidx.navigation.navigation as composeNestedGraph
+import com.dangerfield.cards.libraries.core.AuthRequirement
 import com.dangerfield.cards.libraries.ui.components.dialog.DialogState
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetState
 import com.dangerfield.cards.libraries.navigation.floatingwindow.DialogDestination

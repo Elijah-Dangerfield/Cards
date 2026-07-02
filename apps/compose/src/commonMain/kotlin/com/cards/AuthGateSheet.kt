@@ -24,7 +24,10 @@ import cards.libraries.resources.generated.resources.auth_gate_need_claimed_titl
 import cards.libraries.resources.generated.resources.auth_gate_offline_body
 import cards.libraries.resources.generated.resources.auth_gate_offline_cta
 import cards.libraries.resources.generated.resources.auth_gate_offline_title
-import com.dangerfield.cards.libraries.navigation.GateReason
+import cards.libraries.resources.generated.resources.auth_gate_session_expired_body
+import cards.libraries.resources.generated.resources.auth_gate_session_expired_cta
+import cards.libraries.resources.generated.resources.auth_gate_session_expired_title
+import com.dangerfield.cards.libraries.core.AuthReason
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
@@ -41,21 +44,23 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * Shared "you need an account for this" sheet the router substitutes for a
  * gated route ([com.dangerfield.cards.libraries.navigation.AuthGateRoute]). The
- * [reason] (from [com.dangerfield.cards.libraries.navigation.AuthGateChecker])
- * picks the copy + CTA:
- *  - [GateReason.FinishingSetup] — a degraded guest whose account is still being
- *    created; it self-heals, so we just ask them to wait.
- *  - [GateReason.NeedAccount] — no account; offer to get started (onboarding).
- *  - [GateReason.NeedClaimedAccount] — a guest doing something that needs a
+ * [reason] (produced by [com.dangerfield.cards.libraries.core.AuthGate]) picks
+ * the copy + CTA:
+ *  - [AuthReason.FinishingSetup] — a degraded guest whose account is still being
+ *    created (or healed); it self-resolves, so we just ask them to wait.
+ *  - [AuthReason.NeedAccount] — no account; offer to get started (onboarding).
+ *  - [AuthReason.NeedClaimedAccount] — a guest doing something that needs a
  *    claimed account; offer to save it.
- *  - [GateReason.Offline] — the session couldn't be confirmed because the device
+ *  - [AuthReason.Offline] — the session couldn't be confirmed because the device
  *    is offline; reassure them their progress is safe and to try again online.
+ *  - [AuthReason.SessionExpired] — the auth server rejected the session; offer
+ *    to sign in again.
  *
  * Pure / callback-driven so the host wires the CTAs to navigation.
  */
 @Composable
 fun AuthGateSheet(
-    reason: GateReason,
+    reason: AuthReason,
     onCreateAccount: () -> Unit,
     onSaveAccount: () -> Unit,
     onDismiss: () -> Unit,
@@ -90,10 +95,11 @@ fun AuthGateSheet(
             Spacer(Modifier.height(Dimension.D800))
 
             val primaryAction = when (reason) {
-                GateReason.FinishingSetup -> onDismiss
-                GateReason.Offline -> onDismiss
-                GateReason.NeedAccount -> onCreateAccount
-                GateReason.NeedClaimedAccount -> onSaveAccount
+                AuthReason.FinishingSetup -> onDismiss
+                AuthReason.Offline -> onDismiss
+                AuthReason.NeedAccount -> onCreateAccount
+                AuthReason.NeedClaimedAccount -> onSaveAccount
+                AuthReason.SessionExpired -> onCreateAccount
             }
             ButtonPrimary(
                 onClick = primaryAction,
@@ -104,7 +110,7 @@ fun AuthGateSheet(
 
             // "Wait a moment" / "you're offline" have no secondary path — their
             // single "Got it" already dismisses.
-            if (reason != GateReason.FinishingSetup && reason != GateReason.Offline) {
+            if (reason != AuthReason.FinishingSetup && reason != AuthReason.Offline) {
                 Spacer(Modifier.height(Dimension.D300))
                 Button(
                     onClick = onDismiss,
@@ -126,29 +132,35 @@ private data class GateCopy(
 )
 
 @Composable
-private fun GateReason.rememberCopy(): GateCopy = when (this) {
-    GateReason.FinishingSetup -> GateCopy(
+private fun AuthReason.rememberCopy(): GateCopy = when (this) {
+    AuthReason.FinishingSetup -> GateCopy(
         emoji = "⏳",
         title = stringResource(Res.string.auth_gate_finishing_title),
         body = stringResource(Res.string.auth_gate_finishing_body),
         primaryCta = stringResource(Res.string.auth_gate_finishing_cta),
     )
-    GateReason.NeedAccount -> GateCopy(
+    AuthReason.NeedAccount -> GateCopy(
         emoji = "🪪",
         title = stringResource(Res.string.auth_gate_need_account_title),
         body = stringResource(Res.string.auth_gate_need_account_body),
         primaryCta = stringResource(Res.string.auth_gate_need_account_cta),
     )
-    GateReason.NeedClaimedAccount -> GateCopy(
+    AuthReason.NeedClaimedAccount -> GateCopy(
         emoji = "🔒",
         title = stringResource(Res.string.auth_gate_need_claimed_title),
         body = stringResource(Res.string.auth_gate_need_claimed_body),
         primaryCta = stringResource(Res.string.auth_gate_need_claimed_cta),
     )
-    GateReason.Offline -> GateCopy(
+    AuthReason.Offline -> GateCopy(
         emoji = "📡",
         title = stringResource(Res.string.auth_gate_offline_title),
         body = stringResource(Res.string.auth_gate_offline_body),
         primaryCta = stringResource(Res.string.auth_gate_offline_cta),
+    )
+    AuthReason.SessionExpired -> GateCopy(
+        emoji = "🔑",
+        title = stringResource(Res.string.auth_gate_session_expired_title),
+        body = stringResource(Res.string.auth_gate_session_expired_body),
+        primaryCta = stringResource(Res.string.auth_gate_session_expired_cta),
     )
 }

@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.navigation
 
+import com.dangerfield.cards.libraries.core.AuthReason
+import com.dangerfield.cards.libraries.core.AuthRequirement
 import kotlinx.serialization.Serializable
 
 /**
@@ -13,7 +15,7 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class AuthGateRoute(
-    val reason: GateReason,
+    val reason: AuthReason,
 ) : Route(
     enter = AnimationType.SlideUp,
     exit = AnimationType.SlideDown,

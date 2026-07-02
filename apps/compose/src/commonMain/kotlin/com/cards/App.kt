@@ -50,8 +50,8 @@ import com.dangerfield.cards.libraries.navigation.floatingwindow.FloatingWindowH
 import com.dangerfield.cards.libraries.navigation.floatingwindow.FloatingWindowNavigator
 import com.dangerfield.cards.libraries.navigation.impl.DelegatingRouter
 import com.dangerfield.cards.libraries.navigation.AccessDeniedRoute
+import com.dangerfield.cards.libraries.core.AuthReason
 import com.dangerfield.cards.libraries.navigation.AuthGateRoute
-import com.dangerfield.cards.libraries.navigation.GateReason
 import com.dangerfield.cards.libraries.navigation.SessionExpiredRoute
 import com.dangerfield.cards.libraries.navigation.dialog
 import com.dangerfield.cards.libraries.navigation.serializableType
@@ -456,13 +456,13 @@ private fun AppNavHost(
             // (not in a feature) because its CTAs span onboarding + claim, which
             // the app layer already knows about.
             dialog<AuthGateRoute>(
-                // AuthGateRoute carries a GateReason arg; iOS/Native needs an
+                // AuthGateRoute carries an AuthReason arg; iOS/Native needs an
                 // explicit NavType for it (the base-route types come from the
                 // builder's baseRouteTypeMap).
-                typeMap = mapOf(typeOf<GateReason>() to serializableType<GateReason>()),
+                typeMap = mapOf(typeOf<AuthReason>() to serializableType<AuthReason>()),
             ) { entry, dialogState ->
                 val reason = entry.toRouteOrNull<AuthGateRoute>()?.reason
-                    ?: GateReason.NeedAccount
+                    ?: AuthReason.NeedAccount
                 AuthGateSheet(
                     reason = reason,
                     state = dialogState,
