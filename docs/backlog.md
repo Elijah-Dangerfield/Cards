@@ -904,3 +904,11 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch if revisited:** persist the guest session tokens locally and rehydrate the auth state on cold boot so an account-gated action has a usable identity without a network round-trip.
 
 **Status:** Backlog. Only load-bearing if a future feature needs a confirmed identity offline; solo play already works offline today, so this is latent until then.
+
+---
+
+## Achievements for social/MP engagement + out-of-game actions
+
+**Idea (owner feedback 2026-07-01, Sentry [CARDS-81](https://elijah-dangerfield.sentry.io/issues/CARDS-81), [CARDS-80](https://elijah-dangerfield.sentry.io/issues/CARDS-80)):** Add achievements that reward real-player multiplayer engagement — joining/creating MP rooms with other real people, winning against a full room, staying for a full cycle of players — to pull users toward the social side. Also add achievements for out-of-gameplay actions like sending feedback or reporting a bug, with their own Home-screen celebration since those happen outside a hand. Both are catalog/design asks that extend today's thin achievement set.
+
+**Status:** Backlog. Folds into the "More achievements + early-stage pacing rebalance" pass ([CARDS-1A](https://elijah-dangerfield.sentry.io/issues/CARDS-1A)); pull when the achievement catalog gets a dedicated design pass.
