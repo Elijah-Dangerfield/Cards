@@ -5,14 +5,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -21,6 +19,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.rank_anon_subtitle
+import cards.libraries.resources.generated.resources.rank_axes_note
+import cards.libraries.resources.generated.resources.rank_bullet_bots
+import cards.libraries.resources.generated.resources.rank_bullet_climb
+import cards.libraries.resources.generated.resources.rank_bullet_elo
+import cards.libraries.resources.generated.resources.rank_bullet_floor
+import cards.libraries.resources.generated.resources.rank_claim_body
+import cards.libraries.resources.generated.resources.rank_claim_cta
+import cards.libraries.resources.generated.resources.rank_claim_title
+import cards.libraries.resources.generated.resources.rank_claimed_subtitle
+import cards.libraries.resources.generated.resources.rank_how_it_works_section
+import cards.libraries.resources.generated.resources.rank_title
+import cards.libraries.resources.generated.resources.rank_unranked
+import cards.libraries.resources.generated.resources.rank_where_home
+import cards.libraries.resources.generated.resources.rank_where_lobby
+import cards.libraries.resources.generated.resources.rank_where_profile
+import cards.libraries.resources.generated.resources.rank_where_seen_section
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Surface
@@ -30,6 +46,7 @@ import com.dangerfield.cards.libraries.ui.system.color.RankBadgeGradient
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -42,7 +59,7 @@ fun RankDetailSheet(
     Screen(
         topBar = {
             TopBar(
-                title = "Rank",
+                title = stringResource(Res.string.rank_title),
                 onNavigateBack = onBack,
                 scrollState = scrollState,
             )
@@ -58,7 +75,7 @@ fun RankDetailSheet(
             RankHero(rank = state.rank, isAnonymous = state.isAnonymous)
             Spacer(modifier = Modifier.height(24.dp))
 
-            SectionTitle("How rank works")
+            SectionTitle(stringResource(Res.string.rank_how_it_works_section))
             Spacer(modifier = Modifier.height(8.dp))
             HowRankWorks()
             Spacer(modifier = Modifier.height(24.dp))
@@ -67,7 +84,7 @@ fun RankDetailSheet(
                 ClaimAccountCard(onClick = onClaimAccount)
                 Spacer(modifier = Modifier.height(8.dp))
             } else {
-                SectionTitle("Where you'll see it")
+                SectionTitle(stringResource(Res.string.rank_where_seen_section))
                 Spacer(modifier = Modifier.height(8.dp))
                 WhereYouSeeIt()
                 Spacer(modifier = Modifier.height(8.dp))
@@ -97,13 +114,17 @@ private fun RankHero(rank: Int, isAnonymous: Boolean) {
         }
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = if (rank <= 0) "Unranked" else rank.toString(),
+            text = if (rank <= 0) stringResource(Res.string.rank_unranked) else rank.toString(),
             typography = AppTheme.typography.Heading.H800,
             color = AppTheme.colors.content,
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = if (isAnonymous) "Claim your account to start ranking" else "Multiplayer Elo rating",
+            text = if (isAnonymous) {
+                stringResource(Res.string.rank_anon_subtitle)
+            } else {
+                stringResource(Res.string.rank_claimed_subtitle)
+            },
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.contentSecondary,
         )
@@ -113,13 +134,13 @@ private fun RankHero(rank: Int, isAnonymous: Boolean) {
 @Composable
 private fun HowRankWorks() {
     InfoCard {
-        Bullet("Rank is your Elo skill rating against real opponents")
-        Bullet("Bots don't change your rank — only multiplayer hands do")
-        Bullet("Win against stronger players to climb faster")
-        Bullet("Rank can't drop below 800 — no need to dread a bad night")
+        Bullet(stringResource(Res.string.rank_bullet_elo))
+        Bullet(stringResource(Res.string.rank_bullet_bots))
+        Bullet(stringResource(Res.string.rank_bullet_climb))
+        Bullet(stringResource(Res.string.rank_bullet_floor))
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Three separate axes — chips, rank, XP — so a rough session never wipes your sense of progress.",
+            text = stringResource(Res.string.rank_axes_note),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.contentSecondary,
         )
@@ -129,9 +150,9 @@ private fun HowRankWorks() {
 @Composable
 private fun WhereYouSeeIt() {
     InfoCard {
-        Bullet("Top of the home screen, next to your XP and chips")
-        Bullet("On the profile screen under \"Account\"")
-        Bullet("In multiplayer lobbies, next to your handle")
+        Bullet(stringResource(Res.string.rank_where_home))
+        Bullet(stringResource(Res.string.rank_where_profile))
+        Bullet(stringResource(Res.string.rank_where_lobby))
     }
 }
 
@@ -148,12 +169,12 @@ private fun ClaimAccountCard(onClick: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "Play with real opponents",
+                text = stringResource(Res.string.rank_claim_title),
                 typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.content,
             )
             Text(
-                text = "Sign in with Apple or Google to unlock multiplayer, earn a real rank, and save your chips across devices. Your XP and progress carry over.",
+                text = stringResource(Res.string.rank_claim_body),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.content,
             )
@@ -167,43 +188,12 @@ private fun ClaimAccountCard(onClick: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "Claim your account",
+                    text = stringResource(Res.string.rank_claim_cta),
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.content,
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun InfoCard(content: @Composable () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surfaceRaised.color)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        content()
-    }
-}
-
-@Composable
-private fun Bullet(text: String) {
-    Row(verticalAlignment = Alignment.Top) {
-        Text(
-            text = "·",
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.contentSecondary,
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = text,
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.content,
-        )
     }
 }
 
