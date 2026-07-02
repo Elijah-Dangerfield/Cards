@@ -362,6 +362,9 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         assertEquals(false, vm.state.canSubmit, "canSubmit must be false when passwords don't match")
         vm.takeAction(ClaimAccountAction.Submit)
         assertEquals(0, identity.linkEmailCalls)
+        // Mismatch is surfaced by the inline `passwordMismatch` helper + a disabled
+        // button, not a VM error — Submit short-circuits without setting one.
+        assertNull(vm.state.error)
     }
 
     @Test

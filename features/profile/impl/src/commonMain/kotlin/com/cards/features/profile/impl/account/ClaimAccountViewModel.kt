@@ -74,11 +74,10 @@ class ClaimAccountViewModel(
 
             is ClaimAccountAction.Submit -> action.run {
                 val current = state
+                // `canSubmit` already requires the passwords to match, so there's
+                // no separate mismatch branch here — the confirm field shows an
+                // inline helper and the button stays disabled until they line up.
                 if (!current.canSubmit) return@run
-                if (current.password != current.confirmPassword) {
-                    updateState { it.copy(error = ClaimAccountError.PasswordsDontMatch) }
-                    return@run
-                }
                 updateState { it.copy(isSubmitting = true, error = null) }
                 handleLinkEmail(current.email.trim(), current.password)
             }
@@ -342,8 +341,6 @@ sealed interface ClaimAccountEvent {
  * resource format params stay typed end-to-end.
  */
 sealed interface ClaimAccountError {
-    /** Local guard — confirm-password field doesn't match. */
-    data object PasswordsDontMatch : ClaimAccountError
     /** OAuth link rejected because the provider is already on another account. */
     data object AlreadyOnAnotherAccount : ClaimAccountError
     /** OAuth link requires a signed-in session. */
