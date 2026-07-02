@@ -185,6 +185,25 @@ data class PlayPokerState(
     val realChipsAtStake: Boolean
         get() = isRealMultiplayer ||
             (table as? TableUiState.Active)?.subsidizedBotTable == true
+
+    /**
+     * Whether backing out to Home must prompt a leave/forfeit confirmation
+     * rather than leaving silently. True when a hand is live (there's progress
+     * to lose) OR this is a real-money multiplayer seat — including when the
+     * table is stuck or degraded and never projected to [TableUiState.Active],
+     * because a silent back-out there can strand real chips at the seat
+     * (MP-31). A free practice-bot table with no live hand still leaves without
+     * a prompt. [isRealMultiplayer] can't be used here: it requires an Active
+     * projection and so reads false in exactly the degraded case we must catch.
+     */
+    val requiresLeaveConfirmation: Boolean
+        get() {
+            val active = table as? TableUiState.Active
+            val handInProgress = active != null && active.handResult == null
+            val realMoneySeat = xpMode == XpMode.MULTIPLAYER &&
+                active?.practiceTierBotsOnly != true
+            return handInProgress || realMoneySeat
+        }
 }
 
 sealed interface PlayPokerAction {

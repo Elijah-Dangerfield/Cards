@@ -46,4 +46,41 @@ class PlayPokerStateTest {
         val state = PlayPokerState(table = TableUiState.Loading, xpMode = XpMode.MULTIPLAYER)
         assertFalse(state.isRealMultiplayer, "no Active table yet → not yet real-MP")
     }
+
+    // MP-31: backing out of a real-money MP seat must confirm even when the
+    // table is stuck/degraded and never projected to Active. The old gate keyed
+    // only on a live hand, so a degraded MP table (no Active projection) let the
+    // player silently back out into a weird state.
+    @Test
+    fun requiresLeaveConfirmation_trueForDegradedRealMpSeat() {
+        val state = PlayPokerState(table = TableUiState.Loading, xpMode = XpMode.MULTIPLAYER)
+        assertTrue(
+            state.requiresLeaveConfirmation,
+            "a stuck/degraded MP seat must still confirm the leave (MP-31)",
+        )
+    }
+
+    @Test
+    fun requiresLeaveConfirmation_falseForDegradedSoloTable() {
+        val state = PlayPokerState(table = TableUiState.Loading, xpMode = XpMode.BOTS)
+        assertFalse(
+            state.requiresLeaveConfirmation,
+            "a solo table with nothing projected has nothing to lose — leave silently",
+        )
+    }
+
+    @Test
+    fun requiresLeaveConfirmation_trueForRealMpTable() {
+        val state = PlayPokerState(table = table(practiceTierBotsOnly = false), xpMode = XpMode.MULTIPLAYER)
+        assertTrue(state.requiresLeaveConfirmation, "real-money MP seat always confirms")
+    }
+
+    @Test
+    fun requiresLeaveConfirmation_trueForSoloLiveHand() {
+        val state = PlayPokerState(table = table(practiceTierBotsOnly = false), xpMode = XpMode.BOTS)
+        assertTrue(
+            state.requiresLeaveConfirmation,
+            "a live hand always confirms, even solo — leaving costs the hand",
+        )
+    }
 }
