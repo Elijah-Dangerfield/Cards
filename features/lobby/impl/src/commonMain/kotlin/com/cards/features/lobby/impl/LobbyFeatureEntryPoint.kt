@@ -24,6 +24,7 @@ import com.dangerfield.cards.libraries.navigation.routeDeepLink
 import com.dangerfield.cards.libraries.navigation.screen
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarDuration
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -180,7 +181,7 @@ class LobbyFeatureEntryPoint(
      * stale catalog after an owned purchase) falls back to a prettified id +
      * generic glyph rather than dropping the owned option.
      */
-    private fun ownedTableCosmetics(): kotlinx.coroutines.flow.Flow<OwnedTableCosmetics> = combine(
+    private fun ownedTableCosmetics(): Flow<OwnedTableCosmetics> = combine(
         inventoryRepository.observeInventory(),
         productsRepository.observeCatalog(),
         equipmentRepository.observeEquipped(),

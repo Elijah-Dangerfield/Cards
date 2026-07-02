@@ -40,6 +40,7 @@ import cards.libraries.resources.generated.resources.private_create_open_note
 import cards.libraries.resources.generated.resources.private_create_room_name_label
 import cards.libraries.resources.generated.resources.private_create_rules_label
 import cards.libraries.resources.generated.resources.private_create_title
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
@@ -53,11 +54,13 @@ import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
 import com.dangerfield.cards.libraries.ui.components.room.RoomHeader
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
+import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.color.ProvideContentColor
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * A single selectable cosmetic in the create-room felt / card-back picker.
@@ -71,14 +74,12 @@ data class CosmeticChoice(
 )
 
 /**
- * Private "Create a room" screen (SPEC §6) — set the room name, table rules,
- * and max players, then create. Always invite-only; there's no public-room
- * creation.
+ * Private "Create a room" screen (SPEC §6) — pick the buy-in (blinds scale off
+ * it), max players, open-to-anyone, and the table cosmetics, then create.
  *
- * The rule selectors are presentational for now — "Create room" funnels into
- * the existing seated lobby ([LobbyRoute] with `autoCreate`), which owns room
- * creation. Plumbing custom stakes/stack into room creation is backend work
- * out of scope for this pass.
+ * [onCreate] hands those settings to the seated lobby ([LobbyRoute] with
+ * `autoCreate`), which owns the actual room creation and forwards each setting
+ * to the server. The Open toggle chooses invite-only vs. open matchmaking.
  */
 @Composable
 fun PrivateCreateScreen(
@@ -267,7 +268,7 @@ private fun BuyInRow(
             ChipCoin(size = 14.dp)
             Spacer(Modifier.size(Dimension.D200))
             Text(
-                text = formatChips(buyIn),
+                text = formatThousands(buyIn),
                 typography = AppTheme.typography.Label.L500,
                 color = AppTheme.colors.content,
             )
@@ -289,17 +290,6 @@ private fun roundBuyIn(raw: Long, maxBuyIn: Long): Long {
     val step = 50L
     val rounded = ((raw + step / 2) / step) * step
     return rounded.coerceIn(RoomSettings.MIN_BUY_IN, maxBuyIn.coerceAtLeast(RoomSettings.MIN_BUY_IN))
-}
-
-/** Group a non-negative chip count with thousands separators. */
-private fun formatChips(value: Long): String {
-    val s = value.toString()
-    return buildString {
-        for (i in s.indices) {
-            if (i > 0 && (s.length - i) % 3 == 0) append(',')
-            append(s[i])
-        }
-    }
 }
 
 @Composable
@@ -414,8 +404,8 @@ private fun MaxPlayersRow(value: Int, onDecrement: () -> Unit, onIncrement: () -
 @Composable
 private fun StepperButton(
     glyph: String,
-    background: com.dangerfield.cards.libraries.ui.system.color.ColorResource,
-    foreground: com.dangerfield.cards.libraries.ui.system.color.ColorResource,
+    background: ColorResource,
+    foreground: ColorResource,
     onClick: () -> Unit,
 ) {
     Box(
@@ -445,7 +435,7 @@ private fun RuleDivider() {
     )
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PrivateCreateScreenPreview() {
     PreviewContent {
