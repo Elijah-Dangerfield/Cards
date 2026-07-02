@@ -1073,7 +1073,7 @@ private fun previewSettings(isAnonymous: Boolean) = ProfileSettings(
     isFoundingMember = !isAnonymous,
 )
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview(heightDp = 2000)
 @Composable
 private fun ProfileScreenPreview() {
     val now = kotlin.time.Clock.System.now().toEpochMilliseconds()

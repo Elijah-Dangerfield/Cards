@@ -20,18 +20,26 @@ These are stable for this repo — don't rediscover them every run, but reconfir
 
 ## What counts as "feedback"
 
-In-app feedback is captured as a Sentry event whose message is exactly **`User feedback`** or **`Bug report`** (see `AppTelemetry.captureUserFeedback` — a `captureMessage` carrier event with the user's comment attached, tagged `feedback_type`). The user's typed comment and email ride on the event's User Feedback / comment.
+Each in-app report surfaces in Sentry as **two paired issues** — you need both:
+
+- a **carrier** error event whose message is exactly **`User feedback`** or **`Bug report`** (see `AppTelemetry.captureUserFeedback` — a `captureMessage` tagged `feedback_event`). It carries the **tags** (`session_id`, `room_code`, `install_id`, `seat_index`, …), **breadcrumbs**, and **attachments** — but **not** the typed comment.
+- a **feedback twin** (`issue.category:feedback`, titled `User Feedback: <AI summary>`) whose `message` field **is** the verbatim comment, alongside `contact_email` and `ai_categorization.labels`. It points back to its carrier through the **`associated_event_id`** tag (= the carrier's event id); the two share a `feedback_event` id and fire at the same timestamp.
+
+The twin tells you *what the user said*; the carrier tells you *the session context*. Don't expect the comment on the carrier — it isn't there.
 
 ## Procedure
 
 ### 1. List unresolved feedback
 
-`search_issues` does **not** support boolean `OR`, so run two queries and union the results:
+`search_issues` does **not** support boolean `OR`, so run three queries and union the results — two for the **carriers**, one for the comment-bearing **twins**:
 
 ```
 search_issues(organizationSlug='elijah-dangerfield', projectSlugOrId='cards', query='is:unresolved message:"User feedback"', sort='new')
 search_issues(organizationSlug='elijah-dangerfield', projectSlugOrId='cards', query='is:unresolved message:"Bug report"', sort='new')
+search_issues(organizationSlug='elijah-dangerfield', projectSlugOrId='cards', query='is:unresolved issue.category:feedback', sort='new')
 ```
+
+**Pair each carrier to its twin** by matching the twin's `associated_event_id` tag to the carrier's event id (they also share a timestamp, so a timestamp/shortId sort lines them up). Handle each carrier+twin as one report, resolving **both** issues at the end. A twin whose carrier isn't in today's carrier list is a **leftover** — its carrier was handled in a prior run (the carrier query catches carriers, the feedback query catches twins, and a fixed-directly or already-resolved carrier leaves its twin behind). Resolve leftovers no-action, pointing at the already-logged carrier.
 
 Cross-check each candidate's event id against `docs/agent/feedback-log.md`; **skip anything already logged.** If nothing new, write "no new feedback" to the run summary and stop.
 
@@ -39,9 +47,9 @@ Each feedback report is its own issue: the carrier event is fingerprinted per-fe
 
 ### 2. Pull the report + its identifiers
 
-For each new feedback issue, `get_issue_details` (and `get_sentry_resource` with `resourceType='breadcrumbs'` on the event). Extract:
+Read **both** paired issues. When fetching with `get_sentry_resource`, **pass the full issue `url=`** (e.g. `https://elijah-dangerfield.sentry.io/issues/CARDS-7K/`) — a bare `resourceId` errors ("Either `url` or `resourceType` must be provided"); to use `resourceId` you must also pass `resourceType` (e.g. `resourceType='issue'`, or `'breadcrumbs'` for the carrier's trail). Extract:
 
-- The user's **comment** (and `error_code` for bug reports), email, username.
+- The user's **comment** — the twin's `message` field, **not** the carrier (the carrier has no comment) — plus `contact_email`, `ai_categorization.labels`, and `error_code` for bug reports.
 - **`session_id`** tag, `install_id`, `user.id`, `route`, `environment`, `release`, and the event **timestamp** (this anchors the backend time window).
 - MP scope tags when present: **`room_code`**, **`seat_index`**, **`hand_number`**, **`opponent_user_ids`** (comma-joined). These are stamped by `RemotePokerSessionFactory` whenever the reporter is in an MP game — absent = report filed outside MP, so skip MP-specific recovery in step 4.
 - **Attachments** on the carrier event: `session-log.txt` (always, when the ring buffer had anything), `client-state.json` (MP only — the latest `GameState` at submit time). Pull both via the Sentry attachments API. The log buffer now includes inbound WS frames (`recv game_state …`, `recv ActionTaken …`, `apply StateSnapshot …`) — read it for what the client was actually told, not just what it did.
@@ -123,6 +131,8 @@ Then pick a disposition:
   **Acceptance:** one sentence: how we know it's fixed.
   **Hints:** the file/route/span that points at the cause; case `docs/agent/feedback-cases/<event_id>.md`; Sentry issue URL.
 ```
+
+**Assigning the item ID:** `docs/todo.md` is often reset to empty by the nightly todo-maintainer, and IDs are **never reused** — so don't infer the next number from the open list. Grep the whole `docs/` tree for the current max per prefix and take the next integer above it: `grep -rhoE '\b(PROG|AUTH|GAME|SHOP|SOC|ROOM|MP|ENG|BILL)-[0-9]+' docs/ | sort | tail`.
 
 Priority guide: crash / data-loss / blocks core MP → `[P0]`; real broken behavior → `[P1]`; polish / rare edge → `[P2]`. If the work is large or needs a product call, put a one-liner in `docs/backlog.md` instead and reference both the case file and Sentry issue. **Owner change-requests** (classified in step 2) skip the case file — they're directives, not investigations — and land straight in `docs/todo.md` (or backlog); priority by impact, default `[P2]` for a pure preference tweak.
 

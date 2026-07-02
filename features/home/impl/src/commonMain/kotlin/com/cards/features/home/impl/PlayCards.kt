@@ -166,7 +166,7 @@ private fun EmojiTile(emoji: String, background: Color, shape: Shape, size: Dp =
         modifier = Modifier.size(size).clip(shape).background(background),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = emoji, typography = AppTheme.typography.Heading.H800)
+        Text(text = emoji, typography = AppTheme.typography.Heading.H900)
     }
 }
 
