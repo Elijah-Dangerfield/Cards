@@ -67,15 +67,22 @@ class SingleWriterGuard private constructor(private val connection: Connection) 
          * Opens its own connection rather than borrowing from the Hikari pool: a
          * session advisory lock is bound to its backing connection, and a pooled
          * connection would be handed to unrelated queries while still holding it.
+         *
+         * [acquireTimeoutMs] / [retryIntervalMs] default to the production
+         * budget; tests override them to exercise the contention path quickly.
          */
-        fun acquire(config: DatabaseConfig): SingleWriterGuard {
+        fun acquire(
+            config: DatabaseConfig,
+            acquireTimeoutMs: Long = ACQUIRE_TIMEOUT_MS,
+            retryIntervalMs: Long = RETRY_INTERVAL_MS,
+        ): SingleWriterGuard {
             val connection = DriverManager.getConnection(
                 config.jdbcUrl,
                 config.username,
                 config.password,
             ).apply { autoCommit = true }
 
-            val deadline = System.currentTimeMillis() + ACQUIRE_TIMEOUT_MS
+            val deadline = System.currentTimeMillis() + acquireTimeoutMs
             var attempt = 0
             while (true) {
                 if (tryLock(connection)) {
@@ -97,7 +104,7 @@ class SingleWriterGuard private constructor(private val connection: Connection) 
                     "Single-writer lock held by another instance; retrying (attempt {})…",
                     attempt,
                 )
-                Thread.sleep(RETRY_INTERVAL_MS)
+                Thread.sleep(retryIntervalMs)
             }
         }
 
