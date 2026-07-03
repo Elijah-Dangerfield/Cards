@@ -1,7 +1,5 @@
 package com.dangerfield.cards.features.room.impl.session
 
-import com.dangerfield.cards.features.room.impl.TableUiState
-
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.game.ConnectionState
@@ -265,15 +263,15 @@ internal class RemotePokerSession(
                     .filter { !it.isBot }
                     .associate { it.userId to it.displayName }
                 val iAmStillSeated = humans.containsKey(localUserId)
-                val previous = previousHumans
-                if (previous != null && iAmStillSeated) {
-                    val departed = previous.keys - humans.keys
-                    if (!opponentsAlreadyLeft && previous.size >= 2 && humans.size <= 1) {
+                val priorHumans = previousHumans
+                if (priorHumans != null && iAmStillSeated) {
+                    val departed = priorHumans.keys - humans.keys
+                    if (!opponentsAlreadyLeft && priorHumans.size >= 2 && humans.size <= 1) {
                         opponentsAlreadyLeft = true
                         _opponentsLeft.tryEmit(Unit)
                     } else {
                         departed.forEach { id ->
-                            previous[id]?.let { name -> _opponentLeft.tryEmit(name) }
+                            priorHumans[id]?.let { name -> _opponentLeft.tryEmit(name) }
                         }
                     }
                 }

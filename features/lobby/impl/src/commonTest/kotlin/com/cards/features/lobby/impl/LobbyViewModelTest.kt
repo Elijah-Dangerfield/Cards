@@ -22,6 +22,7 @@ import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import com.dangerfield.cards.libraries.rooms.AddBotOutcome
 import com.dangerfield.cards.libraries.rooms.ClientFrame
+import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.RemoveBotOutcome
@@ -43,6 +44,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.job
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -1011,7 +1013,103 @@ class LobbyViewModelTest : CoroutineTest() {
         }
     }
 
+    // ---------- ConnectionUpdated: socket-close reasons map to lobby errors ----------
+
+    @Test
+    fun connectionUpdated_closedRoomDeleted_clearsRoom_andSurfacesRoomWasClosed() = runUnitTest {
+        val vm = seededInRoomVm()
+
+        vm.takeAction(LobbyAction.ConnectionUpdated(RoomConnection.Closed(ClosedReason.RoomDeleted)))
+        runCurrent()
+
+        assertNull(vm.state.room, "a deleted room clears the lobby")
+        assertEquals(LobbyError.RoomWasClosed, vm.state.error)
+        assertEquals(ConnectionStatus.Disconnected, vm.state.connectionStatus)
+    }
+
+    @Test
+    fun connectionUpdated_closedRejected_clearsRoom_andSurfacesConnectRejected() = runUnitTest {
+        val vm = seededInRoomVm()
+
+        vm.takeAction(LobbyAction.ConnectionUpdated(RoomConnection.Closed(ClosedReason.Rejected)))
+        runCurrent()
+
+        assertNull(vm.state.room)
+        assertEquals(LobbyError.ConnectRejected, vm.state.error)
+        assertEquals(ConnectionStatus.Disconnected, vm.state.connectionStatus)
+    }
+
+    @Test
+    fun connectionUpdated_closedIncompatibleVersion_clearsRoom_asIfGone() = runUnitTest {
+        // ENG-7: a frame this build can't parse makes the room unusable, so it's
+        // closed out like the room being gone rather than left spinning.
+        val vm = seededInRoomVm()
+
+        vm.takeAction(LobbyAction.ConnectionUpdated(RoomConnection.Closed(ClosedReason.IncompatibleVersion)))
+        runCurrent()
+
+        assertNull(vm.state.room)
+        assertEquals(LobbyError.RoomWasClosed, vm.state.error)
+    }
+
+    @Test
+    fun connectionUpdated_closedReconnectFailed_keepsRoom_butSurfacesConnectionLost() = runUnitTest {
+        // Reconnect exhaustion is recoverable-by-rejoin: keep the room on screen
+        // (so the user can retry the leave/rejoin flow) but flag the lost link.
+        val vm = seededInRoomVm()
+
+        vm.takeAction(LobbyAction.ConnectionUpdated(RoomConnection.Closed(ClosedReason.ReconnectFailed)))
+        runCurrent()
+
+        assertEquals(LobbyError.ConnectionLost, vm.state.error)
+        assertEquals(ConnectionStatus.Disconnected, vm.state.connectionStatus)
+        assertTrue(vm.state.isInRoom, "a reconnect failure keeps the room so the user can rejoin")
+    }
+
+    @Test
+    fun leave_networkError_returnsToIdle_butFlagsServerNotNotified() = runUnitTest {
+        // The seat-drop POST never reached the server. We still tear the lobby
+        // down (the user asked to leave), but surface that the server may not
+        // know, so a lingering seat is explainable rather than silent.
+        val room = sampleRoom()
+        val rooms = FakeRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(room),
+            leaveOutcome = LeaveRoomOutcome.NetworkError(RuntimeException("offline")),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.room == null) last = awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        vm.takeAction(LobbyAction.Leave)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.room != null) last = awaitItem()
+            assertEquals(LobbyError.LeaveServerNotNotified, last.error)
+            assertEquals(ConnectionStatus.Disconnected, last.connectionStatus)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     // ---------- scaffolding ----------
+
+    /** A VM already in a room via a Connected snapshot, ready to drive a socket close against. */
+    private fun TestScope.seededInRoomVm(): LobbyViewModel {
+        val vm = buildVm()
+        vm.takeAction(
+            LobbyAction.ConnectionUpdated(
+                RoomConnection.Connected(
+                    roomOf(members = listOf(member(LOCAL_USER, "You", isConnected = true))),
+                ),
+            ),
+        )
+        runCurrent()
+        assertTrue(vm.state.isInRoom, "precondition: seeded into a room")
+        return vm
+    }
 
     private fun buildVm(
         rooms: RoomRepository = FakeRoomRepository(),

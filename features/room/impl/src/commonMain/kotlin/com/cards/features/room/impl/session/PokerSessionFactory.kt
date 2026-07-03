@@ -1,7 +1,6 @@
 package com.dangerfield.cards.features.room.impl.session
 
 import com.dangerfield.cards.features.room.impl.TableUiState
-import com.dangerfield.cards.features.room.impl.ui.label
 
 import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
 import com.dangerfield.cards.libraries.cards.GameSpeed

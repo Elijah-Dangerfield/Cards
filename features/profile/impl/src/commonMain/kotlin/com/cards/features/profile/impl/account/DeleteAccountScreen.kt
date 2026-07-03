@@ -33,6 +33,7 @@ import cards.libraries.resources.generated.resources.profile_delete_submit_butto
 import cards.libraries.resources.generated.resources.profile_delete_submit_button_progress
 import cards.libraries.resources.generated.resources.profile_delete_subtitle
 import cards.libraries.resources.generated.resources.profile_delete_title
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.button.ButtonDanger
@@ -181,7 +182,7 @@ fun DeleteAccountScreen(
 @Preview
 @Composable
 private fun DeleteAccountScreenPreview_Empty() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         DeleteAccountScreen(state = DeleteAccountState(), onAction = {}, onBack = {})
     }
 }
@@ -189,7 +190,7 @@ private fun DeleteAccountScreenPreview_Empty() {
 @Preview
 @Composable
 private fun DeleteAccountScreenPreview_Confirmed() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         DeleteAccountScreen(
             state = DeleteAccountState(confirmationInput = "delete"),
             onAction = {},
@@ -201,7 +202,7 @@ private fun DeleteAccountScreenPreview_Confirmed() {
 @Preview
 @Composable
 private fun DeleteAccountScreenPreview_Error() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         DeleteAccountScreen(
             state = DeleteAccountState(
                 confirmationInput = "delete",
@@ -216,7 +217,7 @@ private fun DeleteAccountScreenPreview_Error() {
 @Preview
 @Composable
 private fun DeleteAccountScreenPreview_Submitting() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         DeleteAccountScreen(
             state = DeleteAccountState(
                 confirmationInput = "delete",

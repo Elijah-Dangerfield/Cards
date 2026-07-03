@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,6 +30,7 @@ import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.lobby_connection_connected
@@ -53,7 +55,6 @@ import cards.libraries.resources.generated.resources.lobby_error_join_not_signed
 import cards.libraries.resources.generated.resources.lobby_error_join_unknown
 import cards.libraries.resources.generated.resources.lobby_error_leave_server_not_notified
 import cards.libraries.resources.generated.resources.lobby_error_room_was_closed
-import cards.libraries.resources.generated.resources.lobby_error_start_coming_soon
 import cards.libraries.resources.generated.resources.lobby_in_room_buyin_label
 import cards.libraries.resources.generated.resources.lobby_in_room_code_label
 import cards.libraries.resources.generated.resources.lobby_in_room_copy_button
@@ -77,11 +78,16 @@ import cards.libraries.resources.generated.resources.lobby_setting_up
 import cards.libraries.resources.generated.resources.lobby_topbar_title_idle
 import cards.libraries.resources.generated.resources.lobby_topbar_title_in_room
 import com.dangerfield.cards.features.lobby.RoomInvite
+import com.dangerfield.cards.libraries.cards.formatThousands
+import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomMember
+import com.dangerfield.cards.libraries.rooms.RoomStatus
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.CircularProgressIndicator
 import com.dangerfield.cards.libraries.ui.components.NonLazyVerticalGrid
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.button.ButtonDanger
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
@@ -98,6 +104,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Multiplayer lobby. Two-mode layout:
@@ -230,7 +237,7 @@ private fun LoadingContent() {
 @Composable
 private fun CreateErrorContent(
     error: LobbyError,
-    padding: androidx.compose.foundation.layout.PaddingValues,
+    padding: PaddingValues,
     onRetry: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -246,14 +253,14 @@ private fun CreateErrorContent(
             text = stringResource(Res.string.lobby_create_error_title),
             typography = AppTheme.typography.Heading.H800,
             color = AppTheme.colors.content,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(Dimension.D400))
         Text(
             text = error.message(),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.contentSecondary,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.weight(2f))
         ButtonPrimary(
@@ -312,7 +319,7 @@ private fun InRoomContent(
             text = room.code,
             typography = AppTheme.typography.Display.D1000.Italic,
             color = AppTheme.colors.accentPrimary,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(Dimension.D400))
         // Share opens the platform share sheet with a join deep link
@@ -412,7 +419,7 @@ private fun InRoomContent(
         )
         StakeCard(
             label = stringResource(Res.string.lobby_in_room_buyin_label),
-            value = formatChips(room.buyIn),
+            value = formatThousands(room.buyIn),
             showCoin = false,
             modifier = Modifier.weight(1f),
         )
@@ -427,7 +434,7 @@ private fun InRoomContent(
             text = stringResource(Res.string.lobby_in_room_auto_deal_hint),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.contentSecondary,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(modifier = Modifier.height(Dimension.D500))
@@ -451,13 +458,13 @@ private fun InRoomContent(
             text = stringResource(Res.string.lobby_in_room_waiting_for_host),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.contentSecondary,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(modifier = Modifier.height(Dimension.D500))
     }
 
-    com.dangerfield.cards.libraries.ui.components.button.ButtonDanger(
+    ButtonDanger(
         onClick = onLeave,
         enabled = !state.leaving,
         style = ButtonStyle.Text,
@@ -490,17 +497,6 @@ private fun RoomMember.toSeatPlayer(state: LobbyState): RoomSeatPlayer {
         // Bots are always "connected" server-side, so they read as Seated.
         status = if (isConnected) RoomSeatStatus.Seated else RoomSeatStatus.Joining,
     )
-}
-
-/** Group a non-negative chip count with thousands separators. */
-private fun formatChips(value: Long): String {
-    val s = value.toString()
-    return buildString {
-        for (i in s.indices) {
-            if (i > 0 && (s.length - i) % 3 == 0) append(',')
-            append(s[i])
-        }
-    }
 }
 
 @Composable
@@ -568,30 +564,30 @@ private fun ConnectionStatusRow(status: ConnectionStatus) {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun LobbyScreenPreview_Idle() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         LobbyScreen(state = LobbyState(), onAction = {}, onBack = {})
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview(widthDp = 800, heightDp = 380)
+@Preview(widthDp = 800, heightDp = 380)
 @Composable
 private fun LobbyScreenPreview_Landscape() {
     // Phone-landscape lens on the most content-rich lobby state (seated room
     // with a member list). Pins it for review before any landscape layout
     // work — the seat list + action buttons compete for a short, wide canvas.
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         LobbyScreen(
             state = LobbyState(
                 currentUserId = "u1",
-                room = com.dangerfield.cards.libraries.rooms.Room(
+                room = Room(
                     code = "ABC123",
                     hostUserId = "u1",
                     createdAtEpochMs = 1_700_000_000_000,
                     maxSeats = 4,
-                    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+                    status = RoomStatus.Lobby,
                     members = listOf(
                         RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
                         RoomMember("u2", "Jane", seatIndex = 1, joinedAtEpochMs = 0, isConnected = true),
@@ -606,27 +602,27 @@ private fun LobbyScreenPreview_Landscape() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun LobbyScreenPreview_Idle_WithCode() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         LobbyScreen(state = LobbyState(codeInput = "ABC123"), onAction = {}, onBack = {})
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun LobbyScreenPreview_InRoom_AsHost_Ready() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         LobbyScreen(
             state = LobbyState(
                 currentUserId = "u1",
-                room = com.dangerfield.cards.libraries.rooms.Room(
+                room = Room(
                     code = "ABC123",
                     hostUserId = "u1",
                     createdAtEpochMs = 1_700_000_000_000,
                     maxSeats = 4,
-                    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+                    status = RoomStatus.Lobby,
                     members = listOf(
                         RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
                         RoomMember("u2", "Jane", seatIndex = 1, joinedAtEpochMs = 0, isConnected = true),
@@ -641,19 +637,19 @@ private fun LobbyScreenPreview_InRoom_AsHost_Ready() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun LobbyScreenPreview_InRoom_AsHost_WaitingForPlayers() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         LobbyScreen(
             state = LobbyState(
                 currentUserId = "u1",
-                room = com.dangerfield.cards.libraries.rooms.Room(
+                room = Room(
                     code = "ABC123",
                     hostUserId = "u1",
                     createdAtEpochMs = 1_700_000_000_000,
                     maxSeats = 4,
-                    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+                    status = RoomStatus.Lobby,
                     members = listOf(
                         RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
                     ),
@@ -666,19 +662,19 @@ private fun LobbyScreenPreview_InRoom_AsHost_WaitingForPlayers() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun LobbyScreenPreview_InRoom_AsGuest() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         LobbyScreen(
             state = LobbyState(
                 currentUserId = "u2",
-                room = com.dangerfield.cards.libraries.rooms.Room(
+                room = Room(
                     code = "ABC123",
                     hostUserId = "u1",
                     createdAtEpochMs = 1_700_000_000_000,
                     maxSeats = 4,
-                    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+                    status = RoomStatus.Lobby,
                     members = listOf(
                         RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
                         RoomMember("u2", "Jane", seatIndex = 1, joinedAtEpochMs = 0, isConnected = true),
@@ -692,18 +688,18 @@ private fun LobbyScreenPreview_InRoom_AsGuest() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun LobbyScreenPreview_InRoom_Reconnecting() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         LobbyScreen(
             state = LobbyState(
-                room = com.dangerfield.cards.libraries.rooms.Room(
+                room = Room(
                     code = "PREFIL",
                     hostUserId = "u1",
                     createdAtEpochMs = 1_700_000_000_000,
                     maxSeats = 6,
-                    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+                    status = RoomStatus.Lobby,
                     members = listOf(
                         RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
                     ),
@@ -716,10 +712,10 @@ private fun LobbyScreenPreview_InRoom_Reconnecting() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun LobbyScreenPreview_Idle_Creating() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         LobbyScreen(
             state = LobbyState(creating = true),
             onAction = {},
@@ -728,10 +724,10 @@ private fun LobbyScreenPreview_Idle_Creating() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun LobbyScreenPreview_Idle_Joining() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         LobbyScreen(
             state = LobbyState(codeInput = "ABC123", joining = true),
             onAction = {},
@@ -740,10 +736,10 @@ private fun LobbyScreenPreview_Idle_Joining() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun LobbyScreenPreview_Idle_Error() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         LobbyScreen(
             state = LobbyState(
                 codeInput = "WXYZ12",
@@ -755,10 +751,10 @@ private fun LobbyScreenPreview_Idle_Error() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun LobbyScreenPreview_CreateError() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         LobbyScreen(
             state = LobbyState(error = LobbyError.CreateNetworkError),
             onAction = {},
@@ -767,20 +763,20 @@ private fun LobbyScreenPreview_CreateError() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun LobbyScreenPreview_InRoom_Leaving() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         LobbyScreen(
             state = LobbyState(
                 currentUserId = "u1",
                 leaving = true,
-                room = com.dangerfield.cards.libraries.rooms.Room(
+                room = Room(
                     code = "ABC123",
                     hostUserId = "u1",
                     createdAtEpochMs = 1_700_000_000_000,
                     maxSeats = 4,
-                    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+                    status = RoomStatus.Lobby,
                     members = listOf(
                         RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
                         RoomMember("u2", "Jane", seatIndex = 1, joinedAtEpochMs = 0, isConnected = true),
@@ -812,6 +808,5 @@ private fun LobbyError.message(): String = when (this) {
     LobbyError.RoomWasClosed -> stringResource(Res.string.lobby_error_room_was_closed)
     LobbyError.ConnectRejected -> stringResource(Res.string.lobby_error_connect_rejected)
     LobbyError.ConnectionLost -> stringResource(Res.string.lobby_error_connection_lost)
-    LobbyError.StartGameComingSoon -> stringResource(Res.string.lobby_error_start_coming_soon)
     LobbyError.BotActionFailed -> stringResource(Res.string.lobby_error_bot_action_failed)
 }

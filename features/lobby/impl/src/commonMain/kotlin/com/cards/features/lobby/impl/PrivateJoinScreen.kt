@@ -41,6 +41,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /** Room codes are 6-char alphanumeric (server [InMemoryRoomService.CODE_LENGTH]). */
 private const val ROOM_CODE_LENGTH = 6
@@ -152,7 +153,7 @@ private fun GridIconTile() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PrivateJoinScreenPreview() {
     PreviewContent {
@@ -160,7 +161,7 @@ private fun PrivateJoinScreenPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PrivateJoinScreenPreview_RoomNotFound() {
     PreviewContent {

@@ -83,6 +83,16 @@
     <string name="shop_personal_cosmetic_hint">Only you see this</string>
     <string name="shop_also_earnable_hint">Also earnable</string>
 
+    <!-- Shop - shelf titles for the chip-offer sections. -->
+    <string name="shop_section_boosts">Boosts</string>
+    <string name="shop_section_card_backs">Card backs</string>
+    <string name="shop_section_felts">Felts</string>
+    <string name="shop_section_tables">Table themes</string>
+    <string name="shop_section_emotes">Emote packs</string>
+    <string name="shop_section_avatars">Avatar packs</string>
+    <string name="shop_section_tools">Tools</string>
+    <string name="shop_section_more">More</string>
+
     <!-- Shop - empty state. -->
     <string name="shop_empty_title">Shop is empty for now</string>
     <string name="shop_empty_subtitle">Might be a bug? New chip packs and cosmetics drop weekly. Check back soon.</string>
@@ -201,7 +211,6 @@
     <string name="lobby_error_room_was_closed">The room was closed.</string>
     <string name="lobby_error_connect_rejected">Couldn't connect. Try rejoining.</string>
     <string name="lobby_error_connection_lost">Lost connection to the room. Try rejoining.</string>
-    <string name="lobby_error_start_coming_soon">Multiplayer gameplay launches with the next update. Invite your friends and stand by.</string>
     <string name="lobby_error_bot_action_failed">Couldn't update the bots. Try again.</string>
 
     <!-- Onboarding - inline error states surfaced by the VM (sealed OnboardingAuthError + OnboardingSaveError → resource). -->
@@ -436,7 +445,6 @@
     <string name="auth_sign_up_error_unknown">Sign up failed. Please try again.</string>
 
     <!-- Claim account - inline error states surfaced by the VM (sealed ClaimAccountError → resource). -->
-    <string name="auth_claim_error_passwords_dont_match">Passwords don't match.</string>
     <string name="auth_claim_error_already_on_another_account">That account is already in use. You can switch to it, but your current guest progress (chips, XP, achievements) won't carry over.</string>
     <string name="auth_claim_error_not_signed_in">Sign in first, then claim your account.</string>
     <string name="auth_claim_error_provider_not_enabled">%1$s sign-in isn't available yet. Please try again later.</string>
@@ -567,6 +575,73 @@
     <string name="stats_play_style_blurb">You wait for strong hands, then bet them hard.</string>
     <string name="stats_play_style_empty_title">Your style is taking shape</string>
     <string name="stats_play_style_empty_blurb">Play at least %1$d hands and we'll map how you play. Tight or loose, aggressive or patient.</string>
+
+    <!-- Stats screen (progression feature). -->
+    <string name="stats_title">Stats</string>
+    <string name="stats_explainers_a11y">Hand info and rankings</string>
+    <string name="stats_section_lifetime">Lifetime</string>
+    <string name="stats_section_recent_xp">Recent XP</string>
+    <string name="stats_hero_level">Level %1$d</string>
+    <!-- %1$s is a pre-formatted XP count ("2,840"). -->
+    <string name="stats_hero_total_xp">%1$s XP</string>
+    <string name="stats_hero_to_next_level">%1$s XP to level %2$d</string>
+    <string name="stats_lifetime_hands_played_label">Hands played</string>
+    <string name="stats_lifetime_hands_won_label">Hands won</string>
+    <string name="stats_lifetime_win_rate_label">Win rate</string>
+    <string name="stats_lifetime_fold_rate_label">Fold rate</string>
+    <string name="stats_lifetime_folds_label">Folds</string>
+    <string name="stats_lifetime_showdown_losses_label">Showdown losses</string>
+    <string name="stats_recent_source_base">Hand finished</string>
+    <string name="stats_recent_source_investment">Chips committed</string>
+    <string name="stats_recent_source_showdown">Reached showdown</string>
+    <string name="stats_recent_source_hand_strength">Hand strength</string>
+    <string name="stats_recent_source_achievement">Achievement unlocked</string>
+    <!-- %1$s is a hand id; %2$s is a mode label (stats_mode_*). -->
+    <string name="stats_recent_hand_subline">Hand #%1$s · %2$s</string>
+    <string name="stats_mode_bots">Bots</string>
+    <string name="stats_mode_multiplayer">Multiplayer</string>
+    <string name="stats_achievements_section">Achievements</string>
+    <string name="stats_achievements_count">%1$d / %2$d</string>
+    <string name="stats_achievements_see_all">See all %1$d achievements</string>
+
+    <!-- Achievements screen (progression feature). -->
+    <string name="achievements_title">Achievements</string>
+    <string name="achievements_earned_count">%1$d of %2$d earned</string>
+    <string name="achievements_locked_label">Locked</string>
+
+    <!-- Rank detail screen (progression feature). -->
+    <string name="rank_title">Rank</string>
+    <string name="rank_unranked">Unranked</string>
+    <string name="rank_anon_subtitle">Claim your account to start ranking</string>
+    <string name="rank_claimed_subtitle">Multiplayer Elo rating</string>
+    <string name="rank_how_it_works_section">How rank works</string>
+    <string name="rank_bullet_elo">Rank is your Elo skill rating against real opponents</string>
+    <string name="rank_bullet_bots">Bots don't change your rank — only multiplayer hands do</string>
+    <string name="rank_bullet_climb">Win against stronger players to climb faster</string>
+    <string name="rank_bullet_floor">Rank can't drop below 800 — no need to dread a bad night</string>
+    <string name="rank_axes_note">Three separate axes — chips, rank, XP — so a rough session never wipes your sense of progress.</string>
+    <string name="rank_where_seen_section">Where you'll see it</string>
+    <string name="rank_where_home">Top of the home screen, next to your XP and chips</string>
+    <string name="rank_where_profile">On the profile screen under "Account"</string>
+    <string name="rank_where_lobby">In multiplayer lobbies, next to your handle</string>
+    <string name="rank_claim_title">Play with real opponents</string>
+    <string name="rank_claim_body">Sign in with Apple or Google to unlock multiplayer, earn a real rank, and save your chips across devices. Your XP and progress carry over.</string>
+    <string name="rank_claim_cta">Claim your account</string>
+
+    <!-- XP explainers sheet (progression feature). -->
+    <string name="stats_explainer_title">How XP works</string>
+    <string name="stats_explainer_earn_section">How you earn XP</string>
+    <string name="stats_explainer_earn_bullet_hand">Finishing a hand — every hand counts, even quick folds</string>
+    <string name="stats_explainer_earn_bullet_invest">Chips you put in the pot — invested hands earn more</string>
+    <string name="stats_explainer_earn_bullet_showdown">Reaching showdown — bonus for sticking around to the end</string>
+    <string name="stats_explainer_earn_bullet_strength">Stronger hands at showdown — bigger reveals, bigger reward</string>
+    <string name="stats_explainer_earn_note">Bot hands earn at half the rate of multiplayer. XP never depends on whether you win or lose — just on how engaged the hand was.</string>
+    <string name="stats_explainer_does_section">What XP does for you</string>
+    <string name="stats_explainer_does_intro">XP is your lifetime engagement score — it never goes down. Every session adds to it whether you stack chips or bust out.</string>
+    <string name="stats_explainer_does_bullet_shop">Unlocks shop items as you climb — titles, emote packs, table felts, utilities, and more</string>
+    <string name="stats_explainer_does_bullet_medals">Earns achievement medallions for milestones — find them in your items</string>
+    <string name="stats_explainer_does_bullet_level">Drives your level pill and seat-level badge across the app</string>
+
     <string name="profile_stats_banner_title">Your stats &amp; style</string>
     <string name="profile_stats_banner_subtitle_style_win">%1$s · %2$d%% win</string>
     <string name="profile_stats_banner_subtitle_pending">Play more hands to build your style</string>

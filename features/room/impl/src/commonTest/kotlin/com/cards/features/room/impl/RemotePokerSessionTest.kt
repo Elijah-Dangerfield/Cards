@@ -940,6 +940,166 @@ class RemotePokerSessionTest : CoroutineTest() {
     }
 
     // ===================================================================
+    // tableCosmetics — host felt / card-back pinned off the room snapshot
+    // ===================================================================
+
+    @Test
+    fun tableCosmetics_pin_fromConnectedSnapshotCarryingOverrides() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle, localUserId = "me")
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+
+        handle.pushConnection(
+            RoomConnection.Connected(
+                sampleRoom(
+                    members = listOf(human("me", "Me", 0)),
+                    feltProductId = "felt-emerald",
+                    cardBackProductId = "back-cobalt",
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals("felt-emerald", session.tableCosmetics.value?.feltProductId)
+        assertEquals("back-cobalt", session.tableCosmetics.value?.cardBackProductId)
+        runJob.cancel()
+    }
+
+    @Test
+    fun tableCosmetics_neverRegressToNull_whenLaterSnapshotOmitsThem() = runUnitTest {
+        // A placeholder presence frame (member-list convergence) delivers the
+        // cosmetics as null. Once pinned, an override must survive it rather
+        // than regressing the table back to "use your own look."
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle, localUserId = "me")
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+
+        handle.pushConnection(
+            RoomConnection.Connected(
+                sampleRoom(
+                    members = listOf(human("me", "Me", 0)),
+                    feltProductId = "felt-emerald",
+                    cardBackProductId = "back-cobalt",
+                ),
+            ),
+        )
+        advanceUntilIdle()
+        handle.pushConnection(
+            RoomConnection.Connected(sampleRoom(members = listOf(human("me", "Me", 0)))),
+        )
+        advanceUntilIdle()
+
+        assertEquals("felt-emerald", session.tableCosmetics.value?.feltProductId)
+        assertEquals("back-cobalt", session.tableCosmetics.value?.cardBackProductId)
+        runJob.cancel()
+    }
+
+    // ===================================================================
+    // nextHandCountdown — between-hands auto-advance beat
+    // ===================================================================
+
+    @Test
+    fun nextHandCountdown_setOnPending_clearedOnCleared() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle, localUserId = "me")
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+
+        handle.pushFrame(GameplayFrame.NextHandPending(deadlineEpochMs = 1234L))
+        advanceUntilIdle()
+        assertEquals(1234L, session.nextHandCountdown.value?.deadlineEpochMs)
+
+        handle.pushFrame(GameplayFrame.NextHandCleared)
+        advanceUntilIdle()
+        assertEquals(null, session.nextHandCountdown.value)
+        runJob.cancel()
+    }
+
+    @Test
+    fun nextHandCountdown_clearedWhenNextLiveHandSnapshotLands() = runUnitTest {
+        // Belt-and-suspenders alongside the server's NextHandCleared: a snapshot
+        // for a live (in-progress) hand means the next hand dealt, so any lingering
+        // countdown must clear even if the explicit clear frame raced or dropped.
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle, localUserId = "local-user")
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+
+        handle.pushFrame(GameplayFrame.NextHandPending(deadlineEpochMs = 1234L))
+        advanceUntilIdle()
+        assertEquals(1234L, session.nextHandCountdown.value?.deadlineEpochMs)
+
+        handle.pushFrame(GameplayFrame.StateSnapshot(sampleGameStateWithSeats(handNumber = 2)))
+        advanceUntilIdle()
+
+        assertEquals(null, session.nextHandCountdown.value)
+        runJob.cancel()
+    }
+
+    // ===================================================================
+    // onHandEnded — MP progression hook (PROG-4)
+    // ===================================================================
+
+    @Test
+    fun onHandEnded_fires_withEndOfHandStateAndHandStartStack() = runUnitTest {
+        // The VM's XP / player-stat / celebration path only runs through this
+        // callback; the session must fire it off the wire HandEnded, handing over
+        // the resolved end-of-hand state and the human's stack as of hand start.
+        val calls = mutableListOf<Triple<GameEvent.HandEnded, GameState, Long>>()
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(
+            handle,
+            localUserId = "local-user",
+            onHandEnded = { event, state, startStack -> calls += Triple(event, state, startStack) },
+        )
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+
+        // Seed hand-start so the session captures the human's starting stack (100).
+        handle.pushFrame(GameplayFrame.StateSnapshot(sampleGameStateWithSeats(handNumber = 1)))
+        advanceUntilIdle()
+
+        val handEnded = GameEvent.HandEnded(
+            sequence = 9L,
+            winners = emptyList(),
+            board = emptyList(),
+            revealedHoleCards = emptyMap(),
+        )
+        handle.pushFrame(GameplayFrame.Event(seq = 9L, event = handEnded))
+        advanceUntilIdle()
+
+        assertEquals(1, calls.size)
+        assertEquals(handEnded, calls.single().first)
+        assertEquals(2, calls.single().second.seats.size, "end-of-hand state carries the seated players")
+        assertEquals(100L, calls.single().third, "hand-start stack is captured from the seeding snapshot")
+        runJob.cancel()
+    }
+
+    // ===================================================================
+    // leave — durable room-leave + synchronous cash-out balance (MP-29)
+    // ===================================================================
+
+    @Test
+    fun leave_returnsSettledBalance_fromOnLeave() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle, onLeave = { 4200L })
+
+        assertEquals(4200L, session.leave())
+    }
+
+    @Test
+    fun leave_returnsNull_whenOnLeaveFails() = runUnitTest {
+        // Best-effort: a leave-send failure must never propagate — the caller
+        // falls back to a wallet sync — so leave() swallows it and reports null.
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle, onLeave = { throw RuntimeException("send failed") })
+
+        assertEquals(null, session.leave())
+    }
+
+    // ===================================================================
     // Scaffolding
     // ===================================================================
 
@@ -980,6 +1140,8 @@ class RemotePokerSessionTest : CoroutineTest() {
 
     private fun sampleRoom(
         members: List<com.dangerfield.cards.libraries.rooms.RoomMember> = emptyList(),
+        feltProductId: String? = null,
+        cardBackProductId: String? = null,
     ): com.dangerfield.cards.libraries.rooms.Room =
         com.dangerfield.cards.libraries.rooms.Room(
             code = "ABC123",
@@ -988,6 +1150,8 @@ class RemotePokerSessionTest : CoroutineTest() {
             maxSeats = 6,
             status = com.dangerfield.cards.libraries.rooms.RoomStatus.Playing,
             members = members,
+            feltProductId = feltProductId,
+            cardBackProductId = cardBackProductId,
         )
 
     private fun human(

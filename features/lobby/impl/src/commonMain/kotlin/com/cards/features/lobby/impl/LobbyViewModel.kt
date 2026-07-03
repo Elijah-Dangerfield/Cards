@@ -20,6 +20,7 @@ import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
+import com.dangerfield.cards.libraries.rooms.RemoveBotOutcome
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.mergeStakesFrom
 import com.dangerfield.cards.libraries.rooms.RoomConnection
@@ -377,8 +378,8 @@ class LobbyViewModel(
                 // Fire-and-forget: the removed seat disappears via the socket
                 // Snapshot. Surface only hard failures.
                 when (rooms.removeBot(code, action.botUserId)) {
-                    com.dangerfield.cards.libraries.rooms.RemoveBotOutcome.Success,
-                    com.dangerfield.cards.libraries.rooms.RemoveBotOutcome.NotFound,
+                    RemoveBotOutcome.Success,
+                    RemoveBotOutcome.NotFound,
                         -> Unit
                     else -> updateState { it.copy(error = LobbyError.BotActionFailed) }
                 }
@@ -628,7 +629,6 @@ sealed interface LobbyError {
     data object RoomWasClosed : LobbyError
     data object ConnectRejected : LobbyError
     data object ConnectionLost : LobbyError
-    data object StartGameComingSoon : LobbyError
     /** Add-/remove-bot call failed (full, network, etc.). */
     data object BotActionFailed : LobbyError
 }
