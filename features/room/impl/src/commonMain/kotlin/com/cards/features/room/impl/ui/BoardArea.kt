@@ -55,21 +55,6 @@ import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-/**
- * The board cards that compose the winning hand at showdown, derived from each
- * winner's evaluated [com.dangerfield.cards.libraries.gameplay.HandRank.bestFive].
- * Empty when the hand hasn't ended, was won by a fold (no showdown — nothing to
- * highlight), or no winner carries an evaluated rank. The board cards in this set
- * stay lit at showdown while the rest dim, so the hand that won reads at a glance.
- */
-internal fun winningBoardCards(handResult: HandResultView?, communityCards: List<Card>): Set<Card> {
-    if (handResult == null) return emptySet()
-    if (handResult.winners.all { it.byFold }) return emptySet()
-    val best = handResult.winners.flatMapTo(mutableSetOf()) { it.handRank?.bestFive.orEmpty() }
-    if (best.isEmpty()) return emptySet()
-    return communityCards.filterTo(mutableSetOf()) { it in best }
-}
-
 /** How much each board card overlaps the previous, as a fraction of its own width. */
 private const val BoardOverlapFraction = 0.34f
 
@@ -87,9 +72,6 @@ internal fun BoardArea(
 ) {
     val rankingsLabel = stringResource(Res.string.room_board_rankings_a11y)
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        // At showdown light the board cards that made the winning hand and dim the
-        // rest; before showdown every dealt card renders at full strength.
-        val winningCards = winningBoardCards(table.handResult, table.communityCards)
         // Size the five cards to fill the felt width rather than hardcoding their
         // dimensions: each card overlaps the previous by [BoardOverlapFraction] of
         // its own width, so width = available / (5 - 4·fraction) and the row spans
@@ -112,15 +94,10 @@ internal fun BoardArea(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     for (i in 0 until 5) {
-                        val c = table.communityCards.getOrNull(i)
-                        // Dim the losing board cards at showdown so the winning ones
-                        // stand out; full strength otherwise.
-                        val dimmed = c != null && winningCards.isNotEmpty() && c !in winningCards
                         BoardSlot(
-                            card = c,
+                            card = table.communityCards.getOrNull(i),
                             appearDelayMs = i * BoardAppearStaggerMs,
                             flipDelayMs = (if (i < 3) i else 0) * BoardFlipStaggerMs,
-                            dimmed = dimmed,
                             size = cardSize,
                         )
                     }
@@ -202,7 +179,6 @@ private fun BoardSlot(
     card: Card?,
     appearDelayMs: Int,
     flipDelayMs: Int,
-    dimmed: Boolean,
     size: PlayingCardSize,
 ) {
     // Previews don't drive animations to completion, so jump to the settled state.
@@ -232,13 +208,12 @@ private fun BoardSlot(
         label = "board-flip",
     )
 
-    val dimAlpha = if (dimmed) 0.3f else 1f
     Box(
         modifier = Modifier
             .size(width = size.width, height = size.height)
             .graphicsLayer {
                 translationY = (1f - appear) * (-18).dp.toPx()
-                alpha = appear * dimAlpha
+                alpha = appear
                 val s = 0.8f + 0.2f * appear
                 scaleX = s
                 scaleY = s
@@ -296,8 +271,8 @@ private fun BoardAreaPreview_Turn() {
 @Preview
 @Composable
 private fun BoardAreaPreview_Showdown() {
-    // Showdown: the winner's hand (a royal flush in hearts) lights the three heart
-    // board cards; the off-suit 3 and 7 dim. The pot pill sits at the awarded total.
+    // Showdown with the pot pill draining to the winner. All five board cards
+    // render at full strength — the board no longer dims non-winning cards.
     val board = listOf(
         Card(Rank.Ten, Suit.Hearts),
         Card(Rank.Jack, Suit.Hearts),

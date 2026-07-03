@@ -180,6 +180,14 @@ sealed interface TableUiState {
             // HandEnded event never reached us — lost, rolled out of the event
             // replay, or raced by the next hand's snapshot (MP-25).
             val handComplete = gameState.street == BettingRound.Complete
+            // Showdown reveal/winner state keys off the LIVE street, never the
+            // lingering [lastWinners] transient. The next hand's Preflop snapshot
+            // can be projected before the HandStarted event clears the previous
+            // winners (the two ride unordered flows), so gating on the transient
+            // alone leaked the last hand's reveal + winner badge on top of the
+            // fresh deal. Once the snapshot is no longer Complete, the winners are
+            // stale by definition and dropped.
+            val effectiveWinners = lastWinners?.takeIf { handComplete }
             val seats = gameState.seats.map { seat ->
                 val isHuman = seat.index == humanSeatIndex
                 SeatView.fromSeat(
@@ -187,8 +195,8 @@ sealed interface TableUiState {
                     isActing = seat.index == acting,
                     isHuman = isHuman,
                     personality = personalitiesBySeat[seat.index],
-                    hideHoleCards = seat.index != humanSeatIndex && lastWinners == null && !handComplete,
-                    revealedHoleCards = lastWinners?.revealedHoleCards?.get(seat.index),
+                    hideHoleCards = seat.index != humanSeatIndex && effectiveWinners == null && !handComplete,
+                    revealedHoleCards = effectiveWinners?.revealedHoleCards?.get(seat.index),
                     lastAction = lastActionBySeat[seat.index],
                     isDealer = seat.index == gameState.buttonSeatIndex,
                     isSmallBlind = seat.index == sbIndex,
@@ -208,7 +216,7 @@ sealed interface TableUiState {
             val humanSeat = gameState.seats.firstOrNull { it.index == humanSeatIndex }
             val legal = if (isHumanTurn && humanSeat != null) LegalActions.from(gameState, humanSeat) else null
             val humanHandLabel = humanSeat?.let { previewHandLabel(it.holeCards, gameState.community) }
-            val result = lastWinners?.let { ev ->
+            val result = effectiveWinners?.let { ev ->
                 HandResultView(
                     winners = ev.winners,
                     board = ev.board,

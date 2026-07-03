@@ -152,6 +152,32 @@ class TableProjectionEdgeTest {
         assertTrue(result.winners.any { it.seatIndex == 0 })
     }
 
+    @Test
+    fun staleWinnersOnFreshHand_areIgnored_untilShowdown() {
+        // The next hand's Preflop snapshot can be projected before the HandStarted
+        // event clears the previous hand's winners — snapshot and event ride
+        // unordered flows (PlayPokerViewModel). Showdown state must key off the
+        // live street, not the lingering transient; otherwise the last hand's
+        // winner badge + revealed cards leak on top of the fresh deal (the "+100
+        // and opponent cards stay when the next round starts" bug).
+        val stale = handEnded(
+            winners = listOf(winner(seat = 0)),
+            revealed = mapOf(1 to cardsOf("Qs Qd")),
+        )
+        val table = project(
+            seats = listOf(
+                human(holeCards = cardsOf("Ah Kh")),
+                opponent(holeCards = cardsOf("Qs Qd")),
+            ),
+            street = BettingRound.Preflop, // fresh hand, not a showdown
+            lastWinners = stale,
+        )
+        assertNull(table.handResult, "a live pre-showdown hand shows no winner banner")
+        val opp = table.seats.single { it.index == 1 }
+        assertTrue(opp.holeCards.isEmpty(), "stale winners must not reveal opponent cards on a fresh hand")
+        assertTrue(opp.showHoleCardBacks, "the fresh-hand opponent shows card backs, not a stale reveal")
+    }
+
     // ---------- builders ----------
 
     private fun human(
