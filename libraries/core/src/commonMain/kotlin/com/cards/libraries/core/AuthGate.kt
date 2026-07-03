@@ -1,11 +1,18 @@
 package com.dangerfield.cards.libraries.core
 
+import kotlinx.serialization.Serializable
+
 /**
  * What an action needs of the user's identity before it can proceed. Routes
  * declare it per-destination, authed network calls per-call; both are enforced
  * centrally through [AuthGate], so a feature opts in with one argument — no
  * per-screen or per-call guard code.
+ *
+ * `@Serializable` because it rides on every [Route] as a nav argument; iOS/Native
+ * has no built-in enum NavType, so navigation registers it via `serializableType`
+ * and reflectively resolves its serializer — which requires this annotation.
  */
+@Serializable
 enum class AuthRequirement {
     /** Anyone — the default. */
     None,
@@ -25,7 +32,11 @@ enum class AuthRequirement {
  * Why auth-readiness is blocked. The one vocabulary shared by the nav gate's
  * sheet copy, typed call failures ([AuthUnready]), and anything else that has
  * to explain "why can't this user do this" honestly.
+ *
+ * `@Serializable` because it rides on [AuthGateRoute] as a nav argument (see the
+ * `serializableType<AuthReason>()` typeMap where that route is registered).
  */
+@Serializable
 enum class AuthReason {
     /** Guest-account creation is still finishing (or healing). Self-resolves;
      *  ask the user to wait a moment. */
