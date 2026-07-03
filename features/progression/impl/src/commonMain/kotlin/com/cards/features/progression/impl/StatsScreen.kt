@@ -23,11 +23,36 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.stats_achievements_count
+import cards.libraries.resources.generated.resources.stats_achievements_section
+import cards.libraries.resources.generated.resources.stats_achievements_see_all
+import cards.libraries.resources.generated.resources.stats_explainers_a11y
+import cards.libraries.resources.generated.resources.stats_hero_level
+import cards.libraries.resources.generated.resources.stats_hero_to_next_level
+import cards.libraries.resources.generated.resources.stats_hero_total_xp
 import cards.libraries.resources.generated.resources.stats_lifetime_best_streak_label
+import cards.libraries.resources.generated.resources.stats_lifetime_fold_rate_label
+import cards.libraries.resources.generated.resources.stats_lifetime_folds_label
+import cards.libraries.resources.generated.resources.stats_lifetime_hands_played_label
+import cards.libraries.resources.generated.resources.stats_lifetime_hands_won_label
 import cards.libraries.resources.generated.resources.stats_lifetime_no_bust_streak_label
 import cards.libraries.resources.generated.resources.stats_lifetime_opponents_label
+import cards.libraries.resources.generated.resources.stats_lifetime_showdown_losses_label
+import cards.libraries.resources.generated.resources.stats_lifetime_win_rate_label
+import cards.libraries.resources.generated.resources.stats_mode_bots
+import cards.libraries.resources.generated.resources.stats_mode_multiplayer
+import cards.libraries.resources.generated.resources.stats_recent_hand_subline
+import cards.libraries.resources.generated.resources.stats_recent_source_achievement
+import cards.libraries.resources.generated.resources.stats_recent_source_base
+import cards.libraries.resources.generated.resources.stats_recent_source_hand_strength
+import cards.libraries.resources.generated.resources.stats_recent_source_investment
+import cards.libraries.resources.generated.resources.stats_recent_source_showdown
 import cards.libraries.resources.generated.resources.stats_recent_xp_boosted_tag
+import cards.libraries.resources.generated.resources.stats_section_lifetime
+import cards.libraries.resources.generated.resources.stats_section_recent_xp
 import cards.libraries.resources.generated.resources.stats_play_style_section
+import cards.libraries.resources.generated.resources.stats_title
+import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
@@ -66,6 +91,7 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import kotlin.math.roundToInt
 import kotlin.time.Clock
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -85,12 +111,12 @@ fun StatsScreen(
     Screen(
         topBar = {
             TopBar(
-                title = "Stats",
+                title = stringResource(Res.string.stats_title),
                 onNavigateBack = onBack,
                 scrollState = scrollState,
                 actions = {
                     IconButton(
-                        icon = Icons.Question("Hand info and rankings"),
+                        icon = Icons.Question(stringResource(Res.string.stats_explainers_a11y)),
                         onClick = onShowExplainers,
                     )
                 },
@@ -117,7 +143,7 @@ fun StatsScreen(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            SectionTitle("Lifetime")
+            SectionTitle(stringResource(Res.string.stats_section_lifetime))
             Spacer(modifier = Modifier.height(8.dp))
             LifetimeStatsGrid(
                 progression = state.progression,
@@ -151,7 +177,7 @@ fun StatsScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             if (state.recentEvents.isNotEmpty()) {
-                SectionTitle("Recent XP")
+                SectionTitle(stringResource(Res.string.stats_section_recent_xp))
                 Spacer(modifier = Modifier.height(8.dp))
                 RecentEventsList(events = state.recentEvents)
                 Spacer(modifier = Modifier.height(8.dp))
@@ -181,13 +207,13 @@ private fun XpHero(progress: LevelProgress) {
         }
         Spacer(modifier = Modifier.height(14.dp))
         Text(
-            text = "Level ${progress.level}",
+            text = stringResource(Res.string.stats_hero_level, progress.level),
             typography = AppTheme.typography.Heading.H800,
             color = AppTheme.colors.content,
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "${formatThousands(progress.totalXp)} XP",
+            text = stringResource(Res.string.stats_hero_total_xp, formatThousands(progress.totalXp)),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.contentSecondary,
         )
@@ -199,7 +225,11 @@ private fun XpHero(progress: LevelProgress) {
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "${formatThousands(progress.xpToNextLevel)} XP to level ${progress.level + 1}",
+            text = stringResource(
+                Res.string.stats_hero_to_next_level,
+                formatThousands(progress.xpToNextLevel),
+                progress.level + 1,
+            ),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.contentSecondary,
         )
@@ -219,36 +249,36 @@ private fun LifetimeStatsGrid(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatTile(
                 modifier = Modifier.weight(1f),
-                label = "Hands played",
+                label = stringResource(Res.string.stats_lifetime_hands_played_label),
                 value = formatThousands(progression.handsPlayed),
             )
             StatTile(
                 modifier = Modifier.weight(1f),
-                label = "Hands won",
+                label = stringResource(Res.string.stats_lifetime_hands_won_label),
                 value = formatThousands(progression.handsWon),
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatTile(
                 modifier = Modifier.weight(1f),
-                label = "Win rate",
+                label = stringResource(Res.string.stats_lifetime_win_rate_label),
                 value = winRate,
             )
             StatTile(
                 modifier = Modifier.weight(1f),
-                label = "Fold rate",
+                label = stringResource(Res.string.stats_lifetime_fold_rate_label),
                 value = foldRate,
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatTile(
                 modifier = Modifier.weight(1f),
-                label = "Folds",
+                label = stringResource(Res.string.stats_lifetime_folds_label),
                 value = formatThousands(progression.handsFolded),
             )
             StatTile(
                 modifier = Modifier.weight(1f),
-                label = "Showdown losses",
+                label = stringResource(Res.string.stats_lifetime_showdown_losses_label),
                 value = formatThousands(progression.handsLostAtShowdown),
             )
         }
@@ -285,7 +315,7 @@ private fun LifetimeStatsGrid(
  * "-" dash when there's no denominator yet so a brand-new player doesn't read a
  * misleading "0%".
  */
-private fun percentOf(part: Long, whole: Long): String =
+internal fun percentOf(part: Long, whole: Long): String =
     if (whole <= 0L) "-" else "${(part * 100.0 / whole).roundToInt()}%"
 
 @Composable
@@ -351,7 +381,7 @@ private fun EventRow(event: XpEvent) {
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = sourceLabel(event.source),
+                text = stringResource(sourceLabel(event.source)),
                 typography = AppTheme.typography.Body.B600.SemiBold,
                 color = AppTheme.colors.content,
             )
@@ -359,9 +389,14 @@ private fun EventRow(event: XpEvent) {
             // achievement name for achievement unlocks. Without this the feed
             // says "Achievement unlocked" without ever telling the user which
             // one popped.
+            val handId = event.handId
             val subline = when {
                 event.description != null -> event.description
-                event.handId != null -> "Hand #${event.handId} · ${modeLabel(event.mode)}"
+                handId != null -> stringResource(
+                    Res.string.stats_recent_hand_subline,
+                    handId,
+                    stringResource(modeLabel(event.mode)),
+                )
                 else -> null
             }
             subline?.let {
@@ -409,20 +444,7 @@ private fun AchievementsHighlights(
     progress: AchievementProgress,
     onSeeAll: () -> Unit,
 ) {
-    // Always fill 3 slots. Lead with most-recently-earned, then back-fill
-    // with locked achievements as a "what's next" preview — otherwise the
-    // medal's aspectRatio(1f) blows it up to full-row width when only
-    // one is earned. See [AchievementMedal].
-    val slotCount = 3
-    val earnedOrdered: List<Pair<com.dangerfield.cards.libraries.cards.Achievement, Long?>> =
-        progress.earned.entries
-            .sortedByDescending { it.value }
-            .mapNotNull { (id, ts) -> AllAchievementsById[id]?.let { it to (ts as Long?) } }
-    val preview: List<Pair<com.dangerfield.cards.libraries.cards.Achievement, Long?>> =
-        AllAchievements
-            .filter { it.id !in progress.earned.keys }
-            .map { it to (null as Long?) }
-    val toShow = (earnedOrdered + preview).take(slotCount)
+    val toShow = achievementHighlights(progress)
     val total = AllAchievements.size
     val earnedCount = progress.earned.size
 
@@ -432,13 +454,13 @@ private fun AchievementsHighlights(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Achievements",
+                text = stringResource(Res.string.stats_achievements_section),
                 typography = AppTheme.typography.Heading.H600,
                 color = AppTheme.colors.content,
             )
             Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = "$earnedCount / $total",
+                text = stringResource(Res.string.stats_achievements_count, earnedCount, total),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.contentSecondary,
             )
@@ -467,12 +489,31 @@ private fun AchievementsHighlights(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "See all $total achievements",
+                text = stringResource(Res.string.stats_achievements_see_all, total),
                 typography = AppTheme.typography.Body.B600.SemiBold,
                 color = AppTheme.colors.content,
             )
         }
     }
+}
+
+/**
+ * The 3-up highlights strip: most-recently-earned first, back-filled with
+ * locked achievements as a "what's next" preview. The back-fill also keeps
+ * the layout stable — the medal's aspectRatio(1f) blows a lone earned medal
+ * up to full-row width without it. See [AchievementMedalWithDetail].
+ */
+internal fun achievementHighlights(
+    progress: AchievementProgress,
+    slotCount: Int = 3,
+): List<Pair<Achievement, Long?>> {
+    val earned = progress.earned.entries
+        .sortedByDescending { it.value }
+        .mapNotNull { (id, earnedAt) -> AllAchievementsById[id]?.let { it to (earnedAt as Long?) } }
+    val locked = AllAchievements
+        .filter { it.id !in progress.earned.keys }
+        .map { it to (null as Long?) }
+    return (earned + locked).take(slotCount)
 }
 
 @Composable
@@ -484,12 +525,12 @@ private fun SectionTitle(text: String) {
     )
 }
 
-private fun sourceLabel(source: XpSource): String = when (source) {
-    XpSource.BASE -> "Hand finished"
-    XpSource.INVESTMENT -> "Chips committed"
-    XpSource.SHOWDOWN -> "Reached showdown"
-    XpSource.HAND_STRENGTH -> "Hand strength"
-    XpSource.ACHIEVEMENT -> "Achievement unlocked"
+private fun sourceLabel(source: XpSource): StringResource = when (source) {
+    XpSource.BASE -> Res.string.stats_recent_source_base
+    XpSource.INVESTMENT -> Res.string.stats_recent_source_investment
+    XpSource.SHOWDOWN -> Res.string.stats_recent_source_showdown
+    XpSource.HAND_STRENGTH -> Res.string.stats_recent_source_hand_strength
+    XpSource.ACHIEVEMENT -> Res.string.stats_recent_source_achievement
 }
 
 private fun sourceEmoji(source: XpSource): String = when (source) {
@@ -509,11 +550,10 @@ private fun sourceColor(source: XpSource): ColorResource = when (source) {
     XpSource.ACHIEVEMENT -> AppTheme.colors.success
 }
 
-private fun modeLabel(mode: XpMode): String = when (mode) {
-    XpMode.BOTS -> "Bots"
-    XpMode.MULTIPLAYER -> "Multiplayer"
+private fun modeLabel(mode: XpMode): StringResource = when (mode) {
+    XpMode.BOTS -> Res.string.stats_mode_bots
+    XpMode.MULTIPLAYER -> Res.string.stats_mode_multiplayer
 }
-
 
 @Preview
 @Composable

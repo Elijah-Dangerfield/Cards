@@ -6,10 +6,15 @@ import kotlinx.coroutines.flow.first
 /**
  * Owns the device's Supabase user lifecycle + access token.
  *
- * On construction, runs get-or-create: if no Supabase session exists,
- * signs in anonymously. After init resolves, [current] / [observe]
- * return either [AuthState.Authenticated] (happy path) or
- * [AuthState.Unauthenticated] (offline, anon sign-ins disabled, etc.).
+ * Sessions are never minted implicitly. Construction only hydrates whatever
+ * session supabase-kt persisted; new sessions are created explicitly —
+ * onboarding drives [createGuestSession] (via `GuestAccountCreator`), the
+ * sign-in flows mint claimed ones, and `GuestSessionHealer` recovers a
+ * stranded onboarded device. [retry] re-resolves a dormant session but never
+ * mints. After init resolves, [current] / [observe] return either
+ * [AuthState.Authenticated] or [AuthState.Unauthenticated] (whose
+ * [AuthState.Unauthenticated.reason] says why: none/offline, session
+ * expired, signed out).
  *
  * **No in-flight sentinel state.** [current] suspends until the answer
  * is real; [observe] emits only resolved values. UI that wants to render

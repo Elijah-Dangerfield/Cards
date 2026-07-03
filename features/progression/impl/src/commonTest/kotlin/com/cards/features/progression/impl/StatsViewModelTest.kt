@@ -281,42 +281,4 @@ class StatsViewModelTest : CoroutineTest() {
         }
     }
 
-    /** Repositories whose Flows never emit — pin the pre-emission state. */
-    private object NeverEmittingProgressionRepository :
-        com.dangerfield.cards.libraries.cards.ProgressionRepository {
-        override fun observeProgression(): kotlinx.coroutines.flow.Flow<Progression> =
-            kotlinx.coroutines.flow.flow { /* never emits */ }
-        override suspend fun getProgression(): Progression = Progression.Empty
-        override suspend fun awardForHand(
-            summary: com.dangerfield.cards.libraries.cards.HandResultSummary,
-        ): List<XpEvent> = error("not used")
-        override suspend fun applyAchievementXp(delta: Int, description: String?): XpEvent =
-            error("not used")
-        override suspend fun sync(): Result<Unit> = Result.success(Unit)
-        override suspend fun deleteAll() { /* not used */ }
-        override suspend fun debugSetTotalXp(totalXp: Long) { /* not used */ }
-    }
-
-    private object NeverEmittingXpEventRepository :
-        com.dangerfield.cards.libraries.cards.XpEventRepository {
-        override fun observeRecent(limit: Int): kotlinx.coroutines.flow.Flow<List<XpEvent>> =
-            kotlinx.coroutines.flow.flow { /* never emits */ }
-        override fun observeSince(sinceEpochMs: Long): kotlinx.coroutines.flow.Flow<List<XpEvent>> =
-            kotlinx.coroutines.flow.flow { /* never emits */ }
-    }
-
-    private object NeverEmittingAchievementRepository :
-        com.dangerfield.cards.libraries.cards.AchievementRepository {
-        override fun observeProgress(): kotlinx.coroutines.flow.Flow<AchievementProgress> =
-            kotlinx.coroutines.flow.flow { /* never emits */ }
-        override suspend fun getProgress(): AchievementProgress = AchievementProgress.Empty
-        override suspend fun recordHand(
-            summary: com.dangerfield.cards.libraries.cards.HandResultSummary,
-            context: com.dangerfield.cards.libraries.cards.AchievementHandContext,
-        ): List<com.dangerfield.cards.libraries.cards.EarnedAchievement> = error("not used")
-        override suspend fun recordTutorialComplete(): com.dangerfield.cards.libraries.cards.EarnedAchievement? =
-            error("not used")
-        override suspend fun sync(): Result<Unit> = Result.success(Unit)
-        override suspend fun deleteAll() { /* not used */ }
-    }
 }

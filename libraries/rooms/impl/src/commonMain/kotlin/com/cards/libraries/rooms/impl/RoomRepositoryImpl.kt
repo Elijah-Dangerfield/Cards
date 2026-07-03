@@ -8,8 +8,11 @@ import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.RemoveBotOutcome
 import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.AppEventListener
+import com.dangerfield.cards.libraries.core.AuthUnready
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
+import com.dangerfield.cards.libraries.networking.apiErrorCode
+import com.dangerfield.cards.libraries.networking.apiErrorMessage
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.rooms.preferRealOver
 import com.dangerfield.cards.libraries.rooms.Room
@@ -34,9 +37,12 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Glue between [RoomApi] (HTTP) + [RoomSocket] (WebSocket). Status-code
  * mapping lives here so the UI layer only sees sealed outcome types.
  *
- * The auth-related outcomes ([CreateRoomOutcome.NotSignedIn] etc.) fire
- * when the bearer refresh chain runs out of tokens (Ktor's Auth plugin
- * throws on a final 401). UI maps to "please sign in again."
+ * The auth-related outcomes ([CreateRoomOutcome.NotSignedIn] etc.) fire on a
+ * typed [AuthUnready] from `authedCall` — a *confirmed* account problem (no
+ * account, claimed account needed, session expired). Transient auth states
+ * (offline, setup still finishing) map to NetworkError instead, as does a raw
+ * 401 that survives to here: post-gate, that means a transient token-refresh
+ * failure while holding a session — a connectivity story, not an account one.
  *
  * Also an [AppEventListener]: the active-rooms flow that backs Home's
  * banner is a client-side projection updated by *this device's* mutations
@@ -99,11 +105,13 @@ class RoomRepositoryImpl(
         val room = body.room.toDomain()
         upsertActiveRoom(room)
         CreateRoomOutcome.Success(room)
+    } catch (e: AuthUnready) {
+        if (e.isAccountProblem) CreateRoomOutcome.NotSignedIn(e) else CreateRoomOutcome.NetworkError(e)
     } catch (e: ClientRequestException) {
         when (e.response.status) {
             HttpStatusCode.BadRequest ->
-                CreateRoomOutcome.InvalidMaxSeats(extractMessage(e) ?: "maxSeats must be 2..9")
-            HttpStatusCode.Unauthorized -> CreateRoomOutcome.NotSignedIn(e)
+                CreateRoomOutcome.InvalidMaxSeats(e.apiErrorMessage() ?: "maxSeats must be 2..9")
+            HttpStatusCode.Unauthorized -> CreateRoomOutcome.NetworkError(e)
             else -> CreateRoomOutcome.Unknown(e)
         }
     } catch (e: HttpRequestTimeoutException) {
@@ -120,21 +128,23 @@ class RoomRepositoryImpl(
         val room = body.room.toDomain()
         upsertActiveRoom(room)
         JoinRoomOutcome.Success(room = room, alreadyJoined = body.alreadyJoined)
+    } catch (e: AuthUnready) {
+        if (e.isAccountProblem) JoinRoomOutcome.NotSignedIn(e) else JoinRoomOutcome.NetworkError(e)
     } catch (e: ClientRequestException) {
         when (e.response.status) {
             HttpStatusCode.NotFound -> JoinRoomOutcome.NotFound
             HttpStatusCode.BadRequest ->
-                if (extractCode(e) == "insufficient_balance") {
-                    JoinRoomOutcome.OverBalance(extractMessage(e) ?: "Not enough chips for that buy-in")
+                if (e.apiErrorCode() == "insufficient_balance") {
+                    JoinRoomOutcome.OverBalance(e.apiErrorMessage() ?: "Not enough chips for that buy-in")
                 } else {
                     JoinRoomOutcome.Unknown(e)
                 }
-            HttpStatusCode.Conflict -> when (extractCode(e)) {
+            HttpStatusCode.Conflict -> when (e.apiErrorCode()) {
                 "room_full" -> JoinRoomOutcome.Full
                 "room_not_joinable" -> JoinRoomOutcome.NotJoinable
                 else -> JoinRoomOutcome.Unknown(e)
             }
-            HttpStatusCode.Unauthorized -> JoinRoomOutcome.NotSignedIn(e)
+            HttpStatusCode.Unauthorized -> JoinRoomOutcome.NetworkError(e)
             else -> JoinRoomOutcome.Unknown(e)
         }
     } catch (e: HttpRequestTimeoutException) {
@@ -181,9 +191,11 @@ class RoomRepositoryImpl(
         val rooms = body.rooms.map { it.toDomain() }
         activeRooms.value = rooms
         GetActiveRoomsOutcome.Success(rooms = rooms)
+    } catch (e: AuthUnready) {
+        if (e.isAccountProblem) GetActiveRoomsOutcome.NotSignedIn(e) else GetActiveRoomsOutcome.NetworkError(e)
     } catch (e: ClientRequestException) {
         when (e.response.status) {
-            HttpStatusCode.Unauthorized -> GetActiveRoomsOutcome.NotSignedIn(e)
+            HttpStatusCode.Unauthorized -> GetActiveRoomsOutcome.NetworkError(e)
             else -> GetActiveRoomsOutcome.Unknown(e)
         }
     } catch (e: HttpRequestTimeoutException) {
@@ -203,7 +215,7 @@ class RoomRepositoryImpl(
         when (e.response.status) {
             HttpStatusCode.NotFound -> AddBotOutcome.NotFound
             HttpStatusCode.Forbidden -> AddBotOutcome.NotHost
-            HttpStatusCode.Conflict -> when (extractCode(e)) {
+            HttpStatusCode.Conflict -> when (e.apiErrorCode()) {
                 "room_full" -> AddBotOutcome.Full
                 "room_not_joinable" -> AddBotOutcome.NotJoinable
                 else -> AddBotOutcome.Unknown(e)
@@ -244,15 +256,4 @@ class RoomRepositoryImpl(
         current.filterNot { it.code == code }
     }
 
-    private suspend fun extractMessage(e: ClientRequestException): String? = try {
-        e.response.body<ProblemEnvelopeDto>().error.message
-    } catch (_: Throwable) {
-        null
-    }
-
-    private suspend fun extractCode(e: ClientRequestException): String? = try {
-        e.response.body<ProblemEnvelopeDto>().error.code
-    } catch (_: Throwable) {
-        null
-    }
 }

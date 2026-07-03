@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_cheat_sheet_action_all_in_description
@@ -55,6 +56,7 @@ import cards.libraries.resources.generated.resources.room_cheat_sheet_street_lab
 import cards.libraries.resources.generated.resources.room_cheat_sheet_street_label_showdown
 import cards.libraries.resources.generated.resources.room_cheat_sheet_street_label_turn
 import cards.libraries.resources.generated.resources.room_cheat_sheet_you_have_label
+import cards.libraries.resources.generated.resources.room_how_to_play_full_tutorial_footer
 import cards.libraries.resources.generated.resources.room_how_to_play_sheet_title
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
@@ -164,6 +166,19 @@ fun HowToPlaySheet(
                 title = stringResource(Res.string.room_cheat_sheet_action_all_in_title),
                 desc = stringResource(Res.string.room_cheat_sheet_action_all_in_description),
                 accent = AppTheme.colors.accentPrimary,
+            )
+
+            // Pointer to the full interactive tutorial. Deliberately a plain
+            // reminder, not a tappable link: opening Settings mid-game would
+            // forfeit the seat, so we tell the player where to find it for later
+            // rather than navigating them out now (AUTH-14).
+            VerticalSpacerD800()
+            Text(
+                text = stringResource(Res.string.room_how_to_play_full_tutorial_footer),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.contentSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }

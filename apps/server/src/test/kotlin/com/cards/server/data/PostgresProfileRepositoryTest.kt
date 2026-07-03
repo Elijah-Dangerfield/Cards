@@ -219,6 +219,25 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
     }
 
     @Test
+    fun findByIds_returnsKnownProfiles_andOmitsUnknowns() = runTest {
+        val repo = newRepository()
+        val a = seedAuthUser().also { repo.findOrCreate(it) }
+        val b = seedAuthUser().also { repo.findOrCreate(it) }
+        val c = seedAuthUser().also { repo.findOrCreate(it) }
+        val unknown = UserId(UUID.randomUUID())
+
+        val found = repo.findByIds(listOf(a, unknown, b, c))
+
+        assertEquals(setOf(a, b, c), found.map { it.userId }.toSet())
+    }
+
+    @Test
+    fun findByIds_emptyInput_returnsEmpty() = runTest {
+        val repo = newRepository()
+        assertEquals(emptyList(), repo.findByIds(emptyList()))
+    }
+
+    @Test
     fun usernameCollision_recoversByRetrying() = runTest {
         // Force a collision: first profile takes "Twin-Ace-100", second
         // tries the same name (collision), then "Twin-Ace-200" succeeds.

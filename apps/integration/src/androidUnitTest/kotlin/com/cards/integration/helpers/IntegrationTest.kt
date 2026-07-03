@@ -3,6 +3,7 @@ package com.cards.integration.helpers
 import com.dangerfield.cards.features.lobby.impl.LobbyEvent
 import com.dangerfield.cards.features.lobby.impl.LobbyState
 import com.dangerfield.cards.features.lobby.impl.LobbyViewModel
+import com.dangerfield.cards.libraries.core.AuthGate
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.server.routes.DEFAULT_REAPER_GRACE
 import kotlinx.coroutines.CoroutineScope
@@ -98,9 +99,15 @@ class Harness(val server: InProcessServer) {
         userId: String = randomUserId(),
         faulty: Boolean = false,
         latencyMs: Long? = null,
+        authGate: AuthGate = AlwaysReadyAuthGate,
     ): TestClient =
-        TestClient(serverUrl = server.baseUrl, userId = userId, faulty = faulty, latencyMs = latencyMs)
-            .also { clients += it }
+        TestClient(
+            serverUrl = server.baseUrl,
+            userId = userId,
+            faulty = faulty,
+            latencyMs = latencyMs,
+            authGate = authGate,
+        ).also { clients += it }
 
     /** A gameplay view over a live connection handle (real socket). */
     fun gameplay(handle: RoomConnectionHandle): GameplaySession =

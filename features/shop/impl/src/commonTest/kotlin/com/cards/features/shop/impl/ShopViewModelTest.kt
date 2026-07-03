@@ -257,6 +257,38 @@ class ShopViewModelTest : CoroutineTest() {
         assertFalse(vm.state.hasRefreshError, "AlreadyOwned isn't surfaced as an error")
     }
 
+    @Test
+    fun confirmPurchase_expiredOffer_emitsOfferExpired_andForcesRefresh() = runUnitTest {
+        val repo = FakeProductsRepository(SAMPLE_CATALOG)
+        val inv = FakeInventoryRepository()
+        val vm = buildVm(productsRepository = repo, inventoryRepository = inv)
+        // Install a time anchor (the fake captures one per successful refresh).
+        vm.takeAction(ShopAction.Refresh(force = true))
+        val refreshesBeforeConfirm = repo.refreshCalls
+        val received = mutableListOf<ShopEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+        val expired = Product.ChipOffer(
+            id = "felt_flash_sale",
+            title = "Flash Sale Felt",
+            subtitle = "Felt",
+            iconEmoji = "🟨",
+            costChips = 1_000,
+            grantsKey = "felt.flash_sale",
+            availableUntilEpochMs = -1L, // already past the anchor's epoch-0 clock
+        )
+
+        vm.takeAction(ShopAction.ConfirmPurchase(expired))
+
+        val event = received.filterIsInstance<ShopEvent.OfferExpired>().firstOrNull()
+        assertNotNull(event, "OfferExpired should fire for a past sale window")
+        assertEquals(expired.id, event.productId)
+        assertTrue(inv.redeemCalls.isEmpty(), "expired offer must not charge")
+        assertTrue(
+            repo.refreshCalls > refreshesBeforeConfirm,
+            "VM auto-refreshes so the expired offer drops out of the catalog",
+        )
+    }
+
     // ---------- XP Boost consumable ----------
 
     @Test
@@ -537,6 +569,8 @@ class ShopViewModelTest : CoroutineTest() {
         private val timeAnchor = MutableStateFlow<com.dangerfield.cards.libraries.products.CatalogTimeAnchor?>(null)
         private val isRefreshing = MutableStateFlow(false)
         var nextRefreshResult: Result<ProductCatalog>? = null
+        var refreshCalls: Int = 0
+            private set
 
         override fun observeCatalog(): Flow<ProductCatalog> = state.asStateFlow()
 
@@ -546,6 +580,7 @@ class ShopViewModelTest : CoroutineTest() {
         override fun observeIsRefreshing(): Flow<Boolean> = isRefreshing.asStateFlow()
 
         override suspend fun refresh(force: Boolean): Result<ProductCatalog> {
+            refreshCalls++
             isRefreshing.value = true
             try {
                 val result = nextRefreshResult

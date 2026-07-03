@@ -14,7 +14,16 @@ import cards.libraries.resources.generated.resources.shop_idea_footer_button
 import cards.libraries.resources.generated.resources.shop_need_chips_more
 import cards.libraries.resources.generated.resources.shop_owned_badge
 import cards.libraries.resources.generated.resources.shop_personal_cosmetic_hint
+import cards.libraries.resources.generated.resources.shop_section_avatars
+import cards.libraries.resources.generated.resources.shop_section_boosts
+import cards.libraries.resources.generated.resources.shop_section_card_backs
+import cards.libraries.resources.generated.resources.shop_section_emotes
+import cards.libraries.resources.generated.resources.shop_section_felts
+import cards.libraries.resources.generated.resources.shop_section_more
+import cards.libraries.resources.generated.resources.shop_section_tables
+import cards.libraries.resources.generated.resources.shop_section_tools
 import cards.libraries.resources.generated.resources.shop_unlocks_at_level
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -61,6 +70,7 @@ import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.isPersonalCosmetic
 import com.dangerfield.cards.libraries.cards.tierForProductId
+import com.dangerfield.cards.libraries.products.CatalogTimeAnchor
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.products.StoreSku
@@ -101,28 +111,18 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 /**
  * Stateless shop screen — takes a [ShopState] + action callback and renders.
  *
- * Composition:
- *  - **Header**: title + lifetime chip balance.
- *  - **Featured hero card** (when the catalog has a featured chip pack):
- *    full-width gradient banner, big icon, badge, headline price.
- *  - **"Buy chips"** section: 2-column grid of remaining packs. Each card
- *    leads with its bonus state ("BEST VALUE", "+20%", etc.) when present.
- *  - **"Build your style"** section: 2-column grid of chip-purchasable
- *    items. Per-card states: BUY (affordable) / OWNED (in inventory) /
- *    DIMMED (can't afford).
- *  - **Purchase confirmation**: [PurchaseConfirmSheet] over everything else
- *    with item summary, balance preview (chip offers), and a chunky CTA.
+ * Composition: header, the "Get chips" pack ladder ([GetChipsSection]),
+ * then chip-offer shelves grouped by [ShopSection], with a floating
+ * wallet badge pinned top-right. The purchase confirmation is NOT here —
+ * it's its own navigation destination (`ShopProductSheetRoute` →
+ * [PurchaseConfirmSheet]); tapping any product just fires [onProductTap].
  *
- * Top-level state branches: Loading → spinner. Empty → polished empty
- * state. Loaded → full layout above. Errors during refresh surface as an
- * inline retry banner; prior catalog stays visible the whole time.
+ * Top-level state branches: Loading → spinner. Empty → empty state.
+ * Loaded → full layout. Refresh errors surface as a retry banner while
+ * the prior catalog stays visible (stale-while-revalidate).
  *
  * Stateless on purpose — every `@Preview` renders without DI; the entry
  * point is the only place that knows about the VM.
- *
- * Component split:
- *  - Sheet + sub-content + balance preview: [PurchaseConfirmSheet].
- *  - Icon tiles / shared pills / emoji placeholder map: [ShopComponents].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -195,18 +195,8 @@ fun ShopScreen(
                 )
             }
         }
-        // The purchase confirmation sheet used to render here as
-        // overlay UI driven by `state.pendingPurchase`. It's now its
-        // own navigation destination (`ShopProductSheetRoute`) mounted
-        // via `NavGraphBuilder.bottomSheet` in `ShopFeatureEntryPoint`,
-        // so this screen is purely the grid. Tap → `onProductTap` →
-        // the entry point navigates to the sheet route.
     }
 }
-
-// ---------------------------------------------------------------------------
-// Layout
-// ---------------------------------------------------------------------------
 
 @Composable
 private fun CatalogContent(
@@ -242,13 +232,6 @@ private fun CatalogContent(
             .padding(screenHorizontalInsets),
     ) {
         VerticalSpacerD500()
-        // First-sync hydrate normally lands during the splash gate; rare
-        // race where shop opens before the chip sync resolves shows 0
-        // rather than passing null through every leaf. UI polish for a
-        // true loading state is a separate follow-up.
-        // Nullable on purpose: null = balance hasn't hydrated yet (first launch
-        // or post account-switch wipe). The pill renders "—" rather than a
-        // fake "0" until the sync lands — same as Home.
         ShopHeader()
         VerticalSpacerD700()
 
@@ -271,7 +254,7 @@ private fun CatalogContent(
         offerSections.forEachIndexed { index, (section, items) ->
             if (index > 0) VerticalSpacerD800()
             SectionHeader(
-                title = section.title,
+                title = stringResource(section.title),
                 modifier = section.category?.let { category ->
                     Modifier.onGloballyPositioned { coordinates ->
                         sectionOffsets[category] = coordinates.positionInParent().y.roundToInt()
@@ -339,15 +322,15 @@ private fun ShopHeader() {
  * `tool_`). Titles are unlock-only (earned, not bought) so they never reach
  * the shop and get no shelf here.
  */
-private enum class ShopSection(val title: String, val category: ShopCategory?) {
-    Boosts("Boosts", ShopCategory.Boosts),
-    CardBacks("Card backs", ShopCategory.CardBacks),
-    Felts("Felts", ShopCategory.Felts),
-    Tables("Table themes", ShopCategory.Tables),
-    Emotes("Emote packs", ShopCategory.Emotes),
-    Avatars("Avatar packs", ShopCategory.Avatars),
-    Tools("Tools", ShopCategory.Tools),
-    Other("More", null),
+private enum class ShopSection(val title: StringResource, val category: ShopCategory?) {
+    Boosts(Res.string.shop_section_boosts, ShopCategory.Boosts),
+    CardBacks(Res.string.shop_section_card_backs, ShopCategory.CardBacks),
+    Felts(Res.string.shop_section_felts, ShopCategory.Felts),
+    Tables(Res.string.shop_section_tables, ShopCategory.Tables),
+    Emotes(Res.string.shop_section_emotes, ShopCategory.Emotes),
+    Avatars(Res.string.shop_section_avatars, ShopCategory.Avatars),
+    Tools(Res.string.shop_section_tools, ShopCategory.Tools),
+    Other(Res.string.shop_section_more, null),
 }
 
 private val ShopSectionOrder = listOf(
@@ -404,10 +387,6 @@ private fun <T> ProductGrid(
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Get chips — responsive 3-tier chip-pack section
-// ---------------------------------------------------------------------------
 
 /**
  * The "Get chips" section: a responsive chip-pack ladder with the featured
@@ -544,7 +523,7 @@ private fun ChipTierCard(
                     ),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                ProductIcon(emoji = pack.iconEmoji, tone = IconTone.Gold)
+                ProductIcon(emoji = pack.iconEmoji)
                 VerticalSpacerD400()
                 Text(
                     text = formatThousands(pack.grantsChips),
@@ -604,7 +583,7 @@ private fun ChipTierRowCard(
                     .padding(Dimension.D600),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                ProductIcon(emoji = pack.iconEmoji, tone = IconTone.Gold)
+                ProductIcon(emoji = pack.iconEmoji)
                 Spacer(modifier = Modifier.size(Dimension.D500))
                 Text(
                     text = formatThousands(pack.grantsChips),
@@ -630,10 +609,6 @@ private fun ChipTierRowCard(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Chip offer card (grid item) — owned / affordable / dimmed
-// ---------------------------------------------------------------------------
-
 /**
  * Product-icon edge on a specialty (cosmetic) offer card. A touch smaller than
  * the chip-pack tiles so the two-column specialty grid reads as congruent
@@ -652,16 +627,16 @@ private val SpecialtyIconSize = 56.dp
  *  - [ChipOfferCardState.Owned] → normal card, green check on the icon,
  *    "OWNED" footer
  *
- * Only [ChipOfferCardState.Available] is tappable. Other states call back
- * into [onClick] for analytics / future "tap to learn more" interactions
- * but the VM's [ShopAction.RequestPurchase] is gated as well.
+ * Every state is tappable and opens the purchase sheet — non-Available
+ * states show "here's what this is" content with a disabled CTA, and the
+ * VM gates the actual commit ([ShopAction.ConfirmPurchase]) as well.
  */
 @Composable
 private fun ChipOfferCard(
     offer: Product.ChipOffer,
     cardState: ChipOfferCardState,
     tier: CosmeticTier?,
-    timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
+    timeAnchor: CatalogTimeAnchor?,
     onExpired: () -> Unit,
     onClick: () -> Unit,
 ) {
@@ -706,7 +681,6 @@ private fun ChipOfferCard(
                     } else {
                         ProductIcon(
                             emoji = offer.iconEmoji,
-                            tone = IconTone.Accent,
                             size = SpecialtyIconSize,
                             modifier = Modifier.alpha(dimmableAlpha),
                         )
@@ -889,13 +863,13 @@ private fun InsufficientChipsFooter(cost: Long, shortBy: Long) {
                 coinSize = 16.dp,
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.danger,
-                formatter = ::formatChips,
+                formatter = ::formatThousands,
             )
         }
         if (shortBy > 0) {
             VerticalSpacerD100()
             Text(
-                text = stringResource(Res.string.shop_need_chips_more, formatChips(shortBy)),
+                text = stringResource(Res.string.shop_need_chips_more, formatThousands(shortBy)),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.danger,
             )
@@ -952,14 +926,10 @@ private fun ChipCostFooter(cost: Long, canAfford: Boolean) {
             coinSize = 16.dp,
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.content,
-            formatter = ::formatChips,
+            formatter = ::formatThousands,
         )
     }
 }
-
-// ---------------------------------------------------------------------------
-// Top-level states + overlays
-// ---------------------------------------------------------------------------
 
 @Composable
 private fun LoadingState() {
@@ -1043,10 +1013,6 @@ private fun ErrorBanner(
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Previews — every meaningful state.
-// ---------------------------------------------------------------------------
 
 @Preview
 @Composable

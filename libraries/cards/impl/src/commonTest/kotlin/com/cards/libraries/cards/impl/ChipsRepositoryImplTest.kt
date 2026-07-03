@@ -246,19 +246,14 @@ class ChipsRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun addChips_withDuplicateIdempotencyKey_dropsTheSecondEvent_butStillAppliesDelta() = runUnitTest {
-        // Current behavior — the wallet-events table de-dups on the
-        // primary key (IGNORE on conflict), so a same-key call inserts
-        // exactly one row. The chips DAO's `applyDelta` is not key-aware
-        // and runs both times, so the optimistic local balance ends up
-        // double-applied (one server event, two local debits) until the
-        // next sync's setBalance reconciles to the authoritative value.
-        //
-        // In production this corner is unreachable because callers don't
-        // re-invoke addChips with the same key (sync, not the local
-        // write, is the retry path). Pinning the current behavior here
-        // makes a future change — guarding applyDelta on a pre-existing
-        // wallet event — deliberate rather than accidental.
+    fun addChips_withDuplicateIdempotencyKey_appliesDeltaExactlyOnce() = runUnitTest {
+        // The wallet-events table de-dups on the primary key (IGNORE on
+        // conflict), so a same-key call records exactly one event. The balance
+        // delta must dedup too: applyDeltaInternal bails when the key is already
+        // on the ledger, so a re-issued key can't double-count the optimistic
+        // local balance. Callers don't re-issue keys today (sync, not the local
+        // write, is the retry path), but this guards the corner so a future
+        // caller that does can't silently drift the balance.
         val chipsDao = FakeChipsDao(initial = null)
         val walletDao = FakeWalletEventDao()
         val repo = buildRepo(chipsDao, walletDao)
@@ -266,8 +261,8 @@ class ChipsRepositoryImplTest : CoroutineTest() {
         repo.addChips(amount = 100, reason = "test", idempotencyKey = "k1")
         repo.addChips(amount = 100, reason = "test", idempotencyKey = "k1")
 
-        assertEquals(1, walletDao.getAll().size, "duplicate idempotency key → one row, IGNORE on conflict")
-        assertEquals(200L, chipsDao.getChips()?.balance, "applyDelta runs both times — optimistic double-apply")
+        assertEquals(1, walletDao.getAll().size, "duplicate idempotency key → one event row")
+        assertEquals(100L, chipsDao.getChips()?.balance, "duplicate key → delta applied exactly once")
     }
 
     @Test
@@ -350,6 +345,9 @@ class ChipsRepositoryImplTest : CoroutineTest() {
                 rows += entity
             }
         }
+
+        override suspend fun countByKey(key: String): Int =
+            rows.count { it.idempotencyKey == key }
 
         override suspend fun deleteByKeys(keys: List<String>) {
             rows.removeAll { it.idempotencyKey in keys }

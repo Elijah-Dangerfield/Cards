@@ -47,9 +47,11 @@ fun Route.profilesRoutes(profiles: ProfileRepository) {
                 )
             }
 
-            val resolved = parsed.filterNotNull()
-                .take(MAX_IDS)
-                .mapNotNull { id -> profiles.findById(id)?.toPublicDto() }
+            val ids = parsed.filterNotNull().take(MAX_IDS)
+            // One batched read instead of a round-trip per id. Re-associate by id
+            // so the response preserves request order and silently omits unknowns.
+            val byId = profiles.findByIds(ids).associateBy { it.userId }
+            val resolved = ids.mapNotNull { id -> byId[id]?.toPublicDto() }
 
             call.respond(HttpStatusCode.OK, ProfilesResponse(profiles = resolved))
         }

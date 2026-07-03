@@ -436,6 +436,9 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
             }
         }
 
+        override suspend fun countByKey(key: String): Int =
+            rows.count { it.idempotencyKey == key }
+
         override suspend fun deleteByKeys(keys: List<String>) {
             rows.removeAll { it.idempotencyKey in keys }
         }

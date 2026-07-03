@@ -24,6 +24,7 @@ import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -172,6 +173,43 @@ class GuestSessionHealerTest : CoroutineTest() {
     }
 
     @Test
+    fun concurrentHeals_runTheDecisionOnce() = runUnitTest {
+        val gate = CompletableDeferred<Unit>()
+        val creator = FakeGuestAccountCreator(result = AccountCreationState.Succeeded, gate = gate)
+        val healer = build(
+            auth = FakeAuth(current = AuthState.Unauthenticated(), retryResult = AuthState.Unauthenticated()),
+            creator = creator,
+            onboarded = true,
+        )
+
+        healer.heal("first")
+        advanceUntilIdle() // first heal is parked inside ensureSession
+        healer.heal("second")
+        advanceUntilIdle()
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(1, creator.ensureCalls, "overlapping triggers must not run the decision twice")
+    }
+
+    @Test
+    fun heal_runsAgainAfterThePreviousRunCompletes() = runUnitTest {
+        val creator = FakeGuestAccountCreator(result = AccountCreationState.Succeeded)
+        val healer = build(
+            auth = FakeAuth(current = AuthState.Unauthenticated(), retryResult = AuthState.Unauthenticated()),
+            creator = creator,
+            onboarded = true,
+        )
+
+        healer.heal("first")
+        advanceUntilIdle()
+        healer.heal("second")
+        advanceUntilIdle()
+
+        assertEquals(2, creator.ensureCalls, "single-flight is skip-if-running, not once-ever")
+    }
+
+    @Test
     fun mints_reusesCachedAuthenticatedIdentity() = runUnitTest {
         val creator = FakeGuestAccountCreator(result = AccountCreationState.Succeeded)
         val healer = build(
@@ -242,6 +280,7 @@ class GuestSessionHealerTest : CoroutineTest() {
 
     private class FakeGuestAccountCreator(
         private val result: AccountCreationState = AccountCreationState.Succeeded,
+        private val gate: CompletableDeferred<Unit>? = null,
     ) : GuestAccountCreator {
         var ensureCalls = 0
             private set
@@ -255,6 +294,7 @@ class GuestSessionHealerTest : CoroutineTest() {
         override suspend fun ensureSession(fallbackIdentity: PendingIdentity): AccountCreationState {
             ensureCalls++
             lastFallback = fallbackIdentity
+            gate?.await()
             return result
         }
     }

@@ -9,7 +9,6 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
-import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
 import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
@@ -21,6 +20,7 @@ import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
+import com.dangerfield.cards.libraries.rooms.RemoveBotOutcome
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.mergeStakesFrom
 import com.dangerfield.cards.libraries.rooms.RoomConnection
@@ -103,7 +103,6 @@ class LobbyViewModel(
                     LobbyAction.ProfileResolved(
                         avatarEmoji = p.avatarEmojiOrNull,
                         avatarColorHex = p.avatarBackgroundColorOrNull,
-                        isFallback = p is Profile.Fallback,
                     ),
                 )
             }
@@ -158,19 +157,10 @@ class LobbyViewModel(
                         it.copy(creating = false, error = LobbyError.CreateInvalidMaxSeats(outcome.message))
                     }
                     is CreateRoomOutcome.NotSignedIn -> updateState {
-                        // Off a cached/offline profile (Profile.Fallback) the server
-                        // session was never minted, so a 401 here is a connection
-                        // problem, not an account-less state (AUTH-6). Only a real
-                        // signed-in account whose token chain ran dry reads as
-                        // "sign in first."
-                        it.copy(
-                            creating = false,
-                            error = if (it.isFallbackProfile) {
-                                LobbyError.CreateNetworkError
-                            } else {
-                                LobbyError.CreateNotSignedIn
-                            },
-                        )
+                        // Honest by construction: the repo only produces this for a
+                        // confirmed account problem (typed AuthUnready); offline /
+                        // finishing-setup arrive as NetworkError instead.
+                        it.copy(creating = false, error = LobbyError.CreateNotSignedIn)
                     }
                     is CreateRoomOutcome.NetworkError -> updateState {
                         it.copy(creating = false, error = LobbyError.CreateNetworkError)
@@ -218,16 +208,9 @@ class LobbyViewModel(
                         it.copy(joining = false, error = LobbyError.JoinRoomNotAcceptingPlayers)
                     }
                     is JoinRoomOutcome.NotSignedIn -> updateState {
-                        // See CreateRoom above: a Fallback profile means no minted
-                        // session, so this 401 is a connection problem (AUTH-6).
-                        it.copy(
-                            joining = false,
-                            error = if (it.isFallbackProfile) {
-                                LobbyError.JoinNetworkError
-                            } else {
-                                LobbyError.JoinNotSignedIn
-                            },
-                        )
+                        // See CreateRoom above: only a confirmed account problem
+                        // arrives here.
+                        it.copy(joining = false, error = LobbyError.JoinNotSignedIn)
                     }
                     is JoinRoomOutcome.NetworkError -> updateState {
                         it.copy(joining = false, error = LobbyError.JoinNetworkError)
@@ -395,8 +378,8 @@ class LobbyViewModel(
                 // Fire-and-forget: the removed seat disappears via the socket
                 // Snapshot. Surface only hard failures.
                 when (rooms.removeBot(code, action.botUserId)) {
-                    com.dangerfield.cards.libraries.rooms.RemoveBotOutcome.Success,
-                    com.dangerfield.cards.libraries.rooms.RemoveBotOutcome.NotFound,
+                    RemoveBotOutcome.Success,
+                    RemoveBotOutcome.NotFound,
                         -> Unit
                     else -> updateState { it.copy(error = LobbyError.BotActionFailed) }
                 }
@@ -412,7 +395,6 @@ class LobbyViewModel(
                 it.copy(
                     localAvatarEmoji = action.avatarEmoji,
                     localAvatarColorHex = action.avatarColorHex,
-                    isFallbackProfile = action.isFallback,
                 )
             }
 
@@ -553,11 +535,6 @@ data class LobbyState(
      *  carries per-member avatar data. */
     val localAvatarEmoji: String? = null,
     val localAvatarColorHex: String? = null,
-    /** True when the resolved profile is a [Profile.Fallback] — no confirmed
-     *  server session (offline cold boot off a cached profile, or pre-auth
-     *  bootstrap). Used to recolor a `NotSignedIn` create/join failure as a
-     *  connection problem rather than an account-less state (AUTH-6). */
-    val isFallbackProfile: Boolean = false,
     /** Set on the first GameStateSnapshot received for the current room.
      *  Used by [LobbyAction.GameplaySnapshotReceived] to navigate
      *  non-host clients into the play screen exactly once per session. */
@@ -652,7 +629,6 @@ sealed interface LobbyError {
     data object RoomWasClosed : LobbyError
     data object ConnectRejected : LobbyError
     data object ConnectionLost : LobbyError
-    data object StartGameComingSoon : LobbyError
     /** Add-/remove-bot call failed (full, network, etc.). */
     data object BotActionFailed : LobbyError
 }
@@ -695,7 +671,6 @@ sealed interface LobbyAction {
     data class ProfileResolved(
         val avatarEmoji: String?,
         val avatarColorHex: String?,
-        val isFallback: Boolean,
     ) : LobbyAction
     /** Internal — fired on the first gameplay-frames StateSnapshot per
      *  room so non-host clients can auto-follow the host into the

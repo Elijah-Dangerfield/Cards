@@ -22,4 +22,14 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-_No open items right now — the maintainer refills before the next run._
+## ROOM
+
+- `[P2]` **Create-game screen: make it scrollable and left-justify its rows to the section header.** Owner feedback on the create-game (private room create) screen — the horizontal rows aren't aligned to their section header the way the profile screen's are, and the screen doesn't scroll so content can be cut off on smaller devices.
+  **Acceptance:** the create-game screen scrolls when content exceeds the viewport, and its rows are left-justified flush with the section header, matching the profile screen's treatment.
+  **Hints:** the create-game/private-room create screen in `:features:lobby` (`LobbyFeatureEntryPoint` / create-room composables); mirror the profile screen's row/header alignment. Sentry CARDS-8B + CARDS-8D.
+
+## AUTH
+
+- `[P2]` **Remove the first-7-days daily welcome bonus.** Owner directive ("tbh I think we should just get rid of the daily bonus for the first 7 days thing"). This is the shipped "Day N of 7 — welcome bonus" onboarding reward surfaced via in-app messages. Directional/product call — recommend delete vs config-flag-off and ship a slice.
+  **Acceptance:** new users no longer see the "Day N of 7 — welcome bonus" daily reward flow; the associated grant/in-app-message logic is removed or disabled behind a config flag, with no dangling references.
+  **Hints:** the "Day N of 7 — welcome bonus" in-app message + its grant path (progression/economy + `InAppMessages`); relates to backlog "come back reward" (deferred) and product-spec Appendix C.1 (daily-streak rejected). Sentry CARDS-89.

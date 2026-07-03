@@ -26,8 +26,7 @@ class AchievementsViewModelTest : CoroutineTest() {
     fun initialState_isLoading_andEmpty() = runUnitTest {
         // No emission until the upstream Flow gets a value — the VM
         // ships with isLoading=true so the UI can render a skeleton.
-        val achievements = NeverEmittingAchievementRepository()
-        val vm = AchievementsViewModel(achievementRepository = achievements)
+        val vm = AchievementsViewModel(achievementRepository = NeverEmittingAchievementRepository)
         assertEquals(true, vm.state.isLoading)
         assertEquals(AchievementProgress.Empty, vm.state.progress)
     }
@@ -194,28 +193,5 @@ class AchievementsViewModelTest : CoroutineTest() {
         )
         assertEquals(0, firstMp.currentProgress(progress))
         assertEquals(0, fifthMp.currentProgress(progress))
-    }
-
-    /** A repository whose Flow never emits — used to pin the initial-state
-     *  invariant where `isLoading = true` should hold pre-first-emission. */
-    private class NeverEmittingAchievementRepository :
-        com.dangerfield.cards.libraries.cards.AchievementRepository {
-        override fun observeProgress(): kotlinx.coroutines.flow.Flow<AchievementProgress> =
-            kotlinx.coroutines.flow.flow { /* never emits */ }
-
-        override suspend fun getProgress(): AchievementProgress = AchievementProgress.Empty
-
-        override suspend fun recordHand(
-            summary: com.dangerfield.cards.libraries.cards.HandResultSummary,
-            context: com.dangerfield.cards.libraries.cards.AchievementHandContext,
-        ): List<com.dangerfield.cards.libraries.cards.EarnedAchievement> =
-            error("recordHand not used by AchievementsViewModel")
-
-        override suspend fun recordTutorialComplete(): com.dangerfield.cards.libraries.cards.EarnedAchievement? =
-            error("recordTutorialComplete not used by AchievementsViewModel")
-
-        override suspend fun sync(): Result<Unit> = Result.success(Unit)
-
-        override suspend fun deleteAll() { /* not used */ }
     }
 }

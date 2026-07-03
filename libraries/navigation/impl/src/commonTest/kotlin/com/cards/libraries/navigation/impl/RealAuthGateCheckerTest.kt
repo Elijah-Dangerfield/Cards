@@ -1,197 +1,59 @@
 package com.dangerfield.cards.libraries.navigation.impl
 
-import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
-import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
-import com.dangerfield.cards.libraries.identity.auth.AuthRepository
-import com.dangerfield.cards.libraries.identity.auth.AuthState
-import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
-import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
-import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
-import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
-import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
-import com.dangerfield.cards.libraries.identity.auth.PendingIdentity
-import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
-import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
-import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
-import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
-import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
-import com.dangerfield.cards.libraries.core.AppState
+import com.dangerfield.cards.libraries.core.AuthGate
+import com.dangerfield.cards.libraries.core.AuthReason
+import com.dangerfield.cards.libraries.core.AuthRequirement
+import com.dangerfield.cards.libraries.core.AuthVerdict
 import com.dangerfield.cards.libraries.navigation.AuthGateRoute
-import com.dangerfield.cards.libraries.navigation.AuthRequirement
-import com.dangerfield.cards.libraries.navigation.GateReason
 import com.dangerfield.cards.libraries.navigation.Route
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertSame
 
-class RealAuthGateCheckerTest : CoroutineTest() {
-
-    private val noneRoute = Route()
-    private val accountRoute = Route(authRequirement = AuthRequirement.Account)
-    private val claimedRoute = Route(authRequirement = AuthRequirement.ClaimedAccount)
-
-    @Test
-    fun noneRequirement_alwaysPassesThrough() = runUnitTest {
-        val checker = build()
-        advanceUntilIdle()
-        assertSame(noneRoute, checker.gate(noneRoute))
-    }
+/**
+ * Pins the adapter only: verdict → route substitution. The verdict table itself
+ * (offline vs need-account, fail-closed pre-resolve, heal kicks, …) is pinned in
+ * AuthGateImplTest — the checker owns none of that logic anymore.
+ */
+class RealAuthGateCheckerTest {
 
     @Test
-    fun account_whenAuthenticated_passesThrough() = runUnitTest {
-        val auth = FakeAuthRepository()
-        val checker = build(auth = auth)
-        auth.emit(AuthState.Authenticated(userId = "u1", isAnonymous = true, email = null))
-        advanceUntilIdle()
+    fun ready_passesTheRouteThroughByIdentity() {
+        val route = Route(authRequirement = AuthRequirement.Account)
+        val checker = RealAuthGateChecker(FakeAuthGate(AuthVerdict.Ready))
 
-        assertSame(accountRoute, checker.gate(accountRoute))
+        assertSame(route, checker.gate(route))
     }
 
     @Test
-    fun account_whenUnauthenticatedAndIdle_gatesWithNeedAccount() = runUnitTest {
-        val auth = FakeAuthRepository()
-        val checker = build(auth = auth)
-        auth.emit(AuthState.Unauthenticated())
-        advanceUntilIdle()
+    fun blocked_substitutesTheGateSheetRoute() {
+        val checker = RealAuthGateChecker(FakeAuthGate(AuthVerdict.Blocked(AuthReason.Offline)))
 
-        val gated = assertIs<AuthGateRoute>(checker.gate(accountRoute))
-        assertEquals(GateReason.NeedAccount, gated.reason)
+        val gated = assertIs<AuthGateRoute>(checker.gate(Route(authRequirement = AuthRequirement.Account)))
+        assertEquals(AuthReason.Offline, gated.reason)
     }
 
     @Test
-    fun account_whenUnauthenticatedAndOffline_gatesWithOffline() = runUnitTest {
-        val auth = FakeAuthRepository()
-        val appState = FakeAppState(offline = true)
-        val checker = build(auth = auth, appState = appState)
-        auth.emit(AuthState.Unauthenticated())
-        advanceUntilIdle()
+    fun gate_consultsTheRoutesOwnRequirement() {
+        val gate = FakeAuthGate(AuthVerdict.Ready)
+        val checker = RealAuthGateChecker(gate)
 
-        val gated = assertIs<AuthGateRoute>(checker.gate(accountRoute))
-        assertEquals(
-            GateReason.Offline,
-            gated.reason,
-            "offline + unresolved session should read as offline, not 'account needed'",
-        )
+        checker.gate(Route(authRequirement = AuthRequirement.ClaimedAccount))
+
+        assertEquals(AuthRequirement.ClaimedAccount, gate.lastRequirement)
     }
 
-    @Test
-    fun account_whenCreationPendingAndOffline_prefersFinishingSetupOverOffline() = runUnitTest {
-        val auth = FakeAuthRepository()
-        val creator = FakeGuestAccountCreator(
-            initial = AccountCreationState.Failed(
-                PendingIdentity("Foxy", "🦊", null),
-                cause = RuntimeException("offline"),
-            ),
-        )
-        val checker = build(auth = auth, creator = creator, appState = FakeAppState(offline = true))
-        auth.emit(AuthState.Unauthenticated())
-        advanceUntilIdle()
+    private class FakeAuthGate(private val verdict: AuthVerdict) : AuthGate {
+        var lastRequirement: AuthRequirement? = null
+            private set
 
-        val gated = assertIs<AuthGateRoute>(checker.gate(accountRoute))
-        assertEquals(
-            GateReason.FinishingSetup,
-            gated.reason,
-            "an actively-healing guest should still be told setup is finishing",
-        )
-    }
+        override fun verdict(requirement: AuthRequirement): AuthVerdict {
+            lastRequirement = requirement
+            return verdict
+        }
 
-    @Test
-    fun account_whileCreationPending_gatesWithFinishingSetup() = runUnitTest {
-        val auth = FakeAuthRepository()
-        val creator = FakeGuestAccountCreator(
-            initial = AccountCreationState.Failed(
-                PendingIdentity("Foxy", "🦊", null),
-                cause = RuntimeException("offline"),
-            ),
-        )
-        val checker = build(auth = auth, creator = creator)
-        auth.emit(AuthState.Unauthenticated())
-        advanceUntilIdle()
-
-        val gated = assertIs<AuthGateRoute>(checker.gate(accountRoute))
-        assertEquals(GateReason.FinishingSetup, gated.reason, "a degraded guest should be told it's still setting up")
-    }
-
-    @Test
-    fun account_beforeAuthResolves_failsClosed() = runUnitTest {
-        // No auth emission yet (cached null) → an Account route is gated.
-        val checker = build()
-        advanceUntilIdle()
-
-        assertIs<AuthGateRoute>(checker.gate(accountRoute))
-    }
-
-    @Test
-    fun claimedAccount_whenAnonymousGuest_gatesWithNeedClaimed() = runUnitTest {
-        val auth = FakeAuthRepository()
-        val checker = build(auth = auth)
-        auth.emit(AuthState.Authenticated(userId = "u1", isAnonymous = true, email = null))
-        advanceUntilIdle()
-
-        val gated = assertIs<AuthGateRoute>(checker.gate(claimedRoute))
-        assertEquals(GateReason.NeedClaimedAccount, gated.reason)
-    }
-
-    @Test
-    fun claimedAccount_whenClaimed_passesThrough() = runUnitTest {
-        val auth = FakeAuthRepository()
-        val checker = build(auth = auth)
-        auth.emit(AuthState.Authenticated(userId = "u1", isAnonymous = false, email = "a@b.com"))
-        advanceUntilIdle()
-
-        assertSame(claimedRoute, checker.gate(claimedRoute))
-    }
-
-    private fun build(
-        auth: AuthRepository = FakeAuthRepository(),
-        creator: GuestAccountCreator = FakeGuestAccountCreator(),
-        appState: AppState = FakeAppState(offline = false),
-    ) = RealAuthGateChecker(
-        authRepository = auth,
-        guestAccountCreator = creator,
-        appState = appState,
-        appScope = AppCoroutineScope(dispatchers),
-    )
-
-    private class FakeAppState(offline: Boolean) : AppState {
-        override val isOffline: StateFlow<Boolean> = MutableStateFlow(offline).asStateFlow()
-        override val isBlockActive: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
-    }
-
-    private class FakeGuestAccountCreator(
-        initial: AccountCreationState = AccountCreationState.Idle,
-    ) : GuestAccountCreator {
-        override val state = MutableStateFlow(initial)
-        override fun start(identity: PendingIdentity) = Unit
-        override suspend fun awaitTerminal(): AccountCreationState = state.value
-        override fun retry() = Unit
-        override suspend fun ensureSession(fallbackIdentity: PendingIdentity): AccountCreationState = state.value
-    }
-
-    private class FakeAuthRepository : AuthRepository {
-        private val flow = MutableSharedFlow<AuthState>(replay = 1, extraBufferCapacity = 4)
-        fun emit(state: AuthState) { flow.tryEmit(state) }
-
-        override fun observe(): Flow<AuthState> = flow
-        override suspend fun current(): AuthState = error("unused")
-        override suspend fun retry(): AuthState = error("unused")
-        override suspend fun signInWithEmail(email: String, password: String): SignInOutcome = error("unused")
-        override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome = error("unused")
-        override suspend fun refreshSession(): RefreshOutcome = error("unused")
-        override suspend fun resendVerificationEmail(email: String): ResendOutcome = error("unused")
-        override suspend fun sendPasswordResetEmail(email: String): SendResetOutcome = error("unused")
-        override suspend fun signOut() = error("unused")
-        override suspend fun deleteAccount(): DeleteAccountOutcome = error("unused")
-        override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome = error("unused")
-        override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome = error("unused")
-        override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome = error("unused")
+        override suspend fun awaitVerdict(requirement: AuthRequirement): AuthVerdict =
+            verdict(requirement)
     }
 }

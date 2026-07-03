@@ -26,35 +26,21 @@ import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 
 /**
- * Backs the shop screen.
+ * Backs the shop screen. Init wires the observable inputs (catalog,
+ * chip balance, inventory, progression level, time anchor, deep-link
+ * scroll requests) into state; the catalog itself refreshes via the
+ * session-aware repository, not from here.
  *
- * Three streams are wired on init:
- *  - Catalog (server-driven what's-for-sale)
- *  - Chip balance (drives can-afford gating + "you have / after" preview)
- *  - Inventory (drives the "OWNED" badge on chip offers)
+ * Chip-funded redemption ([ShopAction.ConfirmPurchase] for a chip offer)
+ * is optimistic: [InventoryRepository.redeemChipOffer] atomically inserts
+ * the Pending inventory row and deducts chips, the VM emits a celebration
+ * event, and a background [InventoryRepository.sync] flips the row to
+ * Confirmed.
  *
- * Catalog refresh is kicked at init + on pull-to-refresh. Inventory sync
- * (locally-pending → server-confirmed) is also kicked at init — once auth
- * lands and the server tracks per-user state, that becomes the
- * reconciliation pass.
- *
- * Optimistic redemption flow ([ShopAction.ConfirmPurchase] for a
- * chip-funded offer):
- *  1. Pre-check chip balance — if insufficient, surface error without
- *     mutating anything. (UI also disables the button when balance &lt;
- *     cost so this path is defensive, not primary.)
- *  2. Call [InventoryRepository.redeemChipOffer] — it atomically
- *     inserts the inventory row as Pending and deducts chips.
- *  3. Sheet is already popping (navigation), VM emits a confirmation
- *     event for the UI to celebrate (toast, haptic, whatever).
- *  4. Best-effort fire [InventoryRepository.sync] in the background so
- *     the row flips Pending → Confirmed before the user closes the app.
- *
- * IAP packs ([ShopAction.ConfirmPurchase] for a chip pack) drive
- * [BillingClient.purchase] and emit a [ShopEvent.PurchaseFinished]
- * once the store sheet resolves (success, cancel, failure). Chips are
- * credited locally via [ChipsRepository.addChips] when the store
- * confirms — server-side receipt validation is deferred.
+ * IAP packs route through [PurchaseChipPackUseCase], which drives the
+ * platform store sheet to completion and credits chips locally on
+ * success; the VM just emits [ShopEvent.PurchaseFinished] with the
+ * outcome.
  */
 class ShopViewModel @Inject constructor(
     private val productsRepository: ProductsRepository,
@@ -101,21 +87,16 @@ class ShopViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            // Player level is derived from lifetime XP via the cards
-            // progression curve. Recomputed on every progression update
-            // so the shop's lock state flips the moment the user levels
-            // up mid-session.
+            // Recomputed on every progression update so the shop's lock
+            // state flips the moment the user levels up mid-session.
             progressionRepository.observeProgression().collect { progression ->
                 val level = levelProgressFor(progression.totalXp, progressionConfig.levelCurve()).level
                 takeAction(ShopAction.PlayerLevelChanged(level))
             }
         }
         viewModelScope.launch {
-            // Time anchor tracks the server's wall clock at the moment of
-            // the latest catalog fetch, paired with a local monotonic
-            // mark. Used by the countdown badge UI for sale-window
-            // offers — see CatalogTimeAnchor for the clock-spoof-
-            // resistance logic.
+            // Drives the sale-window countdown badges — see
+            // CatalogTimeAnchor for the clock-spoof-resistance logic.
             productsRepository.observeTimeAnchor().collect { anchor ->
                 takeAction(ShopAction.TimeAnchorChanged(anchor))
             }
@@ -130,16 +111,11 @@ class ShopViewModel @Inject constructor(
                 takeAction(ShopAction.ScrollToCategory(category))
             }
         }
-        // No explicit catalog refresh on screen entry: the repository
-        // is session-aware and self-triggers on cold boot + on any
-        // background-rollover (see ProductsRepositoryImpl). VM `init`
-        // would otherwise fire a redundant non-forced refresh that
-        // the repository would short-circuit anyway. Pull-to-refresh
-        // (ShopAction.Refresh with force = true) is the only path
-        // that still goes through the VM for the catalog.
-        //
-        // Inventory still syncs on every screen entry — it changes
-        // with gameplay between shop visits and is cheap.
+        // No catalog refresh here: the session-aware repository
+        // self-triggers on cold boot + background rollover; only
+        // pull-to-refresh goes through the VM. Inventory does sync on
+        // every screen entry — it changes with gameplay between shop
+        // visits and is cheap.
         viewModelScope.launch { inventoryRepository.sync() }
     }
 
@@ -208,15 +184,6 @@ class ShopViewModel @Inject constructor(
                 it.copy(pendingScrollCategory = null)
             }
 
-            // ---- Purchase confirm flow ----
-            //
-            // The purchase confirmation sheet is its own navigation
-            // route (`ShopProductSheetRoute`); opening and dismissing
-            // it are pure navigation operations, not VM actions.
-            // The VM only handles the *confirm* leg (commit the
-            // purchase) since that's what depends on the
-            // BillingClient / inventory repository.
-
             is ShopAction.ConfirmPurchase -> {
                 // Defense-in-depth: the sheet's primary CTA is
                 // disabled for non-buyable states, but the action
@@ -279,12 +246,6 @@ class ShopViewModel @Inject constructor(
     }
 
     private suspend fun confirmChipOfferRedeem(offer: Product.ChipOffer) {
-        // Sheet route is popped synchronously by the caller (sheet
-        // composable's confirm handler runs `router.goBack()` before
-        // dispatching this action), so the sheet is already closing by
-        // the time we land here. No state mutation needed here.
-        val action = ShopAction.ConfirmPurchase(offer)
-
         val result = inventoryRepository.redeemChipOffer(
             productId = offer.id,
             costChips = offer.costChips,
@@ -338,8 +299,6 @@ class ShopViewModel @Inject constructor(
         return true
     }
 }
-
-// ---------- MVI types ----------
 
 data class ShopState(
     val catalog: ProductCatalog = ProductCatalog.Empty,

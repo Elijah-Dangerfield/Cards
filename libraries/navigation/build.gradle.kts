@@ -10,7 +10,9 @@ android {
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation(projects.libraries.core)
+            // api: Route.authRequirement / AuthGateRoute.reason expose core's
+            // auth vocabulary to every module that declares routes.
+            api(projects.libraries.core)
             implementation(projects.libraries.ui)
             implementation(projects.libraries.flowroutines)
             api(libs.jetbrains.navigation.compose)

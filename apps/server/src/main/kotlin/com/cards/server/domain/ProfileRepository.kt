@@ -20,6 +20,18 @@ interface ProfileRepository {
     suspend fun findById(userId: UserId): Profile?
 
     /**
+     * Batch counterpart to [findById] — resolve many ids at once so a caller
+     * like `GET /v1/profiles?ids=…` doesn't fire one DB round-trip per id.
+     * Unknown ids are simply absent from the result and order is not
+     * guaranteed, so callers preserving request order re-associate by
+     * [Profile.userId]. The default is the naive per-id fallback (fine for
+     * fakes and small callers); the Postgres impl overrides it with a single
+     * `WHERE user_id IN (…)` query.
+     */
+    suspend fun findByIds(userIds: List<UserId>): List<Profile> =
+        userIds.mapNotNull { findById(it) }
+
+    /**
      * Apply a partial update. Either field may be omitted (null = leave
      * alone). The server enforces:
      *  - `displayName` uniqueness via the DB constraint (we map the

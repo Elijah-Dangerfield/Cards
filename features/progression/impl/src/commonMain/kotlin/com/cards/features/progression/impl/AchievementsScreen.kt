@@ -15,6 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.achievements_earned_count
+import cards.libraries.resources.generated.resources.achievements_locked_label
+import cards.libraries.resources.generated.resources.achievements_title
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.currentProgress
@@ -26,6 +30,8 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD500
+import kotlin.time.Clock
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -40,7 +46,7 @@ fun AchievementsScreen(
     Screen(
         topBar = {
             TopBar(
-                title = "Achievements",
+                title = stringResource(Res.string.achievements_title),
                 onNavigateBack = onBack,
                 scrollState = gridState,
             )
@@ -55,7 +61,7 @@ fun AchievementsScreen(
             VerticalSpacerD500()
 
             Text(
-                text = "$earned of $total earned",
+                text = stringResource(Res.string.achievements_earned_count, earned, total),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.contentSecondary,
             )
@@ -78,7 +84,11 @@ fun AchievementsScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = if (isMystery) "Locked" else achievement.name,
+                            text = if (isMystery) {
+                                stringResource(Res.string.achievements_locked_label)
+                            } else {
+                                achievement.name
+                            },
                             typography = AppTheme.typography.Label.L400,
                             color = if (earned) {
                                 AppTheme.colors.content
@@ -118,8 +128,8 @@ private fun AchievementsScreenPreview_SomeEarned() {
                 isLoading = false,
                 progress = AchievementProgress(
                     earned = mapOf(
-                        AllAchievements[0].id to kotlin.time.Clock.System.now().toEpochMilliseconds(),
-                        AllAchievements[5].id to kotlin.time.Clock.System.now().toEpochMilliseconds(),
+                        AllAchievements[0].id to Clock.System.now().toEpochMilliseconds(),
+                        AllAchievements[5].id to Clock.System.now().toEpochMilliseconds(),
                     ),
                     counters = mapOf(
                         AllAchievements[1].id to 23,
@@ -135,7 +145,7 @@ private fun AchievementsScreenPreview_SomeEarned() {
 @Preview
 @Composable
 private fun AchievementsScreenPreview_AllEarned() {
-    val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
+    val now = Clock.System.now().toEpochMilliseconds()
     PreviewContent {
         AchievementsScreen(
             state = AchievementsState(

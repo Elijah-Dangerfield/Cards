@@ -125,10 +125,18 @@ private fun FeltSwatch(productId: String, size: Dp, modifier: Modifier = Modifie
     )
 }
 
+/**
+ * A card back is portrait, so its preview is this fraction of the tile height
+ * wide. The preview footprint hugs the card at that width (see [CardBackPreview])
+ * rather than sitting in a square tile, so there's no trailing dead space and a
+ * corner badge lands on the artwork with no inset compensation.
+ */
+const val CardBackPreviewWidthFraction: Float = 0.7f
+
 @Composable
 private fun CardBackPreview(productId: String, size: Dp, modifier: Modifier = Modifier) {
     val style = cardBackForProductId(productId)
-    val cardSize = PlayingCardSize(width = size * 0.7f, height = size)
+    val cardSize = PlayingCardSize(width = size * CardBackPreviewWidthFraction, height = size)
     // Avatar back is personal — without an overlay it would render as
     // the Default gray gradient in shop tiles, which understates what
     // the user is buying. Pass a generic placeholder emoji + color so
@@ -138,13 +146,14 @@ private fun CardBackPreview(productId: String, size: Dp, modifier: Modifier = Mo
     } else {
         null
     }
-    // Start-align, not center: a card back is narrower than its square
-    // footprint, so centering insets its visible left edge from the tile
-    // start. Every other preview kind (felt, pack, emoji) fills or
-    // start-aligns its footprint, so a centered card made the card-back
-    // shelf's tiles begin further in than the felt/emote shelves under the
-    // same header. Start-aligning lines all shelves up (SHOP-6).
-    Box(modifier = modifier.size(size), contentAlignment = Alignment.CenterStart) {
+    // Footprint hugs the portrait card (width = height × fraction), not a square
+    // tile. A square footprint left dead space on the trailing side that read as
+    // lopsided right padding wherever the tile was centered — shop grid cells,
+    // pickers — and forced corner badges to compensate with a trailing inset
+    // (SHOP-9). Sizing to the card removes the gap: the card still starts at the
+    // tile's leading edge, so per-type shelves stay left-aligned with felt/emote
+    // shelves (SHOP-6), and centered callers now center the card, not card+gap.
+    Box(modifier = modifier.size(width = cardSize.width, height = cardSize.height)) {
         PlayingCardBack(size = cardSize, style = style, avatarOverlay = avatarOverlay)
     }
 }

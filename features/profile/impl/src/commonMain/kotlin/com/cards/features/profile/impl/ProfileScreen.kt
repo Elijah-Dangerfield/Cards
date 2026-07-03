@@ -959,7 +959,11 @@ private fun OwnedCosmeticTile(
             )
         }
         if (showEquippedBadge) {
-            EquippedBadge(modifier = Modifier.align(Alignment.TopEnd))
+            EquippedBadge(
+                // The preview footprint now hugs the card (SHOP-9), so a plain
+                // TopEnd badge already lands on the artwork — no trailing inset.
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
         }
     }
 }
@@ -1014,7 +1018,11 @@ private fun BuyableCosmeticTile(item: BuyableCosmetic, onClick: () -> Unit) {
                 packEmojis = item.packEmojis,
             )
         }
-        LockedBadge(modifier = Modifier.align(Alignment.TopEnd))
+        LockedBadge(
+            // Preview footprint hugs the card now (SHOP-9); TopEnd sits on the
+            // artwork corner without a trailing inset.
+            modifier = Modifier.align(Alignment.TopEnd),
+        )
     }
 }
 
@@ -1058,7 +1066,7 @@ private fun previewSettings(isAnonymous: Boolean) = ProfileSettings(
     isFoundingMember = !isAnonymous,
 )
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview(heightDp = 2000)
 @Composable
 private fun ProfileScreenPreview() {
     val now = kotlin.time.Clock.System.now().toEpochMilliseconds()

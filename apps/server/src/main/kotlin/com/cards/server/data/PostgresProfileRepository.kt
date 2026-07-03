@@ -73,6 +73,19 @@ class PostgresProfileRepository(
             ?.toProfile()
     }
 
+    override suspend fun findByIds(userIds: List<UserId>): List<Profile> =
+        if (userIds.isEmpty()) {
+            emptyList()
+        } else {
+            database.transaction {
+                val ids = userIds.map { it.value }
+                ProfilesTable
+                    .selectAll()
+                    .where { ProfilesTable.userId inList ids }
+                    .map { it.toProfile() }
+            }
+        }
+
     override suspend fun delete(userId: UserId) {
         database.transaction {
             ProfilesTable.deleteWhere { ProfilesTable.userId eq userId.value }

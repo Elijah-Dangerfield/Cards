@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.networking
 
+import com.dangerfield.cards.libraries.core.AuthRequirement
+import com.dangerfield.cards.libraries.core.AuthVerdict
 import io.ktor.client.HttpClient
 
 /**
@@ -42,4 +44,24 @@ interface NetworkClient {
      * Public endpoints don't need to wait; [unauthedCall] skips this.
      */
     suspend fun awaitAuthReady()
+
+    /**
+     * Auth-readiness verdict for [requirement], brokered from the shared
+     * [com.dangerfield.cards.libraries.core.AuthGate] (this module can't depend
+     * on identity — same seam as [AuthTokenProvider]). [authedCall] consults it
+     * before firing so a doomed request (no session, offline, …) short-circuits
+     * to a typed [com.dangerfield.cards.libraries.core.AuthUnready] failure
+     * instead of hitting the wire as a phantom 401. Suspends until auth has
+     * resolved. Defaulted to Ready so test fakes stay ungated.
+     */
+    suspend fun authVerdict(requirement: AuthRequirement): AuthVerdict = AuthVerdict.Ready
+
+    /**
+     * Broker for [SessionRejectionBus.rejectionEpoch]: [authedCall] compares it
+     * before/after a failed request to tell "session confirmed dead mid-flight"
+     * (refresh rejected → epoch bumped → the final 401 is a session death) from
+     * a transient 401. Defaulted for test fakes that never reject.
+     */
+    @InternalNetworkingApi
+    val sessionRejectionEpoch: Long get() = 0
 }

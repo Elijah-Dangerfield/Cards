@@ -17,6 +17,7 @@ import androidx.navigation.toRoute
 import androidx.savedstate.SavedState
 import androidx.savedstate.read
 import androidx.savedstate.write
+import com.dangerfield.cards.libraries.core.AuthRequirement
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
 import kotlinx.serialization.Serializable

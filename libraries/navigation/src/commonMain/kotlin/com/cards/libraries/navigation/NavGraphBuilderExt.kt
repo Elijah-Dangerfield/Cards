@@ -15,6 +15,7 @@ import androidx.navigation.compose.ComposeNavigator
 import androidx.navigation.compose.ComposeNavigatorDestinationBuilder
 import androidx.navigation.get
 import androidx.navigation.navigation as composeNestedGraph
+import com.dangerfield.cards.libraries.core.AuthRequirement
 import com.dangerfield.cards.libraries.ui.components.dialog.DialogState
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetState
 import com.dangerfield.cards.libraries.navigation.floatingwindow.DialogDestination
@@ -34,6 +35,14 @@ import kotlin.reflect.typeOf
  * Miss one and graph-build throws `IllegalArgumentException: ... could not find
  * any NavType for argument <name>` (the [ShakeDialogRoute] / fresh-install
  * crash). Every destination + deep-link builder below merges this in.
+ *
+ * Every type registered here MUST be `@Serializable`. On Native there is no
+ * built-in enum NavType (`parseEnum` returns UNKNOWN), so enum args are resolved
+ * *through* this typeMap — and androidx.navigation's `matchKType` calls the
+ * reflective `serializerOrNull(kType)` on every key while resolving every route
+ * arg. A key whose type has no reflectively-resolvable serializer (a plain,
+ * non-`@Serializable` enum) makes that return null and graph-build throws — with
+ * a message that misleadingly names whatever arg was being resolved at the time.
  *
  * Keep in sync with the serialized properties of [Route]:
  *  - `enter` / `exit` / `popExit` → [AnimationType]

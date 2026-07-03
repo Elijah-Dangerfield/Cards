@@ -1,7 +1,6 @@
 package com.dangerfield.cards.features.room.impl.session
 
 import com.dangerfield.cards.features.room.impl.TableUiState
-import com.dangerfield.cards.features.room.impl.ui.label
 
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
@@ -10,6 +9,7 @@ import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.game.Personality
+import com.dangerfield.cards.libraries.game.PlayStyle
 import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
@@ -94,7 +94,7 @@ class SoloBotsPokerSessionFactory @Inject constructor(
             // shared game-data module.
             Personality(
                 label = p.name,
-                style = com.dangerfield.cards.libraries.game.PlayStyle.Unknown,
+                style = PlayStyle.Unknown,
             )
         }
         seatToOccupant(seat, personality, curve)

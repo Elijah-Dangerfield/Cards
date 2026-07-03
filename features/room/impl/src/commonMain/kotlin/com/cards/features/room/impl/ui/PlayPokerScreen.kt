@@ -255,16 +255,18 @@ fun PlayPokerScreen(
         }
     }
 
-    // Confirm-leave gate. Skip the confirmation only when the table is
-    // loading or no hand is in progress — there's nothing to lose. When a
-    // hand is live, always show the confirmation; leaving costs the hand.
-    val handInProgress = active != null && active.handResult == null
+    // Confirm-leave gate. Skip the confirmation only when there's genuinely
+    // nothing to lose: a solo / free-practice table with no live hand. A live
+    // hand always confirms (leaving costs the hand), and so does any real-money
+    // MP seat even when the table is stuck or degraded, so a chip-holding player
+    // can't silently back out into a weird state (MP-31). See
+    // PlayPokerState.requiresLeaveConfirmation.
     val leaveTable: () -> Unit = {
         onAction(PlayPokerAction.LeaveTable)
         onBack()
     }
     val requestLeave: () -> Unit = {
-        if (!confirmLeave || !handInProgress) {
+        if (!confirmLeave || !state.requiresLeaveConfirmation) {
             leaveTable()
         } else {
             leaveConfirmOpen = true

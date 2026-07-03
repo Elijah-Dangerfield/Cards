@@ -1,5 +1,6 @@
 plugins {
     id("cards.kotlin.multiplatform")
+    alias(libs.plugins.kotlinSerialization)
 }
 
 // AGP namespace is defaulted from the project path by the KMP convention
@@ -30,6 +31,10 @@ kotlin {
             api(libs.kotlinx.coroutines.core)
             api(libs.kotlinx.datetime)
             implementation(libs.kotlin.inject.runtime.kmp)
+            // Auth vocabulary enums (AuthRequirement / AuthReason) are @Serializable
+            // so navigation can register them as route-arg NavTypes on iOS/Native,
+            // which has no built-in enum NavType support.
+            implementation(libs.kotlinx.serialization.json)
         }
     }
 }

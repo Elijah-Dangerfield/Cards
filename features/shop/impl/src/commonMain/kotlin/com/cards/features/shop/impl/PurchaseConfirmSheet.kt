@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.CosmeticSlot
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
+import com.dangerfield.cards.libraries.cards.formatThousands
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.shop_purchase_balance_after
 import cards.libraries.resources.generated.resources.shop_purchase_balance_current
@@ -36,6 +37,9 @@ import cards.libraries.resources.generated.resources.shop_purchase_responsible_p
 import cards.libraries.resources.generated.resources.shop_purchase_store_app_store
 import cards.libraries.resources.generated.resources.shop_purchase_store_google_play
 import cards.libraries.resources.generated.resources.shop_unlocks_at_level
+import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.Platform
+import com.dangerfield.cards.libraries.products.CatalogTimeAnchor
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.StoreSku
 import com.dangerfield.cards.libraries.ui.Elevation
@@ -109,7 +113,7 @@ internal fun PurchaseConfirmSheet(
     product: Product,
     mode: PurchaseSheetMode,
     chipBalance: Long,
-    timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
+    timeAnchor: CatalogTimeAnchor?,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     onOpenResponsiblePlay: () -> Unit = {},
@@ -173,7 +177,7 @@ internal fun PurchaseConfirmSheet(
 @Composable
 private fun IapPackConfirmContent(
     pack: Product.ChipPack,
-    timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
+    timeAnchor: CatalogTimeAnchor?,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
     onExpired: () -> Unit,
@@ -265,7 +269,7 @@ private fun ChipOfferConfirmContent(
     offer: Product.ChipOffer,
     mode: PurchaseSheetMode,
     chipBalance: Long,
-    timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
+    timeAnchor: CatalogTimeAnchor?,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
     onExpired: () -> Unit,
@@ -376,7 +380,7 @@ private fun ChipOfferConfirmContent(
                 body = stringResource(
                     Res.string.shop_purchase_locked_body,
                     mode.requiredLevel,
-                    formatChips(offer.costChips),
+                    formatThousands(offer.costChips),
                 ),
             )
             is PurchaseSheetMode.Owned -> StatusPrompt(
@@ -399,7 +403,7 @@ private fun ChipOfferConfirmContent(
             is PurchaseSheetMode.Insufficient -> SheetButtons(
                 confirmLabel = stringResource(
                     Res.string.shop_purchase_need_more_chips,
-                    formatChips(mode.shortBy),
+                    formatThousands(mode.shortBy),
                 ),
                 onConfirm = onConfirm,
                 onCancel = onCancel,
@@ -578,16 +582,10 @@ private fun ownedBodyFor(offer: Product.ChipOffer): String = when {
 
 @Composable
 private fun platformStoreName(): String =
-    when (com.dangerfield.cards.libraries.core.BuildInfo.platform) {
-        com.dangerfield.cards.libraries.core.Platform.iOS ->
-            stringResource(Res.string.shop_purchase_store_app_store)
-        com.dangerfield.cards.libraries.core.Platform.Android ->
-            stringResource(Res.string.shop_purchase_store_google_play)
+    when (BuildInfo.platform) {
+        Platform.iOS -> stringResource(Res.string.shop_purchase_store_app_store)
+        Platform.Android -> stringResource(Res.string.shop_purchase_store_google_play)
     }
-
-// ---------------------------------------------------------------------------
-// Previews — one per branch so we can eyeball the affordance for each path.
-// ---------------------------------------------------------------------------
 
 @Preview
 @Composable

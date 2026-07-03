@@ -4,7 +4,9 @@ import com.dangerfield.cards.libraries.networking.SessionRejectionBus
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.update
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -27,9 +29,14 @@ class SessionRejectionBusImpl : SessionRejectionBus {
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
 
+    private val epoch = MutableStateFlow(0L)
+
     override val rejections: Flow<SessionRejectionBus.Rejection> = _rejections.asSharedFlow()
 
+    override val rejectionEpoch: Long get() = epoch.value
+
     override fun signalRejected(wasAnonymous: Boolean) {
+        epoch.update { it + 1 }
         _rejections.tryEmit(SessionRejectionBus.Rejection(wasAnonymous = wasAnonymous))
     }
 }

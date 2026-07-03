@@ -18,19 +18,45 @@ import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
+import kotlin.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
+ * Base [AuthRepository] stub for the account tests: sits at an
+ * unauthenticated [AuthState] and `error`s on every method. Subclasses
+ * override only the handful they exercise, so an unexpected call fails
+ * loudly instead of silently passing. The Apple/Google-token methods keep
+ * their interface `NotImplementedError` defaults — no account VM hits them.
+ */
+internal abstract class StubAuthRepository : AuthRepository {
+    protected val authState = MutableStateFlow<AuthState>(AuthState.Unauthenticated())
+
+    override suspend fun current(): AuthState = authState.value
+    override fun observe(): Flow<AuthState> = authState
+    override suspend fun retry(): AuthState = authState.value
+
+    override suspend fun signInWithEmail(email: String, password: String): SignInOutcome = notStubbed()
+    override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome = notStubbed()
+    override suspend fun refreshSession(): RefreshOutcome = notStubbed()
+    override suspend fun resendVerificationEmail(email: String): ResendOutcome = notStubbed()
+    override suspend fun sendPasswordResetEmail(email: String): SendResetOutcome = notStubbed()
+    override suspend fun signOut(): Unit = notStubbed()
+    override suspend fun deleteAccount(): DeleteAccountOutcome = notStubbed()
+    override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome = notStubbed()
+    override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome = notStubbed()
+    override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome = notStubbed()
+
+    private fun notStubbed(): Nothing =
+        error("${this::class.simpleName}: this AuthRepository method isn't stubbed for this test")
+}
+
+/**
  * Pluggable in-memory [AuthRepository] for unit-testing the account
- * ViewModels (Delete + Claim). Methods the account VMs never touch are
- * `error()`-stubbed so a future refactor reaching for them fails loudly
- * instead of silently passing.
- *
- * Defaults: every outcome is `Unknown` so a test that forgets to stub the
- * branch it cares about fails at the assertion instead of getting a
- * misleading "no error" pass.
+ * ViewModels (Delete + Claim). Every outcome defaults to `Unknown` so a
+ * test that forgets to stub the branch it cares about fails at the
+ * assertion instead of getting a misleading "no error" pass.
  */
 internal class FakeAuthRepository(
     val deleteOutcome: DeleteAccountOutcome = DeleteAccountOutcome.Unknown(RuntimeException("not stubbed")),
@@ -38,7 +64,7 @@ internal class FakeAuthRepository(
     val oauthSignInOutcome: SignInOutcome = SignInOutcome.Unknown(RuntimeException("not stubbed")),
     val linkEmailOutcome: LinkEmailIdentityOutcome = LinkEmailIdentityOutcome.Unknown(RuntimeException("not stubbed")),
     val signUpOutcome: SignUpOutcome = SignUpOutcome.Unknown(RuntimeException("not stubbed")),
-) : AuthRepository {
+) : StubAuthRepository() {
 
     var deleteCalls: Int = 0
         private set
@@ -59,31 +85,11 @@ internal class FakeAuthRepository(
     var lastSignUpEmail: Pair<String, String>? = null
         private set
 
-    private val state = MutableStateFlow<AuthState>(AuthState.Unauthenticated())
-
-    override suspend fun current(): AuthState = state.value
-    override fun observe(): Flow<AuthState> = state
-    override suspend fun retry(): AuthState = state.value
-
-    override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
-        error("signInWithEmail not used by the account ViewModels")
-
     override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome {
         signUpCalls += 1
         lastSignUpEmail = email to password
         return signUpOutcome
     }
-
-    override suspend fun refreshSession(): RefreshOutcome =
-        error("refreshSession not used by the account ViewModels")
-
-    override suspend fun resendVerificationEmail(email: String): ResendOutcome =
-        error("resendVerificationEmail not used by the account ViewModels")
-
-    override suspend fun sendPasswordResetEmail(email: String): SendResetOutcome =
-        error("sendPasswordResetEmail not used by the account ViewModels")
-
-    override suspend fun signOut() { /* not used here */ }
 
     override suspend fun deleteAccount(): DeleteAccountOutcome {
         deleteCalls += 1
@@ -213,5 +219,5 @@ internal val sampleProfile = Profile.Authenticated(
     avatarBackgroundColor = null,
     email = null,
     isAnonymous = false,
-    createdAt = kotlin.time.Instant.fromEpochMilliseconds(0),
+    createdAt = Instant.fromEpochMilliseconds(0),
 )

@@ -357,8 +357,8 @@ private val DialogCardCornerRadius = 18.dp
 /** The signature for a dialog headline: a bold sans Heading (the italic serif
  *  Display read as too precious here — that's reserved for hero moments like the
  *  level-up screen). Every Dialog overload provides this to its title slot so
- *  dialogs stay congruent. */
-private val DialogTitleTypography: TypographyResource
+ *  dialogs stay congruent — including [ModalContent], which reads it too. */
+internal val DialogTitleTypography: TypographyResource
     @Composable get() = AppTheme.typography.Heading.H800
 
 @Preview

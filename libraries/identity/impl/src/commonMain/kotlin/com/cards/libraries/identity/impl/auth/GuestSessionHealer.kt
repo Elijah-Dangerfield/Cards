@@ -16,6 +16,7 @@ import com.dangerfield.cards.libraries.identity.auth.PendingIdentity
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -57,6 +58,7 @@ class GuestSessionHealer(
 ) : AppEventListener {
 
     private val logger = KLog.withTag("GuestSessionHealer")
+    private val inFlight = Mutex()
     private val authRepository: AuthRepository by lazy { authRepositoryProvider() }
     private val guestAccountCreator: GuestAccountCreator by lazy { guestAccountCreatorProvider() }
     private val profileRepository: ProfileRepository by lazy { profileRepositoryProvider() }
@@ -73,10 +75,24 @@ class GuestSessionHealer(
 
     override fun onConnectivityRegained(event: AppEvent.ConnectivityRegained) = heal("connectivityRegained")
 
-    private fun heal(source: String) {
+    /**
+     * Single-flight: overlapping triggers skip rather than queue — every source
+     * re-fires on a later edge anyway. This guards the decision run (duplicate
+     * [AuthRepository.retry] hits); mint-level serialization is separately owned
+     * by the creator's own mutex.
+     */
+    fun heal(source: String) {
+        if (!inFlight.tryLock()) {
+            log(source, HealAction.SKIP_ALREADY_RUNNING)
+            return
+        }
         appScope.launch {
-            Catching { healIfStranded(source) }
-                .logOnFailure { "Identity self-heal failed (source=$source)" }
+            try {
+                Catching { healIfStranded(source) }
+                    .logOnFailure { "Identity self-heal failed (source=$source)" }
+            } finally {
+                inFlight.unlock()
+            }
         }
     }
 
@@ -164,6 +180,7 @@ class GuestSessionHealer(
 
     /** The decision the healer reached this trigger — one line per trigger. */
     private enum class HealAction {
+        SKIP_ALREADY_RUNNING,
         SKIP_HAS_SESSION,
         SKIP_SESSION_EXPIRED,
         SKIP_SIGNED_OUT,

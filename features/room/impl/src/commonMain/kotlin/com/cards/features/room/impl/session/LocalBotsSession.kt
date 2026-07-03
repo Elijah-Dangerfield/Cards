@@ -11,6 +11,7 @@ import com.dangerfield.cards.libraries.bots.OpponentTracker
 import com.dangerfield.cards.libraries.bots.RngBotDecider
 import com.dangerfield.cards.libraries.bots.StreetAction
 import com.dangerfield.cards.libraries.bots.buildHandContext
+import com.dangerfield.cards.libraries.cards.GameSpeed
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.DefaultDispatcherProvider
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
@@ -51,8 +52,7 @@ class LocalBotsSession(
      * it in Settings during a hand applies on the very next bot turn,
      * without restarting the session.
      */
-    private val gameSpeedProvider: () -> com.dangerfield.cards.libraries.cards.GameSpeed =
-        { com.dangerfield.cards.libraries.cards.GameSpeed.Normal },
+    private val gameSpeedProvider: () -> GameSpeed = { GameSpeed.Normal },
     /**
      * Called when a hand ends, before any next-hand setup runs. Receives the
      * event, the game state captured at hand-end (so seat contributions and
@@ -278,7 +278,6 @@ class LocalBotsSession(
         while (gameState.actingSeatIndex != null && gameState.actingSeatIndex != humanSeatIndex) {
             val acting = gameState.actingSeatIndex!!
             val personality = personalitiesBySeat.getValue(acting)
-            logger.d { "Bot loop iter: hand=$handNumber acting=$acting street=${gameState.street}" }
             // Monte Carlo equity is CPU-bound (≈200 hand evaluations per call).
             // Run off the main thread so the UI stays responsive while bots think.
             val handContext = buildHandContext(
@@ -390,7 +389,6 @@ class LocalBotsSession(
             }
             return
         }
-        logger.d { "Applying human intent $intent" }
         // Capture how long the human took before applying — `applyIntentAndEmit`
         // flips the actor so we want the duration of the just-ended turn,
         // not the new one.
@@ -496,8 +494,7 @@ class LocalBotsSession(
     // still uses the original method names. Both call paths remain valid during the
     // strangler period.
 
-    override suspend fun submit(intent: com.dangerfield.cards.libraries.gameplay.PlayerIntent) =
-        submitHumanIntent(intent)
+    override suspend fun submit(intent: PlayerIntent) = submitHumanIntent(intent)
 
     override fun requestNextHand() = advanceToNextHand()
 

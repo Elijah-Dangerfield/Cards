@@ -1,6 +1,6 @@
 package com.dangerfield.cards.features.lobby
 
-import com.dangerfield.cards.libraries.navigation.AuthRequirement
+import com.dangerfield.cards.libraries.core.AuthRequirement
 import com.dangerfield.cards.libraries.navigation.Route
 import kotlinx.serialization.Serializable
 

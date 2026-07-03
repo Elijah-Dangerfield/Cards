@@ -168,17 +168,6 @@ data class SubsidyBudgetResponseDto(
     val remaining: Long,
 )
 
-@Serializable
-data class ProblemEnvelopeDto(
-    val error: ProblemDto,
-)
-
-@Serializable
-data class ProblemDto(
-    val code: String,
-    val message: String,
-)
-
 internal fun RoomDto.toDomain(): Room = Room(
     code = code,
     hostUserId = hostUserId,

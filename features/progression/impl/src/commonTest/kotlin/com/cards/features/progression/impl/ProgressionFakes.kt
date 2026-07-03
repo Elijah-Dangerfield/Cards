@@ -32,6 +32,7 @@ import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 
 /**
  * Shared in-memory fakes for the progression-impl ViewModels. The VMs are
@@ -164,6 +165,40 @@ internal class FakeAuthRepository(
         error("not used")
     override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome =
         error("not used")
+}
+
+/**
+ * Repositories whose Flows never emit — pin the pre-first-emission state
+ * where `isLoading = true` must hold. Everything else is `error()`-stubbed.
+ */
+internal object NeverEmittingProgressionRepository : ProgressionRepository {
+    override fun observeProgression(): Flow<Progression> = flow { /* never emits */ }
+    override suspend fun getProgression(): Progression = Progression.Empty
+    override suspend fun awardForHand(summary: HandResultSummary): List<XpEvent> =
+        error("awardForHand not used by the progression VMs")
+    override suspend fun applyAchievementXp(delta: Int, description: String?): XpEvent =
+        error("applyAchievementXp not used by the progression VMs")
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
+    override suspend fun deleteAll() { /* not used here */ }
+    override suspend fun debugSetTotalXp(totalXp: Long) { /* not used here */ }
+}
+
+internal object NeverEmittingXpEventRepository : XpEventRepository {
+    override fun observeRecent(limit: Int): Flow<List<XpEvent>> = flow { /* never emits */ }
+    override fun observeSince(sinceEpochMs: Long): Flow<List<XpEvent>> = flow { /* never emits */ }
+}
+
+internal object NeverEmittingAchievementRepository : AchievementRepository {
+    override fun observeProgress(): Flow<AchievementProgress> = flow { /* never emits */ }
+    override suspend fun getProgress(): AchievementProgress = AchievementProgress.Empty
+    override suspend fun recordHand(
+        summary: HandResultSummary,
+        context: AchievementHandContext,
+    ): List<EarnedAchievement> = error("recordHand not used by the progression VMs")
+    override suspend fun recordTutorialComplete(): EarnedAchievement? =
+        error("recordTutorialComplete not used by the progression VMs")
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
+    override suspend fun deleteAll() { /* not used here */ }
 }
 
 internal fun anonymousAuthState(userId: String = "user-1"): AuthState.Authenticated =

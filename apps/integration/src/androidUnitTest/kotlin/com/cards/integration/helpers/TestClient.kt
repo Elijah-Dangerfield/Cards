@@ -1,6 +1,9 @@
 package com.cards.integration.helpers
 
 import com.dangerfield.cards.features.lobby.impl.LobbyViewModel
+import com.dangerfield.cards.libraries.core.AuthGate
+import com.dangerfield.cards.libraries.core.AuthRequirement
+import com.dangerfield.cards.libraries.core.AuthVerdict
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.DefaultDispatcherProvider
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
@@ -13,6 +16,7 @@ import com.dangerfield.cards.libraries.networking.NetworkConfig
 import com.dangerfield.cards.libraries.networking.impl.AccessDeniedBusImpl
 import com.dangerfield.cards.libraries.networking.impl.NetworkClientImpl
 import com.dangerfield.cards.libraries.networking.impl.NetworkReachabilityImpl
+import com.dangerfield.cards.libraries.networking.impl.SessionRejectionBusImpl
 import com.dangerfield.cards.libraries.rooms.MatchmakingRepository
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
@@ -48,6 +52,9 @@ class TestClient(
     val userId: String = randomUserId(),
     faulty: Boolean = false,
     latencyMs: Long? = null,
+    // Ungated by default (this suite tests the server contract, not the client
+    // auth gate); pass a SettableAuthGate to exercise short-circuit behavior.
+    private val authGate: AuthGate = AlwaysReadyAuthGate,
 ) {
     /** Non-null only when constructed with `faulty = true`. */
     var faults: FaultInjectingTransport? = null
@@ -69,6 +76,8 @@ class TestClient(
         FixedHeaders,
         NetworkReachabilityImpl(appScope),
         AccessDeniedBusImpl(),
+        SessionRejectionBusImpl(),
+        { authGate },
     )
 
     val repository: RoomRepository = run {
@@ -209,3 +218,17 @@ class TestClient(
 }
 
 internal fun randomUserId(): String = UUID.randomUUID().toString()
+
+/** The suite's default: never gates — every authed call fires against the real server. */
+internal object AlwaysReadyAuthGate : AuthGate {
+    override fun verdict(requirement: AuthRequirement): AuthVerdict = AuthVerdict.Ready
+    override suspend fun awaitVerdict(requirement: AuthRequirement): AuthVerdict = AuthVerdict.Ready
+}
+
+/** Flip [next] to Blocked to prove a short-circuited call never reaches the wire. */
+internal class SettableAuthGate(
+    var next: AuthVerdict = AuthVerdict.Ready,
+) : AuthGate {
+    override fun verdict(requirement: AuthRequirement): AuthVerdict = next
+    override suspend fun awaitVerdict(requirement: AuthRequirement): AuthVerdict = next
+}

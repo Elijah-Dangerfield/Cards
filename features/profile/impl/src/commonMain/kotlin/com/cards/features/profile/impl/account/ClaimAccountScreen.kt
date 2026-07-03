@@ -25,7 +25,6 @@ import cards.libraries.resources.generated.resources.auth_claim_error_email_alre
 import cards.libraries.resources.generated.resources.auth_claim_error_invalid_email
 import cards.libraries.resources.generated.resources.auth_claim_error_network
 import cards.libraries.resources.generated.resources.auth_claim_error_not_signed_in
-import cards.libraries.resources.generated.resources.auth_claim_error_passwords_dont_match
 import cards.libraries.resources.generated.resources.auth_claim_error_provider_not_enabled
 import cards.libraries.resources.generated.resources.auth_claim_error_switch_failed
 import cards.libraries.resources.generated.resources.auth_claim_error_unknown
@@ -47,6 +46,7 @@ import cards.libraries.resources.generated.resources.profile_claim_provider_goog
 import cards.libraries.resources.generated.resources.profile_claim_subtitle
 import cards.libraries.resources.generated.resources.profile_claim_title
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AppleSignInButton
 import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonKind
 import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonStyle
@@ -306,8 +306,6 @@ private fun EmailField(
 
 @Composable
 private fun ClaimAccountError.message(): String = when (this) {
-    ClaimAccountError.PasswordsDontMatch ->
-        stringResource(Res.string.auth_claim_error_passwords_dont_match)
     ClaimAccountError.AlreadyOnAnotherAccount ->
         stringResource(Res.string.auth_claim_error_already_on_another_account)
     ClaimAccountError.NotSignedIn ->
@@ -331,7 +329,7 @@ private fun ClaimAccountError.message(): String = when (this) {
 @Preview
 @Composable
 private fun ClaimAccountScreenPreview_EmailOnly() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         ClaimAccountScreen(state = ClaimAccountState(), onAction = {}, onBack = {})
     }
 }
@@ -339,7 +337,7 @@ private fun ClaimAccountScreenPreview_EmailOnly() {
 @Preview
 @Composable
 private fun ClaimAccountScreenPreview_BothProvidersEnabled() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         ClaimAccountScreen(
             state = ClaimAccountState(googleEnabled = true, appleEnabled = true),
             onAction = {},
@@ -351,7 +349,7 @@ private fun ClaimAccountScreenPreview_BothProvidersEnabled() {
 @Preview
 @Composable
 private fun ClaimAccountScreenPreview_Filled() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         ClaimAccountScreen(
             state = ClaimAccountState(
                 googleEnabled = true,
@@ -369,7 +367,7 @@ private fun ClaimAccountScreenPreview_Filled() {
 @Preview
 @Composable
 private fun ClaimAccountScreenPreview_PasswordMismatch() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         ClaimAccountScreen(
             state = ClaimAccountState(
                 googleEnabled = true,
@@ -387,7 +385,7 @@ private fun ClaimAccountScreenPreview_PasswordMismatch() {
 @Preview
 @Composable
 private fun ClaimAccountScreenPreview_Submitting() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         ClaimAccountScreen(
             state = ClaimAccountState(
                 googleEnabled = true,
@@ -406,7 +404,7 @@ private fun ClaimAccountScreenPreview_Submitting() {
 @Preview
 @Composable
 private fun ClaimAccountScreenPreview_Conflict() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         ClaimAccountScreen(
             state = ClaimAccountState(
                 googleEnabled = true,

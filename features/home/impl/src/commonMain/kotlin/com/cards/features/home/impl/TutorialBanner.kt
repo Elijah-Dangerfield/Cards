@@ -120,7 +120,7 @@ private fun IconTile() {
     ) {
         Text(
             text = "🎓",
-            typography = AppTheme.typography.Heading.H500,
+            typography = AppTheme.typography.Heading.H900,
             color = AppTheme.colors.content,
         )
     }
