@@ -942,3 +942,13 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch if revisited:** add `"iap."` to `RewardChips.SERVER_OWNED_CREDIT_REASON_PREFIXES` (or a sibling list keyed to the redeem path), retire `creditChipsLocally`, and route debug purchases through redeem with a fake receipt the validator accepts in dev. Note the broader hole stays until Phase 4.2 server-side hand resolution: wallet sync still trusts arbitrary positive deltas under *unreserved* reasons (solo-play results are legitimately client-asserted today), so reason-prefix refusal is per-category hardening, not full trust.
 
 **Status:** Backlog. BILL-1/2 territory; pull when the billing go-live pass happens.
+
+---
+
+## Delete the dead AudioRecorder + microphone-permission surface (ENG-14 follow-up)
+
+**Idea (from ENG-14 review, 2026-07-04):** The camera capture surface is gone, but its sibling recording stack is equally call-site-free: `AudioRecorder` (common interface) + `AndroidAudioRecorder` / `IosAudioRecorder` impls and `rememberMicrophonePermissionLauncher` in `:libraries:ui` have zero callers in features or apps — the impls only appear in the DI graph via their own `@ContributesBinding`s. The planned audio work in this file ("Audio infrastructure") is playback-only (`AudioPlayer`), not recording, so nothing on the roadmap claims this code.
+
+**Sketch:** delete `AudioRecorder.kt` (common/android/ios), `PermissionLauncher.kt` expect/actuals, and any `RECORD_AUDIO`/mic usage-description leftovers; verify Android + iOS builds. If voice notes on feedback reports ever become a thing, rebuild against that design rather than resurrecting this.
+
+**Status:** Backlog. Deferred from the 2026-07-04 nightly rather than deleted in-cycle because it touches the iOS DI graph and the cycle's build validation didn't cover a full Xcode pass.
