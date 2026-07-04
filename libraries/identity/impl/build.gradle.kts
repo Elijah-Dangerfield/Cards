@@ -57,5 +57,10 @@ kotlin {
             // exception shapes (not hand-rolled ones).
             implementation("io.ktor:ktor-client-mock:3.3.3")
         }
+        androidMain.dependencies {
+            // EncryptedSharedPreferences for the OS-encrypted Supabase
+            // session store (AUTH-16). iOS uses a Keychain Swift twin.
+            implementation(libs.androidx.security.crypto)
+        }
     }
 }

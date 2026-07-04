@@ -21,9 +21,3 @@ The live punch list of actionable engineering work. Every item is something a wo
 - `[P2]` — Lower urgency, still worker-pickable. Many need a directional call — make a recommendation, ship a slice, let the reviewer course-correct.
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
-
-## AUTH
-
-- `[P1]` **AUTH-16 — Move the Supabase session store to OS-encrypted storage (Keychain / EncryptedSharedPreferences).** The 2026-05-18 decision accepted plaintext token storage explicitly *only until the claim flow shipped* — claim (Apple + Google) is live, so refresh tokens for real, claimed accounts now sit in unencrypted SharedPreferences / NSUserDefaults (supabase-kt's default `multiplatform-settings` store).
-  **Acceptance:** the Auth plugin is configured with a custom `sessionManager` backed by EncryptedSharedPreferences (Android) and Keychain (iOS); an existing session migrates on first launch (read old store once, write new, clear old) so nobody gets signed out by the upgrade.
-  **Hints:** `install(Auth) { sessionManager = ... }` in [SupabaseClientFactory.kt](libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/SupabaseClientFactory.kt); Keychain via a Swift Twin per `docs/practices/swift-kotlin.md`. The upgrade sketch in decisions.md 2026-05-18 predates the Supabase re-adoption (`TokenStoreImpl` no longer exists).

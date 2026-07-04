@@ -992,3 +992,15 @@ The grievance is real and worth fixing, but the proposed mechanism (an explicit 
 The seam is already clean: join-by-code and matchmaking both go through `RoomService`, so the shard-later change is localized, not a rewrite.
 
 **Status:** Shipped (server). `SingleWriterGuard` + boot wiring + `[deploy] strategy = 'rolling'` in both Fly configs. `:apps:server:compileKotlin` green. The lock's acquire/timeout is not yet covered by an integration test (would need a Testcontainers two-connection race); the SQL is a single `pg_try_advisory_lock` call. Multi-instance sharding remains deferred until load or availability genuinely demands it.
+
+## 2026-07-04 — Supabase session moves to OS-encrypted storage (AUTH-16)
+
+**Problem:** The 2026-05-18 decision accepted plaintext token storage *only until claim shipped*. Claim (Apple + Google) has been live since June, so refresh tokens for real, claimed accounts were still sitting in supabase-kt's default `multiplatform-settings` store — plain SharedPreferences on Android, NSUserDefaults on iOS.
+
+**Decision:** Install a custom `sessionManager` on the Auth plugin: `SecureSessionManager` (identity impl, commonMain) serializes `UserSession` itself (`encodeDefaults = true`, matching supabase-kt's own serializer so `expiresAt` survives round trips) into a new `SecureSessionStorage` port (identity api, commonMain — plain synchronous string contract so Swift can conform trivially). Platform backends: **Android** `EncryptedSessionStorage` (EncryptedSharedPreferences, AndroidKeyStore AES-256 master key, anvil-bound in androidMain); **iOS** `IOSSecureSessionStorage` Swift twin (Keychain generic-password, `AfterFirstUnlock`, passed through `create(...)` per `docs/practices/swift-kotlin.md`).
+
+**Migration:** the storage key reproduces supabase-kt's default `SettingsSessionManager` key derivation byte-for-byte (`sb-<host-with-dashes>-session`, pinned by test), and a `SettingsSessionManager` on that same key is kept as the *legacy* reader: first `loadSession()` that misses the secure store reads the old plaintext entry, writes it encrypted, deletes the plaintext — nobody gets signed out. `deleteSession()` clears both stores so sign-out can't leave a resurrectable plaintext copy.
+
+**Alternatives rejected:** (1) `SettingsSessionManager(settings = encrypted Settings impl)` — multiplatform-settings has no Keychain backend without another dependency, and we'd still need the Swift twin; wrapping our own port is less machinery. (2) Kotlin/Native cinterop Keychain in iosMain — more boilerplate than the established Swift-twin pattern for zero benefit. (3) Static storage key — per-project-URL keying keeps dev/prod sessions apart once the planned env split lands, and is required for the migration to find the legacy entry anyway.
+
+**Status:** Shipped. `SecureSessionManagerTest` pins round-trip, one-time migration, secure-store precedence, dual-store delete, and the key derivation. Android assembleDebug + iOS Kotlin compile green; Swift side builds via xcodebuild.
