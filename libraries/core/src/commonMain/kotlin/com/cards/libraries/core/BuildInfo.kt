@@ -8,6 +8,13 @@ expect object BuildInfo {
     val versionCode: Int
     val releaseChannel: String
     val buildNumber: Int
+
+    /** Short git SHA the build was produced from — `GITHUB_SHA` in CI,
+     *  `git rev-parse` locally, `"unknown"` when neither is available. */
+    val commitSha: String
+
+    /** Branch the build was produced from (`GITHUB_REF_NAME` in CI). */
+    val commitBranch: String
 }
 
 fun BuildInfo.isiOS() = BuildInfo.platform == Platform.iOS

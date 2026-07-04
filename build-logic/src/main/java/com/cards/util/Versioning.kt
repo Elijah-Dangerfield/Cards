@@ -16,7 +16,9 @@ data class VersionMetadata(
     val versionName: String,
     val versionCode: Int,
     val releaseChannel: String,
-    val buildNumber: Int
+    val buildNumber: Int,
+    val commitSha: String,
+    val commitBranch: String,
 ) {
     val releaseDisplay: String = "$versionName ($buildNumber)"
 }
@@ -83,13 +85,40 @@ fun Project.loadVersionMetadata(): VersionMetadata {
     val buildNumber = envOverride("BUILD_NUMBER_OVERRIDE")?.toIntOrNull()
         ?: properties.int("buildNumber", DEFAULT_BUILD_NUMBER)
 
+    // GitHub Actions exports GITHUB_SHA / GITHUB_REF_NAME into every job, so
+    // CI builds get the exact commit for free; local builds ask git. "unknown"
+    // is the last resort (e.g. the server-only Docker image has no .git dir).
+    val commitSha = envOverride("GITHUB_SHA")?.take(COMMIT_SHA_LENGTH)
+        ?: gitOutput("rev-parse", "--short=$COMMIT_SHA_LENGTH", "HEAD")
+        ?: UNKNOWN_COMMIT
+    val commitBranch = envOverride("GITHUB_REF_NAME")
+        ?: gitOutput("rev-parse", "--abbrev-ref", "HEAD")
+        ?: UNKNOWN_COMMIT
+
     return VersionMetadata(
         applicationId = applicationId,
         versionName = versionName,
         versionCode = versionCode,
         releaseChannel = releaseChannel,
-        buildNumber = buildNumber
+        buildNumber = buildNumber,
+        commitSha = commitSha,
+        commitBranch = commitBranch,
     )
+}
+
+private const val COMMIT_SHA_LENGTH = 12
+private const val UNKNOWN_COMMIT = "unknown"
+
+// providers.exec (not ProcessBuilder) so the configuration cache treats the
+// git call as a tracked build input instead of failing the build.
+private fun Project.gitOutput(vararg args: String): String? = try {
+    providers.exec {
+        commandLine("git", *args)
+        workingDir = rootProject.rootDir
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim().takeIf { it.isNotBlank() }
+} catch (_: Exception) {
+    null
 }
 
 fun BuildConfigExtension.writeCommonMetadata(metadata: VersionMetadata) {
@@ -98,6 +127,8 @@ fun BuildConfigExtension.writeCommonMetadata(metadata: VersionMetadata) {
     buildConfigField("Int", "VERSION_CODE", metadata.versionCode.toString())
     buildConfigField("String", "RELEASE_CHANNEL", "\"${metadata.releaseChannel}\"")
     buildConfigField("Int", "BUILD_NUMBER", metadata.buildNumber.toString())
+    buildConfigField("String", "COMMIT_SHA", "\"${metadata.commitSha}\"")
+    buildConfigField("String", "COMMIT_BRANCH", "\"${metadata.commitBranch}\"")
 }
 
 /**

@@ -49,9 +49,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P2]` **Remove the first-7-days daily welcome bonus.** Owner directive ("tbh I think we should just get rid of the daily bonus for the first 7 days thing"). This is the shipped "Day N of 7 — welcome bonus" onboarding reward surfaced via in-app messages. Directional/product call — recommend delete vs config-flag-off and ship a slice.
   **Acceptance:** new users no longer see the "Day N of 7 — welcome bonus" daily reward flow; the associated grant/in-app-message logic is removed or disabled behind a config flag, with no dangling references.
   **Hints:** the "Day N of 7 — welcome bonus" in-app message + its grant path (progression/economy + `InAppMessages`); relates to backlog "come back reward" (deferred) — daily-streak mechanics were rejected on principle back in the product spec. Sentry CARDS-89.
-
-## ENG
-
-- `[P2]` **ENG-10 — Bake commit SHA + branch into build metadata; attach to bug reports + Sentry.** A user's feedback/bug report can't be tied to the exact build's commit, so triage can't tell which code produced it — or whether it's already fixed on a later commit (a real cost given the nightly feedback-triage loop).
-  **Acceptance:** a short git SHA (+ branch) is baked into the generated BuildConfig — CI sets it from `github.sha` / `github.ref_name`, local falls back to `git rev-parse` — exposed on `BuildInfo`, attached to the in-app feedback/bug-report payload, and set as a Sentry tag/context.
-  **Hints:** extend `writeCommonMetadata` + `BuildInfo` (expect/actual) like `versionName`/`buildNumber` in [Versioning.kt](build-logic/src/main/java/com/cards/util/Versioning.kt); surface in `FeedbackViewModel` / bug-report submit; `release.yml` already runs Sentry `set-commits --auto`. Beta `buildNumber` is already the commit count, a coarse proxy.
