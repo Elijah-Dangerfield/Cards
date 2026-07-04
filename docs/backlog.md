@@ -932,3 +932,13 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Idea (owner feedback 2026-07-04, Sentry [CARDS-8K](https://elijah-dangerfield.sentry.io/issues/CARDS-8K)):** When a user returns to the Home screen after a session, show a recap of the achievements they earned as a Home-screen notification — explicitly contingent on first building out a sturdy Home-screen notification flow ("assuming we built out that sturdy Home Screen notification flow"). Pairs with the mid-game achievement pager (PROG-9) from the same report.
 
 **Status:** Backlog. Depends on a robust Home-screen notification system that doesn't exist yet; pull alongside the achievement catalog/celebration pass (CARDS-1A cluster).
+
+---
+
+## Refuse client-asserted `iap.*` wallet-sync credits (ENG-9 follow-up)
+
+**Idea (from ENG-9, 2026-07-04):** Wallet sync now refuses client-asserted `levelup.*` / `achievement.*` credits (`RefusedServerOwned`), but `iap.*` credits still ride wallet sync trusted verbatim. Real purchases already flow through the server redeem path (`/v1/me/billing/redeem`, receipt-validated, BILL-5) — the only remaining writer of client-asserted `iap.*` events is the debug fake-billing path in `DefaultPurchaseChipPackUseCase.creditChipsLocally` (used when `billing.realPurchasesEnabled` is off). Extending the refusal to `iap.*` closes an unbounded mint vector (a modified client can post any delta under an `iap.*` reason), but needs a decision about what the fake-billing dev path does instead — likely: point it at the redeem endpoint's fake-receipt branch or accept the local-only credit being clawed back at sync in debug.
+
+**Sketch if revisited:** add `"iap."` to `RewardChips.SERVER_OWNED_CREDIT_REASON_PREFIXES` (or a sibling list keyed to the redeem path), retire `creditChipsLocally`, and route debug purchases through redeem with a fake receipt the validator accepts in dev. Note the broader hole stays until Phase 4.2 server-side hand resolution: wallet sync still trusts arbitrary positive deltas under *unreserved* reasons (solo-play results are legitimately client-asserted today), so reason-prefix refusal is per-category hardening, not full trust.
+
+**Status:** Backlog. BILL-1/2 territory; pull when the billing go-live pass happens.
