@@ -23,7 +23,7 @@ internal fun CoroutineScope.launchOp(
     block: suspend () -> Unit,
 ) {
     launch {
-        runCatching { block() }
+        Catching { block() }
             .onSuccess { setStatus(Status(true, success)) }
             .onFailure { setStatus(Status(false, it.message ?: "Request failed")) }
         reload()
@@ -32,7 +32,7 @@ internal fun CoroutineScope.launchOp(
 
 @Suppress("TooGenericExceptionCaught")
 internal fun parseJsonOrNull(raw: String): JsonElement? =
-    runCatching { adminJson.parseToJsonElement(raw.trim()) }.getOrNull()
+    Catching { adminJson.parseToJsonElement(raw.trim()) }.getOrNull()
 
 internal fun csvSet(raw: String): Set<String>? =
     raw.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet().ifEmpty { null }

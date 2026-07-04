@@ -49,7 +49,7 @@ private fun App() {
         scope.launch {
             // Resolve/manifest are best-effort: an older server without these
             // endpoints shouldn't error the whole screen.
-            runCatching {
+            Catching {
                 val req = target.toRequest()
                 resolvedByPath = a.resolve(req).associateBy { it.path }
                 manifestByPath = a.getManifest(req.buildNumber).entries.associateBy { it.path }
@@ -61,7 +61,7 @@ private fun App() {
         val a = api ?: return
         scope.launch {
             // The flag list is the core capability — it must succeed.
-            val loaded = runCatching { a.listFlags() }
+            val loaded = Catching { a.listFlags() }
                 .onFailure { setStatus(Status(false, it.message ?: "Failed to load flags")) }
                 .getOrNull() ?: return@launch
             flags = loaded
@@ -69,7 +69,7 @@ private fun App() {
             // The version manifest + per-target resolve are newer endpoints; if
             // the connected server predates them, keep the flag editor working
             // and just note the degraded mode rather than blanking the screen.
-            val enriched = runCatching {
+            val enriched = Catching {
                 manifestVersions = a.listManifestVersions()
                 if (target.buildNumber.isBlank()) {
                     manifestVersions.firstOrNull()?.let {
@@ -91,7 +91,7 @@ private fun App() {
         val a = api ?: return
         versionsSelected = versionCode
         scope.launch {
-            runCatching { versionsEntries = a.getManifest(versionCode).entries }
+            Catching { versionsEntries = a.getManifest(versionCode).entries }
                 .onFailure { setStatus(Status(false, it.message ?: "Failed to load version")) }
         }
     }

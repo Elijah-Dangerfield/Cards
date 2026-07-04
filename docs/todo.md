@@ -22,8 +22,3 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## ENG
-
-- `[P2]` **ENG-17 — Migrate `apps/admin` off `runCatching`.** (proposed 2026-07-04) The config-admin web app's production code uses `runCatching` in ~9 places (`AdminApi.kt`, `Main.kt`, `Support.kt`, `AuditView.kt`), against the repo-wide `Catching` convention — `runCatching` swallows `CancellationException`.
-  **Acceptance:** no `runCatching` in `apps/admin` production sources; cancellation still propagates.
-  **Hints:** `:libraries:core` has no `js()` target, so either add one or drop a local `Catching` equivalent into `apps/admin`.
