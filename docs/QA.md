@@ -530,6 +530,17 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
+### `PROG-9` ℹ️ 📱 Multi-achievement celebration pages horizontally
+
+**State:** a fresh account (earns several achievements fast) in a bot game.
+
+1. Play the first hand or two until a hand ends having earned 2+ achievements at once (first hand of poker typically stacks a few).
+2. On the celebration sheet, watch the first medallion reveal, then swipe left through the remaining pages.
+
+**Expected:** Each achievement gets its own full-width page in a horizontal pager with a dot indicator underneath (active dot stretches and follows the swipe). The first page auto-reveals with confetti; later pages stay a "?" mystery until tapped. A single-achievement unlock shows one card with no pager chrome or dots. (Covers todo PROG-9.)
+
+---
+
 ### `PROG-6` ⚠️ 📱 Play-style unlock celebration fires once at ~20 hands
 
 **State:** an account whose play-style is not yet unlocked (fewer than 20 recorded hands — reach via a fresh account, or check Stats shows the "keep playing to reveal your style" state).

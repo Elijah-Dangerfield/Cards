@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -44,6 +46,7 @@ import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ConfettiBurst
+import com.dangerfield.cards.libraries.ui.components.PagerIndicator
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementUnlockReveal
 import com.dangerfield.cards.libraries.ui.components.achievement.toCelebrationTint
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -73,10 +76,10 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * preview when the unlock also grants an inventory item.
  *
  * When a single hand earns multiple achievements (common on a new user's
- * first game), they stack into one sheet rather than queuing as a sequence
- * of N modals. MP-mode unlocks keep the legacy inline row inside
- * [HandResultDialogs] — see the `xpMode` branch on the call sites in
- * [PlayPokerScreen].
+ * first game), they ride one sheet as a horizontally-swiped pager with a dot
+ * indicator (PROG-9) rather than queuing as a sequence of N modals. MP-mode
+ * unlocks keep the legacy inline row inside [HandResultDialogs] — see the
+ * `xpMode` branch on the call sites in [PlayPokerScreen].
  */
 @Composable
 internal fun AchievementCelebrationSheet(
@@ -144,17 +147,39 @@ internal fun AchievementCelebrationSheet(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                earned.forEachIndexed { index, item ->
-                    if (index > 0) VerticalSpacerD500()
+                if (earned.size == 1) {
                     CelebrationCard(
-                        earned = item,
-                        index = index,
-                        autoReveal = index == 0,
-                        onRevealComplete = if (index == 0) {
-                            { confettiOn = true }
-                        } else {
-                            {}
-                        },
+                        earned = earned.first(),
+                        autoReveal = true,
+                        onRevealComplete = { confettiOn = true },
+                    )
+                } else {
+                    // Multi-unlock: one card per page, swiped horizontally with a
+                    // dot indicator (PROG-9) — each unlock gets the full stage
+                    // instead of shrinking into a scrolled stack. The first page
+                    // auto-reveals; later pages keep the tap-to-reveal mystery so
+                    // the player still paces the celebration.
+                    val pagerState = rememberPagerState(pageCount = { earned.size })
+                    HorizontalPager(
+                        state = pagerState,
+                        pageSpacing = Dimension.D500,
+                        verticalAlignment = Alignment.Top,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { page ->
+                        CelebrationCard(
+                            earned = earned[page],
+                            autoReveal = page == 0,
+                            onRevealComplete = if (page == 0) {
+                                { confettiOn = true }
+                            } else {
+                                {}
+                            },
+                        )
+                    }
+                    VerticalSpacerD400()
+                    PagerIndicator(
+                        pageCount = earned.size,
+                        currentPage = pagerState.currentPage,
                     )
                 }
                 // Quiet discoverability line for the Settings toggle — shown only the
@@ -181,7 +206,6 @@ internal fun AchievementCelebrationSheet(
 @Composable
 private fun CelebrationCard(
     earned: EarnedAchievement,
-    index: Int,
     autoReveal: Boolean,
     onRevealComplete: () -> Unit = {},
 ) {
@@ -189,14 +213,10 @@ private fun CelebrationCard(
     val cosmetic = remember(achievement.id) { cosmeticRewardFor(achievement.id) }
     val accent = remember(achievement.rarity) { achievement.rarity.toCelebrationTint() }
 
-    // Stagger the card chrome's entrance so multi-unlock celebrations cascade
-    // rather than popping in all at once. Each card waits 90ms longer than
-    // the prior one before its outline fades in.
+    // The card chrome pops in (fade + scale) on first composition — for pager
+    // pages that means as the page swipes into view.
     var shown by remember { mutableStateOf(false) }
-    LaunchedEffect(achievement.id) {
-        kotlinx.coroutines.delay(index * 90L)
-        shown = true
-    }
+    LaunchedEffect(achievement.id) { shown = true }
 
     // Per-card reveal gate. The first card (or any single-unlock celebration)
     // auto-reveals so the user always sees the reveal animation play once
@@ -392,7 +412,7 @@ private fun AchievementCelebrationSheetPreview_WithCosmetic() {
 
 @Preview
 @Composable
-private fun AchievementCelebrationSheetPreview_StackedMultiple() {
+private fun AchievementCelebrationSheetPreview_PagedMultiple() {
     PreviewContent {
         AchievementCelebrationSheet(
             earned = listOf(
