@@ -120,6 +120,7 @@ rollouts. Halt manually if crash-free rate tanks.
 | [commitlint.yml](../.github/workflows/commitlint.yml) | PRs | Rejects non-conventional PR titles. |
 | [release-please.yml](../.github/workflows/release-please.yml) | push to main | Maintains the release PR, creates tag + GH Release on merge. |
 | [release.yml](../.github/workflows/release.yml) | dispatched by release-please.yml after tag creation; also `workflow_dispatch` with an explicit tag for re-runs; also fires on tag pushes made by a human | Full production release to both stores. |
+| [beta.yml](../.github/workflows/beta.yml) | manual `workflow_dispatch` only (pick the branch) | Internal beta: Android → Play internal track, iOS → TestFlight internal (`fastlane beta`). The channel for friends testing + real sandbox IAP. |
 | [auto-merge.yml](../.github/workflows/auto-merge.yml) | PR labeled `ai-autofix` | Enables GitHub auto-merge. |
 
 Sentry triage is not a workflow — it runs as a Claude Code routine on the maintainer's machine. See [scripts/prompts/sentry-triage.md](../scripts/prompts/sentry-triage.md).
@@ -127,7 +128,8 @@ Sentry triage is not a workflow — it runs as a Claude Code routine on the main
 ## Versioning
 
 - **`versionName` / `MARKETING_VERSION`** — owned by release-please. Do not edit in feature PRs. Markers in [versions.properties](../versions.properties) and [Config.xcconfig](../apps/ios/Configuration/Config.xcconfig) tell the bot where to write.
-- **`versionCode` / iOS build number** — auto-overridden in CI with `GITHUB_RUN_NUMBER` via env vars `VERSION_CODE_OVERRIDE` and `BUILD_NUMBER_OVERRIDE`. They bump monotonically without commits. (See [Versioning.kt](../build-logic/src/main/java/com/cards/util/Versioning.kt).)
+- **`versionCode` / in-app `BuildInfo.buildNumber`** — CI overrides them via env vars `VERSION_CODE_OVERRIDE`, `BUILD_NUMBER_OVERRIDE`, `RELEASE_CHANNEL_OVERRIDE`, honored by [Versioning.kt](../build-logic/src/main/java/com/cards/util/Versioning.kt) (falling back to [versions.properties](../versions.properties) for local builds). `release.yml` uses `GITHUB_RUN_NUMBER`; `beta.yml` uses the commit count (`git rev-list --count HEAD`) — different bands so beta + release never reuse a `versionCode`. This drives the Android `versionCode` and the in-app number shown in Settings.
+- **iOS store build number (`CFBundleVersion`)** — separate: a timestamp set by fastlane (`Time.now.strftime`, see [Fastfile](../apps/ios/fastlane/Fastfile)), *not* the override above. So the number App Store Connect shows differs from the in-app `BuildInfo.buildNumber`; that's intentional (avoids ASC "Redundant Binary Upload").
 - **Sentry release ID**: `cards@{version}+{build}` (e.g. `cards@0.2.0+42`). Created on both platforms in release.yml.
 
 ## Secrets and variables

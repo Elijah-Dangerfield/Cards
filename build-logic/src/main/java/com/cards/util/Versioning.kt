@@ -39,6 +39,24 @@ data class ServerMetadata(
     val targetEnv: String,
 )
 
+/**
+ * Resolves the app's version/build metadata with this precedence:
+ *  1. **CI env overrides** — `VERSION_CODE_OVERRIDE`, `BUILD_NUMBER_OVERRIDE`,
+ *     `RELEASE_CHANNEL_OVERRIDE` (set by `release.yml` / `beta.yml` so the
+ *     store-facing versionCode + build number climb monotonically without a
+ *     commit). Blank/unset is ignored.
+ *  2. **`versions.properties`** — the checked-in values every *local* build
+ *     uses. Local builds set no env overrides, so they always see these
+ *     (currently `buildNumber=1`). That's fine: a local build never uploads to
+ *     a store, and the static number is enough for on-device debugging.
+ *  3. Hard-coded defaults.
+ *
+ * Both the Android `versionCode` (see [ApplicationConventionPlugin]) and the
+ * generated BuildConfig that backs `BuildInfo.buildNumber` / `versionName` /
+ * `releaseChannel` (rendered on the Settings screen) read from here — so this
+ * one override point keeps the installed binary and the in-app "About" string
+ * in lockstep.
+ */
 fun Project.loadVersionMetadata(): VersionMetadata {
     val properties = Properties()
     val metadataFile = rootProject.file("versions.properties")
@@ -52,11 +70,18 @@ fun Project.loadVersionMetadata(): VersionMetadata {
     fun Properties.int(key: String, defaultValue: Int): Int =
         string(key, defaultValue.toString()).toIntOrNull() ?: defaultValue
 
+    fun envOverride(name: String): String? =
+        System.getenv(name)?.takeIf { it.isNotBlank() }
+
     val applicationId = properties.string("applicationId", DEFAULT_APPLICATION_ID)
-    val versionName = properties.string("versionName", DEFAULT_VERSION_NAME)
-    val versionCode = properties.int("versionCode", DEFAULT_VERSION_CODE)
-    val releaseChannel = properties.string("releaseChannel", DEFAULT_RELEASE_CHANNEL)
-    val buildNumber = properties.int("buildNumber", DEFAULT_BUILD_NUMBER)
+    val versionName = envOverride("VERSION_NAME_OVERRIDE")
+        ?: properties.string("versionName", DEFAULT_VERSION_NAME)
+    val versionCode = envOverride("VERSION_CODE_OVERRIDE")?.toIntOrNull()
+        ?: properties.int("versionCode", DEFAULT_VERSION_CODE)
+    val releaseChannel = envOverride("RELEASE_CHANNEL_OVERRIDE")
+        ?: properties.string("releaseChannel", DEFAULT_RELEASE_CHANNEL)
+    val buildNumber = envOverride("BUILD_NUMBER_OVERRIDE")?.toIntOrNull()
+        ?: properties.int("buildNumber", DEFAULT_BUILD_NUMBER)
 
     return VersionMetadata(
         applicationId = applicationId,

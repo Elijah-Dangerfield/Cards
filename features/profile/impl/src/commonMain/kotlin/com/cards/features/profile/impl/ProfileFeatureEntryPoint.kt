@@ -69,6 +69,7 @@ import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
 import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.versionDisplay
 import com.dangerfield.cards.libraries.core.LegalUrls
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
@@ -203,7 +204,7 @@ class ProfileFeatureEntryPoint(
                     isAnonymous = isAnon,
                     gameSpeed = com.dangerfield.cards.libraries.cards.GameSpeed.Normal,
                     turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
-                    appVersion = "0.1.0",
+                    appVersion = BuildInfo.versionDisplay(),
                     unreadNotificationCount = unreadNotificationCount,
                     showQaMenu = BuildInfo.isDebug,
                     memberSince = authenticated?.createdAt,
@@ -292,7 +293,7 @@ class ProfileFeatureEntryPoint(
                     gameSpeed = appData.gameSpeed,
                     turnFeedback = appData.turnFeedback,
                     showAchievementPopups = appData.showAchievementPopups,
-                    appVersion = "0.1.0",
+                    appVersion = BuildInfo.versionDisplay(),
                     unreadNotificationCount = unreadNotificationCount,
                     showQaMenu = BuildInfo.isDebug,
                 ),
