@@ -6,7 +6,6 @@ import com.dangerfield.cards.features.room.impl.ui.PlayPokerScreen
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +33,7 @@ import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
 import com.dangerfield.cards.libraries.navigation.serializableType
+import com.dangerfield.cards.libraries.ui.components.CircularProgressIndicator
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import cards.libraries.resources.generated.resources.Res

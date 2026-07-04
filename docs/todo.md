@@ -22,12 +22,6 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## GAME
-
-- `[P2]` **GAME-18 — Swap direct Material spinners for the DS `CircularProgressIndicator` in the room feature.** (proposed 2026-07-04) Two callsites import `androidx.compose.material3.CircularProgressIndicator` instead of the DS component (which `LobbyScreen` already uses correctly).
-  **Acceptance:** no `androidx.compose.material3.CircularProgressIndicator` imports remain in `features/`; both spinners render via the DS component.
-  **Hints:** `PlayMultiplayerFeatureEntryPoint.kt:242` + `ui/QuickBuyChipsSheet.kt:113` in `:features:room:impl`; the DS component is `libraries/ui/.../components/CircularProgressIndicator.kt`.
-
 ## ENG
 
 - `[P1]` **ENG-12 — Sweep em dashes out of user-facing copy in strings.xml.** (proposed 2026-07-04) 11 strings in the rank/stats explainer copy (`rank_bullet_*`, `rank_axes_note`, `stats_explainer_*`) use em dashes, which AGENTS.md bans in user-facing copy ("rephrase or use a comma/period").
