@@ -17,7 +17,6 @@
     <ID>VerifyStrings:ButtonCatalog.kt:"Small"</ID>
     <ID>VerifyStrings:ButtonCatalog.kt:"Tertiary"</ID>
     <ID>VerifyStrings:ButtonCatalog.kt:"Text"</ID>
-    <ID>VerifyStrings:CameraPreview.android.kt:"Camera Ready"</ID>
     <ID>VerifyStrings:Catalog.kt:"Aa"</ID>
     <ID>VerifyStrings:ColorCatalog.kt:"accentPrimaryGradient"</ID>
     <ID>VerifyStrings:DesignSystemColorsScreen.kt:"Design-system color tokens. Reach for a role (AppTheme.colors.xyz), never a raw color."</ID>
