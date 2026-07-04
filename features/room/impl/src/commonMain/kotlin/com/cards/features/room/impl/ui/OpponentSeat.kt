@@ -209,7 +209,9 @@ internal fun OpponentSeat(
             // appear with no motion at all and read as "nothing happened"
             // (GAME-17). It persists through showdown so the grey seat always
             // carries its explanation.
-            AnimatedVisibility(
+            // Fully qualified: an outer ColumnScope would otherwise capture
+            // this call via its AnimatedVisibility extension.
+            androidx.compose.animation.AnimatedVisibility(
                 visible = folded && !busted,
                 enter = fadeIn(animationSpec = tween(220)) +
                     scaleIn(initialScale = 0.6f, animationSpec = tween(220)),
