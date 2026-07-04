@@ -24,10 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ENG
 
-- `[P2]` **ENG-13 — Route ImagePicker's Android image decode through `DispatcherProvider`, not `Dispatchers.Default`.** (proposed 2026-07-04) `rememberImagePicker` calls `withContext(Dispatchers.Default)` directly, violating the never-reach-for-`Dispatchers.*` rule (untestable against the test scheduler).
-  **Acceptance:** no direct `Dispatchers.*` usage in `:libraries:ui` production sources; the decode still runs off the main thread.
-  **Hints:** `libraries/ui/src/androidMain/.../ImagePicker.android.kt:44`; it's a composable, so take the dispatcher/provider as a parameter or a composition local rather than constructor injection.
-
 - `[P2]` **ENG-14 — Delete the dead `CameraPreview` surface.** (proposed 2026-07-04) The `CameraPreview` expect/actual + `CaptureController` in `:libraries:ui` have zero call sites anywhere (features, apps, Swift); the Android actual is an unimplemented "Camera Ready" placeholder with a TODO.
   **Acceptance:** `CameraPreview.kt` (common/android/ios), `CaptureController`, the `NativeViewFactory` camera hooks, and the Swift `CameraPreviewHost` / `IOSNativeViewFactory` camera funcs are removed; both platforms still build.
   **Hints:** `libraries/ui/src/{commonMain,androidMain,iosMain}/.../CameraPreview*.kt`, `libraries/ui/src/iosMain/.../nativeviews/NativeViewFactory.kt:38-42`, `apps/ios/iosApp/Platform/IOSNativeViewFactory.swift:42-47`.

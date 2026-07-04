@@ -7,6 +7,8 @@ import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
 import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.flowroutines.DefaultDispatcherProvider
+import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.system.color.Colors
 import com.dangerfield.cards.system.typography.Typography
 import kotlin.time.Clock
@@ -43,6 +45,16 @@ val LocalClock = staticCompositionLocalOf<Clock> {
  * [DefaultLevelCurve] so previews and tests render without a provider.
  */
 val LocalLevelCurve = staticCompositionLocalOf<LevelCurve> { DefaultLevelCurve }
+
+/**
+ * Dispatchers for DS composables that push work off the main thread (image
+ * decode in the picker, etc.) — composables can't take constructor injection,
+ * so this is their route to the AGENTS.md never-touch-raw-`Dispatchers` rule.
+ * Provided at the app root from DI; the default is the real provider so
+ * previews render without one, while UI tests override with a
+ * `TestDispatcherProvider` to keep the work on the test scheduler.
+ */
+val LocalDispatcherProvider = staticCompositionLocalOf<DispatcherProvider> { DefaultDispatcherProvider() }
 
 /**
  * Degraded guest-account-creation status, provided once at the app root from the

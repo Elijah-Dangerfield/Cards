@@ -6,6 +6,12 @@
 **Approach:** Swapped the imports to `com.dangerfield.cards.libraries.ui.components.CircularProgressIndicator` (same call shape, defaults come from the DS). No callsite logic changed.
 **Reviewer notes:** None.
 
+## refactor(ui): route ImagePicker decode through LocalDispatcherProvider (ENG-13)
+
+**Problem:** `rememberImagePicker`'s Android actual called `withContext(Dispatchers.Default)` directly, breaking the never-touch-raw-`Dispatchers` rule (the decode can't be virtualized onto a test scheduler).
+**Approach:** Added `LocalDispatcherProvider` to the DS locals (`libraries/ui/.../system/Local.kt`), defaulting to `DefaultDispatcherProvider` so previews work unprovided, and provided the DI-bound instance at the app root in `App.kt` (new `dispatcherProvider` accessor on `AppComponent`). Rejected the alternative of adding a `DispatcherProvider` param to the `rememberImagePicker` expect signature — it would cascade through `ScreenshotAttachmentField` and every callsite for a cross-cutting concern. Bumped `:libraries:flowroutines` to `api` in `:libraries:ui` since the local exposes the type.
+**Reviewer notes:** The composition local's default is the real `DefaultDispatcherProvider`, not a noop — a preview that actually launches the picker would use real dispatchers, which matches the old behavior. UI tests that want scheduler control provide `TestDispatcherProvider` via the local.
+
 ## fix(resources): sweep em dashes out of rank/XP explainer copy (ENG-12)
 
 **Problem:** 11 strings in the rank and XP explainer copy used em dashes, which AGENTS.md bans in user-facing copy.

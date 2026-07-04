@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.cards.XpBoostRepository
 import com.dangerfield.cards.libraries.config.AppConfigFlow
 import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.core.AutoInit
+import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
@@ -47,6 +48,7 @@ interface AppComponent {
     val guestAccountCreator: GuestAccountCreator
     val progressionConfig: ProgressionConfig
     val appCache: AppCache
+    val dispatcherProvider: DispatcherProvider
 
     /**
      * Singletons that need to construct at app boot rather than lazily
