@@ -35,7 +35,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P2]` **ENG-14 — Delete the dead `CameraPreview` surface.** (proposed 2026-07-04) The `CameraPreview` expect/actual + `CaptureController` in `:libraries:ui` have zero call sites anywhere (features, apps, Swift); the Android actual is an unimplemented "Camera Ready" placeholder with a TODO.
   **Acceptance:** `CameraPreview.kt` (common/android/ios), `CaptureController`, the `NativeViewFactory` camera hooks, and the Swift `CameraPreviewHost` / `IOSNativeViewFactory` camera funcs are removed; both platforms still build.
   **Hints:** `libraries/ui/src/{commonMain,androidMain,iosMain}/.../CameraPreview*.kt`, `libraries/ui/src/iosMain/.../nativeviews/NativeViewFactory.kt:38-42`, `apps/ios/iosApp/Platform/IOSNativeViewFactory.swift:42-47`.
-
-- `[P2]` **ENG-15 — Fix the wallet wiki's key-files list: `ChipsSync` doesn't exist.** (proposed 2026-07-04) `docs/wiki/wallet.md` lists a `ChipsSync` key file; no such file exists — the sync logic lives in `ChipsRepositoryImpl.kt`. One-line doc fix; the page's other claims verify clean.
-  **Acceptance:** the key-files list points at `libraries/cards/impl/.../ChipsRepositoryImpl.kt` (sync loop ~lines 142-215) instead of `ChipsSync`.
-  **Hints:** `docs/wiki/wallet.md`, key-files section.

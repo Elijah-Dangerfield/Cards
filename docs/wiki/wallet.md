@@ -35,4 +35,4 @@ Chips are play-money in V1, so the server clamps per-event deltas but doesn't *d
 
 - Schema: V6 migration (`wallets`, `wallet_events`), V11 (FK + cascade on `auth.users`).
 - Server: `WalletRoutes.kt`, `PostgresWalletRepository.kt`.
-- Client: `ChipsRepositoryImpl.kt`, `ChipsSync`.
+- Client: `libraries/cards/impl/.../ChipsRepositoryImpl.kt` (sync loop lives in `sync()` / `syncLocked()`, ~lines 142-215).
