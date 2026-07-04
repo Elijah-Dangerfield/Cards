@@ -19,11 +19,10 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * iOS [BillingClient] binding. Replaces [DevBillingClient] in the graph,
- * completing the per-platform handoff its TODO described — the mirror of
- * [PlayBillingClient] on Android.
+ * iOS [BillingClient] binding, the mirror of `PlayBillingClient` on
+ * Android.
  *
- * Runtime selection mirrors [PlayBillingClient]:
+ * Runtime selection:
  *  - **Debug builds** delegate to a [FakeBillingClient] seeded with the
  *    chip-pack SKUs, so dev shop iteration and the redemption flow keep working
  *    without provisioned App Store Connect listings or a sandbox account.
@@ -36,7 +35,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * wanted.
  */
 @SingleIn(AppScope::class)
-@ContributesBinding(AppScope::class, replaces = [DevBillingClient::class, NoOpBillingClient::class])
+@ContributesBinding(AppScope::class)
 @Inject
 class StoreKitBillingClient(
     coordinator: StoreKitCoordinator,

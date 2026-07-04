@@ -50,14 +50,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** new users no longer see the "Day N of 7 — welcome bonus" daily reward flow; the associated grant/in-app-message logic is removed or disabled behind a config flag, with no dangling references.
   **Hints:** the "Day N of 7 — welcome bonus" in-app message + its grant path (progression/economy + `InAppMessages`); relates to backlog "come back reward" (deferred) — daily-streak mechanics were rejected on principle back in the product spec. Sentry CARDS-89.
 
-## BILL
-
-Native IAP (Play Billing + StoreKit 2 + server receipt validation) is built and tested. What remains to actually sell chips is human — store listings, credentials, flipping `billing.realPurchasesEnabled`, a beta pass — all in [developer-todo.md](./developer-todo.md). Only code loose-ends below (BILL-1..5, BILL-7 retired as shipped).
-
-- `[P2]` **BILL-6 — Delete `DevBillingClient` / `NoOpBillingClient` now real platform bindings exist.** Both real clients are bound with `replaces = [DevBillingClient::class, NoOpBillingClient::class]`, so the Dev/NoOp clients are dead in shipping builds — their own `TODO(billing): remove this class once a real platform binding lands` is now due.
-  **Acceptance:** Dev/NoOp billing clients removed, `replaces=` lists cleaned up, all billing tests still green. Keep `FakeBillingClient` (it's manually wired for previews/tests, not `@ContributesBinding`).
-  **Hints:** [DevBillingClient.kt](libraries/billing/impl/src/commonMain/kotlin/com/cards/libraries/billing/impl/DevBillingClient.kt) + `NoOpBillingClient.kt`.
-
 ## ENG
 
 - `[P1]` **ENG-9 — Make rewarded chips (level-up + achievement) server-authoritative.** Level-up and achievement chip rewards are granted *client-side* (`LevelUpRewardGranter`, `AchievementRepositoryImpl` → `ChipsRepository.addChips`) and flushed through `POST /v1/me/wallet/sync`, which applies the client-supplied `delta` + `reason` verbatim ([WalletRoutes.kt](apps/server/src/main/kotlin/com/cards/server/routes/WalletRoutes.kt) — only dedupes by idempotency key + floors debits at zero). A modified client can POST `delta=1_000_000, reason="levelup.99"` and mint chips — and minted chips gate real-stakes MP entry (wallet ≥ 4× buy-in), so this has a real-stakes vector despite no cash-out.

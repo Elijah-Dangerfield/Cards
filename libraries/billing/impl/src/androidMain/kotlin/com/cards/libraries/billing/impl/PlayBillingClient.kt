@@ -15,10 +15,10 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * Android [BillingClient] binding. Replaces [DevBillingClient] in the graph,
- * completing the per-platform handoff the Dev client's TODO described.
+ * Android [BillingClient] binding, the mirror of `StoreKitBillingClient`
+ * on iOS.
  *
- * Runtime selection mirrors [DevBillingClient]:
+ * Runtime selection:
  *  - **Debug builds** delegate to a [FakeBillingClient] seeded with the
  *    chip-pack SKUs, so dev shop iteration and the redemption flow keep
  *    working without provisioned Play listings or license testers.
@@ -30,7 +30,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * `billing.realPurchasesEnabled` flag if a finer switch is wanted.
  */
 @SingleIn(AppScope::class)
-@ContributesBinding(AppScope::class, replaces = [DevBillingClient::class, NoOpBillingClient::class])
+@ContributesBinding(AppScope::class)
 @Inject
 class PlayBillingClient(
     context: Context,
