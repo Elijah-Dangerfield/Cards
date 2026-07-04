@@ -22,12 +22,6 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## ROOM
-
-- `[P2]` **ROOM-15 — Left-justify the create-game screen's rows to their section headers.** Owner feedback — the horizontal rows on the create-game (private room create) screen aren't aligned flush with their section headers the way the profile screen's are.
-  **Acceptance:** row content starts flush with its section header, matching the profile screen's treatment.
-  **Hints:** `CosmeticPickerRow` in `PrivateCreateScreen.kt` (`:features:lobby`) — its label adds `horizontal = D600` inside a column that already applies `screenContentPadding`, while `EdgeToEdgeRow` insets item 0 a single D600 from the screen edge. Sentry CARDS-8B + CARDS-8D.
-
 ## GAME
 
 - `[P2]` **GAME-17 — Make an early bot fold legible: seat fold cue + last move on the player card.** Vs bots, the first-to-act bot can fold instantly at hand start with no visible cue — the reporter only saw two gray cards, and tapping the bot's player-card sheet showed no last move.

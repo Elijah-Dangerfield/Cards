@@ -8,6 +8,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.private_create_card_back_label
@@ -48,7 +50,6 @@ import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
-import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Slider
 import com.dangerfield.cards.libraries.ui.components.Switch
@@ -351,7 +352,15 @@ private fun CosmeticPickerRow(
             modifier = Modifier.padding(horizontal = Dimension.D600),
         )
         Spacer(Modifier.height(Dimension.D300))
-        EdgeToEdgeRow {
+        // A plain LazyRow, not EdgeToEdgeRow: this shelf lives inside the
+        // clipped Rules card, so escaping the screen padding would only get
+        // clipped at the card border and land item 0 flush against it, one
+        // D600 left of the label. Content padding keeps item 0 under the
+        // label while the scroll still bleeds to the card's edges.
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = Dimension.D600),
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
+        ) {
             items(items = choices, key = { it.productId }) { choice ->
                 CosmeticPickerTile(
                     choice = choice,

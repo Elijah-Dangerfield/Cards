@@ -30,3 +30,9 @@
 **Problem:** Owner directive — kill the "Day N of 7 — welcome bonus" daily reward. The item asked for a delete-vs-config-flag recommendation.
 **Approach:** Deleted outright rather than flagging off: the owner's wording was "get rid of it", daily-streak mechanics were rejected on principle in the product spec, we're pre-launch with nobody mid-week, and a flag would leave dead grant code + copy to maintain. Removed the server grant path (`maybeApplyWelcomeWeek` + copy + `Wallet.WELCOME_WEEK_*` constants + the now-unused `clock` param on `walletRoutes`), its 11 route tests + test-harness machinery, the welcome-dialog "open the app every day this week" expectation line, and its string resource. Starter grant and bust protection untouched.
 **Reviewer notes:** Existing `welcome_week_day_*` ledger rows (dev data only) are inert — nothing reads or writes those keys anymore. The backlog "come back reward" idea is unaffected.
+
+## fix(lobby): align create-screen cosmetic shelves with their labels (ROOM-15)
+
+**Problem:** On the create-game screen the felt / card-back shelves started one D600 left of their labels — `EdgeToEdgeRow` escapes *screen* padding, but these shelves sit inside the clipped Rules card, so the escape just got clipped at the card border and item 0 landed flush against it.
+**Approach:** Swapped `EdgeToEdgeRow` for a plain `LazyRow` with `contentPadding = D600` inside `CosmeticPickerRow` — item 0 now sits under the label, and scrolled content still bleeds to the card's edges (clipped by the card's own rounded shape, which reads intentional). Kept `EdgeToEdgeRow` untouched for its screen-level users (profile/home shelves).
+**Reviewer notes:** Verified via preview geometry reasoning + compile; the misalignment only reproduces inside a padded/clipped container, which no other `EdgeToEdgeRow` caller has.
