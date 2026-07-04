@@ -23,8 +23,10 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  *    current [SessionTracker] id and a wall-clock fetch timestamp so
  *    future cold-starts can short-circuit when nothing has rolled the
  *    session yet.
- *  - Cleared on sign-out (handled by [ProfileRepositoryImpl]'s
- *    `SignedOut` listener once that gets wired — see the TODO there).
+ *  - Cleared only when the persisted snapshot is older than the
+ *    max age at read time. There is deliberately no sign-out clear:
+ *    the catalog is user-agnostic, so a snapshot written under one
+ *    account is just as correct for the next.
  *
  * The cache stores a single row keyed on the file name; we don't
  * shard by user id because the avatar catalog is the same for every

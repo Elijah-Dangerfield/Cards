@@ -51,8 +51,8 @@ import kotlin.math.roundToInt
 
 /**
  * Public "Find a table" screen (SPEC §4) — set a buy-in RANGE you're
- * comfortable with, then ask to be seated. No browse list. Visual shell:
- * "Find a table" routes into the (mock) matchmaking Searching screen.
+ * comfortable with, then ask to be seated. No browse list.
+ * "Find a table" routes into the matchmaking Searching screen.
  */
 @Composable
 fun PublicFindScreen(

@@ -27,7 +27,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P2]` **ENG-17 — Migrate `apps/admin` off `runCatching`.** (proposed 2026-07-04) The config-admin web app's production code uses `runCatching` in ~9 places (`AdminApi.kt`, `Main.kt`, `Support.kt`, `AuditView.kt`), against the repo-wide `Catching` convention — `runCatching` swallows `CancellationException`.
   **Acceptance:** no `runCatching` in `apps/admin` production sources; cancellation still propagates.
   **Hints:** `:libraries:core` has no `js()` target, so either add one or drop a local `Catching` equivalent into `apps/admin`.
-
-- `[P2]` **ENG-18 — Resolve the AvatarPackCache sign-out-clear promise.** (proposed 2026-07-04) `AvatarPackCache`'s KDoc says the cache is "cleared on sign-out (handled by ProfileRepositoryImpl's SignedOut listener once that gets wired — see the TODO there)", but no SignedOut listener or TODO exists in `ProfileRepositoryImpl`; the only `clear()` call is the staleness drop. Wire the sign-out clear or correct the doc — the catalog is user-agnostic per the same KDoc, so the doc fix is likely right.
-  **Acceptance:** the KDoc matches reality — no reference to unwired listeners or nonexistent TODOs.
-  **Hints:** `libraries/identity/impl/.../profile/AvatarPackCache.kt:26-27`, `ProfileRepositoryImpl.kt:550`. While there, kill the stale "(mock)" in `features/rooms/impl/.../PublicFindScreen.kt:55` — matchmaking is real now.
