@@ -24,10 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ENG
 
-- `[P1]` **ENG-16 — Update the progression wiki for server-minted reward chips.** (proposed 2026-07-04) `docs/wiki/progression.md` ("Levels and level-up rewards" + the grant-path table) still says the client grants level/achievement chips optimistically (`levelup_<level>`) and the server "confirms or voids the claimed grants"; since ENG-9 the server mints those chips itself on progression/achievements sync and wallet sync refuses client-asserted `levelup.*` / `achievement.*` credits.
-  **Acceptance:** the page describes the ENG-9 flow — server credits via `levelup:<n>` / `achievement:<id>` ledger keys, `RefusedServerOwned` on client-asserted credits, local optimistic credit is display-only until reconcile.
-  **Hints:** `apps/server/.../domain/RewardChips.kt` KDoc + `docs/decisions.md` 2026-07-04 have the full story.
-
 - `[P2]` **ENG-17 — Migrate `apps/admin` off `runCatching`.** (proposed 2026-07-04) The config-admin web app's production code uses `runCatching` in ~9 places (`AdminApi.kt`, `Main.kt`, `Support.kt`, `AuditView.kt`), against the repo-wide `Catching` convention — `runCatching` swallows `CancellationException`.
   **Acceptance:** no `runCatching` in `apps/admin` production sources; cancellation still propagates.
   **Hints:** `:libraries:core` has no `js()` target, so either add one or drop a local `Catching` equivalent into `apps/admin`.
