@@ -24,22 +24,3 @@ actual fun rememberMicrophonePermissionLauncher(
         }
     }
 }
-
-@Composable
-actual fun rememberCameraPermissionLauncher(
-    onResult: (granted: Boolean) -> Unit
-): PermissionLauncher {
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        onResult(granted)
-    }
-    
-    return remember(launcher) {
-        object : PermissionLauncher {
-            override fun launch() {
-                launcher.launch(Manifest.permission.CAMERA)
-            }
-        }
-    }
-}

@@ -21,9 +21,3 @@ The live punch list of actionable engineering work. Every item is something a wo
 - `[P2]` — Lower urgency, still worker-pickable. Many need a directional call — make a recommendation, ship a slice, let the reviewer course-correct.
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
-
-## ENG
-
-- `[P2]` **ENG-14 — Delete the dead `CameraPreview` surface.** (proposed 2026-07-04) The `CameraPreview` expect/actual + `CaptureController` in `:libraries:ui` have zero call sites anywhere (features, apps, Swift); the Android actual is an unimplemented "Camera Ready" placeholder with a TODO.
-  **Acceptance:** `CameraPreview.kt` (common/android/ios), `CaptureController`, the `NativeViewFactory` camera hooks, and the Swift `CameraPreviewHost` / `IOSNativeViewFactory` camera funcs are removed; both platforms still build.
-  **Hints:** `libraries/ui/src/{commonMain,androidMain,iosMain}/.../CameraPreview*.kt`, `libraries/ui/src/iosMain/.../nativeviews/NativeViewFactory.kt:38-42`, `apps/ios/iosApp/Platform/IOSNativeViewFactory.swift:42-47`.

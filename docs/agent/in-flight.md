@@ -1,5 +1,11 @@
 # In-flight log
 
+## refactor(ui): delete the dead CameraPreview surface (ENG-14)
+
+**Problem:** The `CameraPreview` expect/actual, `CaptureController`, the `NativeViewFactory` camera hooks, and the Swift `CameraPreviewHost` had zero call sites; the Android actual was a "Camera Ready" placeholder with a TODO.
+**Approach:** Deleted the whole surface end to end, plus two things the todo didn't list but that only existed for it: the unused `rememberCameraPermissionLauncher` expect/actual (mic launcher kept) and the `CAMERA` permission + camera `uses-feature` in the Android manifest — a camera permission on an app with no camera feature is a Play-review and user-trust liability. Also removed the now-dead `CameraGuidanceState` enums (Kotlin + Swift) and the `AVFoundation`/`CoreMotion` imports in `IOSNativeViewFactory.swift`.
+**Reviewer notes:** Verified with `assembleDebug`, `compileKotlinIosSimulatorArm64`, and a full `xcodebuild` simulator build. `rememberMicrophonePermissionLauncher` + `AudioRecorder` also look call-site-free from features/apps; left them since audio feedback notes may be planned — reviewer please triage.
+
 ## style(room): route room spinners through the DS CircularProgressIndicator (GAME-18)
 
 **Problem:** Two callsites in `:features:room:impl` imported `androidx.compose.material3.CircularProgressIndicator` directly instead of the DS wrapper, so they rendered Material's default color instead of `accentPrimary`.
