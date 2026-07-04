@@ -21,3 +21,27 @@ The live punch list of actionable engineering work. Every item is something a wo
 - `[P2]` — Lower urgency, still worker-pickable. Many need a directional call — make a recommendation, ship a slice, let the reviewer course-correct.
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
+
+## GAME
+
+- `[P2]` **GAME-18 — Swap direct Material spinners for the DS `CircularProgressIndicator` in the room feature.** (proposed 2026-07-04) Two callsites import `androidx.compose.material3.CircularProgressIndicator` instead of the DS component (which `LobbyScreen` already uses correctly).
+  **Acceptance:** no `androidx.compose.material3.CircularProgressIndicator` imports remain in `features/`; both spinners render via the DS component.
+  **Hints:** `PlayMultiplayerFeatureEntryPoint.kt:242` + `ui/QuickBuyChipsSheet.kt:113` in `:features:room:impl`; the DS component is `libraries/ui/.../components/CircularProgressIndicator.kt`.
+
+## ENG
+
+- `[P1]` **ENG-12 — Sweep em dashes out of user-facing copy in strings.xml.** (proposed 2026-07-04) 11 strings in the rank/stats explainer copy (`rank_bullet_*`, `rank_axes_note`, `stats_explainer_*`) use em dashes, which AGENTS.md bans in user-facing copy ("rephrase or use a comma/period").
+  **Acceptance:** `grep — libraries/resources/.../strings.xml` comes back empty; rephrased copy passes an unslop-text pass and keeps the app's warm plain voice.
+  **Hints:** `libraries/resources/src/commonMain/composeResources/values/strings.xml` (~lines 618-640).
+
+- `[P2]` **ENG-13 — Route ImagePicker's Android image decode through `DispatcherProvider`, not `Dispatchers.Default`.** (proposed 2026-07-04) `rememberImagePicker` calls `withContext(Dispatchers.Default)` directly, violating the never-reach-for-`Dispatchers.*` rule (untestable against the test scheduler).
+  **Acceptance:** no direct `Dispatchers.*` usage in `:libraries:ui` production sources; the decode still runs off the main thread.
+  **Hints:** `libraries/ui/src/androidMain/.../ImagePicker.android.kt:44`; it's a composable, so take the dispatcher/provider as a parameter or a composition local rather than constructor injection.
+
+- `[P2]` **ENG-14 — Delete the dead `CameraPreview` surface.** (proposed 2026-07-04) The `CameraPreview` expect/actual + `CaptureController` in `:libraries:ui` have zero call sites anywhere (features, apps, Swift); the Android actual is an unimplemented "Camera Ready" placeholder with a TODO.
+  **Acceptance:** `CameraPreview.kt` (common/android/ios), `CaptureController`, the `NativeViewFactory` camera hooks, and the Swift `CameraPreviewHost` / `IOSNativeViewFactory` camera funcs are removed; both platforms still build.
+  **Hints:** `libraries/ui/src/{commonMain,androidMain,iosMain}/.../CameraPreview*.kt`, `libraries/ui/src/iosMain/.../nativeviews/NativeViewFactory.kt:38-42`, `apps/ios/iosApp/Platform/IOSNativeViewFactory.swift:42-47`.
+
+- `[P2]` **ENG-15 — Fix the wallet wiki's key-files list: `ChipsSync` doesn't exist.** (proposed 2026-07-04) `docs/wiki/wallet.md` lists a `ChipsSync` key file; no such file exists — the sync logic lives in `ChipsRepositoryImpl.kt`. One-line doc fix; the page's other claims verify clean.
+  **Acceptance:** the key-files list points at `libraries/cards/impl/.../ChipsRepositoryImpl.kt` (sync loop ~lines 142-215) instead of `ChipsSync`.
+  **Hints:** `docs/wiki/wallet.md`, key-files section.
