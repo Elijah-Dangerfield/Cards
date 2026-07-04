@@ -22,3 +22,23 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
+## ENG
+
+- `[P1]` **ENG-19 — Correct the bots wiki's fairness claims the code doesn't back.** (proposed 2026-07-04) `docs/wiki/bots.md` presents unbuilt "V1 countermeasures" as shipped: a provably-fair SHA-256 deck commit (no implementation anywhere), bot-thought hand-history replay and equity-at-each-decision showdown transparency (`BotThought` never leaves the decision/timing internals — nothing is persisted or sent to clients), and "Casual bots make only pot-odds-positive calls" (the curiosity-call branch calls without pot odds).
+  **Acceptance:** the page describes as-built bot behavior; anything unbuilt is removed or clearly marked not implemented.
+  **Hints:** `libraries/bots/.../BotDecision.kt:105-124` (curiosity call); rg `BotThought` for the full usage surface. While there, fix `docs/wiki/client-patterns.md:46` — the shop deep-link method is `requestScrollTo(category)`, not `bus.request(...)`.
+
+- `[P2]` **ENG-20 — Route Banner's icon-well corner through a `Radii` token.** (proposed 2026-07-04) `libraries/ui/.../components/Banner.kt:114` clips the leading icon well with `RoundedCornerShape(14.dp)` — the last literal-corner callsite in non-preview `:libraries:ui` component code, against the DS-first rule.
+  **Acceptance:** the callsite uses a `Radii` token (add one if nothing fits); no `RoundedCornerShape(N.dp)` literals remain in non-preview `:libraries:ui` components.
+  **Hints:** tokens live in `libraries/ui/.../system/Radius.kt`.
+
+## SHOP
+
+- `[P2]` **SHOP-10 — Add `@Preview` coverage to `CosmeticDetailSheet`.** (proposed 2026-07-04) The My Items detail sheet (`features/profile/impl/.../items/CosmeticDetailSheet.kt`) has zero previews despite several distinct layouts (founding-member ceremony, emote pack, avatar pack, earned item, equip CTA); AGENTS.md requires preview coverage of meaningful states. It already takes raw inputs, so it previews directly.
+  **Acceptance:** previews via `PreviewContent` cover the meaningful variants (standard cosmetic, emote pack, earned item, founding member).
+
+## MP
+
+- `[P2]` **MP-32 — Fix `Room.kt`'s stale "no Postgres backing yet" KDoc.** (proposed 2026-07-04) `apps/server/.../domain/Room.kt:10-24` says V1 rooms live in memory only, get GC'd when the last member leaves, and have no persistence — rooms have been persisted since migration V65 (`rooms` + `room_members` via `PostgresRoomStore`; `InMemoryRoomService` is a write-through cache).
+  **Acceptance:** the KDoc describes the persistence model as built.
+
