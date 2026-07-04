@@ -159,7 +159,6 @@ fun Application.installApp(
         walletRoutes(
             repository = component.walletRepository,
             messages = component.userMessageRepository,
-            clock = component.provideClock(),
         )
         billingRoutes(
             catalog = component.productCatalogSource,

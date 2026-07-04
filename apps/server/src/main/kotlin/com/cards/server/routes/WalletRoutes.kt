@@ -20,9 +20,7 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import java.util.UUID
-import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
 
 /**
  * Server-authoritative chip wallet endpoints.
@@ -46,14 +44,6 @@ import kotlin.time.Instant
  * sync, achievement chips on earned-achievement sync — from
  * [RewardChips], so a modified client can't pick its own amounts.
  *
- * Welcome-week grants: every wallet contact also runs through
- * [maybeApplyWelcomeWeek], which silently applies the daily
- * [Wallet.WELCOME_WEEK_DAILY_GRANT] for each eligible day since the
- * wallet's `createdAt` (capped at [Wallet.WELCOME_WEEK_DAYS]). Each
- * day is keyed independently for idempotency, so missed days are
- * still granted next time the user opens the app — spec calls for
- * "no streak, no expiry, no 'you missed yesterday' copy."
- *
  * Soft bust protection: both endpoints, after their normal work, call
  * [maybeApplyBustProtection]. The first time the user's balance hits
  * zero (and only the first time, ever — keyed off
@@ -72,23 +62,14 @@ import kotlin.time.Instant
 fun Route.walletRoutes(
     repository: WalletRepository,
     messages: UserMessageRepository,
-    clock: Clock,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me/wallet") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
             val initial = repository.findOrCreateResult(userId)
-            val afterWelcome = maybeApplyWelcomeWeek(
-                userId = userId,
-                walletCreatedAt = initial.wallet.createdAt,
-                currentBalance = initial.wallet.balance,
-                wallets = repository,
-                messages = messages,
-                clock = clock,
-            )
             val balance = maybeApplyBustProtection(
                 userId = userId,
-                currentBalance = afterWelcome,
+                currentBalance = initial.wallet.balance,
                 wallets = repository,
                 messages = messages,
             )
@@ -104,14 +85,7 @@ fun Route.walletRoutes(
                 val body = call.receive<WalletSyncRequest>()
 
                 val initial = repository.findOrCreateResult(userId)
-                var lastBalance = maybeApplyWelcomeWeek(
-                    userId = userId,
-                    walletCreatedAt = initial.wallet.createdAt,
-                    currentBalance = initial.wallet.balance,
-                    wallets = repository,
-                    messages = messages,
-                    clock = clock,
-                )
+                var lastBalance = initial.wallet.balance
                 val results = body.events.map { event ->
                     if (RewardChips.isServerOwnedRewardCredit(delta = event.delta, reason = event.reason)) {
                         return@map WalletEventResultDto(
@@ -165,96 +139,6 @@ fun Route.walletRoutes(
                 )
             }
         }
-    }
-}
-
-/**
- * Try to apply the welcome-week daily grant for *today's* elapsed
- * day. The grant is a reward for opening the app on that specific
- * day, not a catch-up: missed days stay forfeit. The schedule runs
- * `[WELCOME_WEEK_FIRST_DAY..WELCOME_WEEK_LAST_DAY]` (= days 1..7
- * post-signup). Signup day (elapsed 0) is skipped — that's the
- * starter-grant moment.
- *
- * Idempotency: the per-day key
- * `${WELCOME_WEEK_KEY_PREFIX}${day}_v1` makes multiple wallet
- * contacts on the same day collapse to one grant.
- * [WalletRepository.apply]'s replay detection means it's safe to
- * call this on every wallet contact.
- *
- * Forfeiture: a missed day's key is never written. A user who
- * opens the app on day 1, skips day 2, opens day 3 → gets days
- * 1 and 3 only. Day 2 is gone, no copy or backfill (spec calls
- * this out — the daily bonus is a reward for being there).
- *
- * Dialog: when the grant actually moves chips (not on replay),
- * enqueue a Dialog [UserMessage] so the user sees a friendly
- * "here's another 500 chips" pop. Day 7 gets distinct copy
- * marking it as the last bonus.
- *
- * Returns the post-grant balance, equal to [currentBalance] when
- * either the user is on signup day, past day 7, or has already
- * claimed today's grant on an earlier contact.
- */
-@OptIn(ExperimentalTime::class)
-private suspend fun maybeApplyWelcomeWeek(
-    userId: UserId,
-    walletCreatedAt: Instant,
-    currentBalance: Long,
-    wallets: WalletRepository,
-    messages: UserMessageRepository,
-    clock: Clock,
-): Long {
-    val elapsedDays = (clock.now() - walletCreatedAt).inWholeDays
-        .coerceAtLeast(0L)
-        .toInt()
-    if (elapsedDays !in Wallet.WELCOME_WEEK_FIRST_DAY..Wallet.WELCOME_WEEK_LAST_DAY) {
-        return currentBalance
-    }
-    val outcome = wallets.apply(
-        userId = userId,
-        idempotencyKey = "${Wallet.WELCOME_WEEK_KEY_PREFIX}${elapsedDays}_v1",
-        delta = Wallet.WELCOME_WEEK_DAILY_GRANT,
-        reason = Wallet.WELCOME_WEEK_REASON,
-    )
-    if (outcome is ApplyOutcome.Applied && !outcome.wasAlreadyApplied) {
-        val (title, body) = welcomeWeekCopy(elapsedDays)
-        messages.create(
-            id = UUID.randomUUID(),
-            userId = userId,
-            idempotencyKey = "${Wallet.WELCOME_WEEK_KEY_PREFIX}${elapsedDays}_msg_v1",
-            kind = UserMessageKind.Dialog,
-            // Coin emoji renders as the "chips" bubble — distinct from
-            // bust protection's 💰 so the user can tell the two
-            // celebratory-grant moments apart.
-            emoji = "🪙",
-            title = title,
-            body = body,
-            deepLink = null,
-            expiresAt = null,
-        )
-    }
-    return outcome.balance
-}
-
-/**
- * Title + body copy for the welcome-week dialog, branched on the
- * elapsed day so day 7 reads as a finale and earlier days set the
- * "come back tomorrow" expectation.
- */
-private fun welcomeWeekCopy(day: Int): Pair<String, String> {
-    val amount = Wallet.WELCOME_WEEK_DAILY_GRANT
-    val total = Wallet.WELCOME_WEEK_DAYS
-    return when (day) {
-        Wallet.WELCOME_WEEK_LAST_DAY -> Pair(
-            "Day $day of $total — last one",
-            "Another $amount chips on us. That's the end of your welcome-week bonus — " +
-                "hope you stick around.",
-        )
-        else -> Pair(
-            "Day $day of $total — welcome bonus",
-            "Another $amount chips on us. Open the app tomorrow to grab the next one.",
-        )
     }
 }
 

@@ -388,7 +388,6 @@
     <string name="home_welcome_dialog_greeting">Welcome,</string>
     <string name="home_welcome_dialog_gift_line">Here's a little gift from us to start with.</string>
     <string name="home_welcome_dialog_chip_use_line">Use these to play against other players and buy upgrades.</string>
-    <string name="home_welcome_dialog_daily_grant_line">Open the app every day this week and we'll add another 500 chips, on us.</string>
     <string name="home_welcome_dialog_primary_cta">Let's play</string>
 
     <!-- Home - Play-style unlocked celebration (one-shot, after ~20 hands). -->

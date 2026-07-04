@@ -38,8 +38,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlin.time.Clock
-import kotlin.time.Duration.Companion.days
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -257,21 +255,10 @@ class WalletRoutesTest {
         .withAudience("authenticated")
         .build()
 
-    /**
-     * Fixed clock used by tests that don't care about the welcome-week
-     * timeline. Pairs with the default `welcomeWeekEnabled = false` on
-     * [FakeWalletRepo], which pre-seeds every day's idempotency key so
-     * the route's welcome-week pass collapses to a no-op.
-     */
-    private val testClock: Clock = object : Clock {
-        override fun now(): Instant = Instant.fromEpochMilliseconds(0)
-    }
-
     private suspend fun callGet(
         repo: WalletRepository,
         bearer: String?,
         messages: UserMessageRepository = NoopUserMessages(),
-        clock: Clock = testClock,
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -280,7 +267,7 @@ class WalletRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { walletRoutes(repo, messages, clock) }
+                routing { walletRoutes(repo, messages) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -297,7 +284,6 @@ class WalletRoutesTest {
         request: WalletSyncRequest,
         bearer: String?,
         messages: UserMessageRepository = NoopUserMessages(),
-        clock: Clock = testClock,
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -306,7 +292,7 @@ class WalletRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { walletRoutes(repo, messages, clock) }
+                routing { walletRoutes(repo, messages) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -326,16 +312,9 @@ class WalletRoutesTest {
      * The `applied` map doubles as an idempotency record + an injection
      * point: pre-populate it to simulate "the server already saw this
      * key" in a replay scenario.
-     *
-     * `welcomeWeekEnabled` defaults to `false` so tests that don't care
-     * about the welcome-week schedule get an inert pass — every day's
-     * idempotency key is pre-seeded as already-applied. Welcome-week
-     * tests opt in via `welcomeWeekEnabled = true` and configure
-     * `walletCreatedAt` + the route's clock together.
      */
     private class FakeWalletRepo(
         seed: Map<UserId, Long> = emptyMap(),
-        welcomeWeekEnabled: Boolean = false,
         private val walletCreatedAt: Instant = Instant.fromEpochMilliseconds(0),
     ) : WalletRepository {
         var findOrCreateCalls: Int = 0
@@ -345,21 +324,6 @@ class WalletRoutesTest {
 
         private val balances: MutableMap<UserId, Long> = seed.toMutableMap()
         val applied: MutableMap<String, ApplyOutcome.Applied> = mutableMapOf()
-
-        init {
-            if (!welcomeWeekEnabled) {
-                // Pre-seed every welcome-week day's idempotency key as
-                // already-applied so tests that don't care about the
-                // schedule see an inert pass through `maybeApplyWelcomeWeek`.
-                // Schedule shifted 2026-05-23 from days 0..6 to 1..7;
-                // pre-seed both spans so future schedule tweaks don't
-                // require touching this test infra.
-                for (d in 0..Wallet.WELCOME_WEEK_LAST_DAY) {
-                    applied["${Wallet.WELCOME_WEEK_KEY_PREFIX}${d}_v1"] =
-                        ApplyOutcome.Applied(balance = 0L, wasAlreadyApplied = false)
-                }
-            }
-        }
 
         override suspend fun findOrCreateResult(userId: UserId): FindOrCreateResult {
             findOrCreateCalls++
@@ -533,268 +497,5 @@ class WalletRoutesTest {
             assertEquals(Wallet.STARTER_GRANT - 500, resp.body<WalletSyncResponse>().balance)
             assertEquals(0, messages.created.size, "no welcome dialog when the user didn't bust")
         }
-    }
-
-    @Test
-    fun get_welcomeWeek_skipsSignupDay() = runTest {
-        // Schedule shifted 2026-05-23: signup day (elapsed day 0) is
-        // intentionally starter-only. The daily +500 starts the day
-        // after signup. Keeps the "here's your starter chips" moment
-        // clean and front-loads the bonus arc to feel like an arc
-        // (each day after signup, you find more chips waiting).
-        val createdAt = Instant.fromEpochMilliseconds(0)
-        val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
-        callGet(repo, bearer = validJwt(), clock = fixedClock(createdAt)) { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-            val body = resp.body<WalletResponse>()
-            assertEquals(
-                Wallet.STARTER_GRANT,
-                body.balance,
-                "signup day = starter grant only; no daily bonus on day 0",
-            )
-        }
-    }
-
-    @Test
-    fun get_welcomeWeek_grantsOnlyTodaysDay_missedDaysAreForfeit() = runTest {
-        // Strict-mode (2026-05-23): the welcome-week bonus is a reward
-        // for opening the app on that specific day, not a catch-up.
-        // A user who only opens on day 3 gets day 3's grant only —
-        // days 1 and 2 are gone for good.
-        val createdAt = Instant.fromEpochMilliseconds(0)
-        val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
-        callGet(
-            repo,
-            bearer = validJwt(),
-            clock = fixedClock(createdAt + 3.days),
-        ) { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-            val body = resp.body<WalletResponse>()
-            assertEquals(
-                Wallet.STARTER_GRANT + Wallet.WELCOME_WEEK_DAILY_GRANT,
-                body.balance,
-                "day-3 grant only; days 1 and 2 are forfeit because the user never contacted on those days",
-            )
-        }
-    }
-
-    @Test
-    fun get_welcomeWeek_grantsClaimableOnlyWithinWindow() = runTest {
-        // User waits 30 days, then opens — they're past the welcome
-        // window. No grant fires. (Spec: the bonus is for the first
-        // week. If you're not there, you don't get it.)
-        val createdAt = Instant.fromEpochMilliseconds(0)
-        val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
-        callGet(
-            repo,
-            bearer = validJwt(),
-            clock = fixedClock(createdAt + 30.days),
-        ) { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-            val body = resp.body<WalletResponse>()
-            assertEquals(
-                Wallet.STARTER_GRANT,
-                body.balance,
-                "past the welcome window → no daily grant ever fires",
-            )
-        }
-    }
-
-    @Test
-    fun get_welcomeWeek_isIdempotent_acrossRepeatedCalls() = runTest {
-        val createdAt = Instant.fromEpochMilliseconds(0)
-        val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
-        val clock = fixedClock(createdAt + 2.days)
-        callGet(repo, bearer = validJwt(), clock = clock) { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-            assertEquals(
-                Wallet.STARTER_GRANT + Wallet.WELCOME_WEEK_DAILY_GRANT,
-                resp.body<WalletResponse>().balance,
-                "day-2 grant fires on first contact",
-            )
-        }
-        callGet(repo, bearer = validJwt(), clock = clock) { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-            assertEquals(
-                Wallet.STARTER_GRANT + Wallet.WELCOME_WEEK_DAILY_GRANT,
-                resp.body<WalletResponse>().balance,
-                "second wallet contact at the same time replays the same idempotency key — no double grant",
-            )
-        }
-    }
-
-    @Test
-    fun get_welcomeWeek_queuesDialogMessage_onFirstGrant_thatDay() = runTest {
-        // Each daily grant pops a Dialog UserMessage. Idempotency key
-        // is per-day so a second wallet contact the same day doesn't
-        // queue a duplicate dialog.
-        val createdAt = Instant.fromEpochMilliseconds(0)
-        val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
-        val messages = NoopUserMessages()
-        val clock = fixedClock(createdAt + 1.days)
-
-        callGet(repo, bearer = validJwt(), messages = messages, clock = clock) { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-        }
-        assertEquals(
-            1, messages.created.size,
-            "first wallet contact on day 1 should queue exactly one welcome-week dialog",
-        )
-        val message = messages.created.single()
-        assertEquals(com.dangerfield.cards.server.domain.UserMessageKind.Dialog, message.kind)
-        assertEquals("🪙", message.emoji)
-        assertTrue(
-            message.title.contains("Day 1"),
-            "title should reference the elapsed day, got: ${message.title}",
-        )
-
-        callGet(repo, bearer = validJwt(), messages = messages, clock = clock) { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-        }
-        assertEquals(
-            1, messages.created.size,
-            "second wallet contact same day must NOT queue another dialog (idempotency key matches)",
-        )
-    }
-
-    @Test
-    fun get_welcomeWeek_lastDay_usesDistinctFinaleCopy() = runTest {
-        val createdAt = Instant.fromEpochMilliseconds(0)
-        val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
-        val messages = NoopUserMessages()
-        val clock = fixedClock(createdAt + Wallet.WELCOME_WEEK_LAST_DAY.days)
-
-        callGet(repo, bearer = validJwt(), messages = messages, clock = clock) { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-        }
-        val message = messages.created.single()
-        assertTrue(
-            message.title.contains("last", ignoreCase = true) ||
-                message.body.contains("end of", ignoreCase = true),
-            "day 7 should mark itself as the final bonus, got: '${message.title}' / '${message.body}'",
-        )
-    }
-
-    @Test
-    fun get_welcomeWeek_doesNotQueueDialog_outsideWindow() = runTest {
-        val createdAt = Instant.fromEpochMilliseconds(0)
-        val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
-        val messages = NoopUserMessages()
-
-        // Signup day (elapsed 0) — no grant, no dialog.
-        callGet(repo, bearer = validJwt(), messages = messages, clock = fixedClock(createdAt)) { _ -> }
-        // Past the window (elapsed 30) — no grant, no dialog.
-        callGet(repo, bearer = validJwt(), messages = messages, clock = fixedClock(createdAt + 30.days)) { _ -> }
-
-        assertEquals(
-            0, messages.created.size,
-            "no dialog should fire on signup day or after the welcome window closes",
-        )
-    }
-
-    @Test
-    fun get_welcomeWeek_dialogBody_mentionsGrantAmount() = runTest {
-        // The copy must reference WELCOME_WEEK_DAILY_GRANT verbatim so
-        // tweaking the constant doesn't silently leave stale dollar
-        // amounts in the user-facing text.
-        val createdAt = Instant.fromEpochMilliseconds(0)
-        val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
-        val messages = NoopUserMessages()
-        callGet(repo, bearer = validJwt(), messages = messages, clock = fixedClock(createdAt + 1.days)) { _ -> }
-
-        val message = messages.created.single()
-        assertTrue(
-            message.body.contains(Wallet.WELCOME_WEEK_DAILY_GRANT.toString()),
-            "dialog body must reference the per-day grant amount " +
-                "(${Wallet.WELCOME_WEEK_DAILY_GRANT}), got: '${message.body}'",
-        )
-    }
-
-    @Test
-    fun sync_welcomeWeek_queuesDialogMessage_onFirstGrant() = runTest {
-        // Production path: cold-boot fires POST /v1/me/wallet/sync,
-        // which is what the user actually hits when they open the
-        // app each day. Dialog must fire here, not just from the
-        // GET path.
-        val createdAt = Instant.fromEpochMilliseconds(0)
-        val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
-        val messages = NoopUserMessages()
-        callSync(
-            repo,
-            request = WalletSyncRequest(events = emptyList()),
-            bearer = validJwt(),
-            messages = messages,
-            clock = fixedClock(createdAt + 1.days),
-        ) { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-        }
-        assertEquals(
-            1, messages.created.size,
-            "POST /v1/me/wallet/sync on day 1 must queue the welcome-week dialog",
-        )
-        assertEquals(
-            com.dangerfield.cards.server.domain.UserMessageKind.Dialog,
-            messages.created.single().kind,
-        )
-        assertEquals("🪙", messages.created.single().emoji)
-    }
-
-    @Test
-    fun sync_welcomeWeek_doesNotDoubleDialog_onRepeatedSyncs() = runTest {
-        // Cold-boot + foreground-resume in the same calendar day fires
-        // sync twice. The day-N idempotency key must collapse the
-        // second to a no-op for both the chip grant AND the dialog.
-        val createdAt = Instant.fromEpochMilliseconds(0)
-        val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
-        val messages = NoopUserMessages()
-        val clock = fixedClock(createdAt + 2.days)
-
-        repeat(2) {
-            callSync(
-                repo,
-                request = WalletSyncRequest(events = emptyList()),
-                bearer = validJwt(),
-                messages = messages,
-                clock = clock,
-            ) { _ -> }
-        }
-
-        assertEquals(
-            1, messages.created.size,
-            "two sync calls same day → still exactly one dialog (per-day idempotency)",
-        )
-    }
-
-    @Test
-    fun sync_welcomeWeek_appliesBeforeBatch_soDebitsSeeTheCreditedBalance() = runTest {
-        // Clock advanced by 1 day so the day-1 grant fires (signup day
-        // no longer grants under the post-2026-05-23 schedule).
-        val createdAt = Instant.fromEpochMilliseconds(0)
-        val repo = FakeWalletRepo(
-            seed = mapOf(userId to 100L),
-            welcomeWeekEnabled = true,
-            walletCreatedAt = createdAt,
-        )
-        callSync(
-            repo,
-            request = WalletSyncRequest(
-                events = listOf(WalletEventDto(idempotencyKey = "spend", delta = -400, reason = "shop")),
-            ),
-            bearer = validJwt(),
-            clock = fixedClock(createdAt + 1.days),
-        ) { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-            val body = resp.body<WalletSyncResponse>()
-            assertEquals(WalletEventOutcomeDto.Applied, body.results.single().outcome)
-            assertEquals(
-                200L,
-                body.balance,
-                "welcome-week +500 lands before the -400 debit, so the debit succeeds and lastBalance is 200",
-            )
-        }
-    }
-
-    private fun fixedClock(at: Instant): Clock = object : Clock {
-        override fun now(): Instant = at
     }
 }
