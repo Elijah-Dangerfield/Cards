@@ -4,7 +4,7 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
-The canonical V1 plan lives at `~/.claude/plans/this-is-going-to-vast-kahn.md` outside the repo; this log is for in-repo continuity and future sessions.
+This log is for in-repo continuity and future sessions. (The V1 punch list lives in [`todo.md`](./todo.md); the old out-of-repo plan file no longer exists.)
 
 ## What goes here
 
@@ -491,7 +491,7 @@ The trigger was a `401 Unauthorized` on every cold-boot `InventorySync.sync()` c
 
 **Decision:** Stop pushing anonymous users to claim. Remove the five-trigger smart-claim-prompts table (first MP win, first Epic+ achievement, 5K balance, first shop visit, Level 10). Claim remains available passively (static Profile card; inline-only at the moments where claim is actually required — host a public room, add a friend). In parallel, *add* app-store review prompts that fire at the positive-moment triggers we just freed up (Epic+ achievement unlock, Level 10, session-end-net-positive), gated by install-age + session-count + 90-day-no-prompt + last-hand-not-a-bust. Use native APIs (SKStoreReviewController / Play In-App Review) only — no self-built rating dialog.
 
-**Why drop claim prompts:** The original case for proactive claim prompts was anti-farming on the starter grant. That exploit is now closed by device-fingerprint deduplication ([§6.1](./product/product-spec.md#anti-farming-on-the-starter-grant)) — claim adds nothing to it. The remaining benefits of claim (durability, friends, leaderboards, public-room hosting) are *for the user*, not for us, and best-effort recovery via fingerprint + iCloud Keychain / Block Store already covers the common case. Pushing users to claim was begging for a conversion metric that wasn't load-bearing — a §10 brand-check violation.
+**Why drop claim prompts:** The original case for proactive claim prompts was anti-farming on the starter grant. That exploit is now closed by device-fingerprint deduplication (product-spec §6.1 — the spec doc was deleted in the 2026-06-24 docs restructure; history in git) — claim adds nothing to it. The remaining benefits of claim (durability, friends, leaderboards, public-room hosting) are *for the user*, not for us, and best-effort recovery via fingerprint + iCloud Keychain / Block Store already covers the common case. Pushing users to claim was begging for a conversion metric that wasn't load-bearing — a §10 brand-check violation.
 
 **Why add review prompts:** Those same positive moments (Epic+ achievement unlock, Level 10, net-positive session end) are *legitimately* good moments to ask the user for a kind word — they're feeling good, they've invested, they're not interrupting anything. The native review APIs handle their own throttling (iOS 3/year, Android similar), so calling at the trigger moment doesn't mean prompting at the trigger moment — the OS decides. We add a 7-day install-age gate and a 90-day no-prompt gate as belt-and-suspenders, plus a "last-hand-not-a-bust" check so we never ask after a frustrating moment. App-store rating is load-bearing for ASO (v1-mvp.md §1 target: ≥ 4.3 — doc has since been deleted) in a way claim conversion never was.
 
@@ -500,10 +500,10 @@ The trigger was a `401 Unauthorized` on every cold-boot `InventorySync.sync()` c
 - **Build our own "rate Cards!" star-rating dialog.** Rejected: the App Store explicitly discourages it, self-built rating sheets erode trust, and the native APIs already handle the hard parts (throttling, dismissal, no-commitment).
 - **Don't ask for reviews at all.** Rejected: ASO matters, the target rating was ≥ 4.3, and the native APIs are extremely low-cost / low-risk when gated to positive moments. Not asking would leave organic discovery on the table.
 
-**What changes in the spec:**
-- [product-spec.md §2.1](./product/product-spec.md#21-first-session--the-60-second-rule) — "Smart claim prompts fire at meaningful moments" callout removed; replaced with "Claim is opt-in, never pushed."
-- [product-spec.md §6.1](./product/product-spec.md#61-anonymous-by-default) — "Smart claim prompts (not gating)" subsection rewritten as "Claim is opt-in (no proactive prompts)" with the rationale and the inline-only surface table.
-- [product-spec.md §2.6](./product/product-spec.md#26-app-store-review-prompts) — new section for review-prompt triggers, eligibility gate, never-trigger list.
+**What changed in the spec** *(product-spec.md has since been deleted — 2026-06-24 docs restructure; history in git)*:
+- product-spec §2.1 — "Smart claim prompts fire at meaningful moments" callout removed; replaced with "Claim is opt-in, never pushed."
+- product-spec §6.1 — "Smart claim prompts (not gating)" subsection rewritten as "Claim is opt-in (no proactive prompts)" with the rationale and the inline-only surface table.
+- product-spec §2.6 — new section for review-prompt triggers, eligibility gate, never-trigger list.
 - v1-mvp.md §1 — "anonymous → claimed conversion" downgraded from a ≥ 20% target to directional-only. (v1-mvp.md has since been deleted; tracked here for the historical record.)
 - v1-mvp.md §2.2 + §2.6 — Phase 3 must-haves updated; new §2.6 for review prompts.
 
@@ -519,7 +519,7 @@ The trigger was a `401 Unauthorized` on every cold-boot `InventorySync.sync()` c
 
 **Better chip sinks to prefer first:**
 - MP buy-in / ante — the natural sink in a poker game.
-- Tip the dealer at hand end ([product-spec.md §4.1.5](./product/product-spec.md#41-currency--chips)).
+- Tip the dealer at hand end (product-spec §4.1.5 — doc since deleted).
 - Profile rename / title change cost.
 - Custom avatar slots, name color, name glow, profile decorations (shop catalog §4.3).
 
@@ -537,7 +537,7 @@ The trigger was a `401 Unauthorized` on every cold-boot `InventorySync.sync()` c
 
 **This supersedes the 2026-05-18 "Identity pivot: server-managed device-keyed identity" entry above.** The earlier reversal of the original 2026-05-13 Supabase-Auth design was made on the assumption that "build claim flow ourselves" was a 2–3 day effort. On a more honest re-estimate (Sign in with Apple's email-privacy-relay handling, name-only-on-first-signin trap, server-side JWKS verification, Google Credential Manager flow on Android, account-linking edge cases), it's 5–7 days plus indefinite maintenance of edge cases.
 
-Phase 3.1 (Apple/Google claim flow) was V1 scope (per the v1-mvp.md doc that existed at the time of this decision; the V1 scope frame now lives in [product-spec.md §9](./product/product-spec.md#9-roadmap)), so this is a near-term cost, not a deferred one. Supabase Auth handles all of the above out of the box; `supabase-kt` (already in `libs.versions.toml`) is a first-class KMP client. The right call is to commit.
+Phase 3.1 (Apple/Google claim flow) was V1 scope (per the v1-mvp.md doc that existed at the time of this decision; the V1 scope frame then moved to product-spec §9, itself since deleted in the 2026-06-24 docs restructure), so this is a near-term cost, not a deferred one. Supabase Auth handles all of the above out of the box; `supabase-kt` (already in `libs.versions.toml`) is a first-class KMP client. The right call is to commit.
 
 **The new shape:**
 
@@ -892,6 +892,8 @@ This makes Supabase feel like "managed Postgres + hosted auth" rather than "all-
 
 ## 2026-06-27 — "Instant" game speed now snaps the per-action table transitions too
 
+> **Superseded 2026-06-29 by "Game speed paces bot thinking only" below.** The whole animation-scaling layer this entry extends (`TableTempo`, the Instant tier, the real-chips override) was removed two days later.
+
 **Problem:** With Game speed = Instant, hands against bots still felt slow even though bots no longer paused to "think." The card deal/reveal animations and bot think-time already honored the setting, but the per-action UI transitions did not.
 
 **Root cause:** Several gameplay `AnimatedVisibility` blocks used hardcoded `tween(...)` durations that never consulted `TableTempo` — so they played at full length regardless of Game speed. The visible offenders, all on the per-turn critical path: the human action bar slide in/out (`TableActionBar`, ~260/220ms every turn), each bot's last-action label slide in/out (`OpponentsRow.LastActionOverlay`, every bot action), the acting-indicator chevron fade (`OpponentsRow.ChevronOverlay`), and the opponent stack on bust (`OpponentSeat`). Card deals (`BoardArea`/`PlayerArea`) and bot think (`BotTiming` via `gameSpeedProvider`) were already scaled, which is exactly why thinking felt instant but the table still moved.
@@ -900,7 +902,17 @@ This makes Supabase feel like "managed Postgres + hosted auth" rather than "all-
 
 **Deliberately left unscaled:** the bot think-time **floor** (`BotTiming.MIN_THINK_FAST_MS = 250ms`) — the user reported think-time already feels fine, and a hard floor below which bot moves "read as a glitch" is intended. Also untouched: reward/celebration flourishes (`HandRewardParticleOverlay`, `AchievementCelebrationSheet`), the ambient your-turn pulse, and non-gameplay surfaces (emoji tray, tutorial) — those are reward/ambient moments, not "waiting for the table," and whether Instant should strip them is a separate product call.
 
-**Status:** Shipped (client). `:features:room:impl` `compileDebugKotlinAndroid` + `TableTempoTest` green. UI transition timing isn't unit-tested (Compose animation timing); the `TableTempo` math is.
+**Status:** Superseded by 2026-06-29 (below).
+
+## 2026-06-29 — Game speed paces bot thinking only; animation scaling (`TableTempo`) removed
+
+**Decision:** `GameSpeed` now carries only `botThinkScale` (Normal ×1.0, Fast ×0.5). The `TableTempo` / `LocalTableTempo` animation-scaling layer, the `animationScale` field, the **Instant tier**, and the `effectiveTableSpeed` real-chips override are all deleted. Deal/reveal/settle animations always play at their calibrated base pace; animation durations are inlined at their base values.
+
+**Why:** Game speed used to retune two things at once — bot think time and the cosmetic animations — and scaling the animations made faster tiers feel jerky for no real benefit: the animations are what make play feel smooth. The only thing players actually wanted to trim was the bots' deliberation pause. With animations untouched, Instant collapses into Fast, and the real-chips override (which existed solely to protect animations in real games, GAME-8) loses its reason to exist.
+
+**Supersedes:** the 2026-06-27 "Instant game speed snaps per-action table transitions" entry above. Commit `a1b00656`; the GAME-6 mid-deal-freeze regression test was removed with the tempo flip that caused it.
+
+**Status:** Locked.
 
 ## 2026-06-27 — Google OAuth link/claim must refreshSession, not hydrateCurrentUser
 

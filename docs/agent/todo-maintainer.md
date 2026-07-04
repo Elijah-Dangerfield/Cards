@@ -82,7 +82,7 @@ Only if **fewer than ~6 worker-pickable items** remain, add a few — **cap 4** 
 **No lane is privileged. Do not bias toward tests.** The nightly loop has historically over-produced low-value test additions; correct for that. A new test only earns a slot when a **load-bearing, currently-untested path** (wallet / XP / level / onboarding / money / auth) would silently corrupt user state if it regressed — and the sibling pattern in the same module is already tested, so the gap is unambiguous. Otherwise, prefer real gaps:
 
 - **Missing standard affordances** — error/empty/offline states, account flows, forced-upgrade wiring, failure surfaces for mutating actions. Cite the surface and the gap.
-- **Spec vs reality** — pick one section of `docs/product/product-spec.md`, find a promise the repo doesn't back. Slow and deep; name the section.
+- **Wiki vs reality** — pick one `docs/wiki/` page, find a claim the code no longer backs (or a shipped behaviour it misses). Slow and deep; name the page. *(The old `docs/product/product-spec.md` this lane used to read was deleted 2026-06-24.)*
 - **Accumulated DS / hygiene drift** — old code predating a convention: `runCatching` (should be `Catching`), raw `Color(0xFF…)` / `Color.White.copy(alpha=)` for semantic surfaces, one-off `RoundedCornerShape(N.dp)`, direct `Dispatchers.*`, screen composables missing `@Preview`. Mechanical, cheap to revert. Name the specific file + pattern.
 
 Every added item must clear all of:

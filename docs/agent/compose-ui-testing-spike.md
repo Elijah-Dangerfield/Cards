@@ -1,6 +1,7 @@
 # Compose UI testing spike — full-app vs nav-graph
 
 **Date:** 2026-06-24
+**Status (2026-07-04):** proposal only — none of this has been built (no Robolectric/compose-uiTest infra, no `TestAppComponent`, no `androidUnitTest` source set in `apps/compose`). The gap it describes (UI-layer navigation wiring is untested) still exists. Kept as the reference for when this work is picked up.
 **Question:** should we test the navigation/UI layer by standing up the real app
 (real screens, real repos, real navigator) rather than stubbing — and if so, at
 what level? Prompted by two MP-leave bugs (2026-06-24) that lived *between* the

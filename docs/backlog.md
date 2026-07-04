@@ -58,11 +58,11 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ## Daily / return-visit reward (non-streak)
 
-**Idea:** A small, optional reward for returning to the app — *without* the daily-streak loss-aversion framing we explicitly rejected ([product-spec.md Appendix C.1](./product/product-spec.md#c1-daily-login-streak-rejected-2026-05-16)). The motivation isn't "punish you for skipping a day"; it's "be warm when you come back."
+**Idea:** A small, optional reward for returning to the app — *without* the daily-streak loss-aversion framing we explicitly rejected in 2026-05-16 (product-spec Appendix C.1; the spec doc was deleted in the 2026-06-24 docs restructure). The motivation isn't "punish you for skipping a day"; it's "be warm when you come back."
 
 **Sketch directions to consider (pick one — they're not additive):**
 - **Variable surprise.** Every Nth return visit (probabilistically) drops a small chip bonus + a custom message. No counter shown — surprise, not obligation.
-- **Weekly play-streak** (already in product-spec.md Appendix B item 17). Consecutive *weeks* with ≥1 hand played. Lower-pressure than daily.
+- **Weekly play-streak** (was product-spec Appendix B item 17). Consecutive *weeks* with ≥1 hand played. Lower-pressure than daily.
 - **"Welcome back" only after gaps.** Reward triggers if it's been ≥7 days since last play — re-engagement, not retention pressure.
 - **First-hand-of-the-day chip-coin.** Tiny bonus on your first hand played each calendar day. No counter, no streak number, just a one-time "+50" badge that hand. Easy to add, easy to remove.
 
@@ -143,13 +143,13 @@ Blocker on doing it now: `opposite()` currently maps `SlideInFromRight → Slide
 
 **The exploit (raised 2026-05-23):** Today a user can uninstall + reinstall to mint a new anonymous Supabase user → server `WalletRepository.findOrCreate` grants a fresh 10K starter. Repeat indefinitely. Nothing in the chain checks "is this a device we've already paid out."
 
-**What the spec says — already V1-scope, just not built.** [product-spec.md §6.1 "Anti-farming on the starter grant"](./product/product-spec.md#anti-farming-on-the-starter-grant) calls for one-starter-per-device-fingerprint. So this isn't a new idea; it's a tracked gap from spec to implementation.
+**What the spec said — already V1-scope, just not built.** Product-spec §6.1 "Anti-farming on the starter grant" (doc deleted in the 2026-06-24 docs restructure) called for one-starter-per-device-fingerprint. So this isn't a new idea; it's a tracked gap from spec to implementation.
 
 **Update 2026-05-29 — scope-cut for V1, full design preserved here:** This gate is **not** shipping in V1. Per [decisions.md 2026-05-29 — V1 scope: install_id only](./decisions.md), the V1 wallet starter mints unconditionally on every fresh anon — the exploit stays open at the wallet layer, and the disincentive is purely intrinsic (farmer loses their old account + all its progress every loop). When this becomes a real complaint / revenue concern, two upgrade paths are pre-designed:
 
-- **Option B (~3 days):** add `identifierForVendor` (iOS) / `Settings.Secure.ANDROID_ID` (Android) to the request; gate `WalletRepository.findOrCreate` with `WHERE platform_device_id = X AND starter_granted = TRUE`. Closes the casual same-device reinstall vector. Doesn't survive factory reset or new-device migration, which is fine — those are different humans most of the time. Two one-line platform reads, no KMP keychain work. Also unlocks same-device revival on reinstall as a bonus (covered separately in [`recovery-and-orphaned-accounts.md`](./recovery-and-orphaned-accounts.md)).
+- **Option B (~3 days):** add `identifierForVendor` (iOS) / `Settings.Secure.ANDROID_ID` (Android) to the request; gate `WalletRepository.findOrCreate` with `WHERE platform_device_id = X AND starter_granted = TRUE`. Closes the casual same-device reinstall vector. Doesn't survive factory reset or new-device migration, which is fine — those are different humans most of the time. Two one-line platform reads, no KMP keychain work. Also unlocks same-device revival on reinstall as a bonus (the old `recovery-and-orphaned-accounts.md` design doc was deleted 2026-06-24 — see git history).
 
-- **Option C (~1–2 weeks):** add a `recovery_id` column on `profiles`, generated client-side and persisted via iCloud Keychain (`kSecAttrSynchronizable=true`) + Android Block Store. Survives reinstall *and* device migration (rides the user's platform account, not hardware). Anti-farm gate becomes `WHERE recovery_id = X AND starter_granted = TRUE` — same human across all their devices gets one starter. Detailed design at [`recovery-and-orphaned-accounts.md`](./recovery-and-orphaned-accounts.md); the full pre-scope-cut design (Welcome-back screen, splash boot tree, recovery endpoint) is preserved in git at `13b84b37` for when this is on the table.
+- **Option C (~1–2 weeks):** add a `recovery_id` column on `profiles`, generated client-side and persisted via iCloud Keychain (`kSecAttrSynchronizable=true`) + Android Block Store. Survives reinstall *and* device migration (rides the user's platform account, not hardware). Anti-farm gate becomes `WHERE recovery_id = X AND starter_granted = TRUE` — same human across all their devices gets one starter. Detailed design was in the deleted `recovery-and-orphaned-accounts.md` (git history); the full pre-scope-cut design (Welcome-back screen, splash boot tree, recovery endpoint) is preserved in git at `13b84b37` for when this is on the table.
 
 Direction A and B below predate the scope-cut and remain as alternative implementation sketches if either Option above is ever picked up.
 
@@ -259,7 +259,7 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 
 ## Country / segment-scoped `/v1/app-config`
 
-**Idea (raised 2026-05-24):** Today the server returns one global config blob — [`AppConfigSource.read()`](../apps/server/src/main/kotlin/com/cards/server/data/AppConfigSource.kt) takes no parameters; every client gets the same JSON. The `ClientContext` (platform, app version, CF country header) is parsed on the request but not threaded into the config source.
+**Idea (raised 2026-05-24):** Today the server returns one global config blob — [`AppConfigSource.read()`](../apps/server/src/main/kotlin/com/cards/server/domain/AppConfigSource.kt) takes no parameters; every client gets the same JSON. The `ClientContext` (platform, app version, CF country header) is parsed on the request but not threaded into the config source.
 
 **Sketch:**
 - Change the source signature: `suspend fun read(): JsonObject` → `suspend fun read(ctx: ClientContext): JsonObject`.
@@ -311,7 +311,7 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 
 **Tradeoffs:**
 - Privacy: friends seeing each other's stack swings is the appeal *and* the risk. Default-on is the right call for "warm", but a per-event-kind opt-out in Settings ("hide my level-ups from the feed", "hide my big pots") keeps the user in control. Don't ship without that lever.
-- Voice rules per [product-spec.md](./product/product-spec.md): no urgency, no "X people are waiting!" pressure. The feed is observational, not push-marketed.
+- Voice rules (from the since-deleted product spec, still the house style): no urgency, no "X people are waiting!" pressure. The feed is observational, not push-marketed.
 - Noise: this surface dies the moment it feels like a Twitter timeline. Aggressive de-duping + thresholds + a hard cap on shelf size matter more than picking the right event kinds.
 
 **Status:** Backlog. Strictly downstream of the friends/social-graph system; pull once the friend graph is real.
@@ -338,7 +338,7 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 
 ## Sweep remaining raw `Color.White.copy(alpha=…)` in poker visuals
 
-**Idea:** The DS-first sweep took FeatureCard off raw white. Three poker-artifact files still use it: [`AchievementMedallion.kt:298-300`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/achievement/AchievementMedallion.kt) (shimmer specular gradient), [`CardBackStyle.kt:50,58`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/poker/CardBackStyle.kt) (card-back borders), and [`PlayingCard.kt:212,242`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/poker/PlayingCard.kt) (specular + pip line).
+**Idea:** The DS-first sweep took FeatureCard off raw white. Poker-artifact files still use it: [`AchievementMedal.kt`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/achievement/AchievementMedal.kt) (rim + back ink), [`CardBackStyle.kt`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/poker/CardBackStyle.kt) (card-back borders), and [`PlayingCard.kt`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/poker/PlayingCard.kt) (specular + pip line).
 
 These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 carves out to `PokerPalette`. Either declare a `PokerPalette.SpecularWhite` / `PokerPalette.CardBackBorder` token and route the callsites through it, or accept the carve-out as documented behaviour. Either is fine; both are better than the current "everyone half-believes the rule applies."
 
@@ -575,7 +575,7 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 **Trigger to revisit:** the first feature that makes XP convert into real value (ranked tier, league placement, exclusive cosmetic gates, IAP discounts tied to level).
 
-**Hints:** Same pattern as the server-derive level-up grants item in [`docs/todo.md`](./todo.md) — port the level/XP curve interpreter from `:libraries:cards` into `:apps:server`. Anti-cheat principles documented at [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md).
+**Hints:** Same pattern as ENG-9 (server-authoritative rewarded chips) in [`docs/todo.md`](./todo.md) — port the level/XP curve interpreter from `:libraries:cards` into `:apps:server`. Anti-cheat principles are summarized in AGENTS.md → "Write-path / grants" (the fuller `state-authority-and-sync.md` wiki page was deleted 2026-06-24; git history has it).
 
 **Status:** Backlog. Explicitly deferred — not worth the engineering until XP gates something a cheater would want.
 

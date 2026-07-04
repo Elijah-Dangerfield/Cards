@@ -495,17 +495,14 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - Acquisition line (SHOP-4): tapping the default felt or default card back opens its detail sheet with **no** "Earned"/"Bought … ago" line — they're granted at account creation, not earned. A genuinely earned or purchased cosmetic still shows its acquisition line.
 - Shelf start-alignment (SHOP-6): the first tile of every cosmetic shelf (card backs, felts, emotes/avatars) starts at the same left inset — flush under its section header. The card-back shelf's first tile lines up with the felt and emote shelves' first tiles rather than sitting further in.
 
-### `PROF-2` ℹ️ 📱 Table speed setting scales the deal/reveal animations
+### `PROF-2` ℹ️ 📱 Game speed setting paces bot think time only
 
-**State:** any account; Settings → Gameplay shows the "Table speed" picker (Normal / Fast / Instant).
+**State:** any account; Settings → Gameplay shows the "Game speed" picker (Normal / Fast).
 
-1. Set Table speed to **Normal**, start a bot game, deal a hand and watch the flop/turn/river.
-2. Back out, set Table speed to **Fast**, start a new hand — the same cards should fly in and flip noticeably quicker.
-3. Set Table speed to **Instant**, start a new hand and reach showdown.
+1. Set Game speed to **Normal**, start a bot game and play a few turns — bots pause noticeably before acting.
+2. Back out, set Game speed to **Fast**, start a new hand — bots act after roughly half the pause (a short floor remains so moves never read as a glitch).
 
-**Expected:** Normal plays the calibrated pacing. Fast roughly halves the deal-in and reveal timing. Instant snaps hole cards and community cards straight to settled face-up with no fly/flip animation — action resolves immediately. The setting persists across app restarts. (Covers todo GAME-6.)
-
-- With Table speed set to **Instant**, join a real game where chips are at stake — a human multiplayer room or a public bots-for-chips room — and deal a hand. The deal + card-flip/reveal animations still play at Normal pacing; the Instant preference does **not** strip them. Solo and private practice-bot tables still honour the chosen speed. (Covers todo GAME-8.)
+**Expected:** Fast trims only the bots' deliberation pause. Deal, flip, and reveal animations play at the same calibrated pace on both settings — Game speed never changes animation timing (the old animation-scaling "Instant" tier was removed 2026-06-29). The setting persists across app restarts.
 
 ## Progression
 
