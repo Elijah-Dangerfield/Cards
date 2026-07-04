@@ -1,0 +1,278 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# The internal beta ship — for friends-and-family testing, INCLUDING real
+# (sandbox) in-app purchases. This is the channel the IAP work (docs/todo.md
+# §G Billing & IAP) gets tested on, because StoreKit sandbox + Play Billing
+# only work on TestFlight / Play-track installs, not Firebase ad-hoc builds.
+#
+# Fires on:     Manual dispatch only (workflow_dispatch). Pick the branch in the
+#               "Run workflow" UI. Deliberately NOT auto-on-push — iOS macOS
+#               runners are expensive; you decide when friends get a build.
+# Jobs:
+#   build-number — commit count (`git rev-list --count HEAD`). Monotonic and
+#                  workflow-agnostic, so beta + release never reuse a versionCode.
+#   android      — signs the release AAB, uploads to the Play **internal** track.
+#   ios          — builds the IPA and runs `fastlane beta` (TestFlight internal
+#                  only: distribute_external:false, no App Store submit).
+#
+# Side effects: builds land on the Play internal track + TestFlight internal
+#               group (both review-free, live within minutes). Release build
+#               type ⇒ points at the PROD backend (AppEnvironment picks by build
+#               type; cards.targetEnv can't be set in CI). Channel is tagged
+#               `beta` for telemetry + the Settings "About" string.
+# See: docs/practices/release.md, apps/ios/fastlane/Fastfile (lane :beta)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Beta (internal)
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_android:
+        description: 'Skip Android (Play internal) upload'
+        required: false
+        default: false
+        type: boolean
+      skip_ios:
+        description: 'Skip iOS (TestFlight internal) upload'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: beta-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-number:
+    name: Resolve build number
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.n.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: n
+        # Total commit count: strictly increasing as commits land, identical no
+        # matter which workflow or platform builds it, and it maps back to a
+        # commit so a tester's "build 247" is traceable. The only collision case
+        # is re-running beta on the exact same commit twice — land a commit or
+        # accept the store rejecting the duplicate.
+        run: echo "value=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
+  android:
+    name: Android AAB → Play internal
+    needs: build-number
+    if: ${{ !inputs.skip_android }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      VERSION_CODE_OVERRIDE: ${{ needs.build-number.outputs.value }}
+      BUILD_NUMBER_OVERRIDE: ${{ needs.build-number.outputs.value }}
+      RELEASE_CHANNEL_OVERRIDE: beta
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read applicationId from versions.properties
+        id: app_id
+        run: |
+          APP_ID=$(grep '^applicationId=' versions.properties | cut -d= -f2 | tr -d ' ')
+          if [ -z "$APP_ID" ]; then
+            echo "::error::Could not read applicationId from versions.properties"
+            exit 1
+          fi
+          echo "value=$APP_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Android signing secrets
+        run: |
+          missing=0
+          for var in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Secret $var is not set"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ]
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Bundle release AAB
+        run: ./gradlew :apps:compose:bundleRelease -Prelease.signing=true
+
+      - name: Locate AAB
+        id: aab
+        run: |
+          AAB=$(ls apps/compose/build/outputs/bundle/release/*.aab | head -n 1)
+          echo "path=$AAB" >> "$GITHUB_OUTPUT"
+
+      - name: Render release notes for Play
+        run: |
+          mkdir -p apps/compose/build/play-release-notes/en-US
+          {
+            echo "Internal beta — build ${{ needs.build-number.outputs.value }}"
+            echo ""
+            git log -1 --pretty=%s
+          } | head -c 500 > apps/compose/build/play-release-notes/en-US/default.txt
+
+      - name: Upload to Play internal track
+        if: ${{ env.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        uses: r0adkll/upload-google-play@v1
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ steps.app_id.outputs.value }}
+          releaseFiles: ${{ steps.aab.outputs.path }}
+          track: internal
+          status: completed
+          whatsNewDirectory: apps/compose/build/play-release-notes
+
+      - name: Warn on missing Play credentials
+        if: ${{ env.PLAY_SERVICE_ACCOUNT_JSON == '' }}
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: echo "::warning::PLAY_SERVICE_ACCOUNT_JSON is not set — built the AAB but skipped the Play internal upload. Artifact is still attached below."
+
+      - name: Upload AAB artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-android-aab
+          path: apps/compose/build/outputs/bundle/release/*.aab
+          if-no-files-found: warn
+          retention-days: 30
+
+  ios:
+    name: iOS → TestFlight internal
+    needs: build-number
+    if: ${{ !inputs.skip_ios }}
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      APPLE_DIST_CERT_P12_BASE64: ${{ secrets.APPLE_DIST_CERT_P12_BASE64 }}
+      APPLE_DIST_CERT_PASSWORD: ${{ secrets.APPLE_DIST_CERT_PASSWORD }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+      FASTLANE_SKIP_UPDATE_CHECK: "1"
+      FASTLANE_HIDE_CHANGELOG: "1"
+      # In-app BuildInfo.* only — the store CFBundleVersion is a timestamp set by
+      # fastlane's beta lane. See release.yml for the same note.
+      VERSION_CODE_OVERRIDE: ${{ needs.build-number.outputs.value }}
+      BUILD_NUMBER_OVERRIDE: ${{ needs.build-number.outputs.value }}
+      RELEASE_CHANNEL_OVERRIDE: beta
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Select runner's default Xcode
+        run: |
+          if [ ! -d /Applications/Xcode.app ]; then
+            echo "::error::/Applications/Xcode.app is missing on runner"
+            ls /Applications | grep -i xcode || true
+            exit 1
+          fi
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
+      - name: Cache Kotlin/Native (~/.konan)
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-xcode26-${{ hashFiles('gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            konan-${{ runner.os }}-xcode26-
+
+      - name: Cache SwiftPM global store
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: spm-${{ runner.os }}-xcode26-${{ hashFiles('apps/ios/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-xcode26-
+
+      - name: Cache Xcode DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: deriveddata-${{ runner.os }}-xcode26-${{ github.sha }}
+          restore-keys: |
+            deriveddata-${{ runner.os }}-xcode26-
+
+      - name: Set up Ruby / Bundler
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: apps/ios
+
+      - name: Verify Apple signing secrets
+        run: |
+          missing=0
+          for var in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Secret $var is not set — required for TestFlight upload"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ]
+
+      - name: Populate TEAM_ID in xcconfig
+        working-directory: apps/ios/Configuration
+        run: |
+          tmpfile=$(mktemp)
+          awk -v team="${APPLE_TEAM_ID}" '
+            /^TEAM_ID[[:space:]]*=/ { print "TEAM_ID=" team; next }
+            { print }
+          ' Config.xcconfig > "$tmpfile"
+          mv "$tmpfile" Config.xcconfig
+
+      - name: Pre-build KMP release framework
+        run: ./gradlew :apps:compose:linkReleaseFrameworkIosArm64
+
+      - name: Build + upload to TestFlight internal
+        working-directory: apps/ios
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          TESTFLIGHT_CHANGELOG: "Internal beta — build ${{ needs.build-number.outputs.value }}"
+        run: bundle exec fastlane beta
+
+      - name: Upload ipa artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-ios-ipa
+          path: apps/ios/build/*.ipa
+          if-no-files-found: ignore
+          retention-days: 30
