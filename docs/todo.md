@@ -28,6 +28,18 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** the create-game screen scrolls when content exceeds the viewport, and its rows are left-justified flush with the section header, matching the profile screen's treatment.
   **Hints:** the create-game/private-room create screen in `:features:lobby` (`LobbyFeatureEntryPoint` / create-room composables); mirror the profile screen's row/header alignment. Sentry CARDS-8B + CARDS-8D.
 
+## GAME
+
+- `[P2]` **GAME-17 — Make an early bot fold legible: seat fold cue + last move on the player card.** Vs bots, the first-to-act bot can fold instantly at hand start with no visible cue — the reporter only saw two gray cards, and tapping the bot's player-card sheet showed no last move.
+  **Acceptance:** a bot fold is visibly announced on its seat (fold cue, not just gray cards) even when it fires at hand start, and the opponent player-card sheet shows the seat's last action including Fold.
+  **Hints:** `LocalBotsSession.runUntilHumansTurnOrComplete` applies the UTG fold synchronously before the human's first turn; seat rendering (`PlayerArea`) + tap-an-opponent sheet in the play feature; case docs/agent/feedback-cases/d6022eaee9794557844307fedfdd03ca.md; Sentry CARDS-8H.
+
+## PROG
+
+- `[P2]` **PROG-9 — Mid-game achievements vs bots: horizontally scrolling pager with indicator.** Owner directive — when achievements surface mid-game against bots, present them as a horizontal pager (with page indicator) instead of the current presentation.
+  **Acceptance:** multiple mid-game achievements render in a horizontally scrolling pager with an indicator; a single achievement still reads cleanly.
+  **Hints:** in-game achievement celebration surface in the play/progression layer (see the progression map in docs/wiki); the recap-notification half of the ask went to backlog.md. Sentry CARDS-8K.
+
 ## AUTH
 
 - `[P1]` **AUTH-16 — Move the Supabase session store to OS-encrypted storage (Keychain / EncryptedSharedPreferences).** The 2026-05-18 decision accepted plaintext token storage explicitly *only until the claim flow shipped* — claim (Apple + Google) is live, so refresh tokens for real, claimed accounts now sit in unencrypted SharedPreferences / NSUserDefaults (supabase-kt's default `multiplatform-settings` store).
