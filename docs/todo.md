@@ -22,12 +22,6 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## GAME
-
-- `[P2]` **GAME-17 — Make an early bot fold legible: seat fold cue + last move on the player card.** Vs bots, the first-to-act bot can fold instantly at hand start with no visible cue — the reporter only saw two gray cards, and tapping the bot's player-card sheet showed no last move.
-  **Acceptance:** a bot fold is visibly announced on its seat (fold cue, not just gray cards) even when it fires at hand start, and the opponent player-card sheet shows the seat's last action including Fold.
-  **Hints:** `LocalBotsSession.runUntilHumansTurnOrComplete` applies the UTG fold synchronously before the human's first turn; seat rendering (`PlayerArea`) + tap-an-opponent sheet in the play feature; case docs/agent/feedback-cases/d6022eaee9794557844307fedfdd03ca.md; Sentry CARDS-8H.
-
 ## PROG
 
 - `[P2]` **PROG-9 — Mid-game achievements vs bots: horizontally scrolling pager with indicator.** Owner directive — when achievements surface mid-game against bots, present them as a horizontal pager (with page indicator) instead of the current presentation.

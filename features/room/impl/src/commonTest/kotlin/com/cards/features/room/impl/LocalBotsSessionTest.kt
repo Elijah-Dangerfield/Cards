@@ -3,8 +3,10 @@ package com.dangerfield.cards.features.room.impl
 import com.dangerfield.cards.features.room.impl.session.BotTiming
 import com.dangerfield.cards.features.room.impl.session.LocalBotsSession
 
+import com.dangerfield.cards.libraries.bots.BotDecider
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
+import com.dangerfield.cards.libraries.bots.RngBotDecider
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEvent
@@ -13,6 +15,7 @@ import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
@@ -214,6 +217,29 @@ class LocalBotsSessionTest : CoroutineTest() {
         assertTrue(2 !in botActors, "human at seat 2 has NOT acted yet")
     }
 
+    @Test
+    fun firstBotActionOfAHand_waitsForTheDealToSettle() = runUnitTest {
+        // GAME-17: the first-to-act bot used to be able to fold before the deal
+        // animation finished — the user saw grey cards with no announced move
+        // (CARDS-8H). The hand's opening bot action must hold until the
+        // hand-start grace elapses, regardless of how snappy its think delay is.
+        val decider = ScriptedBotDecider().apply { seat(0).folds() }
+        val session = buildSession(seatsCount = 3, humanSeatIndex = 2, botDecider = decider)
+        val actions = mutableListOf<GameEvent.ActionTaken>()
+        launch { session.events.collect { if (it is GameEvent.ActionTaken) actions += it } }
+        launch { session.runUntilHumansTurnOrComplete() }
+
+        advanceTimeBy(BotTiming.HAND_START_GRACE_MS - 1)
+        runCurrent()
+        assertTrue(
+            actions.isEmpty(),
+            "no bot action may land inside the hand-start grace window; got $actions",
+        )
+
+        advanceUntilIdle()
+        assertTrue(actions.any { it.seatIndex == 0 }, "the scripted fold still lands after the grace")
+    }
+
     // ---------- Hand-end callback ----------
 
     @Test
@@ -345,6 +371,7 @@ class LocalBotsSessionTest : CoroutineTest() {
         humanSeatIndex: Int = 0,
         random: Random = Random(42L),
         onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit = { _, _, _ -> },
+        botDecider: BotDecider = RngBotDecider,
     ): LocalBotsSession {
         val personalities = listOf(
             BotPersonality.Steve,
@@ -361,6 +388,7 @@ class LocalBotsSessionTest : CoroutineTest() {
             botActionDelayMs = 0L,
             gameSpeedProvider = { com.dangerfield.cards.libraries.cards.GameSpeed.Fast },
             onHandEnded = onHandEnded,
+            botDecider = botDecider,
             // All four production dispatchers route through the test scheduler,
             // so Monte Carlo (production: Dispatchers.Default) runs on virtual
             // time and respects advanceUntilIdle / runCurrent.

@@ -41,6 +41,15 @@ internal object BotTiming {
     /** Median bot, median decision, no user pace data. */
     const val BASE_THINK_MS: Long = 800L
 
+    /**
+     * Floor on the FIRST bot action of a hand, measured from hand start. The
+     * deal cascade (hole-card flights + flips) runs ~700ms; an opening fold
+     * that lands mid-deal reads as "nothing happened" (GAME-17 / CARDS-8H).
+     * Deliberately NOT scaled by game speed — it syncs to the deal animation,
+     * which doesn't speed up.
+     */
+    const val HAND_START_GRACE_MS: Long = 1_000L
+
     fun thinkDelayMs(
         personality: BotPersonality,
         thought: BotThought,

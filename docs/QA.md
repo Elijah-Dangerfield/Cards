@@ -504,6 +504,18 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Fast trims only the bots' deliberation pause. Deal, flip, and reveal animations play at the same calibrated pace on both settings — Game speed never changes animation timing (the old animation-scaling "Instant" tier was removed 2026-06-29). The setting persists across app restarts.
 
+## Solo play
+
+### `GAME-17` ℹ️ 📱 An instant bot fold reads clearly on the seat and player card
+
+**State:** any account; start a bot game with 3+ opponents so a bot acts before you do.
+
+1. Deal hands until the first-to-act bot folds before your first turn (a few hands at most).
+2. Watch the folding bot's seat, then tap its avatar to open the player card.
+3. Play on to the flop and tap the folded bot again.
+
+**Expected:** The opening bot action never lands before the deal settles (~1s grace after the cards fly in). The fold announces itself: a FOLD pill pops in under the greyed avatar and stays for the rest of the hand, through showdown. The player card's "Last Move" row reads "Folded" — including after later streets have dealt. Never just an unexplained pair of grey cards. (Covers todo GAME-17.)
+
 ## Progression
 
 ### `PROG-1` ⚠️ 📱 Level-up celebration shows on a fresh account's first level-up

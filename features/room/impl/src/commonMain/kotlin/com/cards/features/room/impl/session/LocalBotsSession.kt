@@ -105,6 +105,7 @@ class LocalBotsSession(
     private var buttonIndex: Int = 0
     private val lastActionBySeat: MutableMap<Int, PlayerAction> = mutableMapOf()
     private val currentStreetLog: MutableList<StreetAction> = mutableListOf()
+    private var handHasAction: Boolean = false
     private var preflopAggressorSeatIndex: Int? = null
     private var lastWinners: GameEvent.HandEnded? = null
     private val nextHandSignal: Channel<Unit> = Channel(capacity = 1)
@@ -209,6 +210,7 @@ class LocalBotsSession(
         observeAndEmit(result.events)
         lastActionBySeat.clear()
         currentStreetLog.clear()
+        handHasAction = false
         preflopAggressorSeatIndex = null
         lastWinners = null
         setGameState(result.state)
@@ -323,7 +325,11 @@ class LocalBotsSession(
                     speed = currentSpeed,
                 )
             }
-            delay(thinkDelay)
+            // The hand's opening action can't beat the deal: a snap UTG fold
+            // that landed mid-cascade read as "nothing happened" (GAME-17).
+            val pacedDelay = if (handHasAction) thinkDelay
+            else thinkDelay.coerceAtLeast(BotTiming.HAND_START_GRACE_MS)
+            delay(pacedDelay)
             // Re-check after the suspension points (`withContext`, `delay`): another
             // coroutine on Main may have advanced the state in the meantime. Without
             // this guard the engine throws "Not seat X's turn" when we try to apply
@@ -434,6 +440,7 @@ class LocalBotsSession(
         result.events.forEach { ev ->
             when (ev) {
                 is GameEvent.ActionTaken -> {
+                    handHasAction = true
                     lastActionBySeat[ev.seatIndex] = ev.action
                     currentStreetLog += StreetAction(ev.seatIndex, ev.action)
                     val aggressive = ev.action is PlayerAction.Raise ||
@@ -444,7 +451,10 @@ class LocalBotsSession(
                     }
                 }
                 is GameEvent.StreetAdvanced -> {
-                    lastActionBySeat.clear()
+                    // Street pills reset, but a fold is out-of-hand state, not a
+                    // street action — it stays legible for the rest of the hand
+                    // (seat cue + player-card "last move", GAME-17).
+                    lastActionBySeat.entries.removeAll { it.value !is PlayerAction.Fold }
                     currentStreetLog.clear()
                 }
                 is GameEvent.HandEnded -> {
