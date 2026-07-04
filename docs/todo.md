@@ -21,3 +21,17 @@ The live punch list of actionable engineering work. Every item is something a wo
 - `[P2]` — Lower urgency, still worker-pickable. Many need a directional call — make a recommendation, ship a slice, let the reviewer course-correct.
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
+
+## ENG
+
+- `[P1]` **ENG-16 — Update the progression wiki for server-minted reward chips.** (proposed 2026-07-04) `docs/wiki/progression.md` ("Levels and level-up rewards" + the grant-path table) still says the client grants level/achievement chips optimistically (`levelup_<level>`) and the server "confirms or voids the claimed grants"; since ENG-9 the server mints those chips itself on progression/achievements sync and wallet sync refuses client-asserted `levelup.*` / `achievement.*` credits.
+  **Acceptance:** the page describes the ENG-9 flow — server credits via `levelup:<n>` / `achievement:<id>` ledger keys, `RefusedServerOwned` on client-asserted credits, local optimistic credit is display-only until reconcile.
+  **Hints:** `apps/server/.../domain/RewardChips.kt` KDoc + `docs/decisions.md` 2026-07-04 have the full story.
+
+- `[P2]` **ENG-17 — Migrate `apps/admin` off `runCatching`.** (proposed 2026-07-04) The config-admin web app's production code uses `runCatching` in ~9 places (`AdminApi.kt`, `Main.kt`, `Support.kt`, `AuditView.kt`), against the repo-wide `Catching` convention — `runCatching` swallows `CancellationException`.
+  **Acceptance:** no `runCatching` in `apps/admin` production sources; cancellation still propagates.
+  **Hints:** `:libraries:core` has no `js()` target, so either add one or drop a local `Catching` equivalent into `apps/admin`.
+
+- `[P2]` **ENG-18 — Resolve the AvatarPackCache sign-out-clear promise.** (proposed 2026-07-04) `AvatarPackCache`'s KDoc says the cache is "cleared on sign-out (handled by ProfileRepositoryImpl's SignedOut listener once that gets wired — see the TODO there)", but no SignedOut listener or TODO exists in `ProfileRepositoryImpl`; the only `clear()` call is the staleness drop. Wire the sign-out clear or correct the doc — the catalog is user-agnostic per the same KDoc, so the doc fix is likely right.
+  **Acceptance:** the KDoc matches reality — no reference to unwired listeners or nonexistent TODOs.
+  **Hints:** `libraries/identity/impl/.../profile/AvatarPackCache.kt:26-27`, `ProfileRepositoryImpl.kt:550`. While there, kill the stale "(mock)" in `features/rooms/impl/.../PublicFindScreen.kt:55` — matchmaking is real now.
