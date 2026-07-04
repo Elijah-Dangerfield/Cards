@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-07-01 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-07-04 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -24,9 +24,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ROOM
 
-- `[P2]` **Create-game screen: make it scrollable and left-justify its rows to the section header.** Owner feedback on the create-game (private room create) screen — the horizontal rows aren't aligned to their section header the way the profile screen's are, and the screen doesn't scroll so content can be cut off on smaller devices.
-  **Acceptance:** the create-game screen scrolls when content exceeds the viewport, and its rows are left-justified flush with the section header, matching the profile screen's treatment.
-  **Hints:** the create-game/private-room create screen in `:features:lobby` (`LobbyFeatureEntryPoint` / create-room composables); mirror the profile screen's row/header alignment. Sentry CARDS-8B + CARDS-8D.
+- `[P2]` **ROOM-15 — Left-justify the create-game screen's rows to their section headers.** Owner feedback — the horizontal rows on the create-game (private room create) screen aren't aligned flush with their section headers the way the profile screen's are.
+  **Acceptance:** row content starts flush with its section header, matching the profile screen's treatment.
+  **Hints:** `CosmeticPickerRow` in `PrivateCreateScreen.kt` (`:features:lobby`) — its label adds `horizontal = D600` inside a column that already applies `screenContentPadding`, while `EdgeToEdgeRow` insets item 0 a single D600 from the screen edge. Sentry CARDS-8B + CARDS-8D.
 
 ## GAME
 
@@ -52,15 +52,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## BILL
 
-Native IAP (Play Billing + StoreKit 2 + own server receipt validation — no RevenueCat) is **built and tested** (shipped in #83). What exists: `/v1/billing/redeem` + `billing_transactions` (V81) + `PostgresBillingRepository`; real `AppStoreReceiptValidator` / `GooglePlayReceiptValidator` (dormant until configured, fail-closed); `RealPlayBillingClient` (Android) + `StoreKitBillingClient` (iOS), both DI-bound with `replaces = [DevBillingClient, NoOpBillingClient]`; and the server-authoritative validate→grant→reflect flow behind the `billing.realPurchasesEnabled` flag — all covered by tests (`BillingRoutesTest`, `PostgresBillingRepositoryTest`, `*ReceiptValidatorTest`, `DefaultPurchaseChipPackUseCaseTest`). **What remains to actually sell chips is human**: store listings + credentials + flipping the flag + a beta test pass — all in [developer-todo.md](./developer-todo.md). Only code loose-ends below (BILL-1..5 retired as shipped).
+Native IAP (Play Billing + StoreKit 2 + server receipt validation) is built and tested. What remains to actually sell chips is human — store listings, credentials, flipping `billing.realPurchasesEnabled`, a beta pass — all in [developer-todo.md](./developer-todo.md). Only code loose-ends below (BILL-1..5, BILL-7 retired as shipped).
 
 - `[P2]` **BILL-6 — Delete `DevBillingClient` / `NoOpBillingClient` now real platform bindings exist.** Both real clients are bound with `replaces = [DevBillingClient::class, NoOpBillingClient::class]`, so the Dev/NoOp clients are dead in shipping builds — their own `TODO(billing): remove this class once a real platform binding lands` is now due.
   **Acceptance:** Dev/NoOp billing clients removed, `replaces=` lists cleaned up, all billing tests still green. Keep `FakeBillingClient` (it's manually wired for previews/tests, not `@ContributesBinding`).
   **Hints:** [DevBillingClient.kt](libraries/billing/impl/src/commonMain/kotlin/com/cards/libraries/billing/impl/DevBillingClient.kt) + `NoOpBillingClient.kt`.
-
-- `[P2]` **BILL-7 — Verify the Android consumable consume path.** `GooglePlayReceiptValidator` notes that acknowledging/consuming is the client's job (`consumeAsync` for consumable chip packs). Confirm `RealPlayBillingClient` actually consumes after a successful server redeem so the same pack is re-purchasable.
-  **Acceptance:** a repeat purchase of the same chip pack succeeds end-to-end (consume fires after redeem) — a test, or a documented manual check on the Play internal track.
-  **Hints:** `RealPlayBillingClient` / `AndroidStoreKitCoordinator`; pairs with the BILL device-QA item in developer-todo. If already wired, just add the regression test + close this.
 
 ## ENG
 
