@@ -1,9 +1,10 @@
 # TODO reference mocks
 
 Temporary holding spot for design references attached to items in
-[`../todo.md`](../todo.md). Drop the actual screenshots here under the
-filenames below; the textual descriptions are the source of truth until the
-PNGs land (the descriptions were transcribed from the originals).
+[`../todo.md`](../todo.md) / [`../backlog.md`](../backlog.md). Drop the actual
+screenshots here under the filenames below; the textual descriptions are the
+source of truth until the PNGs land (the descriptions were transcribed from
+the originals).
 
 Delete an entry once its todo ships.
 

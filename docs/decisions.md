@@ -618,7 +618,7 @@ The moment Apple/Google "claim" lands (Phase 3.1). A claimed account binds to a 
 - Add an iOS Keychain wrapper. Easiest route: Swift Twin (per `docs/practices/swift-kotlin.md`) — interface stays in commonMain, Swift implements it and passes it into the DI graph via `IosAppComponentFactory.create(...)`. Bind with the same `replaces` annotation in iosMain.
 - The interface (`com.dangerfield.cards.libraries.identity.TokenStore`) doesn't change; only the wiring does. Existing on-device tokens get re-written into the new store on the next refresh (or first run after the upgrade).
 
-**Status:** Accepted V1 trade-off. Bump to OS-encrypted storage before the claim flow ships.
+**Status:** Accepted V1 trade-off. Bump to OS-encrypted storage before the claim flow ships. **Update 2026-07-04:** the reset condition has fired — claim (Apple + Google) shipped in June, and the session still lives in supabase-kt's default `multiplatform-settings` store (plain SharedPreferences / NSUserDefaults). Tracked as **AUTH-16** in [todo.md](./todo.md). Note the upgrade path sketched above predates the Supabase re-adoption (the `TokenStore` types it names are gone); the modern fix is a custom `sessionManager` on the Auth plugin.
 
 ---
 

@@ -30,6 +30,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## AUTH
 
+- `[P1]` **AUTH-16 — Move the Supabase session store to OS-encrypted storage (Keychain / EncryptedSharedPreferences).** The 2026-05-18 decision accepted plaintext token storage explicitly *only until the claim flow shipped* — claim (Apple + Google) is live, so refresh tokens for real, claimed accounts now sit in unencrypted SharedPreferences / NSUserDefaults (supabase-kt's default `multiplatform-settings` store).
+  **Acceptance:** the Auth plugin is configured with a custom `sessionManager` backed by EncryptedSharedPreferences (Android) and Keychain (iOS); an existing session migrates on first launch (read old store once, write new, clear old) so nobody gets signed out by the upgrade.
+  **Hints:** `install(Auth) { sessionManager = ... }` in [SupabaseClientFactory.kt](libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/SupabaseClientFactory.kt); Keychain via a Swift Twin per `docs/practices/swift-kotlin.md`. The upgrade sketch in decisions.md 2026-05-18 predates the Supabase re-adoption (`TokenStoreImpl` no longer exists).
+
 - `[P2]` **Remove the first-7-days daily welcome bonus.** Owner directive ("tbh I think we should just get rid of the daily bonus for the first 7 days thing"). This is the shipped "Day N of 7 — welcome bonus" onboarding reward surfaced via in-app messages. Directional/product call — recommend delete vs config-flag-off and ship a slice.
   **Acceptance:** new users no longer see the "Day N of 7 — welcome bonus" daily reward flow; the associated grant/in-app-message logic is removed or disabled behind a config flag, with no dangling references.
   **Hints:** the "Day N of 7 — welcome bonus" in-app message + its grant path (progression/economy + `InAppMessages`); relates to backlog "come back reward" (deferred) — daily-streak mechanics were rejected on principle back in the product spec. Sentry CARDS-89.

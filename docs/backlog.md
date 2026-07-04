@@ -707,6 +707,18 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 **Status:** Backlog. Design judgment on the DS surface; AGENTS.md references it.
 
+## Hand-rankings cheat sheet v2 — "you have" banner + compact rows
+
+**Idea (owner mock):** Upgrade `HandRankingsCheatSheet` toward the owner-provided target mock: a summary banner at the top showing the user's current hole+board cards with "YOU HAVE / Two Pair", then a tight numbered 1–10 list (Royal Flush → High Card) with compact card glyphs per row, the user's current hand row highlighted. Today's sheet has the ranked list and a "YOU" highlight but not the you-have banner or the compact-glyph treatment. Full transcription of the mock: [`todo-assets/README.md`](./todo-assets/README.md) → `hand-rankings.png`.
+
+**Status:** Backlog. UX polish with layout design calls; pairs naturally with the BaseBottomSheet fold-back above.
+
+## "Recent XP" rows on Stats
+
+**Idea (owner mock):** A "Recent XP" section on the stats surface — a short list of recent XP-earning moments, each row = source emoji + what happened ("Won a hand vs Theo", "Achievement · Big bluff") + relative timestamp + a `+N` trailing amount colored by XP source. Gives XP a narrative ("where did my progress come from") instead of just a total. Needs a local recent-XP-events feed (the `xp_events` ledger already captures per-hand deltas client-side — surface the tail of it). Full transcription: [`todo-assets/README.md`](./todo-assets/README.md) → `recent-xp.png`.
+
+**Status:** Backlog. Not tracked by any todo; pull when the stats screen gets its next pass.
+
 ## Burn down the VerifyStrings baseline (extract hardcoded copy to resources)
 
 **Idea (2026-06-25, ENG-2 follow-up):** Standing up the detekt `VerifyStrings` rule baselined 42 existing inline user-facing string literals (`Text("Claim")`, `Text("BUSTED")`, `Text("Report to developers")`, …) in `config/detekt/baseline.xml`. New code is gated, but the baselined ones are real localization/i18n debt frozen in place. Sweep them into `:libraries:resources` (`stringResource(...)`) and shrink the baseline toward empty — each extraction removes its baseline entry. Mechanical but spans many files; do it as a focused sweep, not piecemeal.
