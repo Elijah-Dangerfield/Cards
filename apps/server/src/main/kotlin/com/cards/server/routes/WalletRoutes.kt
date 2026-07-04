@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.domain.ApplyOutcome
+import com.dangerfield.cards.server.domain.RewardChips
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UserMessageRepository
@@ -37,6 +38,13 @@ import kotlin.time.Instant
  * rejected with [WalletEventOutcomeDto.InsufficientChips] — the wallet
  * stays put, the batch continues, and the client surfaces a soft
  * reconcile message.
+ *
+ * Reward credits are server-owned (ENG-9): a positive delta whose
+ * reason is a `levelup.*` / `achievement.*` reward is refused with
+ * [WalletEventOutcomeDto.RefusedServerOwned] without touching the
+ * ledger. The server grants those itself — level chips on progression
+ * sync, achievement chips on earned-achievement sync — from
+ * [RewardChips], so a modified client can't pick its own amounts.
  *
  * Welcome-week grants: every wallet contact also runs through
  * [maybeApplyWelcomeWeek], which silently applies the daily
@@ -105,6 +113,14 @@ fun Route.walletRoutes(
                     clock = clock,
                 )
                 val results = body.events.map { event ->
+                    if (RewardChips.isServerOwnedRewardCredit(delta = event.delta, reason = event.reason)) {
+                        return@map WalletEventResultDto(
+                            idempotencyKey = event.idempotencyKey,
+                            outcome = WalletEventOutcomeDto.RefusedServerOwned,
+                            balance = lastBalance,
+                            message = "Reward credits are granted server-side; this event was ignored.",
+                        )
+                    }
                     val outcome = repository.apply(
                         userId = userId,
                         idempotencyKey = event.idempotencyKey,

@@ -2,6 +2,8 @@ package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.domain.ApplyXpOutcome
 import com.dangerfield.cards.server.domain.ProgressionRepository
+import com.dangerfield.cards.server.domain.RewardChips
+import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.plugins.PROGRESSION_WRITE_LIMIT
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
@@ -30,6 +32,14 @@ import kotlin.time.ExperimentalTime
  * `idempotencyKey` (`hand_<handId>` / `achievement_<id>`), so retries and
  * reinstall re-flushes never double-count.
  *
+ * Level-up chip rewards are credited here (ENG-9): when a sync moves the
+ * authoritative XP total across a rewarded level, the server applies the
+ * chip prize from [RewardChips.LEVEL_CHIPS] to the wallet ledger,
+ * idempotent per level — the client's own `levelup.*` credit is refused
+ * at wallet sync, so this is the only path that mints them. Replays are
+ * safe twice over: an already-applied XP batch doesn't move the total
+ * (no crossing detected), and the per-level ledger key dedupes anyway.
+ *
  * Both require a valid Supabase JWT; the userId comes from the `sub` claim.
  * Per-IP rate limit on sync mirrors the wallet endpoint.
  */
@@ -37,7 +47,10 @@ import kotlin.time.ExperimentalTime
 private const val RECENT_EVENTS_LIMIT = 50
 
 @OptIn(ExperimentalTime::class)
-fun Route.progressionRoutes(repository: ProgressionRepository) {
+fun Route.progressionRoutes(
+    repository: ProgressionRepository,
+    wallet: WalletRepository,
+) {
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me/progression") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
@@ -80,6 +93,18 @@ fun Route.progressionRoutes(repository: ProgressionRepository) {
                             totalXp = outcome.totalXp,
                         )
                     }
+                }
+
+                RewardChips.rewardedLevelsCrossed(
+                    beforeXp = initial.progression.totalXp,
+                    afterXp = lastTotal,
+                ).forEach { level ->
+                    wallet.apply(
+                        userId = userId,
+                        idempotencyKey = RewardChips.levelLedgerKey(level),
+                        delta = RewardChips.LEVEL_CHIPS.getValue(level),
+                        reason = RewardChips.levelLedgerReason(level),
+                    )
                 }
 
                 // Re-hydration: an event-less sync is the client asking "what

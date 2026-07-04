@@ -94,6 +94,59 @@ class ProgressionRoutesTest {
         }
     }
 
+    @Test
+    fun sync_creditsLevelChips_whenXpCrossesARewardedLevel() = runTest {
+        // ENG-9: level-up chips are minted here, off the authoritative XP
+        // total — not from a client-asserted wallet event. 600 XP under the
+        // default curve is level 3 (cumulative 100 + 400 = 500), the first
+        // rewarded level.
+        val repo = FakeProgressionRepo(recent = emptyList())
+        val wallet = RecordingWalletRepo()
+        callSync(
+            repo,
+            ProgressionSyncRequest(events = listOf(XpEventDto("h1", deltaXp = 600, source = "hand", mode = "BOTS"))),
+            wallet = wallet,
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(1, wallet.applies.size)
+            val grant = wallet.applies.single()
+            assertEquals("levelup:3", grant.idempotencyKey)
+            assertEquals(1_000L, grant.delta)
+            assertEquals("levelup_grant:3", grant.reason)
+        }
+    }
+
+    @Test
+    fun sync_creditsEveryRewardedLevel_whenABatchCrossesSeveral() = runTest {
+        // 3_000 XP lands exactly at level 5 (100 + 400 + 900 + 1_600) —
+        // levels 3 and 5 are both rewarded, level 4 grants nothing.
+        val repo = FakeProgressionRepo(recent = emptyList())
+        val wallet = RecordingWalletRepo()
+        callSync(
+            repo,
+            ProgressionSyncRequest(events = listOf(XpEventDto("h1", deltaXp = 3_000, source = "hand", mode = "BOTS"))),
+            wallet = wallet,
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(listOf("levelup:3", "levelup:5"), wallet.applies.map { it.idempotencyKey })
+            assertEquals(listOf(1_000L, 2_500L), wallet.applies.map { it.delta })
+        }
+    }
+
+    @Test
+    fun sync_grantsNothing_whenNoLevelCrossed() = runTest {
+        val repo = FakeProgressionRepo(recent = emptyList())
+        val wallet = RecordingWalletRepo()
+        callSync(
+            repo,
+            ProgressionSyncRequest(events = listOf(XpEventDto("h1", deltaXp = 40, source = "hand", mode = "BOTS"))),
+            wallet = wallet,
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertTrue(wallet.applies.isEmpty(), "no rewarded level crossed, no chips minted")
+        }
+    }
+
     // ---------- scaffolding ----------
 
     private fun xpEvent(
@@ -132,6 +185,7 @@ class ProgressionRoutesTest {
         repo: ProgressionRepository,
         request: ProgressionSyncRequest,
         bearer: String? = validJwt(),
+        wallet: RecordingWalletRepo = RecordingWalletRepo(),
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -140,7 +194,7 @@ class ProgressionRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { progressionRoutes(repo) }
+                routing { progressionRoutes(repo, wallet) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }

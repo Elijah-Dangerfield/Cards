@@ -166,10 +166,10 @@ fun Application.installApp(
             validator = component.receiptValidator,
             billing = component.billingRepository,
         )
-        progressionRoutes(component.progressionRepository)
+        progressionRoutes(component.progressionRepository, component.walletRepository)
         playStyleRoutes(component.playStyleRepository)
         playerStatsRoutes(component.playerStatsRepository)
-        achievementsRoutes(component.achievementRepository)
+        achievementsRoutes(component.achievementRepository, component.walletRepository)
         meRoutes(
             component.profileRepository,
             component.supabaseAdminClient,

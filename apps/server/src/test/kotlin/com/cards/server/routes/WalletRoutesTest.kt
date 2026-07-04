@@ -185,6 +185,38 @@ class WalletRoutesTest {
     }
 
     @Test
+    fun sync_refusesClientAssertedRewardCredits() = runTest {
+        // ENG-9: level-up / achievement chip rewards are server-owned. A
+        // modified client POSTing `delta=1_000_000, reason="levelup.99"`
+        // must not mint chips — the server refuses without touching the
+        // ledger and the batch continues.
+        val repo = FakeWalletRepo()
+        callSync(
+            repo,
+            request = WalletSyncRequest(
+                events = listOf(
+                    WalletEventDto(idempotencyKey = "levelup_99", delta = 1_000_000, reason = "levelup.99"),
+                    WalletEventDto(
+                        idempotencyKey = "achievement.POT_5000",
+                        delta = 999_999,
+                        reason = "achievement.POT_5000",
+                    ),
+                    WalletEventDto(idempotencyKey = "legit-debit", delta = -100, reason = "shop.cardback"),
+                ),
+            ),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<WalletSyncResponse>()
+            assertEquals(WalletEventOutcomeDto.RefusedServerOwned, body.results[0].outcome)
+            assertEquals(WalletEventOutcomeDto.RefusedServerOwned, body.results[1].outcome)
+            assertEquals(WalletEventOutcomeDto.Applied, body.results[2].outcome, "batch must continue past refusals")
+            assertEquals(Wallet.STARTER_GRANT - 100, body.balance, "refused credits must not move the balance")
+            assertEquals(1, repo.applyCalls, "refused events must never reach the ledger")
+        }
+    }
+
+    @Test
     fun sync_acceptsEmptyEvents_andReturnsCurrentBalance() = runTest {
         // Empty sync = "what's my balance?" — useful as a foreground hydrate
         // pulse when the client has no pending events.
