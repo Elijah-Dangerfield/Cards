@@ -24,10 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ENG
 
-- `[P1]` **ENG-12 — Sweep em dashes out of user-facing copy in strings.xml.** (proposed 2026-07-04) 11 strings in the rank/stats explainer copy (`rank_bullet_*`, `rank_axes_note`, `stats_explainer_*`) use em dashes, which AGENTS.md bans in user-facing copy ("rephrase or use a comma/period").
-  **Acceptance:** `grep — libraries/resources/.../strings.xml` comes back empty; rephrased copy passes an unslop-text pass and keeps the app's warm plain voice.
-  **Hints:** `libraries/resources/src/commonMain/composeResources/values/strings.xml` (~lines 618-640).
-
 - `[P2]` **ENG-13 — Route ImagePicker's Android image decode through `DispatcherProvider`, not `Dispatchers.Default`.** (proposed 2026-07-04) `rememberImagePicker` calls `withContext(Dispatchers.Default)` directly, violating the never-reach-for-`Dispatchers.*` rule (untestable against the test scheduler).
   **Acceptance:** no direct `Dispatchers.*` usage in `:libraries:ui` production sources; the decode still runs off the main thread.
   **Hints:** `libraries/ui/src/androidMain/.../ImagePicker.android.kt:44`; it's a composable, so take the dispatcher/provider as a parameter or a composition local rather than constructor injection.
