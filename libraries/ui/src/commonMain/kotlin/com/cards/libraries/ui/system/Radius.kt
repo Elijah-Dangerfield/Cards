@@ -47,6 +47,18 @@ fun Radius.cornerRadius(density: Density, size: Size): Float {
 val Radius.cornerRadiusDp: Dp
     get() = with(Density(density = 1f)) { cornerSize.toPx(Size.Unspecified, this).toDp() }
 
+/**
+ * Top-corners-only variant of [Radius.shape] for surfaces that meet the bottom
+ * screen edge (slide-up sheets, docked bars): rounded on top, square below.
+ */
+val Radius.topShape: RoundedCornerShape
+    get() = RoundedCornerShape(
+        topStart = cornerSize,
+        topEnd = cornerSize,
+        bottomEnd = SquareCornerSize,
+        bottomStart = SquareCornerSize,
+    )
+
 object Radii {
     val Round = Radius(CornerSize(percent = 50))
     val R300 = Radius(CornerSize(DimensionResource.D300.dp))
@@ -66,6 +78,7 @@ object Radii {
     val IconButton get() = Round
     val Banner get() = R750   // 18dp
     val Callout get() = R600  // 14dp
+    val Sheet get() = R700    // 16dp — slide-up sheet top corners, via [topShape]
     val Header get() = None
     val Card get() = R900     // 24dp — bubbly
 }
