@@ -83,7 +83,7 @@ Only if **fewer than ~6 worker-pickable items** remain, add a few — **cap 4** 
 
 - **Missing standard affordances** — error/empty/offline states, account flows, forced-upgrade wiring, failure surfaces for mutating actions. Cite the surface and the gap.
 - **Wiki vs reality** — pick one `docs/wiki/` page, find a claim the code no longer backs (or a shipped behaviour it misses). Slow and deep; name the page. *(The old `docs/product/product-spec.md` this lane used to read was deleted 2026-06-24.)*
-- **Accumulated DS / hygiene drift** — old code predating a convention: `runCatching` (should be `Catching`), raw `Color(0xFF…)` / `Color.White.copy(alpha=)` for semantic surfaces, one-off `RoundedCornerShape(N.dp)`, direct `Dispatchers.*`, screen composables missing `@Preview`. Mechanical, cheap to revert. Name the specific file + pattern.
+- **Accumulated DS / hygiene drift** — old code predating a convention: `runCatching` (should be `Catching`), raw `Color(0xFF…)` / `Color.White.copy(alpha=)` for semantic surfaces, one-off `RoundedCornerShape(N.dp)`, direct `Dispatchers.*`, screen composables missing `@Preview`. Mechanical, cheap to revert. Name the specific file + pattern. **Preview-coverage grep trap:** many screens annotate with the fully-qualified `@org.jetbrains.compose.ui.tooling.preview.Preview`, so `rg "@Preview"` returns zero on covered files — search `tooling.preview.Preview` or the `Preview_`/`Preview()` function-name suffix before claiming a file has no previews (the 2026-07-04 run proposed three already-satisfied items off this exact miss).
 
 Every added item must clear all of:
 
