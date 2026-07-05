@@ -42,8 +42,8 @@ The Edit Profile screen's "Get more avatar packs" link wants to land the user on
 
 The solution:
 
-- A `ShopDeepLinkBus` (`:libraries:cards`) — a conflated, consume-once `Channel<ShopCategory>` at app scope.
-- The initiator (Edit Profile) calls `bus.request(ShopCategory.AVATARS)`.
+- A `ShopDeepLinkBus` (`:features:shop` api) — a conflated, consume-once `Channel<ShopCategory>` at app scope.
+- The initiator (Edit Profile) calls `bus.requestScrollTo(ShopCategory.Avatars)`.
 - The Shop VM observes the bus on init and mirrors the request into `ShopState.pendingScrollCategory`.
 - The grid measures each section header's content offset (`onGloballyPositioned` → `positionInParent`) and scrolls to the target once measured, then fires `ScrollConsumed` to clear the pending state.
 

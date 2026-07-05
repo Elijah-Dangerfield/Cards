@@ -24,10 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ENG
 
-- `[P1]` **ENG-19 — Correct the bots wiki's fairness claims the code doesn't back.** (proposed 2026-07-04) `docs/wiki/bots.md` presents unbuilt "V1 countermeasures" as shipped: a provably-fair SHA-256 deck commit (no implementation anywhere), bot-thought hand-history replay and equity-at-each-decision showdown transparency (`BotThought` never leaves the decision/timing internals — nothing is persisted or sent to clients), and "Casual bots make only pot-odds-positive calls" (the curiosity-call branch calls without pot odds).
-  **Acceptance:** the page describes as-built bot behavior; anything unbuilt is removed or clearly marked not implemented.
-  **Hints:** `libraries/bots/.../BotDecision.kt:105-124` (curiosity call); rg `BotThought` for the full usage surface. While there, fix `docs/wiki/client-patterns.md:46` — the shop deep-link method is `requestScrollTo(category)`, not `bus.request(...)`.
-
 - `[P2]` **ENG-20 — Route Banner's icon-well corner through a `Radii` token.** (proposed 2026-07-04) `libraries/ui/.../components/Banner.kt:114` clips the leading icon well with `RoundedCornerShape(14.dp)` — the last literal-corner callsite in non-preview `:libraries:ui` component code, against the DS-first rule.
   **Acceptance:** the callsite uses a `Radii` token (add one if nothing fits); no `RoundedCornerShape(N.dp)` literals remain in non-preview `:libraries:ui` components.
   **Hints:** tokens live in `libraries/ui/.../system/Radius.kt`.
