@@ -24,9 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ENG
 
-- `[P1]` **ENG-23 — Add `@Preview` coverage to `ProfileScreen` (Profile tab root).** (proposed 2026-07-04) The Profile tab root (`features/profile/impl/.../ProfileScreen.kt`) has zero previews despite already being stateless (raw params + callbacks) with several meaningful states; AGENTS.md requires preview coverage for every screen-level composable.
-  **Acceptance:** previews via `PreviewContent` cover the meaningful variants (signed-in with owned items, guest sign-in nudge, active XP boost, pending friend requests).
-
 - `[P2]` **ENG-24 — Add `@Preview` coverage to the app-guard blocking overlays.** (proposed 2026-07-04) `features/upgrade/impl/.../AppGuardLayer.kt` renders the upgrade-required and maintenance-blocking full-screen overlays plus the maintenance banner, and the module has zero previews — these surfaces are invisible until a forced upgrade, so previews are the only cheap way to see them.
   **Acceptance:** previews via `PreviewContent` cover UpgradeRequired, MaintenanceBlocking (with a message), and MaintenanceBanner.
 

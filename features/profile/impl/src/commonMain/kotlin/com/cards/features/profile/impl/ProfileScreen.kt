@@ -1181,6 +1181,31 @@ private fun ProfileScreenPreview_FreshUser() {
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
+private fun ProfileScreenPreview_ActiveBoost() {
+    // Inspection mode pins the countdown (see rememberBoostRemainingMs), so any
+    // non-null expiry renders the burning-boost banner between the header and
+    // the stats card.
+    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
+        ProfileScreen(
+            settings = previewSettings(isAnonymous = false),
+            achievementProgress = AchievementProgress.Empty,
+            ownedItems = emptyList(),
+            winRatePercent = 58,
+            boostOwnedCount = 2,
+            boostExpiresAtEpochMs = 1_000_000L,
+            onOpenSettings = {},
+            onEditProfile = {},
+            onTapStats = {},
+            onSeeAllAchievements = {},
+            onToggleEquip = {},
+            onOpenShop = {},
+            onSignIn = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
 private fun ProfileScreenPreview_StockedShelf() {
     // A well-stocked card-backs shelf (9 owned) exercises the two-row split and
     // the equipped ring; other shelves stay single-row with buyable fill.
