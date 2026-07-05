@@ -22,4 +22,25 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
+## ENG
+
+- `[P1]` **ENG-21 — Fix the multiplayer wiki's "when MP-1 ships" spectator claim.** (proposed 2026-07-04) `docs/wiki/multiplayer.md` (player-states section) still describes the read-only-spectator downgrade as future ("when `MP-1` ships") — MP-1 landed in #67/#69/#70; non-member spectator attach + gameplay-intent rejection are live in `RoomSocketRoutes.kt`.
+  **Acceptance:** the player-states section describes as-built forfeit/spectator behavior with no forward-looking MP-1 clause; adjacent claims on the page verified against code on the way through.
+  **Hints:** `apps/server/.../routes/RoomSocketRoutes.kt` (spectator attach, ~L128).
+
+- `[P2]` **ENG-22 — Bring `docs/wiki/architecture.md` current on account claim + single-writer.** (proposed 2026-07-04) The stack table still lists "Apple / Google claim in Phase 3.1" as if future (claim shipped — `ClaimAccountScreen`; `account-lifecycle.md` calls claim the only durable identity path) and the page doesn't mention the server's single-writer model (Postgres advisory lock enforcing one instance).
+  **Acceptance:** the page describes account claim as built and covers the single-writer / advisory-lock hosting model.
+  **Hints:** rg `advisory` in `apps/server`; `docs/wiki/account-lifecycle.md` for the claim story.
+
+- `[P1]` **ENG-23 — Add `@Preview` coverage to `ProfileScreen` (Profile tab root).** (proposed 2026-07-04) The Profile tab root (`features/profile/impl/.../ProfileScreen.kt`) has zero previews despite already being stateless (raw params + callbacks) with several meaningful states; AGENTS.md requires preview coverage for every screen-level composable.
+  **Acceptance:** previews via `PreviewContent` cover the meaningful variants (signed-in with owned items, guest sign-in nudge, active XP boost, pending friend requests).
+
+- `[P2]` **ENG-24 — Add `@Preview` coverage to the app-guard blocking overlays.** (proposed 2026-07-04) `features/upgrade/impl/.../AppGuardLayer.kt` renders the upgrade-required and maintenance-blocking full-screen overlays plus the maintenance banner, and the module has zero previews — these surfaces are invisible until a forced upgrade, so previews are the only cheap way to see them.
+  **Acceptance:** previews via `PreviewContent` cover UpgradeRequired, MaintenanceBlocking (with a message), and MaintenanceBanner.
+
+## ROOM
+
+- `[P1]` **ROOM-16 — Add `@Preview` coverage to the public-matchmaking screens.** (proposed 2026-07-04) `:features:rooms:impl` has zero previews; `PublicFindScreen` and `PublicSearchingScreen` both already take raw inputs, and the searching screen has distinct phases (searching / bot-offer / choosing with candidate cards / joining-bots) previews would pin.
+  **Acceptance:** previews via `PreviewContent` cover `PublicFindScreen` (normal + wallet-capped range) and each `PublicSearchingScreen` phase.
+
 
