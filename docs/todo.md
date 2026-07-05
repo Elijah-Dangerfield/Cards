@@ -24,10 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ENG
 
-- `[P2]` **ENG-22 — Bring `docs/wiki/architecture.md` current on account claim + single-writer.** (proposed 2026-07-04) The stack table still lists "Apple / Google claim in Phase 3.1" as if future (claim shipped — `ClaimAccountScreen`; `account-lifecycle.md` calls claim the only durable identity path) and the page doesn't mention the server's single-writer model (Postgres advisory lock enforcing one instance).
-  **Acceptance:** the page describes account claim as built and covers the single-writer / advisory-lock hosting model.
-  **Hints:** rg `advisory` in `apps/server`; `docs/wiki/account-lifecycle.md` for the claim story.
-
 - `[P1]` **ENG-23 — Add `@Preview` coverage to `ProfileScreen` (Profile tab root).** (proposed 2026-07-04) The Profile tab root (`features/profile/impl/.../ProfileScreen.kt`) has zero previews despite already being stateless (raw params + callbacks) with several meaningful states; AGENTS.md requires preview coverage for every screen-level composable.
   **Acceptance:** previews via `PreviewContent` cover the meaningful variants (signed-in with owned items, guest sign-in nudge, active XP boost, pending friend requests).
 
