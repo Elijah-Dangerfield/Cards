@@ -11,3 +11,9 @@
 **Problem:** `Banner.kt` clipped the leading icon well with a literal `RoundedCornerShape(14.dp)`, the last literal-corner callsite in non-preview `:libraries:ui` component code.
 **Approach:** Swapped to `Radii.Callout.shape` (R600 = 14dp, so rendering is identical) rather than minting a new `IconWell` token — one callsite doesn't justify a new semantic alias, and Callout already reads right for a small inner tile.
 **Reviewer notes:** `BaseBottomSheet.kt` still holds `RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)` as a named private constant — top-corners-only geometry the all-corner `Radius` token can't express, so I left it (the todo's problem statement also treated Banner as the last offender). Flagging in case you want a partial-corner token instead.
+
+## docs(server): describe Room persistence as built in the Room KDoc (MP-32)
+
+**Problem:** `Room.kt`'s class KDoc still claimed V1 rooms live in memory only with "no Postgres backing yet" — stale since migration V65 added `rooms` + `room_members` behind `PostgresRoomStore`.
+**Approach:** Rewrote the paragraph to describe the as-built model: in-memory registry as live authority, write-through Postgres snapshot on every mutation, hydrate-on-miss for restart survival, orphan reap via the sweep. Dropped the "why not persist now" paragraph entirely since its premise no longer holds; kept the 2026-05-13 server-authoritative boundary note.
+**Reviewer notes:** Comment-only change; server compiles.

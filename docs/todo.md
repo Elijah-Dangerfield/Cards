@@ -29,8 +29,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P2]` **SHOP-10 — Add `@Preview` coverage to `CosmeticDetailSheet`.** (proposed 2026-07-04) The My Items detail sheet (`features/profile/impl/.../items/CosmeticDetailSheet.kt`) has zero previews despite several distinct layouts (founding-member ceremony, emote pack, avatar pack, earned item, equip CTA); AGENTS.md requires preview coverage of meaningful states. It already takes raw inputs, so it previews directly.
   **Acceptance:** previews via `PreviewContent` cover the meaningful variants (standard cosmetic, emote pack, earned item, founding member).
 
-## MP
-
-- `[P2]` **MP-32 — Fix `Room.kt`'s stale "no Postgres backing yet" KDoc.** (proposed 2026-07-04) `apps/server/.../domain/Room.kt:10-24` says V1 rooms live in memory only, get GC'd when the last member leaves, and have no persistence — rooms have been persisted since migration V65 (`rooms` + `room_members` via `PostgresRoomStore`; `InMemoryRoomService` is a write-through cache).
-  **Acceptance:** the KDoc describes the persistence model as built.
-

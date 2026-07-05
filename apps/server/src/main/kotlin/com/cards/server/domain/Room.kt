@@ -8,20 +8,18 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 /**
- * Server-side multiplayer room. V1 rooms are ephemeral: they live in
- * memory only, get a 6-char code, and are garbage-collected when the
- * last member leaves. There's no Postgres backing yet — when MP graduates
- * past "lobby + presence" into actual gameplay state with reconnect-
- * after-cold-start, we'll need persistence.
+ * Server-side multiplayer room. Each room gets a 6-char code and is
+ * garbage-collected when the last member leaves. The in-memory registry
+ * ([InMemoryRoomService]) is the live authority, backed by Postgres as a
+ * write-through store ([RoomStore] → [PostgresRoomStore], `rooms` +
+ * `room_members`, migration V65): every mutation persists the full room
+ * snapshot, and a cache miss hydrates from the durable row — so codes and
+ * membership survive a server restart. Rooms a process death strands in
+ * the store are reaped by [RoomService.sweepDisconnected].
  *
  * Per the locked 2026-05-13 client/server-boundary decision, room state
  * is server-authoritative: clients observe via the per-room WebSocket
  * channel and never assume they know the truth.
- *
- * Why not persist now: in-memory is simpler and matches the user model
- * for V1 ("join a quick game with friends, when everyone leaves the
- * room is gone"). Persistence trades simplicity for cold-start
- * survival, which we don't need until V1.x adds longer-form play.
  */
 @OptIn(ExperimentalTime::class)
 data class Room(
