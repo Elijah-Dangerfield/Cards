@@ -36,6 +36,7 @@ import cards.libraries.resources.generated.resources.profile_items_equipped
 import cards.libraries.resources.generated.resources.profile_my_items_button_equip
 import cards.libraries.resources.generated.resources.profile_my_items_button_unequip
 import cards.libraries.resources.generated.resources.profile_my_items_personal_cosmetic_tag
+import com.dangerfield.cards.libraries.cards.AcquisitionSource
 import com.dangerfield.cards.libraries.cards.CosmeticSlot
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.cards.formatThousands
@@ -55,6 +56,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.cardBackForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.feltForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.feltSurfaceColor
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -63,6 +65,7 @@ import com.dangerfield.cards.system.VerticalSpacerD300
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * The "look at the thing you own" sheet for a single cosmetic on the profile
@@ -514,5 +517,161 @@ private fun acquisitionLine(item: OwnedItem): String? {
             stringResource(Res.string.profile_item_sheet_bought, ago, formatThousands(kind.costChips))
         AcquisitionLineKind.BoughtFree ->
             stringResource(Res.string.profile_item_sheet_bought_free, ago)
+    }
+}
+
+private fun previewOwnedItem(
+    productId: String,
+    title: String,
+    iconEmoji: String,
+    subtitle: String = "",
+    description: String? = null,
+    isEquipped: Boolean = false,
+    isEquippable: Boolean = true,
+    acquisitionSource: AcquisitionSource = AcquisitionSource.Purchased,
+    acquiredDaysAgo: Int = 3,
+    costChipsAtPurchase: Long = 0L,
+    packEmojis: List<String> = emptyList(),
+) = OwnedItem(
+    productId = productId,
+    title = title,
+    subtitle = subtitle,
+    description = description,
+    iconEmoji = iconEmoji,
+    isEquipped = isEquipped,
+    isEquippable = isEquippable,
+    acquisitionSource = acquisitionSource,
+    acquiredAtEpochMs = kotlin.time.Clock.System.now().toEpochMilliseconds() -
+        acquiredDaysAgo * 24L * 60L * 60L * 1000L,
+    costChipsAtPurchase = costChipsAtPurchase,
+    packEmojis = packEmojis,
+)
+
+@Preview
+@Composable
+private fun CosmeticDetailSheetPreview_CardBackBought() {
+    PreviewContent {
+        CosmeticDetailSheet(
+            item = previewOwnedItem(
+                productId = "cardback_galaxy",
+                title = "Galaxy",
+                iconEmoji = "🌌",
+                description = "A swirling nebula on every card back.",
+                costChipsAtPurchase = 5_000,
+            ),
+            onToggleEquip = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun CosmeticDetailSheetPreview_FeltEquipped() {
+    PreviewContent {
+        CosmeticDetailSheet(
+            item = previewOwnedItem(
+                productId = "felt_midnight_blue",
+                title = "Midnight Blue",
+                iconEmoji = "🟦",
+                description = "A deep blue felt for late-night tables.",
+                isEquipped = true,
+                costChipsAtPurchase = 3_000,
+            ),
+            onToggleEquip = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun CosmeticDetailSheetPreview_EmotePack() {
+    PreviewContent {
+        CosmeticDetailSheet(
+            item = previewOwnedItem(
+                productId = "emotes_baller",
+                title = "Baller Pack",
+                iconEmoji = "🏀",
+                description = "Big plays deserve big reactions.",
+                isEquippable = false,
+                packEmojis = listOf("🏀", "🔥", "💪", "😤", "🏆"),
+            ),
+            onToggleEquip = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun CosmeticDetailSheetPreview_AvatarPack() {
+    PreviewContent {
+        CosmeticDetailSheet(
+            item = previewOwnedItem(
+                productId = "avatars_animals",
+                title = "Animal Pack",
+                iconEmoji = "🦊",
+                description = "A menagerie of table personas.",
+                isEquippable = false,
+                packEmojis = listOf("🦊", "🐼", "🦁", "🐸", "🦉", "🐙"),
+            ),
+            onToggleEquip = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun CosmeticDetailSheetPreview_EarnedCardBack() {
+    PreviewContent {
+        CosmeticDetailSheet(
+            item = previewOwnedItem(
+                productId = "cardback_comeback_kid",
+                title = "Comeback Kid",
+                iconEmoji = "🃏",
+                description = "For winning a hand after being down to your last chips.",
+                acquisitionSource = AcquisitionSource.Earned,
+                acquiredDaysAgo = 12,
+            ),
+            onToggleEquip = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun CosmeticDetailSheetPreview_FoundingMember() {
+    PreviewContent {
+        CosmeticDetailSheet(
+            item = previewOwnedItem(
+                productId = FOUNDING_MEMBER_PRODUCT_ID,
+                title = "Founding Member",
+                iconEmoji = "🏛",
+                isEquippable = false,
+                acquisitionSource = AcquisitionSource.Earned,
+            ),
+            onToggleEquip = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LockedCosmeticSheetPreview_Pack() {
+    PreviewContent {
+        LockedCosmeticSheet(
+            item = BuyableCosmetic(
+                productId = "emotes_convincer",
+                title = "Convincer Pack",
+                iconEmoji = "🎭",
+                packEmojis = listOf("🎭", "🤔", "😏", "🙃"),
+            ),
+            onOpenInShop = {},
+            onDismiss = {},
+        )
     }
 }

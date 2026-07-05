@@ -17,3 +17,9 @@
 **Problem:** `Room.kt`'s class KDoc still claimed V1 rooms live in memory only with "no Postgres backing yet" — stale since migration V65 added `rooms` + `room_members` behind `PostgresRoomStore`.
 **Approach:** Rewrote the paragraph to describe the as-built model: in-memory registry as live authority, write-through Postgres snapshot on every mutation, hydrate-on-miss for restart survival, orphan reap via the sweep. Dropped the "why not persist now" paragraph entirely since its premise no longer holds; kept the 2026-05-13 server-authoritative boundary note.
 **Reviewer notes:** Comment-only change; server compiles.
+
+## test(profile): add preview coverage to the cosmetic detail sheets (SHOP-10)
+
+**Problem:** `CosmeticDetailSheet.kt` had zero `@Preview`s despite several distinct layouts (founding-member ceremony, emote pack, avatar pack, earned item, equip CTA), against the AGENTS.md preview rule.
+**Approach:** Added six `CosmeticDetailSheet` previews via `PreviewContent` (bought card back with Equip CTA, equipped felt showing the disabled swap-only "Equipped" state, emote pack with Try-emote CTA, avatar pack with the edit-profile hint, earned card back with the "Earned N ago" line, founding-member ceremony) plus one for `LockedCosmeticSheet` in the same file, with a `previewOwnedItem` factory using real catalog product ids so the slot-driven hero branches (flip card, felt vignette, pack stack) render for real.
+**Reviewer notes:** Preview acquisition timestamps derive from `Clock.System.now()` minus a fixed offset, matching how the sheet itself computes the "ago" label; previews render once so the live clock is harmless.

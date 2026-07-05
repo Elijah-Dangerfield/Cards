@@ -22,10 +22,4 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## ENG
-
-## SHOP
-
-- `[P2]` **SHOP-10 — Add `@Preview` coverage to `CosmeticDetailSheet`.** (proposed 2026-07-04) The My Items detail sheet (`features/profile/impl/.../items/CosmeticDetailSheet.kt`) has zero previews despite several distinct layouts (founding-member ceremony, emote pack, avatar pack, earned item, equip CTA); AGENTS.md requires preview coverage of meaningful states. It already takes raw inputs, so it previews directly.
-  **Acceptance:** previews via `PreviewContent` cover the meaningful variants (standard cosmetic, emote pack, earned item, founding member).
 
