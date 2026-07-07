@@ -29,6 +29,26 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-07-07 — Prod validates ONE Apple receipt environment at a time: Sandbox pre-launch, Production from launch day (BILL)
+
+**Decision:** `APPLE_STORE_ENVIRONMENT` stays a single-valued switch; the server never accepts both Apple environments at once. Pre-launch, `cards-server-prod` is set to `Sandbox` so TestFlight builds (whose receipts are always sandbox-stamped) can exercise the full real-purchase path end-to-end. On App Store launch day it flips to `Production` (tracked in [developer-todo.md](./developer-todo.md)), after which only paid App Store receipts mint chips and TestFlight purchases are rejected **by design**. Post-launch purchase testing happens on debug builds against `cards-server-dev`, which stays `Sandbox` permanently — the client code path is identical, so that's a trustworthy signal.
+
+**Why:** TestFlight receipts are sandbox-stamped forever and TestFlight builds always talk to prod, so a prod that accepts Sandbox post-launch lets any invited tester mint chips for free. Freemium no-cash-out chips cap the damage, but there's no need to carry the risk (or extra validator code) when dev covers the testing need. If launch day ever stops being a single hard cutover, this reasoning needs revisiting.
+
+**Alternatives considered:** **Production-first with Sandbox fallback** (Apple's documented pattern; what larger shops run so QA can purchase through TestFlight after launch) — rejected for now: it reopens the free-mint path and is only safe with tester allowlisting + per-grant environment ledgering, which is real work with no current payoff. The trigger to build it is missing TestFlight purchase testing post-launch.
+
+**Status:** Locked (revisit trigger above).
+
+## 2026-07-07 — `billing.realPurchasesEnabled` defaults ON; the flag also selects fake vs real store client (BILL-5 amendment)
+
+**Decision:** The flag's default flips to **true**, and the fake-vs-real billing client selection moves from build type (`BuildInfo.isDebug`) onto the same flag, resolved per call. Default posture on every build: real StoreKit/Play client → receipt to `/v1/billing/redeem` → server-authoritative balance. Flipping off (usually via the QA override) swaps in `FakeBillingClient` + local credit — the escape hatch for simulators, previews, and Android until Play listings exist.
+
+**Why:** The money path is the one worth testing; a debug build on a device should exercise the exact sandbox → redeem path TestFlight will, by default. The old build-type split also became actively wrong once the dev validator got real credentials (2026-07-07): a debug build with the flag on would have POSTed fake tokens to a validator that now rejects them. Dark-shipping was BILL-5's original reason for default-off; with validators live and configured in both envs, that reason is gone. Safety holds regardless: an unconfigured server refuses every receipt.
+
+**Alternatives considered:** Keeping default-off and flipping per-env via config — rejected: every new device/tester starts on the fake path and someone has to remember the flip; the failure mode (testing the wrong flow without knowing) is silent.
+
+**Status:** Locked.
+
 ## 2026-07-04 — Reward chips are server-minted; wallet sync refuses `levelup.*` / `achievement.*` credits (ENG-9)
 
 **Decision:** Chip rewards for level-ups and single-player achievements are computed and applied by the server at the sync it can witness — level chips on `POST /v1/me/progression/sync` when the authoritative XP total crosses a rewarded level, achievement chips on `POST /v1/me/achievements/sync` when the earned id is recorded — from server-owned tables (`RewardChips` in the server domain). `POST /v1/me/wallet/sync` refuses any client-asserted positive delta whose reason starts with `levelup.` / `achievement.` (`RefusedServerOwned` outcome, no ledger write); the client drops the refused row and converges on the authoritative balance. The client keeps its optimistic local credit for instant UI.
@@ -211,7 +231,7 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 - **Two flags — a runtime `useServerCredit` separate from the real-vs-Dev client selection.** Rejected: the client selection is a compile/DI concern (`@ContributesBinding(replaces=…)`), and the credit path always moves together with "real purchases are live." Two flags is needless surface that can drift into an incoherent half-on state.
 - **Auto-retry/queue a paid-but-unredeemed receipt inside the use case.** Rejected for this slice: the store still owns the purchase and a re-tap re-redeems idempotently, so the failure is recoverable; a background drain-on-foreground job is the right home for it (flagged as a follow-up), not the synchronous purchase path.
 
-**Status:** Locked.
+**Status:** Locked; default + client-selection superseded by 2026-07-07 (flag now defaults **on** and also picks fake vs real store client).
 
 ---
 
