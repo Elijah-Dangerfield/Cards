@@ -73,7 +73,22 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 **Tradeoff:** Even the gentlest version drifts toward daily-obligation framing if scoped wrong. The decision math is whether retention numbers justify the risk to the brand. Revisit after V1 ships and we have D2/D7 data — if retention is healthy without it, leave it alone.
 
-**Status:** Backlog. Considered + deferred 2026-05-20.
+**Status:** Backlog. Considered + deferred 2026-05-20. Re-affirmed deferred 2026-07-07 during the chip-economy review (out-of-chips sheet shipped instead as the broke-player path; bust protection + achievement/level grants are the only faucets at launch). If economy dashboards show busted players churning rather than earning back or buying, this is the first faucet to reach for — sized under half a Casual buy-in per day, per the guardrails above.
+
+---
+
+## Level rewards past 20 — revisit with live economy data
+
+**Idea (owner directive 2026-07-07):** `RewardChips.LEVEL_CHIPS` stops at level 20 (47,500 total chips through the ladder), so a committed player's last recurring earn path goes quiet exactly when they're most invested. Likely shape: sparse chip rewards at 25/30/40/50 sized around one buy-in of the tier that cohort actually plays — but whether they're needed at all depends on whether level-20+ players are net winners (don't need grants) or grinders (do).
+
+**Decision inputs (check ~2026-10-07, three months post-TestFlight):**
+- How many users have reached level 20, and their balance distribution (economy dashboard: balance-in-buy-ins by level cohort).
+- Whether level-20+ players keep playing without grants (retention curve past the last reward) or fall off at the cliff.
+- Faucet-vs-sink totals — if the economy is already inflating, extending the ladder makes it worse; pair with the rake lever if so.
+
+**Guardrails:** amounts must stay proportional to time-at-level (the quadratic XP curve does the throttling); don't retro-grant on ship (the `highestLevelRewarded` watermark seeds forward, same as the celebration watermark).
+
+**Status:** Backlog. Blocked on live data, not on code — needs the `cards-economy` Grafana dashboard (in progress 2026-07-07) and a TestFlight cohort aging into it.
 
 ---
 
