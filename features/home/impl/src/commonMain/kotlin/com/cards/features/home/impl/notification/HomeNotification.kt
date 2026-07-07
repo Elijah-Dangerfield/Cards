@@ -52,6 +52,17 @@ sealed interface HomeNotification {
     data object PlayStyleUnlocked : Blocking
 
     /**
+     * The balance can't cover the cheapest standard buy-in and the ways back
+     * haven't been pointed at this episode. Lowest priority of the blocking
+     * band — a celebration that itself grants chips (level-up) resolves first
+     * and may lift the balance back over the line before this ever fires.
+     */
+    data class OutOfChips(
+        val balance: Long,
+        val casualBuyIn: Long,
+    ) : Blocking
+
+    /**
      * The chip odometer should roll [from] → [to]. Ambient — it plays alongside
      * a blocking celebration rather than blocking on it.
      */

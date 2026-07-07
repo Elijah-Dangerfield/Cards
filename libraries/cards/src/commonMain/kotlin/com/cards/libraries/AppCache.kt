@@ -271,6 +271,17 @@ data class AppData(
     val playStyleUnlockSeen: Boolean = false,
 
     /**
+     * Whether the out-of-chips sheet has been shown for the *current*
+     * below-buy-in episode. Flips true after a confirmed present on a settled
+     * Home; flips back to false once the balance recovers to at least the
+     * Casual buy-in, so the next drop under it is offered the sheet again —
+     * once per episode, never once per Home visit. Account-scoped (see
+     * [resetAccountScoped]): the next account has its own balance and its own
+     * episodes.
+     */
+    val outOfChipsSeen: Boolean = false,
+
+    /**
      * The `LegalUrls.LEGAL_VERSION` the user last accepted by proceeding past
      * the onboarding Welcome step (the passive "by continuing, you agree to
      * Terms + Privacy" consent). `0` means no acceptance has been recorded.
@@ -335,6 +346,9 @@ fun AppData.resetAccountScoped(): AppData = copy(
     // earns its own once it crosses the sample threshold, rather than inheriting
     // the previous user's "already saw it".
     playStyleUnlockSeen = false,
+    // Episode state for the previous account's balance — the next account's
+    // wallet is a different number entirely.
+    outOfChipsSeen = false,
 )
 
 interface AppCache : Cache<AppData>

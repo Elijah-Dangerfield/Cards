@@ -73,6 +73,12 @@ class HomeFeatureEntryPoint(
             LaunchedEffect(Unit) {
                 KLog.withTag("HomeFeatureEntryPoint").d { "Home route entered" }
             }
+            // Out-of-chips sheet — VM-driven (once per below-buy-in episode,
+            // see the arbiter's OutOfChips branch), but presented as the same
+            // transient Home state the other sheets use. Non-null = open,
+            // carrying the buy-in the body quotes. Declared before the event
+            // observer that writes it.
+            var outOfChipsBuyIn by remember { mutableStateOf<Long?>(null) }
             ObserveWithLifecycle(viewModel.eventFlow) { event ->
                 when (event) {
                     is HomeEvent.OpenWelcomeDialog -> {
@@ -88,6 +94,9 @@ class HomeFeatureEntryPoint(
                     }
                     is HomeEvent.OpenPlayStyleUnlocked -> {
                         router.navigate(PlayStyleUnlockedRoute())
+                    }
+                    is HomeEvent.OpenOutOfChipsSheet -> {
+                        outOfChipsBuyIn = event.casualBuyIn
                     }
                 }
             }
@@ -222,6 +231,22 @@ class HomeFeatureEntryPoint(
                     body = content.body,
                     emoji = content.emoji,
                     onDismiss = { comingSoon = null },
+                )
+            }
+
+            outOfChipsBuyIn?.let { buyIn ->
+                OutOfChipsSheet(
+                    casualBuyIn = buyIn,
+                    onGetChips = {
+                        outOfChipsBuyIn = null
+                        router.switchTab(ShopGraph)
+                    },
+                    onPlayBots = {
+                        outOfChipsBuyIn = null
+                        // The regular bot-table setup sheet — difficulty + seats.
+                        botSetupOpen = true
+                    },
+                    onDismiss = { outOfChipsBuyIn = null },
                 )
             }
         }

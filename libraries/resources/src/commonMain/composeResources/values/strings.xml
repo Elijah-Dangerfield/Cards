@@ -384,6 +384,14 @@
     <string name="home_tutorial_banner_start_button">Start</string>
     <string name="home_tutorial_banner_dismiss_a11y">Dismiss tutorial banner</string>
 
+    <!-- Home - Out-of-chips sheet (once per below-buy-in episode). -->
+    <string name="home_out_of_chips_title">Short stacked</string>
+    <string name="home_out_of_chips_body">You're under the %1$s-chip Casual buy-in. Two ways back to the tables.</string>
+    <string name="home_out_of_chips_buy_title">Get a chip pack</string>
+    <string name="home_out_of_chips_buy_subtitle">Packs from the shop land in your stack right away.</string>
+    <string name="home_out_of_chips_earn_title">Win them back from the bots</string>
+    <string name="home_out_of_chips_earn_subtitle">Bot tables are free to enter. Level-ups and achievements pay real chips.</string>
+
     <!-- Home - Welcome dialog (one-shot starter-grant intro on first launch). -->
     <string name="home_welcome_dialog_greeting">Welcome,</string>
     <string name="home_welcome_dialog_gift_line">Here's a little gift from us to start with.</string>

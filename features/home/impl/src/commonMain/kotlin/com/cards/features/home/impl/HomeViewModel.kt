@@ -18,7 +18,9 @@ import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.features.home.impl.notification.GetHomeScreenNotification
 import com.dangerfield.cards.features.home.impl.notification.HomeNotification
 import com.dangerfield.cards.features.home.impl.notification.HomeNotificationSnapshot
+import com.dangerfield.cards.features.home.impl.notification.outOfChipsResetNeeded
 import com.dangerfield.cards.features.home.impl.notification.seedsNeeded
+import com.dangerfield.cards.libraries.gameplay.StakeTier
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -88,6 +90,14 @@ class HomeViewModel(
     // welcome / play-style events after they've already been sent this VM's life.
     private var welcomePresented = false
     private var playStyleUnlockPresented = false
+
+    // Same synchronous-latch role as [highestCelebrationPresented], but for the
+    // out-of-chips sheet: the persisted [AppData.outOfChipsSeen] advances through
+    // an async appCache write at present time, and a snapshot computed before
+    // that write lands would re-derive the same OutOfChips. Unlike the welcome
+    // latch this one *resets* — when the balance recovers past the buy-in the
+    // episode closes and the next shortfall may legitimately present again.
+    private var outOfChipsPresentedThisEpisode = false
 
     // Highest level whose celebration we've already presented this VM's life.
     // The persisted [AppData.lastCelebratedLevel] is the durable watermark, but
@@ -264,6 +274,8 @@ class HomeViewModel(
                 playStyleUnlockSeen = appData.playStyleUnlockSeen,
                 chipBalance = chips,
                 lastShownChipBalance = appData.lastShownChipBalance,
+                outOfChipsSeen = appData.outOfChipsSeen,
+                casualBuyIn = StakeTier.Casual.buyIn,
             )
         }
 
@@ -350,6 +362,15 @@ class HomeViewModel(
                     highestCelebrationPresented = maxOf(highestCelebrationPresented, seedLevel)
                     appCache.update { it.copy(lastCelebratedLevel = seedLevel) }
                 }
+                // Balance recovered past the buy-in — close the out-of-chips
+                // episode so the *next* shortfall presents again. Mirrors the
+                // seed writes above: maintenance of persisted markers lives
+                // here, out of the pure arbiter.
+                if (action.snapshot.outOfChipsResetNeeded()) {
+                    homeLogger.i { "home notification: out-of-chips episode closed (balance recovered)" }
+                    outOfChipsPresentedThisEpisode = false
+                    appCache.update { it.copy(outOfChipsSeen = false) }
+                }
                 action.presentPendingBlocking()
             }
             is HomeAction.MarkLevelUpShown -> {
@@ -426,6 +447,23 @@ class HomeViewModel(
                 appCache.update { it.copy(playStyleUnlockSeen = true) }
                 delay(DialogIntroDelay)
                 sendEvent(HomeEvent.OpenPlayStyleUnlocked)
+            }
+            is HomeNotification.OutOfChips -> {
+                if (outOfChipsPresentedThisEpisode) return
+                outOfChipsPresentedThisEpisode = true
+                homeLogger.i {
+                    "home notification: out of chips (balance=${notification.balance}, buyIn=${notification.casualBuyIn})"
+                }
+                // Monotonic-within-the-episode mark first, same as welcome — a
+                // re-entrant snapshot can't double-fire while the write lands.
+                appCache.update { it.copy(outOfChipsSeen = true) }
+                delay(DialogIntroDelay)
+                sendEvent(
+                    HomeEvent.OpenOutOfChipsSheet(
+                        balance = notification.balance,
+                        casualBuyIn = notification.casualBuyIn,
+                    ),
+                )
             }
             null -> Unit
         }
@@ -639,6 +677,9 @@ sealed interface HomeEvent {
 
     /** The user just crossed the play-style sample threshold — announce it once. */
     data object OpenPlayStyleUnlocked : HomeEvent
+
+    /** The balance dropped under the Casual buy-in — offer the ways back once per episode. */
+    data class OpenOutOfChipsSheet(val balance: Long, val casualBuyIn: Long) : HomeEvent
 }
 
 sealed interface HomeAction {

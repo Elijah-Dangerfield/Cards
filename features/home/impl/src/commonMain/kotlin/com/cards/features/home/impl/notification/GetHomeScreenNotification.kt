@@ -42,6 +42,11 @@ data class HomeNotificationSnapshot(
     val chipBalance: Long?,
     /** Balance the user last actually saw on Home. Null until the first baseline. */
     val lastShownChipBalance: Long?,
+
+    /** Whether the out-of-chips sheet already showed for this below-buy-in episode. */
+    val outOfChipsSeen: Boolean,
+    /** The cheapest standard buy-in (`StakeTier.Casual.buyIn`) — the out-of-chips line. */
+    val casualBuyIn: Long,
 ) {
 
     /** The resolved welcome-dialog identity, present only when all its preconditions align. */
@@ -84,11 +89,25 @@ fun HomeNotificationSnapshot.seedsNeeded(): HomeNotificationSeeds {
  * same result out.
  *
  * Priority: [HomeNotification.Welcome] (first-run, once) →
- * [HomeNotification.LevelUp] → [HomeNotification.PlayStyleUnlocked]. An unset
- * level watermark yields no level-up (it seeds instead — see [seedsNeeded]).
+ * [HomeNotification.LevelUp] → [HomeNotification.PlayStyleUnlocked] →
+ * [HomeNotification.OutOfChips]. An unset level watermark yields no level-up
+ * (it seeds instead — see [seedsNeeded]). Out-of-chips is deliberately last:
+ * a level-up may grant chips that resolve the shortfall before we point at
+ * the shop.
  */
 fun GetHomeScreenNotification(snapshot: HomeNotificationSnapshot): HomeNotification.Blocking? =
-    snapshot.welcome() ?: snapshot.levelUp() ?: snapshot.playStyleUnlocked()
+    snapshot.welcome() ?: snapshot.levelUp() ?: snapshot.playStyleUnlocked() ?: snapshot.outOfChips()
+
+/**
+ * True when the persisted [HomeNotificationSnapshot.outOfChipsSeen] episode
+ * marker should flip back to false — the balance has recovered to at least
+ * the Casual buy-in, closing the episode. Pure, like the arbiter; the caller
+ * owns the write.
+ */
+fun HomeNotificationSnapshot.outOfChipsResetNeeded(): Boolean {
+    val balance = chipBalance ?: return false
+    return outOfChipsSeen && balance >= casualBuyIn
+}
 
 /**
  * The ambient chip-odometer reveal for this snapshot, or null when the balance
@@ -127,4 +146,14 @@ private fun HomeNotificationSnapshot.playStyleUnlocked(): HomeNotification.PlayS
     val sample = playStyleSampleSize ?: return null
     if (sample < playStyleUnlockThreshold) return null
     return HomeNotification.PlayStyleUnlocked
+}
+
+private fun HomeNotificationSnapshot.outOfChips(): HomeNotification.OutOfChips? {
+    if (outOfChipsSeen) return null
+    val balance = chipBalance ?: return null
+    if (balance >= casualBuyIn) return null
+    // A brand-new wallet is mid-reveal — the starter grant covers the buy-in
+    // anyway, but don't stack this behind the welcome dialog on the same visit.
+    if (walletJustCreated) return null
+    return HomeNotification.OutOfChips(balance = balance, casualBuyIn = casualBuyIn)
 }

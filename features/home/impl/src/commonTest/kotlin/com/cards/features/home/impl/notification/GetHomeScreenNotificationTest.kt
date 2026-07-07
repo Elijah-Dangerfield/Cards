@@ -155,6 +155,74 @@ class GetHomeScreenNotificationTest {
         assertNull(noBaseline.chipDelta())
     }
 
+    @Test
+    fun `out of chips fires below the buy-in when unseen`() {
+        val snapshot = base().copy(chipBalance = 400, outOfChipsSeen = false)
+
+        assertEquals(
+            HomeNotification.OutOfChips(balance = 400, casualBuyIn = 1_000),
+            GetHomeScreenNotification(snapshot),
+        )
+    }
+
+    @Test
+    fun `out of chips stays quiet once seen this episode`() {
+        val snapshot = base().copy(chipBalance = 400, outOfChipsSeen = true)
+
+        assertNull(GetHomeScreenNotification(snapshot))
+    }
+
+    @Test
+    fun `out of chips requires a hydrated balance`() {
+        val snapshot = base().copy(chipBalance = null)
+
+        assertNull(GetHomeScreenNotification(snapshot))
+    }
+
+    @Test
+    fun `a balance at the buy-in is not out of chips`() {
+        val snapshot = base().copy(chipBalance = 1_000)
+
+        assertNull(GetHomeScreenNotification(snapshot))
+    }
+
+    @Test
+    fun `out of chips defers to a brand-new wallet's welcome moment`() {
+        // Wallet just created but the welcome identity hasn't resolved yet — the
+        // arbiter must not slip an out-of-chips sheet into that gap.
+        val snapshot = base().copy(
+            walletJustCreated = true,
+            welcomeIdentity = null,
+            chipBalance = 400,
+        )
+
+        assertNull(GetHomeScreenNotification(snapshot))
+    }
+
+    @Test
+    fun `a pending level-up outranks out of chips`() {
+        val snapshot = base().copy(
+            currentLevel = 4,
+            lastCelebratedLevel = 3,
+            chipBalance = 400,
+        )
+
+        assertTrue(GetHomeScreenNotification(snapshot) is HomeNotification.LevelUp)
+    }
+
+    @Test
+    fun `episode reset is needed only after the balance recovers`() {
+        val recovered = base().copy(chipBalance = 2_000, outOfChipsSeen = true)
+        val stillBroke = base().copy(chipBalance = 400, outOfChipsSeen = true)
+        val neverSeen = base().copy(chipBalance = 2_000, outOfChipsSeen = false)
+        val notHydrated = base().copy(chipBalance = null, outOfChipsSeen = true)
+
+        assertTrue(recovered.outOfChipsResetNeeded())
+        assertTrue(!stillBroke.outOfChipsResetNeeded())
+        assertTrue(!neverSeen.outOfChipsResetNeeded())
+        assertTrue(!notHydrated.outOfChipsResetNeeded())
+    }
+
     private fun base() = HomeNotificationSnapshot(
         currentLevel = null,
         lastCelebratedLevel = 1,
@@ -167,6 +235,8 @@ class GetHomeScreenNotificationTest {
         playStyleUnlockSeen = false,
         chipBalance = null,
         lastShownChipBalance = null,
+        outOfChipsSeen = false,
+        casualBuyIn = 1_000,
     )
 
     private fun identity() = HomeNotificationSnapshot.WelcomeIdentity(
