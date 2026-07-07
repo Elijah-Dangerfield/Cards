@@ -23,16 +23,17 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
  *
  * Two credit paths, selected by [RealPurchasesEnabled] (BILL-5):
  *
- *  - **Real purchases on** — validate -> grant -> reflect: the store confirms,
- *    the receipt is POSTed to `/v1/billing/redeem`, and the client reflects the
- *    server-returned authoritative balance via [ChipsRepository.setBalance].
- *    The client never claims the chip amount and there's no local double-credit
- *    window. A rejected receipt (forged / unverifiable) grants nothing; an
- *    unreachable server leaves the purchase uncredited for a later retry/sync.
- *  - **Real purchases off (default)** — credit chips locally on store
- *    confirmation, idempotent on the order id. This keeps the dev / Fake flow
- *    exercising the full path end-to-end while real store listings and the real
- *    receipt validators (BILL-2/3/4) aren't live, and ships real billing dark.
+ *  - **Real purchases on (default)** — validate -> grant -> reflect: the store
+ *    confirms, the receipt is POSTed to `/v1/billing/redeem`, and the client
+ *    reflects the server-returned authoritative balance via
+ *    [ChipsRepository.setBalance]. The client never claims the chip amount and
+ *    there's no local double-credit window. A rejected receipt (forged /
+ *    unverifiable) grants nothing; an unreachable server leaves the purchase
+ *    uncredited for a later retry/sync.
+ *  - **Real purchases off** — credit chips locally on (fake) store
+ *    confirmation, idempotent on the order id. This keeps the shop flow usable
+ *    where the real store can't run (simulator, previews, unprovisioned Play
+ *    listings).
  */
 @ContributesBinding(AppScope::class)
 @Inject

@@ -7,5 +7,5 @@
   { "path": "upgrade.maintenanceMessage", "type": "string", "default": "We're updating the servers, back in a moment.", "description": "Maintenance banner/blocking copy" },
   { "path": "onboarding.starterGrant", "type": "long", "default": 0, "description": "Starter coin grant (0 = unknown sentinel)" },
   { "path": "onboarding.suggestedName", "type": "string", "default": "", "description": "Suggested display name (empty = none)" },
-  { "path": "billing.realPurchasesEnabled", "type": "boolean", "default": false, "description": "Real-money IAP: server-authoritative credit + real store clients" }
+  { "path": "billing.realPurchasesEnabled", "type": "boolean", "default": true, "description": "Real-money IAP: server-authoritative credit + real store clients" }
 ]

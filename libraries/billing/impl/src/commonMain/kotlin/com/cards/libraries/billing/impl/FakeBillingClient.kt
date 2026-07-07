@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * Not annotated with `@ContributesBinding` — the platform bindings
  * (`PlayBillingClient` / `StoreKitBillingClient`) construct it directly
- * for debug builds; wire it manually anywhere else.
+ * for the flag-off path; wire it manually anywhere else.
  */
 class FakeBillingClient(
     private val catalog: Map<String, BillingProduct>,
