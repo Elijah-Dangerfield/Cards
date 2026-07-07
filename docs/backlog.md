@@ -952,3 +952,13 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch:** delete `AudioRecorder.kt` (common/android/ios), `PermissionLauncher.kt` expect/actuals, and any `RECORD_AUDIO`/mic usage-description leftovers; verify Android + iOS builds. If voice notes on feedback reports ever become a thing, rebuild against that design rather than resurrecting this.
 
 **Status:** Backlog. Deferred from the 2026-07-04 nightly rather than deleted in-cycle because it touches the iOS DI graph and the cycle's build validation didn't cover a full Xcode pass.
+
+---
+
+## Platform game services — Game Center + Google Play Games achievement/leaderboard mirroring
+
+**Idea (owner directive 2026-07-07):** Mirror in-app achievements and progression to the native platform services — Apple Game Center on iOS, Google Play Games Services v2 on Android — behind one common `GameServicesCoordinator` interface, cloning the billing coordinator pattern (Swift class conforms via SKIE; real Android impl via anvil). One-way, fire-and-forget, idempotent mirroring driven purely by observing `AchievementRepository.observeProgress()` and `ProgressionRepository.observeProgression()` — no ViewModel or game-logic changes. Two leaderboards (lifetime Total XP, lifetime Hands Won — deliberately not chips; freemium economy means chip boards would be pay-to-rank). All gated behind a `gameServices.enabled` flag defaulting off until the store-side config is live.
+
+**Full plan:** [docs/plans/platform-game-services.md](./plans/platform-game-services.md) — includes module layout, interface signatures, 6 commit-sized phases, testing strategy, and step-by-step App Store Connect + Play Console runbooks (achievement points budget math, games-ids.xml handling, signing-key credentials, the separate PGS publish step).
+
+**Status:** Backlog. Approved plan, not yet started. Note the store runbooks involve real admin work (≈53 achievements × 512px artwork in both consoles) that can't be automated; code phases all ship dark so they can land anytime.
