@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-07-04 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-07-08 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -31,6 +31,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Hints:** likely `features/room/impl/.../ui/AchievementCelebrationSheet.kt` (HorizontalPager over `earned`); https://elijah-dangerfield.sentry.io/issues/CARDS-8T
 
 ## AUTH
+
+- `[P1]` **AUTH-18 — Add the never-delete-progress guards to the scheduled anon sweep.** (proposed 2026-07-08) `DefaultOrphanAnonymousSweep` deletes every anonymous account older than the TTL with no purchase / XP / active-room-seat checks, but `docs/wiki/account-lifecycle.md` and `docs/post-launch.md` promise those guards on both sweep paths, and `DefaultOrphanInstallSweep.verifyCandidate` already implements them.
+  **Acceptance:** the scheduled sweep skips any candidate with IAP spend, XP at level 2+, or an active room seat (verification shared with the install sweep, pinned by a test).
+  **Hints:** `apps/server/.../data/DefaultOrphanAnonymousSweep.kt` vs `DefaultOrphanInstallSweep.verifyCandidate`; wiki page "Hard guards" section.
 
 - `[P1]` **AUTH-17 — Fix the onboarding header/step chip on the Google sign-in path.** (from feedback 2026-07-08) Onboarding via Google returns to a broken PickIdentity header: the "step N of N" chip floats on top of the content instead of stacking in the column, and the "This is you" title is missing; the guest/email path renders fine. Repro: delete account → onboard → continue with Google.
   **Acceptance:** post-OAuth onboarding renders identically to the guest path (title visible, step chip in its normal position).
