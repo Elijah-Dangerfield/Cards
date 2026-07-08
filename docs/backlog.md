@@ -987,3 +987,11 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch:** see `PlayPokerScreen.kt` (`humanBust && state.isRealMultiplayer` branch) and `MultiplayerBustDialog` in `HandResultDialogs.kt`; the solo sequencing in the sibling branch is the reference for what the reveal must convey.
 
 **Status:** Backlog. Pull with the next pass on the multiplayer bust/rebuy flow.
+
+---
+
+## Surface the InsufficientChips wallet-sync rejection to the user
+
+**Idea (raised 2026-07-08):** When wallet sync gets `InsufficientChips` back (a locally-applied debit the server refuses because it would dip below zero — typically a cross-device race or a stale optimistic balance), the client drops the event, logs a warning, and silently resets to the authoritative balance (`ChipsRepositoryImpl` sync loop). The money handling is correct; the user just sees their balance jump with no explanation. Showing a short "your balance was corrected" style message needs a UX call — the rejection lands on a background sync path with no owning screen, so it wants the shared snackbar/toast host that the friend-request-rejection and MP-intent-rejection backlog items also wait on.
+
+**Status:** Backlog. Same shape as the other "server said no, client absorbs it silently" entries; pull them together when a global transient-message surface ships.
