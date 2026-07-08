@@ -6,6 +6,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.lobby_snackbar_host_promoted_other
+import cards.libraries.resources.generated.resources.lobby_snackbar_host_promoted_you
 import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.lobby.PrivateCreateRoute
 import com.dangerfield.cards.features.lobby.PrivateJoinRoute
@@ -17,6 +20,10 @@ import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.cards.equippedTableCosmetics
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
+import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
+import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
 import com.dangerfield.cards.libraries.products.ProductsRepository
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
@@ -27,6 +34,7 @@ import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import me.tatarka.inject.annotations.Inject
+import org.jetbrains.compose.resources.getString
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
@@ -41,6 +49,7 @@ class LobbyFeatureEntryPoint(
     private val inventoryRepository: InventoryRepository,
     private val productsRepository: ProductsRepository,
     private val equipmentRepository: EquipmentRepository,
+    private val profileRepository: ProfileRepository,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -57,8 +66,12 @@ class LobbyFeatureEntryPoint(
             val cosmetics by ownedTableCosmetics().collectAsStateWithLifecycle(
                 initialValue = OwnedTableCosmetics(),
             )
+            val profile by profileRepository.observe().collectAsStateWithLifecycle(initialValue = null)
             PrivateCreateScreen(
                 chipBalance = chipBalance,
+                hostName = profile?.displayNameOrNull,
+                hostAvatarEmoji = profile?.avatarEmojiOrNull,
+                hostAvatarColorHex = profile?.avatarBackgroundColorOrNull,
                 onBack = { router.goBack() },
                 onCreate = { maxPlayers, buyIn, open, feltProductId, cardBackProductId ->
                     router.batch {
@@ -144,8 +157,11 @@ class LobbyFeatureEntryPoint(
                         is LobbyEvent.NavigateToMultiplayer ->
                             router.navigate(PlayMultiplayerRoute(roomCode = event.roomCode))
                         is LobbyEvent.HostPromoted -> showSnackBar(
-                            message = if (event.isLocalUser) "You're now the host."
-                            else "${event.newHostDisplayName} is now the host.",
+                            message = if (event.isLocalUser) {
+                                getString(Res.string.lobby_snackbar_host_promoted_you)
+                            } else {
+                                getString(Res.string.lobby_snackbar_host_promoted_other, event.newHostDisplayName)
+                            },
                             duration = SnackbarDuration.Short,
                         )
                         // The prefilled join hit an unknown room. Pop this dead
@@ -177,24 +193,23 @@ class LobbyFeatureEntryPoint(
      * construction: the felt / card-back lists are the intersection of the
      * player's inventory with the catalog's display metadata. Default cosmetics
      * (`felt_default`, `cardback_default`) are starter inventory, so each shelf
-     * always has at least its Default tile. A catalog entry that's missing (a
-     * stale catalog after an owned purchase) falls back to a prettified id +
-     * generic glyph rather than dropping the owned option.
+     * always has at least its Default tile. [ProductCatalog.findById] covers all
+     * buckets — prestige grants (e.g. an achievement-granted card back) resolve
+     * their real emoji, not just shop offers. A catalog entry that's missing (a
+     * stale catalog after an owned purchase) falls back to a generic glyph
+     * rather than dropping the owned option.
      */
     private fun ownedTableCosmetics(): Flow<OwnedTableCosmetics> = combine(
         inventoryRepository.observeInventory(),
         productsRepository.observeCatalog(),
         equipmentRepository.observeEquipped(),
     ) { inventory, catalog, equipped ->
-        val productsById = catalog.chipOffers.associateBy { it.id }
         val choices = inventory.mapNotNull { item ->
             val slot = cosmeticSlotFor(item.productId)
             if (slot != CosmeticSlot.Felt && slot != CosmeticSlot.CardBack) return@mapNotNull null
-            val product = productsById[item.productId]
             slot to CosmeticChoice(
                 productId = item.productId,
-                label = product?.title ?: prettifyCosmeticId(item.productId),
-                emoji = product?.iconEmoji ?: defaultCosmeticEmoji(slot),
+                emoji = catalog.findById(item.productId)?.iconEmoji ?: defaultCosmeticEmoji(slot),
             )
         }
         val cosmetics = equippedTableCosmetics(equipped)
@@ -215,11 +230,5 @@ private data class OwnedTableCosmetics(
     val equippedCardBackProductId: String? = null,
 )
 
-private fun prettifyCosmeticId(productId: String): String =
-    productId.substringAfter('_', productId).replace('_', ' ').replaceFirstChar { it.uppercase() }
-
-private fun defaultCosmeticEmoji(slot: CosmeticSlot): String = when (slot) {
-    CosmeticSlot.Felt -> "🟩"
-    CosmeticSlot.CardBack -> "🂠"
-    else -> "🎁"
-}
+private fun defaultCosmeticEmoji(slot: CosmeticSlot): String =
+    if (slot == CosmeticSlot.Felt) "🟩" else "🂠"

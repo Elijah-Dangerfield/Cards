@@ -69,11 +69,12 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 /**
  * A single selectable cosmetic in the create-room felt / card-back picker.
  * Owned-only by construction (the entry point builds these lists from
- * inventory), so the host can never pick something they don't own.
+ * inventory), so the host can never pick something they don't own. [emoji]
+ * is the fallback glyph when [CosmeticPreview] has no richer rendering for
+ * the product id.
  */
 data class CosmeticChoice(
     val productId: String,
-    val label: String,
     val emoji: String,
 )
 
@@ -96,6 +97,9 @@ fun PrivateCreateScreen(
         feltProductId: String?,
         cardBackProductId: String?,
     ) -> Unit,
+    hostName: String? = null,
+    hostAvatarEmoji: String? = null,
+    hostAvatarColorHex: String? = null,
     felts: List<CosmeticChoice> = emptyList(),
     cardBacks: List<CosmeticChoice> = emptyList(),
     initialFeltProductId: String? = null,
@@ -157,7 +161,12 @@ fun PrivateCreateScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Dimension.D400),
                 ) {
-                    AvatarCircle(name = "You", emoji = "🦊", backgroundColorHex = "#E48A58", size = 28.dp)
+                    AvatarCircle(
+                        name = hostName ?: "You",
+                        emoji = hostAvatarEmoji,
+                        backgroundColorHex = hostAvatarColorHex,
+                        size = 28.dp,
+                    )
                     Text(
                         text = stringResource(Res.string.private_create_default_room_name),
                         typography = AppTheme.typography.Label.L500,
@@ -190,8 +199,8 @@ fun PrivateCreateScreen(
                     RuleDivider()
                     MaxPlayersRow(
                         value = maxPlayers,
-                        onDecrement = { maxPlayers = (maxPlayers - 1).coerceAtLeast(2) },
-                        onIncrement = { maxPlayers = (maxPlayers + 1).coerceAtMost(9) },
+                        onDecrement = { maxPlayers = (maxPlayers - 1).coerceAtLeast(RoomSettings.MIN_SEATS) },
+                        onIncrement = { maxPlayers = (maxPlayers + 1).coerceAtMost(RoomSettings.MAX_SEATS) },
                     )
                     RuleDivider()
                     OpenToAnyoneRow(
@@ -479,17 +488,34 @@ private fun PrivateCreateScreenPreview() {
             chipBalance = 25_000,
             onBack = {},
             onCreate = { _, _, _, _, _ -> },
+            hostName = "Elijah",
+            hostAvatarEmoji = "🦊",
+            hostAvatarColorHex = "#E48A58",
             felts = listOf(
-                CosmeticChoice("felt_default", "Default", "🟩"),
-                CosmeticChoice("felt_royal_red", "Royal Red", "🟥"),
-                CosmeticChoice("felt_midnight_blue", "Midnight", "🟦"),
+                CosmeticChoice("felt_default", "🟩"),
+                CosmeticChoice("felt_royal_red", "🟥"),
+                CosmeticChoice("felt_midnight_blue", "🟦"),
             ),
             cardBacks = listOf(
-                CosmeticChoice("cardback_default", "Classic", "🂠"),
-                CosmeticChoice("cardback_marble", "Marble", "🃏"),
+                CosmeticChoice("cardback_default", "🂠"),
+                CosmeticChoice("cardback_marble", "🃏"),
             ),
             initialFeltProductId = "felt_royal_red",
             initialCardBackProductId = "cardback_default",
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PrivateCreateScreenPreview_NoCosmetics_NoProfile() {
+    // Cosmetics failed to load (picker rows hidden) and the profile hasn't
+    // resolved — the avatar falls back to a name initial.
+    PreviewContent {
+        PrivateCreateScreen(
+            chipBalance = null,
+            onBack = {},
+            onCreate = { _, _, _, _, _ -> },
         )
     }
 }
