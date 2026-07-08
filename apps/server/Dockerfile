@@ -53,11 +53,16 @@ COPY libraries/achievements/ libraries/achievements/
 # build side by side — both got OOM-killed on 2026-07-08 ("Gradle build daemon
 # disappeared unexpectedly"). The server-only graph compiles comfortably in
 # 2.5g, and two of these fit the builder at once.
+# --no-configuration-cache: this is a one-shot container so the cache buys
+# nothing, and it FAILS the build here: Versioning.kt probes `git` via
+# providers.exec (tolerating its absence), but the config cache records the
+# failed exec as a fatal problem — no git binary/.git dir exists in this image.
 RUN chmod +x gradlew && \
     ./gradlew :apps:server:installDist \
         --no-daemon \
         --console=plain \
         --build-cache \
+        --no-configuration-cache \
         -Dorg.gradle.jvmargs="-Xmx2560m -Dfile.encoding=UTF-8" \
         -Dcards.serverOnly=true \
         -Dcards.skipGitHooksCheck=true \

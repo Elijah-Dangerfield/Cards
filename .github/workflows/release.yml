@@ -283,7 +283,10 @@ jobs:
   ios:
     name: iOS TestFlight external + App Store submit
     needs: resolve-tag
-    runs-on: macos-26
+    # xlarge (14GB): the K/N release-LTO link runs inside the Gradle daemon and
+    # OOM'd at 6g on the standard 7GB runner (2026-07-08, twice). Costs more per
+    # minute — fine for a tag-triggered release.
+    runs-on: macos-26-xlarge
     timeout-minutes: 90
 
     env:
@@ -493,10 +496,10 @@ jobs:
         # are populated by the time xcodebuild delegates to `./gradlew`, so
         # the Xcode build phase finds the framework UP-TO-DATE instead of
         # re-linking (the longest step on a cold run).
-        # Generous heaps on purpose: macOS runners swap instead of OOM-killing,
-        # so the only hard limit is -Xmx itself. See beta.yml's identical step
-        # for the 2026-07-08 OOM history that sized these.
-        run: ./gradlew :apps:compose:linkReleaseFrameworkIosArm64 -Dorg.gradle.jvmargs=-Xmx6g "-Pkotlin.daemon.jvmargs=-Xmx5g"
+        # The K/N compiler runs inside the Gradle daemon, so the daemon heap IS
+        # the compiler heap. See beta.yml's identical step for the 2026-07-08
+        # OOM history that sized this.
+        run: ./gradlew :apps:compose:linkReleaseFrameworkIosArm64 -Dorg.gradle.jvmargs=-Xmx10g
 
       - name: Build + release iOS
         working-directory: apps/ios
