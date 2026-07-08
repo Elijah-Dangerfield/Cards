@@ -34,8 +34,8 @@ import kotlin.time.ExperimentalTime
  * applied in order; each event is idempotent on its
  * `idempotencyKey`. A delta that would push the balance below zero is
  * rejected with [WalletEventOutcomeDto.InsufficientChips] — the wallet
- * stays put, the batch continues, and the client surfaces a soft
- * reconcile message.
+ * stays put, the batch continues, and the client silently resets to
+ * the authoritative balance.
  *
  * Reward credits are server-owned (ENG-9): a positive delta whose
  * reason is a `levelup.*` / `achievement.*` reward is refused with

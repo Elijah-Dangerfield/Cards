@@ -473,8 +473,9 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 - **Rejected / timed-out intent.** `PlayPokerViewModel`'s `Submit` now wraps `session.submit()` in `Catching {}` and logs on failure, so a server rejection ("not your turn" on a turn-race double-tap) or a 10s ack timeout is a logged no-op instead of an app crash. But the user just sees their action quietly not happen. `RemotePokerSession`'s KDoc already promises "the VM maps this to a UI-level 'not your turn' surface" — that mapping still doesn't exist. Wants a new state field/event + a transient surface (toast / inline pill), not the haptic-only `TurnFeedback` channel.
 - **Room closed out from under us.** `PlayPokerEvent.RoomClosed` now pops the play screen when the server GC's the room or rejects the subscription. The pop is silent; the lobby/home it lands on re-observes and shows the closed-room state itself, but there's no transient "this room was closed" message on exit.
+- **Wallet debit refused on sync.** `ChipsRepositoryImpl.syncLocked()` handles a server `InsufficientChips` outcome by dropping the pending event, logging a warning, and resetting to the authoritative balance — the user's chip total silently jumps with no explanation (`docs/wiki/wallet.md` documents the silence).
 
-**Why grouped:** both are the same shape — a server-side "no" the client currently absorbs without a word. A shared lightweight "transient game-event surface" (toast/snackbar bound to one-shot VM events) would cover both and any future case.
+**Why grouped:** all the same shape — a server-side "no" the client currently absorbs without a word. A shared lightweight "transient game-event surface" (toast/snackbar bound to one-shot VM events) would cover both and any future case.
 
 **Status:** Backlog. Pick up when MP playtests show the silence is confusing; the intent-rejection half is the KDoc's outstanding promise.
 
