@@ -21,13 +21,3 @@ The live punch list of actionable engineering work. Every item is something a wo
 - `[P2]` — Lower urgency, still worker-pickable. Many need a directional call — make a recommendation, ship a slice, let the reviewer course-correct.
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
-
-
-
-## PROG
-
-- `[P2]` **PROG-10 — Stabilize the earned-achievements horizontal pager sizing.** (owner request 2026-07-08) The horizontally scrollable achievements shown after bot games is jumpy while scrolling because the containers differ in size — make them a uniform size or animate the container size change.
-  **Acceptance:** swiping across earned achievements doesn't jump or abruptly resize between pages.
-  **Hints:** likely `features/room/impl/.../ui/AchievementCelebrationSheet.kt` (HorizontalPager over `earned`); https://elijah-dangerfield.sentry.io/issues/CARDS-8T
-
-

@@ -552,6 +552,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Each achievement gets its own full-width page in a horizontal pager with a dot indicator underneath (active dot stretches and follows the swipe). The first page auto-reveals with confetti; later pages stay a "?" mystery until tapped. A single-achievement unlock shows one card with no pager chrome or dots. (Covers todo PROG-9.)
 
+- Pager sizing (PROG-10): swiping between cards of different heights never jumps or abruptly resizes the sheet — it holds the tallest card's height — and tapping a mystery card grows it smoothly, not with a snap.
+
 ---
 
 ### `PROG-6` ⚠️ 📱 Play-style unlock celebration fires once at ~20 hands

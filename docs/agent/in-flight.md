@@ -2,6 +2,12 @@
 
 Per-commit handoff notes for tonight's cycle. The reviewer reads these when writing the PR, then deletes the file.
 
+## fix(room): stop the achievement celebration pager resizing between pages (PROG-10)
+
+**Problem:** The multi-achievement celebration pager was jumpy while swiping — pages differ in height (mystery vs revealed cards, descriptions, cosmetic rows), so the sheet abruptly resized between pages (owner request 2026-07-08).
+**Approach:** Uniform size, per the owner's first-listed option: `beyondViewportPageCount = earned.size` keeps every page composed so the pager holds the tallest card's height for the whole celebration (unlock counts are small, so precomposing all pages is cheap), plus `animateContentSize()` on the pager and card so the one remaining height change (a tapped mystery card revealing taller content) animates instead of snapping. Rejected animate-only: mid-swipe the pager still visibly stretches/shrinks as adjacent pages compose in and out.
+**Reviewer notes:** Precomposing all pages means each card's pop-in (fade + scale) plays at sheet entrance rather than as its page swipes into view; the tap-to-reveal mystery still paces the celebration, and the reveal sequence stays gated on tap (no early haptics). No test — pure animation behavior; QA sub-bullet added under PROG-9's entry.
+
 ## fix(server): apply the never-delete-progress guards to the scheduled anon sweep (AUTH-18)
 
 **Problem:** `DefaultOrphanAnonymousSweep` deleted every anon account older than the TTL unconditionally — the hard guards the wiki promises (no IAP spend, no meaningful XP, no active room seat) only existed on the install sweep, so wiring the sweep cron would have wiped idle-but-progressed accounts.
