@@ -406,6 +406,8 @@ class FakeWallets : com.dangerfield.cards.server.domain.WalletRepository {
         limit: Int,
     ): List<com.dangerfield.cards.server.domain.WalletEvent> = emptyList()
 
+    override suspend fun hasIapSpend(userId: UserId): Boolean = false
+
     override suspend fun deleteAllForUser(userId: UserId) = synchronized(lock) {
         balances.remove(userId)
         appliedKeys.removeAll { it.first == userId }
