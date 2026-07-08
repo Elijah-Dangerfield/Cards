@@ -230,7 +230,7 @@ class AdminApi(
 
     private suspend fun io.ktor.client.statement.HttpResponse.requireOk() {
         if (status.isSuccess()) return
-        val message = runCatching {
+        val message = Catching {
             adminJson.parseToJsonElement(bodyAsText())
         }.getOrNull()?.let { describeError(it) } ?: "HTTP ${status.value}"
         throw AdminApiException(status, message)
@@ -244,7 +244,7 @@ class AdminApi(
 class AdminApiException(val status: HttpStatusCode, message: String) :
     RuntimeException("${status.value}: $message")
 
-private fun describeError(body: JsonElement): String? = runCatching {
+private fun describeError(body: JsonElement): String? = Catching {
     val error = (body as? kotlinx.serialization.json.JsonObject)?.get("error")
         as? kotlinx.serialization.json.JsonObject
     error?.get("message")?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }

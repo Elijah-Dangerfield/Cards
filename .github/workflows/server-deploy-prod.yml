@@ -38,10 +38,6 @@ on:
         required: true
         default: ''
 
-concurrency:
-  group: server-deploy-prod
-  cancel-in-progress: false  # never cancel a prod deploy mid-flight
-
 jobs:
   deploy:
     name: Deploy to Fly (prod)
@@ -49,6 +45,17 @@ jobs:
     # The gate: this Environment requires a reviewer's approval, so the job
     # pauses here until a human approves. Both push and manual runs go through it.
     environment: production
+    # Concurrency lives on the JOB, not the workflow, on purpose. A run parked
+    # at the approval gate above hasn't started this job, so it doesn't hold
+    # the slot — an unapproved deploy can sit there forever without blocking
+    # newer runs from reaching the gate. (Workflow-level concurrency is exactly
+    # how the first-ever prod run, never approved, silently plugged the queue
+    # from 2026-06-27 to 2026-07-07: every later run stayed jobless-"pending"
+    # and each new push cancelled the previous one.) Approved deploys still
+    # serialize here, and a prod deploy is never cancelled mid-flight.
+    concurrency:
+      group: server-deploy-prod
+      cancel-in-progress: false
     steps:
       - name: Guard — require explicit confirmation (manual runs only)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm != 'prod' }}

@@ -27,9 +27,8 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * doesn't blow away the previous successful product map.
  *
  * Lazy connect: [refresh] calls [BillingClient.connect] before the first
- * query so consumers don't have to remember to. With [NoOpBillingClient]
- * bound this resolves to `Unavailable` immediately; with a real impl it
- * triggers the platform handshake.
+ * query so consumers don't have to remember to — the platform impls
+ * handle the store handshake there.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)

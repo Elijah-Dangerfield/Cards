@@ -3,6 +3,7 @@ package com.dangerfield.cards
 import com.dangerfield.cards.libraries.billing.StoreKitCoordinator
 import com.dangerfield.cards.libraries.cards.PermissionManager
 import com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator
+import com.dangerfield.cards.libraries.identity.auth.SecureSessionStorage
 import com.dangerfield.cards.libraries.review.ReviewLauncher
 import com.dangerfield.cards.libraries.ui.nativeviews.NativeViewFactory
 import me.tatarka.inject.annotations.Provides
@@ -21,6 +22,10 @@ abstract class IosAppComponent(
     // The Swift `IOSStoreKitCoordinator` (StoreKit 2 purchase flow), passed in
     // from `iOSApp.swift`. Android binds its own no-op via anvil.
     private val storeKitCoordinator: StoreKitCoordinator,
+    // The Swift `IOSSecureSessionStorage` (Keychain-backed Supabase session
+    // store, AUTH-16), passed in from `iOSApp.swift`. Android binds
+    // EncryptedSessionStorage via anvil.
+    private val secureSessionStorage: SecureSessionStorage,
     val nativeViewFactory: NativeViewFactory
 ) : AppComponent {
 
@@ -35,6 +40,9 @@ abstract class IosAppComponent(
 
     @Provides
     fun provideStoreKitCoordinator(): StoreKitCoordinator = storeKitCoordinator
+
+    @Provides
+    fun provideSecureSessionStorage(): SecureSessionStorage = secureSessionStorage
 }
 
 
@@ -44,5 +52,6 @@ expect fun create(
     reviewLauncher: ReviewLauncher,
     appleSignInCoordinator: AppleSignInCoordinator,
     storeKitCoordinator: StoreKitCoordinator,
+    secureSessionStorage: SecureSessionStorage,
     nativeViewFactory: NativeViewFactory
 ): IosAppComponent

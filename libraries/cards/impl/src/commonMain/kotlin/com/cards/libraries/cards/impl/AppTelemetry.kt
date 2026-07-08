@@ -4,6 +4,7 @@ import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.Platform
 import com.dangerfield.cards.libraries.core.buildType
+import com.dangerfield.cards.libraries.core.versionString
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.LogLevel
 import com.dangerfield.cards.libraries.core.logging.Logger
@@ -117,6 +118,10 @@ private class ConfiguredTelemetry(
                 it.setExtra("platform", config.platformTag)
                 it.setExtra("build_type", config.buildTypeTag)
                 it.setExtra("release_channel", BuildInfo.releaseChannel)
+                // Tags (not extras) so triage can filter issues by the exact
+                // commit a build shipped from (ENG-10).
+                it.setTag(COMMIT_SHA_KEY, BuildInfo.commitSha)
+                it.setTag(COMMIT_BRANCH_KEY, BuildInfo.commitBranch)
             }
             logger.i { scope ->
                 scope.extra("environment", config.environment)
@@ -280,11 +285,15 @@ private class ConfiguredTelemetry(
 
         val feedback = UserFeedback(sentryId).apply {
             comments = buildString {
+                // Build provenance up top so triage can tell which code
+                // produced the report without cross-referencing tags —
+                // and whether it's already fixed on a later commit.
+                append("Build: ${BuildInfo.versionString()} @ ${BuildInfo.commitSha} (${BuildInfo.commitBranch})\n")
                 if (isBugReport) {
                     errorCode?.let { append("Error code: $it\n") }
                     eventId?.let { append("Log ID: $it\n") }
-                    if (errorCode != null || eventId != null) append('\n')
                 }
+                append('\n')
                 append(payload)
             }
             sanitizedEmail?.let { this.email = it }
@@ -322,6 +331,12 @@ private const val ROOM_CODE_KEY = "room_code"
 private const val SEAT_INDEX_KEY = "seat_index"
 private const val HAND_NUMBER_KEY = "hand_number"
 private const val OPPONENT_USER_IDS_KEY = "opponent_user_ids"
+
+// Build provenance (ENG-10): the exact commit + branch the installed binary
+// was produced from, baked into CardsBuildConfig at build time. Lets triage
+// pin a report to code and spot already-fixed-on-develop issues.
+private const val COMMIT_SHA_KEY = "commit_sha"
+private const val COMMIT_BRANCH_KEY = "commit_branch"
 
 // Per-feedback id stamped on the carrier event; `beforeSend` turns it into the
 // event fingerprint so each feedback report is its own Sentry issue despite the

@@ -1,6 +1,8 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.domain.AchievementRepository
+import com.dangerfield.cards.server.domain.RewardChips
+import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.plugins.ACHIEVEMENTS_WRITE_LIMIT
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
@@ -26,11 +28,18 @@ import kotlin.time.Instant
  * `POST /v1/me/achievements/sync` records the posted earned ids (first-write-
  * wins on `earnedAt`) and returns the full set.
  *
- * The cosmetic-reward mapping stays in `GrantsRoutes` — this is just the
- * durable earned-set persistence.
+ * The cosmetic-reward mapping stays in `GrantsRoutes`. Chip rewards for the
+ * single-player achievements are credited here (ENG-9): recording an earned
+ * id whose reward includes chips applies the server-owned amount from
+ * [RewardChips.ACHIEVEMENT_CHIPS] to the wallet ledger, idempotent on the
+ * achievement's stable key — the client's own `achievement.*` credit is
+ * refused at wallet sync, so this is the only path that mints them.
  */
 @OptIn(ExperimentalTime::class)
-fun Route.achievementsRoutes(repository: AchievementRepository) {
+fun Route.achievementsRoutes(
+    repository: AchievementRepository,
+    wallet: WalletRepository,
+) {
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me/achievements") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
@@ -48,6 +57,14 @@ fun Route.achievementsRoutes(repository: AchievementRepository) {
                         achievementId = earned.achievementId,
                         earnedAt = Instant.fromEpochMilliseconds(earned.earnedAtEpochMs),
                     )
+                    RewardChips.ACHIEVEMENT_CHIPS[earned.achievementId]?.let { chips ->
+                        wallet.apply(
+                            userId = userId,
+                            idempotencyKey = RewardChips.achievementLedgerKey(earned.achievementId),
+                            delta = chips,
+                            reason = RewardChips.achievementLedgerReason(earned.achievementId),
+                        )
+                    }
                 }
 
                 call.respond(

@@ -58,11 +58,11 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ## Daily / return-visit reward (non-streak)
 
-**Idea:** A small, optional reward for returning to the app — *without* the daily-streak loss-aversion framing we explicitly rejected ([product-spec.md Appendix C.1](./product/product-spec.md#c1-daily-login-streak-rejected-2026-05-16)). The motivation isn't "punish you for skipping a day"; it's "be warm when you come back."
+**Idea:** A small, optional reward for returning to the app — *without* the daily-streak loss-aversion framing we explicitly rejected in 2026-05-16 (product-spec Appendix C.1; the spec doc was deleted in the 2026-06-24 docs restructure). The motivation isn't "punish you for skipping a day"; it's "be warm when you come back."
 
 **Sketch directions to consider (pick one — they're not additive):**
 - **Variable surprise.** Every Nth return visit (probabilistically) drops a small chip bonus + a custom message. No counter shown — surprise, not obligation.
-- **Weekly play-streak** (already in product-spec.md Appendix B item 17). Consecutive *weeks* with ≥1 hand played. Lower-pressure than daily.
+- **Weekly play-streak** (was product-spec Appendix B item 17). Consecutive *weeks* with ≥1 hand played. Lower-pressure than daily.
 - **"Welcome back" only after gaps.** Reward triggers if it's been ≥7 days since last play — re-engagement, not retention pressure.
 - **First-hand-of-the-day chip-coin.** Tiny bonus on your first hand played each calendar day. No counter, no streak number, just a one-time "+50" badge that hand. Easy to add, easy to remove.
 
@@ -73,7 +73,22 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 **Tradeoff:** Even the gentlest version drifts toward daily-obligation framing if scoped wrong. The decision math is whether retention numbers justify the risk to the brand. Revisit after V1 ships and we have D2/D7 data — if retention is healthy without it, leave it alone.
 
-**Status:** Backlog. Considered + deferred 2026-05-20.
+**Status:** Backlog. Considered + deferred 2026-05-20. Re-affirmed deferred 2026-07-07 during the chip-economy review (out-of-chips sheet shipped instead as the broke-player path; bust protection + achievement/level grants are the only faucets at launch). If economy dashboards show busted players churning rather than earning back or buying, this is the first faucet to reach for — sized under half a Casual buy-in per day, per the guardrails above.
+
+---
+
+## Level rewards past 20 — revisit with live economy data
+
+**Idea (owner directive 2026-07-07):** `RewardChips.LEVEL_CHIPS` stops at level 20 (47,500 total chips through the ladder), so a committed player's last recurring earn path goes quiet exactly when they're most invested. Likely shape: sparse chip rewards at 25/30/40/50 sized around one buy-in of the tier that cohort actually plays — but whether they're needed at all depends on whether level-20+ players are net winners (don't need grants) or grinders (do).
+
+**Decision inputs (check ~2026-10-07, three months post-TestFlight):**
+- How many users have reached level 20, and their balance distribution (economy dashboard: balance-in-buy-ins by level cohort).
+- Whether level-20+ players keep playing without grants (retention curve past the last reward) or fall off at the cliff.
+- Faucet-vs-sink totals — if the economy is already inflating, extending the ladder makes it worse; pair with the rake lever if so.
+
+**Guardrails:** amounts must stay proportional to time-at-level (the quadratic XP curve does the throttling); don't retro-grant on ship (the `highestLevelRewarded` watermark seeds forward, same as the celebration watermark).
+
+**Status:** Backlog. Blocked on live data, not on code — needs the `cards-economy` Grafana dashboard (in progress 2026-07-07) and a TestFlight cohort aging into it.
 
 ---
 
@@ -143,13 +158,13 @@ Blocker on doing it now: `opposite()` currently maps `SlideInFromRight → Slide
 
 **The exploit (raised 2026-05-23):** Today a user can uninstall + reinstall to mint a new anonymous Supabase user → server `WalletRepository.findOrCreate` grants a fresh 10K starter. Repeat indefinitely. Nothing in the chain checks "is this a device we've already paid out."
 
-**What the spec says — already V1-scope, just not built.** [product-spec.md §6.1 "Anti-farming on the starter grant"](./product/product-spec.md#anti-farming-on-the-starter-grant) calls for one-starter-per-device-fingerprint. So this isn't a new idea; it's a tracked gap from spec to implementation.
+**What the spec said — already V1-scope, just not built.** Product-spec §6.1 "Anti-farming on the starter grant" (doc deleted in the 2026-06-24 docs restructure) called for one-starter-per-device-fingerprint. So this isn't a new idea; it's a tracked gap from spec to implementation.
 
 **Update 2026-05-29 — scope-cut for V1, full design preserved here:** This gate is **not** shipping in V1. Per [decisions.md 2026-05-29 — V1 scope: install_id only](./decisions.md), the V1 wallet starter mints unconditionally on every fresh anon — the exploit stays open at the wallet layer, and the disincentive is purely intrinsic (farmer loses their old account + all its progress every loop). When this becomes a real complaint / revenue concern, two upgrade paths are pre-designed:
 
-- **Option B (~3 days):** add `identifierForVendor` (iOS) / `Settings.Secure.ANDROID_ID` (Android) to the request; gate `WalletRepository.findOrCreate` with `WHERE platform_device_id = X AND starter_granted = TRUE`. Closes the casual same-device reinstall vector. Doesn't survive factory reset or new-device migration, which is fine — those are different humans most of the time. Two one-line platform reads, no KMP keychain work. Also unlocks same-device revival on reinstall as a bonus (covered separately in [`recovery-and-orphaned-accounts.md`](./recovery-and-orphaned-accounts.md)).
+- **Option B (~3 days):** add `identifierForVendor` (iOS) / `Settings.Secure.ANDROID_ID` (Android) to the request; gate `WalletRepository.findOrCreate` with `WHERE platform_device_id = X AND starter_granted = TRUE`. Closes the casual same-device reinstall vector. Doesn't survive factory reset or new-device migration, which is fine — those are different humans most of the time. Two one-line platform reads, no KMP keychain work. Also unlocks same-device revival on reinstall as a bonus (the old `recovery-and-orphaned-accounts.md` design doc was deleted 2026-06-24 — see git history).
 
-- **Option C (~1–2 weeks):** add a `recovery_id` column on `profiles`, generated client-side and persisted via iCloud Keychain (`kSecAttrSynchronizable=true`) + Android Block Store. Survives reinstall *and* device migration (rides the user's platform account, not hardware). Anti-farm gate becomes `WHERE recovery_id = X AND starter_granted = TRUE` — same human across all their devices gets one starter. Detailed design at [`recovery-and-orphaned-accounts.md`](./recovery-and-orphaned-accounts.md); the full pre-scope-cut design (Welcome-back screen, splash boot tree, recovery endpoint) is preserved in git at `13b84b37` for when this is on the table.
+- **Option C (~1–2 weeks):** add a `recovery_id` column on `profiles`, generated client-side and persisted via iCloud Keychain (`kSecAttrSynchronizable=true`) + Android Block Store. Survives reinstall *and* device migration (rides the user's platform account, not hardware). Anti-farm gate becomes `WHERE recovery_id = X AND starter_granted = TRUE` — same human across all their devices gets one starter. Detailed design was in the deleted `recovery-and-orphaned-accounts.md` (git history); the full pre-scope-cut design (Welcome-back screen, splash boot tree, recovery endpoint) is preserved in git at `13b84b37` for when this is on the table.
 
 Direction A and B below predate the scope-cut and remain as alternative implementation sketches if either Option above is ever picked up.
 
@@ -259,7 +274,7 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 
 ## Country / segment-scoped `/v1/app-config`
 
-**Idea (raised 2026-05-24):** Today the server returns one global config blob — [`AppConfigSource.read()`](../apps/server/src/main/kotlin/com/cards/server/data/AppConfigSource.kt) takes no parameters; every client gets the same JSON. The `ClientContext` (platform, app version, CF country header) is parsed on the request but not threaded into the config source.
+**Idea (raised 2026-05-24):** Today the server returns one global config blob — [`AppConfigSource.read()`](../apps/server/src/main/kotlin/com/cards/server/domain/AppConfigSource.kt) takes no parameters; every client gets the same JSON. The `ClientContext` (platform, app version, CF country header) is parsed on the request but not threaded into the config source.
 
 **Sketch:**
 - Change the source signature: `suspend fun read(): JsonObject` → `suspend fun read(ctx: ClientContext): JsonObject`.
@@ -311,7 +326,7 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 
 **Tradeoffs:**
 - Privacy: friends seeing each other's stack swings is the appeal *and* the risk. Default-on is the right call for "warm", but a per-event-kind opt-out in Settings ("hide my level-ups from the feed", "hide my big pots") keeps the user in control. Don't ship without that lever.
-- Voice rules per [product-spec.md](./product/product-spec.md): no urgency, no "X people are waiting!" pressure. The feed is observational, not push-marketed.
+- Voice rules (from the since-deleted product spec, still the house style): no urgency, no "X people are waiting!" pressure. The feed is observational, not push-marketed.
 - Noise: this surface dies the moment it feels like a Twitter timeline. Aggressive de-duping + thresholds + a hard cap on shelf size matter more than picking the right event kinds.
 
 **Status:** Backlog. Strictly downstream of the friends/social-graph system; pull once the friend graph is real.
@@ -338,7 +353,7 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 
 ## Sweep remaining raw `Color.White.copy(alpha=…)` in poker visuals
 
-**Idea:** The DS-first sweep took FeatureCard off raw white. Three poker-artifact files still use it: [`AchievementMedallion.kt:298-300`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/achievement/AchievementMedallion.kt) (shimmer specular gradient), [`CardBackStyle.kt:50,58`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/poker/CardBackStyle.kt) (card-back borders), and [`PlayingCard.kt:212,242`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/poker/PlayingCard.kt) (specular + pip line).
+**Idea:** The DS-first sweep took FeatureCard off raw white. Poker-artifact files still use it: [`AchievementMedal.kt`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/achievement/AchievementMedal.kt) (rim + back ink), [`CardBackStyle.kt`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/poker/CardBackStyle.kt) (card-back borders), and [`PlayingCard.kt`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/poker/PlayingCard.kt) (specular + pip line).
 
 These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 carves out to `PokerPalette`. Either declare a `PokerPalette.SpecularWhite` / `PokerPalette.CardBackBorder` token and route the callsites through it, or accept the carve-out as documented behaviour. Either is fine; both are better than the current "everyone half-believes the rule applies."
 
@@ -575,7 +590,7 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 **Trigger to revisit:** the first feature that makes XP convert into real value (ranked tier, league placement, exclusive cosmetic gates, IAP discounts tied to level).
 
-**Hints:** Same pattern as the server-derive level-up grants item in [`docs/todo.md`](./todo.md) — port the level/XP curve interpreter from `:libraries:cards` into `:apps:server`. Anti-cheat principles documented at [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md).
+**Hints:** Same pattern as ENG-9 (server-authoritative rewarded chips) in [`docs/todo.md`](./todo.md) — port the level/XP curve interpreter from `:libraries:cards` into `:apps:server`. Anti-cheat principles are summarized in AGENTS.md → "Write-path / grants" (the fuller `state-authority-and-sync.md` wiki page was deleted 2026-06-24; git history has it).
 
 **Status:** Backlog. Explicitly deferred — not worth the engineering until XP gates something a cheater would want.
 
@@ -706,6 +721,18 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Why it's backlog, not a worker one-liner:** the fix is a DS design call (what content/handle override to add to `BottomSheet`), not a mechanical swap. Do it when next touching the bottom-sheet primitive.
 
 **Status:** Backlog. Design judgment on the DS surface; AGENTS.md references it.
+
+## Hand-rankings cheat sheet v2 — "you have" banner + compact rows
+
+**Idea (owner mock):** Upgrade `HandRankingsCheatSheet` toward the owner-provided target mock: a summary banner at the top showing the user's current hole+board cards with "YOU HAVE / Two Pair", then a tight numbered 1–10 list (Royal Flush → High Card) with compact card glyphs per row, the user's current hand row highlighted. Today's sheet has the ranked list and a "YOU" highlight but not the you-have banner or the compact-glyph treatment. Full transcription of the mock: [`todo-assets/README.md`](./todo-assets/README.md) → `hand-rankings.png`.
+
+**Status:** Backlog. UX polish with layout design calls; pairs naturally with the BaseBottomSheet fold-back above.
+
+## "Recent XP" rows on Stats
+
+**Idea (owner mock):** A "Recent XP" section on the stats surface — a short list of recent XP-earning moments, each row = source emoji + what happened ("Won a hand vs Theo", "Achievement · Big bluff") + relative timestamp + a `+N` trailing amount colored by XP source. Gives XP a narrative ("where did my progress come from") instead of just a total. Needs a local recent-XP-events feed (the `xp_events` ledger already captures per-hand deltas client-side — surface the tail of it). Full transcription: [`todo-assets/README.md`](./todo-assets/README.md) → `recent-xp.png`.
+
+**Status:** Backlog. Not tracked by any todo; pull when the stats screen gets its next pass.
 
 ## Burn down the VerifyStrings baseline (extract hardcoded copy to resources)
 
@@ -912,3 +939,41 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Idea (owner feedback 2026-07-01, Sentry [CARDS-81](https://elijah-dangerfield.sentry.io/issues/CARDS-81), [CARDS-80](https://elijah-dangerfield.sentry.io/issues/CARDS-80)):** Add achievements that reward real-player multiplayer engagement — joining/creating MP rooms with other real people, winning against a full room, staying for a full cycle of players — to pull users toward the social side. Also add achievements for out-of-gameplay actions like sending feedback or reporting a bug, with their own Home-screen celebration since those happen outside a hand. Both are catalog/design asks that extend today's thin achievement set.
 
 **Status:** Backlog. Folds into the "More achievements + early-stage pacing rebalance" pass ([CARDS-1A](https://elijah-dangerfield.sentry.io/issues/CARDS-1A)); pull when the achievement catalog gets a dedicated design pass.
+
+---
+
+## Achievement recap as a Home-screen notification
+
+**Idea (owner feedback 2026-07-04, Sentry [CARDS-8K](https://elijah-dangerfield.sentry.io/issues/CARDS-8K)):** When a user returns to the Home screen after a session, show a recap of the achievements they earned as a Home-screen notification — explicitly contingent on first building out a sturdy Home-screen notification flow ("assuming we built out that sturdy Home Screen notification flow"). Pairs with the mid-game achievement pager (PROG-9) from the same report.
+
+**Status:** Backlog. Depends on a robust Home-screen notification system that doesn't exist yet; pull alongside the achievement catalog/celebration pass (CARDS-1A cluster).
+
+---
+
+## Refuse client-asserted `iap.*` wallet-sync credits (ENG-9 follow-up)
+
+**Idea (from ENG-9, 2026-07-04):** Wallet sync now refuses client-asserted `levelup.*` / `achievement.*` credits (`RefusedServerOwned`), but `iap.*` credits still ride wallet sync trusted verbatim. Real purchases already flow through the server redeem path (`/v1/me/billing/redeem`, receipt-validated, BILL-5) — the only remaining writer of client-asserted `iap.*` events is the debug fake-billing path in `DefaultPurchaseChipPackUseCase.creditChipsLocally` (used when `billing.realPurchasesEnabled` is off). Extending the refusal to `iap.*` closes an unbounded mint vector (a modified client can post any delta under an `iap.*` reason), but needs a decision about what the fake-billing dev path does instead — likely: point it at the redeem endpoint's fake-receipt branch or accept the local-only credit being clawed back at sync in debug.
+
+**Sketch if revisited:** add `"iap."` to `RewardChips.SERVER_OWNED_CREDIT_REASON_PREFIXES` (or a sibling list keyed to the redeem path), retire `creditChipsLocally`, and route debug purchases through redeem with a fake receipt the validator accepts in dev. Note the broader hole stays until Phase 4.2 server-side hand resolution: wallet sync still trusts arbitrary positive deltas under *unreserved* reasons (solo-play results are legitimately client-asserted today), so reason-prefix refusal is per-category hardening, not full trust.
+
+**Status:** Backlog. BILL-1/2 territory; pull when the billing go-live pass happens.
+
+---
+
+## Delete the dead AudioRecorder + microphone-permission surface (ENG-14 follow-up)
+
+**Idea (from ENG-14 review, 2026-07-04):** The camera capture surface is gone, but its sibling recording stack is equally call-site-free: `AudioRecorder` (common interface) + `AndroidAudioRecorder` / `IosAudioRecorder` impls and `rememberMicrophonePermissionLauncher` in `:libraries:ui` have zero callers in features or apps — the impls only appear in the DI graph via their own `@ContributesBinding`s. The planned audio work in this file ("Audio infrastructure") is playback-only (`AudioPlayer`), not recording, so nothing on the roadmap claims this code.
+
+**Sketch:** delete `AudioRecorder.kt` (common/android/ios), `PermissionLauncher.kt` expect/actuals, and any `RECORD_AUDIO`/mic usage-description leftovers; verify Android + iOS builds. If voice notes on feedback reports ever become a thing, rebuild against that design rather than resurrecting this.
+
+**Status:** Backlog. Deferred from the 2026-07-04 nightly rather than deleted in-cycle because it touches the iOS DI graph and the cycle's build validation didn't cover a full Xcode pass.
+
+---
+
+## Platform game services — Game Center + Google Play Games achievement/leaderboard mirroring
+
+**Idea (owner directive 2026-07-07):** Mirror in-app achievements and progression to the native platform services — Apple Game Center on iOS, Google Play Games Services v2 on Android — behind one common `GameServicesCoordinator` interface, cloning the billing coordinator pattern (Swift class conforms via SKIE; real Android impl via anvil). One-way, fire-and-forget, idempotent mirroring driven purely by observing `AchievementRepository.observeProgress()` and `ProgressionRepository.observeProgression()` — no ViewModel or game-logic changes. Two leaderboards (lifetime Total XP, lifetime Hands Won — deliberately not chips; freemium economy means chip boards would be pay-to-rank). All gated behind a `gameServices.enabled` flag defaulting off until the store-side config is live.
+
+**Full plan:** [docs/plans/platform-game-services.md](./plans/platform-game-services.md) — includes module layout, interface signatures, 6 commit-sized phases, testing strategy, and step-by-step App Store Connect + Play Console runbooks (achievement points budget math, games-ids.xml handling, signing-key credentials, the separate PGS publish step).
+
+**Status:** Backlog. Approved plan, not yet started. Note the store runbooks involve real admin work (≈53 achievements × 512px artwork in both consoles) that can't be automated; code phases all ship dark so they can land anytime.

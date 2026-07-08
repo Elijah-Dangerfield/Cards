@@ -127,7 +127,11 @@ internal fun PlayerArea(
 ) {
     val human = table.seats.firstOrNull { it.isHuman } ?: return
     val folded = human.participation == HandParticipation.Folded
-    val isWinner = table.handResult?.winners?.any { it.seatIndex == human.index } == true
+    val humanWin = table.handResult?.winners?.firstOrNull { it.seatIndex == human.index }
+    val isWinner = humanWin != null
+    // What you took down this hand — surfaced as a gold "+N" on your own tile so
+    // your win reads as obviously as an opponent's (they already get this badge).
+    val winAmount = humanWin?.amount ?: 0L
     // Pulse the band around the whole player area when it's the human's turn.
     // This replaces the dropped "Your turn" text banner.
     val pulseAlpha = if (human.isActing) pulseAlpha(low = 0.30f, high = 0.85f) else 0f
@@ -364,6 +368,7 @@ internal fun PlayerArea(
                 seat = human,
                 handLabel = table.humanHandLabel,
                 isWinner = isWinner,
+                winAmount = winAmount,
                 stackOverride = humanStackOverride,
                 // Acting human on a timer-enforced (MP) table gets the depleting
                 // countdown ring around their avatar; null on solo tables (no
@@ -527,6 +532,7 @@ private fun PlayerInfoTile(
     seat: SeatView,
     handLabel: String?,
     isWinner: Boolean,
+    winAmount: Long,
     stackOverride: Long?,
     countdownSeconds: Int?,
     turnKey: Any,
@@ -573,7 +579,22 @@ private fun PlayerInfoTile(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        if (handLabel != null) {
+        // On a win the header slot becomes the gold "+N" take — the unmistakable
+        // "you won" signal, matching the badge opponents get under their seat (and
+        // reusing this one header line so the locked-height tile never grows).
+        // Otherwise it's the live hand-strength label.
+        if (isWinner && winAmount > 0) {
+            Text(
+                text = "+${formatCompactChips(winAmount)}",
+                typography = AppTheme.typography.Body.B500.Bold,
+                color = AppTheme.colors.poker.chipGold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            VerticalSpacerD100()
+        } else if (handLabel != null) {
             Text(
                 text = handLabel,
                 typography = AppTheme.typography.Body.B500.Bold,
@@ -730,6 +751,7 @@ private fun FlippablePlayerInfoTile(
     seat: SeatView,
     handLabel: String?,
     isWinner: Boolean,
+    winAmount: Long,
     stackOverride: Long?,
     countdownSeconds: Int?,
     turnKey: Any,
@@ -809,6 +831,7 @@ private fun FlippablePlayerInfoTile(
                 seat = seat,
                 handLabel = handLabel,
                 isWinner = isWinner,
+                winAmount = winAmount,
                 stackOverride = stackOverride,
                 countdownSeconds = countdownSeconds,
                 turnKey = turnKey,

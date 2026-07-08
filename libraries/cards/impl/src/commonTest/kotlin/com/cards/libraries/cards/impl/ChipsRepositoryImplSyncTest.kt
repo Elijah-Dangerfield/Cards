@@ -177,6 +177,38 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
+    fun refusedServerOwned_dropsRow_andAdoptsAuthoritativeBalance() = runUnitTest {
+        // ENG-9: the server refuses client-asserted reward credits
+        // (levelup.* / achievement.*) and mints them itself at the trigger
+        // it witnesses. The client drops the pending row — no retry — and
+        // converges on the authoritative balance, which already carries
+        // the server's own grant.
+        val walletDao = FakeWalletEventDao().apply {
+            insert(walletEvent("levelup_3", delta = 1_000, reason = "levelup.3"))
+        }
+        val chipsDao = FakeChipsDao(seedBalance = 0L)
+        val repo = buildRepo(chipsDao, walletDao) {
+            respondJson(
+                """
+                {
+                  "schemaVersion":1,
+                  "balance":11000,
+                  "results":[
+                    {"idempotencyKey":"levelup_3","outcome":"RefusedServerOwned","balance":10000}
+                  ]
+                }
+                """.trimIndent(),
+            )
+        }
+
+        val result = repo.sync()
+
+        assertTrue(result.isSuccess)
+        assertTrue(walletDao.getAll().isEmpty(), "refused reward event drops — the server minted it instead")
+        assertEquals(11_000L, chipsDao.getChips()?.balance)
+    }
+
+    @Test
     fun unknownOutcome_leavesRowPending_forNewerClientToResolve() = runUnitTest {
         val walletDao = FakeWalletEventDao().apply {
             insert(walletEvent("mystery", delta = 100))

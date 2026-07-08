@@ -38,10 +38,10 @@ import kotlin.test.assertIs
  * Pins the [DefaultPurchaseChipPackUseCase] contract. Two credit paths gated by
  * [RealPurchasesEnabled] (BILL-5):
  *
- *  - **off (default)** — store confirm credits chips locally + consumes;
+ *  - **off** — store confirm credits chips locally + consumes;
  *    already-owned re-credits; cancel/failure/not-connected don't credit. The
  *    server redeem endpoint is never called.
- *  - **on** — store confirm POSTs the receipt to redeem and reflects the
+ *  - **on (default)** — store confirm POSTs the receipt to redeem and reflects the
  *    server-returned authoritative balance; a rejected receipt or unreachable
  *    server grants nothing locally and surfaces a failure.
  *

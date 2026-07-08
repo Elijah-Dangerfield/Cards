@@ -94,4 +94,12 @@ enum class WalletEventOutcomeDto {
      *  did NOT write the event; balance is unchanged. Client should
      *  surface a reconcile message and stop retrying this event. */
     InsufficientChips,
+
+    /** Credit for a server-owned reward reason (`levelup.*` /
+     *  `achievement.*`). The server computes and applies those grants
+     *  itself at the trigger it witnesses (progression sync / earned-
+     *  achievement sync) — a client-asserted amount is never trusted.
+     *  No ledger write; balance is unchanged. Client should drop the
+     *  event and rely on the authoritative balance. */
+    RefusedServerOwned,
 }

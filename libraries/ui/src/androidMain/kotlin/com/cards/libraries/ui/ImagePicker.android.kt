@@ -12,7 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import com.dangerfield.cards.libraries.core.Catching
-import kotlinx.coroutines.Dispatchers
+import com.dangerfield.cards.libraries.ui.system.LocalDispatcherProvider
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -27,6 +27,7 @@ actual fun rememberImagePicker(
     onResult: (List<PickedImage>) -> Unit,
 ): ImagePicker {
     val context = LocalContext.current
+    val dispatchers = LocalDispatcherProvider.current
     val scope = rememberCoroutineScope()
     // PickMultipleVisualMedia requires a max of at least 2; if the caller asks
     // for a single remaining slot we still floor the contract at 2 and trim the
@@ -41,7 +42,7 @@ actual fun rememberImagePicker(
         // Decode + downscale off the main thread; the picker hands back content
         // URIs, so reading + recompressing can touch disk.
         scope.launch {
-            val images = withContext(Dispatchers.Default) {
+            val images = withContext(dispatchers.default) {
                 uris.take(maxImages).mapNotNull { uri -> context.downscaledJpeg(uri) }
             }
             onResult(images)

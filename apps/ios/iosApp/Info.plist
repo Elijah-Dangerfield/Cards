@@ -8,6 +8,14 @@
 	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!--
+	  Export compliance: we only use Apple's OS-provided TLS (Ktor Darwin
+	  engine) for HTTPS — no bundled or proprietary crypto — which is exempt.
+	  Declaring it here skips the encryption questionnaire on every
+	  App Store Connect build upload.
+	-->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>We'd like to send you notifications.</string>
 	<key>UIBackgroundModes</key>

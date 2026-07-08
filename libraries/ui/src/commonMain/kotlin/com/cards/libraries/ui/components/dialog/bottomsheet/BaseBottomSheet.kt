@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomSheetDefaults.DragHandle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalRippleConfiguration
@@ -37,6 +36,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.system.Radii
+import com.dangerfield.cards.system.cornerRadiusDp
+import com.dangerfield.cards.system.topShape
 import com.dangerfield.cards.libraries.ui.components.dialog.AccessoryShape
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.TopAccessory
@@ -188,10 +190,9 @@ fun BaseBottomSheet(
 
 /** Standard rounded-top-corner sheet shape (no notch). Used when the drag
  *  handle is anything other than [BottomSheetDragHandle.Accessory]. */
-private val RoundedTopSheetShape: Shape =
-    RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+private val RoundedTopSheetShape: Shape = Radii.Sheet.topShape
 
-private val SheetCornerRadius = 16.dp
+private val SheetCornerRadius = Radii.Sheet.cornerRadiusDp
 
 @OptIn(LowLevelDSComponent::class)
 @Preview(heightDp = 500)

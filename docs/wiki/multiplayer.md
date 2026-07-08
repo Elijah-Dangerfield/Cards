@@ -75,7 +75,7 @@ These are four *different* things and they're easy to conflate:
 Key takeaways:
 
 - **Sit-out ≠ spectator.** A sit-out player is *seated* and resting (keeps stack, instant toggle back). A spectator has *no seat or stack* and must take an open seat + buy in to play.
-- **"Forfeit-then-spectator"** — when your disconnect grace expires mid-hand, the server forfeits your seat, auto-folds your hand, and (when `MP-1` ships) drops your socket to read-only spectator instead of ending everyone's game.
+- **Grace expiry mid-hand = forfeit, not game over.** When your disconnect grace expires, the reaper removes you from the room; the leave path then settles your remaining stack back to your wallet (`settleLeaver`), folds your seat out of the live hand (`forfeitSeat`), and drops you from future hands (`removePlayer`) — the table plays on without you. Coming back after that means joining again like any newcomer.
 - **Mid-hand join works the same for every visibility.** Private, Open, and Public all accept new members while a hand is in flight — the in-flight hand's seat order is fixed, so the joiner takes a seat slot and is dealt in at the next hand boundary. The difference between visibilities is **how you discover the room**, not whether you can enter it during a hand:
   - Private = code-share (you need an invite), then `POST /v1/rooms/{code}/join` regardless of room status.
   - Open / Public = matchmaker pairs you, lands you as a member via `findOrJoinPublic`.

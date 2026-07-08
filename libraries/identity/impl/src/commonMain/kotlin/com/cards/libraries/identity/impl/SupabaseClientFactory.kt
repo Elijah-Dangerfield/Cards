@@ -1,10 +1,14 @@
 package com.dangerfield.cards.libraries.identity.impl
 
+import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.identity.IdentityConfig
+import com.dangerfield.cards.libraries.identity.auth.SecureSessionStorage
+import com.dangerfield.cards.libraries.identity.impl.auth.SecureSessionManager
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.SettingsSessionManager
 import io.github.jan.supabase.createSupabaseClient
-import me.tatarka.inject.annotations.Inject
 import me.tatarka.inject.annotations.Provides
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesTo
@@ -16,9 +20,10 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * lifecycle). Add `Postgrest`, `Storage`, etc. installs here when we
  * actually need them.
  *
- * `autoLoadFromStorage` defaults to true, so sessions persist across
- * process restarts using `multiplatform-settings` underneath. We never
- * need to wire our own token store.
+ * Session persistence rides a custom [SecureSessionManager] — OS-encrypted
+ * storage (Keychain / EncryptedSharedPreferences) instead of supabase-kt's
+ * default plaintext `multiplatform-settings` store, with a one-time silent
+ * migration from that old store (AUTH-16).
  *
  * The Ktor engine is auto-detected (`OkHttp` on Android, `Darwin` on iOS)
  * because we have both engines on the classpath via `:apps:compose`.
@@ -28,7 +33,11 @@ interface SupabaseClientComponent {
 
     @SingleIn(AppScope::class)
     @Provides
-    fun provideSupabaseClient(config: IdentityConfig): SupabaseClient =
+    fun provideSupabaseClient(
+        config: IdentityConfig,
+        secureSessionStorage: SecureSessionStorage,
+        dispatchers: DispatcherProvider,
+    ): SupabaseClient =
         createSupabaseClient(
             supabaseUrl = config.supabaseUrl,
             supabaseKey = config.supabasePublishableKey,
@@ -37,7 +46,20 @@ interface SupabaseClientComponent {
                 // alwaysAutoRefresh = true (default) — refresh tokens
                 // before they expire so we don't get a 401 on every call.
                 // autoLoadFromStorage = true (default) — restore session
-                // from `multiplatform-settings` storage on cold start.
+                // from the session manager's storage on cold start.
+                val storageKey = SecureSessionManager.storageKeyFor(config.supabaseUrl)
+                sessionManager = SecureSessionManager(
+                    storage = secureSessionStorage,
+                    key = storageKey,
+                    // The pre-AUTH-16 plaintext store, kept solely as the
+                    // migration source (+ cleared on sign-out). Same key —
+                    // it's exactly what the default session manager used.
+                    // Catching: constructing it can only fail where no
+                    // default Settings exists (never on device); losing the
+                    // migration beats crashing the DI graph there.
+                    legacy = Catching { SettingsSessionManager(key = storageKey) }.getOrNull(),
+                    dispatchers = dispatchers,
+                )
 
                 // Browser OAuth redirect target. supabase-kt builds the
                 // redirect_to it sends to the provider from scheme://host on

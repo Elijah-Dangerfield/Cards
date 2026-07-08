@@ -4,13 +4,13 @@ import com.dangerfield.cards.libraries.billing.BillingClient
 import com.dangerfield.cards.libraries.billing.ConnectionState
 import com.dangerfield.cards.libraries.billing.PurchaseResult
 import com.dangerfield.cards.libraries.billing.QueryProductsResult
+import com.dangerfield.cards.libraries.billing.RealPurchasesEnabled
 import com.dangerfield.cards.libraries.billing.StoreKitCoordinator
 import com.dangerfield.cards.libraries.billing.awaitFinish
 import com.dangerfield.cards.libraries.billing.awaitProducts
 import com.dangerfield.cards.libraries.billing.awaitPurchase
 import com.dangerfield.cards.libraries.billing.toBillingProduct
 import com.dangerfield.cards.libraries.billing.toPurchaseResult
-import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Catching
 import kotlinx.coroutines.flow.MutableStateFlow
 import me.tatarka.inject.annotations.Inject
@@ -19,41 +19,38 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * iOS [BillingClient] binding. Replaces [DevBillingClient] in the graph,
- * completing the per-platform handoff its TODO described — the mirror of
- * [PlayBillingClient] on Android.
+ * iOS [BillingClient] binding, the mirror of `PlayBillingClient` on
+ * Android.
  *
- * Runtime selection mirrors [PlayBillingClient]:
- *  - **Debug builds** delegate to a [FakeBillingClient] seeded with the
- *    chip-pack SKUs, so dev shop iteration and the redemption flow keep working
- *    without provisioned App Store Connect listings or a sandbox account.
- *  - **Release builds** delegate to [RealStoreKitBillingClient], which drives
- *    the native StoreKit 2 flow through the Swift [StoreKitCoordinator].
- *
- * Locally you can exercise the real path against an Xcode `.storekit` test
- * config without App Store Connect — flip debug to the real client there, or
- * gate via the BILL-5 `billing.realPurchasesEnabled` flag if a finer switch is
- * wanted.
+ * Runtime selection follows the BILL-5 `billing.realPurchasesEnabled` flag,
+ * resolved per call so a config change or QA override applies without a
+ * restart:
+ *  - **On (default)** — [RealStoreKitBillingClient], the native StoreKit 2
+ *    flow through the Swift [StoreKitCoordinator]. Sandbox and TestFlight
+ *    purchases run this exact path.
+ *  - **Off** — a [FakeBillingClient] seeded with the chip-pack SKUs, for shop
+ *    iteration on the simulator or without a sandbox account. Also works with
+ *    an Xcode `.storekit` test config by keeping the flag on instead.
  */
 @SingleIn(AppScope::class)
-@ContributesBinding(AppScope::class, replaces = [DevBillingClient::class, NoOpBillingClient::class])
+@ContributesBinding(AppScope::class)
 @Inject
 class StoreKitBillingClient(
     coordinator: StoreKitCoordinator,
+    private val realPurchasesEnabled: RealPurchasesEnabled,
 ) : BillingClient {
 
-    private val delegate: BillingClient = if (BuildInfo.isDebug) {
-        FakeBillingClient(catalog = DEV_FAKE_CATALOG)
-    } else {
-        RealStoreKitBillingClient(coordinator)
-    }
+    private val fake = FakeBillingClient(catalog = DEV_FAKE_CATALOG)
+    private val real by lazy { RealStoreKitBillingClient(coordinator) }
 
-    override val connectionState = delegate.connectionState
-    override suspend fun connect(): ConnectionState = delegate.connect()
-    override suspend fun queryProducts(skus: Set<String>): QueryProductsResult = delegate.queryProducts(skus)
-    override suspend fun purchase(sku: String, userId: String): PurchaseResult = delegate.purchase(sku, userId)
-    override suspend fun acknowledge(purchaseToken: String): Boolean = delegate.acknowledge(purchaseToken)
-    override suspend fun consume(purchaseToken: String): Boolean = delegate.consume(purchaseToken)
+    private fun delegate(): BillingClient = if (realPurchasesEnabled()) real else fake
+
+    override val connectionState get() = delegate().connectionState
+    override suspend fun connect(): ConnectionState = delegate().connect()
+    override suspend fun queryProducts(skus: Set<String>): QueryProductsResult = delegate().queryProducts(skus)
+    override suspend fun purchase(sku: String, userId: String): PurchaseResult = delegate().purchase(sku, userId)
+    override suspend fun acknowledge(purchaseToken: String): Boolean = delegate().acknowledge(purchaseToken)
+    override suspend fun consume(purchaseToken: String): Boolean = delegate().consume(purchaseToken)
 }
 
 /**

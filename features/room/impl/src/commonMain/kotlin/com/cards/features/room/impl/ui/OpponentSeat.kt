@@ -11,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -27,7 +28,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -77,7 +77,8 @@ private val SeatGoldRing: Dp = 2.5.dp
  *    gold bet-raise-allin pill. Gold == chips going in.
  *  - **Turn** (ring): the gold countdown (timed human) or a pulsing gold "to act"
  *    ring (untimed bot/solo). Gold ring == on the clock, nothing else.
- *  - **Out** recolors the whole avatar: folded greys + mucks; busted greys + ✕.
+ *  - **Out** recolors the whole avatar: folded greys + a FOLD pill that pops
+ *    in and stays for the hand; busted greys + ✕.
  *
  * The avatar is ringed by a felt-colored cutout so it reads as punched out of the
  * table — [LocalTableSurface] feeds the exact backdrop color.
@@ -194,12 +195,7 @@ internal fun OpponentSeat(
                     color = AppTheme.colors.danger,
                     modifier = Modifier.align(Alignment.Center),
                 )
-                folded -> MuckedCardsMarker(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .offset(y = 5.dp),
-                )
-                !handComplete -> seat.lastAction?.let { action ->
+                !folded && !handComplete -> seat.lastAction?.let { action ->
                     SeatActionChip(
                         action = action,
                         modifier = Modifier
@@ -207,6 +203,24 @@ internal fun OpponentSeat(
                             .offset(y = 7.dp),
                     )
                 }
+            }
+            // The fold cue pops in (fade + scale) rather than composing with the
+            // branch above — a fold that fires at hand start would otherwise
+            // appear with no motion at all and read as "nothing happened"
+            // (GAME-17). It persists through showdown so the grey seat always
+            // carries its explanation.
+            // Fully qualified: an outer ColumnScope would otherwise capture
+            // this call via its AnimatedVisibility extension.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = folded && !busted,
+                enter = fadeIn(animationSpec = tween(220)) +
+                    scaleIn(initialScale = 0.6f, animationSpec = tween(220)),
+                exit = fadeOut(animationSpec = tween(120)),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .offset(y = 7.dp),
+            ) {
+                SeatActionChip(action = PlayerAction.Fold)
             }
 
             // Position badge — top-left, persists the whole hand. Cut out of the
@@ -319,10 +333,11 @@ private fun GoldSeatRing(modifier: Modifier = Modifier) {
 
 /**
  * The bottom-center action chip: green check for a check, a neutral pill for a
- * call, a gold pill for chips going in (bet/raise/all-in). Gold == chips in.
- * Purely visual — the seat's avatar is the tap target; the tapped Player Card
- * (PlayerProfileSheet) reuses this chip to echo the move, so [cutoutColor]
- * defaults to the felt but can be set to whatever backdrop it sits on.
+ * call or a fold, a gold pill for chips going in (bet/raise/all-in). Gold ==
+ * chips in. Purely visual — the seat's avatar is the tap target; the tapped
+ * Player Card (PlayerProfileSheet) reuses this chip to echo the move, so
+ * [cutoutColor] defaults to the felt but can be set to whatever backdrop it
+ * sits on.
  */
 @Composable
 internal fun SeatActionChip(
@@ -356,7 +371,12 @@ internal fun SeatActionChip(
             cutoutColor = cutoutColor,
             modifier = modifier,
         )
-        is PlayerAction.Fold -> Unit
+        is PlayerAction.Fold -> ActionPill(
+            text = "FOLD",
+            gold = false,
+            cutoutColor = cutoutColor,
+            modifier = modifier,
+        )
     }
 }
 
@@ -406,34 +426,6 @@ private fun ActionPill(
             softWrap = false,
         )
     }
-}
-
-/** Two tilted grey rects under a folded seat — the mucked hand. */
-@Composable
-private fun MuckedCardsMarker(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy((-5).dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        MuckCard(rotation = -12f)
-        MuckCard(rotation = 12f)
-    }
-}
-
-@Composable
-private fun MuckCard(rotation: Float) {
-    Box(
-        modifier = Modifier
-            .graphicsLayer { rotationZ = rotation }
-            .size(width = 11.dp, height = 15.dp)
-            .cutout(
-                ringColor = seatCutoutColor(),
-                fillColor = AppTheme.colors.surfaceHigh.color,
-                shape = RoundedCornerShape(2.dp),
-                ringWidth = 1.dp,
-            ),
-    )
 }
 
 // ---------------------------------------------------------------------------

@@ -384,11 +384,18 @@
     <string name="home_tutorial_banner_start_button">Start</string>
     <string name="home_tutorial_banner_dismiss_a11y">Dismiss tutorial banner</string>
 
+    <!-- Home - Out-of-chips sheet (once per below-buy-in episode). -->
+    <string name="home_out_of_chips_title">Short stacked</string>
+    <string name="home_out_of_chips_body">You're under the %1$s-chip Casual buy-in. Two ways back to the tables.</string>
+    <string name="home_out_of_chips_buy_title">Get a chip pack</string>
+    <string name="home_out_of_chips_buy_subtitle">Packs from the shop land in your stack right away.</string>
+    <string name="home_out_of_chips_earn_title">Win them back from the bots</string>
+    <string name="home_out_of_chips_earn_subtitle">Bot tables are free to enter. Level-ups and achievements pay real chips.</string>
+
     <!-- Home - Welcome dialog (one-shot starter-grant intro on first launch). -->
     <string name="home_welcome_dialog_greeting">Welcome,</string>
     <string name="home_welcome_dialog_gift_line">Here's a little gift from us to start with.</string>
     <string name="home_welcome_dialog_chip_use_line">Use these to play against other players and buy upgrades.</string>
-    <string name="home_welcome_dialog_daily_grant_line">Open the app every day this week and we'll add another 500 chips, on us.</string>
     <string name="home_welcome_dialog_primary_cta">Let's play</string>
 
     <!-- Home - Play-style unlocked celebration (one-shot, after ~20 hands). -->
@@ -616,10 +623,10 @@
     <string name="rank_claimed_subtitle">Multiplayer Elo rating</string>
     <string name="rank_how_it_works_section">How rank works</string>
     <string name="rank_bullet_elo">Rank is your Elo skill rating against real opponents</string>
-    <string name="rank_bullet_bots">Bots don't change your rank — only multiplayer hands do</string>
+    <string name="rank_bullet_bots">Bots don't change your rank, only multiplayer hands do</string>
     <string name="rank_bullet_climb">Win against stronger players to climb faster</string>
-    <string name="rank_bullet_floor">Rank can't drop below 800 — no need to dread a bad night</string>
-    <string name="rank_axes_note">Three separate axes — chips, rank, XP — so a rough session never wipes your sense of progress.</string>
+    <string name="rank_bullet_floor">Rank can't drop below 800, so no need to dread a bad night</string>
+    <string name="rank_axes_note">Chips, rank, and XP are three separate axes, so a rough session never wipes your sense of progress.</string>
     <string name="rank_where_seen_section">Where you'll see it</string>
     <string name="rank_where_home">Top of the home screen, next to your XP and chips</string>
     <string name="rank_where_profile">On the profile screen under "Account"</string>
@@ -631,15 +638,15 @@
     <!-- XP explainers sheet (progression feature). -->
     <string name="stats_explainer_title">How XP works</string>
     <string name="stats_explainer_earn_section">How you earn XP</string>
-    <string name="stats_explainer_earn_bullet_hand">Finishing a hand — every hand counts, even quick folds</string>
-    <string name="stats_explainer_earn_bullet_invest">Chips you put in the pot — invested hands earn more</string>
-    <string name="stats_explainer_earn_bullet_showdown">Reaching showdown — bonus for sticking around to the end</string>
-    <string name="stats_explainer_earn_bullet_strength">Stronger hands at showdown — bigger reveals, bigger reward</string>
-    <string name="stats_explainer_earn_note">Bot hands earn at half the rate of multiplayer. XP never depends on whether you win or lose — just on how engaged the hand was.</string>
+    <string name="stats_explainer_earn_bullet_hand">Every hand you finish counts, even quick folds</string>
+    <string name="stats_explainer_earn_bullet_invest">The more chips you put in the pot, the more you earn</string>
+    <string name="stats_explainer_earn_bullet_showdown">Reaching showdown earns a bonus for sticking around to the end</string>
+    <string name="stats_explainer_earn_bullet_strength">Stronger hands at showdown earn a bigger reward</string>
+    <string name="stats_explainer_earn_note">Bot hands earn at half the rate of multiplayer. XP never depends on whether you win or lose, just on how engaged the hand was.</string>
     <string name="stats_explainer_does_section">What XP does for you</string>
-    <string name="stats_explainer_does_intro">XP is your lifetime engagement score — it never goes down. Every session adds to it whether you stack chips or bust out.</string>
-    <string name="stats_explainer_does_bullet_shop">Unlocks shop items as you climb — titles, emote packs, table felts, utilities, and more</string>
-    <string name="stats_explainer_does_bullet_medals">Earns achievement medallions for milestones — find them in your items</string>
+    <string name="stats_explainer_does_intro">XP is your lifetime engagement score, and it never goes down. Every session adds to it whether you stack chips or bust out.</string>
+    <string name="stats_explainer_does_bullet_shop">Unlocks titles, emote packs, table felts, utilities, and more as you climb</string>
+    <string name="stats_explainer_does_bullet_medals">Earns achievement medallions for milestones. Find them in your items</string>
     <string name="stats_explainer_does_bullet_level">Drives your level pill and seat-level badge across the app</string>
 
     <string name="profile_stats_banner_title">Your stats &amp; style</string>

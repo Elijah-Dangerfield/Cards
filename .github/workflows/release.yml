@@ -299,6 +299,13 @@ jobs:
       TESTFLIGHT_EXTERNAL_GROUP: External Testers
       FASTLANE_SKIP_UPDATE_CHECK: "1"
       FASTLANE_HIDE_CHANGELOG: "1"
+      # In-app BuildInfo.* only (the store CFBundleVersion is a timestamp set by
+      # fastlane). Without these the KMP framework bakes in versions.properties'
+      # buildNumber=1 / channel=dev, so prod iOS would show "(1) · dev" in
+      # Settings. Read by loadVersionMetadata during the framework build.
+      VERSION_CODE_OVERRIDE: ${{ github.run_number }}
+      BUILD_NUMBER_OVERRIDE: ${{ github.run_number }}
+      RELEASE_CHANNEL_OVERRIDE: prod
 
     steps:
       - name: Checkout

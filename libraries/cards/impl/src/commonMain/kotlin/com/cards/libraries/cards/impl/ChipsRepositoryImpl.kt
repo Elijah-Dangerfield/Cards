@@ -169,8 +169,10 @@ class ChipsRepositoryImpl(
             // server has it, drop our pending row. InsufficientChips →
             // server refused; we drop the row too (retrying will just
             // bounce again) and let setBalance below restore the
-            // authoritative value. Unknown → leave the row; a newer
-            // client will know what to do.
+            // authoritative value. RefusedServerOwned → the server mints
+            // this reward itself (ENG-9); drop the row and let the
+            // authoritative balance carry the server's grant. Unknown →
+            // leave the row; a newer client will know what to do.
             val resolvedKeys = response.results
                 .filter { it.outcome in RESOLVED_OUTCOMES }
                 .map { it.idempotencyKey }
@@ -226,6 +228,7 @@ class ChipsRepositoryImpl(
             WalletEventOutcomeDto.Applied,
             WalletEventOutcomeDto.AlreadyApplied,
             WalletEventOutcomeDto.InsufficientChips,
+            WalletEventOutcomeDto.RefusedServerOwned,
         )
     }
 }

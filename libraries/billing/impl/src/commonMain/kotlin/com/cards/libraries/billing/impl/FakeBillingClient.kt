@@ -24,9 +24,9 @@ import kotlinx.coroutines.flow.asStateFlow
  * outcomes per-SKU via [outcomesBySku] when testing the cancel /
  * already-owned / failed branches.
  *
- * Not annotated with `@ContributesBinding` — wire it manually in
- * QA-build flavors that want to override [NoOpBillingClient] without
- * touching prod DI.
+ * Not annotated with `@ContributesBinding` — the platform bindings
+ * (`PlayBillingClient` / `StoreKitBillingClient`) construct it directly
+ * for the flag-off path; wire it manually anywhere else.
  */
 class FakeBillingClient(
     private val catalog: Map<String, BillingProduct>,
@@ -89,3 +89,30 @@ class FakeBillingClient(
         data class Fail(val reason: String) : FakeOutcome
     }
 }
+
+/**
+ * Pretend store catalog mirroring the chip-pack rows seeded in
+ * `apps/server/src/main/resources/db/migration/V5__products.sql`.
+ * Includes both iOS and Android SKUs for each pack so the fake catalog
+ * is platform-agnostic — the server picks one per request, but we
+ * don't know which one at compile time.
+ *
+ * Prices match the server-side `fallback_price` columns so the shop
+ * tile renders the same number in dev as it will once the platform
+ * store reports real prices.
+ */
+internal val DEV_FAKE_CATALOG: Map<String, BillingProduct> = listOf(
+    fakeProduct(sku = "com.cards.iap.chips.small", price = "$0.99", micros = 990_000),
+    fakeProduct(sku = "chips_small", price = "$0.99", micros = 990_000),
+    fakeProduct(sku = "com.cards.iap.chips.medium", price = "$4.99", micros = 4_990_000),
+    fakeProduct(sku = "chips_medium", price = "$4.99", micros = 4_990_000),
+    fakeProduct(sku = "com.cards.iap.chips.large", price = "$14.99", micros = 14_990_000),
+    fakeProduct(sku = "chips_large", price = "$14.99", micros = 14_990_000),
+).associateBy { it.sku }
+
+private fun fakeProduct(sku: String, price: String, micros: Long): BillingProduct = BillingProduct(
+    sku = sku,
+    displayPrice = price,
+    currencyCode = "USD",
+    priceMicros = micros,
+)

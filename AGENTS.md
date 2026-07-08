@@ -263,9 +263,9 @@ Pick the read-path policy **per repository**, not globally. Consistency vs. avai
 | **Live state** (open WebSocket rooms, online presence, current hand) | **Never cache** — subscribe to the live source. |
 | **Money / accuracy-critical reads** (final wallet balance for a purchase confirmation, hand-history audit) | **Always-network**. A stale chip balance shown next to a "Buy" button is a real bug. |
 
-Bias toward cache-first when in doubt, but never force this pattern onto a resource whose contract demands freshness. When extending a repo, write down which row above it falls in — the read-path-policy bullet in `docs/developer-todo.md` tracks the remaining unconverted reads.
+Bias toward cache-first when in doubt, but never force this pattern onto a resource whose contract demands freshness. When extending a repo, decide which row above it falls in and say so in the PR.
 
-**Write-path / grants** are the counterpart: where a *mutation* (earning XP, granting a prize, spending chips) lives and who's authoritative. Cards is offline-first, so default to **grant locally + reconcile on sync** (idempotent) for valuable state, keep purely-local state client-side, and reserve **server-authoritative grants** (not offline-friendly) for values the client can't compute or that need real trust. The full model + how-to-choose is in [`docs/wiki/state-authority-and-sync.md`](docs/wiki/state-authority-and-sync.md).
+**Write-path / grants** are the counterpart: where a *mutation* (earning XP, granting a prize, spending chips) lives and who's authoritative. Cards is offline-first, so default to **grant locally + reconcile on sync** (idempotent) for valuable state, keep purely-local state client-side, and reserve **server-authoritative grants** (not offline-friendly) for values the client can't compute or that need real trust. (A fuller explainer, `docs/wiki/state-authority-and-sync.md`, was removed in the 2026-06-24 docs restructure — this paragraph is the surviving summary; the deleted doc is in git history if more depth is ever needed.)
 
 ### Boot-time construction: the `AutoInit` marker
 
@@ -421,7 +421,6 @@ Top-edge emoji bubbles attach to both — dialogs via `emoji = dialogEmoji("🎉
 
 | Purpose | Path |
 |---------|------|
-| User model | `libraries/cards/src/.../User.kt` |
 | SEAViewModel | `libraries/flowroutines/src/.../SEAViewModel.kt` |
 | App DI | `apps/compose/src/.../AppComponent.kt` |
 | iOS entry | `apps/ios/iosApp/iOSApp.swift` |

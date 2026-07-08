@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.home_welcome_dialog_chip_use_line
-import cards.libraries.resources.generated.resources.home_welcome_dialog_daily_grant_line
 import cards.libraries.resources.generated.resources.home_welcome_dialog_gift_line
 import cards.libraries.resources.generated.resources.home_welcome_dialog_greeting
 import cards.libraries.resources.generated.resources.home_welcome_dialog_primary_cta
@@ -116,18 +115,6 @@ internal fun WelcomeDialog(
                 text = stringResource(Res.string.home_welcome_dialog_chip_use_line),
                 typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.content,
-                textAlign = TextAlign.Center,
-            )
-
-            Spacer(Modifier.height(Dimension.D500))
-            // Sets expectations for the silent welcome-week daily grant
-            // (see Wallet.WELCOME_WEEK_*). The grant lands every wallet
-            // contact post-signup-day with no in-app dialog, so this is
-            // the *only* place the user learns the daily +500 is a thing.
-            Text(
-                text = stringResource(Res.string.home_welcome_dialog_daily_grant_line),
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
 

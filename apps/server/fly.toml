@@ -18,6 +18,15 @@ primary_region = 'iad'   # US East — closest to Supabase's default `aws-0-us-e
 [build]
   dockerfile = 'Dockerfile'
 
+# Rolling (stop the old machine before the new one serves), NEVER blue-green.
+# Live room/hand state is in-memory and single-writer (see SingleWriterGuard);
+# blue-green runs old + new concurrently, which would either split-brain live
+# tables or — now that the advisory lock is in place — deadlock the deploy when
+# the new machine can't acquire the lock the old one still holds. Rolling avoids
+# both. Keep exactly one machine: `fly scale count 1`.
+[deploy]
+  strategy = 'rolling'
+
 [env]
   SERVER_HOST = '0.0.0.0'
   SERVER_PORT = '8080'

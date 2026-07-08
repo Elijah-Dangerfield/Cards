@@ -18,21 +18,13 @@ import kotlinx.coroutines.flow.StateFlow
  * Billing client costs ~nothing to keep connected and the platform
  * frameworks own teardown on process exit.
  *
- * **Default binding is
- * [com.dangerfield.cards.libraries.billing.impl.DevBillingClient]** while
- * we don't yet have provisioned store listings. In debug builds it
- * delegates to a [com.dangerfield.cards.libraries.billing.impl.FakeBillingClient]
- * seeded with the chip-pack SKUs we plan to ship, so the shop renders
- * its IAP tiles end-to-end. In release builds it falls back to
- * [com.dangerfield.cards.libraries.billing.impl.NoOpBillingClient]
- * behavior — empty product map, `Disconnected` connection state — so
- * release users see only chip-funded offers (the "store listings not
- * provisioned" baseline).
- *
- * To enable real IAP, swap the binding to a `PlayBillingClient` (Android)
- * or `StoreKitBillingClient` (iOS) impl with
- * `@ContributesBinding(replaces = [DevBillingClient::class])` — and
- * delete `DevBillingClient` while you're at it.
+ * Bound per platform: `PlayBillingClient` (Android) and
+ * `StoreKitBillingClient` (iOS). Both select their delegate at
+ * construction — debug builds get a
+ * [com.dangerfield.cards.libraries.billing.impl.FakeBillingClient]
+ * seeded with the chip-pack SKUs so the shop renders its IAP tiles
+ * end-to-end without provisioned listings; release builds get the real
+ * Play Billing / StoreKit 2 client.
  *
  * Errors: every call returns a sealed result type rather than throwing,
  * because callers want to render specific UI for "user cancelled" vs

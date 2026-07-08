@@ -66,5 +66,11 @@ internal enum class WalletEventOutcomeDto {
     @SerialName("Applied") Applied,
     @SerialName("AlreadyApplied") AlreadyApplied,
     @SerialName("InsufficientChips") InsufficientChips,
+
+    /** The server owns this credit (levelup / achievement rewards) and
+     *  mints it itself at the trigger it witnesses; our locally-asserted
+     *  event was ignored. Drop the pending row — the authoritative
+     *  balance carries the server's grant. */
+    @SerialName("RefusedServerOwned") RefusedServerOwned,
     @SerialName("Unknown") Unknown,
 }

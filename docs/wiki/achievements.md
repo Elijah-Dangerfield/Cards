@@ -17,7 +17,7 @@ folds those facts into every achievement counter.
 | **Facts** — the raw record of one finished hand | Per user, append-only | `player_stat_events` ledger; client outbox flushes them to `POST /v1/me/player-stats/sync` |
 | **Progress (counters)** — derived from facts ("7/10 wins vs Jane") | Per user, derived | `AchievementCounters.fold` in shared `:libraries:achievements`; materialized on `user_player_stats.achievement_counters` (JSONB) |
 | **Earned** — which achievements you've unlocked | Per user | Synced to the server (the existing achievements endpoint) |
-| **Unlock + reward** — crossing the threshold → celebration + chips | — | **Client-side, optimistic** (the existing engine). *Not server-validated — see below.* |
+| **Unlock + reward** — crossing the threshold → celebration + chips | — | Unlock detection is **client-side, optimistic** (the existing engine); the chip reward is **server-minted** when the earned id syncs (ENG-9 — see below) |
 
 Because the server derives counters from raw facts (never from a client-sent
 progress number), a reinstall can't reset or clobber progress: the fresh client
@@ -36,7 +36,8 @@ Each hand ─▶ client appends raw FACTS to the local outbox ─▶ batched flu
    folded with the unsynced outbox                   server folds facts → counters,
    (shared AchievementCounters.fold)                 returns the authoritative snapshot
         │                    │
-   progress bars        unlock + chips  ← one source, optimistic, offline-instant
+   progress bars        unlock + optimistic chip display  ← one source, offline-instant
+                        (the real chip credit is server-minted at achievements sync)
    earned badges        ← synced earned set (already cross-device)
 ```
 
@@ -72,14 +73,22 @@ would be retuning a threshold/reward or a kill-switch, which are rare enough not
 to justify a definitions endpoint + data-driven rendering now. The app-config
 mechanism already exists, so this can be added cheaply later if live-ops needs it.
 
-### 2. Server-authoritative unlock + reward granting
+### 2. Server-authoritative unlock *detection*
 
-Deferred. The server *could* re-derive each crossing and grant the chips exactly
-once (anti-cheat, exactly-once across devices) — it already does this for the
-multiplayer achievements. But chips are freemium (no cash-out), so a cheated or
-double-granted achievement reward is in-game inflation, not lost money. For that
-stake it isn't worth moving the bot-mode grant off the existing client-optimistic
-path right now.
+The chip **reward** is no longer client-granted: since ENG-9 the server mints
+achievement chips itself when the earned id lands on
+`POST /v1/me/achievements/sync`, under an idempotent `achievement:<id>` ledger
+key from a server-owned amounts table (`RewardChips`), and the wallet sync
+refuses any client-asserted `levelup.*` / `achievement.*` credit
+(`RefusedServerOwned`). The client's local credit is optimistic display only —
+the ledger takes the server's number.
+
+What stays client-side is unlock **detection**: the server trusts the earned id
+the client reports rather than re-deriving each crossing from the facts ledger.
+A modified client can therefore claim an unlock it didn't cross, but the total
+mintable that way is bounded by the fixed reward table — and chips are freemium
+(no cash-out), so that residual is in-game inflation, not lost money. Server-side
+re-derivation stays deferred until the stakes change.
 
 ## Implementation status (PROG-1 — done)
 

@@ -24,7 +24,7 @@ internal fun AuditView(api: AdminApi, setStatus: (Status) -> Unit) {
         classes("primary")
         onClick {
             scope.launch {
-                runCatching { entries = api.listAudit(flag = null) }
+                Catching { entries = api.listAudit(flag = null) }
                     .onFailure { setStatus(Status(false, it.message ?: "Failed to load audit")) }
             }
         }

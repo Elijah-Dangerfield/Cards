@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.config.ServerConfig
 import com.dangerfield.cards.server.data.WebhookConfigChangeNotifier
 import com.dangerfield.cards.server.domain.ConfigChangeNotifier
 import com.dangerfield.cards.server.db.Database
+import com.dangerfield.cards.server.db.SingleWriterGuard
 import com.dangerfield.cards.server.di.ServerComponent
 import com.dangerfield.cards.server.di.create
 import com.dangerfield.cards.server.plugins.BanGate
@@ -74,6 +75,16 @@ fun Application.module(config: ServerConfig) {
 
     val database = Database.connect(config.database)
     logger.info("Database connected and migrations applied")
+
+    // Single-writer guard: live room/hand state is held in this process's RAM
+    // (GameSessionRegistry / InMemoryRoomService), so exactly one instance may
+    // run. Acquire the Postgres advisory lock before wiring routes — a second
+    // instance crashes here instead of split-braining live tables. The shutdown
+    // hook releases the lock on clean exit (and holds a strong reference so the
+    // guard's connection isn't GC'd, which would drop the lock) for a fast
+    // hand-off on redeploy.
+    val singleWriter = SingleWriterGuard.acquire(config.database)
+    Runtime.getRuntime().addShutdownHook(Thread(singleWriter::release, "single-writer-release"))
 
     val component = ServerComponent::class.create(database, config.supabase, config.billing)
 
@@ -148,17 +159,16 @@ fun Application.installApp(
         walletRoutes(
             repository = component.walletRepository,
             messages = component.userMessageRepository,
-            clock = component.provideClock(),
         )
         billingRoutes(
             catalog = component.productCatalogSource,
             validator = component.receiptValidator,
             billing = component.billingRepository,
         )
-        progressionRoutes(component.progressionRepository)
+        progressionRoutes(component.progressionRepository, component.walletRepository)
         playStyleRoutes(component.playStyleRepository)
         playerStatsRoutes(component.playerStatsRepository)
-        achievementsRoutes(component.achievementRepository)
+        achievementsRoutes(component.achievementRepository, component.walletRepository)
         meRoutes(
             component.profileRepository,
             component.supabaseAdminClient,

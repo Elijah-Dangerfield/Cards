@@ -258,10 +258,10 @@ internal fun PlayerProfileSheet(
 }
 
 /**
- * The seat's most recent action this round, shown on the Player Card with the
- * same chip the felt draws (green check for a check, gold/neutral pill for
- * chips in) plus a worded label. [SeatActionChip] renders nothing for a fold,
- * so the label carries it alone.
+ * The seat's most recent action, shown on the Player Card with the same chip
+ * the felt draws (green check, neutral call/fold pill, gold chips-in pill)
+ * plus a worded label. A fold persists here for the whole hand — it's the
+ * only explanation the greyed seat gets (GAME-17).
  */
 @Composable
 private fun SeatLastMoveBlock(action: PlayerAction) {
@@ -279,12 +279,10 @@ private fun SeatLastMoveBlock(action: PlayerAction) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimension.D300),
         ) {
-            if (action !is PlayerAction.Fold) {
-                SeatActionChip(
-                    action = action,
-                    cutoutColor = AppTheme.colors.surface.color,
-                )
-            }
+            SeatActionChip(
+                action = action,
+                cutoutColor = AppTheme.colors.surface.color,
+            )
             Text(
                 text = action.shortLabel(),
                 typography = AppTheme.typography.Body.B600.SemiBold,

@@ -410,6 +410,7 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.RARE,
         criterion = Criterion.Custom(key = BUSTS_DEALT_MP, target = 1),
         xpReward = AchievementRarity.RARE.defaultXpReward,
+        chipReward = 1_000L,
         mode = AchievementMode.MULTIPLAYER,
     ),
     Achievement(
@@ -420,7 +421,7 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.EPIC,
         criterion = Criterion.Custom(key = BUSTS_DEALT_MP, target = 5),
         xpReward = AchievementRarity.EPIC.defaultXpReward,
-        chipReward = 500L,
+        chipReward = 2_000L,
         mode = AchievementMode.MULTIPLAYER,
     ),
 
@@ -447,6 +448,7 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.RARE,
         criterion = Criterion.Custom(key = HANDS_PLAYED_MP, target = 100),
         xpReward = AchievementRarity.RARE.defaultXpReward,
+        chipReward = 2_500L,
         mode = AchievementMode.MULTIPLAYER,
     ),
     Achievement(
@@ -457,6 +459,7 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.RARE,
         criterion = Criterion.Custom(key = WIN_BY_FOLD_MP, target = 10),
         xpReward = AchievementRarity.RARE.defaultXpReward,
+        chipReward = 1_000L,
         mode = AchievementMode.MULTIPLAYER,
     ),
     Achievement(
@@ -467,6 +470,7 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.RARE,
         criterion = Criterion.Custom(key = DOUBLED_UP_MP, target = 1),
         xpReward = AchievementRarity.RARE.defaultXpReward,
+        chipReward = 1_000L,
         mode = AchievementMode.MULTIPLAYER,
     ),
     Achievement(
@@ -477,7 +481,7 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.EPIC,
         criterion = Criterion.Custom(key = TRIPLED_UP_MP, target = 1),
         xpReward = AchievementRarity.EPIC.defaultXpReward,
-        chipReward = 500L,
+        chipReward = 2_000L,
         mode = AchievementMode.MULTIPLAYER,
     ),
     Achievement(
@@ -488,7 +492,7 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.EPIC,
         criterion = Criterion.Custom(key = MAX_POT_BB_RATIO_MP, target = 25),
         xpReward = AchievementRarity.EPIC.defaultXpReward,
-        chipReward = 1_000L,
+        chipReward = 1_500L,
         isMystery = true,
         mode = AchievementMode.MULTIPLAYER,
     ),

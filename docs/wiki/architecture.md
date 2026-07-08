@@ -6,7 +6,7 @@ The stack as built. For why each call was made, see [`../decisions.md`](../decis
 
 | Layer | Choice |
 |---|---|
-| Auth | Supabase Auth (anonymous sign-in V1; Apple / Google claim in Phase 3.1) |
+| Auth | Supabase Auth — anonymous sign-in on first run; Apple / Google account claim (`ClaimAccountScreen`) is the durable-identity path |
 | Database | Supabase Postgres — direct IPv6 in prod, Session Pooler in local dev |
 | Application server | Ktor 3.x on JVM 17, deployed to Fly.io |
 | Realtime (in-game) | Ktor WebSockets, server-authoritative — **not** Supabase Realtime |
@@ -35,6 +35,14 @@ The stack as built. For why each call was made, see [`../decisions.md`](../decis
 In-hand state lives in a server-side coroutine and is fanned out over **our** WS — Supabase Realtime is not part of the gameplay path.
 
 **Why this split** (and not "everything through our server"): profile / chips / XP / games are state-of-record and must flow through Ktor. Auth JWTs are *capabilities*, not state — letting the client talk to Supabase Auth directly is the standard pattern and saves rebuilding OAuth flows.
+
+## Single-writer hosting model
+
+The server runs as **exactly one instance**, and that's enforced, not just assumed. Live room and hand state lives in this process's RAM (`GameSessionRegistry` holds the game sessions, `InMemoryRoomService` the rooms), with Postgres keeping durable snapshots for restart recovery. Both services rehydrate a room from its snapshot on a lookup miss, so two concurrent instances would each build a *divergent* in-memory copy of the same table — a split-brain that loses bets and desyncs seats.
+
+`SingleWriterGuard` closes that door: at boot, before any routes are wired, the server takes a Postgres **session-level advisory lock** on a fixed slot and holds it for the life of the process. A second instance (a stray `fly scale count 2`, an added region, a blue-green deploy running old and new together) fails the acquire and refuses to boot — it crash-loops loudly instead of quietly corrupting tables. The lock rides its own dedicated JDBC connection, so when the owning process exits (cleanly or by crash) Postgres frees it and the next instance acquires cleanly — exactly the handoff a rolling redeploy needs.
+
+Scaling past one instance (shard rooms by code, move matchmaking queries into Postgres) is deliberately deferred until the load demands it. See [`../decisions.md`](../decisions.md) (2026-07-03).
 
 ## Remote configuration
 

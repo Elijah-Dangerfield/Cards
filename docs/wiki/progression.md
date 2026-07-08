@@ -12,16 +12,16 @@ The progression layer is offline-first by design. The client computes XP / level
 
 The level → reward table is also server-tunable (same `progression.*` config tree). Each level can grant chips, cosmetics, or consumables (XP Boost, Pick-a-Card chest).
 
-**Granting is offline-first.** The client grants each reward optimistically by a stable idempotency key (`levelup_<level>`). On the next progression-sync, the server reconciles: it compares the client's authoritative `total_xp` against its own copy of the same config's level thresholds, and confirms or voids the claimed grants.
+**Chip rewards are server-minted (ENG-9).** The client still detects the trigger offline and applies an optimistic local credit for instant UI, but that credit is display-only until reconcile — the wallet ledger only ever takes the server's number. The server mints level chips on `POST /v1/me/progression/sync` when the authoritative XP total crosses a rewarded level, and achievement chips on `POST /v1/me/achievements/sync` when the earned id is recorded, under idempotent ledger keys (`levelup:<n>` / `achievement:<id>`) from server-owned amount tables (`RewardChips` in the server domain — its KDoc has the full story). A client-asserted wallet-sync credit whose reason starts with `levelup.` / `achievement.` is refused outright (`RefusedServerOwned` — no ledger write); the client drops the refused row and converges on the authoritative balance. The server tables mirror the client's bundled reward tables by hand; if they drift, the server's number wins on the next balance overwrite, so drift is a transient display blip, never a mint.
+
+Non-chip rewards keep the offline-first client grant path:
 
 | Reward type | Grant path |
 |---|---|
-| Chips | Wallet ledger (`ChipsRepository.addChips(idempotencyKey)`); idempotent |
-| Cosmetic | Achievement-reward path (client self-grant + fire-and-forget server grant) |
-| XP Boost | Extend `boostExpiresAt` locally; no inventory row |
+| Chips | Server-minted at progression / achievements sync (`levelup:<n>` / `achievement:<id>` ledger keys); the client's local credit is optimistic display only |
+| Cosmetic | Allowlisted server grant endpoint (`GrantsRoutes`), then inventory re-sync |
+| XP Boost | Stash grant via `XpBoostRepository.grant()`; inactive until the player lights it from their profile |
 | Pick-a-Card chest | Inventory grant with consumable quantity (when chest ships) |
-
-There is **no separate grant mechanism for level-ups** — they reuse the existing wallet / achievement-reward / inventory paths.
 
 ## Achievements
 

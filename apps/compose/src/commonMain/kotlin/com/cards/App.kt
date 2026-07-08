@@ -106,6 +106,7 @@ import com.dangerfield.cards.libraries.ui.system.LocalAccountSetupRetry
 import com.dangerfield.cards.libraries.ui.system.LocalAppState
 import com.dangerfield.cards.libraries.ui.system.LocalBuildInfo
 import com.dangerfield.cards.libraries.ui.system.LocalClock
+import com.dangerfield.cards.libraries.ui.system.LocalDispatcherProvider
 import com.dangerfield.cards.libraries.ui.system.LocalLevelCurve
 import com.dangerfield.cards.system.AppThemeProvider
 import kotlin.reflect.typeOf
@@ -236,6 +237,7 @@ fun App(appComponent: AppComponent) {
         LocalSnackbarHostState provides snackbarHostState,
         LocalLevelCurve provides levelCurve,
         LocalAccountSetupRetry provides accountSetupRetry,
+        LocalDispatcherProvider provides appComponent.dispatcherProvider,
     ) {
         AppThemeProvider {
             Box(

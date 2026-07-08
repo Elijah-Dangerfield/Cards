@@ -3,9 +3,12 @@ package com.dangerfield.cards.features.lobby.impl
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.private_create_card_back_label
@@ -46,7 +50,6 @@ import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
-import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Slider
 import com.dangerfield.cards.libraries.ui.components.Switch
@@ -134,92 +137,99 @@ fun PrivateCreateScreen(
                 .fillMaxSize()
                 .screenContentPadding(paddingValues = padding),
         ) {
-            Spacer(Modifier.height(Dimension.D500))
-
-            Eyebrow(stringResource(Res.string.private_create_room_name_label))
-            Spacer(Modifier.height(Dimension.D300))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(Radii.R700.shape)
-                    .background(AppTheme.colors.surface.color)
-                    .border(1.dp, AppTheme.colors.border.color, Radii.R700.shape)
-                    .padding(horizontal = Dimension.D600, vertical = Dimension.D500),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Dimension.D400),
-            ) {
-                AvatarCircle(name = "You", emoji = "🦊", backgroundColorHex = "#E48A58", size = 28.dp)
-                Text(
-                    text = stringResource(Res.string.private_create_default_room_name),
-                    typography = AppTheme.typography.Label.L500,
-                    color = AppTheme.colors.content,
-                )
-            }
-
-            Spacer(Modifier.height(Dimension.D800))
-            Eyebrow(stringResource(Res.string.private_create_rules_label))
-            Spacer(Modifier.height(Dimension.D300))
             Column(
                 modifier = Modifier
+                    .weight(1f)
                     .fillMaxWidth()
-                    .clip(Radii.R750.shape)
-                    .background(AppTheme.colors.surface.color)
-                    .border(1.dp, AppTheme.colors.border.color, Radii.R750.shape),
+                    .verticalScroll(rememberScrollState()),
             ) {
-                // Buy-in is the one number the host picks; blinds scale off it
-                // automatically. The slider is capped at the host's chip balance.
-                BuyInRow(
-                    buyIn = buyIn,
-                    blindsCaption = stringResource(
-                        Res.string.private_create_blinds_caption,
-                        settings.smallBlind,
-                        settings.bigBlind,
+                Spacer(Modifier.height(Dimension.D500))
+
+                Eyebrow(stringResource(Res.string.private_create_room_name_label))
+                Spacer(Modifier.height(Dimension.D300))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(Radii.R700.shape)
+                        .background(AppTheme.colors.surface.color)
+                        .border(1.dp, AppTheme.colors.border.color, Radii.R700.shape)
+                        .padding(horizontal = Dimension.D600, vertical = Dimension.D500),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Dimension.D400),
+                ) {
+                    AvatarCircle(name = "You", emoji = "🦊", backgroundColorHex = "#E48A58", size = 28.dp)
+                    Text(
+                        text = stringResource(Res.string.private_create_default_room_name),
+                        typography = AppTheme.typography.Label.L500,
+                        color = AppTheme.colors.content,
+                    )
+                }
+
+                Spacer(Modifier.height(Dimension.D800))
+                Eyebrow(stringResource(Res.string.private_create_rules_label))
+                Spacer(Modifier.height(Dimension.D300))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(Radii.R750.shape)
+                        .background(AppTheme.colors.surface.color)
+                        .border(1.dp, AppTheme.colors.border.color, Radii.R750.shape),
+                ) {
+                    // Buy-in is the one number the host picks; blinds scale off it
+                    // automatically. The slider is capped at the host's chip balance.
+                    BuyInRow(
+                        buyIn = buyIn,
+                        blindsCaption = stringResource(
+                            Res.string.private_create_blinds_caption,
+                            settings.smallBlind,
+                            settings.bigBlind,
+                        ),
+                        maxBuyIn = maxBuyIn,
+                        onBuyInChange = { buyIn = it },
+                    )
+                    RuleDivider()
+                    MaxPlayersRow(
+                        value = maxPlayers,
+                        onDecrement = { maxPlayers = (maxPlayers - 1).coerceAtLeast(2) },
+                        onIncrement = { maxPlayers = (maxPlayers + 1).coerceAtMost(9) },
+                    )
+                    RuleDivider()
+                    OpenToAnyoneRow(
+                        checked = openToAnyone,
+                        onCheckedChange = { openToAnyone = it },
+                    )
+                    if (felts.isNotEmpty()) {
+                        RuleDivider()
+                        CosmeticPickerRow(
+                            label = stringResource(Res.string.private_create_felt_label),
+                            choices = felts,
+                            selectedProductId = selectedFelt,
+                            onSelect = { selectedFelt = it },
+                        )
+                    }
+                    if (cardBacks.isNotEmpty()) {
+                        RuleDivider()
+                        CosmeticPickerRow(
+                            label = stringResource(Res.string.private_create_card_back_label),
+                            choices = cardBacks,
+                            selectedProductId = selectedCardBack,
+                            onSelect = { selectedCardBack = it },
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(Dimension.D600))
+                Text(
+                    text = stringResource(
+                        if (openToAnyone) Res.string.private_create_open_note
+                        else Res.string.private_create_invite_note,
                     ),
-                    maxBuyIn = maxBuyIn,
-                    onBuyInChange = { buyIn = it },
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.contentSecondary,
                 )
-                RuleDivider()
-                MaxPlayersRow(
-                    value = maxPlayers,
-                    onDecrement = { maxPlayers = (maxPlayers - 1).coerceAtLeast(2) },
-                    onIncrement = { maxPlayers = (maxPlayers + 1).coerceAtMost(9) },
-                )
-                RuleDivider()
-                OpenToAnyoneRow(
-                    checked = openToAnyone,
-                    onCheckedChange = { openToAnyone = it },
-                )
-                if (felts.isNotEmpty()) {
-                    RuleDivider()
-                    CosmeticPickerRow(
-                        label = stringResource(Res.string.private_create_felt_label),
-                        choices = felts,
-                        selectedProductId = selectedFelt,
-                        onSelect = { selectedFelt = it },
-                    )
-                }
-                if (cardBacks.isNotEmpty()) {
-                    RuleDivider()
-                    CosmeticPickerRow(
-                        label = stringResource(Res.string.private_create_card_back_label),
-                        choices = cardBacks,
-                        selectedProductId = selectedCardBack,
-                        onSelect = { selectedCardBack = it },
-                    )
-                }
             }
 
             Spacer(Modifier.height(Dimension.D600))
-            Text(
-                text = stringResource(
-                    if (openToAnyone) Res.string.private_create_open_note
-                    else Res.string.private_create_invite_note,
-                ),
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.contentSecondary,
-            )
-
-            Spacer(Modifier.weight(1f))
             ButtonPrimary(
                 onClick = { onCreate(maxPlayers, buyIn, openToAnyone, selectedFelt, selectedCardBack) },
                 modifier = Modifier.fillMaxWidth(),
@@ -342,7 +352,15 @@ private fun CosmeticPickerRow(
             modifier = Modifier.padding(horizontal = Dimension.D600),
         )
         Spacer(Modifier.height(Dimension.D300))
-        EdgeToEdgeRow {
+        // A plain LazyRow, not EdgeToEdgeRow: this shelf lives inside the
+        // clipped Rules card, so escaping the screen padding would only get
+        // clipped at the card border and land item 0 flush against it, one
+        // D600 left of the label. Content padding keeps item 0 under the
+        // label while the scroll still bleeds to the card's edges.
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = Dimension.D600),
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
+        ) {
             items(items = choices, key = { it.productId }) { choice ->
                 CosmeticPickerTile(
                     choice = choice,

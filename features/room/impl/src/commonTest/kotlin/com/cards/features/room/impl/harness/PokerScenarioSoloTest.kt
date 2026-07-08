@@ -70,6 +70,30 @@ class PokerScenarioSoloTest : PokerScenarioTest() {
     }
 
     @Test
+    fun earlyBotFold_staysLegible_afterTheStreetAdvances() = runUnitTest {
+        // GAME-17: seat 3 (UTG, 4-handed) folds as the very first action of the
+        // hand. The fold must still read on the seat AND on the tapped player
+        // card after the flop deals — clearing it with the street's pills left
+        // the user staring at grey cards with no explanation (CARDS-8H).
+        val s = soloScenario()
+            .seats(4)
+            .scriptOpponent(1) { calls(); checks() }
+            .scriptOpponent(2) { checks(); checks() }
+            .scriptOpponent(3) { folds() }
+            .start()
+
+        // Preflop: UTG (3) folds, human (button) calls, SB calls, BB checks →
+        // flop deals; SB and BB check the flop, action back on the human.
+        s.iCall()
+
+        assertTable(s.table) {
+            street(BettingRound.Flop)
+            seatFolded(3)
+            seatPill(3, "Folded")
+        }
+    }
+
+    @Test
     fun humanFolds_recordsASessionLoss_overflowSheetReadsOneLoss() = runUnitTest {
         val s = soloScenario().seats(2).start()
 

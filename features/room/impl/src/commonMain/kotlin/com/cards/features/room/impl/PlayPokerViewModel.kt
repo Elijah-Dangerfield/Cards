@@ -764,7 +764,13 @@ class PlayPokerViewModel @Inject constructor(
                         }
                         false
                     }
-                    is GameEvent.StreetAdvanced -> { lastActionBySeat.clear(); true }
+                    is GameEvent.StreetAdvanced -> {
+                        // Street pills reset, but a fold stays legible for the
+                        // rest of the hand — seat cue + player-card "last move"
+                        // must still explain the greyed seat (GAME-17).
+                        lastActionBySeat.entries.removeAll { it.value !is PlayerAction.Fold }
+                        true
+                    }
                     is GameEvent.ActionTaken -> { lastActionBySeat[ev.seatIndex] = ev.action; true }
                     is GameEvent.HandEnded -> { lastWinners = ev; true }
                     else -> false

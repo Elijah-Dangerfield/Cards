@@ -24,4 +24,10 @@ actual object BuildInfo {
 
     actual val buildNumber: Int
         get() = CardsBuildConfig.BUILD_NUMBER
+
+    actual val commitSha: String
+        get() = CardsBuildConfig.COMMIT_SHA
+
+    actual val commitBranch: String
+        get() = CardsBuildConfig.COMMIT_BRANCH
 }

@@ -21,7 +21,8 @@ kotlin {
             // impls route I/O through the injected dispatcher instead of
             // grabbing Dispatchers.IO directly (per AGENTS.md coroutines
             // rule — production code never reaches for raw Dispatchers).
-            implementation(projects.libraries.flowroutines)
+            // `api` because LocalDispatcherProvider exposes the type.
+            api(projects.libraries.flowroutines)
             // TODO honestly the cards library should expose the component that require cards domain
             implementation(projects.libraries.cards)
             // Product catalog model — the Player Card resolves an equipped

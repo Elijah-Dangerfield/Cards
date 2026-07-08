@@ -83,10 +83,9 @@ import kotlin.time.Duration.Companion.days
  *
  * The reconciliation is best-effort: a failed store query leaves the
  * catalog unchanged (fallback prices visible) rather than dropping
- * every IAP pack. With [com.dangerfield.cards.libraries.billing.impl.NoOpBillingClient]
- * bound (the default until store credentials are provisioned), the
- * store returns an empty product map and every IAP pack is hidden —
- * the desired pre-launch state.
+ * every IAP pack. While store listings aren't provisioned, the real
+ * platform clients return an empty product map and every IAP pack is
+ * hidden — the desired pre-launch state.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = ProductsRepository::class)
@@ -332,12 +331,11 @@ internal data class CachedProductCatalog(
  * overlay the store's localized price on the survivors. Pure function
  * for unit-testability — the repo just glues it onto the refresh path.
  *
- * When [storeProducts] is empty AND
- * [com.dangerfield.cards.libraries.billing.impl.NoOpBillingClient] is
- * bound (its `queryProducts` always returns Success(emptyMap)), every
- * IAP pack is filtered out. That's the "store listings not
- * provisioned" baseline and it's intentional — we'd rather hide IAP
- * than show un-buyable products. A real billing impl that reports
+ * When the store query succeeds with an empty [storeProducts] map
+ * (store reachable, no recognized SKUs), every IAP pack is filtered
+ * out. That's the "store listings not provisioned" baseline and it's
+ * intentional — we'd rather hide IAP than show un-buyable products. A
+ * billing client that reports
  * [QueryProductsResult.NotConnected] / [QueryProductsResult.Failed]
  * leaves the cached snapshot in place instead.
  */
