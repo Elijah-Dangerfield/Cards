@@ -51,8 +51,8 @@ import cards.libraries.resources.generated.resources.room_match_over_winner_labe
 import cards.libraries.resources.generated.resources.room_next_hand_countdown_label
 import cards.libraries.resources.generated.resources.room_next_hand_leave_button
 import cards.libraries.resources.generated.resources.room_practice_tier_bots_present
-import cards.libraries.resources.generated.resources.room_showdown_continue_button
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_a11y
+import cards.libraries.resources.generated.resources.room_showdown_continue_button
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_hand_info_a11y
 import cards.libraries.resources.generated.resources.room_waiting_to_be_dealt_in
