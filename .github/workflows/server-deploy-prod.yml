@@ -82,10 +82,13 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy
+        # --local-only: build the image on this runner (16GB, isolated) instead
+        # of Fly's shared remote builder — dev + prod deploying together on one
+        # builder OOM-killed both Gradle builds repeatedly (2026-07-08).
         run: |
           flyctl deploy \
             --config apps/server/fly.prod.toml \
-            --remote-only
+            --local-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_PROD }}
 
