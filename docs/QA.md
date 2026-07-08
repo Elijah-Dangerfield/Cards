@@ -83,6 +83,7 @@ Two variants, both must pass:
 **Expected:**
 - Variant A — same as `ONB-3` (no grant, prior profile loads, onboarding skipped).
 - Variant B — new account: routes through onboarding (PickIdentity then the starter-grant reveal) and lands on Home with the welcome grant, instead of landing cold on Home (AUTH-3).
+- Variant B header (AUTH-17): the post-Google PickIdentity step renders like the guest path — "This is you" title visible, "Step 1 of 3" chip sitting in clear space above the avatar, never floating on top of the content. (Only the back arrow is absent, since the identity is already claimed.)
 
 ---
 

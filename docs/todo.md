@@ -36,7 +36,4 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** the scheduled sweep skips any candidate with IAP spend, XP at level 2+, or an active room seat (verification shared with the install sweep, pinned by a test).
   **Hints:** `apps/server/.../data/DefaultOrphanAnonymousSweep.kt` vs `DefaultOrphanInstallSweep.verifyCandidate`; wiki page "Hard guards" section.
 
-- `[P1]` **AUTH-17 — Fix the onboarding header/step chip on the Google sign-in path.** (from feedback 2026-07-08) Onboarding via Google returns to a broken PickIdentity header: the "step N of N" chip floats on top of the content instead of stacking in the column, and the "This is you" title is missing; the guest/email path renders fine. Repro: delete account → onboard → continue with Google.
-  **Acceptance:** post-OAuth onboarding renders identically to the guest path (title visible, step chip in its normal position).
-  **Hints:** `features/onboarding/impl/.../OnboardingScreen.kt` (`StepProgressChip` overlay ~L218, `PickIdentityStep`), string `onboarding_identity_title`; case `docs/agent/feedback-cases/cdcfbae0290e471a8bde94cc5b58dc1f.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-8R (screenshot on CARDS-8Q)
 
