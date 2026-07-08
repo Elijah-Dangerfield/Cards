@@ -977,3 +977,13 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Full plan:** [docs/plans/platform-game-services.md](./plans/platform-game-services.md) — includes module layout, interface signatures, 6 commit-sized phases, testing strategy, and step-by-step App Store Connect + Play Console runbooks (achievement points budget math, games-ids.xml handling, signing-key credentials, the separate PGS publish step).
 
 **Status:** Backlog. Approved plan, not yet started. Note the store runbooks involve real admin work (≈53 achievements × 512px artwork in both consoles) that can't be automated; code phases all ship dark so they can land anytime.
+
+---
+
+## Real-multiplayer bust — show the losing showdown before the bust dialog (GAME-18 follow-up)
+
+**Idea (deferred from GAME-18, 2026-07-08):** Solo play now sequences the showdown reveal ahead of the bust dialog so a busted player sees the hand that took their stack. The real-chip multiplayer path still pops `MultiplayerBustDialog` straight over the table on a showdown bust — same "never saw the hand I lost to" gap in principle. It is not a copy-paste of the solo fix: the MP bust dialog carries the heads-up rebuy-grace countdown (MP-14), which the server starts the moment the hand settles, so gating it behind a reveal + "Continue" tap would eat seconds of a live rebuy window. The reveal likely needs to render *alongside* the countdown (compact result strip inside the bust dialog, or a reveal with the countdown/Rebuy CTA visible throughout) rather than in front of it. Needs a UX call before engineering.
+
+**Sketch:** see `PlayPokerScreen.kt` (`humanBust && state.isRealMultiplayer` branch) and `MultiplayerBustDialog` in `HandResultDialogs.kt`; the solo sequencing in the sibling branch is the reference for what the reveal must convey.
+
+**Status:** Backlog. Pull with the next pass on the multiplayer bust/rebuy flow.
