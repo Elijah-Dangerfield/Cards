@@ -37,11 +37,14 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 /**
- * Drives the lobby. Three phases:
- *  1. Idle — show the create + join forms.
- *  2. Creating / Joining — the HTTP call is in-flight (block CTAs).
- *  3. InRoom — connected to a room via the WS; render the member list
+ * Drives the seated lobby. Two phases:
+ *  1. Setting up — the create (autoCreate) or join (prefilledCode) HTTP
+ *     call fired on init is in-flight; the screen shows a spinner.
+ *  2. InRoom — connected to a room via the WS; render the member list
  *     + the "Leave" button + the current ConnectionStatus banner.
+ *
+ * There is no standalone create/join form here — the lobby is only ever
+ * entered through the PrivateCreate / PrivateJoin funnels (or a deep link).
  *
  * Transition machinery is intentionally simple: a single `connectionJob`
  * holds the WS subscription. Leave + sign-out + screen-pop all cancel
@@ -70,7 +73,7 @@ class LobbyViewModel(
     private val chips: ChipsRepository,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<LobbyState, LobbyEvent, LobbyAction>(
-    initialStateArg = LobbyState(codeInput = prefilledCode?.uppercase().orEmpty()),
+    initialStateArg = LobbyState(),
 ) {
 
     private val logger = KLog.withTag("LobbyVM")
@@ -121,10 +124,6 @@ class LobbyViewModel(
 
     override suspend fun handleAction(action: LobbyAction) {
         when (action) {
-            is LobbyAction.CodeChanged -> action.updateState {
-                it.copy(codeInput = action.value.uppercase(), error = null)
-            }
-
             LobbyAction.CreateRoom -> action.run {
                 val current = state
                 if (current.isBusy) return@run
@@ -173,30 +172,19 @@ class LobbyViewModel(
             }
 
             LobbyAction.SubmitJoin -> action.run {
-                val current = state
-                if (current.isBusy) return@run
-                val code = current.codeInput.trim()
-                if (code.isBlank()) {
-                    updateState { it.copy(error = LobbyError.JoinBlankCode) }
-                    return@run
-                }
+                if (state.isBusy) return@run
+                val code = prefilledCode?.trim()?.uppercase()
+                if (code.isNullOrBlank()) return@run
                 updateState { it.copy(joining = true, error = null) }
                 when (val outcome = rooms.joinRoom(code)) {
                     is JoinRoomOutcome.Success -> startConnection(outcome.room)
                     JoinRoomOutcome.NotFound -> {
-                        // A prefilled-code join is the PrivateJoin → Lobby funnel:
-                        // the input screen already popped, so showing the error here
-                        // strands the user on a dead spinner. Route them back to the
-                        // code-entry screen to fix and retry (CARDS-28). A non-prefill
-                        // join (no input screen behind us) keeps the inline error.
-                        if (!prefilledCode.isNullOrBlank()) {
-                            updateState { it.copy(joining = false) }
-                            sendEvent(LobbyEvent.JoinCodeRejected(code))
-                        } else {
-                            updateState {
-                                it.copy(joining = false, error = LobbyError.JoinRoomNotFound(code))
-                            }
-                        }
+                        // The join funnel's input screen already popped, so an
+                        // inline error here strands the user on a dead spinner.
+                        // Route them back to the code-entry screen to fix and
+                        // retry (CARDS-28).
+                        updateState { it.copy(joining = false) }
+                        sendEvent(LobbyEvent.JoinCodeRejected(code))
                     }
                     JoinRoomOutcome.Full -> updateState {
                         it.copy(joining = false, error = LobbyError.JoinRoomFull)
@@ -337,13 +325,17 @@ class LobbyViewModel(
                 }
                 val newHost = appliedState.effectiveHostUserId
                 if (previousHost != null && newHost != null && previousHost != newHost) {
+                    // effectiveHostUserId is derived from the same member list,
+                    // so the lookup always resolves.
                     val newHostMember = appliedState.room?.members?.firstOrNull { it.userId == newHost }
-                    sendEvent(
-                        LobbyEvent.HostPromoted(
-                            newHostDisplayName = newHostMember?.displayName ?: "Someone",
-                            isLocalUser = newHost == appliedState.currentUserId,
-                        ),
-                    )
+                    if (newHostMember != null) {
+                        sendEvent(
+                            LobbyEvent.HostPromoted(
+                                newHostDisplayName = newHostMember.displayName,
+                                isLocalUser = newHost == appliedState.currentUserId,
+                            ),
+                        )
+                    }
                 }
             }
 
@@ -492,8 +484,8 @@ class LobbyViewModel(
         }
     }
 
-    private suspend fun resetToIdle(error: LobbyError?) {
-        updateStateInternal {
+    private suspend fun LobbyAction.resetToIdle(error: LobbyError?) {
+        updateState {
             it.copy(
                 room = null,
                 creating = false,
@@ -504,24 +496,11 @@ class LobbyViewModel(
             )
         }
     }
-
-    /**
-     * Convenience for state mutations from outside the action receiver
-     * (e.g. [startConnection]'s collect). Wraps the standard
-     * updateState in a synthetic action so the SEA invariant holds.
-     */
-    private suspend fun updateStateInternal(f: (LobbyState) -> LobbyState) {
-        // Reuse DismissError as a no-op carrier — it never produces
-        // observable side effects beyond an updateState call.
-        val carrier = LobbyAction.DismissError
-        carrier.updateState { f(it) }
-    }
 }
 
 // ---------- MVI types ----------
 
 data class LobbyState(
-    val codeInput: String = "",
     val creating: Boolean = false,
     val joining: Boolean = false,
     val leaving: Boolean = false,
@@ -560,11 +539,6 @@ data class LobbyState(
         } else {
             null
         }
-    val canSubmitJoin: Boolean
-        get() = !isBusy && !isInRoom && codeInput.trim().length in MIN_CODE_LENGTH..MAX_CODE_LENGTH
-    val canCreate: Boolean
-        get() = !isBusy && !isInRoom
-
     /**
      * The user who currently owns the room. Computed as the first
      * *connected* member — this gives implicit auto-promotion when the
@@ -590,13 +564,6 @@ data class LobbyState(
     /** True when this table deals itself (Open to anyone) rather than waiting on the host's Start. */
     val isServerDealtTable: Boolean
         get() = room?.isServerDealt == true
-
-    companion object {
-        // Server uses 6 chars exactly; allow 4..8 client-side so we
-        // don't fight a future format bump.
-        const val MIN_CODE_LENGTH = 4
-        const val MAX_CODE_LENGTH = 8
-    }
 }
 
 sealed interface ConnectionStatus {
@@ -617,8 +584,6 @@ sealed interface LobbyError {
     data object CreateNotSignedIn : LobbyError
     data object CreateNetworkError : LobbyError
     data object CreateUnknownError : LobbyError
-    data object JoinBlankCode : LobbyError
-    data class JoinRoomNotFound(val code: String) : LobbyError
     data object JoinRoomFull : LobbyError
     data class JoinOverBalance(val message: String) : LobbyError
     data object JoinRoomNotAcceptingPlayers : LobbyError
@@ -653,8 +618,8 @@ sealed interface LobbyEvent {
 }
 
 sealed interface LobbyAction {
-    data class CodeChanged(val value: String) : LobbyAction
     data object CreateRoom : LobbyAction
+    /** Internal — fired on init when the route carried a prefilled code to join. */
     data object SubmitJoin : LobbyAction
     data object Leave : LobbyAction
     data object StartGame : LobbyAction

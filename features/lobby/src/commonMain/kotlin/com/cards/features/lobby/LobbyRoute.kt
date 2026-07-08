@@ -5,13 +5,13 @@ import com.dangerfield.cards.libraries.navigation.Route
 import kotlinx.serialization.Serializable
 
 /**
- * Multiplayer lobby entry. From here the user creates a fresh room
- * (gets a code to share) or joins by typing a friend's code. Once
- * connected, shows the live member list and a leave button.
+ * The seated multiplayer lobby. Only ever entered through the
+ * PrivateCreate / PrivateJoin funnels (or an invite deep link) — one of
+ * [prefilledCode] / [autoCreate] is always set. Once connected, shows the
+ * live member list and a leave button.
  *
- * [prefilledCode] supports deep-link "join code XYZ" — the lobby
- * pre-fills the code field and auto-attempts a join on entry. Null =
- * normal lobby entry from the home screen.
+ * [prefilledCode] is the join side: the lobby auto-attempts a join with
+ * this code on entry (invite deep links land here too).
  *
  * [autoCreate] is the create-side counterpart: the Friend Game "Create a
  * room" sheet routes here with it set so the lobby spins up a fresh room
