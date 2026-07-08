@@ -47,11 +47,18 @@ COPY libraries/achievements/ libraries/achievements/
 # ~7GB — which the Fly build container intermittently OOM-kills mid-compile
 # (the symptom: "Build failed with an exception" with an empty cause, because
 # the daemon was SIGKILLed). In-process keeps it to a single JVM.
+#
+# -Dorg.gradle.jvmargs=-Xmx2560m: the repo-wide 4g heap (sized for full KMP
+# builds) doesn't fit Fly's shared remote builder when the dev and prod deploys
+# build side by side — both got OOM-killed on 2026-07-08 ("Gradle build daemon
+# disappeared unexpectedly"). The server-only graph compiles comfortably in
+# 2.5g, and two of these fit the builder at once.
 RUN chmod +x gradlew && \
     ./gradlew :apps:server:installDist \
         --no-daemon \
         --console=plain \
         --build-cache \
+        -Dorg.gradle.jvmargs="-Xmx2560m -Dfile.encoding=UTF-8" \
         -Dcards.serverOnly=true \
         -Dcards.skipGitHooksCheck=true \
         -Pkotlin.compiler.execution.strategy=in-process
