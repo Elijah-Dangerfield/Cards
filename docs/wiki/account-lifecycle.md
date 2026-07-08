@@ -22,14 +22,14 @@ This doc covers how accounts end (deletion, orphan sweep) and the trade-offs we 
 
 Anonymous accounts that get abandoned (user reinstalled, switched devices, or just walked away) are deleted only when we're very sure they're dead. The bar is deliberately high — orphan rows are cheap; deleting someone's progress by accident is indefensible.
 
-**Hard guards (all must hold):** anonymous + never claimed + **zero real-money purchases** + **at or below level 1** (any meaningful XP → preserved, never deleted).
+**Hard guards (all must hold):** anonymous + never claimed + **zero real-money purchases** + **no engagement-grade inventory** + **at or below level 1** (any meaningful XP → preserved, never deleted) + **no active room seat**. Both trigger paths run the same verification — `OrphanCandidateVerifier` in `apps/server/.../data/` — so the guards can't drift between them.
 
 **Two trigger paths:**
 
 1. **Opportunistic** (`DefaultOrphanInstallSweep`, fires on `/v1/me`) — when a device / install id is now bound to a *different* active anon account. The "one in use, one unreachable" case. **Shipped.**
 2. **Scheduled** (`DefaultOrphanAnonymousSweep`, exposed at `POST /v1/admin/sweep-anonymous-users`) — ≥ 1 year fully inactive. **Built but not auto-triggered.** Lives in `post-launch.md` as the "wire automatic invocation" item.
 
-A real-money purchase (`wallet_events.delta > 0` with reason `chip_pack`) is the absolute floor — that gate is enforced by a `LEFT JOIN` in the sweep's pre-filter, so it's structurally impossible to delete a paying account.
+A real-money purchase (a `wallet_events` row with an `iap.`-prefixed reason) is the absolute floor. The install sweep's SQL pre-filter enforces it with a `LEFT JOIN` and the shared verifier re-checks it per candidate, so it's structurally impossible to delete a paying account on either path.
 
 ## Anti-farming: install_id only in V1
 

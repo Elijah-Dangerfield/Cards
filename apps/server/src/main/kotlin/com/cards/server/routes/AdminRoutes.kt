@@ -60,6 +60,7 @@ fun Route.adminRoutes(
                 SweepResponse(
                     candidatesFound = result.candidatesFound,
                     deleted = result.deleted,
+                    skipped = result.skipped,
                     failedToDelete = result.failedToDelete,
                     notConfigured = result.notConfigured,
                 ),
@@ -418,6 +419,7 @@ private fun UserMessage.toAdminDto(): AdminMessageDto = AdminMessageDto(
 private data class SweepResponse(
     val candidatesFound: Int,
     val deleted: Int,
+    val skipped: Int,
     val failedToDelete: Int,
     val notConfigured: Boolean,
 )

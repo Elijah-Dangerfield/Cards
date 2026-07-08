@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.data
 
+import com.dangerfield.cards.server.domain.AcquisitionSource
 import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
@@ -41,7 +42,7 @@ class DefaultOrphanAnonymousSweepTest {
     fun run_deletesAllCandidates_onHappyPath() = runTest {
         val admin = FakeAdmin(candidates = listOf(u1, u2, u3))
         val profiles = FakeProfileRepository()
-        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, fixedClock)
+        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, OrphanSweepFakes.verifier(), fixedClock)
 
         val result = sweep.run(maxInactiveAge = 30.days)
 
@@ -56,10 +57,78 @@ class DefaultOrphanAnonymousSweepTest {
     }
 
     @Test
+    fun run_skipsCandidate_withIapSpend() = runTest {
+        // AUTH-18: the TTL query has no SQL gate, so the shared verifier is
+        // the only thing standing between a paying account and deletion.
+        val admin = FakeAdmin(candidates = listOf(u1, u2))
+        val profiles = FakeProfileRepository()
+        val verifier = OrphanSweepFakes.verifier(iapSpenders = setOf(u1))
+        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, verifier, fixedClock)
+
+        val result = sweep.run(maxInactiveAge = 30.days)
+
+        assertEquals(2, result.candidatesFound)
+        assertEquals(1, result.deleted)
+        assertEquals(1, result.skipped)
+        assertEquals(listOf(u2), admin.deletedAdminUsers)
+        assertEquals(listOf(u2), profiles.deletedProfileUsers)
+    }
+
+    @Test
+    fun run_skipsCandidate_aboveLevel1() = runTest {
+        val admin = FakeAdmin(candidates = listOf(u1, u2))
+        val profiles = FakeProfileRepository()
+        val verifier = OrphanSweepFakes.verifier(xpByUser = mapOf(u1 to 100L, u2 to 99L))
+        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, verifier, fixedClock)
+
+        val result = sweep.run(maxInactiveAge = 30.days)
+
+        assertEquals(1, result.deleted)
+        assertEquals(1, result.skipped)
+        assertEquals(listOf(u2), admin.deletedAdminUsers)
+    }
+
+    @Test
+    fun run_skipsCandidate_withEngagementInventory() = runTest {
+        val admin = FakeAdmin(candidates = listOf(u1, u2))
+        val profiles = FakeProfileRepository()
+        val verifier = OrphanSweepFakes.verifier(
+            owned = mapOf(
+                u1 to OrphanSweepFakes.starterRows() + OrphanSweepFakes.ownedRow(
+                    "felt_blue_velvet",
+                    AcquisitionSource.Purchased,
+                ),
+                u2 to OrphanSweepFakes.starterRows(),
+            ),
+        )
+        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, verifier, fixedClock)
+
+        val result = sweep.run(maxInactiveAge = 30.days)
+
+        assertEquals(1, result.deleted)
+        assertEquals(1, result.skipped)
+        assertEquals(listOf(u2), admin.deletedAdminUsers)
+    }
+
+    @Test
+    fun run_skipsCandidate_seatedInActiveRoom() = runTest {
+        val admin = FakeAdmin(candidates = listOf(u1, u2))
+        val profiles = FakeProfileRepository()
+        val verifier = OrphanSweepFakes.verifier(seatedUsers = setOf(u1))
+        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, verifier, fixedClock)
+
+        val result = sweep.run(maxInactiveAge = 30.days)
+
+        assertEquals(1, result.deleted)
+        assertEquals(1, result.skipped)
+        assertEquals(listOf(u2), admin.deletedAdminUsers)
+    }
+
+    @Test
     fun run_continuesSweep_whenProfileDeleteThrows() = runTest {
         val admin = FakeAdmin(candidates = listOf(u1, u2, u3))
         val profiles = FakeProfileRepository(failOn = setOf(u2))
-        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, fixedClock)
+        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, OrphanSweepFakes.verifier(), fixedClock)
 
         val result = sweep.run(maxInactiveAge = 30.days)
 
@@ -73,7 +142,7 @@ class DefaultOrphanAnonymousSweepTest {
     fun run_propagatesCancellationException_fromProfileDelete() = runTest {
         val admin = FakeAdmin(candidates = listOf(u1, u2, u3))
         val profiles = FakeProfileRepository(cancelOn = setOf(u2))
-        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, fixedClock)
+        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, OrphanSweepFakes.verifier(), fixedClock)
 
         assertFailsWith<CancellationException> {
             sweep.run(maxInactiveAge = 30.days)
@@ -88,7 +157,7 @@ class DefaultOrphanAnonymousSweepTest {
             failureFor = mapOf(u1 to DeleteUserResult.Failure(statusCode = 500, cause = null)),
         )
         val profiles = FakeProfileRepository()
-        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, fixedClock)
+        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, OrphanSweepFakes.verifier(), fixedClock)
 
         val result = sweep.run(maxInactiveAge = 30.days)
 
@@ -105,7 +174,7 @@ class DefaultOrphanAnonymousSweepTest {
             probeResult = DeleteUserResult.NotConfigured,
         )
         val profiles = FakeProfileRepository()
-        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, fixedClock)
+        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, OrphanSweepFakes.verifier(), fixedClock)
 
         val result = sweep.run(maxInactiveAge = 30.days)
 
@@ -120,7 +189,7 @@ class DefaultOrphanAnonymousSweepTest {
     fun run_recordsZeroCandidates_whenSweepFindsNothing() = runTest {
         val admin = FakeAdmin(candidates = emptyList())
         val profiles = FakeProfileRepository()
-        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, fixedClock)
+        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, OrphanSweepFakes.verifier(), fixedClock)
 
         val result = sweep.run(maxInactiveAge = 30.days)
 

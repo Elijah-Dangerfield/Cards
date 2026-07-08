@@ -15,6 +15,8 @@ import me.tatarka.inject.annotations.Inject
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.selectAll
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -80,6 +82,17 @@ class PostgresWalletRepository(
                 .limit(limit)
                 .map { it.toDomain() }
         }
+
+    override suspend fun hasIapSpend(userId: UserId): Boolean = database.transaction {
+        WalletEventsTable
+            .selectAll()
+            .where {
+                (WalletEventsTable.userId eq userId.value) and
+                    (WalletEventsTable.reason like "iap.%")
+            }
+            .limit(1)
+            .any()
+    }
 
     override suspend fun deleteAllForUser(userId: UserId) {
         database.transaction {

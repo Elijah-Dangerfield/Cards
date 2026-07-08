@@ -234,6 +234,19 @@ class PostgresWalletRepositoryTest : DatabaseTest() {
         repo.deleteAllForUser(newUser())
     }
 
+    @Test
+    fun hasIapSpend_matchesOnlyIapPrefixedReasons() = runTest {
+        val repo = newRepo()
+        val payer = newUser()
+        val grinder = newUser()
+        repo.apply(payer, "iap_1", delta = 5_000, reason = "iap.chip_pack_medium")
+        repo.apply(grinder, "grant_1", delta = 500, reason = "achievement_hands_100")
+
+        assertTrue(repo.hasIapSpend(payer))
+        assertFalse(repo.hasIapSpend(grinder))
+        assertFalse(repo.hasIapSpend(newUser()))
+    }
+
     private fun newRepo(clock: Clock = Clock.System): PostgresWalletRepository =
         PostgresWalletRepository(database = database, clock = clock)
 

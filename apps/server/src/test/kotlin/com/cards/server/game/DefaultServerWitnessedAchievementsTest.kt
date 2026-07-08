@@ -472,6 +472,7 @@ class DefaultServerWitnessedAchievementsTest {
         }
 
         override suspend fun recentEvents(userId: UserId, limit: Int): List<WalletEvent> = applied
+        override suspend fun hasIapSpend(userId: UserId): Boolean = false
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }

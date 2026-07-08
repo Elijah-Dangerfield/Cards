@@ -22,9 +22,15 @@ interface OrphanAnonymousSweep {
     suspend fun run(maxInactiveAge: Duration): SweepResult
 }
 
+/**
+ * Summary of a single sweep run. [skipped] counts candidates the TTL query
+ * matched but the shared never-delete-progress verification preserved (IAP
+ * spend, engagement inventory, meaningful XP, or an active room seat).
+ */
 data class SweepResult(
     val candidatesFound: Int,
     val deleted: Int,
     val failedToDelete: Int,
     val notConfigured: Boolean,
+    val skipped: Int = 0,
 )

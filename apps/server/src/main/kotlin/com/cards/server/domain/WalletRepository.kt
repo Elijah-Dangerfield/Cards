@@ -175,6 +175,13 @@ interface WalletRepository {
     suspend fun recentEvents(userId: UserId, limit: Int): List<WalletEvent>
 
     /**
+     * True when the user has any real-money ledger event (`reason` prefixed
+     * `iap.`). The orphan sweeps use this as the absolute deletion floor —
+     * an account that ever paid is never sweep-deleted.
+     */
+    suspend fun hasIapSpend(userId: UserId): Boolean
+
+    /**
      * Wipe wallet + ledger for a user. Called from the `DELETE /v1/me`
      * flow so the account-delete cascade doesn't leave orphan chip rows.
      */

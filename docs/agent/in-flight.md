@@ -2,6 +2,12 @@
 
 Per-commit handoff notes for tonight's cycle. The reviewer reads these when writing the PR, then deletes the file.
 
+## fix(server): apply the never-delete-progress guards to the scheduled anon sweep (AUTH-18)
+
+**Problem:** `DefaultOrphanAnonymousSweep` deleted every anon account older than the TTL unconditionally — the hard guards the wiki promises (no IAP spend, no meaningful XP, no active room seat) only existed on the install sweep, so wiring the sweep cron would have wiped idle-but-progressed accounts.
+**Approach:** Extracted the guards into a shared `OrphanCandidateVerifier` used by both sweeps (single source of truth; returns a `SkipReason` for the log line), and added `WalletRepository.hasIapSpend` (`reason LIKE 'iap.%'`) since the TTL sweep has no SQL gate. `SweepResult` + the admin response gained a `skipped` count. Rejected duplicating the checks per sweep — that drift is exactly what caused this gap. The install sweep now re-checks IAP despite its SQL pre-filter (belt and suspenders on the paying-account floor).
+**Reviewer notes:** All 7 `OrphanCandidateVerifierTest` guards + 4 new anon-sweep skip tests + a real-Postgres `hasIapSpend` test are green (`:apps:server:test`, testcontainers ran). Decision logged in `docs/decisions.md` 2026-07-08. Six test fakes gained a `hasIapSpend = false` override.
+
 ## fix(onboarding): keep the PickIdentity header footprint on the OAuth path (AUTH-17)
 
 **Problem:** Onboarding via Google (identity already claimed) hid the back button and its spacers, collapsing the PickIdentity header 56dp — the host's "step N of N" overlay chip landed on the avatar and the layout read as broken/title-missing (feedback case cdcfbae0290e471a8bde94cc5b58dc1f).
