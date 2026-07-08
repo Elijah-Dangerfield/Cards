@@ -991,14 +991,6 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 
 ---
 
-## Surface the InsufficientChips wallet-sync rejection to the user
-
-**Idea (raised 2026-07-08):** When wallet sync gets `InsufficientChips` back (a locally-applied debit the server refuses because it would dip below zero — typically a cross-device race or a stale optimistic balance), the client drops the event, logs a warning, and silently resets to the authoritative balance (`ChipsRepositoryImpl` sync loop). The money handling is correct; the user just sees their balance jump with no explanation. Showing a short "your balance was corrected" style message needs a UX call — the rejection lands on a background sync path with no owning screen, so it wants the shared snackbar/toast host that the friend-request-rejection and MP-intent-rejection backlog items also wait on.
-
-**Status:** Backlog. Same shape as the other "server said no, client absorbs it silently" entries; pull them together when a global transient-message surface ships.
-
----
-
 ## Prefilled-code join failures (full / network / over-balance) strand the user on the lobby spinner
 
 **Idea (raised 2026-07-08, janitor pass):** CARDS-28 fixed the NotFound case — a bad prefilled code bounces back to the code-entry screen. But every *other* join failure on the PrivateJoin → Lobby funnel (room full, over balance, network error, unknown) still lands as an inline error under the "Setting up your table…" spinner with no retry affordance — the room never arrives, so the user sits on a dead lobby with only the back button. The create side already has the full-screen error + Retry treatment (`LobbyState.createError`, CARDS-2E); join failures deserve an equivalent: either extend the full-screen treatment with a join-flavored retry, or route all join failures back to `PrivateJoinRoute` the way NotFound does (would need the join screen to render errors beyond "room not found"). Needs a small UX call on which shape wins.
