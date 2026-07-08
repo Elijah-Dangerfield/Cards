@@ -3,44 +3,25 @@ package com.dangerfield.cards.features.lobby.impl
 import app.cash.turbine.test
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.ChipsRepository
-import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
-import com.dangerfield.cards.libraries.cards.EquipmentSyncState
-import com.dangerfield.cards.libraries.cards.EquipmentToggleResult
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
-import com.dangerfield.cards.libraries.identity.auth.AuthState
-import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
-import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
-import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
-import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
-import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
-import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
-import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
-import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
-import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
-import com.dangerfield.cards.libraries.rooms.AddBotOutcome
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
-import com.dangerfield.cards.libraries.rooms.GameplayFrame
-import com.dangerfield.cards.libraries.rooms.RemoveBotOutcome
-import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
-import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.rooms.RoomStatus
+import com.dangerfield.cards.libraries.rooms.RoomVisibility
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.job
@@ -55,66 +36,28 @@ import kotlin.test.assertTrue
 
 /**
  * Pins [LobbyViewModel]'s state machine. Heavy use of in-memory fakes
- * for both repos so the assertions stay on the VM's branching, not the
- * underlying transport.
+ * (see LobbyFakes.kt) for both repos so the assertions stay on the VM's
+ * branching, not the underlying transport.
  *
  * What we pin:
- *  - codeInput is uppercased on every keystroke + canSubmitJoin gates
- *    on a sensible length.
  *  - Create → Success flips into the in-room state + starts observing
- *    the WS flow.
- *  - Create → Network error stays on the idle form + surfaces a
- *    friendly message.
- *  - Join → Full surfaces "room is full" without entering the in-room
- *    state.
- *  - Join with blank code surfaces an inline error without touching
- *    the repo.
- *  - Leave returns to Idle and cancels the WS subscription.
- *  - prefilledCode auto-triggers a join on init.
+ *    the WS flow, forwarding the picked/equipped table cosmetics.
+ *  - Create → Network error drives the full-screen retry state.
+ *  - prefilledCode auto-triggers a join on init; failures surface inline
+ *    (or bounce back to the code-entry screen for an unknown code).
+ *  - Leave returns to Idle, cancels the WS subscription, and reconciles
+ *    the wallet for a real-chip room.
+ *  - Host-only actions (StartGame, Add/RemoveBot) no-op for non-hosts.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class LobbyViewModelTest : CoroutineTest() {
-
-    @Test
-    fun codeInput_isUppercased() = runUnitTest {
-        val vm = buildVm()
-        vm.takeAction(LobbyAction.CodeChanged("abc123"))
-        vm.stateFlow.test {
-            // The initial emission may be the default; advance to the
-            // post-keystroke state.
-            var last = awaitItem()
-            while (last.codeInput != "ABC123") last = awaitItem()
-            assertEquals("ABC123", last.codeInput)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun canSubmitJoin_isFalse_forShortCode_andTrue_for6Chars() = runUnitTest {
-        val vm = buildVm()
-        vm.takeAction(LobbyAction.CodeChanged("AB"))
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.codeInput != "AB") last = awaitItem()
-            assertEquals(false, last.canSubmitJoin)
-            cancelAndIgnoreRemainingEvents()
-        }
-
-        vm.takeAction(LobbyAction.CodeChanged("ABC123"))
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.codeInput != "ABC123") last = awaitItem()
-            assertEquals(true, last.canSubmitJoin)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
 
     @Test
     fun create_success_entersInRoomState_andSubscribesToFlow() = runUnitTest {
         val room = sampleRoom()
         val rooms = FakeRoomRepository(
             createOutcome = CreateRoomOutcome.Success(room),
-            observe = { code -> flow { /* never emits — VM should still flip in-room from the seed */ } },
+            observe = { flow { /* never emits — VM should still flip in-room from the seed */ } },
         )
         val vm = buildVm(rooms = rooms)
         vm.takeAction(LobbyAction.CreateRoom)
@@ -140,12 +83,9 @@ class LobbyViewModelTest : CoroutineTest() {
         val vm = buildVm(rooms = rooms, equipment = equipment)
 
         vm.takeAction(LobbyAction.CreateRoom)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.room == null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
+        runCurrent()
 
+        assertTrue(vm.state.isInRoom)
         assertEquals("felt_royal_red", rooms.createdFeltProductId)
         assertEquals("cardback_gold", rooms.createdCardBackProductId)
     }
@@ -156,11 +96,7 @@ class LobbyViewModelTest : CoroutineTest() {
         val vm = buildVm(rooms = rooms, equipment = FakeEquipmentRepository(equipped = emptyList()))
 
         vm.takeAction(LobbyAction.CreateRoom)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.room == null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
+        runCurrent()
 
         assertEquals(null, rooms.createdFeltProductId)
         assertEquals(null, rooms.createdCardBackProductId)
@@ -181,11 +117,7 @@ class LobbyViewModelTest : CoroutineTest() {
         )
 
         vm.takeAction(LobbyAction.CreateRoom)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.room == null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
+        runCurrent()
 
         assertEquals("felt_midnight_blue", rooms.createdFeltProductId)
         assertEquals("cardback_marble", rooms.createdCardBackProductId)
@@ -204,11 +136,7 @@ class LobbyViewModelTest : CoroutineTest() {
         )
 
         vm.takeAction(LobbyAction.CreateRoom)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.room == null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
+        runCurrent()
 
         assertEquals("felt_midnight_blue", rooms.createdFeltProductId)
         assertEquals("cardback_gold", rooms.createdCardBackProductId)
@@ -221,14 +149,10 @@ class LobbyViewModelTest : CoroutineTest() {
         )
         val vm = buildVm(rooms = rooms)
         vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
 
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error == null) last = awaitItem()
-            assertEquals(LobbyError.CreateNetworkError, last.error)
-            assertEquals(null, last.room)
-            cancelAndIgnoreRemainingEvents()
-        }
+        assertEquals(LobbyError.CreateNetworkError, vm.state.error)
+        assertEquals(null, vm.state.room)
     }
 
     @Test
@@ -241,13 +165,9 @@ class LobbyViewModelTest : CoroutineTest() {
         )
         val vm = buildVm(rooms = rooms)
         vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
 
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error == null) last = awaitItem()
-            assertEquals(LobbyError.CreateNotSignedIn, last.error)
-            cancelAndIgnoreRemainingEvents()
-        }
+        assertEquals(LobbyError.CreateNotSignedIn, vm.state.error)
     }
 
     @Test
@@ -255,62 +175,20 @@ class LobbyViewModelTest : CoroutineTest() {
         val rooms = FakeRoomRepository(
             joinOutcome = JoinRoomOutcome.NotSignedIn(RuntimeException("auth")),
         )
-        val vm = buildVm(rooms = rooms)
-        vm.takeAction(LobbyAction.CodeChanged("ABCDEF"))
-        vm.takeAction(LobbyAction.SubmitJoin)
+        val vm = buildVm(rooms = rooms, prefilledCode = "ABCDEF")
+        runCurrent()
 
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error == null) last = awaitItem()
-            assertEquals(LobbyError.JoinNotSignedIn, last.error)
-            cancelAndIgnoreRemainingEvents()
-        }
+        assertEquals(LobbyError.JoinNotSignedIn, vm.state.error)
     }
 
     @Test
     fun join_full_surfacesError_withoutEnteringInRoom() = runUnitTest {
         val rooms = FakeRoomRepository(joinOutcome = JoinRoomOutcome.Full)
-        val vm = buildVm(rooms = rooms)
-        vm.takeAction(LobbyAction.CodeChanged("ABCDEF"))
-        vm.takeAction(LobbyAction.SubmitJoin)
+        val vm = buildVm(rooms = rooms, prefilledCode = "ABCDEF")
+        runCurrent()
 
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error == null) last = awaitItem()
-            assertEquals(LobbyError.JoinRoomFull, last.error)
-            assertEquals(null, last.room)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun join_blankCode_surfacesError_withoutTouchingRepo() = runUnitTest {
-        val rooms = FakeRoomRepository()
-        val vm = buildVm(rooms = rooms)
-        vm.takeAction(LobbyAction.SubmitJoin)
-
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error == null) last = awaitItem()
-            assertEquals(LobbyError.JoinBlankCode, last.error)
-            assertEquals(0, rooms.joinCalls, "blank code short-circuits before the network")
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun join_notFound_surfacesError_withCode() = runUnitTest {
-        val rooms = FakeRoomRepository(joinOutcome = JoinRoomOutcome.NotFound)
-        val vm = buildVm(rooms = rooms)
-        vm.takeAction(LobbyAction.CodeChanged("WXYZ12"))
-        vm.takeAction(LobbyAction.SubmitJoin)
-
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error == null) last = awaitItem()
-            assertEquals(LobbyError.JoinRoomNotFound(code = "WXYZ12"), last.error)
-            cancelAndIgnoreRemainingEvents()
-        }
+        assertEquals(LobbyError.JoinRoomFull, vm.state.error)
+        assertEquals(null, vm.state.room)
     }
 
     @Test
@@ -320,23 +198,20 @@ class LobbyViewModelTest : CoroutineTest() {
         )
         val vm = buildVm(rooms = rooms)
         vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
 
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error == null) last = awaitItem()
-            val err = assertIs<LobbyError.CreateInvalidMaxSeats>(last.error)
-            assertEquals("maxSeats must be 2..9", err.message)
-            cancelAndIgnoreRemainingEvents()
-        }
+        val err = assertIs<LobbyError.CreateInvalidMaxSeats>(vm.state.error)
+        assertEquals("maxSeats must be 2..9", err.message)
     }
 
     @Test
     fun startGame_outsideRoom_noOps() = runUnitTest {
         // StartGame requires canStart (host + ≥2 members + live handle).
-        // From the idle screen none of that holds, so the action should
+        // From the setting-up screen none of that holds, so the action should
         // silently no-op — no error, no event.
         val vm = buildVm()
         vm.takeAction(LobbyAction.StartGame)
+        runCurrent()
 
         assertEquals(null, vm.state.error)
         // The handler returns early so no NavigateToMultiplayer event
@@ -346,23 +221,14 @@ class LobbyViewModelTest : CoroutineTest() {
     @Test
     fun dismissError_clearsTheState() = runUnitTest {
         val rooms = FakeRoomRepository(joinOutcome = JoinRoomOutcome.Full)
-        val vm = buildVm(rooms = rooms)
-        vm.takeAction(LobbyAction.CodeChanged("ABCDEF"))
-        vm.takeAction(LobbyAction.SubmitJoin)
-
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error == null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
+        val vm = buildVm(rooms = rooms, prefilledCode = "ABCDEF")
+        runCurrent()
+        assertEquals(LobbyError.JoinRoomFull, vm.state.error)
 
         vm.takeAction(LobbyAction.DismissError)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error != null) last = awaitItem()
-            assertEquals(null, last.error)
-            cancelAndIgnoreRemainingEvents()
-        }
+        runCurrent()
+
+        assertNull(vm.state.error)
     }
 
     @Test
@@ -370,14 +236,10 @@ class LobbyViewModelTest : CoroutineTest() {
         val room = sampleRoom(code = "PREFIL")
         val rooms = FakeRoomRepository(joinOutcome = JoinRoomOutcome.Success(room, false))
         val vm = buildVm(rooms = rooms, prefilledCode = "prefil")
+        runCurrent()
 
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.room == null) last = awaitItem()
-            assertEquals("PREFIL", last.room?.code)
-            assertEquals(1, rooms.joinCalls)
-            cancelAndIgnoreRemainingEvents()
-        }
+        assertEquals("PREFIL", vm.state.room?.code)
+        assertEquals(1, rooms.joinCalls)
     }
 
     @Test
@@ -386,12 +248,11 @@ class LobbyViewModelTest : CoroutineTest() {
         // to the input screen (event) rather than strand the user on a dead
         // lobby spinner with an inline error (CARDS-28).
         val rooms = FakeRoomRepository(joinOutcome = JoinRoomOutcome.NotFound)
-        val vm = buildVm(rooms = rooms, prefilledCode = "WXYZ12")
+        val vm = buildVm(rooms = rooms, prefilledCode = "wxyz12")
 
         vm.eventFlow.test {
-            val event = awaitItem()
-            val rejected = assertIs<LobbyEvent.JoinCodeRejected>(event)
-            assertEquals("WXYZ12", rejected.code)
+            val rejected = assertIs<LobbyEvent.JoinCodeRejected>(awaitItem())
+            assertEquals("WXYZ12", rejected.code, "the rejected code is normalized to uppercase")
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(null, vm.state.error)
@@ -411,11 +272,8 @@ class LobbyViewModelTest : CoroutineTest() {
         )
         val vm = buildVm(rooms = rooms)
         vm.takeAction(LobbyAction.CreateRoom)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.room == null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
+        runCurrent()
+        assertTrue(vm.state.isInRoom)
 
         vm.takeAction(LobbyAction.Leave)
         runCurrent()
@@ -438,21 +296,14 @@ class LobbyViewModelTest : CoroutineTest() {
         )
         val vm = buildVm(rooms = rooms)
         vm.takeAction(LobbyAction.CreateRoom)
-        // Wait until we're in the room.
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.room == null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
+        runCurrent()
+        assertTrue(vm.state.isInRoom)
 
         vm.takeAction(LobbyAction.Leave)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.room != null) last = awaitItem()
-            assertEquals(null, last.room)
-            assertEquals(ConnectionStatus.Disconnected, last.connectionStatus)
-            cancelAndIgnoreRemainingEvents()
-        }
+        runCurrent()
+
+        assertEquals(null, vm.state.room)
+        assertEquals(ConnectionStatus.Disconnected, vm.state.connectionStatus)
     }
 
     @Test
@@ -474,11 +325,7 @@ class LobbyViewModelTest : CoroutineTest() {
         val chips = FakeChipsRepository()
         val vm = buildVm(rooms = rooms, chips = chips)
         vm.takeAction(LobbyAction.CreateRoom)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.room == null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
+        runCurrent()
 
         vm.takeAction(LobbyAction.Leave)
         runCurrent()
@@ -504,11 +351,7 @@ class LobbyViewModelTest : CoroutineTest() {
         val chips = FakeChipsRepository()
         val vm = buildVm(rooms = rooms, chips = chips)
         vm.takeAction(LobbyAction.CreateRoom)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.room == null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
+        runCurrent()
 
         vm.takeAction(LobbyAction.Leave)
         runCurrent()
@@ -529,11 +372,7 @@ class LobbyViewModelTest : CoroutineTest() {
         val chips = FakeChipsRepository()
         val vm = buildVm(rooms = rooms, chips = chips)
         vm.takeAction(LobbyAction.CreateRoom)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.room == null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
+        runCurrent()
 
         vm.takeAction(LobbyAction.Leave)
         runCurrent()
@@ -550,14 +389,10 @@ class LobbyViewModelTest : CoroutineTest() {
         )
         val vm = buildVm(rooms = rooms)
         vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
 
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error == null) last = awaitItem()
-            assertEquals(LobbyError.CreateNetworkError, last.createError)
-            assertFalse(last.creating, "the spinner is gone once the create error lands")
-            cancelAndIgnoreRemainingEvents()
-        }
+        assertEquals(LobbyError.CreateNetworkError, vm.state.createError)
+        assertFalse(vm.state.creating, "the spinner is gone once the create error lands")
     }
 
     @Test
@@ -574,7 +409,7 @@ class LobbyViewModelTest : CoroutineTest() {
         assertNull(state.createError)
     }
 
-    // ---------- new MP paths (B6 Round 1) ----------
+    // ---------- host-only actions (StartGame / Add/RemoveBot) ----------
 
     @Test
     fun startGame_hostInRoomWith2Members_sendsStartHandFrame_andEmitsNavigateEvent() = runUnitTest {
@@ -643,6 +478,48 @@ class LobbyViewModelTest : CoroutineTest() {
         runCurrent()
 
         assertTrue(rooms.addBotSeatIndexes.isEmpty())
+    }
+
+    @Test
+    fun removeBot_host_callsRepositoryWithBotUserId() = runUnitTest {
+        val rooms = RecordingRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(
+                roomOf(members = listOf(member(LOCAL_USER, "You", isConnected = true))),
+            ),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
+        assertTrue(vm.state.isHost)
+
+        vm.takeAction(LobbyAction.RemoveBot(botUserId = "bot-1"))
+        runCurrent()
+
+        assertEquals(listOf("bot-1"), rooms.removedBotUserIds)
+        assertNull(vm.state.error, "a successful removal surfaces no error")
+    }
+
+    @Test
+    fun removeBot_nonHost_isNoOp() = runUnitTest {
+        val rooms = RecordingRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(
+                roomOf(
+                    members = listOf(
+                        member("peer", "Peer", isConnected = true),
+                        member(LOCAL_USER, "You", isConnected = true, seatIndex = 1),
+                    ),
+                ),
+            ),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
+        assertFalse(vm.state.isHost)
+
+        vm.takeAction(LobbyAction.RemoveBot(botUserId = "bot-1"))
+        runCurrent()
+
+        assertTrue(rooms.removedBotUserIds.isEmpty())
     }
 
     @Test
@@ -972,7 +849,7 @@ class LobbyViewModelTest : CoroutineTest() {
         val state = LobbyState(
             currentUserId = "a",
             room = roomOf(
-                visibility = com.dangerfield.cards.libraries.rooms.RoomVisibility.Open,
+                visibility = RoomVisibility.Open,
                 members = listOf(
                     member("a", "A", isConnected = true),
                     member("b", "B", isConnected = true, seatIndex = 1),
@@ -993,7 +870,7 @@ class LobbyViewModelTest : CoroutineTest() {
             LobbyAction.ConnectionUpdated(
                 RoomConnection.Connected(
                     roomOf(
-                        visibility = com.dangerfield.cards.libraries.rooms.RoomVisibility.Open,
+                        visibility = RoomVisibility.Open,
                         members = listOf(
                             member(LOCAL_USER, "You", isConnected = true),
                             member("peer", "Peer", isConnected = true, seatIndex = 1),
@@ -1078,20 +955,15 @@ class LobbyViewModelTest : CoroutineTest() {
         )
         val vm = buildVm(rooms = rooms)
         vm.takeAction(LobbyAction.CreateRoom)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.room == null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
+        runCurrent()
+        assertTrue(vm.state.isInRoom)
 
         vm.takeAction(LobbyAction.Leave)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.room != null) last = awaitItem()
-            assertEquals(LobbyError.LeaveServerNotNotified, last.error)
-            assertEquals(ConnectionStatus.Disconnected, last.connectionStatus)
-            cancelAndIgnoreRemainingEvents()
-        }
+        runCurrent()
+
+        assertNull(vm.state.room)
+        assertEquals(LobbyError.LeaveServerNotNotified, vm.state.error)
+        assertEquals(ConnectionStatus.Disconnected, vm.state.connectionStatus)
     }
 
     // ---------- scaffolding ----------
@@ -1114,7 +986,7 @@ class LobbyViewModelTest : CoroutineTest() {
     private fun buildVm(
         rooms: RoomRepository = FakeRoomRepository(),
         identity: AuthRepository = AlwaysSignedInAuth(),
-        profile: com.dangerfield.cards.libraries.identity.profile.ProfileRepository = NoProfileRepository,
+        profile: ProfileRepository = NoProfileRepository,
         prefilledCode: String? = null,
         autoCreate: Boolean = false,
         maxSeats: Int? = null,
@@ -1140,20 +1012,7 @@ class LobbyViewModelTest : CoroutineTest() {
         appScope = AppCoroutineScope(dispatchers),
     )
 
-    /** Lobby tests don't exercise the avatar; never emits a profile. */
-    private object NoProfileRepository : com.dangerfield.cards.libraries.identity.profile.ProfileRepository {
-        override suspend fun current() = error("not used")
-        override fun observe() = kotlinx.coroutines.flow.emptyFlow<com.dangerfield.cards.libraries.identity.profile.Profile>()
-        override suspend fun update(
-            displayName: String?,
-            avatarEmoji: String?,
-            avatarBackgroundColor: String?,
-            clearAvatarBackgroundColor: Boolean,
-        ) = error("not used")
-        override suspend fun fetchAvatarPack() = error("not used")
-    }
-
-    private val LOCAL_USER = "11111111-1111-1111-1111-111111111111"
+    private val LOCAL_USER = LOBBY_TEST_LOCAL_USER
 
     private fun member(
         userId: String,
@@ -1171,8 +1030,7 @@ class LobbyViewModelTest : CoroutineTest() {
     private fun roomOf(
         code: String = "ABC123",
         members: List<RoomMember>,
-        visibility: com.dangerfield.cards.libraries.rooms.RoomVisibility =
-            com.dangerfield.cards.libraries.rooms.RoomVisibility.Private,
+        visibility: RoomVisibility = RoomVisibility.Private,
     ) = Room(
         code = code,
         hostUserId = members.first().userId,
@@ -1201,63 +1059,15 @@ class LobbyViewModelTest : CoroutineTest() {
         bigBlind = bigBlind,
     )
 
-    /**
-     * [RoomRepository] whose [connect] hands back a [RecordingHandle] so
-     * the StartGame tests can assert the outbound [ClientFrame.StartHand]
-     * actually reached the socket.
-     */
-    private class RecordingRoomRepository(
-        private val createOutcome: CreateRoomOutcome,
-        val handle: RecordingHandle = RecordingHandle(),
-    ) : RoomRepository {
-        val addBotSeatIndexes: MutableList<Int?> = mutableListOf()
-        override suspend fun createRoom(
-            maxSeats: Int?,
-            buyIn: Long?,
-            open: Boolean,
-            feltProductId: String?,
-            cardBackProductId: String?,
-        ): CreateRoomOutcome = createOutcome
-        override suspend fun joinRoom(code: String): JoinRoomOutcome =
-            JoinRoomOutcome.NetworkError(RuntimeException("not used"))
-        override suspend fun leaveRoom(code: String): LeaveRoomOutcome = LeaveRoomOutcome.Success()
-        override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome {
-            addBotSeatIndexes += seatIndex
-            return AddBotOutcome.Success(
-                Room(
-                    code = code,
-                    hostUserId = "host",
-                    createdAtEpochMs = 0,
-                    maxSeats = 4,
-                    status = RoomStatus.Lobby,
-                    members = emptyList(),
-                ),
-            )
-        }
-        override suspend fun removeBot(code: String, botUserId: String): RemoveBotOutcome =
-            RemoveBotOutcome.Success
-        override suspend fun getActiveRooms(): GetActiveRoomsOutcome =
-            GetActiveRoomsOutcome.Success(emptyList())
-        override fun observeActiveRooms(): Flow<List<Room>> = flow { }
-        override fun connect(code: String): RoomConnectionHandle = handle
-    }
-
-    private class RecordingHandle : RoomConnectionHandle {
-        val sent: MutableList<ClientFrame> = mutableListOf()
-        override val connection: Flow<RoomConnection> = flow { }
-        override val gameplayFrames: Flow<GameplayFrame> = flow { }
-        override suspend fun send(frame: ClientFrame) { sent += frame }
-    }
-
     private fun sampleRoom(code: String = "ABC123") = Room(
         code = code,
-        hostUserId = "11111111-1111-1111-1111-111111111111",
+        hostUserId = LOCAL_USER,
         createdAtEpochMs = 1_700_000_000_000,
         maxSeats = 4,
         status = RoomStatus.Lobby,
         members = listOf(
             RoomMember(
-                userId = "11111111-1111-1111-1111-111111111111",
+                userId = LOCAL_USER,
                 displayName = "Host",
                 seatIndex = 0,
                 joinedAtEpochMs = 1_700_000_000_000,
@@ -1265,177 +1075,4 @@ class LobbyViewModelTest : CoroutineTest() {
             ),
         ),
     )
-
-    /**
-     * Variant of [FakeRoomRepository] that lets a test gate `leaveRoom`
-     * on an external [CompletableDeferred] and observe whether the call
-     * actually completed (vs. being cancelled mid-flight).
-     */
-    private class ControllableRoomRepository(
-        private val createOutcome: CreateRoomOutcome,
-        private val leaveGate: CompletableDeferred<LeaveRoomOutcome>,
-    ) : RoomRepository {
-        var leaveStarted: Int = 0
-            private set
-        var leaveFinished: Int = 0
-            private set
-
-        override suspend fun createRoom(
-            maxSeats: Int?,
-            buyIn: Long?,
-            open: Boolean,
-            feltProductId: String?,
-            cardBackProductId: String?,
-        ): CreateRoomOutcome = createOutcome
-        override suspend fun joinRoom(code: String): JoinRoomOutcome =
-            JoinRoomOutcome.NetworkError(RuntimeException("not used"))
-        override suspend fun leaveRoom(code: String): LeaveRoomOutcome {
-            leaveStarted += 1
-            val outcome = leaveGate.await()
-            leaveFinished += 1
-            return outcome
-        }
-        override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome = error("unused")
-        override suspend fun removeBot(code: String, botUserId: String): RemoveBotOutcome = error("unused")
-        override suspend fun getActiveRooms(): GetActiveRoomsOutcome =
-            GetActiveRoomsOutcome.Success(emptyList())
-        override fun observeActiveRooms(): Flow<List<Room>> = flow { }
-        override fun connect(code: String): RoomConnectionHandle = EmptyHandle
-    }
-
-    private class FakeRoomRepository(
-        private val createOutcome: CreateRoomOutcome = CreateRoomOutcome.NetworkError(RuntimeException("simulated network error")),
-        private val joinOutcome: JoinRoomOutcome = JoinRoomOutcome.NetworkError(RuntimeException("simulated network error")),
-        private val leaveOutcome: LeaveRoomOutcome = LeaveRoomOutcome.Success(),
-        private val activeRoomsOutcome: GetActiveRoomsOutcome = GetActiveRoomsOutcome.Success(emptyList()),
-        private val observe: (String) -> Flow<RoomConnection> = { flow {} },
-    ) : RoomRepository {
-        var joinCalls: Int = 0
-            private set
-        val addBotSeatIndexes: MutableList<Int?> = mutableListOf()
-        var createdFeltProductId: String? = null
-            private set
-        var createdCardBackProductId: String? = null
-            private set
-        override suspend fun createRoom(
-            maxSeats: Int?,
-            buyIn: Long?,
-            open: Boolean,
-            feltProductId: String?,
-            cardBackProductId: String?,
-        ): CreateRoomOutcome {
-            createdFeltProductId = feltProductId
-            createdCardBackProductId = cardBackProductId
-            return createOutcome
-        }
-        override suspend fun joinRoom(code: String): JoinRoomOutcome {
-            joinCalls += 1
-            return joinOutcome
-        }
-        override suspend fun leaveRoom(code: String): LeaveRoomOutcome = leaveOutcome
-        override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome {
-            addBotSeatIndexes += seatIndex
-            return AddBotOutcome.NetworkError(RuntimeException("not used"))
-        }
-        override suspend fun removeBot(code: String, botUserId: String): RemoveBotOutcome =
-            RemoveBotOutcome.Success
-        override suspend fun getActiveRooms(): GetActiveRoomsOutcome = activeRoomsOutcome
-        override fun observeActiveRooms(): Flow<List<Room>> = flow { }
-        override fun connect(code: String): RoomConnectionHandle = object : RoomConnectionHandle {
-            override val connection: Flow<RoomConnection> = observe(code)
-            override val gameplayFrames: Flow<GameplayFrame> = flow { }
-            override suspend fun send(frame: ClientFrame) = Unit
-        }
-    }
-
-    private object EmptyHandle : RoomConnectionHandle {
-        override val connection: Flow<RoomConnection> = flow { }
-        override val gameplayFrames: Flow<GameplayFrame> = flow { }
-        override suspend fun send(frame: ClientFrame) = Unit
-    }
-
-    /**
-     * Equipment fake seeded with whatever the host has "equipped" — newest-first,
-     * mirroring the real DAO order. Only [observeEquipped] is exercised by the
-     * create path; the rest are no-ops.
-     */
-    private class FakeEquipmentRepository(
-        equipped: List<String> = emptyList(),
-    ) : EquipmentRepository {
-        private val state = MutableStateFlow(
-            equipped.mapIndexed { index, productId ->
-                EquipmentEntry(
-                    productId = productId,
-                    isEquipped = true,
-                    syncState = EquipmentSyncState.Synced,
-                    updatedAtEpochMs = (equipped.size - index).toLong(),
-                )
-            },
-        )
-        override fun observeEquipped(): Flow<List<EquipmentEntry>> = state.asStateFlow()
-        override suspend fun getAll(): List<EquipmentEntry> = state.value
-        override suspend fun equip(productId: String): EquipmentToggleResult = EquipmentToggleResult.NoChange
-        override suspend fun unequip(productId: String): EquipmentToggleResult = EquipmentToggleResult.NoChange
-        override suspend fun applyServerSnapshot(authoritative: List<EquipmentEntry>) = Unit
-        override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>): List<String> = emptyList()
-        override suspend fun deleteAll() = Unit
-        override suspend fun sync(): Result<Unit> = Result.success(Unit)
-    }
-
-    /**
-     * Records [sync] calls so MP-27 can assert the lobby Leave re-pulls the
-     * wallet for a real-chip room. Balance reads are inert — the lobby fix
-     * only needs the sync to fire; the celebratory credit confirmation lives
-     * on the play screen.
-     */
-    private class FakeChipsRepository : ChipsRepository {
-        var syncCalls: Int = 0
-            private set
-        var lastSetBalance: Long? = null
-            private set
-        private val balance = MutableStateFlow<Long?>(1000L)
-        override fun observeBalance(): Flow<Long?> = balance.asStateFlow()
-        override suspend fun getBalance(): Long? = balance.value
-        override val walletJustCreated: kotlinx.coroutines.flow.StateFlow<Boolean> =
-            MutableStateFlow(false).asStateFlow()
-        override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
-        override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
-        override suspend fun setBalance(authoritativeBalance: Long) {
-            lastSetBalance = authoritativeBalance
-            balance.value = authoritativeBalance
-        }
-        override suspend fun deleteAll() = Unit
-        override suspend fun sync(): Result<Unit> {
-            syncCalls += 1
-            return Result.success(Unit)
-        }
-    }
-
-    private class AlwaysSignedInAuth : AuthRepository {
-        private val authenticated: AuthState = AuthState.Authenticated(
-            userId = "11111111-1111-1111-1111-111111111111",
-            isAnonymous = true,
-            email = null,
-        )
-        private val flow = MutableStateFlow<AuthState>(authenticated).asStateFlow()
-
-        override suspend fun current(): AuthState = authenticated
-        override fun observe(): kotlinx.coroutines.flow.Flow<AuthState> = flow
-        override suspend fun retry(): AuthState = authenticated
-        override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
-            SignInOutcome.Success
-        override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome =
-            SignUpOutcome.VerificationRequired(email)
-        override suspend fun refreshSession(): RefreshOutcome = RefreshOutcome.EmailConfirmed
-        override suspend fun resendVerificationEmail(email: String): ResendOutcome = ResendOutcome.Sent
-        override suspend fun sendPasswordResetEmail(email: String): SendResetOutcome = SendResetOutcome.Sent
-        override suspend fun signOut() { /* no-op */ }
-        override suspend fun deleteAccount(): DeleteAccountOutcome = DeleteAccountOutcome.Success
-        override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =
-            LinkIdentityOutcome.Success
-        override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome =
-            LinkEmailIdentityOutcome.VerificationRequired(email)
-        override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome =
-            SignInOutcome.Success
-    }
 }
