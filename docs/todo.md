@@ -23,3 +23,21 @@ The live punch list of actionable engineering work. Every item is something a wo
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
 
+
+## PROG
+
+- `[P2]` **PROG-10 — Stabilize the earned-achievements horizontal pager sizing.** (owner request 2026-07-08) The horizontally scrollable achievements shown after bot games is jumpy while scrolling because the containers differ in size — make them a uniform size or animate the container size change.
+  **Acceptance:** swiping across earned achievements doesn't jump or abruptly resize between pages.
+  **Hints:** likely `features/room/impl/.../ui/AchievementCelebrationSheet.kt` (HorizontalPager over `earned`); https://elijah-dangerfield.sentry.io/issues/CARDS-8T
+
+## AUTH
+
+- `[P1]` **AUTH-17 — Fix the onboarding header/step chip on the Google sign-in path.** (from feedback 2026-07-08) Onboarding via Google returns to a broken PickIdentity header: the "step N of N" chip floats on top of the content instead of stacking in the column, and the "This is you" title is missing; the guest/email path renders fine. Repro: delete account → onboard → continue with Google.
+  **Acceptance:** post-OAuth onboarding renders identically to the guest path (title visible, step chip in its normal position).
+  **Hints:** `features/onboarding/impl/.../OnboardingScreen.kt` (`StepProgressChip` overlay ~L218, `PickIdentityStep`), string `onboarding_identity_title`; case `docs/agent/feedback-cases/cdcfbae0290e471a8bde94cc5b58dc1f.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-8R (screenshot on CARDS-8Q)
+
+## GAME
+
+- `[P1]` **GAME-18 — Show the showdown reveal when the human busts in solo play.** (from feedback 2026-07-07) When the human's stack hits 0 at showdown against bots, `BustDialog` replaces `ShowdownDialog` entirely, so the reporter never saw the hand they lost to — the card reveal plays underneath the bust dialog's scrim.
+  **Acceptance:** after busting at showdown, the player sees the board and winning/losing hole cards (reveal sequenced before the bust dialog, or the result surfaced inside it) before choosing "deal me in".
+  **Hints:** `features/room/impl/.../ui/HandResultDialogs.kt` (~L239 "Shown instead of ShowdownDialog"); case `docs/agent/feedback-cases/53e19e0438c84ebda67ad88133e8f79d.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-8P
