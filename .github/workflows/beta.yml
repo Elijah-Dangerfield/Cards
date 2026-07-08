@@ -259,9 +259,12 @@ jobs:
           mv "$tmpfile" Config.xcconfig
 
       - name: Pre-build KMP release framework
-        # Slim daemon: the K/N compiler (kotlin.native.jvmArgs, 5g) runs as a
-        # separate JVM next to the daemon; the runner has ~7GB total.
-        run: ./gradlew :apps:compose:linkReleaseFrameworkIosArm64 -Dorg.gradle.jvmargs=-Xmx2g
+        # Generous heaps on purpose: macOS runners swap instead of OOM-killing,
+        # so the only hard limit is -Xmx itself. 2g daemon OOM'd during compile
+        # orchestration; 4g daemon + 3g default K/N heap OOM'd in the release
+        # LTO pass (both 2026-07-08). 6g daemon covers whichever process hosts
+        # the K/N compile; kotlin.native.jvmArgs (5g) covers it out-of-process.
+        run: ./gradlew :apps:compose:linkReleaseFrameworkIosArm64 -Dorg.gradle.jvmargs=-Xmx6g "-Pkotlin.daemon.jvmargs=-Xmx5g"
 
       - name: Build + upload to TestFlight internal
         working-directory: apps/ios

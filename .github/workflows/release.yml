@@ -493,9 +493,10 @@ jobs:
         # are populated by the time xcodebuild delegates to `./gradlew`, so
         # the Xcode build phase finds the framework UP-TO-DATE instead of
         # re-linking (the longest step on a cold run).
-        # Slim daemon: the K/N compiler (kotlin.native.jvmArgs, 5g) runs as a
-        # separate JVM next to the daemon; the runner has ~7GB total.
-        run: ./gradlew :apps:compose:linkReleaseFrameworkIosArm64 -Dorg.gradle.jvmargs=-Xmx2g
+        # Generous heaps on purpose: macOS runners swap instead of OOM-killing,
+        # so the only hard limit is -Xmx itself. See beta.yml's identical step
+        # for the 2026-07-08 OOM history that sized these.
+        run: ./gradlew :apps:compose:linkReleaseFrameworkIosArm64 -Dorg.gradle.jvmargs=-Xmx6g "-Pkotlin.daemon.jvmargs=-Xmx5g"
 
       - name: Build + release iOS
         working-directory: apps/ios
