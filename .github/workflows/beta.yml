@@ -259,7 +259,9 @@ jobs:
           mv "$tmpfile" Config.xcconfig
 
       - name: Pre-build KMP release framework
-        run: ./gradlew :apps:compose:linkReleaseFrameworkIosArm64
+        # Slim daemon: the K/N compiler (kotlin.native.jvmArgs, 5g) runs as a
+        # separate JVM next to the daemon; the runner has ~7GB total.
+        run: ./gradlew :apps:compose:linkReleaseFrameworkIosArm64 -Dorg.gradle.jvmargs=-Xmx2g
 
       - name: Build + upload to TestFlight internal
         working-directory: apps/ios
