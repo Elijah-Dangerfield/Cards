@@ -295,6 +295,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - On Device B, enter a 6-character code that is not a real room and tap Join. A "room not found" error appears in place under the code field; the screen does **not** move, navigate, or recompose — the input + keyboard stay put. Editing a character clears the error. (Covers todo ROOM-5.)
 - Create the room on Device A with a non-zero buy-in. After Device B joins, both devices' lobby show the real buy-in (and matching blinds) — never $0 — and it stays correct as the second seat fills in. (Covers MP-24.)
 - On a fresh account (10,000-chip grant), the create-table screen opens with the buy-in pre-set to 1,000 (blinds 5 / 10), not 5,000 — a sensible ~10% of the bankroll for a first-time host. The slider still drags up to the full balance. (Covers ROOM-13.)
+- On the create-table screen, the avatar next to the room name is your own profile avatar (the emoji + color picked in Edit Profile), not a placeholder fox.
 
 ---
 
