@@ -897,6 +897,8 @@
     <string name="room_showdown_pot_amount">Pot %1$s</string>
     <string name="room_showdown_board_label">Board</string>
     <string name="room_showdown_next_hand_button">Next hand</string>
+    <!-- CTA when the showdown reveal precedes the bust dialog: continuing shows the bust dialog, not the next hand. -->
+    <string name="room_showdown_continue_button">Continue</string>
     <string name="room_showdown_row_you">You</string>
     <string name="room_showdown_row_no_hand">-</string>
     <string name="room_showdown_row_win_amount">+%1$s</string>

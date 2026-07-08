@@ -142,6 +142,60 @@ class PlayPokerScreenTest {
     }
 
     @Test
+    fun soloBustAtShowdown_showsRevealBeforeBustDialog() = runComposeUiTest {
+        // GAME-18: the human busts at showdown against bots. The showdown
+        // reveal must show first — the bust dialog used to replace it
+        // entirely, hiding the hand the player lost to.
+        renderScreen(
+            PlayPokerState(
+                table = activeTable(
+                    isHumanTurn = false,
+                    actingSeatIndex = null,
+                    street = BettingRound.Showdown,
+                    communityCards = board(),
+                    handResult = HandResultView(
+                        winners = listOf(
+                            HandWinner(seatIndex = 1, amount = 2_020, handRank = null, byFold = false),
+                        ),
+                        board = board(),
+                    ),
+                    humanStack = 0,
+                ),
+            ),
+        )
+        onNodeWithText("Showdown").assertIsDisplayed()
+        onNodeWithText("You went bust").assertDoesNotExist()
+
+        onNodeWithText("Continue").performClick()
+        waitForIdle()
+        onNodeWithText("You went bust").assertIsDisplayed()
+    }
+
+    @Test
+    fun soloBustByFold_skipsRevealAndShowsBustDialog() = runComposeUiTest {
+        // No showdown happened (everyone folded), so there's nothing to
+        // reveal — the bust dialog shows straight away.
+        renderScreen(
+            PlayPokerState(
+                table = activeTable(
+                    isHumanTurn = false,
+                    actingSeatIndex = null,
+                    street = BettingRound.Preflop,
+                    communityCards = emptyList(),
+                    handResult = HandResultView(
+                        winners = listOf(
+                            HandWinner(seatIndex = 1, amount = 30, handRank = null, byFold = true),
+                        ),
+                        board = emptyList(),
+                    ),
+                    humanStack = 0,
+                ),
+            ),
+        )
+        onNodeWithText("You went bust").assertIsDisplayed()
+    }
+
+    @Test
     fun connectionLost_showsBanner() = runComposeUiTest {
         renderScreen(
             PlayPokerState(
@@ -305,13 +359,14 @@ class PlayPokerScreenTest {
             handResult: HandResultView? = null,
             practiceTierBotsPresent: Boolean = false,
             waitingToBeDealtIn: Boolean = false,
+            humanStack: Long = 980,
         ): TableUiState.Active = TableUiState.Active(
             street = street,
             communityCards = communityCards,
             pot = 30,
             potCommittedThisStreet = 0,
             seats = listOf(
-                humanSeat(isActing = actingSeatIndex == HUMAN_SEAT),
+                humanSeat(stack = humanStack, isActing = actingSeatIndex == HUMAN_SEAT),
                 botSeat(index = 1, name = "David", isActing = actingSeatIndex == 1),
                 botSeat(index = 2, name = "Jane", isActing = actingSeatIndex == 2),
             ),

@@ -40,8 +40,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** post-OAuth onboarding renders identically to the guest path (title visible, step chip in its normal position).
   **Hints:** `features/onboarding/impl/.../OnboardingScreen.kt` (`StepProgressChip` overlay ~L218, `PickIdentityStep`), string `onboarding_identity_title`; case `docs/agent/feedback-cases/cdcfbae0290e471a8bde94cc5b58dc1f.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-8R (screenshot on CARDS-8Q)
 
-## GAME
-
-- `[P1]` **GAME-18 — Show the showdown reveal when the human busts in solo play.** (from feedback 2026-07-07) When the human's stack hits 0 at showdown against bots, `BustDialog` replaces `ShowdownDialog` entirely, so the reporter never saw the hand they lost to — the card reveal plays underneath the bust dialog's scrim.
-  **Acceptance:** after busting at showdown, the player sees the board and winning/losing hole cards (reveal sequenced before the bust dialog, or the result surfaced inside it) before choosing "deal me in".
-  **Hints:** `features/room/impl/.../ui/HandResultDialogs.kt` (~L239 "Shown instead of ShowdownDialog"); case `docs/agent/feedback-cases/53e19e0438c84ebda67ad88133e8f79d.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-8P

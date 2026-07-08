@@ -516,6 +516,18 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** The opening bot action never lands before the deal settles (~1s grace after the cards fly in). The fold announces itself: a FOLD pill pops in under the greyed avatar and stays for the rest of the hand, through showdown. The player card's "Last Move" row reads "Folded" — including after later streets have dealt. Never just an unexplained pair of grey cards. (Covers todo GAME-17.)
 
+---
+
+### `GAME-18` ⚠️ 📱 Busting at showdown shows the hand you lost to before the bust dialog
+
+**State:** any account in a solo bot game.
+
+1. Shove all-in and lose at showdown so your stack hits 0.
+2. Watch what appears when the hand resolves.
+3. Tap "Continue" on the showdown summary.
+
+**Expected:** The full showdown summary shows first — board, revealed hole cards, the winner's hand — with a "Continue" CTA instead of "Next hand". Tapping it presents the "You went bust" dialog with the "Deal me in" recovery. The reveal never plays half-hidden under the bust dialog's scrim. Busting to a fold-out (no showdown) skips straight to the bust dialog. (Covers todo GAME-18.)
+
 ## Progression
 
 ### `PROG-1` ⚠️ 📱 Level-up celebration shows on a fresh account's first level-up
