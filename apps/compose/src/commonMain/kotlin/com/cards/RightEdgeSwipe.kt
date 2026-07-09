@@ -11,15 +11,17 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 
 /**
- * Debug-only shortcut to the feedback form: a swipe in from the **right edge**
+ * Tester shortcut to the feedback form: a swipe in from the **right edge**
  * fires [onTriggered]. The right edge is a low-collision zone — neither iOS nor
  * default Android claims a system gesture there — so it's a quick path for
- * testers without interfering with normal use.
+ * testers without interfering with normal use. The caller gates it to tester
+ * audiences (debug + TestFlight builds); App Store users keep the Settings
+ * entry only.
  *
- * No-op when [enabled] is false, so it never reaches release builds. It also
- * never consumes pointer events: it only *observes*, arming only when the touch
- * starts within [EDGE_ZONE_DP] of the right edge and then travels predominantly
- * leftward past [TRIGGER_DISTANCE_DP]. Normal taps/scrolls are unaffected.
+ * No-op when [enabled] is false. It also never consumes pointer events: it
+ * only *observes*, arming only when the touch starts within [EDGE_ZONE_DP] of
+ * the right edge and then travels predominantly leftward past
+ * [TRIGGER_DISTANCE_DP]. Normal taps/scrolls are unaffected.
  *
  * Watches in the **Initial** pass so a vertical scroll container nested under it
  * can't swallow the gesture before this detector sees it (CARDS-Y: the swipe was
@@ -28,7 +30,7 @@ import kotlin.math.abs
  * scrolling — the `abs(dx) > abs(dy)` gate means only a predominantly-leftward
  * travel fires the trigger.
  */
-fun Modifier.debugRightEdgeSwipe(
+fun Modifier.rightEdgeSwipe(
     enabled: Boolean,
     onTriggered: () -> Unit,
 ): Modifier = if (!enabled) this else pointerInput(Unit) {

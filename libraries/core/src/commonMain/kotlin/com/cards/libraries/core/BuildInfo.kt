@@ -15,6 +15,15 @@ expect object BuildInfo {
 
     /** Branch the build was produced from (`GITHUB_REF_NAME` in CI). */
     val commitBranch: String
+
+    /**
+     * True when this install came through TestFlight (runtime check, not
+     * baked at build time — the same binary is App Store vs TestFlight
+     * depending on how the user got it). Always false on Android/JVM.
+     * Used to keep tester affordances (feedback edge swipe) available to
+     * TestFlight users without shipping them to the App Store audience.
+     */
+    val isTestFlight: Boolean
 }
 
 fun BuildInfo.isiOS() = BuildInfo.platform == Platform.iOS

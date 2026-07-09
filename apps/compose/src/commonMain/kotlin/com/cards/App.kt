@@ -243,9 +243,10 @@ fun App(appComponent: AppComponent) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    // Debug-only: swipe in from the right edge to jump straight
-                    // to the feedback form. No-op in release.
-                    .debugRightEdgeSwipe(enabled = BuildInfo.isDebug) {
+                    // Tester shortcut: swipe in from the right edge to jump
+                    // straight to the feedback form. Debug + TestFlight only —
+                    // App Store users go through Settings instead.
+                    .rightEdgeSwipe(enabled = BuildInfo.isDebug || BuildInfo.isTestFlight) {
                         router.navigate(FeedbackRoute())
                     },
             ) {
