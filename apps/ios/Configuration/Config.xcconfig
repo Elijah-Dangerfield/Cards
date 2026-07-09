@@ -1,6 +1,10 @@
 TEAM_ID=
 
-PRODUCT_NAME=Cards
+// Also becomes the generated CFBundleName (GENERATE_INFOPLIST_FILE=YES
+// injects $(PRODUCT_NAME) there, stomping the key in Info.plist). "Cards"
+// tripped ITMS-90129 twice — the name is taken on the App Store; "Downcard"
+// is verified free (iTunes search API, 2026-07-09).
+PRODUCT_NAME=Downcard
 PRODUCT_BUNDLE_IDENTIFIER=com.dangerfield.cards.Cards$(TEAM_ID)
 
 CURRENT_PROJECT_VERSION=1
