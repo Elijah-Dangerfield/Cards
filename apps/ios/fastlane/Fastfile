@@ -142,6 +142,19 @@ def build_and_upload(distribute_external:, submit_to_app_store:)
   build_number = Time.now.strftime("%Y%m%d%H%M")
   marketing_version = read_marketing_version || "1.0"
 
+  # Bake correct in-app metadata (Settings "About", telemetry channel tag)
+  # into the KMP framework. On CI the workflows export these before the
+  # pre-build link and ||= preserves them; locally nothing else sets them, so
+  # without this a local beta bakes versions.properties' defaults and ships
+  # "0.1.0 (1) · dev" (seen on the first TestFlight build, 2026-07-09). The
+  # in-app build number is the commit count (traceable to a commit) — the
+  # store CFBundleVersion timestamp above is deliberately a different number.
+  meta_build_number = `git rev-list --count HEAD`.strip
+  ENV["VERSION_NAME_OVERRIDE"] ||= marketing_version
+  ENV["VERSION_CODE_OVERRIDE"] ||= meta_build_number
+  ENV["BUILD_NUMBER_OVERRIDE"] ||= meta_build_number
+  ENV["RELEASE_CHANNEL_OVERRIDE"] ||= distribute_external ? "prod" : "beta"
+
   # clean: false on CI so DerivedData (KMP framework, SwiftPM builds, Swift
   # .o/.swiftmodule) survives between runs and the cached DerivedData actually
   # gets reused. Kotlin/Native link is the long pole — avoiding a full rebuild

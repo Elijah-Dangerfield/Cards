@@ -495,6 +495,15 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # Must be exported BEFORE the pre-build link so both Gradle invocations
+      # (pre-build + xcodebuild's embedAndSign) bake identical metadata — a
+      # mismatch re-links the framework from scratch. The Fastfile fills this
+      # via ||= for local runs.
+      - name: Export version name for the KMP framework
+        run: |
+          V=$(grep '^MARKETING_VERSION' apps/ios/Configuration/Config.xcconfig | cut -d= -f2 | tr -d ' ')
+          echo "VERSION_NAME_OVERRIDE=$V" >> "$GITHUB_ENV"
+
       - name: Pre-build KMP release framework
         # Runs the same Kotlin/Native link task Xcode will invoke during the
         # archive (via embedAndSignAppleFrameworkForXcode). Running it first
