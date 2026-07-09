@@ -216,7 +216,7 @@ fun createModuleDirectory(config: ModuleConfig): File {
 }
 
 fun createSourceStructure(config: ModuleConfig, moduleDir: File) {
-    val packagePath = "com/dangerfield/virtu/${config.baseDir}/${config.fullName.replace(":", "/")}"
+    val packagePath = "com.cards.${config.baseDir}.${config.fullName.replace(":", ".")}".replace(".", "/")
     
     // Create KMP source structure
     val sourceSets = listOf("commonMain", "androidMain", "iosMain", "jvmMain")

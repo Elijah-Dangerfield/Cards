@@ -415,7 +415,7 @@ Top-edge emoji bubbles attach to both — dialogs via `emoji = dialogEmoji("🎉
   @ObjCName("MyType", exact = true)
   interface MyType { ... }
   ```
-  `exact = true` prevents the module prefix (without it the Swift name becomes `<ModuleName><ObjCName>`, e.g. `KmptemplateMyType`).
+  `exact = true` prevents the module prefix (without it the Swift name becomes `<ModuleName><ObjCName>`, e.g. `ComposeAppMyType`).
 
 ## Key Files
 
