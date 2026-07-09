@@ -283,10 +283,11 @@ jobs:
   ios:
     name: iOS TestFlight external + App Store submit
     needs: resolve-tag
-    # xlarge (14GB): the K/N release-LTO link runs inside the Gradle daemon and
-    # OOM'd at 6g on the standard 7GB runner (2026-07-08, twice). Costs more per
-    # minute — fine for a tag-triggered release.
-    runs-on: macos-26-xlarge
+    # Standard runner (7GB) with a 10g daemon heap: the K/N release-LTO link
+    # spills into macOS swap instead of OOMing. See beta.yml's ios job for the
+    # 2026-07-08 sizing saga; macos-26-xlarge (14GB) works but bills per minute
+    # even on public repos.
+    runs-on: macos-26
     timeout-minutes: 90
 
     env:
