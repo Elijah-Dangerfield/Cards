@@ -5,13 +5,15 @@ require "tmpdir"
 
 default_platform(:ios)
 
-CI_KEYCHAIN_NAME = "kmptemplate_build_keychain"
+CI_KEYCHAIN_NAME = "cards_build_keychain"
 
 XCODEPROJ = "iosApp.xcodeproj"
 SCHEME = "iosApp"
 CONFIGURATION = "Release"
 OUTPUT_DIR = "build"
-OUTPUT_NAME = "KMPTemplate.ipa"
+# Also names the gym archive ("Cards <date>.xcarchive"). The beta/release
+# workflows glob apps/ios/build/*.ipa, so the name is free to change.
+OUTPUT_NAME = "Cards.ipa"
 # Effective bundle id (the pbxproj hardcodes it; the xcconfig's $(TEAM_ID)
 # suffix never applies). Must match the ASC app record.
 APP_IDENTIFIER = "com.dangerfield.cards.Cards"
@@ -286,7 +288,10 @@ def upload_sentry_release(marketing_version, build_number)
   return unless ENV["SENTRY_AUTH_TOKEN"] && !ENV["SENTRY_AUTH_TOKEN"].empty?
   org = ENV.fetch("SENTRY_ORG")
   project = ENV.fetch("SENTRY_PROJECT")
-  release = "kmptemplate@#{marketing_version}+#{build_number}"
+  # Must match the client's Sentry release name exactly (AppTelemetry.kt,
+  # SentryRuntimeConfig.forApp: "cardse@<version>+<build>") or events won't
+  # attach to the release created here.
+  release = "cardse@#{marketing_version}+#{build_number}"
   dsym_dir = File.join(OUTPUT_DIR)
   sh("npx @sentry/cli releases new #{release} --org #{org} --project #{project}")
   sh("npx @sentry/cli releases set-commits #{release} --auto --org #{org} --project #{project} || true")
