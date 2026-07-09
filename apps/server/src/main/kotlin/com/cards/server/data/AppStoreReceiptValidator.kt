@@ -66,20 +66,32 @@ class AppStoreReceiptValidator(
         }
 
         if (payload.productId != request.expectedSku) {
+            logger.warn(
+                "Apple receipt product mismatch: JWS carries '{}', expected '{}'",
+                payload.productId, request.expectedSku,
+            )
             return ReceiptValidation.Invalid("apple_product_mismatch")
         }
 
         val accountToken = payload.appAccountToken
         if (accountToken == null || UserId(accountToken) != request.userId) {
+            logger.warn(
+                "Apple receipt account mismatch: appAccountToken={} caller={}",
+                accountToken ?: "<absent>", request.userId.value,
+            )
             return ReceiptValidation.Invalid("apple_account_mismatch")
         }
 
         if (payload.revocationDate != null) {
+            logger.warn("Apple receipt revoked/refunded (transactionId={})", payload.transactionId)
             return ReceiptValidation.Invalid("apple_revoked")
         }
 
         val transactionId = payload.transactionId
-            ?: return ReceiptValidation.Invalid("apple_missing_transaction_id")
+            ?: run {
+                logger.warn("Apple receipt verified but missing transactionId (product={})", payload.productId)
+                return ReceiptValidation.Invalid("apple_missing_transaction_id")
+            }
 
         return ReceiptValidation.Valid(orderId = transactionId)
     }

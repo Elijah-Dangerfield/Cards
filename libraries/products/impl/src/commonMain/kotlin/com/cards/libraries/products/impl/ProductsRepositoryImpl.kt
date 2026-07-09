@@ -171,8 +171,28 @@ class ProductsRepositoryImpl(
             val dto = dataSource.fetchCatalog().getOrThrow()
             val rawCatalog = dto.toDomain()
 
-            val storeProducts = queryStoreFor(rawCatalog)
-            val reconciled = rawCatalog.reconcileAgainst(storeProducts)
+            val storeQuery = queryStoreFor(rawCatalog)
+            val reconciled = rawCatalog.reconcileAgainst(storeQuery.products)
+
+            // A pack the store doesn't recognize silently vanishes from the
+            // shop (reconcileAgainst drops it), which is exactly the failure
+            // mode of an ASC/Play listing typo, an unapproved product, or a
+            // region gap. Error level on purpose: SentryLogTree promotes it to
+            // a Sentry event so the mismatch is visible before users report
+            // "the shop is empty". Only when the store answered
+            // authoritatively — a cached/offline snapshot dropping packs is
+            // connectivity, not misconfiguration.
+            if (storeQuery.authoritative) {
+                val droppedSkus =
+                    rawCatalog.chipPacks.map { it.store.sku }.toSet() - storeQuery.products.keys
+                if (droppedSkus.isNotEmpty()) {
+                    logger.e {
+                        "Store did not recognize ${droppedSkus.size}/${rawCatalog.chipPacks.size} " +
+                            "chip-pack SKU(s); hiding from shop: $droppedSkus. " +
+                            "Check the store listing (missing / not approved / region-blocked)."
+                    }
+                }
+            }
 
             // Anchor first so any synchronous UI subscriber sees both
             // updates in a consistent order. Anchor uses
@@ -259,22 +279,31 @@ class ProductsRepositoryImpl(
      * call fails OR when there are no IAP packs in the catalog.
      * Failures are logged but don't propagate — the catalog gets the
      * fallback price treatment instead.
+     *
+     * [StoreQuery.authoritative] is true only when the store answered the
+     * query itself — a cached snapshot (offline / store error) is not
+     * evidence that a SKU doesn't exist, so mismatch reporting keys off it.
      */
-    private suspend fun queryStoreFor(catalog: ProductCatalog): Map<String, BillingProduct> {
+    private suspend fun queryStoreFor(catalog: ProductCatalog): StoreQuery {
         val skus = catalog.chipPacks.map { it.store.sku }.toSet()
-        if (skus.isEmpty()) return emptyMap()
+        if (skus.isEmpty()) return StoreQuery(emptyMap(), authoritative = false)
         return when (val result = billingAvailability.refresh(skus)) {
-            is QueryProductsResult.Success -> result.products
+            is QueryProductsResult.Success -> StoreQuery(result.products, authoritative = true)
             is QueryProductsResult.NotConnected -> {
                 logger.w { "Store not connected during catalog refresh; using cached snapshot" }
-                billingAvailability.snapshot()
+                StoreQuery(billingAvailability.snapshot(), authoritative = false)
             }
             is QueryProductsResult.Failed -> {
                 logger.w { "Store query failed during catalog refresh (${result.message}); using cached snapshot" }
-                billingAvailability.snapshot()
+                StoreQuery(billingAvailability.snapshot(), authoritative = false)
             }
         }
     }
+
+    private data class StoreQuery(
+        val products: Map<String, BillingProduct>,
+        val authoritative: Boolean,
+    )
 
     private companion object {
         /**

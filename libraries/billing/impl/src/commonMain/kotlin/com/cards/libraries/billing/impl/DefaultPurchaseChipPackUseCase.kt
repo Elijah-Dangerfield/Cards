@@ -62,8 +62,18 @@ class DefaultPurchaseChipPackUseCase(
             is PurchaseResult.Success -> grant(pack, result.transaction, alreadyOwned = false)
             is PurchaseResult.AlreadyOwned -> grant(pack, result.transaction, alreadyOwned = true)
             PurchaseResult.UserCancelled -> IapPurchaseOutcome.Cancelled
-            is PurchaseResult.Failed -> IapPurchaseOutcome.Failed(result.reason)
-            PurchaseResult.NotConnected -> IapPurchaseOutcome.StoreUnavailable
+            is PurchaseResult.Failed -> {
+                // Error on purpose: a store-side purchase failure is lost
+                // revenue and SentryLogTree only raises events at Error.
+                logger.e { "Store purchase failed for ${pack.id}: ${result.reason}" }
+                IapPurchaseOutcome.Failed(result.reason)
+            }
+            PurchaseResult.NotConnected -> {
+                // Warn (breadcrumb only) — usually just offline / no store
+                // account, not something to page on.
+                logger.w { "Store not connected for purchase of ${pack.id}" }
+                IapPurchaseOutcome.StoreUnavailable
+            }
         }
     }
 
@@ -84,11 +94,18 @@ class DefaultPurchaseChipPackUseCase(
                     outcome(redeem.grantedChips, alreadyOwned = alreadyOwned || redeem.alreadyRedeemed)
                 }
                 RedeemOutcome.Rejected -> {
-                    logger.w { "Server rejected receipt for order ${transaction.orderId} — no credit" }
+                    // Error on purpose: the user PAID and got nothing — the
+                    // server refused the receipt (forged, mismatched, or a
+                    // config drift like a wrong bundle id). Must be a Sentry
+                    // event, not a breadcrumb.
+                    logger.e { "Server rejected receipt for order ${transaction.orderId} — no credit" }
                     IapPurchaseOutcome.Failed("receipt_rejected")
                 }
                 RedeemOutcome.Unavailable -> {
-                    logger.w { "Redeem unreachable for order ${transaction.orderId} — left uncredited" }
+                    // Error on purpose: paid but uncredited until a retry
+                    // drains the unfinished transaction — worth seeing every
+                    // time it happens.
+                    logger.e { "Redeem unreachable for order ${transaction.orderId} — left uncredited" }
                     IapPurchaseOutcome.Failed("redeem_unavailable")
                 }
             }

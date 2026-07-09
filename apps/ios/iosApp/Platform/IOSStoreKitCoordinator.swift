@@ -55,10 +55,14 @@ class IOSStoreKitCoordinator: NSObject, BillingStoreKitCoordinator {
                     return
                 }
 
-                var options: Set<Product.PurchaseOption> = []
-                if let token = UUID(uuidString: appAccountToken) {
-                    options.insert(.appAccountToken(token))
+                // Fail BEFORE payment: a purchase without the appAccountToken
+                // would charge the user and then be rejected server-side
+                // (apple_account_mismatch) during receipt validation.
+                guard let token = UUID(uuidString: appAccountToken) else {
+                    onComplete(Self.failed("appAccountToken is not a UUID: \(appAccountToken)"))
+                    return
                 }
+                let options: Set<Product.PurchaseOption> = [.appAccountToken(token)]
 
                 let result = try await product.purchase(options: options)
                 onComplete(await map(result, productId: productId))
