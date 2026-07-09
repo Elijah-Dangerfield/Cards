@@ -29,5 +29,10 @@ apps/server/.env
 apps/server/.env.local
 apps/server/.env.*.local
 
+# Local TestFlight-build credentials (ASC API key etc.). Auto-loaded by
+# fastlane; only .env.example is committed.
+apps/ios/fastlane/.env
+apps/ios/fastlane/.env.local
+
 # Admin tool: local-only dev/prod admin tokens (baked into the bundle at build time)
 apps/admin/admin-tokens.local.properties

@@ -19,6 +19,12 @@ APP_IDENTIFIER = "com.dangerfield.cards.Cards"
 platform :ios do
   before_all do
     setup_ci if ENV["CI"]
+    # Store builds link the zero-overhead Wiretap noop (the CI workflows set
+    # this too; ||= keeps local `fastlane beta` runs consistent with CI while
+    # still allowing an explicit override). Env var, not -Pcards.wiretap.ios,
+    # so every Gradle invocation in the build agrees — see
+    # libraries/networking/impl/build.gradle.kts.
+    ENV["CARDS_WIRETAP_IOS"] ||= "false"
   end
 
   desc "Preview: upload to TestFlight internal only (used on pushes to main)"

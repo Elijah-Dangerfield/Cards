@@ -61,6 +61,36 @@ This is the one case the pipeline is not optimized for. Branch from the previous
 
 ---
 
+## Shipping a TestFlight beta
+
+Two interchangeable triggers, same result (build → sign → TestFlight internal group):
+
+**Remote (GitHub-hosted runner):**
+- UI: Actions → **Beta (internal)** → Run workflow from `main` (tick `skip_android` until the Play internal track exists), or
+- terminal: `gh workflow run beta.yml --ref main -f skip_android=true`
+
+Free on the public repo, but slow: the Kotlin/Native release link needs more
+memory than the standard runner has and spills into swap (~45–60 min per
+build, cold caches every time). Fine for fire-and-forget.
+
+**Local (your Mac):**
+
+```bash
+cd apps/ios
+cp fastlane/.env.example fastlane/.env   # first time only — fill in the ASC key values
+bundle exec fastlane beta
+```
+
+fastlane auto-loads `fastlane/.env` (gitignored; see `.env.example` for
+where each value comes from). Signing uses your login keychain — no CI
+keychain import. Much faster than the hosted runner (no swap, warm caches)
+and it uploads to the same TestFlight internal group with the same
+timestamp build number, so the two triggers can't collide. Wiretap is
+stripped either way (`CARDS_WIRETAP_IOS=false`, set by both the workflows
+and the Fastfile).
+
+---
+
 ## How automated fixes land (what the bots do)
 
 Sentry triage runs as a **Claude Code routine on the maintainer's machine**, not as a CI job — so it uses your normal Claude subscription and the Sentry MCP instead of a paid API key + curl. Schedule it weekly (or on demand) with the prompt at [scripts/prompts/sentry-triage.md](../scripts/prompts/sentry-triage.md). The prompt is the only thing you edit to change behavior.

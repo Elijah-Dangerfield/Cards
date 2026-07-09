@@ -10,12 +10,21 @@ android {
 // split (see the `dependencies { }` block below); iOS has no such split at
 // the Gradle dependency level, so we pick the real vs. noop artifact from a
 // property. Defaults to the real inspector so it works out of the box in
-// local iOS dev builds — pass `-Pcards.wiretap.ios=false` (e.g. for App
-// Store / release framework builds) to link the zero-overhead noop instead.
-// Either way, installation + launch are also gated on `BuildInfo.isDebug` at
-// runtime, so a release build never activates the inspector.
+// local iOS dev builds — pass `-Pcards.wiretap.ios=false` to link the
+// zero-overhead noop instead.
+//
+// Store builds flip it via the CARDS_WIRETAP_IOS env var (set by the beta /
+// release pipelines and the Fastfile) rather than -P: the release framework
+// is linked by TWO Gradle invocations — the CI pre-build step AND the
+// xcodebuild-driven embedAndSign — and a -P flag on only one of them makes
+// the configurations differ, silently re-linking the framework with Wiretap
+// back in. An env var is inherited by both. Installation + launch are also
+// gated on `BuildInfo.isDebug` at runtime, so a release build never activates
+// the inspector either way.
 val wiretapIosEnabled =
-    (providers.gradleProperty("cards.wiretap.ios").orNull ?: "true").toBoolean()
+    (providers.environmentVariable("CARDS_WIRETAP_IOS").orNull
+        ?: providers.gradleProperty("cards.wiretap.ios").orNull
+        ?: "true").toBoolean()
 
 kotlin {
     sourceSets {

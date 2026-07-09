@@ -178,6 +178,11 @@ jobs:
       SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
       FASTLANE_SKIP_UPDATE_CHECK: "1"
       FASTLANE_HIDE_CHANGELOG: "1"
+      # Link the zero-overhead Wiretap noop instead of the real network
+      # inspector (dead weight + debug UI code in a store binary). Env var,
+      # not -P, so the pre-build link and the xcodebuild-driven embedAndSign
+      # agree — see libraries/networking/impl/build.gradle.kts.
+      CARDS_WIRETAP_IOS: "false"
       # In-app BuildInfo.* only — the store CFBundleVersion is a timestamp set by
       # fastlane's beta lane. See release.yml for the same note.
       VERSION_CODE_OVERRIDE: ${{ needs.build-number.outputs.value }}
