@@ -21,3 +21,7 @@ The live punch list of actionable engineering work. Every item is something a wo
 - `[P2]` — Lower urgency, still worker-pickable. Many need a directional call — make a recommendation, ship a slice, let the reviewer course-correct.
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
+
+## ENG — engineering / structural
+
+- **ENG-15 `[P2]` Rename Virtu-branded ObjC bridge names to Cards.** Problem: the Kotlin↔Swift bridge still exports `VirtuNativeViewFactory` / `VirtuNativeAppleSignInButtonKind` / `VirtuNativeAppleSignInButtonStyle` (`@ObjCName(..., exact = true)` in `libraries/ui/src/iosMain/.../nativeviews/NativeViewFactory.kt`, referenced from `apps/ios/iosApp/iOSApp.swift` and `Platform/IOSNativeViewFactory.swift`) — leftover branding from two template generations ago. Acceptance: prefix renamed to `Cards*` in the Kotlin annotations and all Swift references; while there, prune anything in the bridge Cards doesn't use (camera code is already gone — check nothing else is dead); verified by an iOS simulator build of the `iosApp` scheme (Swift compiles against the generated framework header — Kotlin compilation alone proves nothing) with zero `Virtu` hits left in the generated `ComposeApp.h`. Hints: the same rename shipped in KMPTemplate main as `90a9eb5` — mirror it.
