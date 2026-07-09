@@ -12,7 +12,7 @@ Check items off as you do them; delete when the whole section is empty.
 
 Normal engineering tasks pulled out of [todo.md](./todo.md) on purpose — to pick up later rather than hand to a worker.
 
-- [ ] **Strip WiretapKMP from iOS App Store builds.** The debug network inspector (shake → "Network inspector") is wired into `:libraries:networking:impl`. Android already swaps the real plugin for the zero-overhead noop automatically via `debug`/`releaseImplementation`, but iOS has no such variant split — it's driven by the `cards.wiretap.ios` Gradle property, which **defaults to `true`** so it works in local dev out of the box. An unflagged iOS store build therefore links the real Wiretap klib (dead weight only — `BuildInfo.isDebug` still keeps the inspector from ever opening, so it's not a leak, just binary bloat + shipped debug UI code). **Interim manual step:** pass `-Pcards.wiretap.ios=false` when building the iOS release framework. **Proper fix (this task):** wire that flag into the iOS release build path (Xcode Release config / `release.yml`) so it's automatic and can't be forgotten. See [project memory: Wiretap network inspector](~/.claude/projects/-Users-elijahdangerfield-Workspace-Cards/memory/project_wiretap_inspector.md).
+- [x] **Strip WiretapKMP from iOS App Store builds.** *(Done 2026-07-09: `beta.yml`, `release.yml`, and the Fastfile all set `CARDS_WIRETAP_IOS=false`, which `libraries/networking/impl/build.gradle.kts` now reads ahead of the `cards.wiretap.ios` property. Env var instead of `-P` so the CI pre-build link and the xcodebuild-driven embedAndSign agree — a mismatch would silently re-link with Wiretap back in. Local dev default stays `true`.)*
 
 ---
 
