@@ -75,6 +75,7 @@ import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
+import com.dangerfield.cards.libraries.ui.components.icon.padding
 import com.dangerfield.cards.libraries.ui.buildClickableText
 import com.dangerfield.cards.libraries.ui.components.text.ClickableText
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
@@ -505,16 +506,25 @@ private fun PickIdentityStep(
             .padding(screenHorizontalInsets),
     ) {
         // No back affordance once the user has claimed a real identity — the
-        // Welcome page's sign-in options don't apply to a signed-in user.
-        if (!state.identityClaimed) {
-            IconButton(
-                icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
-                onClick = { onAction(OnboardingAction.Back) },
-                iconColor = AppTheme.colors.content,
-                modifier = Modifier.padding(top = Dimension.D300),
-            )
-            Spacer(modifier = Modifier.height(Dimension.D300))
+        // Welcome page's sign-in options don't apply to a signed-in user. The
+        // band keeps the back button's footprint either way: the host overlays
+        // the "step N of N" chip at the top of the screen, and collapsing this
+        // header on the OAuth path used to shove the avatar up underneath the
+        // chip (AUTH-17).
+        Box(
+            modifier = Modifier
+                .padding(top = Dimension.D300)
+                .height(IconSize.Medium.dp + IconButton.Size.Medium.padding * 2),
+        ) {
+            if (!state.identityClaimed) {
+                IconButton(
+                    icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
+                    onClick = { onAction(OnboardingAction.Back) },
+                    iconColor = AppTheme.colors.content,
+                )
+            }
         }
+        Spacer(modifier = Modifier.height(Dimension.D300))
 
         val avatarPlaceholder = stringResource(Res.string.onboarding_identity_avatar_placeholder)
         Box(
@@ -1120,6 +1130,25 @@ private fun OnboardingScreenPreview_PickIdentity() {
                 selectedEmoji = "🦊",
                 selectedBackgroundColor = "#ff6b35",
                 // Default starterPack = the hardcoded onboarding pack.
+            ),
+            onAction = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun OnboardingScreenPreview_PickIdentity_PostOAuth() {
+    // Identity already claimed (Google/Apple path): no back affordance, but
+    // the header band keeps its footprint so the step chip has headroom.
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        OnboardingScreen(
+            state = OnboardingState(
+                step = OnboardingStep.PickIdentity,
+                displayName = "QuietAce72",
+                selectedEmoji = "🦊",
+                selectedBackgroundColor = "#ff6b35",
+                identityClaimed = true,
             ),
             onAction = {},
         )

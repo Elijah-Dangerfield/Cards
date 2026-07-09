@@ -8,7 +8,7 @@ import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
 
 /** Room codes are 6-char alphanumeric (server `InMemoryRoomService.CODE_LENGTH`). */
-private const val RoomCodeLength = 6
+internal const val ROOM_CODE_LENGTH = 6
 
 /**
  * Drives the "Join by code" screen (ROOM-5). The code is validated here, on the
@@ -39,14 +39,14 @@ class PrivateJoinViewModel(
     override suspend fun handleAction(action: PrivateJoinAction) {
         when (action) {
             is PrivateJoinAction.CodeChanged -> action.updateState {
-                it.copy(code = action.value.uppercase().take(RoomCodeLength), error = null)
+                it.copy(code = action.value.uppercase().take(ROOM_CODE_LENGTH), error = null)
             }
 
             PrivateJoinAction.Submit -> action.run {
                 val current = state
                 if (current.joining) return@run
                 val code = current.code.trim()
-                if (code.length != RoomCodeLength) {
+                if (code.length != ROOM_CODE_LENGTH) {
                     updateState { it.copy(error = PrivateJoinError.BlankCode) }
                     return@run
                 }
@@ -91,7 +91,7 @@ data class PrivateJoinState(
     val joining: Boolean = false,
     val error: PrivateJoinError? = null,
 ) {
-    val canSubmit: Boolean get() = !joining && code.length == RoomCodeLength
+    val canSubmit: Boolean get() = !joining && code.length == ROOM_CODE_LENGTH
 }
 
 sealed interface PrivateJoinAction {

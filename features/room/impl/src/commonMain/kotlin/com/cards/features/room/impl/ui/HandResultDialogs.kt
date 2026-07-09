@@ -105,6 +105,7 @@ internal fun ShowdownDialog(
     earnedAchievements: List<EarnedAchievement>,
     xpMode: XpMode,
     onNextHand: () -> Unit,
+    ctaText: String = stringResource(Res.string.room_showdown_next_hand_button),
 ) {
     val winnerIndices = result.winners.map { it.seatIndex }.toSet()
     val humanSeat = seats.firstOrNull { it.isHuman }
@@ -229,18 +230,19 @@ internal fun ShowdownDialog(
                 onClick = onNextHand,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(text = stringResource(Res.string.room_showdown_next_hand_button))
+                Text(text = ctaText)
             }
         }
     }
 }
 
 /**
- * Shown instead of [ShowdownDialog] when the human's stack hit 0 this hand.
- * The auto-rebuy happens silently between hands ([LocalBotsSession]); this
- * modal just makes that moment legible so new players don't wonder how they
- * still have chips next hand. Single "Deal me in" CTA which triggers the
- * normal next-hand advance.
+ * Shown when the human's stack hit 0 this hand — after the [ShowdownDialog]
+ * reveal when the bust happened at showdown (GAME-18), or immediately on a
+ * fold-out bust. The auto-rebuy happens silently between hands
+ * ([LocalBotsSession]); this modal just makes that moment legible so new
+ * players don't wonder how they still have chips next hand. Single "Deal me
+ * in" CTA which triggers the normal next-hand advance.
  *
  * [subsidized] flips the body off the practice "chips don't count" framing onto
  * the public disclosed-bot copy — real chips, house-funded refill, keep what you

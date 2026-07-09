@@ -473,8 +473,9 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 - **Rejected / timed-out intent.** `PlayPokerViewModel`'s `Submit` now wraps `session.submit()` in `Catching {}` and logs on failure, so a server rejection ("not your turn" on a turn-race double-tap) or a 10s ack timeout is a logged no-op instead of an app crash. But the user just sees their action quietly not happen. `RemotePokerSession`'s KDoc already promises "the VM maps this to a UI-level 'not your turn' surface" — that mapping still doesn't exist. Wants a new state field/event + a transient surface (toast / inline pill), not the haptic-only `TurnFeedback` channel.
 - **Room closed out from under us.** `PlayPokerEvent.RoomClosed` now pops the play screen when the server GC's the room or rejects the subscription. The pop is silent; the lobby/home it lands on re-observes and shows the closed-room state itself, but there's no transient "this room was closed" message on exit.
+- **Wallet debit refused on sync.** `ChipsRepositoryImpl.syncLocked()` handles a server `InsufficientChips` outcome by dropping the pending event, logging a warning, and resetting to the authoritative balance — the user's chip total silently jumps with no explanation (`docs/wiki/wallet.md` documents the silence).
 
-**Why grouped:** both are the same shape — a server-side "no" the client currently absorbs without a word. A shared lightweight "transient game-event surface" (toast/snackbar bound to one-shot VM events) would cover both and any future case.
+**Why grouped:** all the same shape — a server-side "no" the client currently absorbs without a word. A shared lightweight "transient game-event surface" (toast/snackbar bound to one-shot VM events) would cover both and any future case.
 
 **Status:** Backlog. Pick up when MP playtests show the silence is confusing; the intent-rejection half is the KDoc's outstanding promise.
 
@@ -977,3 +978,23 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Full plan:** [docs/plans/platform-game-services.md](./plans/platform-game-services.md) — includes module layout, interface signatures, 6 commit-sized phases, testing strategy, and step-by-step App Store Connect + Play Console runbooks (achievement points budget math, games-ids.xml handling, signing-key credentials, the separate PGS publish step).
 
 **Status:** Backlog. Approved plan, not yet started. Note the store runbooks involve real admin work (≈53 achievements × 512px artwork in both consoles) that can't be automated; code phases all ship dark so they can land anytime.
+
+---
+
+## Real-multiplayer bust — show the losing showdown before the bust dialog (GAME-18 follow-up)
+
+**Idea (deferred from GAME-18, 2026-07-08):** Solo play now sequences the showdown reveal ahead of the bust dialog so a busted player sees the hand that took their stack. The real-chip multiplayer path still pops `MultiplayerBustDialog` straight over the table on a showdown bust — same "never saw the hand I lost to" gap in principle. It is not a copy-paste of the solo fix: the MP bust dialog carries the heads-up rebuy-grace countdown (MP-14), which the server starts the moment the hand settles, so gating it behind a reveal + "Continue" tap would eat seconds of a live rebuy window. The reveal likely needs to render *alongside* the countdown (compact result strip inside the bust dialog, or a reveal with the countdown/Rebuy CTA visible throughout) rather than in front of it. Needs a UX call before engineering.
+
+**Sketch:** see `PlayPokerScreen.kt` (`humanBust && state.isRealMultiplayer` branch) and `MultiplayerBustDialog` in `HandResultDialogs.kt`; the solo sequencing in the sibling branch is the reference for what the reveal must convey.
+
+**Status:** Backlog. Pull with the next pass on the multiplayer bust/rebuy flow.
+
+---
+
+## Prefilled-code join failures (full / network / over-balance) strand the user on the lobby spinner
+
+**Idea (raised 2026-07-08, janitor pass):** CARDS-28 fixed the NotFound case — a bad prefilled code bounces back to the code-entry screen. But every *other* join failure on the PrivateJoin → Lobby funnel (room full, over balance, network error, unknown) still lands as an inline error under the "Setting up your table…" spinner with no retry affordance — the room never arrives, so the user sits on a dead lobby with only the back button. The create side already has the full-screen error + Retry treatment (`LobbyState.createError`, CARDS-2E); join failures deserve an equivalent: either extend the full-screen treatment with a join-flavored retry, or route all join failures back to `PrivateJoinRoute` the way NotFound does (would need the join screen to render errors beyond "room not found"). Needs a small UX call on which shape wins.
+
+**Sketch:** `LobbyViewModel.handleAction` SubmitJoin branch + `LobbyScreen`'s `createError` full-screen path; `LobbyScreenPreview_JoinFailed` pins the current stranded state.
+
+**Status:** Backlog.

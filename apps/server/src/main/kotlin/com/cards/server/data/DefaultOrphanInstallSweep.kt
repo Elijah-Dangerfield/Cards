@@ -2,14 +2,9 @@ package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.DeleteUserResult
-import com.dangerfield.cards.server.domain.FoundingMemberCatalog
 import com.dangerfield.cards.server.domain.InstallSweepResult
-import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OrphanInstallSweep
 import com.dangerfield.cards.server.domain.ProfileRepository
-import com.dangerfield.cards.server.domain.ProgressionRepository
-import com.dangerfield.cards.server.domain.RoomService
-import com.dangerfield.cards.server.domain.StarterInventory
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UserId
 import kotlinx.coroutines.CancellationException
@@ -25,18 +20,10 @@ import java.util.UUID
  * Pipeline:
  *  1. [ProfileRepository.findInstallSiblings] runs the cheap SQL gate
  *     (install_id match, not the caller, anonymous, zero IAP spend).
- *  2. Per-candidate Kotlin verification:
- *      - **No engagement-grade inventory.** Any owned row that isn't in
- *        [StarterInventory.productIds] and isn't the founding-member
- *        badge counts as engagement — earned via gameplay or purchased
- *        with chips. A candidate with any such row is skipped.
- *      - **No active room seat.** A candidate currently sitting in a
- *        room is held — leaving the L1 sweep would tear their game out
- *        from under them, which is worse than the leaked profile.
- *      - **At or below level 1.** A candidate with any meaningful XP
- *        (≥ [LEVEL_2_XP_THRESHOLD], i.e. above level 1) is preserved —
- *        the bias is to leak an orphan row rather than ever delete
- *        someone's earned progress. See `docs/decisions.md` 2026-06-19.
+ *  2. Per-candidate verification via the shared [OrphanCandidateVerifier]
+ *     (no IAP spend, no engagement-grade inventory, at or below level 1,
+ *     no active room seat) — the same never-delete-progress guards the
+ *     scheduled TTL sweep applies.
  *  3. Verified candidates get deleted via the same path as DELETE
  *     /v1/me: [SupabaseAdminClient.deleteUser] (the FK CASCADE wipes
  *     the dependent rows from profiles / wallet / inventory / etc.)
@@ -53,9 +40,7 @@ import java.util.UUID
 class DefaultOrphanInstallSweep(
     private val profileRepository: ProfileRepository,
     private val adminClient: SupabaseAdminClient,
-    private val inventory: InventoryRepository,
-    private val progression: ProgressionRepository,
-    private val rooms: RoomService,
+    private val verifier: OrphanCandidateVerifier,
 ) : OrphanInstallSweep {
 
     private val logger = LoggerFactory.getLogger(DefaultOrphanInstallSweep::class.java)
@@ -78,7 +63,9 @@ class DefaultOrphanInstallSweep(
         var notConfigured = false
 
         for (candidate in candidates) {
-            if (!verifyCandidate(candidate)) {
+            val skipReason = verifier.skipReason(candidate)
+            if (skipReason != null) {
+                logger.info("L1 sweep preserved {}: {}", candidate, skipReason)
                 skipped++
                 continue
             }
@@ -120,36 +107,4 @@ class DefaultOrphanInstallSweep(
         )
     }
 
-    private suspend fun verifyCandidate(candidate: UserId): Boolean {
-        val owned = inventory.listOwned(candidate)
-        val hasEngagementInventory = owned.any { row ->
-            row.productId !in STARTER_AND_FOUNDING_IDS
-        }
-        if (hasEngagementInventory) return false
-
-        // Any meaningful XP means this account is above level 1 — preserve
-        // it. A missing progression row reads as 0 XP (level 1, deletable).
-        val totalXp = progression.find(candidate)?.totalXp ?: 0L
-        if (totalXp >= LEVEL_2_XP_THRESHOLD) return false
-
-        val isInRoom = rooms.snapshot().any { it.memberFor(candidate) != null }
-        if (isInRoom) return false
-
-        return true
-    }
-
-    companion object {
-        private val STARTER_AND_FOUNDING_IDS: Set<String> =
-            StarterInventory.productIds.toSet() + FoundingMemberCatalog.PRODUCT_ID
-
-        /**
-         * Lifetime XP at which a player crosses from level 1 to level 2.
-         * Mirrors the client level curve (`N² × 100`, so the level-1
-         * ceiling is `1² × 100 = 100`; see `:libraries:cards` `Level.kt`).
-         * Duplicated as a constant rather than depending on the client
-         * module — the level math is a one-liner and the server stays
-         * independent of the Compose/cards layer.
-         */
-        private const val LEVEL_2_XP_THRESHOLD: Long = 100L
-    }
 }

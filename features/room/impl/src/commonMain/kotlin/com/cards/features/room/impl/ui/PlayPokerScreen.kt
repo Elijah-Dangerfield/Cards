@@ -52,6 +52,7 @@ import cards.libraries.resources.generated.resources.room_next_hand_countdown_la
 import cards.libraries.resources.generated.resources.room_next_hand_leave_button
 import cards.libraries.resources.generated.resources.room_practice_tier_bots_present
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_a11y
+import cards.libraries.resources.generated.resources.room_showdown_continue_button
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_hand_info_a11y
 import cards.libraries.resources.generated.resources.room_waiting_to_be_dealt_in
@@ -149,6 +150,10 @@ fun PlayPokerScreen(
     // resolves it the moment recordHand lands.
     var advanceRequested by remember { mutableStateOf(false) }
     val active = state.table as? TableUiState.Active
+    // GAME-18: when the human busts at a showdown, the reveal plays first so
+    // the player sees the hand they lost to; the bust dialog follows once
+    // acknowledged. Keyed on the hand number so the gate re-arms every hand.
+    var bustRevealAcknowledged by remember(active?.handNumber) { mutableStateOf(false) }
     val humanStack = active?.seats?.firstOrNull { it.isHuman }?.stack ?: 0L
     // On a real-chip table the finished hand shows the felt countdown instead of a
     // result dialog (unless the human busted, which keeps the MultiplayerBustDialog).
@@ -664,15 +669,32 @@ fun PlayPokerScreen(
                 )
             } else if (humanBust) {
                 // Solo / practice-tier: stacks auto-rebuy between hands (per the
-                // V1 decision, docs/decisions.md 2026-05-14); this modal just
-                // makes that recovery visible. Single "deal me in" CTA.
-                BustDialog(
-                    xpEarned = state.lastHandXpAwarded,
-                    earnedAchievements = state.recentlyEarned,
-                    xpMode = state.xpMode,
-                    onDealMeIn = onDismiss,
-                    subsidized = active.subsidizedBotTable,
-                )
+                // V1 decision, docs/decisions.md 2026-05-14). When the bust
+                // happened at a showdown, the reveal shows first so the player
+                // sees the hand that took their stack (GAME-18); the bust
+                // dialog then makes the recovery visible. Single "deal me in"
+                // CTA. A fold-out bust has nothing to reveal, so it goes
+                // straight to the bust dialog.
+                val showdownReached = !handResult.winners.all { it.byFold }
+                if (showdownReached && !bustRevealAcknowledged) {
+                    ShowdownDialog(
+                        result = handResult,
+                        seats = active.seats,
+                        xpEarned = state.lastHandXpAwarded,
+                        earnedAchievements = state.recentlyEarned,
+                        xpMode = state.xpMode,
+                        onNextHand = { bustRevealAcknowledged = true },
+                        ctaText = stringResource(Res.string.room_showdown_continue_button),
+                    )
+                } else {
+                    BustDialog(
+                        xpEarned = if (showdownReached) null else state.lastHandXpAwarded,
+                        earnedAchievements = if (showdownReached) emptyList() else state.recentlyEarned,
+                        xpMode = state.xpMode,
+                        onDealMeIn = onDismiss,
+                        subsidized = active.subsidizedBotTable,
+                    )
+                }
             } else if (!state.realChipsAtStake) {
                 // Practice (solo / bot-stacked MP): the celebratory result stays a
                 // full-screen modal and waits for a tap. On a real-chip table this
@@ -1517,8 +1539,9 @@ private fun PlayPokerScreenPreview_Loading() {
 @Preview
 @Composable
 private fun PlayPokerScreenPreview_BustDialog() {
-    // Hand-over modal that takes over when the human busts. The handResult
-    // is present, human stack is 0 → bust dialog rather than showdown.
+    // Hand-over flow when the human busts at showdown: the reveal shows first
+    // with a "Continue" CTA (GAME-18), then the bust dialog. This pins the
+    // first frame of that sequence.
     val board = listOf(
         card(Rank.Ten, Suit.Hearts),
         card(Rank.Jack, Suit.Hearts),

@@ -46,11 +46,9 @@ import cards.libraries.resources.generated.resources.lobby_error_connection_lost
 import cards.libraries.resources.generated.resources.lobby_error_create_network
 import cards.libraries.resources.generated.resources.lobby_error_create_not_signed_in
 import cards.libraries.resources.generated.resources.lobby_error_create_unknown
-import cards.libraries.resources.generated.resources.lobby_error_join_blank_code
 import cards.libraries.resources.generated.resources.lobby_error_join_full
 import cards.libraries.resources.generated.resources.lobby_error_join_network
 import cards.libraries.resources.generated.resources.lobby_error_join_not_accepting
-import cards.libraries.resources.generated.resources.lobby_error_join_not_found
 import cards.libraries.resources.generated.resources.lobby_error_join_not_signed_in
 import cards.libraries.resources.generated.resources.lobby_error_join_unknown
 import cards.libraries.resources.generated.resources.lobby_error_leave_server_not_notified
@@ -566,9 +564,10 @@ private fun ConnectionStatusRow(status: ConnectionStatus) {
 
 @Preview
 @Composable
-private fun LobbyScreenPreview_Idle() {
+private fun LobbyScreenPreview_SettingUp() {
+    // room == null: the create/join call fired on init is still in flight.
     PreviewContent {
-        LobbyScreen(state = LobbyState(), onAction = {}, onBack = {})
+        LobbyScreen(state = LobbyState(creating = true), onAction = {}, onBack = {})
     }
 }
 
@@ -599,14 +598,6 @@ private fun LobbyScreenPreview_Landscape() {
             onAction = {},
             onBack = {},
         )
-    }
-}
-
-@Preview
-@Composable
-private fun LobbyScreenPreview_Idle_WithCode() {
-    PreviewContent {
-        LobbyScreen(state = LobbyState(codeInput = "ABC123"), onAction = {}, onBack = {})
     }
 }
 
@@ -714,37 +705,12 @@ private fun LobbyScreenPreview_InRoom_Reconnecting() {
 
 @Preview
 @Composable
-private fun LobbyScreenPreview_Idle_Creating() {
+private fun LobbyScreenPreview_JoinFailed() {
+    // A prefilled join that failed for a non-NotFound reason (full, network):
+    // the error renders inline under the spinner.
     PreviewContent {
         LobbyScreen(
-            state = LobbyState(creating = true),
-            onAction = {},
-            onBack = {},
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun LobbyScreenPreview_Idle_Joining() {
-    PreviewContent {
-        LobbyScreen(
-            state = LobbyState(codeInput = "ABC123", joining = true),
-            onAction = {},
-            onBack = {},
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun LobbyScreenPreview_Idle_Error() {
-    PreviewContent {
-        LobbyScreen(
-            state = LobbyState(
-                codeInput = "WXYZ12",
-                error = LobbyError.JoinRoomNotFound(code = "WXYZ12"),
-            ),
+            state = LobbyState(error = LobbyError.JoinRoomFull),
             onAction = {},
             onBack = {},
         )
@@ -796,8 +762,6 @@ private fun LobbyError.message(): String = when (this) {
     LobbyError.CreateNotSignedIn -> stringResource(Res.string.lobby_error_create_not_signed_in)
     LobbyError.CreateNetworkError -> stringResource(Res.string.lobby_error_create_network)
     LobbyError.CreateUnknownError -> stringResource(Res.string.lobby_error_create_unknown)
-    LobbyError.JoinBlankCode -> stringResource(Res.string.lobby_error_join_blank_code)
-    is LobbyError.JoinRoomNotFound -> stringResource(Res.string.lobby_error_join_not_found, code)
     LobbyError.JoinRoomFull -> stringResource(Res.string.lobby_error_join_full)
     is LobbyError.JoinOverBalance -> message
     LobbyError.JoinRoomNotAcceptingPlayers -> stringResource(Res.string.lobby_error_join_not_accepting)

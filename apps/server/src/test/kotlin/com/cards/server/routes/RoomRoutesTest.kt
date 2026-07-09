@@ -591,6 +591,8 @@ class RoomRoutesTest {
             limit: Int,
         ): List<com.dangerfield.cards.server.domain.WalletEvent> = emptyList()
 
+        override suspend fun hasIapSpend(userId: UserId): Boolean = false
+
         override suspend fun deleteAllForUser(userId: UserId) { /* no-op */ }
 
         private fun wallet(userId: UserId) = com.dangerfield.cards.server.domain.Wallet(

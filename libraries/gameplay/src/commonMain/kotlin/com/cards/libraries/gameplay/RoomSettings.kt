@@ -19,11 +19,15 @@ data class RoomSettings(
         require(startingStack >= bigBlind * 10) {
             "startingStack must be at least 10 big blinds"
         }
-        require(maxSeats in 2..9) { "maxSeats must be in 2..9" }
+        require(maxSeats in MIN_SEATS..MAX_SEATS) { "maxSeats must be in $MIN_SEATS..$MAX_SEATS" }
         require(turnTimerSeconds in 5..120) { "turnTimerSeconds must be in 5..120" }
     }
 
     companion object {
+        /** Seat-count range a host may pick (heads-up through full ring). */
+        const val MIN_SEATS: Int = 2
+        const val MAX_SEATS: Int = 9
+
         /** Smallest buy-in a host may pick — keeps blinds valid (≥ 2/1). */
         const val MIN_BUY_IN: Long = 100
 

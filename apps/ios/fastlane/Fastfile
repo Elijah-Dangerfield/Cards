@@ -137,6 +137,16 @@ def build_and_upload(distribute_external:, submit_to_app_store:)
       "CODE_SIGN_STYLE=Automatic",
       "CURRENT_PROJECT_VERSION=#{build_number}",
     ].join(" "),
+    # xcargs only reaches the ARCHIVE invocation; -exportArchive is a separate
+    # xcodebuild call and needs its own auth args, or cloud signing fails there
+    # with "Cloud signing permission error" / "No profiles found" even though
+    # the API key (App Manager) is fine — seen 2026-07-08 on the first beta.
+    export_xcargs: [
+      "-allowProvisioningUpdates",
+      "-authenticationKeyPath", asc_key_path,
+      "-authenticationKeyID", key_id,
+      "-authenticationKeyIssuerID", issuer_id,
+    ].join(" "),
     export_options: {
       method: "app-store",
       signingStyle: "automatic",

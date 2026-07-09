@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.room.impl.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
@@ -159,12 +160,22 @@ internal fun AchievementCelebrationSheet(
                     // instead of shrinking into a scrolled stack. The first page
                     // auto-reveals; later pages keep the tap-to-reveal mystery so
                     // the player still paces the celebration.
+                    //
+                    // Keeping every page composed (beyondViewportPageCount) sizes
+                    // the pager to its tallest card once, so swiping between
+                    // cards of different heights never resizes the sheet; the
+                    // animateContentSize covers the remaining growth when a
+                    // tapped mystery card reveals content taller than the
+                    // current max (PROG-10).
                     val pagerState = rememberPagerState(pageCount = { earned.size })
                     HorizontalPager(
                         state = pagerState,
                         pageSpacing = Dimension.D500,
                         verticalAlignment = Alignment.Top,
-                        modifier = Modifier.fillMaxWidth(),
+                        beyondViewportPageCount = earned.size,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateContentSize(),
                     ) { page ->
                         CelebrationCard(
                             earned = earned[page],
@@ -213,8 +224,9 @@ private fun CelebrationCard(
     val cosmetic = remember(achievement.id) { cosmeticRewardFor(achievement.id) }
     val accent = remember(achievement.rarity) { achievement.rarity.toCelebrationTint() }
 
-    // The card chrome pops in (fade + scale) on first composition — for pager
-    // pages that means as the page swipes into view.
+    // The card chrome pops in (fade + scale) on first composition. Pager pages
+    // all compose up front (the sheet sizes to the tallest card, PROG-10), so
+    // for multi-unlocks this plays once at sheet entrance.
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(achievement.id) { shown = true }
 
@@ -234,6 +246,7 @@ private fun CelebrationCard(
                 .fillMaxWidth()
                 .clip(Radii.Card.shape)
                 .background(accent)
+                .animateContentSize()
                 .padding(horizontal = Dimension.D700, vertical = Dimension.D700),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

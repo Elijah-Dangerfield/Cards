@@ -1024,3 +1024,13 @@ The seam is already clean: join-by-code and matchmaking both go through `RoomSer
 **Alternatives rejected:** (1) `SettingsSessionManager(settings = encrypted Settings impl)` — multiplatform-settings has no Keychain backend without another dependency, and we'd still need the Swift twin; wrapping our own port is less machinery. (2) Kotlin/Native cinterop Keychain in iosMain — more boilerplate than the established Swift-twin pattern for zero benefit. (3) Static storage key — per-project-URL keying keeps dev/prod sessions apart once the planned env split lands, and is required for the migration to find the legacy entry anyway.
 
 **Status:** Shipped. `SecureSessionManagerTest` pins round-trip, one-time migration, secure-store precedence, dual-store delete, and the key derivation. Android assembleDebug + iOS Kotlin compile green; Swift side builds via xcodebuild.
+
+## 2026-07-08 — Orphan-sweep guards unified in a shared verifier (AUTH-18)
+
+**Problem:** `docs/wiki/account-lifecycle.md` promises the never-delete-progress "Hard guards" on *both* orphan-sweep paths, but only the opportunistic install sweep implemented them (`DefaultOrphanInstallSweep.verifyCandidate` + a SQL IAP gate). The scheduled TTL sweep (`DefaultOrphanAnonymousSweep`, `POST /v1/admin/sweep-anonymous-users`) deleted every anon account older than the TTL unconditionally — a long-idle level-30 or paying anon account would have been wiped the day the cron gets wired.
+
+**Decision:** Extract the guards into `OrphanCandidateVerifier` (server `data/`), injected into both sweeps. Guards, in order: IAP spend (new `WalletRepository.hasIapSpend`, `reason LIKE 'iap.%'`), engagement-grade inventory (non-starter, non-founding rows), meaningful XP (≥ 100, the level-2 threshold), active room seat. The verifier returns the first tripped guard as a `SkipReason` so the sweep logs *why* a candidate was preserved; `SweepResult`/the admin response gained a `skipped` count. The install sweep keeps its SQL IAP pre-filter and re-checks via the verifier — belt and suspenders; a gate regression can never delete a paying account.
+
+**Alternatives rejected:** duplicating the checks into the anon sweep (that's the drift that caused this gap); pushing all guards into the TTL SQL query (room-seat state lives in RAM, and Kotlin-side policy stays migration-free, matching the original install-sweep rationale).
+
+**Status:** Shipped. `OrphanCandidateVerifierTest` pins each guard; both sweep tests cover skip accounting; `PostgresWalletRepositoryTest.hasIapSpend_matchesOnlyIapPrefixedReasons` pins the ledger query against real Postgres.

@@ -43,9 +43,6 @@ import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-/** Room codes are 6-char alphanumeric (server [InMemoryRoomService.CODE_LENGTH]). */
-private const val ROOM_CODE_LENGTH = 6
-
 /**
  * Private "Join by code" screen (SPEC §7) — a [CodeEntryField] for the host's
  * 6-character room code. The code is validated in place by [PrivateJoinViewModel]

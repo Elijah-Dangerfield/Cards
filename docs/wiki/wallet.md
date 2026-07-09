@@ -17,9 +17,10 @@ Chip balance is server-of-record. The client keeps a write-through cache (Room) 
 |---|---|---|
 | `Applied` | First time the server sees this key | `balance += delta`; ledger row written |
 | `AlreadyApplied` | Duplicate idempotency key | none |
-| `InsufficientChips` | Debit would dip below zero | none; client surfaces a toast |
+| `InsufficientChips` | Debit would dip below zero | none server-side; client logs a warning, drops the event, and silently resets to the authoritative balance (no user-facing surface yet — see backlog) |
+| `RefusedServerOwned` | Positive delta with a `levelup.*` / `achievement.*` reason | none; the server mints those rewards itself, client drops the event |
 
-A failing event does **not** abort the batch — later events still apply. The response carries the post-batch authoritative balance plus a per-event result row.
+A failing event does **not** abort the batch — later events still apply. The response carries the post-batch authoritative balance plus a per-event result row. The client treats all four outcomes as resolved (pending row deleted); an outcome it doesn't recognize leaves the row for a newer client to handle.
 
 **`GET /v1/me/wallet`** — returns the current balance, lazy-creating the row with the starter grant on first contact. Useful as a cheap foreground hydrate when there are no pending events to flush.
 

@@ -18,8 +18,11 @@ import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 
 /**
- * Lists anon users older than the configured TTL, then deletes them one
- * by one via [SupabaseAdminClient.deleteUser] + [ProfileRepository.delete].
+ * Lists anon users older than the configured TTL, verifies each against the
+ * shared never-delete-progress guards ([OrphanCandidateVerifier] — IAP
+ * spend, engagement inventory, meaningful XP, active room seat), then
+ * deletes the survivors one by one via [SupabaseAdminClient.deleteUser] +
+ * [ProfileRepository.delete].
  *
  * Per-user error handling: a single failed delete doesn't stop the
  * sweep — it logs + bumps the failure count and moves on. The next
@@ -33,6 +36,7 @@ import kotlin.time.ExperimentalTime
 class DefaultOrphanAnonymousSweep(
     private val adminClient: SupabaseAdminClient,
     private val profileRepository: ProfileRepository,
+    private val verifier: OrphanCandidateVerifier,
     private val clock: Clock,
 ) : OrphanAnonymousSweep {
 
@@ -58,8 +62,15 @@ class DefaultOrphanAnonymousSweep(
         ServerMetrics.recordAnonOrphanCandidates(count = candidates.size.toLong(), ttlDays = ttlDays)
 
         var deleted = 0
+        var skipped = 0
         var failed = 0
         for (userId in candidates) {
+            val skipReason = verifier.skipReason(userId)
+            if (skipReason != null) {
+                logger.info("Anonymous sweep preserved {}: {}", userId, skipReason)
+                skipped++
+                continue
+            }
             val outcome = adminClient.deleteUser(userId)
             when (outcome) {
                 DeleteUserResult.Success, DeleteUserResult.AlreadyGone -> {
@@ -74,7 +85,13 @@ class DefaultOrphanAnonymousSweep(
                 }
                 DeleteUserResult.NotConfigured -> {
                     logger.warn("Anonymous sweep aborted mid-run: SUPABASE_SERVICE_ROLE_KEY is no longer set")
-                    return SweepResult(candidatesFound = candidates.size, deleted = deleted, failedToDelete = failed, notConfigured = true)
+                    return SweepResult(
+                        candidatesFound = candidates.size,
+                        deleted = deleted,
+                        skipped = skipped,
+                        failedToDelete = failed,
+                        notConfigured = true,
+                    )
                 }
                 is DeleteUserResult.Failure -> {
                     logger.warn(
@@ -86,12 +103,13 @@ class DefaultOrphanAnonymousSweep(
             }
         }
         logger.info(
-            "Anonymous sweep complete: found={}, deleted={}, failed={}",
-            candidates.size, deleted, failed,
+            "Anonymous sweep complete: found={}, deleted={}, skipped={}, failed={}",
+            candidates.size, deleted, skipped, failed,
         )
         return SweepResult(
             candidatesFound = candidates.size,
             deleted = deleted,
+            skipped = skipped,
             failedToDelete = failed,
             notConfigured = false,
         )

@@ -161,7 +161,6 @@
     <string name="lobby_in_room_code_label">Room code</string>
     <string name="lobby_in_room_code_share_hint">Share with your friends to invite</string>
     <string name="lobby_in_room_players_count">Players (%1$d/%2$d)</string>
-    <string name="lobby_in_room_start_button">Start game</string>
     <string name="lobby_in_room_start_button_waiting">Waiting for players…</string>
     <string name="lobby_in_room_copy_button">Copy code</string>
     <string name="lobby_in_room_share_button">Share invite</string>
@@ -170,9 +169,7 @@
     <string name="lobby_in_room_deal_button">Deal hand · %1$d players</string>
     <string name="lobby_in_room_ready_to_deal">Ready to deal</string>
     <string name="lobby_in_room_stakes_label">Stakes</string>
-    <string name="lobby_in_room_stakes_value">25 / 50</string>
     <string name="lobby_in_room_buyin_label">Buy-in</string>
-    <string name="lobby_in_room_buyin_value">5,000</string>
     <string name="lobby_in_room_waiting_for_host">Waiting for the host to start the game…</string>
     <string name="lobby_in_room_auto_deal_hint">Open to anyone. Deals automatically when players arrive.</string>
     <string name="lobby_in_room_leave_button">Leave room</string>
@@ -181,14 +178,16 @@
     <string name="lobby_leave_dialog_body">You'll give up your seat and won't be in this game anymore.</string>
     <string name="lobby_leave_dialog_primary">Leave</string>
     <string name="lobby_leave_dialog_secondary">Stay</string>
-    <string name="lobby_in_room_member_seat_label">Seat %1$d</string>
-    <string name="lobby_in_room_host_badge">Host</string>
 
     <!-- Lobby - connection-status banner above the member list. -->
     <string name="lobby_connection_disconnected">Disconnected</string>
     <string name="lobby_connection_connecting">Connecting…</string>
     <string name="lobby_connection_reconnecting">Reconnecting (attempt %1$d)…</string>
     <string name="lobby_connection_connected">Connected</string>
+
+    <!-- Lobby - snackbar when the effective host changes mid-session. -->
+    <string name="lobby_snackbar_host_promoted_you">You're now the host.</string>
+    <string name="lobby_snackbar_host_promoted_other">%1$s is now the host.</string>
 
     <!-- Sign-in - inline error states surfaced by the VM (sealed SignInError → resource). -->
     <string name="auth_sign_in_error_invalid_credentials">Email or password is incorrect.</string>
@@ -897,6 +896,8 @@
     <string name="room_showdown_pot_amount">Pot %1$s</string>
     <string name="room_showdown_board_label">Board</string>
     <string name="room_showdown_next_hand_button">Next hand</string>
+    <!-- CTA when the showdown reveal precedes the bust dialog: continuing shows the bust dialog, not the next hand. -->
+    <string name="room_showdown_continue_button">Continue</string>
     <string name="room_showdown_row_you">You</string>
     <string name="room_showdown_row_no_hand">-</string>
     <string name="room_showdown_row_win_amount">+%1$s</string>

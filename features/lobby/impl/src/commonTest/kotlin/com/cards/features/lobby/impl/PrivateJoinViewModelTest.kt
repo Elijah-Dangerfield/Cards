@@ -2,19 +2,11 @@ package com.dangerfield.cards.features.lobby.impl
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.rooms.AddBotOutcome
-import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
-import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
-import com.dangerfield.cards.libraries.rooms.RemoveBotOutcome
 import com.dangerfield.cards.libraries.rooms.Room
-import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomMember
-import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.rooms.RoomStatus
 import com.dangerfield.cards.libraries.rooms.RoomVisibility
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -30,7 +22,7 @@ class PrivateJoinViewModelTest : CoroutineTest() {
 
     @Test
     fun `bad code surfaces inline error and emits no navigation`() = runUnitTest {
-        val rooms = FakeRoomRepository(joinOutcome = JoinRoomOutcome.NotFound)
+        val rooms = CountingJoinRepository(joinOutcome = JoinRoomOutcome.NotFound)
         val vm = PrivateJoinViewModel(rejectedCode = null, rooms = rooms)
 
         vm.eventFlow.test {
@@ -47,7 +39,7 @@ class PrivateJoinViewModelTest : CoroutineTest() {
 
     @Test
     fun `successful join emits navigate-to-lobby with the code`() = runUnitTest {
-        val rooms = FakeRoomRepository(
+        val rooms = CountingJoinRepository(
             joinOutcome = JoinRoomOutcome.Success(room = sampleRoom("ABC123"), alreadyJoined = false),
         )
         val vm = PrivateJoinViewModel(rejectedCode = null, rooms = rooms)
@@ -63,7 +55,7 @@ class PrivateJoinViewModelTest : CoroutineTest() {
 
     @Test
     fun `rejected deep-link code seeds the field and inline error without rejoining`() = runUnitTest {
-        val rooms = FakeRoomRepository(joinOutcome = JoinRoomOutcome.NotFound)
+        val rooms = CountingJoinRepository(joinOutcome = JoinRoomOutcome.NotFound)
         val vm = PrivateJoinViewModel(rejectedCode = "gffddf", rooms = rooms)
 
         assertEquals("GFFDDF", vm.state.code)
@@ -74,7 +66,7 @@ class PrivateJoinViewModelTest : CoroutineTest() {
 
     @Test
     fun `code is uppercased and capped at six chars`() = runUnitTest {
-        val vm = PrivateJoinViewModel(rejectedCode = null, rooms = FakeRoomRepository())
+        val vm = PrivateJoinViewModel(rejectedCode = null, rooms = CountingJoinRepository())
         vm.takeAction(PrivateJoinAction.CodeChanged("abcd1234"))
         assertEquals("ABCD12", vm.state.code)
         assertTrue(vm.state.canSubmit)
@@ -98,31 +90,17 @@ class PrivateJoinViewModelTest : CoroutineTest() {
         visibility = RoomVisibility.Private,
     )
 
-    private class FakeRoomRepository(
+    /** The join screen only ever calls [joinRoom]; everything else fails loudly via the stub. */
+    private class CountingJoinRepository(
         private val joinOutcome: JoinRoomOutcome =
             JoinRoomOutcome.NetworkError(RuntimeException("not used")),
-    ) : RoomRepository {
+    ) : StubRoomRepository() {
         var joinCalls: Int = 0
             private set
 
-        override suspend fun createRoom(
-            maxSeats: Int?,
-            buyIn: Long?,
-            open: Boolean,
-            feltProductId: String?,
-            cardBackProductId: String?,
-        ) = error("not used")
         override suspend fun joinRoom(code: String): JoinRoomOutcome {
             joinCalls += 1
             return joinOutcome
         }
-        override suspend fun leaveRoom(code: String): LeaveRoomOutcome = LeaveRoomOutcome.Success()
-        override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome = error("not used")
-        override suspend fun removeBot(code: String, botUserId: String): RemoveBotOutcome =
-            RemoveBotOutcome.Success
-        override suspend fun getActiveRooms(): GetActiveRoomsOutcome =
-            GetActiveRoomsOutcome.Success(emptyList())
-        override fun observeActiveRooms(): Flow<List<Room>> = flow { }
-        override fun connect(code: String): RoomConnectionHandle = error("not used")
     }
 }

@@ -52,6 +52,7 @@ class RecordingWalletRepo : WalletRepository {
     }
 
     override suspend fun recentEvents(userId: UserId, limit: Int): List<WalletEvent> = emptyList()
+    override suspend fun hasIapSpend(userId: UserId): Boolean = false
 
     override suspend fun deleteAllForUser(userId: UserId) = Unit
 }

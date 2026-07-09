@@ -24,12 +24,16 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 - Delete unused imports as you touch a file. A copy-pasted import can *look* used but isn't — a named argument `label = x` does not use an imported `label` symbol.
 - A sealed/enum case mapped in the UI but never *emitted* is dead — check the producer, not just the consumer (a rendered `…ComingSoon` no VM sets). Drop the case, its mapping, and its string.
 - A branch a prior guard already covers is dead — `if (!canSubmit) return` then `if (pw != confirm) …` never fires when `canSubmit` requires the match. Drop the re-check (and any error variant only it set).
+- When a screen loses an affordance, sweep its VM — the lobby kept a whole join-form state machine (action, derived flags, error variants, length constants) after the form UI was deleted. Its tests kept it looking alive.
+- Dead strings hide in `strings.xml` — grep with word boundaries before trusting "used" (`…_start_button` matched only `…_start_button_waiting`).
 
 ## Naming & clarity
 - Don't shadow an outer `val` with an inner one of the same name — rename the inner (e.g. `previousHumans` → `priorHumans`) so each read is unambiguous.
 
 ## Wiring & testability
 - Never ship an empty-lambda callback stub (`onClaimAccount = {}`) at an entry point — it renders a dead button. Wire it, or leave a WHY comment if it truly can't be wired yet.
+- Never ship preview/sample data inside a production composable (a hardcoded 🦊 avatar where the user's own belongs) — wire the real repository; canned identity lives in `@Preview` helpers only.
+- Don't smuggle `updateState` past the SEA invariant via a no-op "carrier" action — a helper only called from a handler should be an extension on the action (`private suspend fun MyAction.resetToIdle()`).
 - Pull list-building/formatting logic out of composables into internal pure functions (`achievementHighlights()`) so it's unit-testable without a compose harness.
 - Don't re-stub a whole interface in every fake — one abstract `StubX` base that `error`s on all methods, then each fake overrides only the calls its test exercises. Unexpected calls fail loudly.
 

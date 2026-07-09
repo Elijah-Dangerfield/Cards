@@ -2,17 +2,8 @@ package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.server.domain.AcquisitionSource
 import com.dangerfield.cards.server.domain.DeleteUserResult
-import com.dangerfield.cards.server.domain.FoundingMemberCatalog
-import com.dangerfield.cards.server.domain.InventoryRepository
-import com.dangerfield.cards.server.domain.OwnedItem
-import com.dangerfield.cards.server.domain.ApplyXpOutcome
-import com.dangerfield.cards.server.domain.FindOrCreateProgressionResult
 import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
-import com.dangerfield.cards.server.domain.ProgressionRepository
-import com.dangerfield.cards.server.domain.StarterInventory
-import com.dangerfield.cards.server.domain.UserProgression
-import com.dangerfield.cards.server.domain.XpEvent
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
@@ -21,7 +12,6 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -38,14 +28,13 @@ class DefaultOrphanInstallSweepTest {
     fun run_deletesAllVerifiedSiblings_whenInventoryIsStarterOnly() = runTest {
         val profiles = FakeProfileRepository(siblings = listOf(sibling1, sibling2))
         val admin = FakeAdmin()
-        val inventory = FakeInventory(
+        val verifier = OrphanSweepFakes.verifier(
             owned = mapOf(
-                sibling1 to starterRows(),
-                sibling2 to starterRows() + foundingMemberRow(),
+                sibling1 to OrphanSweepFakes.starterRows(),
+                sibling2 to OrphanSweepFakes.starterRows() + OrphanSweepFakes.foundingMemberRow(),
             ),
         )
-        val rooms = FakeRoomService()
-        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, FakeProgression(), rooms)
+        val sweep = DefaultOrphanInstallSweep(profiles, admin, verifier)
 
         val result = sweep.run(install, caller)
 
@@ -65,14 +54,14 @@ class DefaultOrphanInstallSweepTest {
         // even though the SQL gate accepted them.
         val profiles = FakeProfileRepository(siblings = listOf(sibling1, sibling2))
         val admin = FakeAdmin()
-        val inventory = FakeInventory(
+        val verifier = OrphanSweepFakes.verifier(
             owned = mapOf(
-                sibling1 to starterRows() + ownedRow("felt_blue_velvet", AcquisitionSource.Purchased),
-                sibling2 to starterRows(),
+                sibling1 to OrphanSweepFakes.starterRows() +
+                    OrphanSweepFakes.ownedRow("felt_blue_velvet", AcquisitionSource.Purchased),
+                sibling2 to OrphanSweepFakes.starterRows(),
             ),
         )
-        val rooms = FakeRoomService()
-        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, FakeProgression(), rooms)
+        val sweep = DefaultOrphanInstallSweep(profiles, admin, verifier)
 
         val result = sweep.run(install, caller)
 
@@ -87,9 +76,8 @@ class DefaultOrphanInstallSweepTest {
     fun run_skipsCandidate_whenSittingInActiveRoom() = runTest {
         val profiles = FakeProfileRepository(siblings = listOf(sibling1, sibling2))
         val admin = FakeAdmin()
-        val inventory = FakeInventory(owned = mapOf(sibling1 to starterRows(), sibling2 to starterRows()))
-        val rooms = FakeRoomService(seatedUsers = setOf(sibling1))
-        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, FakeProgression(), rooms)
+        val verifier = OrphanSweepFakes.verifier(seatedUsers = setOf(sibling1))
+        val sweep = DefaultOrphanInstallSweep(profiles, admin, verifier)
 
         val result = sweep.run(install, caller)
 
@@ -106,10 +94,8 @@ class DefaultOrphanInstallSweepTest {
         // preserves them — earned progress is never deleted.
         val profiles = FakeProfileRepository(siblings = listOf(sibling1, sibling2))
         val admin = FakeAdmin()
-        val inventory = FakeInventory(owned = mapOf(sibling1 to starterRows(), sibling2 to starterRows()))
-        val progression = FakeProgression(xpByUser = mapOf(sibling1 to 100L, sibling2 to 99L))
-        val rooms = FakeRoomService()
-        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, progression, rooms)
+        val verifier = OrphanSweepFakes.verifier(xpByUser = mapOf(sibling1 to 100L, sibling2 to 99L))
+        val sweep = DefaultOrphanInstallSweep(profiles, admin, verifier)
 
         val result = sweep.run(install, caller)
 
@@ -121,14 +107,29 @@ class DefaultOrphanInstallSweepTest {
     }
 
     @Test
+    fun run_skipsCandidate_withIapSpend() = runTest {
+        // Belt-and-suspenders: the SQL gate already excludes IAP spenders,
+        // but the shared verifier re-checks so a gate regression can never
+        // delete a paying account.
+        val profiles = FakeProfileRepository(siblings = listOf(sibling1, sibling2))
+        val admin = FakeAdmin()
+        val verifier = OrphanSweepFakes.verifier(iapSpenders = setOf(sibling1))
+        val sweep = DefaultOrphanInstallSweep(profiles, admin, verifier)
+
+        val result = sweep.run(install, caller)
+
+        assertEquals(1, result.deleted)
+        assertEquals(1, result.skipped)
+        assertEquals(listOf(sibling2), admin.deletedAdminUsers)
+    }
+
+    @Test
     fun run_recordsFailedDelete_whenAdminFails() = runTest {
         val profiles = FakeProfileRepository(siblings = listOf(sibling1, sibling2))
         val admin = FakeAdmin(
             failureFor = mapOf(sibling1 to DeleteUserResult.Failure(statusCode = 500, cause = null)),
         )
-        val inventory = FakeInventory(owned = mapOf(sibling1 to starterRows(), sibling2 to starterRows()))
-        val rooms = FakeRoomService()
-        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, FakeProgression(), rooms)
+        val sweep = DefaultOrphanInstallSweep(profiles, admin, OrphanSweepFakes.verifier())
 
         val result = sweep.run(install, caller)
 
@@ -143,13 +144,7 @@ class DefaultOrphanInstallSweepTest {
     fun run_shortCircuits_whenServiceRoleKeyNotConfigured() = runTest {
         val profiles = FakeProfileRepository(siblings = listOf(sibling1, sibling2, sibling3))
         val admin = FakeAdmin(defaultResult = DeleteUserResult.NotConfigured)
-        val inventory = FakeInventory(owned = mapOf(
-            sibling1 to starterRows(),
-            sibling2 to starterRows(),
-            sibling3 to starterRows(),
-        ))
-        val rooms = FakeRoomService()
-        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, FakeProgression(), rooms)
+        val sweep = DefaultOrphanInstallSweep(profiles, admin, OrphanSweepFakes.verifier())
 
         val result = sweep.run(install, caller)
 
@@ -162,7 +157,7 @@ class DefaultOrphanInstallSweepTest {
     @Test
     fun run_returnsEmpty_whenNoSiblings() = runTest {
         val profiles = FakeProfileRepository(siblings = emptyList())
-        val sweep = DefaultOrphanInstallSweep(profiles, FakeAdmin(), FakeInventory(), FakeProgression(), FakeRoomService())
+        val sweep = DefaultOrphanInstallSweep(profiles, FakeAdmin(), OrphanSweepFakes.verifier())
 
         val result = sweep.run(install, caller)
 
@@ -174,18 +169,6 @@ class DefaultOrphanInstallSweepTest {
     }
 
     // ---------- fakes ----------
-
-    private fun starterRows(): List<OwnedItem> = StarterInventory.productIds.map { ownedRow(it, AcquisitionSource.Earned) }
-
-    private fun foundingMemberRow(): OwnedItem =
-        ownedRow(FoundingMemberCatalog.PRODUCT_ID, AcquisitionSource.Earned)
-
-    private fun ownedRow(productId: String, source: AcquisitionSource): OwnedItem = OwnedItem(
-        productId = productId,
-        costChipsAtPurchase = 0L,
-        purchasedAt = Instant.fromEpochSeconds(1_700_000_000),
-        acquisitionSource = source,
-    )
 
     private class FakeProfileRepository(
         private val siblings: List<UserId>,
@@ -228,140 +211,5 @@ class DefaultOrphanInstallSweepTest {
         }
 
         override suspend fun listAnonymousUsersOlderThan(olderThan: Instant): List<UserId> = emptyList()
-    }
-
-    private class FakeInventory(
-        private val owned: Map<UserId, List<OwnedItem>> = emptyMap(),
-    ) : InventoryRepository {
-        override suspend fun listOwned(userId: UserId): List<OwnedItem> = owned[userId] ?: emptyList()
-        override suspend fun recordPurchase(
-            userId: UserId,
-            productId: String,
-            costChipsAtPurchase: Long,
-            purchasedAt: Instant,
-        ): OwnedItem = error("unused")
-        override suspend fun recordEarnedGrant(
-            userId: UserId,
-            productId: String,
-            grantedAt: Instant,
-        ): OwnedItem = error("unused")
-        override suspend fun deleteAllForUser(userId: UserId) = Unit
-    }
-
-    private class FakeProgression(
-        private val xpByUser: Map<UserId, Long> = emptyMap(),
-    ) : ProgressionRepository {
-        override suspend fun find(userId: UserId): UserProgression? =
-            xpByUser[userId]?.let {
-                UserProgression(
-                    userId = userId,
-                    totalXp = it,
-                    createdAt = Instant.fromEpochSeconds(1_700_000_000),
-                    updatedAt = Instant.fromEpochSeconds(1_700_000_000),
-                )
-            }
-
-        override suspend fun findOrCreateResult(userId: UserId): FindOrCreateProgressionResult =
-            error("unused")
-        override suspend fun applyXp(
-            userId: UserId,
-            idempotencyKey: String,
-            deltaXp: Long,
-            source: String,
-            mode: String,
-            handId: String?,
-            wasBoosted: Boolean,
-        ): ApplyXpOutcome = error("unused")
-        override suspend fun recentEvents(userId: UserId, limit: Int): List<XpEvent> = emptyList()
-        override suspend fun deleteAllForUser(userId: UserId) = Unit
-    }
-
-    private class FakeRoomService(
-        private val seatedUsers: Set<UserId> = emptySet(),
-    ) : com.dangerfield.cards.server.domain.RoomService {
-        override suspend fun snapshot(): List<com.dangerfield.cards.server.domain.Room> {
-            if (seatedUsers.isEmpty()) return emptyList()
-            return listOf(roomWith(seatedUsers.toList()))
-        }
-
-        private fun roomWith(users: List<UserId>): com.dangerfield.cards.server.domain.Room =
-            com.dangerfield.cards.server.domain.Room(
-                code = "ABCDEF",
-                hostUserId = users.first(),
-                createdAt = Instant.fromEpochSeconds(1_700_000_000),
-                maxSeats = com.dangerfield.cards.server.domain.RoomService.MAX_SEATS,
-                status = com.dangerfield.cards.server.domain.RoomStatus.Lobby,
-                members = users.mapIndexed { i, uid ->
-                    com.dangerfield.cards.server.domain.RoomMember(
-                        userId = uid,
-                        displayName = "User$i",
-                        seatIndex = i,
-                        joinedAt = Instant.fromEpochSeconds(1_700_000_000),
-                        isConnected = true,
-                    )
-                },
-            )
-
-        override suspend fun create(
-            hostUserId: UserId,
-            hostName: String,
-            maxSeats: Int,
-            hostAvatarEmoji: String,
-            hostAvatarBackgroundColor: String?,
-            buyIn: Long,
-            visibility: com.dangerfield.cards.server.domain.RoomVisibility,
-            feltProductId: String?,
-            cardBackProductId: String?,
-        ): com.dangerfield.cards.server.domain.CreateResult = error("unused")
-        override suspend fun findOrJoinPublic(
-            userId: UserId,
-            name: String,
-            minBuyIn: Long,
-            maxBuyIn: Long,
-            blockedUserIds: Set<UserId>,
-            avatarEmoji: String,
-            avatarBackgroundColor: String?,
-        ): com.dangerfield.cards.server.domain.MatchmakingResult = error("unused")
-        override suspend fun findPublicCandidates(
-            userId: UserId,
-            minBuyIn: Long,
-            maxBuyIn: Long,
-            blockedUserIds: Set<UserId>,
-        ): List<com.dangerfield.cards.server.domain.Room> = error("unused")
-        override suspend fun join(
-            code: String,
-            userId: UserId,
-            name: String,
-            avatarEmoji: String,
-            avatarBackgroundColor: String?,
-        ): com.dangerfield.cards.server.domain.JoinResult = error("unused")
-        override suspend fun leave(code: String, userId: UserId): com.dangerfield.cards.server.domain.LeaveResult = error("unused")
-        override suspend fun addBot(
-            code: String,
-            requestedBy: UserId,
-            difficulty: com.dangerfield.cards.libraries.bots.BotDifficulty,
-            seatIndex: Int?,
-            revealed: Boolean,
-        ): com.dangerfield.cards.server.domain.AddBotResult = error("unused")
-        override suspend fun fillBotsUpTo(
-            code: String,
-            requestedBy: UserId,
-            target: Int,
-            difficulty: com.dangerfield.cards.libraries.bots.BotDifficulty,
-            revealed: Boolean,
-        ): com.dangerfield.cards.server.domain.AddBotResult = error("unused")
-        override suspend fun removeBot(
-            code: String,
-            requestedBy: UserId,
-            botUserId: UserId,
-        ): com.dangerfield.cards.server.domain.RemoveBotResult = error("unused")
-        override suspend fun trimBotForNewHumans(code: String, handNumber: Int): UserId? = null
-        override suspend fun markConnected(code: String, userId: UserId, connected: Boolean): com.dangerfield.cards.server.domain.Room? = null
-        override suspend fun markPlaying(code: String): com.dangerfield.cards.server.domain.Room? = null
-        override suspend fun markFinished(code: String): com.dangerfield.cards.server.domain.Room? = null
-        override suspend fun find(code: String): com.dangerfield.cards.server.domain.Room? = null
-        override suspend fun observe(code: String): kotlinx.coroutines.flow.Flow<com.dangerfield.cards.server.domain.Room>? = null
-        override suspend fun sweepDisconnected(maxIdle: kotlin.time.Duration): com.dangerfield.cards.server.domain.RoomSweepResult = error("unused")
-        override suspend fun reapIfStillDisconnected(code: String, userId: UserId, expectedDisconnectedAt: Instant): Boolean = false
     }
 }

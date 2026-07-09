@@ -83,6 +83,7 @@ Two variants, both must pass:
 **Expected:**
 - Variant A — same as `ONB-3` (no grant, prior profile loads, onboarding skipped).
 - Variant B — new account: routes through onboarding (PickIdentity then the starter-grant reveal) and lands on Home with the welcome grant, instead of landing cold on Home (AUTH-3).
+- Variant B header (AUTH-17): the post-Google PickIdentity step renders like the guest path — "This is you" title visible, "Step 1 of 3" chip sitting in clear space above the avatar, never floating on top of the content. (Only the back arrow is absent, since the identity is already claimed.)
 
 ---
 
@@ -294,6 +295,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - On Device B, enter a 6-character code that is not a real room and tap Join. A "room not found" error appears in place under the code field; the screen does **not** move, navigate, or recompose — the input + keyboard stay put. Editing a character clears the error. (Covers todo ROOM-5.)
 - Create the room on Device A with a non-zero buy-in. After Device B joins, both devices' lobby show the real buy-in (and matching blinds) — never $0 — and it stays correct as the second seat fills in. (Covers MP-24.)
 - On a fresh account (10,000-chip grant), the create-table screen opens with the buy-in pre-set to 1,000 (blinds 5 / 10), not 5,000 — a sensible ~10% of the bankroll for a first-time host. The slider still drags up to the full balance. (Covers ROOM-13.)
+- On the create-table screen, the avatar next to the room name is your own profile avatar (the emoji + color picked in Edit Profile), not a placeholder fox.
 
 ---
 
@@ -516,6 +518,18 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** The opening bot action never lands before the deal settles (~1s grace after the cards fly in). The fold announces itself: a FOLD pill pops in under the greyed avatar and stays for the rest of the hand, through showdown. The player card's "Last Move" row reads "Folded" — including after later streets have dealt. Never just an unexplained pair of grey cards. (Covers todo GAME-17.)
 
+---
+
+### `GAME-18` ⚠️ 📱 Busting at showdown shows the hand you lost to before the bust dialog
+
+**State:** any account in a solo bot game.
+
+1. Shove all-in and lose at showdown so your stack hits 0.
+2. Watch what appears when the hand resolves.
+3. Tap "Continue" on the showdown summary.
+
+**Expected:** The full showdown summary shows first — board, revealed hole cards, the winner's hand — with a "Continue" CTA instead of "Next hand". Tapping it presents the "You went bust" dialog with the "Deal me in" recovery. The reveal never plays half-hidden under the bust dialog's scrim. Busting to a fold-out (no showdown) skips straight to the bust dialog. (Covers todo GAME-18.)
+
 ## Progression
 
 ### `PROG-1` ⚠️ 📱 Level-up celebration shows on a fresh account's first level-up
@@ -538,6 +552,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. On the celebration sheet, watch the first medallion reveal, then swipe left through the remaining pages.
 
 **Expected:** Each achievement gets its own full-width page in a horizontal pager with a dot indicator underneath (active dot stretches and follows the swipe). The first page auto-reveals with confetti; later pages stay a "?" mystery until tapped. A single-achievement unlock shows one card with no pager chrome or dots. (Covers todo PROG-9.)
+
+- Pager sizing (PROG-10): swiping between cards of different heights never jumps or abruptly resizes the sheet — it holds the tallest card's height — and tapping a mystery card grows it smoothly, not with a snap.
 
 ---
 
