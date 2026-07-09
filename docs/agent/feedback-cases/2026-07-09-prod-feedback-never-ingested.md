@@ -2,7 +2,7 @@
 
 - **Sentry issue:** none — the report never reached Sentry (that is the bug)
 - **Reported:** 2026-07-09, owner's first feedback from the TestFlight/store build (release `cards@0.1.0+1`, environment `dev-ios-release`)
-- **Disposition:** todo: "ENG-16 [P0] Stop sampling away release error events"
+- **Disposition:** todo: "ENG-16 [P0] Stop sampling away release error events" — **fixed same day** (commit `fix(telemetry): stop sampling away error events in release builds`, pinned by `SentryRuntimeConfigTest`)
 
 ## Bug description
 > Owner submitted in-app feedback from the production TestFlight build for the first time. No carrier ("User feedback"/"Bug report") event and no feedback twin ever arrived in Sentry. The content of the feedback itself is unrecoverable — it existed only in the envelope the SDK discarded.
