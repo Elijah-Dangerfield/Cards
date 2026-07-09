@@ -159,10 +159,12 @@ jobs:
     name: iOS → TestFlight internal
     needs: build-number
     if: ${{ !inputs.skip_ios }}
-    # xlarge (14GB): the K/N release-LTO link runs inside the Gradle daemon and
-    # OOM'd at 6g on the standard 7GB runner (2026-07-08, twice). Costs more per
-    # minute — fine for a manually-dispatched workflow.
-    runs-on: macos-26-xlarge
+    # Standard runner (7GB) with a 10g daemon heap: the K/N release-LTO link
+    # runs inside the Gradle daemon and needs >6g — the overflow lands in macOS
+    # swap (slower, but macOS doesn't OOM-kill like a cgroup). The repo is
+    # public so standard runners are free/unlimited; macos-26-xlarge (14GB)
+    # works too but bills ~$5/build even on public repos (2026-07-08 saga).
+    runs-on: macos-26
     timeout-minutes: 90
     env:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
