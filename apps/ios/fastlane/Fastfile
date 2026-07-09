@@ -12,6 +12,9 @@ SCHEME = "iosApp"
 CONFIGURATION = "Release"
 OUTPUT_DIR = "build"
 OUTPUT_NAME = "KMPTemplate.ipa"
+# Effective bundle id (the pbxproj hardcodes it; the xcconfig's $(TEAM_ID)
+# suffix never applies). Must match the ASC app record.
+APP_IDENTIFIER = "com.dangerfield.cards.Cards"
 
 platform :ios do
   before_all do
@@ -106,6 +109,22 @@ def build_and_upload(distribute_external:, submit_to_app_store:)
   asc_key_path = File.join(Dir.tmpdir, "AuthKey_#{key_id}.p8")
   File.binwrite(asc_key_path, Base64.decode64(key_content_b64))
 
+  # The EXPORT signs manually with the imported distribution cert plus an App
+  # Store profile fetched (or created) through the ASC API. Letting xcodebuild
+  # cloud-sign the export kept failing ("Cloud signing permission error",
+  # 2026-07-08/09): cloud signing insists on a cloud-managed distribution
+  # certificate — it won't use the imported .p12 — and creating one trips the
+  # team cert cap / key permissions. sigh only needs the App Manager API key
+  # and reuses the existing cert. The ARCHIVE stays on automatic signing,
+  # which has worked on every run.
+  get_provisioning_profile(
+    api_key: api_key,
+    app_identifier: APP_IDENTIFIER,
+    output_path: Dir.tmpdir,
+    readonly: false,
+  )
+  app_store_profile_name = lane_context[SharedValues::SIGH_NAME]
+
   # Timestamp build number (YYYYMMDDHHMM, 12 digits, well under CFBundleVersion's
   # 18-digit cap). Always unique and strictly increasing, which App Store Connect
   # requires within a marketing version. Using GITHUB_RUN_NUMBER caused collisions
@@ -137,20 +156,15 @@ def build_and_upload(distribute_external:, submit_to_app_store:)
       "CODE_SIGN_STYLE=Automatic",
       "CURRENT_PROJECT_VERSION=#{build_number}",
     ].join(" "),
-    # xcargs only reaches the ARCHIVE invocation; -exportArchive is a separate
-    # xcodebuild call and needs its own auth args, or cloud signing fails there
-    # with "Cloud signing permission error" / "No profiles found" even though
-    # the API key (App Manager) is fine — seen 2026-07-08 on the first beta.
-    export_xcargs: [
-      "-allowProvisioningUpdates",
-      "-authenticationKeyPath", asc_key_path,
-      "-authenticationKeyID", key_id,
-      "-authenticationKeyIssuerID", issuer_id,
-    ].join(" "),
+    # NOTE: gym forwards xcargs to the -exportArchive invocation too (adding
+    # export_xcargs duplicates them and xcodebuild rejects repeated
+    # -authenticationKeyPath flags — seen 2026-07-09).
     export_options: {
       method: "app-store",
-      signingStyle: "automatic",
+      signingStyle: "manual",
+      signingCertificate: "Apple Distribution",
       teamID: team_id,
+      provisioningProfiles: { APP_IDENTIFIER => app_store_profile_name },
     },
   )
 

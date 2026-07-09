@@ -11,6 +11,7 @@ import com.dangerfield.cards.server.domain.Store
 import com.dangerfield.cards.server.http.clientContext
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.WALLET_WRITE_LIMIT
+import com.dangerfield.cards.server.plugins.captureToSentry
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
@@ -22,6 +23,7 @@ import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.post
+import org.slf4j.LoggerFactory
 
 /**
  * Server-authoritative chip-pack redemption (BILL-1).
@@ -44,6 +46,15 @@ import io.ktor.server.routing.post
  * is pinned into the receipt so a validator can confirm the purchase
  * belongs to the caller. Per-IP rate-limited like the wallet writes.
  */
+private val logger = LoggerFactory.getLogger("BillingRoutes")
+
+/**
+ * Raised (captured, never thrown) so receipt rejections group as one Sentry
+ * issue with the validator's reason + store/product distinguishing occurrences.
+ */
+private class ReceiptRejectedException(reason: String, store: String, productId: String) :
+    RuntimeException("Receipt rejected: $reason (store=$store, product=$productId)")
+
 fun Route.billingRoutes(
     catalog: ProductCatalogSource,
     validator: ReceiptValidator,
@@ -72,6 +83,12 @@ fun Route.billingRoutes(
 
                 val product = catalog.readById(body.productId, call.clientContext())
                 if (product !is Product.ChipPack) {
+                    // A real client only redeems ids it got from this catalog,
+                    // so this is client/catalog drift (or probing) — log it.
+                    logger.warn(
+                        "Redeem for unknown product '{}' (store={}, user={})",
+                        body.productId, body.store, userId.value,
+                    )
                     return@post call.respondProblem(
                         HttpStatusCode.BadRequest,
                         "unknown_product",
@@ -94,11 +111,26 @@ fun Route.billingRoutes(
                 )
                 val orderId = when (validation) {
                     is ReceiptValidation.Valid -> validation.orderId
-                    is ReceiptValidation.Invalid -> return@post call.respondProblem(
-                        HttpStatusCode.BadRequest,
-                        "receipt_rejected",
-                        "The purchase receipt could not be verified.",
-                    )
+                    is ReceiptValidation.Invalid -> {
+                        // The user paid the store and we refused the grant —
+                        // forged receipt, or config drift (wrong bundle id /
+                        // environment / SKU). Both are worth a Sentry issue,
+                        // with the reason distinguishing them; the client only
+                        // ever sees the generic "receipt_rejected".
+                        logger.warn(
+                            "Receipt rejected: reason={} store={} product={} user={}",
+                            validation.reason, store.wire, body.productId, userId.value,
+                        )
+                        captureToSentry(
+                            ReceiptRejectedException(validation.reason, store.wire, body.productId),
+                            context = "billing_redeem",
+                        )
+                        return@post call.respondProblem(
+                            HttpStatusCode.BadRequest,
+                            "receipt_rejected",
+                            "The purchase receipt could not be verified.",
+                        )
+                    }
                 }
 
                 val result = billing.redeem(

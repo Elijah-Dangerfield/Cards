@@ -12,6 +12,7 @@ import com.dangerfield.cards.libraries.billing.awaitPurchase
 import com.dangerfield.cards.libraries.billing.toBillingProduct
 import com.dangerfield.cards.libraries.billing.toPurchaseResult
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.logging.KLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -76,6 +77,8 @@ internal class RealStoreKitBillingClient(
     private val coordinator: StoreKitCoordinator,
 ) : BillingClient {
 
+    private val logger = KLog.withTag("StoreKitBillingClient")
+
     override val connectionState = MutableStateFlow(ConnectionState.Connected)
 
     override suspend fun connect(): ConnectionState = ConnectionState.Connected
@@ -86,7 +89,12 @@ internal class RealStoreKitBillingClient(
             onSuccess = { products ->
                 QueryProductsResult.Success(products.associate { it.productId to it.toBillingProduct() })
             },
-            onFailure = { QueryProductsResult.Failed(it.message ?: "StoreKit product load failed") },
+            onFailure = { error ->
+                // Breadcrumb-level detail; the catalog refresh raises the
+                // Sentry event when packs actually drop out of the shop.
+                logger.w { "StoreKit product load failed for $skus: ${error.message}" }
+                QueryProductsResult.Failed(error.message ?: "StoreKit product load failed")
+            },
         )
     }
 
@@ -96,5 +104,15 @@ internal class RealStoreKitBillingClient(
     override suspend fun acknowledge(purchaseToken: String): Boolean = true
 
     override suspend fun consume(purchaseToken: String): Boolean =
-        Catching { coordinator.awaitFinish(purchaseToken) }.getOrDefault(false)
+        Catching { coordinator.awaitFinish(purchaseToken) }
+            .getOrDefault(false)
+            .also { finished ->
+                if (!finished) {
+                    // Error on purpose: an unfinished consumable means StoreKit
+                    // will replay the transaction — recoverable, but if it
+                    // recurs the replay/drain path is broken and users see
+                    // stuck purchases.
+                    logger.e { "Transaction.finish failed — consumable left unfinished for StoreKit replay" }
+                }
+            }
 }
