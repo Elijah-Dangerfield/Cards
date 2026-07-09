@@ -392,7 +392,11 @@ data class SentryRuntimeConfig(
             val buildTypeTag = buildInfo.buildType
             val dsn = CARDS_SENTRY_DSN
             val environment = "${buildInfo.releaseChannel}-$platformTag-$buildTypeTag"
-            val release = "cardse@${buildInfo.versionName}+${buildInfo.buildNumber}"
+            // Must stay in lockstep with upload_sentry_release in
+            // apps/ios/fastlane/Fastfile — Sentry attaches events to releases
+            // by exact string match. (Pre-2026-07 builds reported "cardse@…",
+            // a template-rename artifact; those releases stay under the old slug.)
+            val release = "cards@${buildInfo.versionName}+${buildInfo.buildNumber}"
             val tracesSampleRate = if (buildInfo.isDebug) 1.0 else 0.15
             val profilesSampleRate = if (buildInfo.isDebug) 1.0 else 0.05
             val breadcrumbLevel = if (buildInfo.isDebug) LogLevel.Debug else LogLevel.Info

@@ -289,9 +289,9 @@ def upload_sentry_release(marketing_version, build_number)
   org = ENV.fetch("SENTRY_ORG")
   project = ENV.fetch("SENTRY_PROJECT")
   # Must match the client's Sentry release name exactly (AppTelemetry.kt,
-  # SentryRuntimeConfig.forApp: "cardse@<version>+<build>") or events won't
+  # SentryRuntimeConfig.forApp: "cards@<version>+<build>") or events won't
   # attach to the release created here.
-  release = "cardse@#{marketing_version}+#{build_number}"
+  release = "cards@#{marketing_version}+#{build_number}"
   dsym_dir = File.join(OUTPUT_DIR)
   sh("npx @sentry/cli releases new #{release} --org #{org} --project #{project}")
   sh("npx @sentry/cli releases set-commits #{release} --auto --org #{org} --project #{project} || true")
