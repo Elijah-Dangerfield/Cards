@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-07-08 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-07-10 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -33,10 +33,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - **ECON-1 `[P1]` Close the wallet-ledger gaps and add a conservation check.** Problem: starter grants set the wallet balance without writing a `wallet_events` row, so the ledger can't explain the money. Prod balances add up to 146,000 chips but the ledger only accounts for 126,000. Any mutation that skips the ledger makes the economy dashboard unauditable.
   **Acceptance:** every balance change writes a ledger row (audit every path: starter grant, multiplayer settlement, bust protection, shop, admin). A conservation check (total balances equal the ledger sum) exists as a test and an alertable query, and passes on prod once the missing starter rows are backfilled.
   **Hints:** server wallet write paths; the schema is visible in the `cards-economy` dashboard queries; case `docs/agent/feedback-cases/2026-07-09-chips-vanish-on-restart.md`.
-
-- **ECON-2 `[P2]` Admin chip adjustment: endpoint + GitHub action writing audited ledger entries.** Problem: the only way to reset or adjust a prod balance today is raw SQL that bypasses the ledger. The owner's wallet holds 125,000 test-purchase chips that need cleaning up.
-  **Acceptance:** an admin-authenticated endpoint applies a delta with reason `admin_adjustment:<note>` through the normal ledger path, and a GitHub workflow wraps it for manual runs.
-  **Hints:** existing `/v1/admin/*` routes and their auth; builds on ECON-1's single write path.
 
 ## BILL — billing
 
