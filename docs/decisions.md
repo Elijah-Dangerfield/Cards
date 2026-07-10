@@ -1034,3 +1034,19 @@ The seam is already clean: join-by-code and matchmaking both go through `RoomSer
 **Alternatives rejected:** duplicating the checks into the anon sweep (that's the drift that caused this gap); pushing all guards into the TTL SQL query (room-seat state lives in RAM, and Kotlin-side policy stays migration-free, matching the original install-sweep rationale).
 
 **Status:** Shipped. `OrphanCandidateVerifierTest` pins each guard; both sweep tests cover skip accounting; `PostgresWalletRepositoryTest.hasIapSpend_matchesOnlyIapPrefixedReasons` pins the ledger query against real Postgres.
+
+## 2026-07-10 — No internal TestFlight channel; sandbox purchases separated in data (BILL-6)
+
+**Problem:** TestFlight IAPs are always StoreKit sandbox — free chips. The owner's own test purchases minted 125,000 unpaid chips into the prod economy, and friends on the beta will do the same. Question was whether to isolate testers on a dev-backend "internal" build or keep everyone on prod.
+
+**Decision:** Everyone stays on the prod TestFlight build. Real-vs-sandbox is a *data* distinction, not a *distribution* one: record the StoreKit environment at receipt verification (the server already knows it — `APPLE_STORE_ENVIRONMENT`) and segment sandbox mints out of economy/revenue dashboards. Rationale: (1) friends' gameplay is real pre-launch signal, and a dev backend is a wipeable demolition zone that would burn their progress; (2) sandbox purchases exist for as long as TestFlight does — post-launch beta testers included — so the data fix is mandatory regardless; the channel fix would only mask it pre-launch.
+
+**Alternatives rejected:** dev-backend internal builds for friends (kills signal, doesn't survive launch); same-app-id dual build tracks (one-install-per-device juggling, build-mixup risk); in-app env switcher (one install mixing two backends is the exact confusion class just debugged).
+
+**Status:** Filed as BILL-6 (tag + segment) with ECON-1/ECON-2 covering ledger conservation and cleanup of the existing sandbox chips.
+
+## 2026-07-10 — One telemetry stack for both environments, tag-separated
+
+**Decision:** Prod and dev both ship to the single Grafana Cloud stack (same OTLP endpoint/creds), separated by the `deployment_environment` resource attribute — auto-derived from `FLY_APP_NAME` (`cards-server-prod` → `prod`). Matches the single-Sentry-project-with-environment-tag pattern the rest of the project uses. Root cause of the dark prod backend was simply missing secrets on the prod Fly app (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, `SENTRY_DSN` — set on dev only when Grafana was first wired); ENG-17 tracks setting them. Client-side product events will ride the same pipe via a KMP OTel SDK exporting through a server relay (ENG-18) — never direct-to-Grafana with credentials in the app binary.
+
+**Status:** ENG-17 (wire prod), ENG-18 (client events) filed.
