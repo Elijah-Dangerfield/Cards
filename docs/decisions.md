@@ -1049,4 +1049,4 @@ The seam is already clean: join-by-code and matchmaking both go through `RoomSer
 
 **Decision:** Prod and dev both ship to the single Grafana Cloud stack (same OTLP endpoint/creds), separated by the `deployment_environment` resource attribute — auto-derived from `FLY_APP_NAME` (`cards-server-prod` → `prod`). Matches the single-Sentry-project-with-environment-tag pattern the rest of the project uses. Root cause of the dark prod backend was simply missing secrets on the prod Fly app (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, `SENTRY_DSN` — set on dev only when Grafana was first wired); ENG-17 tracks setting them. Client-side product events will ride the same pipe via a KMP OTel SDK exporting through a server relay (ENG-18) — never direct-to-Grafana with credentials in the app binary.
 
-**Status:** ENG-17 (wire prod), ENG-18 (client events) filed.
+**Status:** ENG-17 shipped 2026-07-10 — owner set the three secrets on `cards-server-prod`; prod logs/traces verified in Loki/Tempo with `deployment_environment=prod`, and the prod server's Sentry is live. ENG-18 (client events) still filed.
