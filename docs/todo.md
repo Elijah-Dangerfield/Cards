@@ -24,9 +24,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## PROG — progression / XP / stats
 
-- **PROG-11 `[P1]` Fold/flush unsynced progression grants on app launch — chips "vanish" until the next sync trigger.** Problem: achievement (+500) and level-up (+1,000) grants from the owner's 07-09 prod session weren't applied server-side until Google sign-in fired a sync ~30 min later; kill+relaunch showed the bare server balance, so the user watched earned chips disappear.
-  **Acceptance:** failing-first test — earn a grant, kill before sync, relaunch → displayed balance includes the unsynced grant and the outbox flushes without needing a sign-in.
-  **Hints:** progression outbox + fold (PROG-1) in `libraries/cards/impl`; full timeline in case `docs/agent/feedback-cases/2026-07-09-chips-vanish-on-restart.md`.
+- **PROG-11 `[P1]` Displayed balance must fold pending wallet events; make cold-boot reconcile reliable.** Problem: grants write a persisted `wallet_events` outbox row + optimistic `ChipsEntity.balance`, but `sync()` overwrites the balance with server truth even when pending rows remain unposted, and `UserScopedSyncCoordinator` skips cold-boot foreground (expects auth-resolve `UserChanged` to own it) — the owner's 07-09 relaunch showed the bare server balance and the grants didn't land server-side until sign-in fired a sync ~30 min later.
+  **Acceptance:** failing-first tests — (a) displayed balance = server snapshot + SUM(pending outbox) so no sync ordering can "vanish" earned chips; (b) cold-boot relaunch with a persisted session flushes the outbox without a fresh sign-in (find why relaunch didn't: missed `UserChanged` on session restore, or silent sync failure).
+  **Hints:** `ChipsRepositoryImpl.sync()` `setBalance(response.balance)` overwrite + `observeBalance()` (no fold); `UserScopedSyncCoordinator` cold-boot skip; case `docs/agent/feedback-cases/2026-07-09-chips-vanish-on-restart.md`.
 
 ## ECON — chip economy integrity
 
@@ -42,7 +42,7 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 - **BILL-6 `[P1]` Record the StoreKit environment on purchases; segment sandbox out of economy metrics.** Problem: TestFlight IAPs are always sandbox (free) — the owner's two test purchases minted 125,000 unpaid chips recorded as real revenue (`billing_transactions` has no environment column). Permanent issue: TestFlight users always sandbox-purchase, even post-launch.
   **Acceptance:** environment (`sandbox`|`production`) persisted per transaction and reflected in the wallet-events reason (or a column); `cards-economy` dashboard segments/excludes sandbox mints from supply + revenue panels.
-  **Hints:** StoreKit exposes the environment at transaction verification; `StoreKitBillingClient` + the server redemption route.
+  **Hints:** the server already knows the environment at JWS verification (`APPLE_STORE_ENVIRONMENT` in `ServerConfig`, currently `Sandbox` on BOTH Fly apps — must flip prod to `Production` at App Store launch, ideally verifying Production-with-Sandbox-fallback so TestFlight keeps working); `StoreKitBillingClient` + the server redemption route.
 
 ## ENG — engineering / structural
 
