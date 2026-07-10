@@ -998,3 +998,11 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch:** `LobbyViewModel.handleAction` SubmitJoin branch + `LobbyScreen`'s `createError` full-screen path; `LobbyScreenPreview_JoinFailed` pins the current stranded state.
 
 **Status:** Backlog.
+
+---
+
+## First-to-all-achievements reward automation
+
+**Idea (owner, 2026-07-10):** When the first player earns every achievement, send them a manual reward. Once ECON-2's admin grant endpoint exists this is a thin GH action: query achievements-per-user (server Postgres), detect completion, fire an `admin_adjustment` grant with a celebratory note. Blocked on ECON-2; also pairs with the achievements panel idea in ENG-19.
+
+**Status:** Backlog.

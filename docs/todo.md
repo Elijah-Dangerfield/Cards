@@ -12,7 +12,7 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 **Item IDs.** Every item carries a stable ID — section prefix + number (`PROG-1`, `AUTH-3`, `MP-2`). IDs never get reused: when an item ships or moves to backlog, its number retires with it. Use the ID when referring to an item in commits, PRs, or other docs.
 
-**ID prefixes:** `PROG` (progression / XP / stats), `AUTH` (auth + onboarding), `GAME` (gameplay + table UX), `SHOP` (consumables + rewards), `SOC` (social graph), `ROOM` (rooms UI), `MP` (multiplayer hardening), `ENG` (engineering / structural), `BILL` (billing).
+**ID prefixes:** `PROG` (progression / XP / stats), `AUTH` (auth + onboarding), `GAME` (gameplay + table UX), `SHOP` (consumables + rewards), `SOC` (social graph), `ROOM` (rooms UI), `MP` (multiplayer hardening), `ENG` (engineering / structural), `BILL` (billing), `ECON` (chip economy integrity).
 
 **Priority tags** (every item carries one; bias toward P0 first):
 
@@ -22,6 +22,40 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
+## PROG — progression / XP / stats
+
+- **PROG-11 `[P1]` Fold/flush unsynced progression grants on app launch — chips "vanish" until the next sync trigger.** Problem: achievement (+500) and level-up (+1,000) grants from the owner's 07-09 prod session weren't applied server-side until Google sign-in fired a sync ~30 min later; kill+relaunch showed the bare server balance, so the user watched earned chips disappear.
+  **Acceptance:** failing-first test — earn a grant, kill before sync, relaunch → displayed balance includes the unsynced grant and the outbox flushes without needing a sign-in.
+  **Hints:** progression outbox + fold (PROG-1) in `libraries/cards/impl`; full timeline in case `docs/agent/feedback-cases/2026-07-09-chips-vanish-on-restart.md`.
+
+## ECON — chip economy integrity
+
+- **ECON-1 `[P1]` Close the wallet-ledger gaps and add a conservation check.** Problem: starter grants seed `wallets.balance` with no `wallet_events` row — prod SUM(deltas) is 126,000 vs supply 146,000, a 20,000 unexplained pile; any unledgered mutation makes the economy dashboard unauditable.
+  **Acceptance:** every balance mutation writes a `wallet_events` row (audit all paths: starter grant, MP settlement, bust protection, shop, admin); a conservation check (`supply == SUM(delta)`) exists as a test + alertable query and passes on prod after backfilling starter rows.
+  **Hints:** server wallet write paths; schema visible in the `cards-economy` dashboard queries; case `docs/agent/feedback-cases/2026-07-09-chips-vanish-on-restart.md`.
+
+- **ECON-2 `[P2]` Admin chip adjustment: endpoint + GH action writing audited ledger entries.** Problem: no way to reset/adjust a prod balance (owner's wallet holds 125k sandbox-minted chips) without raw SQL that bypasses the ledger.
+  **Acceptance:** admin-authed endpoint applies a delta with reason `admin_adjustment:<note>` through the normal ledger path; a GH workflow wraps it for manual runs.
+  **Hints:** existing `/v1/admin/*` routes + auth; depends on ECON-1's single write path.
+
+## BILL — billing
+
+- **BILL-6 `[P1]` Record the StoreKit environment on purchases; segment sandbox out of economy metrics.** Problem: TestFlight IAPs are always sandbox (free) — the owner's two test purchases minted 125,000 unpaid chips recorded as real revenue (`billing_transactions` has no environment column). Permanent issue: TestFlight users always sandbox-purchase, even post-launch.
+  **Acceptance:** environment (`sandbox`|`production`) persisted per transaction and reflected in the wallet-events reason (or a column); `cards-economy` dashboard segments/excludes sandbox mints from supply + revenue panels.
+  **Hints:** StoreKit exposes the environment at transaction verification; `StoreKitBillingClient` + the server redemption route.
+
 ## ENG — engineering / structural
+
+- **ENG-17 `[P1]` Prod server ships no telemetry — wire OTLP export on the prod Fly app.** Problem: Loki/Tempo contain only `deployment_environment=dev` for the entire last week; the 07-09 prod session left zero backend logs/traces (triage had to go through the Postgres datasource instead).
+  **Acceptance:** prod requests produce logs and traces in Grafana labeled `deployment_environment=prod`, verified with one live prod request.
+  **Hints:** `installOpenTelemetry` in `apps/server/.../plugins/Telemetry.kt` (logs "exporter=otlp-http"); diff Fly secrets/env between the dev and prod `cards-server` apps.
+
+- **ENG-18 `[P1]` Client product events over OTel: `logger.event()` tree + server OTLP relay.** Problem: no product analytics — client-only happenings (bot games, sessions, funnels) never reach Grafana.
+  **Acceptance:** `logger.event(name, props)` flows client → server relay (session-token auth; server stamps verified user + environment) → Loki, with the OTel SDK's batching/disk-cache/retry; the Sentry tree records the same events as breadcrumbs; first events: `bot_game_played`, `session_start`/`session_end`.
+  **Hints:** KMP OTel SDK (Embrace opentelemetry-kotlin); KLog tree pattern in `AppTelemetry`; relay is a dumb OTLP passthrough route — do NOT ship Grafana Cloud credentials in the app.
+
+- **ENG-19 `[P2]` Grafana dashboards: chip provenance + users/sessions.** Problem: the economy dashboard can't segment sandbox vs real (BILL-6) and there's no users/platform/sessions view.
+  **Acceptance:** economy dashboard gains a source-breakdown (pie over `wallet_events.reason`) + sandbox segmentation; a users dashboard shows counts by platform, session count/length, and anomalies (longest session) off ENG-18 events.
+  **Hints:** `cards-economy` dashboard JSON; ENG-18 events in Loki; depends on ECON-1 + BILL-6 for honest numbers.
 
 - **ENG-15 `[P2]` Rename Virtu-branded ObjC bridge names to Cards.** Problem: the Kotlin↔Swift bridge still exports `VirtuNativeViewFactory` / `VirtuNativeAppleSignInButtonKind` / `VirtuNativeAppleSignInButtonStyle` (`@ObjCName(..., exact = true)` in `libraries/ui/src/iosMain/.../nativeviews/NativeViewFactory.kt`, referenced from `apps/ios/iosApp/iOSApp.swift` and `Platform/IOSNativeViewFactory.swift`) — leftover branding from two template generations ago. Acceptance: prefix renamed to `Cards*` in the Kotlin annotations and all Swift references; while there, prune anything in the bridge Cards doesn't use (camera code is already gone — check nothing else is dead); verified by an iOS simulator build of the `iosApp` scheme (Swift compiles against the generated framework header — Kotlin compilation alone proves nothing) with zero `Virtu` hits left in the generated `ComposeApp.h`. Hints: the same rename shipped in KMPTemplate main as `90a9eb5` — mirror it.
