@@ -58,6 +58,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** `pages/privacy.html` and `pages/terms.html` reviewed for factual accuracy (data collected, telemetry, purchases, accounts) and rewritten where they read as AI slop; published.
   **Hints:** `pages/privacy.html`, `pages/terms.html`; https://elijah-dangerfield.sentry.io/issues/CARDS-9F
 
+- **ENG-27 `[P2]` `SEAViewModel.onCleared` errors on every non-savable state — log noise, and saved-state restore never worked. (proposed 2026-07-11)** Problem: `onCleared` writes the state object into `SavedStateHandle`; plain data-class states throw `IllegalArgumentException: Can't put value with type … into saved state` on Android (seen as `FeedbackState` ×2 in session 9f552c69), and the default `SavedStateHandle()` isn't platform-wired, so restoration is dead even where the write succeeds.
+  **Acceptance:** clearing any VM emits no error; either wire real process-death restoration through a platform-provided handle or delete the write + the KDoc claim (recommend delete — nothing restores from it today).
+  **Hints:** `libraries/flowroutines/src/commonMain/kotlin/com/cards/libraries/flowroutines/SEAViewModel.kt` (`onCleared`, default `savedStateHandle` param).
+
 - **ENG-24 `[P2]` `app.launched` carries a pre-rollover session_id.** Problem: `app.launched` fires from `GrafanaAppEvents` AutoInit before the session tracker rolls the session on first foreground, so it lands with a different `session_id` than every other event in the same boot (verified in Loki 2026-07-11: launch `853a6eec…` vs foreground+rest `3f741d6e…`) — session-keyed funnels see an orphan one-event session per cold start.
   **Acceptance:** all events from one cold start share one `session_id` (either emit `app.launched` after the session settles, or count launches via `app.foregrounded cold_start=true` and demote `app.launched` to a pure pipe smoke-test — pick one and update `docs/wiki/app-events.md`).
   **Hints:** `GrafanaAppEvents.kt` init vs `SessionTrackerImpl` foreground rollover ordering.
