@@ -24,10 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ENG — engineering / structural
 
-- **ENG-21 `[P2]` Close the user-switch clear window: an old user's in-flight sync can still race `clearFor`.** Problem: `SupabaseAuthRepositoryImpl.emitLocked` awaits `userScopedDataReset.clearFor(previous)` before emitting the new user, but a sync already in flight for the old user is only cancelled when the new emission reaches the sync loops - its writes can land mid-clear. ENG-20's cancel-on-key-change narrowed this pre-existing window; it is not closed.
-  **Acceptance:** a user-switch test proves no old-user write can land after `clearFor` starts (e.g. the clear awaits cancellation of that user's sync jobs).
-  **Hints:** `runWhen` in `libraries/flowroutines`, `UserScopedSyncCoordinator`; filed as a follow-up in `docs/plans/eng-20-runwhen-triggers.md`.
-
 - **ENG-18 `[P1]` Client app events over KMP OpenTelemetry: `logEvent` extension + GrafanaLogTree, direct to Grafana Cloud.** Problem: there are no product analytics. Anything only the client sees (matchmaking back-outs, onboarding drop-off, bot games, backend-unreachable errors) never reaches Grafana.
   **Acceptance:** implement the approved plan in [`docs/plans/client-app-events-otel.md`](plans/client-app-events-otel.md) — a `KLog.logEvent(name, attrs)` extension whose entries a new `GrafanaLogTree` filters and ships via opentelemetry-kotlin (0.5.0) straight to the Grafana Cloud OTLP gateway (deliberately not through our backend, so events survive backend outages), with remote-config kill switch + per-session sampling, tests on the in-memory exporter, and the plan's PR 1 starter events flowing end-to-end into dev Loki.
   **Hints:** plan supersedes the earlier server-relay direction (owner call, 2026-07-10): a hard-coded logs:write-only token is acceptable, Sentry-DSN precedent. Owner prerequisite: mint that token (tracked in developer-todo). Event taxonomy for the follow-up instrumentation sweep and dashboards (partly overlapping ENG-19) is Part A of the plan.

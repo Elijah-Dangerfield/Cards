@@ -48,6 +48,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class InAppMessageManagerImpl(
     private val repository: UserMessageRepository,
     triggers: SyncTriggers,
+    registry: UserScopedWorkRegistry,
     appScope: AppCoroutineScope,
 ) : InAppMessageManager, AppEventListener {
 
@@ -60,7 +61,9 @@ class InAppMessageManagerImpl(
         appScope.runWhen(
             key = triggers.activeAccount,
             refireOn = merge(triggers.warmForeground, triggers.cameOnline),
-        ) { surfaceNextDialog() }
+        ) { account ->
+            registry.tracked(account.userId) { surfaceNextDialog() }
+        }
     }
 
     override fun dismissCurrent() {

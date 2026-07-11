@@ -31,6 +31,22 @@ interface UserScopedClearer {
 }
 
 /**
+ * Background work bound to a single user — sync loops, reconcile passes —
+ * that must stop before that user's local data is wiped. A sync mid-flight
+ * for the departing user would otherwise race the wipe: its writes can land
+ * in a store the clearers just emptied, leaking the old user's data into the
+ * new user's session.
+ *
+ * Contributed as a multibinding; [UserScopedDataReset] runs every stopper
+ * **before** any [UserScopedClearer], awaiting each, so the wipe starts only
+ * once the departing user's work has actually finished cancelling.
+ */
+interface UserScopedWorkStopper {
+    /** Cancel [previousUserId]'s in-flight work and return once it has stopped. */
+    suspend fun stopWorkFor(previousUserId: String)
+}
+
+/**
  * Runs every [UserScopedClearer] for a departing user. The auth layer invokes
  * this at the single point where it knows the active user id changed, so no
  * individual sign-in / switch / sign-out / delete path has to remember to

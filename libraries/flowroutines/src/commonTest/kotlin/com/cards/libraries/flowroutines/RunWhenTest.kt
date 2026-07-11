@@ -1,6 +1,8 @@
 package com.dangerfield.cards.libraries.flowroutines
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceTimeBy
@@ -217,6 +219,43 @@ class RunWhenTest {
         condition.emit(true)
         runCurrent()
         assertEquals(2, runs, "a genuine false→true transition fires again")
+    }
+
+    @Test
+    fun cancellingTheCycleJobFromOutside_killsRetriesAndRefires_butTheNextKeyStillFires() = runTest {
+        // External quiescing (UserScopedWorkRegistry) registers the job seen
+        // inside work and cancels it on user switch. That only closes the
+        // clear window if the job covers the WHOLE cycle — pending backoff and
+        // refire edges included — and the loop survives for the next key.
+        val key = MutableStateFlow<String?>("u1")
+        val refire = MutableSharedFlow<Unit>()
+        val runs = mutableListOf<String>()
+        var cycleJob: Job? = null
+
+        backgroundScope.runWhen(
+            key = key,
+            refireOn = refire,
+            retry = RunWhenRetry.exponential(initial = 5.seconds, retries = 5),
+        ) { k ->
+            cycleJob = currentCoroutineContext()[Job]
+            runs += k
+            Result.failure(RuntimeException("nope"))
+        }
+        runCurrent()
+        assertEquals(listOf("u1"), runs)
+
+        cycleJob!!.cancel()
+        cycleJob!!.join()
+        advanceTimeBy(120.seconds)
+        assertEquals(listOf("u1"), runs, "cancelling the cycle job killed the pending retry")
+
+        refire.emit(Unit)
+        runCurrent()
+        assertEquals(listOf("u1"), runs, "refire edges died with the cycle")
+
+        key.value = "u2"
+        runCurrent()
+        assertEquals(listOf("u1", "u2"), runs, "the loop stayed alive for the next key")
     }
 
     @Test

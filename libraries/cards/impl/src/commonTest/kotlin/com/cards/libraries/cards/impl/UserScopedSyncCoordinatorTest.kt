@@ -3,6 +3,7 @@ package com.dangerfield.cards.libraries.cards.impl
 import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.AppEventBus
 import com.dangerfield.cards.libraries.cards.AppEvents
+import com.dangerfield.cards.libraries.cards.UserScopedClearer
 import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
@@ -203,6 +204,45 @@ class UserScopedSyncCoordinatorTest : CoroutineTest() {
         assertEquals(2, f.a.syncs, "three foregrounds coalesced into one trailing sync")
     }
 
+    @Test
+    fun clearForDepartingUser_awaitsInFlightSync_soItsWriteCannotLandAfterTheWipe() = runUnitTest {
+        // ENG-21: emitLocked awaits clearFor(previous) before emitting the new
+        // user, but the old user's in-flight sync is only cancelled when the
+        // new emission reaches the sync loops — its write can land mid-clear.
+        val store = mutableListOf<String>()
+        val f = fixture(construct = false)
+        val syncer = StoreWritingSyncer(store)
+        f.construct(syncers = setOf(syncer))
+        val reset = DefaultUserScopedDataReset(
+            clearers = setOf(
+                object : UserScopedClearer {
+                    override suspend fun clear(previousUserId: String) {
+                        store.clear()
+                    }
+                },
+            ),
+            stoppers = setOf(f.registry),
+        )
+
+        syncer.nextData = "u1-data"
+        f.auth.emit(authenticated("u1"))
+        runCurrent()
+        assertEquals(1, syncer.started, "u1's sync is parked mid-flight, write pending")
+
+        reset.clearFor("u1")
+
+        syncer.releaseWrite()
+        runCurrent()
+        assertEquals(emptyList(), store, "the departing user's write landed after the wipe")
+
+        syncer.nextData = "u2-data"
+        f.auth.emit(authenticated("u2"))
+        runCurrent()
+        syncer.releaseWrite()
+        runCurrent()
+        assertEquals(listOf("u2-data"), store, "the new user's sync still runs after the clear")
+    }
+
     // ---------- scaffolding ----------
 
     private fun TestScope.fixture(construct: Boolean = true): Fixture {
@@ -226,14 +266,17 @@ class UserScopedSyncCoordinatorTest : CoroutineTest() {
         val b: RecordingSyncer,
         private val appScope: AppCoroutineScope,
     ) {
-        fun construct() {
+        val registry = UserScopedWorkRegistry()
+
+        fun construct(syncers: Set<UserScopedSyncer> = setOf(a, b)) {
             UserScopedSyncCoordinator(
                 triggers = SyncTriggers(
                     authRepositoryProvider = { auth },
                     appEventsProvider = { AppEvents(bus) },
                     appState = appState,
                 ),
-                syncers = setOf(a, b),
+                syncers = syncers,
+                registry = registry,
                 appScope = appScope,
             )
         }
@@ -256,6 +299,26 @@ class UserScopedSyncCoordinatorTest : CoroutineTest() {
     private class FakeAppState : AppState {
         override val isOffline = MutableStateFlow(false)
         override val isBlockActive = MutableStateFlow(false)
+    }
+
+    private class StoreWritingSyncer(private val store: MutableList<String>) : UserScopedSyncer {
+        var started = 0
+            private set
+        var nextData: String = ""
+        private var gate = CompletableDeferred<Unit>()
+
+        fun releaseWrite() {
+            gate.complete(Unit)
+        }
+
+        override suspend fun sync(): Result<Unit> {
+            started++
+            val data = nextData
+            val writeGate = CompletableDeferred<Unit>().also { gate = it }
+            writeGate.await()
+            store.add(data)
+            return Result.success(Unit)
+        }
     }
 
     private class RecordingSyncer : UserScopedSyncer {

@@ -24,6 +24,11 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * user switch or a guest claiming their account (same id, `isAnonymous` flips)
  * is a key change that cancels and fires fresh.
  *
+ * Each cycle runs [UserScopedWorkRegistry.tracked] so a user switch can also
+ * cancel it *synchronously with the data clear* — the key-change cancellation
+ * above only lands once the new auth emission reaches these loops, which is
+ * after the departing user's stores were already wiped.
+ *
  * [AutoInit] so the loops attach at boot before the user can navigate.
  */
 @SingleIn(AppScope::class)
@@ -32,6 +37,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class UserScopedSyncCoordinator(
     triggers: SyncTriggers,
     syncers: Set<UserScopedSyncer>,
+    registry: UserScopedWorkRegistry,
     appScope: AppCoroutineScope,
 ) : AutoInit {
 
@@ -42,8 +48,10 @@ class UserScopedSyncCoordinator(
                 refireOn = merge(triggers.warmForeground, triggers.cameOnline),
                 retry = RunWhenRetry.exponential(),
             ) { account ->
-                syncer.sync()
-                    .logOnFailure { "${syncer::class.simpleName} sync failed for ${account.userId}" }
+                registry.tracked(account.userId) {
+                    syncer.sync()
+                        .logOnFailure { "${syncer::class.simpleName} sync failed for ${account.userId}" }
+                }
             }
         }
     }

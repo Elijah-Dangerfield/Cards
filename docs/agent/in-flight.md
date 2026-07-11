@@ -1,5 +1,12 @@
 # In-flight log
 
+## fix(sync): quiesce old user's sync before the data wipe (ENG-21)
+
+**Problem:** `emitLocked` awaits `clearFor(previous)` before emitting the new user, but the old user's in-flight sync only cancels when the new emission reaches the sync loops — after the wipe — so its writes could land in freshly-cleared stores (red-first repro: store held `[u1-data]` after the clear).
+**Approach:** Added a quiesce phase to the clear: new `UserScopedWorkStopper` multibinding runs before every `UserScopedClearer` in `DefaultUserScopedDataReset`, each awaited. One contributor, `UserScopedWorkRegistry`: the coordinator's per-syncer `runWhen` cycles and the InAppMessage pass wrap work in `registry.tracked(userId) { … }`; `stopWorkFor(userId)` cancels the registered cycle jobs and joins them before the wipe starts. Registering the *cycle* job (not the attempt) covers pending retry backoff and refire edges — that contract on `runWhen` is now documented and pinned by a test. Chosen over in-stream markers (interim null in the sync key / a `clearing` flag combined in), which would also cover the not-yet-dispatched-cycle gap but every variant had a "user never syncs again" failure mode on re-sign-in.
+**Reviewer notes:** A residual window remains and is documented on the registry: a cycle whose first attempt hasn't dispatched yet has no job to register, so a switch landing in that dispatch-tick-wide gap isn't covered — closing it needs the clear visible in-stream, judged worse than the window. Auth-side code untouched; the fix rides entirely inside `clearFor`, so the existing clear-before-emit ordering contract is unchanged.
+**Deferred:** None.
+
 ## feat(sync): level-based runWhen sync triggers (ENG-20)
 
 **Problem:** The sync coordinator was edge-triggered off the event bus's single replay slot — a fast launch could evict the sign-in event before the coordinator subscribed and never sync (the 07-09 vanishing-chips trigger half); reconnects never re-synced and auth-blocked syncs never retried.

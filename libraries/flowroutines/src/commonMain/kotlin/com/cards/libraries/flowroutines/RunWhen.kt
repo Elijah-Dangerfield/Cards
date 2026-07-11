@@ -34,6 +34,12 @@ import kotlin.time.Duration.Companion.seconds
  * - A failed run ([work] returning failure or throwing a non-cancellation
  *   exception) retries on [retry]'s schedule while the key holds. Exhaustion
  *   stops the cycle; the next refire edge re-arms with a fresh counter.
+ * - [work] runs directly in the per-key cycle scope: `coroutineContext.job`
+ *   inside [work] is the cycle's job, and cancelling it externally kills the
+ *   whole cycle — pending retries and refire edges included — while the loop
+ *   stays alive for the next key. Callers that need to cancel-and-await a
+ *   cycle from outside (e.g. quiescing a user's sync before wiping their
+ *   data) register that job; pinned by a test.
  */
 fun <K : Any> CoroutineScope.runWhen(
     key: Flow<K?>,

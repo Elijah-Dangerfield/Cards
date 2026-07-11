@@ -1080,3 +1080,13 @@ The seam is already clean: join-by-code and matchmaking both go through `RoomSer
 **Alternatives rejected:** patching the stomp window with locking around `getAll()`→`setBalance()` (shrinks but can't close the race, and does nothing for display-time folds); posting the outbox row-by-row with per-row balance application (chattier protocol for the same derivation the client can do locally).
 
 **Status:** Shipped. Red-first tests: the mid-sync grant survives the authoritative overwrite (failed at 10,000 vs 10,500 before the fix), rejection announcement, plus the full rewritten chips suites (34 tests). Plan + investigation in `docs/agent/feedback-cases/2026-07-09-chips-vanish-on-restart.md`. QA: new `PROG-11` device test.
+
+## 2026-07-10 — User-switch quiesces sync work before the data wipe (ENG-21)
+
+**Problem:** `SupabaseAuthRepositoryImpl.emitLocked` awaits `clearFor(previous)` before emitting the new user, but the sync loops only cancel the old user's work when the *new* emission reaches them — which is after the wipe. A sync mid-flight for the departing user could land its writes into freshly-cleared stores, leaking the old user's data into the new user's session (reproduced red-first: `expected:<[]> but was:<[u1-data]>`).
+
+**Decision:** The clear now has an explicit quiesce phase. A new `UserScopedWorkStopper` multibinding runs **before** every `UserScopedClearer` in `DefaultUserScopedDataReset`, each awaited. The one contributor, `UserScopedWorkRegistry`, tracks the jobs running user-scoped background work: the coordinator's per-syncer `runWhen` cycles and the in-app-message pass wrap their work in `registry.tracked(userId) { … }`, which registers the cycle's job (covering pending retry backoff and refire edges, not just the current attempt — pinned by a new `RunWhenTest` on the cycle-job contract). `stopWorkFor(userId)` cancels those jobs and joins them, so the wipe starts only after the old user's work has actually stopped. Stopper failures are swallowed-and-logged like clearer failures so a bad participant can't block the auth transition.
+
+**Alternatives rejected:** in-stream markers (emitting an interim null / a `clearing` flag combined into the sync key) would also cover the microsecond gap where a cycle's first attempt hasn't dispatched yet, but every variant examined had a "user never syncs again" failure mode on re-sign-in — worse than the residual window, which is dispatch-tick wide and documented on the registry. Per-user `CoroutineScope`s owned by the reset were the same mechanics with more machinery.
+
+**Status:** Shipped. Red-first user-switch test plus registry/reset/runWhen suites green; Android + iOS compile green.

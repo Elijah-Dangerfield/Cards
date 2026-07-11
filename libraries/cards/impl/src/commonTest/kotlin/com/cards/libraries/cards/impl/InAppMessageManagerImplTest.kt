@@ -223,6 +223,7 @@ class InAppMessageManagerImplTest : CoroutineTest() {
                 appEventsProvider = { AppEvents(bus) },
                 appState = appState,
             ),
+            registry = UserScopedWorkRegistry(),
             appScope = AppCoroutineScope(dispatchers),
         )
         return Fixture(manager, bus, auth, appState)
