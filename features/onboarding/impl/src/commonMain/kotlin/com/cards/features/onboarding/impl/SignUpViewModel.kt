@@ -37,15 +37,11 @@ class SignUpViewModel(
             is SignUpAction.ConfirmPasswordChanged -> action.updateState {
                 it.copy(confirmPassword = action.value, error = null)
             }
-            is SignUpAction.DismissError -> action.updateState { it.copy(error = null) }
-
             is SignUpAction.Submit -> action.run {
                 val current = state
+                // canSubmit already requires confirmPassword == password; the
+                // mismatch helper on the confirm field is the live feedback.
                 if (!current.canSubmit) return@run
-                if (current.password != current.confirmPassword) {
-                    updateState { it.copy(error = SignUpError.PasswordsDontMatch) }
-                    return@run
-                }
 
                 val email = current.email.trim()
                 val password = current.password
@@ -154,7 +150,6 @@ sealed interface SignUpEvent {
  * server-driven if we ever tune it from the wire.
  */
 sealed interface SignUpError {
-    data object PasswordsDontMatch : SignUpError
     data object EmailAlreadyRegistered : SignUpError
     data class WeakPassword(val minLength: Int) : SignUpError
     data object InvalidEmail : SignUpError
@@ -167,5 +162,4 @@ sealed interface SignUpAction {
     data class PasswordChanged(val value: String) : SignUpAction
     data class ConfirmPasswordChanged(val value: String) : SignUpAction
     data object Submit : SignUpAction
-    data object DismissError : SignUpAction
 }

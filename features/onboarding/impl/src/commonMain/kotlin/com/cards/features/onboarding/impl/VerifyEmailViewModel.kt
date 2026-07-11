@@ -54,10 +54,6 @@ class VerifyEmailViewModel(
 
     override suspend fun handleAction(action: VerifyEmailAction) {
         when (action) {
-            is VerifyEmailAction.DismissBanner -> action.updateState {
-                it.copy(banner = null)
-            }
-
             is VerifyEmailAction.ResolveEmailFromSession -> action.run {
                 val authState = authRepository.current()
                 val resolved = (authState as? AuthState.Authenticated)?.email
@@ -155,7 +151,6 @@ sealed interface VerifyEmailEvent {
 sealed interface VerifyEmailAction {
     data object IClickedTheLink : VerifyEmailAction
     data object Resend : VerifyEmailAction
-    data object DismissBanner : VerifyEmailAction
     data object AppResumed : VerifyEmailAction
     data object ResolveEmailFromSession : VerifyEmailAction
 }

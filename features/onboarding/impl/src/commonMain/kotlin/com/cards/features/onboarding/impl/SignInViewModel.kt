@@ -56,8 +56,6 @@ class SignInViewModel(
             is SignInAction.PasswordChanged -> action.updateState {
                 it.copy(password = action.value, error = null)
             }
-            is SignInAction.DismissError -> action.updateState { it.copy(error = null) }
-
             is SignInAction.Submit -> action.run {
                 val current = state
                 logger.d {
@@ -190,5 +188,4 @@ sealed interface SignInAction {
     data class SignInWithOAuth(val provider: OAuthProvider) : SignInAction
     /** Native "Sign in with Apple" (iOS) — runs the coordinator, then signs in. */
     data object SignInWithApple : SignInAction
-    data object DismissError : SignInAction
 }

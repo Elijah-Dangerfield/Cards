@@ -6,6 +6,8 @@ import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -23,9 +25,9 @@ import kotlin.test.assertIs
  *  - IClickedTheLink → NetworkError surfaces NetworkError banner
  *  - Resend → Sent surfaces ResendSent banner + clears isResending
  *  - Resend → RateLimited surfaces ResendRateLimited banner
- *  - DismissBanner clears the banner
  *  - Resend always passes the original email through to the repo
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class VerifyEmailViewModelTest : CoroutineTest() {
 
     private val sampleEmail = "ok@example.com"
@@ -223,8 +225,8 @@ class VerifyEmailViewModelTest : CoroutineTest() {
         )
         val vm = buildVm(identity = identity, email = null)
 
-        // Drive the resolve action through the action loop.
-        vm.takeAction(VerifyEmailAction.DismissBanner)
+        // Let the init-driven resolve action run through the action loop.
+        runCurrent()
         assertEquals("", vm.stateFlow.value.email)
     }
 
@@ -241,8 +243,8 @@ class VerifyEmailViewModelTest : CoroutineTest() {
         )
         val vm = buildVm(identity = identity, email = "route@example.com")
 
-        // Force the action loop to drain so any spurious init action would land.
-        vm.takeAction(VerifyEmailAction.DismissBanner)
+        // Drain the action loop so any spurious init action would land.
+        runCurrent()
         assertEquals("route@example.com", vm.stateFlow.value.email)
     }
 
@@ -256,29 +258,9 @@ class VerifyEmailViewModelTest : CoroutineTest() {
         val vm = buildVm(identity = identity, email = null)
         vm.takeAction(VerifyEmailAction.Resend)
 
-        // Drain action queue.
-        vm.takeAction(VerifyEmailAction.DismissBanner)
+        runCurrent()
         assertEquals(0, identity.resendCalls)
         assertEquals(null, vm.stateFlow.value.banner)
-    }
-
-    @Test
-    fun dismissBanner_clearsBanner() = runUnitTest {
-        val vm = buildVm(
-            identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.StillPending),
-        )
-        vm.takeAction(VerifyEmailAction.IClickedTheLink)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.banner == null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
-        vm.takeAction(VerifyEmailAction.DismissBanner)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.banner != null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
     }
 
     // ---------- scaffolding ----------
