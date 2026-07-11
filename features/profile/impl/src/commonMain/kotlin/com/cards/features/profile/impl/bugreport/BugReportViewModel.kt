@@ -4,7 +4,7 @@ import androidx.lifecycle.viewModelScope
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.profile_bug_snackbar_thanks
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackRepository
-import com.dangerfield.cards.libraries.core.eitherWay
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.cards.AppCache
@@ -93,15 +93,23 @@ class BugReportViewModel(
                 email = current.email.takeIf { it.isNotBlank() },
                 screenshots = current.screenshots.map { it.bytes },
             )
-        }.await().eitherWay {
-            appCache.update { it.copy(bugsReported = it.bugsReported + 1) }
-            updateState { it.copy(isSubmitting = false) }
-            showSnackBar(
-                message = getString(Res.string.profile_bug_snackbar_thanks),
-                delayBy = 1.seconds,
-            )
-            router.goBack()
-        }
+        }.await()
+            .onSuccess {
+                appCache.update { it.copy(bugsReported = it.bugsReported + 1) }
+                updateState { it.copy(isSubmitting = false) }
+                router.goBack()
+                appScope.launch {
+                    Catching {
+                        showSnackBar(
+                            message = getString(Res.string.profile_bug_snackbar_thanks),
+                            delayBy = 1.seconds,
+                        )
+                    }
+                }
+            }
+            .onFailure {
+                updateState { it.copy(isSubmitting = false, errorMessage = BugReportError.SubmitFailed) }
+            }
     }
 }
 
@@ -121,6 +129,7 @@ data class BugReportState(
 
 sealed interface BugReportError {
     data object MessageRequired : BugReportError
+    data object SubmitFailed : BugReportError
 }
 
 sealed interface BugReportAction {

@@ -506,6 +506,17 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Fast trims only the bots' deliberation pause. Deal, flip, and reveal animations play at the same calibrated pace on both settings — Game speed never changes animation timing (the old animation-scaling "Instant" tier was removed 2026-06-29). The setting persists across app restarts.
 
+### `PROF-3` ⚠️ 📱 A failed feedback or bug-report send keeps the user's text
+
+**State:** any account; device in airplane mode (or backend unreachable).
+
+1. Open Profile → Send feedback, type a message, tap Send.
+2. Note the screen after the send fails.
+3. Restore the connection and tap Send again.
+4. Repeat once via Report a bug.
+
+**Expected:** The failed send stays on the form with the typed message (and any attached screenshots) intact, shows "Couldn't send that. Check your connection and try again." under the form, and never shows the thanks snackbar or navigates back. The retry after reconnecting sends, shows the thanks snackbar, and pops back. (Covers todo ENG-22.)
+
 ## Solo play
 
 ### `GAME-17` ℹ️ 📱 An instant bot fold reads clearly on the seat and player card

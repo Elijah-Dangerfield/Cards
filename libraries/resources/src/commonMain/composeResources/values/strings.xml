@@ -766,6 +766,7 @@
     <string name="profile_feedback_submit_button">Send</string>
     <string name="profile_feedback_submit_button_progress">Sending…</string>
     <string name="profile_feedback_error_message_required">Add a quick note before sending.</string>
+    <string name="profile_feedback_error_submit_failed">Couldn't send that. Check your connection and try again.</string>
     <string name="profile_feedback_snackbar_thanks">Thanks for your feedback!</string>
 
     <!-- Profile - Report a bug form. -->
@@ -782,6 +783,7 @@
     <string name="profile_bug_submit_button">Send</string>
     <string name="profile_bug_submit_button_progress">Sending…</string>
     <string name="profile_bug_error_message_required">Add a quick note before sending.</string>
+    <string name="profile_bug_error_submit_failed">Couldn't send that. Check your connection and try again.</string>
     <string name="profile_bug_snackbar_thanks">Thanks for reporting that! We'll get right on it.</string>
 
     <!-- Profile - My items inventory screen. -->

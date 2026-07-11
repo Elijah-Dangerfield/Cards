@@ -3,7 +3,7 @@ package com.dangerfield.cards.features.profile.impl.feedback
 import androidx.lifecycle.viewModelScope
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.profile_feedback_snackbar_thanks
-import com.dangerfield.cards.libraries.core.eitherWay
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.cards.AppCache
@@ -85,15 +85,23 @@ class FeedbackViewModel(
                 email = current.email.takeIf { it.isNotBlank() },
                 screenshots = current.screenshots.map { it.bytes },
             )
-        }.await().eitherWay {
-            appCache.update { it.copy(feedbacksGiven = it.feedbacksGiven + 1) }
-            updateState { it.copy(isSubmitting = false) }
-            showSnackBar(
-                message = getString(Res.string.profile_feedback_snackbar_thanks),
-                delayBy = 1.seconds,
-            )
-            router.goBack()
-        }
+        }.await()
+            .onSuccess {
+                appCache.update { it.copy(feedbacksGiven = it.feedbacksGiven + 1) }
+                updateState { it.copy(isSubmitting = false) }
+                router.goBack()
+                appScope.launch {
+                    Catching {
+                        showSnackBar(
+                            message = getString(Res.string.profile_feedback_snackbar_thanks),
+                            delayBy = 1.seconds,
+                        )
+                    }
+                }
+            }
+            .onFailure {
+                updateState { it.copy(isSubmitting = false, errorMessage = FeedbackError.SubmitFailed) }
+            }
     }
 }
 
@@ -107,6 +115,7 @@ data class FeedbackState(
 
 sealed interface FeedbackError {
     data object MessageRequired : FeedbackError
+    data object SubmitFailed : FeedbackError
 }
 
 sealed interface FeedbackAction {

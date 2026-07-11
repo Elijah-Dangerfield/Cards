@@ -32,10 +32,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** a new users dashboard shows player counts by platform, session counts and lengths, and anomalies like the longest session, powered by ENG-18 events.
   **Hints:** ENG-18 events land in Loki; blocked in practice until ENG-18's client events flow.
 
-- **ENG-22 `[P1]` Surface feedback / bug-report submit failures instead of faking success. (proposed 2026-07-10)** Problem: `FeedbackViewModel` and `BugReportViewModel` end the submit with `eitherWay {}` — a failed send still shows the "thanks" snackbar, bumps `feedbacksGiven`, and navigates back, silently discarding the user's typed report (the compounding half of the 2026-07-09 lost-feedback incident; ENG-16 only fixed the sampling half).
-  **Acceptance:** a failed submit keeps the user on the screen with their text intact and shows an error with retry; success path unchanged. Failing test first per repo convention.
-  **Hints:** `features/profile/impl/.../feedback/FeedbackViewModel.kt:88` + `.../bugreport/BugReportViewModel.kt:96`; the repository already returns a `Catching` result — stop discarding it. `EditProfileViewModel`'s error surfacing is the sibling pattern.
-
 - **ENG-23 `[P2]` Refresh `docs/wiki/wallet.md` to the PROG-11 derived-balance model. (proposed 2026-07-10)** Problem: the page still describes the pre-PROG-11 client — "trusts the server's authoritative balance on every sync" and "silently resets… (no user-facing surface yet)" — but the client now derives display balance as server snapshot + pending outbox, and `InsufficientChips` surfaces an error snackbar.
   **Acceptance:** the client-side claims and the `ChipsRepositoryImpl` key-file pointer match the code shipped in commit 7c1b5488.
 
