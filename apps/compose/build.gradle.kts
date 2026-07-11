@@ -51,6 +51,7 @@ kotlin {
             implementation(projects.libraries.rooms.impl)
             implementation(projects.libraries.review)
             implementation(projects.libraries.review.impl)
+            implementation(projects.libraries.telemetry.impl)
 
             implementation(projects.features.home)
             implementation(projects.features.home.impl)

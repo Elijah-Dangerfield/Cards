@@ -11,6 +11,8 @@ import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.core.AuthUnready
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.networking.apiErrorCode
 import com.dangerfield.cards.libraries.networking.apiErrorMessage
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
@@ -122,7 +124,26 @@ class RoomRepositoryImpl(
         CreateRoomOutcome.NetworkError(e)
     }
 
-    override suspend fun joinRoom(code: String): JoinRoomOutcome = try {
+    override suspend fun joinRoom(code: String): JoinRoomOutcome =
+        joinRoomInternal(code).also { outcome ->
+            when (outcome) {
+                is JoinRoomOutcome.Success -> KLog.logEvent("room.joined")
+                else -> KLog.logEvent("room.join_failed", "reason" to outcome.eventReason())
+            }
+        }
+
+    private fun JoinRoomOutcome.eventReason(): String = when (this) {
+        is JoinRoomOutcome.Success -> "none"
+        JoinRoomOutcome.NotFound -> "not_found"
+        JoinRoomOutcome.Full -> "full"
+        JoinRoomOutcome.NotJoinable -> "not_joinable"
+        is JoinRoomOutcome.OverBalance -> "over_balance"
+        is JoinRoomOutcome.NotSignedIn -> "not_signed_in"
+        is JoinRoomOutcome.NetworkError -> "network"
+        is JoinRoomOutcome.Unknown -> "unknown"
+    }
+
+    private suspend fun joinRoomInternal(code: String): JoinRoomOutcome = try {
         val response = api.join(code)
         val body = response.body<JoinRoomResponseDto>()
         val room = body.room.toDomain()
@@ -155,7 +176,12 @@ class RoomRepositoryImpl(
         JoinRoomOutcome.NetworkError(e)
     }
 
-    override suspend fun leaveRoom(code: String): LeaveRoomOutcome = try {
+    override suspend fun leaveRoom(code: String): LeaveRoomOutcome =
+        leaveRoomInternal(code).also { outcome ->
+            if (outcome is LeaveRoomOutcome.Success) KLog.logEvent("room.left")
+        }
+
+    private suspend fun leaveRoomInternal(code: String): LeaveRoomOutcome = try {
         val response = api.leave(code)
         removeActiveRoom(code)
         // A 200 carries the authoritative post-cash-out balance (MP-29); a 204

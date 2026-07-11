@@ -36,6 +36,7 @@ import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -538,6 +539,13 @@ class PlayPokerViewModel @Inject constructor(
         val participated = summary.wasFold || summary.reachedShowdown ||
             summary.wonPot || summary.chipsCommitted > 0
         if (participated) {
+            logger.logEvent(
+                "hand.completed",
+                "mode" to sessionFactory.xpMode.name.lowercase(),
+                "hand_number" to state.handNumber,
+                "won" to summary.wonPot,
+                "showdown" to summary.reachedShowdown,
+            )
             if (summary.wonPot) sessionHandsWon += 1 else sessionHandsLost += 1
             takeAction(PlayPokerAction.SessionRecordChanged(sessionHandsWon, sessionHandsLost))
         }

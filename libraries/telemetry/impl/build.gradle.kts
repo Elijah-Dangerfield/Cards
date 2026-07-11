@@ -1,0 +1,44 @@
+plugins {
+    id("cards.kotlin.multiplatform")
+}
+
+moduleConfig {
+    di()
+    optIn("io.opentelemetry.kotlin.ExperimentalApi")
+}
+
+android {
+    namespace = "com.dangerfield.cards.libraries.telemetry.impl"
+}
+
+kotlin {
+    sourceSets {
+        commonMain.dependencies {
+            implementation(projects.libraries.core)
+            implementation(projects.libraries.config)
+            implementation(projects.libraries.networking)
+            implementation(libs.otel.kotlin.api)
+            implementation(libs.otel.kotlin.sdk.api)
+            implementation(libs.otel.kotlin.implementation)
+            implementation(libs.otel.kotlin.exporters.core)
+            implementation(libs.otel.kotlin.exporters.otlp)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.contentNegotiation)
+            implementation(libs.ktor.client.encoding)
+        }
+
+        commonTest.dependencies {
+            implementation(projects.libraries.core)
+            implementation(libs.otel.kotlin.api)
+            implementation(libs.otel.kotlin.sdk.api)
+        }
+
+        androidMain.dependencies {
+            implementation(libs.ktor.client.okhttp)
+        }
+
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+        }
+    }
+}

@@ -52,6 +52,9 @@ opentelemetry = "1.45.0"
 # Instrumentation modules track a separate alpha train aligned with the
 # stable SDK release (`<sdk>-alpha`).
 opentelemetryInstrumentation = "2.11.0-alpha"
+# KMP client-side OTel (io.opentelemetry.kotlin) — experimental, pinned exactly.
+# Distinct from the server's JVM `opentelemetry` entries above.
+opentelemetryKotlin = "0.5.0"
 robolectric = "4.14.1"
 androidxComposeUiTestManifest = "1.9.4"
 
@@ -122,6 +125,11 @@ opentelemetry-exporter-logging-otlp = { module = "io.opentelemetry:opentelemetry
 opentelemetry-sdk-testing = { module = "io.opentelemetry:opentelemetry-sdk-testing", version.ref = "opentelemetry" }
 opentelemetry-extension-kotlin = { module = "io.opentelemetry:opentelemetry-extension-kotlin", version.ref = "opentelemetry" }
 opentelemetry-logback-appender = { module = "io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0", version.ref = "opentelemetryInstrumentation" }
+otel-kotlin-api = { module = "io.opentelemetry.kotlin:api", version.ref = "opentelemetryKotlin" }
+otel-kotlin-sdk-api = { module = "io.opentelemetry.kotlin:sdk-api", version.ref = "opentelemetryKotlin" }
+otel-kotlin-implementation = { module = "io.opentelemetry.kotlin:implementation", version.ref = "opentelemetryKotlin" }
+otel-kotlin-exporters-core = { module = "io.opentelemetry.kotlin:exporters-core", version.ref = "opentelemetryKotlin" }
+otel-kotlin-exporters-otlp = { module = "io.opentelemetry.kotlin:exporters-otlp", version.ref = "opentelemetryKotlin" }
 opentelemetry-ktor = { module = "io.opentelemetry.instrumentation:opentelemetry-ktor-3.0", version.ref = "opentelemetryInstrumentation" }
 ktor-serverAuth = { module = "io.ktor:ktor-server-auth-jvm", version.ref = "ktor" }
 ktor-serverAuthJwt = { module = "io.ktor:ktor-server-auth-jwt-jvm", version.ref = "ktor" }
@@ -144,6 +152,7 @@ ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 ktor-client-websockets = { module = "io.ktor:ktor-client-websockets", version.ref = "ktor" }
 ktor-client-contentNegotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-client-encoding = { module = "io.ktor:ktor-client-encoding", version.ref = "ktor" }
 ktor-client-auth = { module = "io.ktor:ktor-client-auth", version.ref = "ktor" }
 ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }

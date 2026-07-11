@@ -24,9 +24,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ENG — engineering / structural
 
-- **ENG-18 `[P1]` Client app events over KMP OpenTelemetry: `logEvent` extension + GrafanaLogTree, direct to Grafana Cloud.** Problem: there are no product analytics. Anything only the client sees (matchmaking back-outs, onboarding drop-off, bot games, backend-unreachable errors) never reaches Grafana.
-  **Acceptance:** implement the approved plan in [`docs/plans/client-app-events-otel.md`](plans/client-app-events-otel.md) — a `KLog.logEvent(name, attrs)` extension whose entries a new `GrafanaLogTree` filters and ships via opentelemetry-kotlin (0.5.0) straight to the Grafana Cloud OTLP gateway (deliberately not through our backend, so events survive backend outages), with remote-config kill switch + per-session sampling, tests on the in-memory exporter, and the plan's PR 1 starter events flowing end-to-end into dev Loki.
-  **Hints:** plan supersedes the earlier server-relay direction (owner call, 2026-07-10): a hard-coded logs:write-only token is acceptable, Sentry-DSN precedent. Owner prerequisite: mint that token (tracked in developer-todo). Event taxonomy for the follow-up instrumentation sweep and dashboards (partly overlapping ENG-19) is Part A of the plan.
+- **ENG-18 `[P1]` Client app events: verify the Grafana pipe end-to-end, then instrument the full taxonomy.** Problem: the `logEvent` → `GrafanaLogTree` pipeline (plan PR 1) is built and tested but ships with blank OTLP credentials, and only the starter events (`app.launched`, `room.*`, `hand.completed`, `purchase.*`) are instrumented — the matchmaking/onboarding/reliability funnels are still dark.
+  **Acceptance:** with the owner-pasted logs:write token in `GrafanaCloud` (`libraries/telemetry/impl/.../GrafanaAppEvents.kt`), run the plan's Verification section against dev Loki (correlation query, kill-switch drill, offline drill); then sweep the Part A taxonomy (plan PR 2) and document event names in `docs/wiki/app-events.md`.
+  **Hints:** plan at [`docs/plans/client-app-events-otel.md`](plans/client-app-events-otel.md); owner token prerequisite tracked in developer-todo. PR 3 (Warn+ log forwarding behind a flag) and PR 4 (dashboards) follow the sweep.
 
 - **ENG-19 `[P2]` Grafana users-and-sessions dashboard.** Problem: there is no view of users, platforms, or session behavior at all.
   **Acceptance:** a new users dashboard shows player counts by platform, session counts and lengths, and anomalies like the longest session, powered by ENG-18 events.
