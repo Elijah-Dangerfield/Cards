@@ -319,3 +319,5 @@ owner change-requests, which are filed as directives without a case file.
 
 <!-- 2026-07-10 interactive triage: the 07-09 lost prod feedback, relayed by the owner in chat. Investigated via the cards-prod-db Postgres datasource (prod OTel is dark — ENG-17 filed): grants were unsynced client-side, applied at Google sign-in; starter grants bypass wallet_events; sandbox IAPs recorded as real. -->
 - 2026-07-10 · (relayed in chat — original event lost to sampling bug) · session unknown · todo: [P1] PROG-11 fold/flush unsynced grants on launch (+ ECON-1 ledger gap, BILL-6 sandbox purchases, ENG-17 prod telemetry dark) · case docs/agent/feedback-cases/2026-07-09-chips-vanish-on-restart.md
+
+<!-- 2026-07-10 nightly triage: no new feedback. Zero unresolved "User feedback"/"Bug report" carriers and zero unresolved feedback-category twins (90d window). Only unresolved issue project-wide is CARDS-8V — StoreKit didn't recognize the 3 chip-pack SKUs (com.cards.iap.chips.{small,medium,large}); that's a store-listing/config warning, not a feedback report, so it's out of triage scope; left unresolved and flagged in the run summary for the owner. -->
