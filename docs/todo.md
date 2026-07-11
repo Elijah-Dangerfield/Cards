@@ -24,11 +24,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ENG — engineering / structural
 
-- **ENG-18 `[P1]` Client app events: verify the Grafana pipe end-to-end.** Problem: the full Part A taxonomy is instrumented and registered in `docs/wiki/app-events.md`, but `GrafanaCloud` ships blank OTLP credentials — verified 2026-07-11 via the Grafana MCP that dev Loki has zero `{service_name="cards-client"}` streams over 30 days (only `cards-server` exists), so the pipe has never carried an event.
-  **Acceptance:** with the owner-pasted logs:write token in `GrafanaCloud` (`libraries/telemetry/impl/.../GrafanaAppEvents.kt`), run the plan's Verification section against dev Loki (correlation query, kill-switch drill, offline drill) and confirm the structured-metadata key Grafana derives for `eventName`.
-  **Hints:** plan at [`docs/plans/client-app-events-otel.md`](plans/client-app-events-otel.md). Genuinely owner-gated: the token is a grafana.com Cloud Access Policy token (developer-todo), not mintable from the instance API, and every drill needs a debug run of a build carrying it. PR 3 (Warn+ log forwarding behind a flag) and PR 4 (dashboards + the `net.backend_unreachable` alert) follow verification.
-
 - **ENG-19 `[P2]` Grafana users-and-sessions dashboard.** Problem: there is no view of users, platforms, or session behavior at all.
   **Acceptance:** a new users dashboard shows player counts by platform, session counts and lengths, and anomalies like the longest session, powered by ENG-18 events.
-  **Hints:** blocked in practice until ENG-18's events flow — confirmed 2026-07-11 that Loki holds no `cards-client` data to build against, and the plan defers dashboards until the `eventName` structured-metadata key is confirmed in the first real run.
+  **Hints:** unblocked 2026-07-11 — credentials are in, the pipe is verified, and events flow to Loki. Query shape: `{service_name="cards-client"}` with `event_name`/`session_id` as structured metadata (`| event_name="..."` pipes, not line filters).
+
+- **ENG-24 `[P2]` `app.launched` carries a pre-rollover session_id.** Problem: `app.launched` fires from `GrafanaAppEvents` AutoInit before the session tracker rolls the session on first foreground, so it lands with a different `session_id` than every other event in the same boot (verified in Loki 2026-07-11: launch `853a6eec…` vs foreground+rest `3f741d6e…`) — session-keyed funnels see an orphan one-event session per cold start.
+  **Acceptance:** all events from one cold start share one `session_id` (either emit `app.launched` after the session settles, or count launches via `app.foregrounded cold_start=true` and demote `app.launched` to a pure pipe smoke-test — pick one and update `docs/wiki/app-events.md`).
+  **Hints:** `GrafanaAppEvents.kt` init vs `SessionTrackerImpl` foreground rollover ordering.
 

@@ -11,6 +11,17 @@ dot-namespaced snake_case; every record automatically carries `session_id` + `in
 (per-record) plus resource attributes (`service.name="cards-client"`, deployment environment,
 version, platform).
 
+**Query shape (verified against live Loki 2026-07-11):** stream is
+`{service_name="cards-client", deployment_environment="dev"|"prod"}`; `event_name`, `session_id`,
+and all event attributes are **structured metadata**, so filter with pipes
+(`| event_name="hand.completed"`), not line filters. The server's request logs carry the same
+`session_id` metadata key — that's the cross-service correlation join.
+
+**Delivery is at-most-once.** A batch that fails to export is dropped, not retried — events emitted
+while the device is offline are lost (accepted for behavioral analytics; a persistence exporter is
+the upgrade path if this ever matters). `app.launched` also predates the first-foreground session
+rollover, so it carries its own one-off `session_id` (ENG-24).
+
 **Rules for adding events:** emit through the `logEvent` extension only (never a raw
 `EXTRA_APP_EVENT` extra), fire on user actions / state transitions — never per-frame, per-poll, or
 per-flow-emission — and add the event here in the same change. Client events answer
