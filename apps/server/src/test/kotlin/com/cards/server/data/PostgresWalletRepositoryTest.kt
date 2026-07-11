@@ -145,8 +145,9 @@ class PostgresWalletRepositoryTest : DatabaseTest() {
 
         assertTrue(outcome is ApplyOutcome.InsufficientChips)
         assertEquals(Wallet.STARTER_GRANT, outcome.balance)
-        // The ledger row must not exist — a rejected attempt is not journaled.
-        assertEquals(0, repo.recentEvents(userId, 10).size)
+        // A rejected attempt is not journaled — only the lazy-create's
+        // starter grant exists.
+        assertEquals(listOf("starter_grant"), repo.recentEvents(userId, 10).map { it.reason })
     }
 
     @Test
@@ -182,7 +183,10 @@ class PostgresWalletRepositoryTest : DatabaseTest() {
         repo.apply(userId, "evt_3", delta = 300, reason = "third")
 
         val events = repo.recentEvents(userId, 10)
-        assertEquals(listOf("third", "second", "first"), events.map { it.reason })
+        assertEquals(
+            listOf("third", "second", "first"),
+            events.map { it.reason }.filter { it != "starter_grant" },
+        )
     }
 
     @Test

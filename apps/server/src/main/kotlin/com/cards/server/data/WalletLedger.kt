@@ -12,6 +12,7 @@ import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.insertIgnore
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
 import kotlin.time.ExperimentalTime
@@ -47,20 +48,30 @@ internal object WalletLedger {
         ?.toWallet()
 
     /**
-     * Insert the wallet row with [Wallet.STARTER_GRANT]. If a concurrent
-     * writer wins the race, their row stands and we re-read it.
+     * Insert the wallet row with [Wallet.STARTER_GRANT] and the matching
+     * `starter_grant` ledger row — starter chips are money like any other
+     * and must be explainable by the ledger (the conservation invariant:
+     * `SUM(wallets.balance) == SUM(wallet_events.delta)`). If a concurrent
+     * writer wins the race, both `insertIgnore`s no-op (the winner wrote
+     * the pair) and we re-read their row. `insertIgnore` (`ON CONFLICT DO
+     * NOTHING`) rather than catch-and-continue: a constraint violation
+     * aborts the surrounding Postgres transaction, poisoning callers that
+     * compose this with their own writes.
      */
     fun createWithStarter(userId: UserId, now: Instant): Wallet {
         val javaNow = now.toJavaInstant()
-        try {
-            WalletsTable.insert {
-                it[WalletsTable.userId] = userId.value
-                it[WalletsTable.balance] = Wallet.STARTER_GRANT
-                it[WalletsTable.createdAt] = javaNow
-                it[WalletsTable.updatedAt] = javaNow
-            }
-        } catch (e: ExposedSQLException) {
-            if (!e.isUniqueViolation()) throw e
+        WalletsTable.insertIgnore {
+            it[WalletsTable.userId] = userId.value
+            it[WalletsTable.balance] = Wallet.STARTER_GRANT
+            it[WalletsTable.createdAt] = javaNow
+            it[WalletsTable.updatedAt] = javaNow
+        }
+        WalletEventsTable.insertIgnore {
+            it[WalletEventsTable.userId] = userId.value
+            it[WalletEventsTable.idempotencyKey] = STARTER_GRANT_KEY
+            it[WalletEventsTable.delta] = Wallet.STARTER_GRANT
+            it[WalletEventsTable.reason] = STARTER_GRANT_KEY
+            it[WalletEventsTable.appliedAt] = javaNow
         }
         return readWallet(userId) ?: error("Wallet row missing for user ${userId.value} after lazy-create")
     }
@@ -138,4 +149,7 @@ internal object WalletLedger {
     }
 
     private const val POSTGRES_UNIQUE_VIOLATION_SQLSTATE = "23505"
+
+    /** Idempotency key AND ledger reason for the once-per-user starter grant. */
+    private const val STARTER_GRANT_KEY = "starter_grant"
 }

@@ -28,12 +28,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** run a subagent investigation first, write the plan into the case file, then implement it. The shipped behavior must guarantee two things, each pinned by a failing-first test: the displayed balance always equals the server's last snapshot plus pending local events (so no sync ordering can make earned chips disappear), and a rejected event tells the user instead of silently dropping their balance.
   **Hints:** `ChipsRepositoryImpl.syncLocked` (the window between `getAll()` and `setBalance()`) and `observeBalance` (reads the raw entity, no pending fold). The "why didn't relaunch trigger a sync at all" half of the incident belongs to ENG-20. Case: `docs/agent/feedback-cases/2026-07-09-chips-vanish-on-restart.md`.
 
-## ECON — chip economy integrity
-
-- **ECON-1 `[P1]` Close the wallet-ledger gaps and add a conservation check.** Problem: starter grants set the wallet balance without writing a `wallet_events` row, so the ledger can't explain the money. Prod balances add up to 146,000 chips but the ledger only accounts for 126,000. Any mutation that skips the ledger makes the economy dashboard unauditable.
-  **Acceptance:** every balance change writes a ledger row (audit every path: starter grant, multiplayer settlement, bust protection, shop, admin). A conservation check (total balances equal the ledger sum) exists as a test and an alertable query, and passes on prod once the missing starter rows are backfilled.
-  **Hints:** server wallet write paths; the schema is visible in the `cards-economy` dashboard queries; case `docs/agent/feedback-cases/2026-07-09-chips-vanish-on-restart.md`.
-
 ## ENG — engineering / structural
 
 - **ENG-21 `[P2]` Close the user-switch clear window: an old user's in-flight sync can still race `clearFor`.** Problem: `SupabaseAuthRepositoryImpl.emitLocked` awaits `userScopedDataReset.clearFor(previous)` before emitting the new user, but a sync already in flight for the old user is only cancelled when the new emission reaches the sync loops - its writes can land mid-clear. ENG-20's cancel-on-key-change narrowed this pre-existing window; it is not closed.

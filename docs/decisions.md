@@ -1060,3 +1060,13 @@ The seam is already clean: join-by-code and matchmaking both go through `RoomSer
 **Alternatives rejected:** per-repo `runWhen` in each `init` (6 copies, forgetting one is a silent no-sync bug); a declarative per-contributor trigger spec (all six want the identical spec); converting auth to a `StateFlow` with a `Resolving` sentinel (contract churn for nothing the level key doesn't already give); reusing networking's `RetryPolicy` for the long-horizon retry (wrong layer/dependency direction — `sync()` keeps its inner idempotent network retry, `runWhen` covers the gate opening late).
 
 **Status:** Shipped. Full plan in `docs/plans/eng-20-runwhen-triggers.md`. 11 `RunWhenTest` semantics tests + 10 wiring tests over real `SyncTriggers` (including the prod-incident boot-race regression) green; Android/iOS/server compile green. Phase 3 (bus replay 1→0, `ConnectivityEdgeDispatcher` deletion, identity listener migration) in backlog; the pre-existing user-switch clear window filed as ENG-21.
+
+## 2026-07-10 — Wallet-ledger conservation invariant (ECON-1)
+
+**Problem:** The lazy wallet create set `balance = 10,000` without a `wallet_events` row, so the ledger couldn't explain the starter chips — prod balances summed 146,000 against a 126,000-chip ledger (exactly 2 wallets × the missing 10,000 starter row; verified against prod before shipping).
+
+**Decision:** `SUM(wallets.balance) == SUM(wallet_events.delta)` is now a pinned invariant. `WalletLedger.createWithStarter` writes the `starter_grant` ledger row in the same transaction as the wallet insert, using `insertIgnore` (`ON CONFLICT DO NOTHING`) for both inserts instead of the old catch-unique-violation-and-continue — a constraint violation aborts the surrounding Postgres transaction, which would poison callers composing the lazy-create with their own writes (the billing repo comment already documented that hazard). V84 backfills the missing rows keyed `(user_id, 'starter_grant')` so re-runs no-op. The invariant is enforced twice: `WalletLedgerConservationTest` (red-first; every mutation path incl. replays and rejected debits) and a "Ledger conservation drift" stat on `cards-economy` with red thresholds at any non-zero value.
+
+**Alternatives rejected:** deriving balances from the ledger (`balance` as a materialized sum) — bigger surgery than V1 needs and the wallets row is load-bearing for the CHECK constraint; a scheduled reconciliation job — the dashboard stat gives the same signal without new infrastructure.
+
+**Status:** Shipped. Server suite green; audit of every `WalletsTable` mutation confirms all paths (billing, table sessions, wallet API) already funnel through `applyInCurrentTransaction`, which journals.
