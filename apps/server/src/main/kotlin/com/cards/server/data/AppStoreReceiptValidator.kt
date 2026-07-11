@@ -4,7 +4,9 @@ import com.apple.itunes.storekit.model.Environment
 import com.apple.itunes.storekit.model.JWSTransactionDecodedPayload
 import com.apple.itunes.storekit.verification.SignedDataVerifier
 import com.apple.itunes.storekit.verification.VerificationException
+import com.apple.itunes.storekit.verification.VerificationStatus
 import com.dangerfield.cards.server.config.BillingConfig
+import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.PurchaseReceipt
 import com.dangerfield.cards.server.domain.ReceiptValidation
 import com.dangerfield.cards.server.domain.UserId
@@ -28,12 +30,23 @@ import java.io.InputStream
  * (the user binding — pinning to the order id would let one user redeem
  * another's receipt), and the transaction is not revoked/refunded.
  *
+ * **Environments:** verification is tried against the configured
+ * [BillingConfig.appleEnvironment] first, then falls back to the sibling
+ * (production ↔ sandbox) when the JWS was signed for the other one. This is
+ * how one server serves both populations forever: TestFlight installs of the
+ * production app always transact in Apple's sandbox, so a prod server pinned
+ * to production-only would start rejecting every tester the day
+ * `APPLE_STORE_ENVIRONMENT` flips at launch. Which environment actually
+ * verified the receipt is reported on [ReceiptValidation.Valid] so the grant
+ * can be recorded as sandbox (free chips, not revenue) vs production.
+ *
  * The stable transaction id becomes the `(store, order_id)` idempotency key.
  */
 class AppStoreReceiptValidator(
     private val config: BillingConfig,
     private val rootCertificates: () -> Set<InputStream> = ::loadAppleRootCertificates,
-    private val decoder: TransactionDecoder? = null,
+    decoder: TransactionDecoder? = null,
+    fallbackDecoder: TransactionDecoder? = null,
 ) {
     /**
      * Verifies a signed-transaction JWS and decodes it. The production
@@ -46,22 +59,48 @@ class AppStoreReceiptValidator(
         fun decode(signedTransaction: String): JWSTransactionDecodedPayload
     }
 
+    private class EnvironmentDecoder(
+        val environment: PurchaseEnvironment,
+        val decoder: TransactionDecoder,
+    )
+
     private val logger = LoggerFactory.getLogger("AppStoreReceiptValidator")
 
-    private val resolvedDecoder: TransactionDecoder? by lazy {
-        decoder ?: buildVerifier()?.let { verifier ->
-            TransactionDecoder { verifier.verifyAndDecodeTransaction(it) }
-        }
+    private val injectedDecoders: List<EnvironmentDecoder>? = decoder?.let { primary ->
+        listOfNotNull(
+            EnvironmentDecoder(configuredEnvironment() ?: PurchaseEnvironment.Sandbox, primary),
+            fallbackDecoder?.let { EnvironmentDecoder(siblingOf(configuredEnvironment()), it) },
+        )
+    }
+
+    private val resolvedDecoders: List<EnvironmentDecoder> by lazy {
+        injectedDecoders ?: buildDecoders()
     }
 
     suspend fun validate(request: PurchaseReceipt): ReceiptValidation {
-        val decoder = resolvedDecoder
-            ?: return ReceiptValidation.Invalid("apple_validator_unconfigured")
+        val decoders = resolvedDecoders
+        if (decoders.isEmpty()) return ReceiptValidation.Invalid("apple_validator_unconfigured")
 
-        val payload = try {
-            withContext(Dispatchers.IO) { decoder.decode(request.token) }
-        } catch (e: VerificationException) {
-            logger.warn("Apple JWS verification failed: {}", e.status)
+        var payload: JWSTransactionDecodedPayload? = null
+        var verifiedBy: EnvironmentDecoder? = null
+        for (candidate in decoders) {
+            try {
+                payload = withContext(Dispatchers.IO) { candidate.decoder.decode(request.token) }
+                verifiedBy = candidate
+                break
+            } catch (e: VerificationException) {
+                if (e.status == VerificationStatus.INVALID_ENVIRONMENT && candidate !== decoders.last()) {
+                    logger.info(
+                        "Apple JWS is for the other environment (tried {}) — retrying against the sibling",
+                        candidate.environment.wire,
+                    )
+                    continue
+                }
+                logger.warn("Apple JWS verification failed: {}", e.status)
+                return ReceiptValidation.Invalid("apple_jws_invalid")
+            }
+        }
+        if (payload == null || verifiedBy == null) {
             return ReceiptValidation.Invalid("apple_jws_invalid")
         }
 
@@ -93,21 +132,44 @@ class AppStoreReceiptValidator(
                 return ReceiptValidation.Invalid("apple_missing_transaction_id")
             }
 
-        return ReceiptValidation.Valid(orderId = transactionId)
+        return ReceiptValidation.Valid(
+            orderId = transactionId,
+            // The decoded payload is authoritative when it names its
+            // environment; otherwise credit the verifier that accepted it.
+            environment = payload.environment?.toPurchaseEnvironment() ?: verifiedBy.environment,
+        )
     }
 
-    private fun buildVerifier(): SignedDataVerifier? {
+    private fun buildDecoders(): List<EnvironmentDecoder> {
         val bundleId = config.appleBundleId?.takeIf { it.isNotBlank() } ?: run {
             logger.warn("APPLE_BUNDLE_ID not set — Apple receipt validation disabled.")
-            return null
+            return emptyList()
         }
-        val environment = parseEnvironment(config.appleEnvironment) ?: run {
+        val primary = parseEnvironment(config.appleEnvironment) ?: run {
             logger.warn(
                 "APPLE_STORE_ENVIRONMENT='{}' is not a valid StoreKit environment — Apple validation disabled.",
                 config.appleEnvironment,
             )
-            return null
+            return emptyList()
         }
+        val environments = when (primary) {
+            Environment.PRODUCTION -> listOf(Environment.PRODUCTION, Environment.SANDBOX)
+            Environment.SANDBOX -> listOf(Environment.SANDBOX, Environment.PRODUCTION)
+            // XCODE / LOCAL_TESTING are single-environment dev setups.
+            else -> listOf(primary)
+        }
+        // The verifiers share one certificate load; SignedDataVerifier reads
+        // the streams at construction so each needs a fresh set.
+        return environments.map { environment ->
+            val verifier = buildVerifier(bundleId, environment)
+            EnvironmentDecoder(
+                environment = environment.toPurchaseEnvironment(),
+                decoder = TransactionDecoder { verifier.verifyAndDecodeTransaction(it) },
+            )
+        }
+    }
+
+    private fun buildVerifier(bundleId: String, environment: Environment): SignedDataVerifier {
         // Online checks (revocation + expiry against the App Store) require the
         // numeric appAppleId, which only exists for a published app. Enable
         // them when it is configured; otherwise rely on the offline chain +
@@ -120,6 +182,21 @@ class AppStoreReceiptValidator(
             environment,
             enableOnlineChecks,
         )
+    }
+
+    private fun configuredEnvironment(): PurchaseEnvironment? =
+        parseEnvironment(config.appleEnvironment)?.toPurchaseEnvironment()
+
+    private fun siblingOf(environment: PurchaseEnvironment?): PurchaseEnvironment =
+        when (environment) {
+            PurchaseEnvironment.Production -> PurchaseEnvironment.Sandbox
+            PurchaseEnvironment.Sandbox, null -> PurchaseEnvironment.Production
+        }
+
+    private fun Environment.toPurchaseEnvironment(): PurchaseEnvironment = when (this) {
+        Environment.PRODUCTION -> PurchaseEnvironment.Production
+        // Xcode / local-testing transactions are dev artifacts — never revenue.
+        else -> PurchaseEnvironment.Sandbox
     }
 
     private fun parseEnvironment(value: String): Environment? = when (value.lowercase()) {

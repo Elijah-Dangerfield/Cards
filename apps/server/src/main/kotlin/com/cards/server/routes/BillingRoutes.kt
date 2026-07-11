@@ -109,8 +109,8 @@ fun Route.billingRoutes(
                         userId = userId,
                     ),
                 )
-                val orderId = when (validation) {
-                    is ReceiptValidation.Valid -> validation.orderId
+                val valid = when (validation) {
+                    is ReceiptValidation.Valid -> validation
                     is ReceiptValidation.Invalid -> {
                         // The user paid the store and we refused the grant —
                         // forged receipt, or config drift (wrong bundle id /
@@ -133,12 +133,17 @@ fun Route.billingRoutes(
                     }
                 }
 
+                logger.info(
+                    "Redeeming {} for user={} (store={}, environment={}, chips={})",
+                    body.productId, userId.value, store.wire, valid.environment.wire, product.grantsChips,
+                )
                 val result = billing.redeem(
                     userId = userId,
                     store = store.wire,
-                    orderId = orderId,
+                    orderId = valid.orderId,
                     productId = body.productId,
                     grantedChips = product.grantsChips,
+                    environment = valid.environment,
                 )
                 call.respond(
                     HttpStatusCode.OK,

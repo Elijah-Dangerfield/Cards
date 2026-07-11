@@ -34,12 +34,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** every balance change writes a ledger row (audit every path: starter grant, multiplayer settlement, bust protection, shop, admin). A conservation check (total balances equal the ledger sum) exists as a test and an alertable query, and passes on prod once the missing starter rows are backfilled.
   **Hints:** server wallet write paths; the schema is visible in the `cards-economy` dashboard queries; case `docs/agent/feedback-cases/2026-07-09-chips-vanish-on-restart.md`.
 
-## BILL — billing
-
-- **BILL-6 `[P1]` Record the StoreKit environment on purchases; segment sandbox out of economy metrics.** Problem: TestFlight purchases always run against Apple's sandbox, so testers get chip packs for free, and those purchases are currently recorded as real. The owner's two test buys minted 125,000 unpaid chips that now read as revenue (`billing_transactions` has no environment column). This never goes away on its own: TestFlight testers exist after launch too.
-  **Acceptance:** each transaction persists which environment (`sandbox` or `production`) verified it, the wallet ledger reflects it, and the `cards-economy` dashboard excludes or segments sandbox mints in the supply and revenue panels.
-  **Hints:** the server already knows the environment when it verifies the receipt (`APPLE_STORE_ENVIRONMENT` in `ServerConfig`; note it is `Sandbox` on BOTH Fly apps today and must flip prod to `Production` at App Store launch, ideally verifying production first with a sandbox fallback so TestFlight keeps working). See `StoreKitBillingClient` and the server redemption route.
-
 ## ENG — engineering / structural
 
 - **ENG-21 `[P2]` Close the user-switch clear window: an old user's in-flight sync can still race `clearFor`.** Problem: `SupabaseAuthRepositoryImpl.emitLocked` awaits `userScopedDataReset.clearFor(previous)` before emitting the new user, but a sync already in flight for the old user is only cancelled when the new emission reaches the sync loops - its writes can land mid-clear. ENG-20's cancel-on-key-change narrowed this pre-existing window; it is not closed.

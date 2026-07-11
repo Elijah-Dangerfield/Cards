@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.server.config.BillingConfig
+import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.PurchaseReceipt
 import com.dangerfield.cards.server.domain.ReceiptValidation
 import com.dangerfield.cards.server.domain.Store
@@ -39,7 +40,19 @@ class GooglePlayReceiptValidatorTest {
             purchase(state = 0, accountId = userId.value.toString(), orderId = "GPA.1234"),
         )
         val result = validator.validate(receipt())
-        assertEquals(ReceiptValidation.Valid("GPA.1234"), result)
+        assertEquals(ReceiptValidation.Valid("GPA.1234", PurchaseEnvironment.Production), result)
+    }
+
+    @Test
+    fun licenseTesterPurchase_isSandbox() = runTest {
+        // purchaseType 0 = test purchase (license testers) — Play's sandbox
+        // equivalent. The tester paid nothing; the grant must not read as revenue.
+        val validator = validatorReturning(
+            purchase(state = 0, accountId = userId.value.toString(), orderId = "GPA.test")
+                .setPurchaseType(0),
+        )
+        val result = validator.validate(receipt())
+        assertEquals(ReceiptValidation.Valid("GPA.test", PurchaseEnvironment.Sandbox), result)
     }
 
     @Test

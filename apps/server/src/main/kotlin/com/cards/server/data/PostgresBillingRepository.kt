@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.db.toJavaInstant
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.BillingRepository
+import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.RedeemResult
 import com.dangerfield.cards.server.domain.UserId
 import me.tatarka.inject.annotations.Inject
@@ -47,6 +48,7 @@ class PostgresBillingRepository(
         orderId: String,
         productId: String,
         grantedChips: Long,
+        environment: PurchaseEnvironment,
     ): RedeemResult = database.transaction {
         val now = clock.now()
 
@@ -67,6 +69,7 @@ class PostgresBillingRepository(
             it[BillingTransactionsTable.userId] = userId.value
             it[BillingTransactionsTable.productId] = productId
             it[BillingTransactionsTable.grantedChips] = grantedChips
+            it[BillingTransactionsTable.environment] = environment.wire
             it[BillingTransactionsTable.redeemedAt] = now.toJavaInstant()
         }
 
@@ -74,7 +77,14 @@ class PostgresBillingRepository(
             userId = userId,
             idempotencyKey = "billing.$store.$orderId",
             delta = grantedChips,
-            reason = "iap.$productId",
+            // `iap.` strictly means real money — orphan-sweep guards and the
+            // economy dashboards key on the prefix. Sandbox mints (TestFlight,
+            // Play license testers) get their own prefix so they can never
+            // read as revenue or paying-customer signal.
+            reason = when (environment) {
+                PurchaseEnvironment.Production -> "iap.$productId"
+                PurchaseEnvironment.Sandbox -> "iap_sandbox.$productId"
+            },
             now = now,
         )
         when (outcome) {

@@ -1043,7 +1043,7 @@ The seam is already clean: join-by-code and matchmaking both go through `RoomSer
 
 **Alternatives rejected:** dev-backend internal builds for friends (kills signal, doesn't survive launch); same-app-id dual build tracks (one-install-per-device juggling, build-mixup risk); in-app env switcher (one install mixing two backends is the exact confusion class just debugged).
 
-**Status:** Filed as BILL-6 (tag + segment) with ECON-1/ECON-2 covering ledger conservation and cleanup of the existing sandbox chips.
+**Status:** Shipped 2026-07-10. `billing_transactions.environment` (V83) is written from the validator's verdict; the Apple validator verifies against the configured environment with a sibling-environment fallback (so the launch-day `APPLE_STORE_ENVIRONMENT` flip to `Production` can't break TestFlight testers); Play license-tester purchases (`purchaseType = 0`) count as sandbox. The wallet ledger splits `iap.<product>` (real money) from `iap_sandbox.<product>` — the `iap.%` real-money gates (orphan sweeps, install siblings) now correctly ignore testers. V83 backfills all pre-existing purchases/ledger rows as sandbox (distribution was TestFlight-only). The `cards-economy` dashboard segments sandbox out of the revenue stats and labels sandbox purchase series. ECON-1 still covers ledger conservation.
 
 ## 2026-07-10 — One telemetry stack for both environments, tag-separated
 

@@ -153,6 +153,7 @@ object BillingTransactionsTable : Table("billing_transactions") {
     val userId = uuid("user_id")
     val productId = text("product_id")
     val grantedChips = long("granted_chips")
+    val environment = text("environment")
     val redeemedAt = timestamp("redeemed_at")
     override val primaryKey = PrimaryKey(id)
 

@@ -1,9 +1,11 @@
 package com.dangerfield.cards.server.data
 
+import com.apple.itunes.storekit.model.Environment
 import com.apple.itunes.storekit.model.JWSTransactionDecodedPayload
 import com.apple.itunes.storekit.verification.VerificationException
 import com.apple.itunes.storekit.verification.VerificationStatus
 import com.dangerfield.cards.server.config.BillingConfig
+import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.PurchaseReceipt
 import com.dangerfield.cards.server.domain.ReceiptValidation
 import com.dangerfield.cards.server.domain.Store
@@ -44,7 +46,51 @@ class AppStoreReceiptValidatorTest {
             payload().productId("chips_medium").appAccountToken(userId.value).transactionId("txn-42"),
         )
         val result = validator.validate(receipt())
-        assertEquals(ReceiptValidation.Valid("txn-42"), result)
+        assertEquals(ReceiptValidation.Valid("txn-42", PurchaseEnvironment.Sandbox), result)
+    }
+
+    @Test
+    fun productionPayload_reportsProductionEnvironment() = runTest {
+        // The decoded payload's own environment claim wins over the verifier
+        // that happened to accept it.
+        val validator = validatorReturning(
+            payload()
+                .productId("chips_medium")
+                .appAccountToken(userId.value)
+                .transactionId("txn-43")
+                .environment(Environment.PRODUCTION),
+        )
+        val result = validator.validate(receipt())
+        assertEquals(ReceiptValidation.Valid("txn-43", PurchaseEnvironment.Production), result)
+    }
+
+    @Test
+    fun environmentMismatch_fallsBackToSiblingVerifier() = runTest {
+        // A prod server must keep accepting TestFlight (sandbox) receipts:
+        // when the primary verifier rejects the JWS as the wrong environment,
+        // the sibling gets a try and the grant records its environment.
+        val validator = AppStoreReceiptValidator(
+            config = configured(),
+            rootCertificates = { emptySet() },
+            decoder = { throw VerificationException(VerificationStatus.INVALID_ENVIRONMENT) },
+            fallbackDecoder = {
+                payload().productId("chips_medium").appAccountToken(userId.value).transactionId("txn-44")
+            },
+        )
+        val result = validator.validate(receipt())
+        assertEquals(ReceiptValidation.Valid("txn-44", PurchaseEnvironment.Production), result)
+    }
+
+    @Test
+    fun nonEnvironmentFailure_doesNotFallBack() = runTest {
+        val validator = AppStoreReceiptValidator(
+            config = configured(),
+            rootCertificates = { emptySet() },
+            decoder = { throw VerificationException(VerificationStatus.VERIFICATION_FAILURE) },
+            fallbackDecoder = { error("a forged JWS must not get a second try") },
+        )
+        val result = validator.validate(receipt())
+        assertEquals(ReceiptValidation.Invalid("apple_jws_invalid"), result)
     }
 
     @Test

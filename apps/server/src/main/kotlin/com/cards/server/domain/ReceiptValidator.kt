@@ -67,16 +67,30 @@ data class PurchaseReceipt(
 )
 
 /**
+ * Which store environment verified a purchase. TestFlight (and Play test
+ * tracks) always transact against the platform's sandbox — the tester pays
+ * nothing — so a sandbox mint is not revenue and must stay distinguishable
+ * from real money everywhere downstream: the `billing_transactions.environment`
+ * column, the wallet ledger (`iap.<product>` vs `iap_sandbox.<product>`
+ * reasons), and the economy dashboards that sum supply and revenue.
+ */
+enum class PurchaseEnvironment(val wire: String) {
+    Production("production"),
+    Sandbox("sandbox"),
+}
+
+/**
  * Outcome of [ReceiptValidator.validate].
  *
  *  - [Valid] — the receipt is genuine and bound to the user. Carries the
  *    platform's stable transaction id, which becomes the
- *    `(store, order_id)` idempotency key for the grant.
+ *    `(store, order_id)` idempotency key for the grant, and the
+ *    [PurchaseEnvironment] that verified it.
  *  - [Invalid] — the receipt was rejected (forged, wrong product, wrong
  *    user, refunded, or the validator is unconfigured). [reason] is a short
  *    machine-ish code for logs; never credit on this result.
  */
 sealed interface ReceiptValidation {
-    data class Valid(val orderId: String) : ReceiptValidation
+    data class Valid(val orderId: String, val environment: PurchaseEnvironment) : ReceiptValidation
     data class Invalid(val reason: String) : ReceiptValidation
 }
