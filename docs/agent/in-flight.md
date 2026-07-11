@@ -3,6 +3,13 @@
 Ephemeral handoff notes from workers to the reviewer. The reviewer folds these
 into the PR body and deletes this file.
 
+## fix(telemetry): app.launched waits for the settled session_id (ENG-24)
+
+**Problem:** `app.launched` fired from `GrafanaAppEvents`' DI init, before the first foreground rolls session #1 — every cold start's launch event carried the session tracker's pre-boot sentinel uuid, an orphan one-event session per boot in session-keyed funnels.
+**Approach:** Kept the event's name + attributes intact (the observability suite's crash-free queries key on `app.launched`/`previous_exit`, so demoting it — the acceptance's other option — would silently break dashboards) and moved emission to the cold-boot foreground: a new `AppLaunchedEmitter` `AppEventListener` fires it when `isColdBoot`, which the dispatcher guarantees runs after the session tracker's ColdBoot handler. It's a separate class from `GrafanaAppEvents` because joining the listener set from a class that transitively depends on the dispatcher (config values → config repository → AppEvents) is a DI cycle — KSP caught exactly that on the first attempt. `docs/wiki/app-events.md` updated.
+**Reviewer notes:** Two small semantic shifts: (1) `app.launched` now also fires in builds without Grafana credentials (it reaches logcat/Sentry breadcrumbs; previously it was skipped entirely when unconfigured) — harmless and arguably more honest; (2) a boot the user kills before first foreground no longer logs `app.launched` — consistent with "sessions start at foreground".
+**Deferred:** None.
+
 ## fix(networking): quiet room sockets no longer die at 15s (MP-32)
 
 **Problem:** Every quiet MP room socket dropped at almost exactly 15s and reconnected in ~450ms, strobing the "lost connection" banner through MP games (CARDS-9A).

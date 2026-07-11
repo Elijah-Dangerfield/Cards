@@ -17,6 +17,9 @@ kotlin {
             implementation(projects.libraries.core)
             implementation(projects.libraries.config)
             implementation(projects.libraries.networking)
+            // AppEventListener — app.launched must wait for the cold-boot
+            // dispatch so it carries the settled session_id (ENG-24).
+            implementation(projects.libraries.cards)
             implementation(libs.otel.kotlin.api)
             implementation(libs.otel.kotlin.sdk.api)
             implementation(libs.otel.kotlin.implementation)
@@ -29,6 +32,7 @@ kotlin {
 
         commonTest.dependencies {
             implementation(projects.libraries.core)
+            implementation(projects.libraries.cards)
             implementation(libs.otel.kotlin.api)
             implementation(libs.otel.kotlin.sdk.api)
             implementation(libs.kotlinx.coroutines.test)

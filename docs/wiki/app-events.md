@@ -19,8 +19,7 @@ and all event attributes are **structured metadata**, so filter with pipes
 
 **Delivery is at-most-once.** A batch that fails to export is dropped, not retried — events emitted
 while the device is offline are lost (accepted for behavioral analytics; a persistence exporter is
-the upgrade path if this ever matters). `app.launched` also predates the first-foreground session
-rollover, so it carries its own one-off `session_id` (ENG-24).
+the upgrade path if this ever matters).
 
 **Rules for adding events:** emit through the `logEvent` extension only (never a raw
 `EXTRA_APP_EVENT` extra), fire on user actions / state transitions — never per-frame, per-poll, or
@@ -32,7 +31,7 @@ and anything already in a ledger.
 
 | Event | Attributes | Fires |
 |---|---|---|
-| `app.launched` | `cold_start` (always true), `previous_exit` (clean/crash/anr/oom/unknown) | Boot, from `GrafanaAppEvents` init — doubles as the pipeline smoke test. `previous_exit` comes from Android's historical exit reasons (API 30+; older devices report `unknown`); **iOS always reports `unknown`** until MetricKit wiring lands (ENG-25) — segment by platform before reading exit rates |
+| `app.launched` | `cold_start` (always true), `previous_exit` (clean/crash/anr/oom/unknown) | Once per cold start, on the boot foreground (`GrafanaAppEvents.onForeground`) — after the session tracker rolls session #1, so it shares the boot's `session_id` with every other event (ENG-24; it used to fire at DI init and land orphaned on a pre-rollover id). Doubles as the pipeline smoke test. `previous_exit` comes from Android's historical exit reasons (API 30+; older devices report `unknown`); **iOS always reports `unknown`** until MetricKit wiring lands (ENG-25) — segment by platform before reading exit rates |
 | `app.foregrounded` | `cold_start` | Every foreground (`LifecycleAppEventLogger`); `cold_start=true` on the boot foreground |
 | `app.backgrounded` | `session_duration_sec` | Every background; `session_duration_sec` = whole seconds since the matching foreground (monotonic clock), so session length is a direct query — no span join needed. Omitted in the (shouldn't-happen) case of a background with no prior foreground |
 | `game.started` | `mode` (bots/multiplayer), `difficulty` | `PlayPokerViewModel` init |
