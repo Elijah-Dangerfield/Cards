@@ -2,11 +2,7 @@ package com.dangerfield.cards.libraries.telemetry.impl
 
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.logEvent
-import io.opentelemetry.kotlin.export.OperationResultCode
 import io.opentelemetry.kotlin.logging.SeverityNumber
-import io.opentelemetry.kotlin.logging.export.LogRecordProcessor
-import io.opentelemetry.kotlin.logging.model.ReadWriteLogRecord
-import io.opentelemetry.kotlin.context.Context
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -18,6 +14,7 @@ class GrafanaLogTreeTest {
 
     private var enabled = true
     private var sampleRate = 1.0
+    private var klogForwardingEnabled = false
     private var sessionId: String? = "session-uuid-1"
     private var installId: String? = "install-uuid-1"
 
@@ -26,6 +23,7 @@ class GrafanaLogTreeTest {
             GrafanaLogTree(
                 exportEnabled = { enabled },
                 sampleRate = { sampleRate },
+                klogForwardingEnabled = { klogForwardingEnabled },
                 currentSessionId = { sessionId },
                 currentInstallId = { installId },
                 processorFactory = { processor },
@@ -55,11 +53,89 @@ class GrafanaLogTreeTest {
     }
 
     @Test
-    fun plainLog_isNotForwarded() {
+    fun klogForwardingOff_forwardsOnlyEvents() {
         plantTree()
 
         KLog.i("just an ordinary info line")
-        KLog.e("an error line, still not an event")
+        KLog.w("a warn line, not forwarded with the flag off")
+        KLog.e("an error line, still not forwarded")
+        KLog.logEvent("hand.completed", "won" to true)
+
+        val record = processor.records.single()
+        assertEquals("hand.completed", record.eventName)
+    }
+
+    @Test
+    fun klogForwardingOn_forwardsWarnAndAbove_asPlainLogs() {
+        klogForwardingEnabled = true
+        plantTree()
+
+        KLog.withTag("RoomSocket").w("reconnect attempt 3 backing off")
+
+        val record = processor.records.single()
+        assertEquals(null, record.eventName)
+        assertEquals("reconnect attempt 3 backing off", record.body)
+        assertEquals(SeverityNumber.WARN, record.severityNumber)
+        assertEquals("RoomSocket", record.attributes["tag"])
+        assertEquals("session-uuid-1", record.attributes["session_id"])
+        assertEquals("install-uuid-1", record.attributes["install_id"])
+    }
+
+    @Test
+    fun klogForwardingOn_errorWithThrowable_carriesExceptionAttributes() {
+        klogForwardingEnabled = true
+        plantTree()
+
+        KLog.e("send after close", IllegalStateException("socket already closed"))
+
+        val record = processor.records.single()
+        assertEquals(null, record.eventName)
+        assertEquals("send after close", record.body)
+        assertEquals(SeverityNumber.ERROR, record.severityNumber)
+        assertEquals("IllegalStateException", record.attributes["exception_type"])
+        assertEquals("socket already closed", record.attributes["exception_message"])
+    }
+
+    @Test
+    fun klogForwardingOn_infoNonEvent_isStillNotForwarded() {
+        klogForwardingEnabled = true
+        plantTree()
+
+        KLog.i("chatty info line")
+        KLog.d("debug line")
+
+        assertTrue(processor.records.isEmpty())
+    }
+
+    @Test
+    fun klogForwardingOn_eventsKeepTheirEventName() {
+        klogForwardingEnabled = true
+        plantTree()
+
+        KLog.logEvent("room.joined")
+
+        assertEquals("room.joined", processor.records.single().eventName)
+    }
+
+    @Test
+    fun klogForwardingOn_killSwitchStillDropsEverything() {
+        enabled = false
+        klogForwardingEnabled = true
+        plantTree()
+
+        KLog.w("warn line")
+        KLog.logEvent("app.launched")
+
+        assertTrue(processor.records.isEmpty())
+    }
+
+    @Test
+    fun klogForwardingOn_sampledOutSession_dropsWarnLogsToo() {
+        sampleRate = 0.0
+        klogForwardingEnabled = true
+        plantTree()
+
+        KLog.w("warn line")
 
         assertTrue(processor.records.isEmpty())
     }
@@ -140,33 +216,4 @@ class GrafanaLogTreeTest {
     }
 
     private data class CustomError(val reason: String)
-}
-
-/**
- * Synchronous stand-in for the batch processor: captures a snapshot of each
- * emitted record so assertions never race an export coroutine.
- */
-private class RecordingLogRecordProcessor : LogRecordProcessor {
-
-    class Recorded(
-        val eventName: String?,
-        val body: Any?,
-        val severityNumber: SeverityNumber?,
-        val attributes: Map<String, Any>,
-    )
-
-    val records = mutableListOf<Recorded>()
-
-    override fun onEmit(log: ReadWriteLogRecord, context: Context) {
-        records += Recorded(
-            eventName = log.eventName,
-            body = log.body,
-            severityNumber = log.severityNumber,
-            attributes = log.attributes.toMap(),
-        )
-    }
-
-    override suspend fun forceFlush(): OperationResultCode = OperationResultCode.Success
-
-    override suspend fun shutdown(): OperationResultCode = OperationResultCode.Success
 }

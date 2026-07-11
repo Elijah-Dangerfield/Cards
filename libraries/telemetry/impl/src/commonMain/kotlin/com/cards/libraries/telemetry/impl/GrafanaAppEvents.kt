@@ -37,6 +37,7 @@ class GrafanaAppEvents(
     installIdProvider: InstallIdProvider,
     appEventsEnabled: AppEventsEnabled,
     appEventsSampleRate: AppEventsSampleRate,
+    klogForwardingEnabled: KlogForwardingEnabled,
 ) : AutoInit {
 
     private val logger = KLog.withTag("GrafanaAppEvents")
@@ -46,6 +47,7 @@ class GrafanaAppEvents(
             val tree = GrafanaLogTree(
                 exportEnabled = { appEventsEnabled() },
                 sampleRate = { appEventsSampleRate() },
+                klogForwardingEnabled = { klogForwardingEnabled() },
                 currentSessionId = { sessionIdProvider.current() },
                 currentInstallId = { installIdProvider.current() },
                 processorFactory = {

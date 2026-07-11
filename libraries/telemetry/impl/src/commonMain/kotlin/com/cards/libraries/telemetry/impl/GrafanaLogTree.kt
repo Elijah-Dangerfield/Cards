@@ -21,6 +21,12 @@ import io.opentelemetry.kotlin.logging.export.LogRecordProcessor
  * so the same entry reaches logcat and Sentry breadcrumbs through those
  * trees regardless of what this one does.
  *
+ * Second mode ([klogForwardingEnabled], `telemetry.klogForwardingEnabled`):
+ * plain Warn+ entries are forwarded too, as ordinary OTLP logs — body only,
+ * no event name — so client errors land in Loki without waiting on a Sentry
+ * crash. Events are never gated by that flag; both modes sit behind the
+ * kill switch and per-session sampling.
+ *
  * Deliberately direct-to-Grafana rather than through our backend: the
  * reliability events (`net.backend_unreachable`, reconnect failures) must
  * survive a backend outage. See `docs/plans/client-app-events-otel.md`.
@@ -33,6 +39,7 @@ import io.opentelemetry.kotlin.logging.export.LogRecordProcessor
 class GrafanaLogTree(
     private val exportEnabled: () -> Boolean,
     private val sampleRate: () -> Double,
+    private val klogForwardingEnabled: () -> Boolean,
     private val currentSessionId: () -> String?,
     private val currentInstallId: () -> String?,
     private val processorFactory: LogExportConfigDsl.() -> LogRecordProcessor,
@@ -66,23 +73,35 @@ class GrafanaLogTree(
     }
 
     override fun log(entry: LogEntry): LogId? {
-        val eventName = entry.context.extras[EXTRA_APP_EVENT] as? String ?: return null
-        Catching { forward(eventName, entry) }
+        val eventName = entry.context.extras[EXTRA_APP_EVENT] as? String
+        val forwardAsPlainLog = eventName == null &&
+            entry.level.priority >= LogLevel.Warn.priority &&
+            klogForwardingEnabled()
+        if (eventName != null || forwardAsPlainLog) {
+            Catching { forward(eventName, entry) }
+        }
         return null
     }
 
-    private fun forward(eventName: String, entry: LogEntry) {
+    private fun forward(eventName: String?, entry: LogEntry) {
         if (!exportEnabled()) return
         val sessionId = currentSessionId()
         if (!isSessionSampledIn(sessionId)) return
 
         eventLogger.emit(
-            body = entry.message,
+            body = entry.message ?: entry.throwable?.toString(),
             eventName = eventName,
             severityNumber = entry.level.toSeverityNumber(),
             attributes = {
                 sessionId?.let { setStringAttribute(SESSION_ID_KEY, it) }
                 currentInstallId()?.let { setStringAttribute(INSTALL_ID_KEY, it) }
+                if (eventName == null) {
+                    entry.tag?.let { setStringAttribute(TAG_KEY, it) }
+                    entry.throwable?.let {
+                        setStringAttribute(EXCEPTION_TYPE_KEY, it::class.simpleName ?: "Throwable")
+                        it.message?.let { m -> setStringAttribute(EXCEPTION_MESSAGE_KEY, m) }
+                    }
+                }
                 entry.context.tags.forEach { (key, value) -> setStringAttribute(key, value) }
                 entry.context.extras.forEach { (key, value) ->
                     if (key == EXTRA_APP_EVENT) return@forEach
@@ -128,5 +147,8 @@ class GrafanaLogTree(
         const val SERVICE_NAME = "cards-client"
         private const val SESSION_ID_KEY = "session_id"
         private const val INSTALL_ID_KEY = "install_id"
+        private const val TAG_KEY = "tag"
+        private const val EXCEPTION_TYPE_KEY = "exception_type"
+        private const val EXCEPTION_MESSAGE_KEY = "exception_message"
     }
 }
