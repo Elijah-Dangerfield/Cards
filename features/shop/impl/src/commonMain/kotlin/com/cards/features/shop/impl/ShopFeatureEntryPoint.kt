@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.shop.impl
 
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
@@ -14,6 +15,8 @@ import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.billing.IapPurchaseOutcome
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.formatThousands
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.OnTabReselected
@@ -81,6 +84,11 @@ class ShopFeatureEntryPoint(
                 val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
                 val scrollState = rememberScrollState()
                 val scope = rememberCoroutineScope()
+                // Screen-entry, not VM init: the graph-scoped VM outlives
+                // individual visits, and the funnel counts storefront views.
+                LaunchedEffect(Unit) {
+                    KLog.logEvent("shop.viewed")
+                }
                 // Bottom-bar re-tap on the Shop tab → scroll the grid to top.
                 router.OnTabReselected(ShopGraph) {
                     scope.launch { scrollState.animateScrollTo(0) }

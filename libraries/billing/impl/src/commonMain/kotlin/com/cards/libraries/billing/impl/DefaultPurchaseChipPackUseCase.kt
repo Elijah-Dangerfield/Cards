@@ -49,6 +49,7 @@ class DefaultPurchaseChipPackUseCase(
     private val logger = KLog.withTag("PurchaseChipPackUseCase")
 
     override suspend fun invoke(pack: Product.ChipPack): IapPurchaseOutcome {
+        logger.logEvent("purchase.initiated", "product_id" to pack.id)
         val authenticated = authRepository.current() as? AuthState.Authenticated
         if (authenticated == null) {
             logger.w { "IAP purchase requested with no signed-in user" }

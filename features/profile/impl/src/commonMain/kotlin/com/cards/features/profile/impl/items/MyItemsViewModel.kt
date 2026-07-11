@@ -13,6 +13,7 @@ import com.dangerfield.cards.libraries.cards.isDefaultCosmetic
 import com.dangerfield.cards.libraries.cards.tierForProductId
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
@@ -126,6 +127,12 @@ class MyItemsViewModel(
                             .forEach { equipmentRepository.unequip(it) }
                     }
                     equipmentRepository.equip(action.productId)
+                    logger.logEvent(
+                        "cosmetic.equipped",
+                        "product_id" to action.productId,
+                        "slot" to slot?.name?.lowercase(),
+                        "auto" to false,
+                    )
                 }
                 // Fire-and-forget reconcile so Pending → Synced flips
                 // before the user even sees the row settle.

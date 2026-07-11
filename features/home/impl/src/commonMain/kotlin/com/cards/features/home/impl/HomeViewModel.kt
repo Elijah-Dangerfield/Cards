@@ -22,6 +22,7 @@ import com.dangerfield.cards.features.home.impl.notification.outOfChipsResetNeed
 import com.dangerfield.cards.features.home.impl.notification.seedsNeeded
 import com.dangerfield.cards.libraries.gameplay.StakeTier
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.profile.Profile
@@ -454,6 +455,11 @@ class HomeViewModel(
                 homeLogger.i {
                     "home notification: out of chips (balance=${notification.balance}, buyIn=${notification.casualBuyIn})"
                 }
+                homeLogger.logEvent(
+                    "economy.out_of_chips_shown",
+                    "balance" to notification.balance,
+                    "context" to "home",
+                )
                 // Monotonic-within-the-episode mark first, same as welcome — a
                 // re-entrant snapshot can't double-fire while the write lands.
                 appCache.update { it.copy(outOfChipsSeen = true) }

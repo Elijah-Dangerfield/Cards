@@ -9,6 +9,7 @@ import com.dangerfield.cards.libraries.core.LegalUrls
 import com.dangerfield.cards.libraries.core.isiOS
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
 import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
@@ -35,6 +36,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import me.tatarka.inject.annotations.Inject
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 /**
  * Drives the four-step onboarding flow with **deferred account creation** —
@@ -98,6 +100,15 @@ class OnboardingViewModel(
 
     private val logger = KLog.withTag("OnboardingFlow")
 
+    private val onboardingStartedAt = TimeSource.Monotonic.markNow()
+
+    /**
+     * True once this instance routed to Home (completed, or a returning user
+     * bounced/signed in) — suppresses the best-effort `onboarding.abandoned`
+     * fired from [onCleared].
+     */
+    private var exitedToHome = false
+
     init {
         // DEBUG (onboarding-bounce repro): one line per VM instance. The VM is
         // scoped to the OnboardingRoute back-stack entry, so its initial step is
@@ -111,7 +122,10 @@ class OnboardingViewModel(
                 val onboarded = appCache.get().hasUserOnboarded
                 logger.d { "Onboarded-guard: hasUserOnboarded=$onboarded" }
                 if (onboarded) {
+                    exitedToHome = true
                     sendEvent(OnboardingEvent.NavigateToHome)
+                } else {
+                    logger.logEvent("onboarding.step_viewed", "step" to "welcome")
                 }
             }.logOnFailure { "Onboarded-guard cache read failed" }
         }
@@ -157,6 +171,8 @@ class OnboardingViewModel(
         // "Continue as guest" just enters the identity step.
         recordLegalConsent()
         logger.d { "step: Welcome → PickIdentity (Continue as guest)" }
+        logger.logEvent("onboarding.auth_selected", "method" to "guest", "returning" to false)
+        logStepViewed(OnboardingStep.PickIdentity)
         updateState { it.copy(authError = null, step = OnboardingStep.PickIdentity) }
     }
 
@@ -182,13 +198,20 @@ class OnboardingViewModel(
         when (val outcome = authRepository.signInWithOAuth(provider)) {
             is SignInOutcome.Success -> {
                 recordLegalConsent()
-                if (isBrandNewAccount()) {
+                val brandNew = isBrandNewAccount()
+                logger.logEvent(
+                    "onboarding.auth_selected",
+                    "method" to provider.name.lowercase(),
+                    "returning" to !brandNew,
+                )
+                if (brandNew) {
                     // First-ever sign-in for this identity: run them through the
                     // rest of onboarding (PickIdentity -> grant reveal) like a
                     // guest, so they pick a name/avatar and see the starter grant
                     // instead of landing cold on Home. Mirrors the Apple-link new
                     // identity path. identityClaimed suppresses the back-to-Welcome
                     // control (the sign-in options no longer apply).
+                    logStepViewed(OnboardingStep.PickIdentity)
                     updateState {
                         it.copy(
                             oauthInFlight = null,
@@ -201,6 +224,7 @@ class OnboardingViewModel(
                     // onboarding straight to Home.
                     appCache.update { it.copy(hasUserOnboarded = true) }
                     updateState { it.copy(oauthInFlight = null) }
+                    exitedToHome = true
                     sendEvent(OnboardingEvent.NavigateToHome)
                 }
             }
@@ -278,6 +302,8 @@ class OnboardingViewModel(
             when (authRepository.linkAppleIdentity(credential)) {
                 LinkIdentityOutcome.Success -> {
                     recordLegalConsent()
+                    logger.logEvent("onboarding.auth_selected", "method" to "apple", "returning" to false)
+                    logStepViewed(OnboardingStep.PickIdentity)
                     updateState {
                         it.copy(
                             oauthInFlight = null,
@@ -301,8 +327,10 @@ class OnboardingViewModel(
             // anymore — the Home gate keys on the live walletJustCreated signal,
             // which is false for an account whose wallet already existed.
             recordLegalConsent()
+            logger.logEvent("onboarding.auth_selected", "method" to "apple", "returning" to true)
             appCache.update { it.copy(hasUserOnboarded = true) }
             updateState { it.copy(oauthInFlight = null) }
+            exitedToHome = true
             sendEvent(OnboardingEvent.NavigateToHome)
         } else {
             failAppleSignIn()
@@ -323,6 +351,7 @@ class OnboardingViewModel(
         // Point of no return: advance and mark creation started so back is
         // blocked from here (the chosen name is now committed to creation).
         logger.d { "step: PickIdentity → HowItWorks (creationStarted=true)" }
+        logStepViewed(OnboardingStep.HowItWorks)
         updateState { it.copy(step = OnboardingStep.HowItWorks, saveError = null, creationStarted = true) }
 
         if (authRepository.current() is AuthState.Authenticated) {
@@ -360,6 +389,7 @@ class OnboardingViewModel(
      */
     private suspend fun OnboardingAction.handleContinueFromHowItWorks() {
         logger.d { "step: HowItWorks → StarterGrant" }
+        logStepViewed(OnboardingStep.StarterGrant)
         updateState { it.copy(step = OnboardingStep.StarterGrant) }
         kickOffGrantReveal()
     }
@@ -409,6 +439,7 @@ class OnboardingViewModel(
      * identity step entirely.
      */
     private suspend fun OnboardingAction.handleBack() {
+        val stepBefore = state.step
         updateState {
             // Once account creation has kicked off (or an identity was claimed),
             // there's no going back — the account is forming and the Welcome
@@ -426,6 +457,7 @@ class OnboardingViewModel(
                 saveError = if (previous == OnboardingStep.PickIdentity) it.saveError else null,
             )
         }
+        if (state.step != stepBefore) logStepViewed(state.step)
     }
 
     /**
@@ -455,9 +487,37 @@ class OnboardingViewModel(
         }
 
         logger.d { "finish: persisting hasUserOnboarded=true → NavigateToHome (alreadyAuthed=$alreadyAuthed)" }
+        exitedToHome = true
+        logger.logEvent(
+            "onboarding.completed",
+            "duration_sec" to onboardingStartedAt.elapsedNow().inWholeSeconds,
+            "account_ready" to !state.creationFailed,
+        )
         appCache.update { it.copy(hasUserOnboarded = true) }
         updateState { it.copy(isFinishing = false) }
         sendEvent(OnboardingEvent.NavigateToHome)
+    }
+
+    override fun onCleared() {
+        // Best-effort abandonment marker: the VM outliving the flow without ever
+        // routing Home means the user backed out (system back on Welcome exits
+        // the app and clears the entry). A process kill won't reach this — the
+        // funnel's step_viewed-without-completed sessions cover that case.
+        if (!exitedToHome) {
+            logger.logEvent("onboarding.abandoned", "step" to state.step.eventName())
+        }
+        super.onCleared()
+    }
+
+    private fun logStepViewed(step: OnboardingStep) {
+        logger.logEvent("onboarding.step_viewed", "step" to step.eventName())
+    }
+
+    private fun OnboardingStep.eventName(): String = when (this) {
+        OnboardingStep.Welcome -> "welcome"
+        OnboardingStep.PickIdentity -> "pick_identity"
+        OnboardingStep.HowItWorks -> "how_it_works"
+        OnboardingStep.StarterGrant -> "starter_grant"
     }
 
     companion object {
