@@ -22,7 +22,41 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
+## AUTH — auth + onboarding
+
+- **AUTH-19 `[P0]` TestFlight upgrade drops the Supabase session and silently mints a fresh guest — progression stranded.** Problem: after upgrading to build 740 the app booted with no persisted session (`accessToken: no session`), and `GuestSessionHealer` (MINT_FROM_PENDING) created a brand-new guest over the cached anonymous profile — owner's balance/XP now stranded on the old account (087ac8d1…); his Apple-sign-in recovery attempt minted a third account.
+  **Acceptance:** a session survives an app upgrade (upgrade-path test on session storage), and when a cached profile exists but the session is unrecoverable the app surfaces a recovery/sign-in flow instead of silently minting a fresh guest.
+  **Hints:** supabase-kt session persistence location on iOS; `GuestSessionHealer`, `AuthRepository` bootstrap resolve, `StrandedIdentity` warn; case `docs/agent/feedback-cases/81a8c07d88e24f16b913dc00822e52f5.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-9D
+
+## MP — multiplayer hardening
+
+- **MP-32 `[P1]` MP room socket dies every ~15s — Ktor WS timeout with no ping/pong keepalive.** Problem: every `/v1/rooms/{code}/socket` connection lives almost exactly 15s (15214/15112/15115ms in Loki) then drops and reconnects in ~450ms, flashing the "lost connection" banner throughout MP games — Ktor WebSockets defaults (`timeout=15s`, pings disabled).
+  **Acceptance:** a quiet MP table holds one socket for minutes with no periodic drops; the banner only appears for real outages.
+  **Hints:** server WebSockets plugin install (set `pingPeriod`), client engine timeout; case `docs/agent/feedback-cases/802230965b60445085848716eb01ed3c.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-9A
+
+## ROOM — rooms UI
+
+- **ROOM-16 `[P1]` Sole member of a matchmaking room isn't host — add-bots 403s and reads as "offline".** Problem: after a matchmaking placement + app restart the reporter rejoined room Y4ZHD3 as its only member (`recv snapshot members=1`) yet `POST /bots` 403'd `not_host` seven times with no visible UI feedback; he concluded the app was offline.
+  **Acceptance:** the only human member of a room can add bots (host assigned/reassigned on (re)join), and an add-bots failure shows an explanatory error.
+  **Hints:** `InMemoryRoomService` host assignment on join/leave/rejoin; lobby add-bots error handling; also verify what drove the "offline — some features available" banner (no connectivity event in the trail); case `docs/agent/feedback-cases/4587d9b2aab446d080ab9b7453aaab27.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-9N
+
+## PROG — progression / XP / stats
+
+- **PROG-12 `[P1]` Chips earned in an MP session still stale until force-kill — post-PROG-11 residual.** Problem: tester earned 1000 chips playing MP (room ZYQ2CQ, dev) on a build that already contains PROG-11's derived-balance fix, and the displayed balance stayed stale until app force-kill.
+  **Acceptance:** failing test reproducing the stale path first (MP leave-with-winnings or a grant during an MP session on Android), then the balance reflects the earn within seconds, no restart.
+  **Hints:** `ChipsRepository` derived balance (PROG-11, commit 7c1b5488), MP-29 synchronous leave settlement, backlog "involuntary teardown reconcile"; case `docs/agent/feedback-cases/a8f0a73918514cb884e6e3425715416d.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-98
+
+## BILL — billing
+
+- **BILL-7 `[P1]` iOS chip-pack redeem 400s (`appAppleId` required) — purchases left uncredited behind a toast.** Problem: every TestFlight purchase fails at `POST /v1/billing/redeem` with 400 "appAppleId is required when the environment is Production"; client logs "left uncredited" (orders 2000001203481555/…1803) and shows only a toast.
+  **Acceptance:** TestFlight/production receipts redeem successfully (send/configure `appAppleId`), uncredited orders retry on next launch, a failed purchase shows a full error dialog, and the shop shows a purchase-in-flight loading state (owner directive).
+  **Hints:** `PurchaseChipPackUseCase`, server redeem validation, App Store Server API `appAppleId` requirement; relates BILL-6; case `docs/agent/feedback-cases/b198b3ec3d5145cbb7e3fb7d6c7c41fd.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-9J
+
 ## ENG — engineering / structural
+
+- **ENG-26 `[P2]` Review + unslop the privacy policy and terms of service (owner directive).** Problem: owner wants the GitHub Pages privacy policy and ToS double-checked for accuracy against what the app actually does, and passed through the unslop-text skill.
+  **Acceptance:** `pages/privacy.html` and `pages/terms.html` reviewed for factual accuracy (data collected, telemetry, purchases, accounts) and rewritten where they read as AI slop; published.
+  **Hints:** `pages/privacy.html`, `pages/terms.html`; https://elijah-dangerfield.sentry.io/issues/CARDS-9F
 
 - **ENG-24 `[P2]` `app.launched` carries a pre-rollover session_id.** Problem: `app.launched` fires from `GrafanaAppEvents` AutoInit before the session tracker rolls the session on first foreground, so it lands with a different `session_id` than every other event in the same boot (verified in Loki 2026-07-11: launch `853a6eec…` vs foreground+rest `3f741d6e…`) — session-keyed funnels see an orphan one-event session per cold start.
   **Acceptance:** all events from one cold start share one `session_id` (either emit `app.launched` after the session settles, or count launches via `app.foregrounded cold_start=true` and demote `app.launched` to a pure pipe smoke-test — pick one and update `docs/wiki/app-events.md`).
