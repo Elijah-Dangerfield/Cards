@@ -249,6 +249,7 @@ class OfflineFirstAppConfigRepositoryTest : CoroutineTest() {
         private object NoOpBus : AppEventBus {
             override fun dispatch(event: AppEvent) {}
             override fun eventStream(): Flow<AppEvent> = MutableSharedFlow()
+            override fun liveEventStream(): Flow<AppEvent> = MutableSharedFlow()
         }
     }
 

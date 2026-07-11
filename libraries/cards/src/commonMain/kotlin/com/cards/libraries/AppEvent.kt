@@ -38,21 +38,6 @@ sealed class AppEvent {
     }
 
     /**
-     * A guest claimed their account (anonymous `X` → claimed `X`, **same** user
-     * id). This is deliberately *not* a [UserChanged] — the active user id never
-     * moved and the guest's progress stays theirs — so no data is dumped. But a
-     * just-claimed account should flush its pending sync state (XP, chips,
-     * inventory, equipment) promptly rather than waiting for the next foreground,
-     * since [UserChanged] (which normally drives that re-sync) never fired.
-     *
-     * Listeners that reconcile user-scoped data should treat this like a fresh
-     * activation and sync; their syncs are idempotent so the replay is safe.
-     *
-     * @param userId the (unchanged) id of the now-claimed account.
-     */
-    data class AccountClaimed(val userId: String) : AppEvent()
-
-    /**
      * Connectivity was just regained — an offline→online edge. Dispatched by
      * [com.dangerfield.cards.libraries.cards.impl.ConnectivityEdgeDispatcher],
      * which watches `AppState.isOffline`, drops the optimistic initial value,
@@ -73,7 +58,6 @@ interface AppEventListener {
     fun onForeground(event: AppEvent.OnForeground) {}
     fun onBackground(event: AppEvent.OnBackground) {}
     fun onUserChanged(event: AppEvent.UserChanged) {}
-    fun onAccountClaimed(event: AppEvent.AccountClaimed) {}
     fun onConnectivityRegained(event: AppEvent.ConnectivityRegained) {}
 }
 
@@ -97,6 +81,16 @@ interface AppEventBus {
      * rather than depending on the bus directly.
      */
     fun eventStream(): Flow<AppEvent>
+
+    /**
+     * Like [eventStream] but without the one-event replay: a subscriber sees
+     * only events dispatched *after* it attached. This is the stream for
+     * **edge** semantics (re-fire triggers) — a replayed edge is by definition
+     * stale and re-acting to it double-fires. Consumers that need the no-miss
+     * guarantee for state activation should key off a level (e.g.
+     * `AuthRepository.observe`) instead, not off replayed edges.
+     */
+    fun liveEventStream(): Flow<AppEvent>
 }
 
 interface AppLifecycleObserver {

@@ -68,7 +68,7 @@ interface AuthRepository {
      * otherwise no-op and return null. The guard for fire-and-forget authed
      * syncs: a session-less resolve **skips** the call (an intentional, logged
      * no-op) instead of 401ing. Re-fires when auth later arrives via the
-     * identity fan-out (`UserChanged` / `AccountClaimed`) trigger.
+     * level-keyed sync triggers (`SyncTriggers.activeAccount`).
      */
     suspend fun <T> ifAuthenticated(block: suspend (AuthState.Authenticated) -> T): T? =
         (current() as? AuthState.Authenticated)?.let { block(it) }

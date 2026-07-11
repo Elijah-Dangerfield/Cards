@@ -1006,3 +1006,11 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Idea (owner, 2026-07-10):** When the first player earns every achievement, send them a manual reward. Once ECON-2's admin grant endpoint exists this is a thin GH action: query achievements-per-user (server Postgres), detect completion, fire an `admin_adjustment` grant with a celebratory note. Blocked on ECON-2; also pairs with the achievements panel idea in ENG-19.
 
 **Status:** Backlog.
+
+---
+
+## ENG-20 phase 3: retire the replayed-edge machinery entirely
+
+**Idea (filed with ENG-20, 2026-07-10):** With sync triggers on levels (`runWhen` + `SyncTriggers`), the remaining edge plumbing can shrink: drop the app-event bus replay 1→0 once `OfflineFirstAppConfigRepository` (the last replay-dependent consumer) is checked/migrated, migrate identity's condition-shaped listeners (`GuestSessionHealer` etc.) onto `runWhen`, then delete `ConnectivityEdgeDispatcher` + `AppEvent.ConnectivityRegained` (SyncTriggers already derives `cameOnline` from the `isOffline` level directly). See `docs/plans/eng-20-runwhen-triggers.md` follow-ups.
+
+**Status:** Backlog.
