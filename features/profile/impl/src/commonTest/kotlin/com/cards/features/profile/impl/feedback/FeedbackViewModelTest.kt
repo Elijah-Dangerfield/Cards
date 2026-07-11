@@ -103,13 +103,81 @@ class FeedbackViewModelTest : CoroutineTest() {
         assertEquals(1, repository.submitFinished, "submitFeedback must complete despite VM teardown")
     }
 
+    @Test
+    fun submit_failure_keepsUserOnScreenWithTextIntact_andSurfacesError() = runUnitTest {
+        val router = RecordingRouter()
+        val appCache = FakeAppCache()
+        val vm = buildVm(
+            profile = StubProfile(authenticatedWith(email = "alice@example.com")),
+            repository = FailingFeedbackRepository,
+            router = router,
+            appCache = appCache,
+        )
+        runCurrent()
+        vm.takeAction(FeedbackAction.MessageChanged("the table froze mid hand"))
+        vm.takeAction(FeedbackAction.Submit)
+        runCurrent()
+
+        assertEquals("the table froze mid hand", vm.state.message)
+        assertEquals(FeedbackError.SubmitFailed, vm.state.errorMessage)
+        assertEquals(false, vm.state.isSubmitting)
+        assertEquals(0, router.goBackCount, "a failed submit must not navigate away")
+        assertEquals(0, appCache.get().feedbacksGiven, "a failed submit must not count as given feedback")
+    }
+
+    @Test
+    fun submit_success_countsFeedback_andNavigatesBack() = runUnitTest {
+        val router = RecordingRouter()
+        val appCache = FakeAppCache()
+        val vm = buildVm(
+            profile = StubProfile(authenticatedWith(email = "alice@example.com")),
+            router = router,
+            appCache = appCache,
+        )
+        runCurrent()
+        vm.takeAction(FeedbackAction.MessageChanged("love the new felt"))
+        vm.takeAction(FeedbackAction.Submit)
+        runCurrent()
+
+        assertEquals(null, vm.state.errorMessage)
+        assertEquals(1, router.goBackCount)
+        assertEquals(1, appCache.get().feedbacksGiven)
+    }
+
+    @Test
+    fun submit_retryAfterFailure_succeeds() = runUnitTest {
+        val gate = CompletableDeferred<Result<Unit>>()
+        val repository = ControllableFeedbackRepository(gate)
+        val router = RecordingRouter()
+        val vm = buildVm(
+            profile = StubProfile(authenticatedWith(email = "alice@example.com")),
+            repository = repository,
+            router = router,
+        )
+        runCurrent()
+        vm.takeAction(FeedbackAction.MessageChanged("still here after a failure"))
+        vm.takeAction(FeedbackAction.Submit)
+        gate.complete(Result.failure(IllegalStateException("timeout")))
+        runCurrent()
+        assertEquals(FeedbackError.SubmitFailed, vm.state.errorMessage)
+
+        repository.reset(Result.success(Unit))
+        vm.takeAction(FeedbackAction.Submit)
+        runCurrent()
+
+        assertEquals(null, vm.state.errorMessage)
+        assertEquals(1, router.goBackCount)
+    }
+
     private fun buildVm(
         profile: ProfileRepository,
         repository: FeedbackRepository = NoopFeedbackRepository,
+        router: Router = NoopRouter,
+        appCache: FakeAppCache = FakeAppCache(),
     ): FeedbackViewModel = FeedbackViewModel(
         repository = repository,
-        router = NoopRouter,
-        appCache = FakeAppCache(),
+        router = router,
+        appCache = appCache,
         appScope = AppCoroutineScope(dispatchers),
         profileRepository = profile,
     )
@@ -131,12 +199,16 @@ internal fun authenticatedWith(email: String?): Profile.Authenticated = Profile.
  * actually finished (vs. being cancelled mid-flight).
  */
 internal class ControllableFeedbackRepository(
-    private val gate: CompletableDeferred<Result<Unit>>,
+    private var gate: CompletableDeferred<Result<Unit>>,
 ) : FeedbackRepository {
     var submitStarted: Int = 0
         private set
     var submitFinished: Int = 0
         private set
+
+    fun reset(outcome: Result<Unit>) {
+        gate = CompletableDeferred<Result<Unit>>().apply { complete(outcome) }
+    }
 
     override suspend fun submitFeedback(
         message: String,
@@ -151,6 +223,39 @@ internal class ControllableFeedbackRepository(
         submitFinished += 1
         return outcome
     }
+}
+
+internal object FailingFeedbackRepository : FeedbackRepository {
+    override suspend fun submitFeedback(
+        message: String,
+        isBugReport: Boolean,
+        logId: String?,
+        errorCode: Int?,
+        email: String?,
+        screenshots: List<ByteArray>,
+    ): Result<Unit> = Result.failure(IllegalStateException("server unreachable"))
+}
+
+internal class RecordingRouter : Router {
+    var goBackCount: Int = 0
+        private set
+
+    override fun navigate(route: Route, options: NavigationOptions) = Unit
+    override fun goBack() {
+        goBackCount += 1
+    }
+    override fun <T : Route> popBackTo(routeClass: kotlin.reflect.KClass<T>, inclusive: Boolean) = Unit
+    override fun switchTab(route: TabRoute) = Unit
+    override fun enterTab(route: TabRoute) = Unit
+    override val tabReselects: kotlinx.coroutines.flow.SharedFlow<TabRoute> =
+        kotlinx.coroutines.flow.MutableSharedFlow()
+    override fun notifyTabReselected(route: TabRoute) = Unit
+    override fun openWebLink(url: String) = Unit
+    override fun shareText(text: String) = Unit
+    override fun batch(block: com.dangerfield.cards.libraries.navigation.RouterBatch.() -> Unit) = Unit
+    override fun <T : Route> backStackEntryFor(
+        routeClass: kotlin.reflect.KClass<T>,
+    ): androidx.navigation.NavBackStackEntry? = null
 }
 
 internal object NoopRouter : Router {

@@ -54,7 +54,6 @@ import cards.libraries.resources.generated.resources.auth_sign_up_confirm_passwo
 import cards.libraries.resources.generated.resources.auth_sign_up_error_email_already_registered
 import cards.libraries.resources.generated.resources.auth_sign_up_error_invalid_email
 import cards.libraries.resources.generated.resources.auth_sign_up_error_network
-import cards.libraries.resources.generated.resources.auth_sign_up_error_passwords_dont_match
 import cards.libraries.resources.generated.resources.auth_sign_up_error_unknown
 import cards.libraries.resources.generated.resources.auth_sign_up_error_weak_password
 import cards.libraries.resources.generated.resources.auth_sign_up_password_helper
@@ -560,8 +559,6 @@ private fun SignInError.message(): String = when (this) {
 
 @Composable
 private fun SignUpError.message(): String = when (this) {
-    SignUpError.PasswordsDontMatch ->
-        stringResource(Res.string.auth_sign_up_error_passwords_dont_match)
     SignUpError.EmailAlreadyRegistered ->
         stringResource(Res.string.auth_sign_up_error_email_already_registered)
     is SignUpError.WeakPassword ->

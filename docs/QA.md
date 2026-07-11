@@ -506,6 +506,17 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Fast trims only the bots' deliberation pause. Deal, flip, and reveal animations play at the same calibrated pace on both settings — Game speed never changes animation timing (the old animation-scaling "Instant" tier was removed 2026-06-29). The setting persists across app restarts.
 
+### `PROF-3` ⚠️ 📱 A failed feedback or bug-report send keeps the user's text
+
+**State:** any account; device in airplane mode (or backend unreachable).
+
+1. Open Profile → Send feedback, type a message, tap Send.
+2. Note the screen after the send fails.
+3. Restore the connection and tap Send again.
+4. Repeat once via Report a bug.
+
+**Expected:** The failed send stays on the form with the typed message (and any attached screenshots) intact, shows "Couldn't send that. Check your connection and try again." under the form, and never shows the thanks snackbar or navigates back. The retry after reconnecting sends, shows the thanks snackbar, and pops back. (Covers todo ENG-22.)
+
 ## Solo play
 
 ### `GAME-17` ℹ️ 📱 An instant bot fold reads clearly on the seat and player card
@@ -565,6 +576,18 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Return to Home and let it settle.
 
 **Expected:** A one-shot "your play style is unlocked" dialog appears exactly once while you are settled on Home, with a "See my style" CTA that routes to Stats (where the radar now shows a shape) and a "Later" that dismisses. It does not re-appear on later Home visits or after backgrounding. If a level-up is also pending, the level-up celebration shows first (higher priority) and the play-style dialog follows on a later Home settle. (Covers todo PROG-6, routed through the PROG-5 Home notification arbiter.)
+
+---
+
+### `PROG-11` 🚨 📱 Earned chips survive a kill + relaunch (and refused spends say so)
+
+**State:** a signed-in account on Home with a settled chip balance.
+
+1. Play bot hands until an achievement or level-up grants chips; note the new Home balance.
+2. Immediately force-quit the app (before any manual sync), then relaunch and let Home settle.
+3. Optional (needs a network tool or airplane-mode timing): queue a shop spend while offline that the server will refuse (balance already spent elsewhere / on another device), then reconnect and let the wallet sync run.
+
+**Expected:** After the relaunch the balance still includes the grant — earned chips never vanish and then "come back" on a later sync (the display is server snapshot + pending events, and relaunch triggers a sync). In the refused-spend case, the balance corrects to the server's value AND an error snackbar ("A purchase didn't go through, so we put your chips back.") explains it — never a silent balance change. (Covers todo PROG-11 + the ENG-20 relaunch-sync trigger; the 2026-07-09 vanishing-chips incident is the regression this guards.)
 
 ---
 

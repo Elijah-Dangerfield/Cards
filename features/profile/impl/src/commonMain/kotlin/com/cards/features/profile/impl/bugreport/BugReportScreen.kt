@@ -22,6 +22,7 @@ import cards.libraries.resources.generated.resources.profile_bug_context_error_c
 import cards.libraries.resources.generated.resources.profile_bug_context_report_id_label
 import cards.libraries.resources.generated.resources.profile_bug_context_section_title
 import cards.libraries.resources.generated.resources.profile_bug_error_message_required
+import cards.libraries.resources.generated.resources.profile_bug_error_submit_failed
 import cards.libraries.resources.generated.resources.profile_bug_field_email_label
 import cards.libraries.resources.generated.resources.profile_bug_field_email_placeholder
 import cards.libraries.resources.generated.resources.profile_bug_field_message_label
@@ -285,8 +286,24 @@ private fun BugReportScreenPreview_Error() {
     }
 }
 
+@Preview
+@Composable
+private fun BugReportScreenPreview_SubmitFailed() {
+    PreviewContent {
+        BugReportScreen(
+            state = BugReportState(
+                message = "App froze when I opened the shop.",
+                errorMessage = BugReportError.SubmitFailed,
+            ),
+            onAction = {},
+        )
+    }
+}
+
 @Composable
 private fun BugReportError.message(): String = when (this) {
     BugReportError.MessageRequired ->
         stringResource(Res.string.profile_bug_error_message_required)
+    BugReportError.SubmitFailed ->
+        stringResource(Res.string.profile_bug_error_submit_failed)
 }

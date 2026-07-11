@@ -3,14 +3,17 @@ package com.dangerfield.cards.features.profile.impl.bugreport
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.features.profile.impl.account.FakeAppCache
 import com.dangerfield.cards.features.profile.impl.feedback.ControllableFeedbackRepository
+import com.dangerfield.cards.features.profile.impl.feedback.FailingFeedbackRepository
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackRepository
 import com.dangerfield.cards.features.profile.impl.feedback.NoopFeedbackRepository
 import com.dangerfield.cards.features.profile.impl.feedback.NoopRouter
+import com.dangerfield.cards.features.profile.impl.feedback.RecordingRouter
 import com.dangerfield.cards.features.profile.impl.feedback.StubProfile
 import com.dangerfield.cards.features.profile.impl.feedback.authenticatedWith
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.navigation.Router
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.job
@@ -103,16 +106,59 @@ class BugReportViewModelTest : CoroutineTest() {
         assertEquals(1, repository.submitFinished, "submitFeedback must complete despite VM teardown")
     }
 
+    @Test
+    fun submit_failure_keepsUserOnScreenWithTextIntact_andSurfacesError() = runUnitTest {
+        val router = RecordingRouter()
+        val appCache = FakeAppCache()
+        val vm = buildVm(
+            profile = StubProfile(authenticatedWith(email = "alice@example.com")),
+            repository = FailingFeedbackRepository,
+            router = router,
+            appCache = appCache,
+        )
+        runCurrent()
+        vm.takeAction(BugReportAction.MessageChanged("crash on tapping raise"))
+        vm.takeAction(BugReportAction.Submit)
+        runCurrent()
+
+        assertEquals("crash on tapping raise", vm.state.message)
+        assertEquals(BugReportError.SubmitFailed, vm.state.errorMessage)
+        assertEquals(false, vm.state.isSubmitting)
+        assertEquals(0, router.goBackCount, "a failed submit must not navigate away")
+        assertEquals(0, appCache.get().bugsReported, "a failed submit must not count as a reported bug")
+    }
+
+    @Test
+    fun submit_success_countsBugReport_andNavigatesBack() = runUnitTest {
+        val router = RecordingRouter()
+        val appCache = FakeAppCache()
+        val vm = buildVm(
+            profile = StubProfile(authenticatedWith(email = "alice@example.com")),
+            router = router,
+            appCache = appCache,
+        )
+        runCurrent()
+        vm.takeAction(BugReportAction.MessageChanged("crash on tapping raise"))
+        vm.takeAction(BugReportAction.Submit)
+        runCurrent()
+
+        assertEquals(null, vm.state.errorMessage)
+        assertEquals(1, router.goBackCount)
+        assertEquals(1, appCache.get().bugsReported)
+    }
+
     private fun buildVm(
         profile: ProfileRepository,
         repository: FeedbackRepository = NoopFeedbackRepository,
+        router: Router = NoopRouter,
+        appCache: FakeAppCache = FakeAppCache(),
         logId: String? = null,
         errorCode: Int? = null,
         contextMessage: String? = null,
     ): BugReportViewModel = BugReportViewModel(
         repository = repository,
-        router = NoopRouter,
-        appCache = FakeAppCache(),
+        router = router,
+        appCache = appCache,
         appScope = AppCoroutineScope(dispatchers),
         profileRepository = profile,
         logId = logId,

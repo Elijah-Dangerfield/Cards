@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.rooms.impl
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
@@ -24,6 +25,7 @@ import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 /**
  * Drives the public "Find a table" search — honesty-first matchmaking.
@@ -94,6 +96,12 @@ class PublicSearchingViewModel(
     /** Guards the one-shot hand-off so a re-emitted Playing snapshot can't double-navigate. */
     private var hasNavigated = false
 
+    /** When this search episode began — the `wait_ms` origin for the matchmaking funnel events. */
+    private var searchStartedAt = TimeSource.Monotonic.markNow()
+
+    /** One `matchmaking.real_player_arrived` per search episode, not per snapshot. */
+    private var realPlayerArrivalLogged = false
+
     /**
      * Consecutive auto re-finds (table vanished under us) with no healthy
      * connection in between. Capped so a server flapping mid-search can't spin us
@@ -111,6 +119,9 @@ class PublicSearchingViewModel(
             PublicSearchingAction.Retry,
                 -> action.run {
                 reFindAttempts = 0
+                searchStartedAt = TimeSource.Monotonic.markNow()
+                realPlayerArrivalLogged = false
+                logger.logEvent("matchmaking.search_started", "entry" to "public")
                 updateState {
                     it.copy(phase = SearchPhase.Searching, error = null, realPlayersFound = 0, candidates = emptyList())
                 }
@@ -119,7 +130,8 @@ class PublicSearchingViewModel(
 
             is PublicSearchingAction.CandidatesLoaded -> action.run {
                 when (val outcome = action.outcome) {
-                    is CandidatesOutcome.Success ->
+                    is CandidatesOutcome.Success -> {
+                        logger.logEvent("matchmaking.candidates_shown", "candidate_count" to outcome.rooms.size)
                         if (outcome.rooms.isEmpty()) {
                             // Nothing to choose — converge on the genuine waiting
                             // search so the honest bot fallback is reached identically.
@@ -132,6 +144,7 @@ class PublicSearchingViewModel(
                             }
                             armCandidatesPoll()
                         }
+                    }
                     is CandidatesOutcome.InvalidRange ->
                         updateState { it.copy(error = SearchError.InvalidRange) }
                     is CandidatesOutcome.InsufficientBalance ->
@@ -190,6 +203,7 @@ class PublicSearchingViewModel(
 
             is PublicSearchingAction.Seated -> action.run {
                 if (action.intoJoinedLobby) {
+                    logger.logEvent("matchmaking.candidate_joined", "wait_ms" to waitMs())
                     updateState {
                         it.copy(
                             phase = SearchPhase.Joined,
@@ -213,6 +227,16 @@ class PublicSearchingViewModel(
                         // A healthy snapshot means the re-find loop converged.
                         reFindAttempts = 0
                         val others = countOtherHumans(conn.room)
+                        if (others > 0 && !realPlayerArrivalLogged &&
+                            (state.phase == SearchPhase.Searching || state.phase == SearchPhase.BotFallbackOffer)
+                        ) {
+                            realPlayerArrivalLogged = true
+                            logger.logEvent(
+                                "matchmaking.real_player_arrived",
+                                "during" to if (state.phase == SearchPhase.BotFallbackOffer) "bot_offer" else "wait",
+                                "wait_ms" to waitMs(),
+                            )
+                        }
                         // Once the user has explicitly taken a seat (ROOM-11) the
                         // screen shows a pre-deal lobby off this snapshot, so keep
                         // it fresh as members come and go while we wait for the deal.
@@ -262,6 +286,7 @@ class PublicSearchingViewModel(
                 // Only offer bots if we're genuinely alone. If a human is here the
                 // table is dealing (or about to) and the offer would be wrong.
                 if (state.phase == SearchPhase.Searching && state.realPlayersFound == 0) {
+                    logger.logEvent("matchmaking.bot_offer_shown", "wait_ms" to waitMs())
                     updateState { it.copy(phase = SearchPhase.BotFallbackOffer) }
                     // Read the disclosed-bot subsidy headroom so a near-cap player
                     // learns the limit before sitting rather than from a surprising
@@ -288,6 +313,7 @@ class PublicSearchingViewModel(
 
             PublicSearchingAction.PlayBots -> action.run {
                 val code = currentRoomCode ?: return@run
+                logger.logEvent("matchmaking.bot_offer_accepted", "wait_ms" to waitMs())
                 updateState { it.copy(phase = SearchPhase.JoiningBots, error = null) }
                 viewModelScope.launch {
                     takeAction(PublicSearchingAction.PlayBotsResult(matchmaking.playBots(code)))
@@ -318,13 +344,17 @@ class PublicSearchingViewModel(
             }
 
             PublicSearchingAction.KeepWaiting -> action.run {
+                logger.logEvent("matchmaking.bot_offer_declined", "next" to "keep_waiting")
                 updateState { it.copy(phase = SearchPhase.Searching, error = null, subsidyNotice = null) }
                 armTimeout()
             }
 
-            PublicSearchingAction.TryAgainLater,
-            PublicSearchingAction.Cancel,
-                -> leaveAndExit()
+            PublicSearchingAction.TryAgainLater -> {
+                logger.logEvent("matchmaking.bot_offer_declined", "next" to "leave")
+                leaveAndExit()
+            }
+
+            PublicSearchingAction.Cancel -> leaveAndExit()
         }
     }
 
@@ -478,6 +508,7 @@ class PublicSearchingViewModel(
                 is FindTableOutcome.Success -> {
                     currentRoomCode = outcome.room.code
                     ownWaitingRoom = outcome.room
+                    logger.logEvent("matchmaking.wait_started")
                     armTimeout()
                     // ROOM-12: keep browsing /candidates while we genuinely wait, so
                     // a table created after we fell through to our own waiting table
@@ -533,6 +564,11 @@ class PublicSearchingViewModel(
     }
 
     private fun leaveAndExit() {
+        logger.logEvent(
+            "matchmaking.abandoned",
+            "phase" to state.phase.eventName(),
+            "wait_ms" to waitMs(),
+        )
         val code = currentRoomCode
         searchJob?.cancel()
         timeoutJob?.cancel()
@@ -549,6 +585,16 @@ class PublicSearchingViewModel(
 
     private fun countOtherHumans(room: Room): Int =
         room.members.count { !it.isBot && it.isConnected && it.userId != localUserId }
+
+    private fun waitMs(): Long = searchStartedAt.elapsedNow().inWholeMilliseconds
+
+    private fun SearchPhase.eventName(): String = when (this) {
+        SearchPhase.Choosing -> "choosing"
+        SearchPhase.Searching -> "searching"
+        SearchPhase.Joined -> "joined"
+        SearchPhase.BotFallbackOffer -> "bot_offer"
+        SearchPhase.JoiningBots -> "joining_bots"
+    }
 
     private fun toCandidate(room: Room): TableCandidate = TableCandidate(
         code = room.code,

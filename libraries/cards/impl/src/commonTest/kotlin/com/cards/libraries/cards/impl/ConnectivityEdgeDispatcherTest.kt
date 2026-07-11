@@ -125,6 +125,7 @@ class ConnectivityEdgeDispatcherTest : CoroutineTest() {
             stream.tryEmit(event)
         }
         override fun eventStream(): Flow<AppEvent> = stream
+        override fun liveEventStream(): Flow<AppEvent> = stream
     }
 
     private companion object {

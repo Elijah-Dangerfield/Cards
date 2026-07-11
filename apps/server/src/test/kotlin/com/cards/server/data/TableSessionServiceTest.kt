@@ -62,8 +62,8 @@ class TableSessionServiceTest : DatabaseTest() {
         assertEquals(0, session?.rebuyCount)
 
         val events = newWallets().recentEvents(user, 10)
-        assertEquals(listOf("mp_buyin"), events.map { it.reason })
-        assertEquals(-CASUAL_BUY_IN, events.single().delta)
+        assertEquals(listOf("mp_buyin", "starter_grant"), events.map { it.reason })
+        assertEquals(-CASUAL_BUY_IN, events.single { it.reason == "mp_buyin" }.delta)
     }
 
     @Test
@@ -102,9 +102,13 @@ class TableSessionServiceTest : DatabaseTest() {
         assertTrue(result is SitDownResult.BelowEntryBar, "expected BelowEntryBar, was $result")
         assertEquals(Wallet.STARTER_GRANT, result.balance)
         assertEquals(STANDARD_BUY_IN * 4, result.minBalance)
-        // Rejected before any movement: no row, no debit.
+        // Rejected before any movement: no session row, no debit — only the
+        // lazy-create's starter grant is journaled.
         assertNull(newTableSessions().findActiveForUser(user))
-        assertEquals(0, newWallets().recentEvents(user, 10).size)
+        assertEquals(
+            listOf("starter_grant"),
+            newWallets().recentEvents(user, 10).map { it.reason },
+        )
     }
 
     @Test
@@ -187,7 +191,7 @@ class TableSessionServiceTest : DatabaseTest() {
         assertEquals(Wallet.STARTER_GRANT + 1_000, newWallets().findOrCreate(user).balance)
 
         val reasons = newWallets().recentEvents(user, 10).map { it.reason }.toSet()
-        assertEquals(setOf("mp_buyin", "mp_rebuy", "mp_cashout"), reasons)
+        assertEquals(setOf("starter_grant", "mp_buyin", "mp_rebuy", "mp_cashout"), reasons)
     }
 
     @Test

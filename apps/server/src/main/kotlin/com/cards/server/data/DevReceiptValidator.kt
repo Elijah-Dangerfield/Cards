@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.server.di.ServerScope
+import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.PurchaseReceipt
 import com.dangerfield.cards.server.domain.ReceiptValidation
 import com.dangerfield.cards.server.domain.ReceiptValidator
@@ -32,6 +33,7 @@ class DevReceiptValidator : ReceiptValidator {
         if (request.token.isBlank()) {
             ReceiptValidation.Invalid("empty_token")
         } else {
-            ReceiptValidation.Valid(orderId = request.token)
+            // Nothing verified against a real store is by definition not revenue.
+            ReceiptValidation.Valid(orderId = request.token, environment = PurchaseEnvironment.Sandbox)
         }
 }

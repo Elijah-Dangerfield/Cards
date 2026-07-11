@@ -69,6 +69,8 @@ import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
 import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.core.versionDisplay
 import com.dangerfield.cards.libraries.core.LegalUrls
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
@@ -301,12 +303,15 @@ class ProfileFeatureEntryPoint(
                 onClaimAccount = { router.navigate(ClaimAccountRoute()) },
                 onOpenNotifications = { router.navigate(NotificationsRoute()) },
                 onGameSpeedChange = { speed ->
+                    KLog.logEvent("settings.changed", "key" to "game_speed", "value" to speed.name.lowercase())
                     scope.launch { appCache.update { it.copy(gameSpeed = speed) } }
                 },
                 onTurnFeedbackChange = { feedback ->
+                    KLog.logEvent("settings.changed", "key" to "turn_feedback", "value" to feedback.name.lowercase())
                     scope.launch { appCache.update { it.copy(turnFeedback = feedback) } }
                 },
                 onShowAchievementPopupsChange = { enabled ->
+                    KLog.logEvent("settings.changed", "key" to "show_achievement_popups", "value" to enabled)
                     scope.launch { appCache.update { it.copy(showAchievementPopups = enabled) } }
                 },
                 onSendFeedback = { router.navigate(FeedbackRoute()) },

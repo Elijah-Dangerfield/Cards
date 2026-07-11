@@ -369,15 +369,14 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun accountClaim_sameUserId_doesNotDump_andAnnouncesAccountClaimed() = runUnitTest {
+    fun accountClaim_sameUserId_doesNotDump_andAnnouncesNothing() = runUnitTest {
         // Linking/claiming keeps the same user id (anon guest-1 becomes a
         // claimed account but stays guest-1). The link redirect carries no
         // session, so completeOAuthRedirect refreshes the session (a stale-token
         // refresh; hydrate alone leaves is_anonymous=true — see the device
         // regression below). The guest's progress is theirs: no dump, no
-        // UserChanged. But the just-claimed account's pending syncs would
-        // otherwise wait for the next foreground, so the claim is announced as
-        // AccountClaimed.
+        // UserChanged, no other announcement — the new AuthState emission's
+        // isAnonymous flip is itself what refires the level-keyed sync loops.
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.Authenticated,
             session = anonymousSession(userId = "guest-1"),
@@ -406,14 +405,10 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         assertEquals(0, gateway.completeOAuthRedirectCalls, "a link redirect must NOT import a session from the URL")
         assertTrue(reset.clearedFor.isEmpty(), "same-user claim must not dump the guest's data")
         val afterClaim = events.dispatched.drop(dispatchedAtBoot)
-        assertTrue(
-            afterClaim.none { it is AppEvent.UserChanged },
-            "same-user claim must not announce UserChanged",
-        )
         assertEquals(
-            listOf<AppEvent>(AppEvent.AccountClaimed(userId = "guest-1")),
+            emptyList<AppEvent>(),
             afterClaim,
-            "the claim is announced so user-scoped syncs flush now",
+            "same-user claim announces nothing — the AuthState emission carries the flip",
         )
     }
 
@@ -735,6 +730,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     private object NoOpEventBus : AppEventBus {
         override fun dispatch(event: AppEvent) = Unit
         override fun eventStream(): Flow<AppEvent> = emptyFlow()
+        override fun liveEventStream(): Flow<AppEvent> = emptyFlow()
     }
 
     private class RecordingEventBus : AppEventBus {
@@ -743,6 +739,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
             dispatched += event
         }
         override fun eventStream(): Flow<AppEvent> = emptyFlow()
+        override fun liveEventStream(): Flow<AppEvent> = emptyFlow()
     }
 
     private object UnusedProfileApi : ProfileApi {

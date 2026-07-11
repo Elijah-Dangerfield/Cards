@@ -17,6 +17,7 @@ import com.dangerfield.cards.libraries.cards.XpBoostRepository
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.products.CatalogTimeAnchor
 import com.dangerfield.cards.libraries.products.Product
@@ -238,6 +239,7 @@ class ShopViewModel @Inject constructor(
             reason = "boost.${offer.id}",
         )
         xpBoostRepository.grant()
+        logger.logEvent("shop.item_redeemed", "product_id" to offer.id, "chip_cost" to offer.costChips)
         // Flush the debit promptly so the wallet ledger reflects the spend
         // without waiting on the next foreground sync. Best-effort — the
         // periodic sync retries on failure.
@@ -252,6 +254,7 @@ class ShopViewModel @Inject constructor(
         )
         when (result) {
             is RedeemResult.Success -> {
+                logger.logEvent("shop.item_redeemed", "product_id" to offer.id, "chip_cost" to offer.costChips)
                 val autoEquipped = autoEquipIfSlotFree(offer.id)
                 sendEvent(ShopEvent.RedeemSucceeded(offer, wasAutoEquipped = autoEquipped))
                 // Fire-and-forget server reconcile so the Pending row flips
@@ -295,6 +298,12 @@ class ShopViewModel @Inject constructor(
             .any { entry -> entry.isEquipped && cosmeticSlotFor(entry.productId) == slot }
         if (occupied) return false
         equipmentRepository.equip(productId)
+        logger.logEvent(
+            "cosmetic.equipped",
+            "product_id" to productId,
+            "slot" to slot.name.lowercase(),
+            "auto" to true,
+        )
         viewModelScope.launch { equipmentRepository.sync() }
         return true
     }

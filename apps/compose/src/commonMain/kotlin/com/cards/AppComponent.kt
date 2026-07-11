@@ -14,6 +14,7 @@ import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.config.EnsureAppConfigLoaded
 import com.dangerfield.cards.libraries.config.QaConfigValue
+import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.navigation.DeepLinkBridge
 import com.dangerfield.cards.libraries.products.ShopBadgeStateRepository
@@ -40,6 +41,7 @@ interface AppComponent {
     val configOverrideRepository: ConfigOverrideRepository
     val userMessageRepository: UserMessageRepository
     val profileRepository: ProfileRepository
+    val chipsRepository: ChipsRepository
     val shopBadgeStateRepository: ShopBadgeStateRepository
     val xpBoostRepository: XpBoostRepository
     val inAppMessageManager: InAppMessageManager

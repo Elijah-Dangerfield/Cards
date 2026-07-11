@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.profile_feedback_char_counter
 import cards.libraries.resources.generated.resources.profile_feedback_error_message_required
+import cards.libraries.resources.generated.resources.profile_feedback_error_submit_failed
 import cards.libraries.resources.generated.resources.profile_feedback_field_email_label
 import cards.libraries.resources.generated.resources.profile_feedback_field_email_placeholder
 import cards.libraries.resources.generated.resources.profile_feedback_field_message_label
@@ -257,6 +258,20 @@ private fun FeedbackScreenPreview_Error() {
 
 @Preview
 @Composable
+private fun FeedbackScreenPreview_SubmitFailed() {
+    PreviewContent {
+        FeedbackScreen(
+            state = FeedbackState(
+                message = "The table froze mid hand.",
+                errorMessage = FeedbackError.SubmitFailed,
+            ),
+            onAction = {},
+        )
+    }
+}
+
+@Preview
+@Composable
 private fun FeedbackScreenPreview_CharLimitReached() {
     PreviewContent {
         FeedbackScreen(
@@ -272,4 +287,6 @@ private fun FeedbackScreenPreview_CharLimitReached() {
 private fun FeedbackError.message(): String = when (this) {
     FeedbackError.MessageRequired ->
         stringResource(Res.string.profile_feedback_error_message_required)
+    FeedbackError.SubmitFailed ->
+        stringResource(Res.string.profile_feedback_error_submit_failed)
 }

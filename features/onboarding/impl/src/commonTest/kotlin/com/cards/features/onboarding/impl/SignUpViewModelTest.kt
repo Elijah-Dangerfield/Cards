@@ -25,7 +25,7 @@ import kotlin.test.assertIs
  *  - NetworkError surfaces the typed sealed variant
  *  - Unknown surfaces the typed sealed variant
  *  - Submit trims the email before the network call
- *  - DismissError clears the error
+ *  - typing into a field clears the error
  */
 class SignUpViewModelTest : CoroutineTest() {
 
@@ -55,7 +55,10 @@ class SignUpViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun submit_withMismatchedConfirm_doesNotCallRepoAndSurfacesError() = runUnitTest {
+    fun submit_withMismatchedConfirm_doesNotCallRepo_orSurfaceError() = runUnitTest {
+        // canSubmit already blocks the mismatch, so Submit short-circuits;
+        // the inline mismatch helper on the confirm field is the feedback,
+        // not a submit-time error banner.
         val identity = FakeAuthRepository()
         val vm = buildVm(identity = identity)
         vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
@@ -64,6 +67,7 @@ class SignUpViewModelTest : CoroutineTest() {
         vm.takeAction(SignUpAction.Submit)
         assertEquals(0, identity.signUpCalls)
         assertEquals(0, identity.linkEmailCalls)
+        assertEquals(null, vm.state.error)
     }
 
     @Test
@@ -76,10 +80,9 @@ class SignUpViewModelTest : CoroutineTest() {
 
     @Test
     fun submit_verificationRequired_emitsNavigateToVerifyWithServerEmail() = runUnitTest {
-        // Important: the verify screen needs the server's normalized
-        // email (lower-cased / trimmed) to call resendVerificationEmail
-        // against the same record. The VM must pass through whatever
-        // the server says, not whatever the user typed.
+        // The verify screen calls resendVerificationEmail with this address,
+        // so it must be the server's normalized (lower-cased / trimmed) email,
+        // not whatever the user typed.
         val vm = buildVm(
             identity = FakeAuthRepository(
                 signUpOutcome = SignUpOutcome.VerificationRequired("ok@example.com"),
@@ -215,7 +218,7 @@ class SignUpViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun dismissError_clearsError() = runUnitTest {
+    fun emailChanged_clearsExistingError() = runUnitTest {
         val vm = buildVm(
             identity = FakeAuthRepository(signUpOutcome = SignUpOutcome.EmailAlreadyRegistered),
         )
@@ -229,7 +232,7 @@ class SignUpViewModelTest : CoroutineTest() {
             cancelAndIgnoreRemainingEvents()
         }
 
-        vm.takeAction(SignUpAction.DismissError)
+        vm.takeAction(SignUpAction.EmailChanged("dup2@example.com"))
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.error != null) last = awaitItem()

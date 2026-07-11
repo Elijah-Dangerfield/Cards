@@ -33,9 +33,6 @@ class ForgotPasswordViewModel(
             is ForgotPasswordAction.EmailChanged -> action.updateState {
                 it.copy(email = action.value, banner = null)
             }
-            is ForgotPasswordAction.DismissBanner -> action.updateState {
-                it.copy(banner = null)
-            }
 
             is ForgotPasswordAction.Submit -> action.run {
                 val current = state
@@ -92,5 +89,4 @@ sealed interface ForgotPasswordEvent
 sealed interface ForgotPasswordAction {
     data class EmailChanged(val value: String) : ForgotPasswordAction
     data object Submit : ForgotPasswordAction
-    data object DismissBanner : ForgotPasswordAction
 }

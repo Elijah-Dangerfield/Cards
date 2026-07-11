@@ -998,3 +998,27 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch:** `LobbyViewModel.handleAction` SubmitJoin branch + `LobbyScreen`'s `createError` full-screen path; `LobbyScreenPreview_JoinFailed` pins the current stranded state.
 
 **Status:** Backlog.
+
+---
+
+## First-to-all-achievements reward automation
+
+**Idea (owner, 2026-07-10):** When the first player earns every achievement, send them a manual reward. Once ECON-2's admin grant endpoint exists this is a thin GH action: query achievements-per-user (server Postgres), detect completion, fire an `admin_adjustment` grant with a celebratory note. Blocked on ECON-2; also pairs with the achievements panel idea in ENG-19.
+
+**Status:** Backlog.
+
+---
+
+## ENG-20 phase 3: retire the replayed-edge machinery entirely
+
+**Idea (filed with ENG-20, 2026-07-10):** With sync triggers on levels (`runWhen` + `SyncTriggers`), the remaining edge plumbing can shrink: drop the app-event bus replay 1→0 once `OfflineFirstAppConfigRepository` (the last replay-dependent consumer) is checked/migrated, migrate identity's condition-shaped listeners (`GuestSessionHealer` etc.) onto `runWhen`, then delete `ConnectivityEdgeDispatcher` + `AppEvent.ConnectivityRegained` (SyncTriggers already derives `cameOnline` from the `isOffline` level directly). See `docs/plans/eng-20-runwhen-triggers.md` follow-ups.
+
+**Status:** Backlog.
+
+---
+
+## Matchmaking funnel: attribute invite-link joins (`entry=deep_link`)
+
+**Idea (filed with the ENG-18 taxonomy sweep, 2026-07-11):** `matchmaking.search_started` fires with `entry` public (Find-a-table) or private_code (join-by-code submit), but a join via a shared invite link doesn't route through either instrumented VM, so deep-link joins are invisible in the funnel. When the invite/deep-link funnel matters, add the emit at whatever entry the link-join routes through and register `entry=deep_link` in `docs/wiki/app-events.md`.
+
+**Status:** Backlog. Small; funnel currently only distinguishes public vs private_code.

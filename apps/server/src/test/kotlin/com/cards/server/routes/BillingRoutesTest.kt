@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.PlatformStore
 import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalog
 import com.dangerfield.cards.server.domain.ProductCatalogSource
+import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.PurchaseReceipt
 import com.dangerfield.cards.server.domain.ReceiptValidation
 import com.dangerfield.cards.server.domain.ReceiptValidator
@@ -73,6 +74,21 @@ class BillingRoutesTest {
         assertEquals(GRANT, billing.redeemCalls.single().grantedChips)
         assertEquals("txn-1", billing.redeemCalls.single().orderId)
         assertEquals("apple", billing.redeemCalls.single().store)
+        assertEquals(PurchaseEnvironment.Production, billing.redeemCalls.single().environment)
+    }
+
+    @Test
+    fun redeem_sandboxReceipt_recordsSandboxEnvironment() = runTest {
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = SandboxEchoValidator,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-sb"),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+        }
+        assertEquals(PurchaseEnvironment.Sandbox, billing.redeemCalls.single().environment)
     }
 
     @Test
@@ -193,6 +209,7 @@ class BillingRoutesTest {
             val orderId: String,
             val productId: String,
             val grantedChips: Long,
+            val environment: PurchaseEnvironment,
         )
 
         val redeemCalls: MutableList<Call> = mutableListOf()
@@ -203,15 +220,21 @@ class BillingRoutesTest {
             orderId: String,
             productId: String,
             grantedChips: Long,
+            environment: PurchaseEnvironment,
         ): RedeemResult {
-            redeemCalls += Call(userId, store, orderId, productId, grantedChips)
+            redeemCalls += Call(userId, store, orderId, productId, grantedChips, environment)
             return result
         }
     }
 
     private object EchoTokenValidator : ReceiptValidator {
         override suspend fun validate(request: PurchaseReceipt): ReceiptValidation =
-            ReceiptValidation.Valid(orderId = request.token)
+            ReceiptValidation.Valid(orderId = request.token, environment = PurchaseEnvironment.Production)
+    }
+
+    private object SandboxEchoValidator : ReceiptValidator {
+        override suspend fun validate(request: PurchaseReceipt): ReceiptValidation =
+            ReceiptValidation.Valid(orderId = request.token, environment = PurchaseEnvironment.Sandbox)
     }
 
     private object RejectingValidator : ReceiptValidator {

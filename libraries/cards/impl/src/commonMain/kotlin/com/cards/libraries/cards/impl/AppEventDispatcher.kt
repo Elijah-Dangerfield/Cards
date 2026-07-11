@@ -39,12 +39,18 @@ class AppEventDispatcher(
     @Volatile
     private var hasDispatchedColdBoot = false
 
-    // replay = 1 so a collector that subscribes during boot (e.g. UserScopedSyncCoordinator)
-    // still catches the activation event that fired just before it attached — matching the
-    // no-miss guarantee the synchronous listener set already gives. Buffered + DROP_OLDEST so
+    // replay = 1 so a collector that subscribes during boot still catches the
+    // event that fired just before it attached. Buffered + DROP_OLDEST so
     // tryEmit never blocks the dispatch thread or a publisher.
     private val events = MutableSharedFlow<AppEvent>(
         replay = 1,
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    // The replay-free sibling for edge semantics — a re-fire trigger reacting
+    // to a replayed pre-subscribe event would spuriously double-fire.
+    private val liveEvents = MutableSharedFlow<AppEvent>(
         extraBufferCapacity = 64,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
@@ -56,10 +62,13 @@ class AppEventDispatcher(
     override fun dispatch(event: AppEvent) {
         KLog.i("App Event: $event")
         events.tryEmit(event)
+        liveEvents.tryEmit(event)
         notifyListeners(event)
     }
 
     override fun eventStream(): Flow<AppEvent> = events.asSharedFlow()
+
+    override fun liveEventStream(): Flow<AppEvent> = liveEvents.asSharedFlow()
 
     @OptIn(InternalCoroutinesApi::class)
     private fun handleForegroundEntry() {
@@ -92,7 +101,6 @@ class AppEventDispatcher(
                     is AppEvent.OnForeground -> listener.onForeground(event)
                     is AppEvent.OnBackground -> listener.onBackground(event)
                     is AppEvent.UserChanged -> listener.onUserChanged(event)
-                    is AppEvent.AccountClaimed -> listener.onAccountClaimed(event)
                     is AppEvent.ConnectivityRegained -> listener.onConnectivityRegained(event)
                 }
             }.onFailure { throwable ->

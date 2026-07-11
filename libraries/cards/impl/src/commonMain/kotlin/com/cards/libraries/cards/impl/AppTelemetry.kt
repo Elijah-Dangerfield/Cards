@@ -16,6 +16,7 @@ import co.touchlab.kermit.Logger as KermitLogger
 import co.touchlab.kermit.Severity as KermitSeverity
 import io.sentry.kotlin.multiplatform.Attachment
 import io.sentry.kotlin.multiplatform.Sentry
+import io.sentry.kotlin.multiplatform.SentryOptions
 import io.sentry.kotlin.multiplatform.protocol.User
 import io.sentry.kotlin.multiplatform.protocol.UserFeedback
 import me.tatarka.inject.annotations.Inject
@@ -77,29 +78,7 @@ private class ConfiguredTelemetry(
         }
 
         Catching {
-            Sentry.init { options ->
-                options.dsn = config.dsn
-                options.environment = config.environment
-                options.release = config.release
-                options.sendDefaultPii = config.sendDefaultPii
-                options.attachStackTrace = config.attachStacktrace
-                options.enableAutoSessionTracking = config.enableAutoSessionTracking
-                config.tracesSampleRate?.let { options.tracesSampleRate = it }
-                config.profilesSampleRate?.let { options.sampleRate = it }
-                // Every feedback carrier event has an identical message
-                // ("User feedback" / "Bug report") and no stacktrace, so Sentry
-                // would group them all into one issue. Give each its own
-                // fingerprint (keyed by a per-feedback id set in
-                // captureUserFeedback) so every report is its own issue —
-                // individually triageable and resolvable. Other events fall
-                // through untouched.
-                options.beforeSend = { event ->
-                    event.getTag(FEEDBACK_EVENT_TAG)?.let { id ->
-                        event.fingerprint = mutableListOf(FEEDBACK_FINGERPRINT, id)
-                    }
-                    event
-                }
-            }
+            Sentry.init(config::applyTo)
         }.onFailure {
             logger.e(it) { scope ->
                 scope.tag("environment", config.environment)
@@ -363,13 +342,40 @@ data class SentryRuntimeConfig(
     val sendDefaultPii: Boolean,
     val attachStacktrace: Boolean,
     val tracesSampleRate: Double?,
-    val profilesSampleRate: Double?,
     val platformTag: String,
     val buildTypeTag: String,
     val logPolicy: LogPolicy,
     val enableAutoSessionTracking: Boolean
 ) {
     val isEnabled: Boolean get() = dsn.isNotBlank()
+
+    /** Maps this config onto the SDK's [SentryOptions] — the single seam
+     *  between our config surface and Sentry's knobs. */
+    internal fun applyTo(options: SentryOptions) {
+        options.dsn = dsn
+        options.environment = environment
+        options.release = release
+        options.sendDefaultPii = sendDefaultPii
+        options.attachStackTrace = attachStacktrace
+        options.enableAutoSessionTracking = enableAutoSessionTracking
+        // Deliberately never touches options.sampleRate: that knob samples
+        // *error events*, and every error/feedback/crash must ship. Traces
+        // are the only thing we sample (statistical data, heavy volume).
+        tracesSampleRate?.let { options.tracesSampleRate = it }
+        // Every feedback carrier event has an identical message
+        // ("User feedback" / "Bug report") and no stacktrace, so Sentry
+        // would group them all into one issue. Give each its own
+        // fingerprint (keyed by a per-feedback id set in
+        // captureUserFeedback) so every report is its own issue —
+        // individually triageable and resolvable. Other events fall
+        // through untouched.
+        options.beforeSend = { event ->
+            event.getTag(FEEDBACK_EVENT_TAG)?.let { id ->
+                event.fingerprint = mutableListOf(FEEDBACK_FINGERPRINT, id)
+            }
+            event
+        }
+    }
 
     data class LogPolicy(
         val minBreadcrumbLevel: LogLevel,
@@ -398,7 +404,6 @@ data class SentryRuntimeConfig(
             // a template-rename artifact; those releases stay under the old slug.)
             val release = "cards@${buildInfo.versionName}+${buildInfo.buildNumber}"
             val tracesSampleRate = if (buildInfo.isDebug) 1.0 else 0.15
-            val profilesSampleRate = if (buildInfo.isDebug) 1.0 else 0.05
             val breadcrumbLevel = if (buildInfo.isDebug) LogLevel.Debug else LogLevel.Info
             return SentryRuntimeConfig(
                 dsn = dsn,
@@ -407,7 +412,6 @@ data class SentryRuntimeConfig(
                 sendDefaultPii = false,
                 attachStacktrace = true,
                 tracesSampleRate = tracesSampleRate,
-                profilesSampleRate = profilesSampleRate,
                 platformTag = platformTag,
                 buildTypeTag = buildTypeTag,
                 logPolicy = LogPolicy(
@@ -426,7 +430,6 @@ data class SentryRuntimeConfig(
                 environment = environment,
                 release = base.release + "-extension",
                 tracesSampleRate = if (buildInfo.isDebug) 0.25 else 0.05,
-                profilesSampleRate = null,
                 logPolicy = LogPolicy(
                     minBreadcrumbLevel = LogLevel.Info,
                     minEventLevel = LogLevel.Error

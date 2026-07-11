@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface WalletEventDao : ClearableDao {
@@ -19,12 +20,16 @@ interface WalletEventDao : ClearableDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(entity: WalletEventEntity)
 
-    /** Number of events already recorded under [key] (0 or 1, since it's the
-     *  primary key). Lets the repository skip a re-applied delta whose event
-     *  the IGNORE insert would silently drop — the balance delta isn't
-     *  key-aware, so without this check a duplicate key double-counts locally. */
-    @Query("SELECT COUNT(*) FROM wallet_events WHERE idempotency_key = :key")
-    suspend fun countByKey(key: String): Int
+    /** Sum of all pending deltas — the optimistic fold the displayed balance
+     *  adds on top of the server snapshot. NULL when the outbox is empty
+     *  (SQL SUM semantics), which callers use to tell "no pending events"
+     *  apart from "pending events that net to zero". */
+    @Query("SELECT SUM(delta) FROM wallet_events")
+    fun observePendingDelta(): Flow<Long?>
+
+    /** One-shot form of [observePendingDelta]. */
+    @Query("SELECT SUM(delta) FROM wallet_events")
+    suspend fun pendingDelta(): Long?
 
     @Query("DELETE FROM wallet_events WHERE idempotency_key IN (:keys)")
     suspend fun deleteByKeys(keys: List<String>)

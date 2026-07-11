@@ -4,6 +4,7 @@ import com.dangerfield.cards.server.db.BillingTransactionsTable
 import com.dangerfield.cards.server.db.DatabaseTest
 import com.dangerfield.cards.server.db.WalletEventsTable
 import com.dangerfield.cards.server.db.WalletsTable
+import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.RedeemResult
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.Wallet
@@ -46,6 +47,7 @@ class PostgresBillingRepositoryTest : DatabaseTest() {
             orderId = "txn-1",
             productId = "chip_pack_medium",
             grantedChips = 30_000,
+            environment = PurchaseEnvironment.Production,
         )
 
         assertIs<RedeemResult.Granted>(result)
@@ -58,8 +60,8 @@ class PostgresBillingRepositoryTest : DatabaseTest() {
         val repo = newRepo()
         val userId = newUser()
 
-        val first = repo.redeem(userId, "apple", "txn-1", "chip_pack_medium", 30_000)
-        val second = repo.redeem(userId, "apple", "txn-1", "chip_pack_medium", 30_000)
+        val first = repo.redeem(userId, "apple", "txn-1", "chip_pack_medium", 30_000, PurchaseEnvironment.Production)
+        val second = repo.redeem(userId, "apple", "txn-1", "chip_pack_medium", 30_000, PurchaseEnvironment.Production)
 
         assertIs<RedeemResult.Granted>(first)
         assertIs<RedeemResult.AlreadyRedeemed>(second)
@@ -75,8 +77,8 @@ class PostgresBillingRepositoryTest : DatabaseTest() {
         val repo = newRepo()
         val userId = newUser()
 
-        repo.redeem(userId, "apple", "shared-id", "chip_pack_medium", 30_000)
-        val google = repo.redeem(userId, "google", "shared-id", "chip_pack_medium", 30_000)
+        repo.redeem(userId, "apple", "shared-id", "chip_pack_medium", 30_000, PurchaseEnvironment.Production)
+        val google = repo.redeem(userId, "google", "shared-id", "chip_pack_medium", 30_000, PurchaseEnvironment.Production)
 
         assertIs<RedeemResult.Granted>(google)
         assertEquals(Wallet.STARTER_GRANT + 60_000, google.balance)
@@ -88,11 +90,57 @@ class PostgresBillingRepositoryTest : DatabaseTest() {
         val repo = newRepo()
         val userId = newUser()
 
-        repo.redeem(userId, "apple", "txn-1", "chip_pack_small", 5_000)
-        val second = repo.redeem(userId, "apple", "txn-2", "chip_pack_medium", 30_000)
+        repo.redeem(userId, "apple", "txn-1", "chip_pack_small", 5_000, PurchaseEnvironment.Production)
+        val second = repo.redeem(userId, "apple", "txn-2", "chip_pack_medium", 30_000, PurchaseEnvironment.Production)
 
         assertEquals(Wallet.STARTER_GRANT + 35_000, second.balance)
         assertEquals(2, billingRowCount())
+    }
+
+    @Test
+    fun redeem_production_writesProductionRow_andIapReason() = runTest {
+        val repo = newRepo()
+        val userId = newUser()
+
+        repo.redeem(userId, "apple", "txn-real", "chip_pack_medium", 30_000, PurchaseEnvironment.Production)
+
+        assertEquals("production", environmentOf("apple", "txn-real"))
+        assertEquals(listOf("iap.chip_pack_medium"), iapReasonsFor(userId))
+    }
+
+    @Test
+    fun redeem_sandbox_writesSandboxRow_andSandboxLedgerReason() = runTest {
+        // TestFlight / license-tester mints must never read as revenue: the
+        // row is tagged sandbox and the ledger reason gets its own prefix,
+        // out of reach of every `iap.%` real-money gate.
+        val repo = newRepo()
+        val userId = newUser()
+
+        repo.redeem(userId, "apple", "txn-test", "chip_pack_medium", 30_000, PurchaseEnvironment.Sandbox)
+
+        assertEquals("sandbox", environmentOf("apple", "txn-test"))
+        assertEquals(listOf("iap_sandbox.chip_pack_medium"), iapReasonsFor(userId))
+        assertEquals(
+            false,
+            PostgresWalletRepository(database, Clock.System).hasIapSpend(userId),
+            "a sandbox mint is not real-money spend",
+        )
+    }
+
+    private fun environmentOf(store: String, orderId: String): String = database.blockingTransaction {
+        BillingTransactionsTable
+            .selectAll()
+            .single {
+                it[BillingTransactionsTable.store] == store && it[BillingTransactionsTable.orderId] == orderId
+            }[BillingTransactionsTable.environment]
+    }
+
+    private fun iapReasonsFor(userId: UserId): List<String> = database.blockingTransaction {
+        WalletEventsTable
+            .selectAll()
+            .filter { it[WalletEventsTable.userId] == userId.value }
+            .map { it[WalletEventsTable.reason] }
+            .filter { it.startsWith("iap") }
     }
 
     private fun billingRowCount(): Long = database.blockingTransaction {

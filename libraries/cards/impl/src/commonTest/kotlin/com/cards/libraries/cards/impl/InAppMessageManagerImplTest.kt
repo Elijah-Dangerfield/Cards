@@ -2,9 +2,12 @@ package com.dangerfield.cards.libraries.cards.impl
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AppEvent
+import com.dangerfield.cards.libraries.cards.AppEventBus
+import com.dangerfield.cards.libraries.cards.AppEvents
 import com.dangerfield.cards.libraries.cards.UserMessage
 import com.dangerfield.cards.libraries.cards.UserMessageKind
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
+import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
@@ -19,32 +22,36 @@ import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Pins the InAppMessageManager's display gate:
- *  - At most one dialog per foreground event
- *  - A foreground while one's still up doesn't consume another
+ *  - At most one dialog per trigger pass (auth activation / warm fg / reconnect)
+ *  - A pass while one's still up doesn't consume another
  *  - Sync runs before consume (so freshly-arrived messages show up)
  *  - Sync failure doesn't block consume (offline-first)
- *  - SignedOut clears current
+ *  - No pass fires without a session; auth arriving fires the pass boot skipped
+ *  - A user change clears current immediately
  */
 class InAppMessageManagerImplTest : CoroutineTest() {
 
     @Test
-    fun coldBoot_consumesNextDialog_andSurfacesIt() = runUnitTest {
+    fun authActive_consumesNextDialog_andSurfacesIt() = runUnitTest {
         val repo = FakeRepo().apply { enqueue(message("a")) }
-        val manager = buildManager(repo)
+        val f = fixture(repo)
 
-        manager.current.test {
+        f.manager.current.test {
             assertNull(awaitItem())
-            manager.onColdBoot(AppEvent.ColdBoot)
+            f.signIn("u1")
             val surfaced = awaitItem()
             assertNotNull(surfaced)
             assertEquals("a", surfaced.id)
@@ -55,19 +62,19 @@ class InAppMessageManagerImplTest : CoroutineTest() {
     }
 
     @Test
-    fun secondForegroundWhileDialogStillUp_doesNotConsumeAnotherDialog() = runUnitTest {
+    fun warmForegroundWhileDialogStillUp_doesNotConsumeAnotherDialog() = runUnitTest {
         val repo = FakeRepo().apply {
             enqueue(message("a"))
             enqueue(message("b"))
         }
-        val manager = buildManager(repo)
-        manager.onColdBoot(AppEvent.ColdBoot)
+        val f = fixture(repo)
+        f.signIn("u1")
         runCurrent()
-        assertEquals("a", manager.current.value?.id)
-        // Second foreground while "a" is still up.
-        manager.onForeground(AppEvent.OnForeground(isColdBoot = false))
+        assertEquals("a", f.manager.current.value?.id)
+
+        f.bus.dispatch(AppEvent.OnForeground(isColdBoot = false))
         runCurrent()
-        assertEquals("a", manager.current.value?.id, "still 'a', not 'b'")
+        assertEquals("a", f.manager.current.value?.id, "still 'a', not 'b'")
         assertEquals(1, repo.consumeCalls, "no second consume while dialog up")
     }
 
@@ -77,32 +84,34 @@ class InAppMessageManagerImplTest : CoroutineTest() {
             enqueue(message("a"))
             enqueue(message("b"))
         }
-        val manager = buildManager(repo)
-        manager.onColdBoot(AppEvent.ColdBoot)
+        val f = fixture(repo)
+        f.signIn("u1")
         runCurrent()
-        assertEquals("a", manager.current.value?.id)
-        manager.dismissCurrent()
-        assertNull(manager.current.value)
+        assertEquals("a", f.manager.current.value?.id)
+        f.manager.dismissCurrent()
+        assertNull(f.manager.current.value)
 
-        manager.onForeground(AppEvent.OnForeground(isColdBoot = false))
+        f.bus.dispatch(AppEvent.OnForeground(isColdBoot = false))
         runCurrent()
-        assertEquals("b", manager.current.value?.id)
+        assertEquals("b", f.manager.current.value?.id)
     }
 
     @Test
-    fun foreground_thatIsColdBoot_isIgnored_byForegroundBranch() = runUnitTest {
-        // ColdBoot fires alongside OnForeground(isColdBoot=true). The
-        // cold-boot branch owns that pass; the foreground branch must
-        // skip it so we don't double-consume.
+    fun coldBootForeground_doesNotDoubleConsume() = runUnitTest {
+        // ColdBoot + OnForeground(isColdBoot=true) fire alongside the auth
+        // resolve. The activation pass owns that moment; the cold foreground
+        // must not run a second pass and consume another dialog.
         val repo = FakeRepo().apply {
             enqueue(message("a"))
             enqueue(message("b"))
         }
-        val manager = buildManager(repo)
-        manager.onForeground(AppEvent.OnForeground(isColdBoot = true))
+        val f = fixture(repo)
+        f.signIn("u1")
+        f.bus.dispatch(AppEvent.ColdBoot)
+        f.bus.dispatch(AppEvent.OnForeground(isColdBoot = true))
         runCurrent()
-        assertNull(manager.current.value)
-        assertEquals(0, repo.consumeCalls)
+        assertEquals("a", f.manager.current.value?.id)
+        assertEquals(1, repo.consumeCalls)
     }
 
     @Test
@@ -113,91 +122,122 @@ class InAppMessageManagerImplTest : CoroutineTest() {
             enqueue(message("cached"))
             syncReturns = Result.failure(RuntimeException("net"))
         }
-        val manager = buildManager(repo)
-        manager.onColdBoot(AppEvent.ColdBoot)
+        val f = fixture(repo)
+        f.signIn("u1")
         runCurrent()
-        assertEquals("cached", manager.current.value?.id)
+        assertEquals("cached", f.manager.current.value?.id)
     }
 
     @Test
     fun noEligibleDialog_leavesCurrentNull() = runUnitTest {
         val repo = FakeRepo() // empty
-        val manager = buildManager(repo)
-        manager.onColdBoot(AppEvent.ColdBoot)
+        val f = fixture(repo)
+        f.signIn("u1")
         runCurrent()
-        assertNull(manager.current.value)
+        assertNull(f.manager.current.value)
     }
 
     @Test
     fun userChanged_clearsCurrent_immediately() = runUnitTest {
         val repo = FakeRepo().apply { enqueue(message("a")) }
-        val manager = buildManager(repo)
-        manager.onColdBoot(AppEvent.ColdBoot)
+        val f = fixture(repo)
+        f.signIn("u1")
         runCurrent()
-        assertNotNull(manager.current.value)
-        manager.onUserChanged(AppEvent.UserChanged(previous = "u1", current = null))
-        assertNull(manager.current.value)
+        assertNotNull(f.manager.current.value)
+        f.manager.onUserChanged(AppEvent.UserChanged(previous = "u1", current = null))
+        assertNull(f.manager.current.value)
     }
 
     @Test
     fun dismissCurrent_doesNotAutomaticallySurfaceNext() = runUnitTest {
-        // Dismiss without a new foreground = no new dialog. The next
+        // Dismiss without a new trigger = no new dialog. The next
         // foreground is when we re-evaluate.
         val repo = FakeRepo().apply {
             enqueue(message("a"))
             enqueue(message("b"))
         }
-        val manager = buildManager(repo)
-        manager.onColdBoot(AppEvent.ColdBoot)
+        val f = fixture(repo)
+        f.signIn("u1")
         runCurrent()
-        manager.dismissCurrent()
+        f.manager.dismissCurrent()
         runCurrent()
-        assertNull(manager.current.value, "no auto-pop without a foreground event")
+        assertNull(f.manager.current.value, "no auto-pop without a foreground event")
     }
 
     @Test
-    fun coldBoot_whenUnauthenticated_skipsSync_butStillConsumesCache() = runUnitTest {
-        // The 401-on-init fix: a session-less cold boot must NOT fire a tokenless
-        // sync, but the cached dialog should still surface.
+    fun unauthenticatedBoot_runsNoPass_untilAuthArrives() = runUnitTest {
+        // The 401-on-init fix, level-shaped: a session-less boot must not fire
+        // a tokenless sync. The pass runs when auth arrives instead.
         val repo = FakeRepo().apply { enqueue(message("cached")) }
-        val manager = buildManager(repo, auth = FakeAuthRepo(AuthState.Unauthenticated()))
-        manager.onColdBoot(AppEvent.ColdBoot)
+        val f = fixture(repo)
+        f.auth.emit(AuthState.Unauthenticated())
+        f.bus.dispatch(AppEvent.ColdBoot)
+        f.bus.dispatch(AppEvent.OnForeground(isColdBoot = true))
         runCurrent()
         assertEquals(0, repo.syncCalls, "no tokenless sync when unauthenticated")
-        assertEquals("cached", manager.current.value?.id)
+        assertNull(f.manager.current.value)
+
+        f.signIn("u1")
+        runCurrent()
+        assertEquals(1, repo.syncCalls, "auth arriving fires the pass boot skipped")
+        assertEquals("cached", f.manager.current.value?.id)
     }
 
     @Test
-    fun userChanged_toNewUser_syncs_whenAuthArrives() = runUnitTest {
-        // Cold boot resolved session-less, then auth arrives (heal / sign-in):
-        // UserChanged(null→X) is what now drives the sync that cold boot skipped.
+    fun claim_sameIdAnonymousFlips_runsAFreshPass() = runUnitTest {
         val repo = FakeRepo()
-        val manager = buildManager(repo)
-        manager.onUserChanged(AppEvent.UserChanged(previous = null, current = "u1"))
+        val f = fixture(repo)
+        f.signIn("guest-1", isAnonymous = true)
         runCurrent()
-        assertEquals(1, repo.syncCalls, "a session arriving triggers a sync")
+        assertEquals(1, repo.syncCalls)
+
+        f.signIn("guest-1", isAnonymous = false)
+        runCurrent()
+        assertEquals(2, repo.syncCalls, "a claim flushes + surfaces without any bus event")
     }
 
     @Test
     fun connectivityRegained_syncs() = runUnitTest {
         val repo = FakeRepo()
-        val manager = buildManager(repo)
-        manager.onConnectivityRegained(AppEvent.ConnectivityRegained)
+        val f = fixture(repo)
+        f.signIn("u1")
         runCurrent()
         assertEquals(1, repo.syncCalls)
+
+        f.appState.isOffline.value = true
+        f.appState.isOffline.value = false
+        advanceTimeBy(1.seconds)
+        assertEquals(2, repo.syncCalls)
     }
 
     // ---------- scaffolding ----------
 
-    private fun buildManager(
-        repo: FakeRepo,
-        auth: AuthRepository = FakeAuthRepo(),
-    ): InAppMessageManagerImpl {
-        return InAppMessageManagerImpl(
+    private fun TestScope.fixture(repo: FakeRepo): Fixture {
+        val bus = FakeBus()
+        val auth = FakeAuthRepo()
+        val appState = FakeAppState()
+        val manager = InAppMessageManagerImpl(
             repository = repo,
-            authRepositoryProvider = { auth },
+            triggers = SyncTriggers(
+                authRepositoryProvider = { auth },
+                appEventsProvider = { AppEvents(bus) },
+                appState = appState,
+            ),
+            registry = UserScopedWorkRegistry(),
             appScope = AppCoroutineScope(dispatchers),
         )
+        return Fixture(manager, bus, auth, appState)
+    }
+
+    private class Fixture(
+        val manager: InAppMessageManagerImpl,
+        val bus: FakeBus,
+        val auth: FakeAuthRepo,
+        val appState: FakeAppState,
+    ) {
+        suspend fun signIn(userId: String, isAnonymous: Boolean = true) {
+            auth.emit(AuthState.Authenticated(userId = userId, isAnonymous = isAnonymous, email = null))
+        }
     }
 
     private fun message(id: String) = UserMessage(
@@ -211,6 +251,22 @@ class InAppMessageManagerImplTest : CoroutineTest() {
         expiresAtEpochMs = null,
     )
 
+    private class FakeBus : AppEventBus {
+        private val flow = MutableSharedFlow<AppEvent>(replay = 1, extraBufferCapacity = 64)
+        private val liveFlow = MutableSharedFlow<AppEvent>(extraBufferCapacity = 64)
+        override fun dispatch(event: AppEvent) {
+            flow.tryEmit(event)
+            liveFlow.tryEmit(event)
+        }
+        override fun eventStream(): Flow<AppEvent> = flow
+        override fun liveEventStream(): Flow<AppEvent> = liveFlow
+    }
+
+    private class FakeAppState : AppState {
+        override val isOffline = MutableStateFlow(false)
+        override val isBlockActive = MutableStateFlow(false)
+    }
+
     private class FakeRepo : UserMessageRepository {
         private val queue = ArrayDeque<UserMessage>()
         var consumeCalls: Int = 0
@@ -222,10 +278,10 @@ class InAppMessageManagerImplTest : CoroutineTest() {
         fun enqueue(message: UserMessage) { queue.addLast(message) }
 
         override fun observeInbox(): Flow<List<UserMessage>> =
-            MutableStateFlow<List<UserMessage>>(emptyList()).asStateFlow()
+            MutableStateFlow<List<UserMessage>>(emptyList())
 
         override fun observeUnreadInboxCount(): Flow<Int> =
-            MutableStateFlow(0).asStateFlow()
+            MutableStateFlow(0)
 
         override suspend fun consumeNextDialog(): UserMessage? {
             consumeCalls++
@@ -241,18 +297,14 @@ class InAppMessageManagerImplTest : CoroutineTest() {
         }
     }
 
-    private class FakeAuthRepo(
-        private val resolved: AuthState = AuthState.Authenticated(
-            userId = "test-user",
-            isAnonymous = true,
-            email = null,
-        ),
-    ) : AuthRepository {
-        private val state = MutableStateFlow(resolved)
+    private class FakeAuthRepo : AuthRepository {
+        private val state = MutableSharedFlow<AuthState>(replay = 1)
 
-        override suspend fun current(): AuthState = resolved
+        suspend fun emit(next: AuthState) = state.emit(next)
+
+        override suspend fun current(): AuthState = state.replayCache.first()
         override fun observe(): Flow<AuthState> = state
-        override suspend fun retry(): AuthState = resolved
+        override suspend fun retry(): AuthState = current()
         override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
             error("unused")
         override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome =

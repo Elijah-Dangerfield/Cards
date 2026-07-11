@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.server.config.BillingConfig
+import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.PurchaseReceipt
 import com.dangerfield.cards.server.domain.ReceiptValidation
 import com.dangerfield.cards.server.domain.UserId
@@ -78,7 +79,17 @@ class GooglePlayReceiptValidator(
         val orderId = purchase.orderId
             ?: return ReceiptValidation.Invalid("google_missing_order_id")
 
-        return ReceiptValidation.Valid(orderId = orderId)
+        return ReceiptValidation.Valid(
+            orderId = orderId,
+            // purchaseType is only present for non-standard purchases:
+            // 0 = test (license testers — Play's sandbox equivalent, unpaid),
+            // 1 = promo code, 2 = rewarded. Absent means a normal paid purchase.
+            environment = if (purchase.purchaseType == PURCHASE_TYPE_TEST) {
+                PurchaseEnvironment.Sandbox
+            } else {
+                PurchaseEnvironment.Production
+            },
+        )
     }
 
     private fun buildConfigured(): PurchaseLookup? {
@@ -108,6 +119,7 @@ class GooglePlayReceiptValidator(
 
     private companion object {
         const val PURCHASE_STATE_PURCHASED = 0
+        const val PURCHASE_TYPE_TEST = 0
 
         fun buildLookup(packageName: String, serviceAccountJson: String): PurchaseLookup {
             val credentials = GoogleCredentials

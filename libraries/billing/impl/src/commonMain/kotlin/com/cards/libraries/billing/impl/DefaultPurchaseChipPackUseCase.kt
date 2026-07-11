@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.billing.RealPurchasesEnabled
 import com.dangerfield.cards.libraries.billing.RedeemOutcome
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.products.Product
@@ -48,6 +49,7 @@ class DefaultPurchaseChipPackUseCase(
     private val logger = KLog.withTag("PurchaseChipPackUseCase")
 
     override suspend fun invoke(pack: Product.ChipPack): IapPurchaseOutcome {
+        logger.logEvent("purchase.initiated", "product_id" to pack.id)
         val authenticated = authRepository.current() as? AuthState.Authenticated
         if (authenticated == null) {
             logger.w { "IAP purchase requested with no signed-in user" }
@@ -58,7 +60,7 @@ class DefaultPurchaseChipPackUseCase(
             return IapPurchaseOutcome.ClaimAccountRequired
         }
         val userId = authenticated.userId
-        return when (val result = billingClient.purchase(sku = pack.store.sku, userId = userId)) {
+        val outcome = when (val result = billingClient.purchase(sku = pack.store.sku, userId = userId)) {
             is PurchaseResult.Success -> grant(pack, result.transaction, alreadyOwned = false)
             is PurchaseResult.AlreadyOwned -> grant(pack, result.transaction, alreadyOwned = true)
             PurchaseResult.UserCancelled -> IapPurchaseOutcome.Cancelled
@@ -74,6 +76,22 @@ class DefaultPurchaseChipPackUseCase(
                 logger.w { "Store not connected for purchase of ${pack.id}" }
                 IapPurchaseOutcome.StoreUnavailable
             }
+        }
+        logPurchaseEvent(pack, outcome)
+        return outcome
+    }
+
+    private fun logPurchaseEvent(pack: Product.ChipPack, outcome: IapPurchaseOutcome) {
+        when (outcome) {
+            is IapPurchaseOutcome.Success, is IapPurchaseOutcome.AlreadyOwned ->
+                logger.logEvent("purchase.completed", "product_id" to pack.id)
+            is IapPurchaseOutcome.Failed ->
+                logger.logEvent("purchase.failed", "product_id" to pack.id, "error" to outcome.reason)
+            IapPurchaseOutcome.Cancelled ->
+                logger.logEvent("purchase.cancelled", "product_id" to pack.id)
+            IapPurchaseOutcome.StoreUnavailable ->
+                logger.logEvent("purchase.failed", "product_id" to pack.id, "error" to "store_unavailable")
+            IapPurchaseOutcome.NotSignedIn, IapPurchaseOutcome.ClaimAccountRequired -> Unit
         }
     }
 

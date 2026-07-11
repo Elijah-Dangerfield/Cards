@@ -15,9 +15,11 @@ interface BillingRepository {
 
     /**
      * Grant [grantedChips] to [userId] for the validated store transaction
-     * [orderId], recording it under [store]. Idempotent on
-     * `(store, orderId)`: a repeat call (client retry, racing request) is a
-     * no-op that returns the current balance with
+     * [orderId], recording it under [store] with the [environment] that
+     * verified the receipt (sandbox mints are free chips, not revenue — the
+     * distinction flows into both the transaction row and the wallet-ledger
+     * reason). Idempotent on `(store, orderId)`: a repeat call (client retry,
+     * racing request) is a no-op that returns the current balance with
      * [RedeemResult.AlreadyRedeemed].
      */
     suspend fun redeem(
@@ -26,6 +28,7 @@ interface BillingRepository {
         orderId: String,
         productId: String,
         grantedChips: Long,
+        environment: PurchaseEnvironment,
     ): RedeemResult
 }
 

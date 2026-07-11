@@ -30,6 +30,7 @@ import kotlin.test.assertNull
  *  - Email is trimmed before the network call
  *  - typing on email after an error clears the error
  *  - OAuth Success marks onboarded and emits NavigateToHome
+ *  - Apple: a credential runs signInWithApple; a dismissed sheet is silent
  */
 class SignInViewModelTest : CoroutineTest() {
 
@@ -161,8 +162,8 @@ class SignInViewModelTest : CoroutineTest() {
             signInOutcome = SignInOutcome.Success,
         )
         val vm = buildVm(identity = identity)
-        // Note: leading and trailing whitespace; canSubmit still passes
-        // because the raw string contains '@'.
+        // Leading and trailing whitespace — canSubmit still passes because
+        // the raw string contains '@'.
         vm.takeAction(SignInAction.EmailChanged("  ok@example.com  "))
         vm.takeAction(SignInAction.PasswordChanged("password"))
         vm.takeAction(SignInAction.Submit)
@@ -256,27 +257,57 @@ class SignInViewModelTest : CoroutineTest() {
         }
     }
 
+    @Test
+    fun signInWithApple_credentialObtained_success_marksOnboarded_andNavigates() = runUnitTest {
+        val cache = FakeAppCache()
+        val identity = FakeAuthRepository(appleSignInOutcome = SignInOutcome.Success)
+        val vm = buildVm(
+            identity = identity,
+            appCache = cache,
+            appleCoordinator = FakeAppleSignInCoordinator(credential = sampleAppleCredential),
+        )
+        vm.takeAction(SignInAction.SignInWithApple)
+
+        vm.eventFlow.test {
+            assertIs<SignInEvent.NavigateToHome>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, identity.appleSignInCalls)
+        assertEquals(true, cache.get().hasUserOnboarded)
+    }
+
+    @Test
+    fun signInWithApple_sheetDismissed_clearsSubmitting_andNoError() = runUnitTest {
+        val identity = FakeAuthRepository()
+        val vm = buildVm(
+            identity = identity,
+            appleCoordinator = FakeAppleSignInCoordinator(credential = null),
+        )
+        vm.takeAction(SignInAction.SignInWithApple)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.isSubmitting) last = awaitItem()
+            assertNull(last.error, "dismissed Apple sheet must not surface an error")
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(0, identity.appleSignInCalls)
+    }
+
     // ---------- scaffolding ----------
 
     private fun buildVm(
         identity: FakeAuthRepository = FakeAuthRepository(),
         appCache: FakeAppCache = FakeAppCache(),
+        appleCoordinator: FakeAppleSignInCoordinator = FakeAppleSignInCoordinator(),
     ): SignInViewModel {
         val config = EmptyAppConfigMap()
         return SignInViewModel(
             authRepository = identity,
             appCache = appCache,
-            appleSignInCoordinator = NoopAppleSignInCoordinator,
+            appleSignInCoordinator = appleCoordinator,
             googleSignInEnabled = GoogleSignInEnabled(config),
             appleSignInEnabled = AppleSignInEnabled(config),
         )
-    }
-
-    /** No test here exercises the iOS-only native Apple sign-in; the coordinator is a no-op. */
-    private object NoopAppleSignInCoordinator :
-        com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator {
-        override fun requestCredential(
-            onComplete: (com.dangerfield.cards.libraries.identity.auth.AppleSignInCredential?, String?) -> Unit,
-        ) = onComplete(null, null)
     }
 }

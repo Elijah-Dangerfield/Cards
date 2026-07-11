@@ -15,4 +15,12 @@ import kotlinx.coroutines.flow.Flow
 class AppEvents(
     private val bus: AppEventBus,
     private val backingFlow: Flow<AppEvent> = bus.eventStream(),
-) : Flow<AppEvent> by backingFlow
+) : Flow<AppEvent> by backingFlow {
+
+    /**
+     * The replay-free stream — events from now on only. Use for edge
+     * semantics (re-fire triggers), where reacting to the replayed
+     * pre-subscribe event would double-fire. See [AppEventBus.liveEventStream].
+     */
+    fun live(): Flow<AppEvent> = bus.liveEventStream()
+}

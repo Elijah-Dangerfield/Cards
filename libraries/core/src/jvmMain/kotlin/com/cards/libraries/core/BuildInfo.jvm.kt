@@ -40,4 +40,6 @@ actual object BuildInfo {
 
     actual val commitBranch: String
         get() = CardsBuildConfig.COMMIT_BRANCH
+
+    actual val isTestFlight: Boolean = false
 }

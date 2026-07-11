@@ -216,11 +216,6 @@
     <string name="onboarding_auth_error_oauth_provider_not_enabled">That sign-in option isn't available yet.</string>
     <string name="onboarding_auth_error_oauth_network">Couldn't reach the server. Check your connection.</string>
     <string name="onboarding_auth_error_oauth_failed">Sign in failed. Please try again.</string>
-    <string name="onboarding_auth_error_guest_anonymous_disabled">Anonymous sign-in isn't enabled in this Supabase project. Enable it in Authentication → Providers → Email (Allow anonymous sign-ins).</string>
-    <string name="onboarding_auth_error_guest_captcha">Captcha is required by this Supabase project. Disable it in dev or wire a token.</string>
-    <string name="onboarding_auth_error_guest_invalid_config">The Supabase publishable key looks wrong or expired. Check IdentityConfig.</string>
-    <string name="onboarding_auth_error_guest_failed">Couldn't reach the server. Check your connection and try again.</string>
-    <string name="onboarding_auth_error_debug_suffix">\n\nDEBUG: %1$s</string>
     <string name="onboarding_save_error_display_name_taken">That name is taken. Try another.</string>
     <string name="onboarding_save_error_invalid_display_name">Try a different name. Letters and numbers only.</string>
 
@@ -228,7 +223,6 @@
     <string name="onboarding_welcome_title">Downcard</string>
     <string name="onboarding_welcome_subtitle">Poker with your friends.\nPractice with bots when they're busy.</string>
     <string name="onboarding_welcome_continue_guest">Continue as guest</string>
-    <string name="onboarding_welcome_continue_guest_progress">One moment…</string>
     <string name="onboarding_welcome_oauth_apple">Continue with Apple</string>
     <string name="onboarding_welcome_oauth_google">Continue with Google</string>
     <!-- Compact label for the side-by-side OAuth row, where the full "Continue
@@ -443,7 +437,6 @@
     <string name="auth_sign_up_to_sign_in_button">Already have an account? Sign in</string>
 
     <!-- Sign-up - inline error states surfaced by the VM (sealed SignUpError → resource). -->
-    <string name="auth_sign_up_error_passwords_dont_match">Passwords don't match.</string>
     <string name="auth_sign_up_error_email_already_registered">That email is already in use. Try signing in instead.</string>
     <string name="auth_sign_up_error_weak_password">Pick a stronger password (at least %1$d characters).</string>
     <string name="auth_sign_up_error_invalid_email">That email doesn't look right.</string>
@@ -713,6 +706,7 @@
     <string name="profile_edit_sync_rejected_name_taken">Couldn't save your name. That one's already taken.</string>
     <string name="profile_edit_sync_rejected_name_invalid">Couldn't save your name. That one's not allowed.</string>
     <string name="profile_edit_sync_rejected_avatar">Couldn't save your avatar. It's no longer available.</string>
+    <string name="chips_sync_rejected_spend_message">A purchase didn't go through, so we put your chips back.</string>
     <string name="profile_edit_save_error_name_taken">Couldn't save. That name is already taken.</string>
     <string name="profile_edit_save_error_name_invalid">Couldn't save. That name isn't allowed.</string>
     <string name="profile_edit_save_error_avatar_emoji">Couldn't save. That avatar isn't available.</string>
@@ -765,6 +759,7 @@
     <string name="profile_feedback_submit_button">Send</string>
     <string name="profile_feedback_submit_button_progress">Sending…</string>
     <string name="profile_feedback_error_message_required">Add a quick note before sending.</string>
+    <string name="profile_feedback_error_submit_failed">Couldn't send that. Check your connection and try again.</string>
     <string name="profile_feedback_snackbar_thanks">Thanks for your feedback!</string>
 
     <!-- Profile - Report a bug form. -->
@@ -781,6 +776,7 @@
     <string name="profile_bug_submit_button">Send</string>
     <string name="profile_bug_submit_button_progress">Sending…</string>
     <string name="profile_bug_error_message_required">Add a quick note before sending.</string>
+    <string name="profile_bug_error_submit_failed">Couldn't send that. Check your connection and try again.</string>
     <string name="profile_bug_snackbar_thanks">Thanks for reporting that! We'll get right on it.</string>
 
     <!-- Profile - My items inventory screen. -->

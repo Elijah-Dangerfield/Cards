@@ -18,6 +18,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
+import app.cash.turbine.test
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
@@ -43,7 +44,10 @@ import kotlin.time.Instant
  *    server's authoritative value.
  *  - AlreadyApplied (replay) → events deleted; same balance reset.
  *  - InsufficientChips → events deleted (no retry possible); balance
- *    reset to authoritative.
+ *    reset to authoritative; the rejection is announced to the user
+ *    (PROG-11 — never a silent balance drop).
+ *  - A grant landing while a sync is in flight survives the authoritative
+ *    overwrite (PROG-11 — displayed balance = snapshot + pending fold).
  *  - Unknown outcome → row stays pending (so a newer client can resolve).
  *  - Network failure → returns Result.failure, leaves rows pending.
  */
@@ -174,6 +178,65 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
         assertTrue(result.isSuccess)
         assertTrue(walletDao.getAll().isEmpty(), "rejected event drops — no retry pathway")
         assertEquals(10_000L, chipsDao.getChips()?.balance)
+    }
+
+    @Test
+    fun insufficientChips_announcesTheRejection_insteadOfSilentlyDroppingIt() = runUnitTest {
+        // PROG-11: the server refusing a spend snaps the displayed balance
+        // back to authoritative — the user must hear why, not watch chips
+        // silently move.
+        val walletDao = FakeWalletEventDao().apply {
+            insert(walletEvent("bad_debit", delta = -1_000_000))
+        }
+        val repo = buildRepo(FakeChipsDao(seedBalance = 0L), walletDao) {
+            respondJson(
+                """
+                {
+                  "schemaVersion":1,
+                  "balance":10000,
+                  "results":[
+                    {"idempotencyKey":"bad_debit","outcome":"InsufficientChips","balance":10000}
+                  ]
+                }
+                """.trimIndent(),
+            )
+        }
+
+        repo.observeSyncRejections().test {
+            repo.sync()
+            val rejection = awaitItem()
+            assertEquals(1, rejection.rejectedEvents)
+            assertEquals(1_000_000L, rejection.rejectedChips)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun appliedAndRefusedServerOwned_doNotAnnounceARejection() = runUnitTest {
+        val walletDao = FakeWalletEventDao().apply {
+            insert(walletEvent("k1", delta = 100))
+            insert(walletEvent("levelup_3", delta = 1_000, reason = "levelup.3"))
+        }
+        val repo = buildRepo(FakeChipsDao(seedBalance = 0L), walletDao) {
+            respondJson(
+                """
+                {
+                  "schemaVersion":1,
+                  "balance":11100,
+                  "results":[
+                    {"idempotencyKey":"k1","outcome":"Applied","balance":10100},
+                    {"idempotencyKey":"levelup_3","outcome":"RefusedServerOwned","balance":10100}
+                  ]
+                }
+                """.trimIndent(),
+            )
+        }
+
+        repo.observeSyncRejections().test {
+            repo.sync()
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
@@ -330,6 +393,35 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
+    fun grantLandingWhileSyncInFlight_survivesTheAuthoritativeOverwrite() = runUnitTest {
+        // PROG-11, the 07-09 "my 500 chips vanished" family: a grant that
+        // lands between the sync's outbox read and its balance write must
+        // stay visible. The displayed balance is server snapshot + pending
+        // outbox, so no sync ordering can hide an earned grant.
+        val chipsDao = FakeChipsDao(seedBalance = 10_000L)
+        val walletDao = FakeWalletEventDao()
+        val handlerEntered = MutableStateFlow(false)
+        val release = MutableStateFlow(false)
+        val repo = buildRepo(chipsDao, walletDao) {
+            handlerEntered.value = true
+            release.first { it }
+            respondJson("""{"schemaVersion":1,"balance":10000,"results":[]}""")
+        }
+
+        val sync = async { repo.sync() }
+        handlerEntered.first { it }
+        repo.addChips(amount = 500, reason = "achievement.pot_5000", idempotencyKey = "ach1")
+        release.value = true
+        assertTrue(sync.await().isSuccess)
+
+        assertEquals(
+            10_500L,
+            repo.getBalance(),
+            "a grant that landed mid-sync must survive the authoritative overwrite",
+        )
+    }
+
+    @Test
     fun isReconciling_isTrueWhileSyncInFlight_falseBeforeAndAfter() = runUnitTest {
         val handlerEntered = MutableStateFlow(false)
         val releaseHandler = MutableStateFlow(false)
@@ -459,24 +551,34 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
 
     private class FakeWalletEventDao : WalletEventDao {
         private val rows = mutableListOf<WalletEventEntity>()
+        private val pendingDelta = MutableStateFlow<Long?>(null)
+
         override suspend fun getAll(): List<WalletEventEntity> =
             rows.sortedBy { it.appliedAtEpochMs }
 
         override suspend fun insert(entity: WalletEventEntity) {
             if (rows.none { it.idempotencyKey == entity.idempotencyKey }) {
                 rows += entity
+                refreshSum()
             }
         }
 
-        override suspend fun countByKey(key: String): Int =
-            rows.count { it.idempotencyKey == key }
+        override fun observePendingDelta(): Flow<Long?> = pendingDelta.asStateFlow()
+
+        override suspend fun pendingDelta(): Long? = pendingDelta.value
 
         override suspend fun deleteByKeys(keys: List<String>) {
             rows.removeAll { it.idempotencyKey in keys }
+            refreshSum()
         }
 
         override suspend fun deleteAll() {
             rows.clear()
+            refreshSum()
+        }
+
+        private fun refreshSum() {
+            pendingDelta.value = if (rows.isEmpty()) null else rows.sumOf { it.delta }
         }
     }
 
@@ -488,16 +590,8 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
         override fun observeChips(): Flow<ChipsEntity?> = state.asStateFlow()
         override suspend fun getChips(): ChipsEntity? = state.value
 
-        override suspend fun insertIfMissing(entity: ChipsEntity) {
-            if (state.value == null) state.value = entity
-        }
-
-        override suspend fun applyDelta(delta: Long, updatedAtEpochMs: Long) {
-            val current = state.value ?: return
-            state.value = current.copy(
-                balance = current.balance + delta,
-                updatedAtEpochMs = updatedAtEpochMs,
-            )
+        override suspend fun upsert(entity: ChipsEntity) {
+            state.value = entity
         }
 
         override suspend fun deleteAll() {

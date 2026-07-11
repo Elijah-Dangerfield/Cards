@@ -3,6 +3,8 @@ package com.dangerfield.cards.features.onboarding.impl
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.config.AppConfigMap
+import com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator
+import com.dangerfield.cards.libraries.identity.auth.AppleSignInCredential
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
@@ -15,7 +17,6 @@ import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
@@ -36,6 +37,8 @@ internal class FakeAuthRepository(
     val sendResetOutcome: SendResetOutcome = SendResetOutcome.Unknown(RuntimeException("not stubbed")),
     val oauthSignInOutcome: SignInOutcome = SignInOutcome.Unknown(RuntimeException("not stubbed")),
     val linkEmailOutcome: LinkEmailIdentityOutcome = LinkEmailIdentityOutcome.Unknown(RuntimeException("not stubbed")),
+    val linkAppleOutcome: LinkIdentityOutcome = LinkIdentityOutcome.Unknown(RuntimeException("not stubbed")),
+    val appleSignInOutcome: SignInOutcome = SignInOutcome.Unknown(RuntimeException("not stubbed")),
     initialAuthState: AuthState = AuthState.Unauthenticated(),
 ) : AuthRepository {
     var signInCalls: Int = 0
@@ -63,6 +66,10 @@ internal class FakeAuthRepository(
     var linkEmailCalls: Int = 0
         private set
     var lastLinkEmailArgs: Pair<String, String>? = null
+        private set
+    var linkAppleCalls: Int = 0
+        private set
+    var appleSignInCalls: Int = 0
         private set
 
     private val state = MutableStateFlow(initialAuthState)
@@ -119,7 +126,36 @@ internal class FakeAuthRepository(
         lastOAuthProvider = provider
         return oauthSignInOutcome
     }
+
+    override suspend fun linkAppleIdentity(credential: AppleSignInCredential): LinkIdentityOutcome {
+        linkAppleCalls += 1
+        return linkAppleOutcome
+    }
+
+    override suspend fun signInWithApple(credential: AppleSignInCredential): SignInOutcome {
+        appleSignInCalls += 1
+        return appleSignInOutcome
+    }
 }
+
+/**
+ * Coordinator that immediately reports [credential] — `null` models the user
+ * dismissing the native sheet; [errorMessage] models a hard native failure.
+ */
+internal class FakeAppleSignInCoordinator(
+    private val credential: AppleSignInCredential? = null,
+    private val errorMessage: String? = null,
+) : AppleSignInCoordinator {
+    override fun requestCredential(
+        onComplete: (credential: AppleSignInCredential?, errorMessage: String?) -> Unit,
+    ) = onComplete(credential, errorMessage)
+}
+
+internal val sampleAppleCredential = AppleSignInCredential(
+    identityToken = "token",
+    nonce = "nonce",
+    authorizationCode = null,
+)
 
 /**
  * In-memory [AppCache] that records writes — used to assert the
@@ -147,8 +183,4 @@ internal val sampleAuthenticated = AuthState.Authenticated(
     email = null,
 )
 
-internal val sampleAnonymous = AuthState.Authenticated(
-    userId = "anon-1",
-    isAnonymous = true,
-    email = null,
-)
+internal val sampleAnonymousGuest = sampleAuthenticated.copy(userId = "anon-1", isAnonymous = true)

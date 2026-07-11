@@ -33,17 +33,15 @@ import kotlin.time.Instant
  * is covered by [ChipsRepositoryImplSyncTest]; this file stays offline
  * and exercises the DAO writes directly.
  *
- * Key invariants pinned here:
+ * Key invariants pinned here (PROG-11 snapshot+fold model):
  *  - addChips inserts a wallet event row keyed by the idempotency key
- *    (caller-supplied or repo-generated UUID) AND applies the delta to
- *    the optimistic local balance.
- *  - The first write seeds the chips row at zero before the delta so
- *    `applyDelta` has something to update.
+ *    (caller-supplied or repo-generated UUID) and never touches the
+ *    snapshot row — the displayed balance derives it via the pending fold.
  *  - subtractChips writes the same shape with a negative delta and may
- *    drive the local balance negative — the optimistic write happens
+ *    drive the displayed balance negative — the optimistic write happens
  *    even if the user "doesn't have enough" locally; sync reconciles.
- *  - setBalance seeds a row when missing and reconciles via delta when
- *    one exists; a no-op (delta == 0) doesn't churn the timestamp.
+ *  - setBalance overwrites the snapshot (seeding it when missing); a
+ *    no-op (unchanged value) doesn't churn the timestamp.
  *  - deleteAll wipes both tables, used by the signed-out cleanup.
  *  - addChips/subtractChips reject non-positive amounts at the
  *    `require()` boundary (defensive against caller bugs).
@@ -51,7 +49,7 @@ import kotlin.time.Instant
 class ChipsRepositoryImplTest : CoroutineTest() {
 
     @Test
-    fun addChips_insertsWalletEvent_andAppliesDeltaToBalance() = runUnitTest {
+    fun addChips_insertsWalletEvent_andShowsItViaTheFold() = runUnitTest {
         val chipsDao = FakeChipsDao(initial = null)
         val walletDao = FakeWalletEventDao()
         val repo = buildRepo(chipsDao, walletDao)
@@ -65,23 +63,19 @@ class ChipsRepositoryImplTest : CoroutineTest() {
         assertEquals("achievement.first_win", events.single().reason)
         assertEquals(FIXED_NOW_EPOCH_MS, events.single().appliedAtEpochMs)
 
-        assertEquals(250L, chipsDao.getChips()?.balance)
-        assertEquals(FIXED_NOW_EPOCH_MS, chipsDao.getChips()?.updatedAtEpochMs)
+        assertEquals(250L, repo.getBalance(), "pending write shows immediately via the fold")
+        assertNull(chipsDao.getChips(), "an optimistic write never touches the server snapshot")
     }
 
     @Test
-    fun addChips_seedsChipsRowAtZero_whenMissing_beforeApplyingDelta() = runUnitTest {
+    fun balanceDerivesFromPendingAlone_beforeTheFirstSnapshot() = runUnitTest {
         val chipsDao = FakeChipsDao(initial = null)
         val walletDao = FakeWalletEventDao()
         val repo = buildRepo(chipsDao, walletDao)
 
-        repo.addChips(amount = 100, reason = "starter_grant", idempotencyKey = null)
+        repo.addChips(amount = 100, reason = "practice.reward", idempotencyKey = null)
 
-        // The presence of a row + the +100 balance proves the
-        // insertIfMissing(0) → applyDelta(+100) ordering ran. Without
-        // the insertIfMissing, applyDelta on an empty `chips` table
-        // would be a no-op and the balance would stay null.
-        assertEquals(100L, chipsDao.getChips()?.balance)
+        assertEquals(100L, repo.getBalance(), "no snapshot yet — the outbox alone carries the balance")
     }
 
     @Test
@@ -119,7 +113,8 @@ class ChipsRepositoryImplTest : CoroutineTest() {
         val event = walletDao.getAll().single()
         assertEquals(-250L, event.delta, "subtract must persist the sign-flipped delta")
         assertEquals("shop.purchase", event.reason)
-        assertEquals(750L, chipsDao.getChips()?.balance)
+        assertEquals(750L, repo.getBalance())
+        assertEquals(1_000L, chipsDao.getChips()?.balance, "the snapshot only moves on sync")
     }
 
     @Test
@@ -143,7 +138,7 @@ class ChipsRepositoryImplTest : CoroutineTest() {
 
         repo.subtractChips(amount = 500, reason = "shop.purchase", idempotencyKey = "p1")
 
-        assertEquals(-400L, chipsDao.getChips()?.balance)
+        assertEquals(-400L, repo.getBalance())
         assertEquals(-500L, walletDao.getAll().single().delta)
     }
 
@@ -193,7 +188,7 @@ class ChipsRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun setBalance_appliesDelta_whenRowExists() = runUnitTest {
+    fun setBalance_overwritesSnapshot_whenRowExists() = runUnitTest {
         val chipsDao = FakeChipsDao(initial = ChipsEntity(balance = 1_000L, updatedAtEpochMs = 0))
         val repo = buildRepo(chipsDao, FakeWalletEventDao())
 
@@ -210,7 +205,7 @@ class ChipsRepositoryImplTest : CoroutineTest() {
 
         // Pin the InsufficientChips reconciliation path: the server says
         // "your balance is actually 1_000, you tried to debit too much"
-        // and we converge by applying a negative delta to land there.
+        // and the snapshot converges there.
         repo.setBalance(authoritativeBalance = 1_000L)
 
         assertEquals(1_000L, chipsDao.getChips()?.balance)
@@ -248,12 +243,10 @@ class ChipsRepositoryImplTest : CoroutineTest() {
     @Test
     fun addChips_withDuplicateIdempotencyKey_appliesDeltaExactlyOnce() = runUnitTest {
         // The wallet-events table de-dups on the primary key (IGNORE on
-        // conflict), so a same-key call records exactly one event. The balance
-        // delta must dedup too: applyDeltaInternal bails when the key is already
-        // on the ledger, so a re-issued key can't double-count the optimistic
-        // local balance. Callers don't re-issue keys today (sync, not the local
-        // write, is the retry path), but this guards the corner so a future
-        // caller that does can't silently drift the balance.
+        // conflict), so a same-key call records exactly one row — and because
+        // the displayed balance derives from the rows, a re-issued key can't
+        // double-count. Callers don't re-issue keys today (sync, not the local
+        // write, is the retry path), but this guards the corner.
         val chipsDao = FakeChipsDao(initial = null)
         val walletDao = FakeWalletEventDao()
         val repo = buildRepo(chipsDao, walletDao)
@@ -262,7 +255,7 @@ class ChipsRepositoryImplTest : CoroutineTest() {
         repo.addChips(amount = 100, reason = "test", idempotencyKey = "k1")
 
         assertEquals(1, walletDao.getAll().size, "duplicate idempotency key → one event row")
-        assertEquals(100L, chipsDao.getChips()?.balance, "duplicate key → delta applied exactly once")
+        assertEquals(100L, repo.getBalance(), "duplicate key → delta counted exactly once")
     }
 
     @Test
@@ -284,12 +277,8 @@ class ChipsRepositoryImplTest : CoroutineTest() {
 
         val event = walletDao.getAll().single()
         // Pins that the wallet event timestamp comes from the injected
-        // clock (so tests can drive it). A test-only FixedClock returns
-        // [FIXED_NOW_EPOCH_MS] for both `appliedAtEpochMs` and the chips
-        // row's `updatedAtEpochMs`.
+        // clock (so tests can drive it).
         assertEquals(FIXED_NOW_EPOCH_MS, event.appliedAtEpochMs)
-        assertNotNull(chipsDao.getChips())
-        assertEquals(FIXED_NOW_EPOCH_MS, chipsDao.getChips()?.updatedAtEpochMs)
     }
 
     // ---------- Scaffolding ----------
@@ -335,26 +324,34 @@ class ChipsRepositoryImplTest : CoroutineTest() {
 
     private class FakeWalletEventDao : WalletEventDao {
         private val rows = mutableListOf<WalletEventEntity>()
+        private val pendingDelta = MutableStateFlow<Long?>(null)
+
         override suspend fun getAll(): List<WalletEventEntity> =
             rows.sortedBy { it.appliedAtEpochMs }
 
         override suspend fun insert(entity: WalletEventEntity) {
-            // Match Room's `OnConflictStrategy.IGNORE` — same-PK insert
-            // keeps the existing row.
             if (rows.none { it.idempotencyKey == entity.idempotencyKey }) {
                 rows += entity
+                refreshSum()
             }
         }
 
-        override suspend fun countByKey(key: String): Int =
-            rows.count { it.idempotencyKey == key }
+        override fun observePendingDelta(): Flow<Long?> = pendingDelta.asStateFlow()
+
+        override suspend fun pendingDelta(): Long? = pendingDelta.value
 
         override suspend fun deleteByKeys(keys: List<String>) {
             rows.removeAll { it.idempotencyKey in keys }
+            refreshSum()
         }
 
         override suspend fun deleteAll() {
             rows.clear()
+            refreshSum()
+        }
+
+        private fun refreshSum() {
+            pendingDelta.value = if (rows.isEmpty()) null else rows.sumOf { it.delta }
         }
     }
 
@@ -364,18 +361,8 @@ class ChipsRepositoryImplTest : CoroutineTest() {
         override fun observeChips(): Flow<ChipsEntity?> = state.asStateFlow()
         override suspend fun getChips(): ChipsEntity? = state.value
 
-        override suspend fun insertIfMissing(entity: ChipsEntity) {
-            // Match Room's `OnConflictStrategy.IGNORE` — no-op when a
-            // row exists; populate when missing.
-            if (state.value == null) state.value = entity
-        }
-
-        override suspend fun applyDelta(delta: Long, updatedAtEpochMs: Long) {
-            val current = state.value ?: return
-            state.value = current.copy(
-                balance = current.balance + delta,
-                updatedAtEpochMs = updatedAtEpochMs,
-            )
+        override suspend fun upsert(entity: ChipsEntity) {
+            state.value = entity
         }
 
         override suspend fun deleteAll() {

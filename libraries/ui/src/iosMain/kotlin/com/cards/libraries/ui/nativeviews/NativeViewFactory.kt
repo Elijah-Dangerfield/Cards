@@ -5,7 +5,7 @@ import platform.UIKit.UIView
 import kotlin.experimental.ExperimentalObjCName
 
 @OptIn(ExperimentalObjCName::class)
-@ObjCName("VirtuNativeViewFactory", exact = true)
+@ObjCName("CardsNativeViewFactory", exact = true)
 interface NativeViewFactory {
 
     @Throws(Exception::class)
@@ -26,14 +26,14 @@ interface NativeViewFactory {
 val LocalNativeViewFactory = staticCompositionLocalOf<NativeViewFactory?> { null }
 
 @OptIn(ExperimentalObjCName::class)
-@ObjCName("VirtuNativeAppleSignInButtonKind", exact = true)
+@ObjCName("CardsNativeAppleSignInButtonKind", exact = true)
 enum class NativeAppleSignInButtonKind {
     SignIn,
     ContinueFlow
 }
 
 @OptIn(ExperimentalObjCName::class)
-@ObjCName("VirtuNativeAppleSignInButtonStyle", exact = true)
+@ObjCName("CardsNativeAppleSignInButtonStyle", exact = true)
 enum class NativeAppleSignInButtonStyle {
     Black,
     White,

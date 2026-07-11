@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.core
 
 import com.dangerfield.cards.buildinfo.CardsBuildConfig
+import platform.Foundation.NSBundle
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.Platform as NativePlatform
 
@@ -31,4 +32,13 @@ actual object BuildInfo {
 
     actual val commitBranch: String
         get() = CardsBuildConfig.COMMIT_BRANCH
+
+    // TestFlight installs get a sandbox receipt; App Store installs get a
+    // production one. The URL is present even before StoreKit fetches the
+    // receipt file, so reading its last path component is cheap and safe.
+    // Debug (Xcode-run) builds can also carry a sandbox receipt, so gate on
+    // !isDebug to keep the flag meaning strictly "TestFlight distribution".
+    actual val isTestFlight: Boolean by lazy {
+        !isDebug && NSBundle.mainBundle.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+    }
 }

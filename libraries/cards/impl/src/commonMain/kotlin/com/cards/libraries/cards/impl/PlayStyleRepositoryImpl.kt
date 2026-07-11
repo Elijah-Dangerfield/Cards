@@ -55,6 +55,7 @@ import kotlin.uuid.Uuid
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = PlayStyleRepository::class)
+@ContributesBinding(AppScope::class, multibinding = true, boundType = UserScopedSyncer::class)
 @ContributesBinding(AppScope::class, multibinding = true, boundType = AppEventListener::class)
 @Inject
 class PlayStyleRepositoryImpl(
@@ -63,7 +64,7 @@ class PlayStyleRepositoryImpl(
     private val networkClient: NetworkClient,
     private val appScope: AppCoroutineScope,
     private val clock: Clock,
-) : PlayStyleRepository, AppEventListener {
+) : PlayStyleRepository, UserScopedSyncer, AppEventListener {
 
     private val logger = KLog.withTag("PlayStyleRepository")
     private val syncMutex = Mutex()
@@ -152,26 +153,13 @@ class PlayStyleRepositoryImpl(
     }
 
     override fun onUserChanged(event: AppEvent.UserChanged) {
-        // A user just became active. On an account switch the prior user's
-        // cached axes were just wiped, so drop the opponent cache (under its
-        // lock — it's a plain map shared with in-flight getStyleFor) and
-        // re-hydrate the new user's own style now.
-        if (event.current == null) return
+        // On an account switch the prior user's cached axes were just wiped;
+        // drop the opponent cache too (under its lock — it's a plain map
+        // shared with in-flight getStyleFor). The re-sync of the incoming
+        // user's own style is the coordinator's job, not this listener's.
         appScope.launch {
             opponentCacheMutex.withLock { opponentCache.clear() }
-            sync()
         }
-    }
-
-    override fun onAccountClaimed(event: AppEvent.AccountClaimed) {
-        appScope.launch { sync() }
-    }
-
-    override fun onForeground(event: AppEvent.OnForeground) {
-        // Cold-boot's initial sync is owned by [onUserChanged]; this handles
-        // the warm-resume reconcile only.
-        if (event.isColdBoot) return
-        appScope.launch { sync() }
     }
 
     private suspend fun cacheOwnAxes(axes: PlayStyleAxesDto) {
