@@ -87,11 +87,6 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.onboarding_auth_error_debug_suffix
-import cards.libraries.resources.generated.resources.onboarding_auth_error_guest_anonymous_disabled
-import cards.libraries.resources.generated.resources.onboarding_auth_error_guest_captcha
-import cards.libraries.resources.generated.resources.onboarding_auth_error_guest_failed
-import cards.libraries.resources.generated.resources.onboarding_auth_error_guest_invalid_config
 import cards.libraries.resources.generated.resources.onboarding_auth_error_oauth_failed
 import cards.libraries.resources.generated.resources.onboarding_auth_error_oauth_network
 import cards.libraries.resources.generated.resources.onboarding_auth_error_oauth_provider_not_enabled
@@ -129,7 +124,6 @@ import cards.libraries.resources.generated.resources.onboarding_welcome_consent
 import cards.libraries.resources.generated.resources.onboarding_welcome_consent_privacy_link
 import cards.libraries.resources.generated.resources.onboarding_welcome_consent_terms_link
 import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest
-import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest_progress
 import cards.libraries.resources.generated.resources.onboarding_welcome_footer
 import cards.libraries.resources.generated.resources.onboarding_welcome_sign_in
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_apple
@@ -138,7 +132,9 @@ import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_go
 import cards.libraries.resources.generated.resources.onboarding_welcome_subtitle
 import cards.libraries.resources.generated.resources.onboarding_welcome_title
 import cards.libraries.resources.generated.resources.ui_top_bar_back_a11y
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Four-step onboarding flow driven by [OnboardingViewModel.state.step]:
@@ -207,7 +203,7 @@ fun OnboardingScreen(
                 when (step) {
                     OnboardingStep.Welcome -> WelcomeStep(state, onAction, onOpenUrl)
                     OnboardingStep.PickIdentity -> PickIdentityStep(state, onAction)
-                    OnboardingStep.HowItWorks -> HowItWorksStep(state, onAction)
+                    OnboardingStep.HowItWorks -> HowItWorksStep(onAction)
                     OnboardingStep.StarterGrant -> StarterGrantStep(state, onAction)
                 }
             }
@@ -367,19 +363,14 @@ private fun WelcomeStep(
             // sign-in link. Each OAuth slot only shows when its provider flag
             // is on (off until the Supabase provider is provisioned); with both
             // off the screen collapses to guest + sign-in.
-            val oauthBusy = state.oauthInFlight != null || state.isAuthing
+            val oauthBusy = state.oauthInFlight != null
 
             ButtonPrimary(
                 onClick = { onAction(OnboardingAction.ContinueAsGuest) },
-                enabled = !state.isAuthing && state.oauthInFlight == null,
+                enabled = !oauthBusy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(
-                    stringResource(
-                        if (state.isAuthing) Res.string.onboarding_welcome_continue_guest_progress
-                        else Res.string.onboarding_welcome_continue_guest,
-                    ),
-                )
+                Text(stringResource(Res.string.onboarding_welcome_continue_guest))
             }
 
             if (state.appleEnabled || state.googleEnabled) {
@@ -746,23 +737,16 @@ private fun SectionLabel(text: String) {
 
 @Composable
 private fun HowItWorksStep(
-    state: OnboardingState,
     onAction: (OnboardingAction) -> Unit,
 ) {
+    // No back affordance — reaching this step means account creation has
+    // started (ContinueFromPickIdentity is the only way in), so the flow
+    // only moves forward from here.
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(screenHorizontalInsets),
     ) {
-        // No back affordance once creation has started — the account is forming.
-        if (!state.creationStarted) {
-            IconButton(
-                icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
-                onClick = { onAction(OnboardingAction.Back) },
-                iconColor = AppTheme.colors.content,
-                modifier = Modifier.padding(top = Dimension.D300),
-            )
-        }
         Spacer(modifier = Modifier.height(Dimension.D700))
         Text(
             text = stringResource(Res.string.onboarding_how_eyebrow),
@@ -876,21 +860,9 @@ private fun StarterGrantStep(
             .padding(screenHorizontalInsets),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // No back affordance once creation has started — the account is forming.
-        if (!state.creationStarted) {
-            IconButton(
-                icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
-                onClick = { onAction(OnboardingAction.Back) },
-                iconColor = AppTheme.colors.content,
-                modifier = Modifier
-                    .align(Alignment.Start)
-                    .padding(top = Dimension.D300),
-            )
-        }
-
-        // The hero sits in the space between the fixed back button and the
-        // pinned CTA: centered when it fits, scrollable on short screens so
-        // the dial + pills never clip and the CTA stays reachable.
+        // No back affordance — creation has started by this step; forward only.
+        // The hero is centered when it fits, scrollable on short screens so
+        // the dial + pills never clip and the pinned CTA stays reachable.
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -1036,36 +1008,13 @@ private fun stepIndex(step: OnboardingStep): Int = when (step) {
 }
 
 @Composable
-private fun OnboardingAuthError.message(): String {
-    val main = stringResource(mainMessageKey())
-    val debug = debugDetails()
-    return if (BuildInfo.isDebug && !debug.isNullOrEmpty()) {
-        main + stringResource(Res.string.onboarding_auth_error_debug_suffix, debug)
-    } else {
-        main
-    }
-}
-
-private fun OnboardingAuthError.mainMessageKey() = when (this) {
-    OnboardingAuthError.OAuthProviderNotEnabled -> Res.string.onboarding_auth_error_oauth_provider_not_enabled
-    OnboardingAuthError.OAuthNetworkError -> Res.string.onboarding_auth_error_oauth_network
-    OnboardingAuthError.OAuthFailed -> Res.string.onboarding_auth_error_oauth_failed
-    is OnboardingAuthError.AnonymousSignInDisabled -> Res.string.onboarding_auth_error_guest_anonymous_disabled
-    is OnboardingAuthError.CaptchaRequired -> Res.string.onboarding_auth_error_guest_captcha
-    is OnboardingAuthError.InvalidConfig -> Res.string.onboarding_auth_error_guest_invalid_config
-    is OnboardingAuthError.GuestSignInFailed -> Res.string.onboarding_auth_error_guest_failed
-}
-
-private fun OnboardingAuthError.debugDetails(): String? = when (this) {
-    OnboardingAuthError.OAuthProviderNotEnabled,
-    OnboardingAuthError.OAuthNetworkError,
-    OnboardingAuthError.OAuthFailed,
-    -> null
-    is OnboardingAuthError.AnonymousSignInDisabled -> debugDetails
-    is OnboardingAuthError.CaptchaRequired -> debugDetails
-    is OnboardingAuthError.InvalidConfig -> debugDetails
-    is OnboardingAuthError.GuestSignInFailed -> debugDetails
-}
+private fun OnboardingAuthError.message(): String = stringResource(
+    when (this) {
+        OnboardingAuthError.OAuthProviderNotEnabled -> Res.string.onboarding_auth_error_oauth_provider_not_enabled
+        OnboardingAuthError.OAuthNetworkError -> Res.string.onboarding_auth_error_oauth_network
+        OnboardingAuthError.OAuthFailed -> Res.string.onboarding_auth_error_oauth_failed
+    },
+)
 
 @Composable
 private fun OnboardingSaveError.message(): String = when (this) {
@@ -1079,10 +1028,10 @@ private fun OnboardingSaveError.message(): String = when (this) {
 // Previews
 // ---------------------------------------------------------------------------
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun OnboardingScreenPreview_Welcome() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         OnboardingScreen(
             state = OnboardingState(step = OnboardingStep.Welcome),
             onAction = {},
@@ -1090,13 +1039,13 @@ private fun OnboardingScreenPreview_Welcome() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview(widthDp = 800, heightDp = 380)
+@Preview(widthDp = 800, heightDp = 380)
 @Composable
 private fun OnboardingScreenPreview_Landscape() {
     // Phone-landscape lens on the HowItWorks step — the tallest onboarding
     // content, most at risk of clipping on a short, wide canvas. Pins it for
     // review before any landscape layout work lands.
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         OnboardingScreen(
             state = OnboardingState(step = OnboardingStep.HowItWorks),
             onAction = {},
@@ -1104,10 +1053,10 @@ private fun OnboardingScreenPreview_Landscape() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun OnboardingScreenPreview_Welcome_OAuthEnabled() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         OnboardingScreen(
             state = OnboardingState(
                 step = OnboardingStep.Welcome,
@@ -1119,10 +1068,10 @@ private fun OnboardingScreenPreview_Welcome_OAuthEnabled() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun OnboardingScreenPreview_PickIdentity() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         OnboardingScreen(
             state = OnboardingState(
                 step = OnboardingStep.PickIdentity,
@@ -1136,12 +1085,12 @@ private fun OnboardingScreenPreview_PickIdentity() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun OnboardingScreenPreview_PickIdentity_PostOAuth() {
     // Identity already claimed (Google/Apple path): no back affordance, but
     // the header band keeps its footprint so the step chip has headroom.
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         OnboardingScreen(
             state = OnboardingState(
                 step = OnboardingStep.PickIdentity,
@@ -1155,10 +1104,10 @@ private fun OnboardingScreenPreview_PickIdentity_PostOAuth() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun OnboardingScreenPreview_HowItWorks() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         OnboardingScreen(
             state = OnboardingState(step = OnboardingStep.HowItWorks),
             onAction = {},
@@ -1166,10 +1115,10 @@ private fun OnboardingScreenPreview_HowItWorks() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun OnboardingScreenPreview_StarterGrant_Revealed() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         OnboardingScreen(
             state = OnboardingState(step = OnboardingStep.StarterGrant, revealedChips = 10_500L),
             onAction = {},
@@ -1177,10 +1126,10 @@ private fun OnboardingScreenPreview_StarterGrant_Revealed() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun OnboardingScreenPreview_StarterGrant_Offline() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         OnboardingScreen(
             state = OnboardingState(step = OnboardingStep.StarterGrant, grantRevealTimedOut = true),
             onAction = {},
@@ -1188,43 +1137,42 @@ private fun OnboardingScreenPreview_StarterGrant_Offline() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun OnboardingScreenPreview_Welcome_OAuthInFlight() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         OnboardingScreen(
             state = OnboardingState(
                 step = OnboardingStep.Welcome,
                 googleEnabled = true,
                 appleEnabled = true,
-                isAuthing = true,
-                oauthInFlight = com.dangerfield.cards.libraries.identity.auth.OAuthProvider.Google,
+                oauthInFlight = OAuthProvider.Google,
             ),
             onAction = {},
         )
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun OnboardingScreenPreview_Welcome_AuthError() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         OnboardingScreen(
             state = OnboardingState(
                 step = OnboardingStep.Welcome,
                 googleEnabled = true,
                 appleEnabled = true,
-                authError = OnboardingAuthError.GuestSignInFailed(debugDetails = null),
+                authError = OnboardingAuthError.OAuthFailed,
             ),
             onAction = {},
         )
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun OnboardingScreenPreview_PickIdentity_SaveError() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         OnboardingScreen(
             state = OnboardingState(
                 step = OnboardingStep.PickIdentity,

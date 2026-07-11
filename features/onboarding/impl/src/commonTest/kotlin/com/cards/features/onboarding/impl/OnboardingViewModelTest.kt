@@ -11,6 +11,7 @@ import com.dangerfield.cards.libraries.identity.OnboardingSuggestedName
 import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
+import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.PendingIdentity
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
@@ -45,9 +46,12 @@ import kotlin.time.Instant
  *  - StarterGrant reveals the wallet balance once it hydrates.
  *  - Finish joins on the in-flight creation: success or failure both go Home
  *    (failure flags the degraded state).
- *  - Back is blocked once creation has started.
+ *  - Back is blocked once creation has started or an identity is claimed.
  *  - SignInWithOAuth: returning account → onboarded + Home; brand-new account
  *    (wallet just created) → run through PickIdentity; cancel/failure handled.
+ *  - SignInWithApple: anonymous guest links the identity (keeps progress);
+ *    identity-on-another-account signs in and skips onboarding; a dismissed
+ *    sheet is a quiet no-op; a native failure surfaces OAuthFailed.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class OnboardingViewModelTest : CoroutineTest() {
@@ -500,17 +504,100 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun dismissError_clearsOAuthError() = runUnitTest {
-        val auth = FakeAuthRepository(oauthSignInOutcome = SignInOutcome.ProviderNotEnabled)
-        val vm = newVm(auth = auth)
+    fun back_isBlocked_afterOAuthIdentityClaimed() = runUnitTest {
+        // A brand-new OAuth account enters PickIdentity with identityClaimed —
+        // the Welcome sign-in options no longer apply, so back must be a no-op.
+        val auth = FakeAuthRepository(oauthSignInOutcome = SignInOutcome.Success)
+        val chips = FakeChipsRepository().apply { walletJustCreated.value = true }
+        val vm = newVm(auth = auth, chips = chips)
         vm.takeAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google))
         runCurrent()
-        assertNotNull(vm.state.authError)
+        assertEquals(OnboardingStep.PickIdentity, vm.state.step)
 
-        vm.takeAction(OnboardingAction.DismissError)
+        vm.takeAction(OnboardingAction.Back)
         runCurrent()
 
+        assertEquals(OnboardingStep.PickIdentity, vm.state.step)
+    }
+
+    @Test
+    fun appleSignIn_asAnonymousGuest_linkSuccess_entersPickIdentity_claimed() = runUnitTest {
+        // Brand-new Apple identity gets LINKED to the current anonymous guest
+        // (keeps chips/XP) and continues onboarding like a new signup.
+        val cache = FakeAppCache()
+        val auth = FakeAuthRepository(
+            linkAppleOutcome = LinkIdentityOutcome.Success,
+            initialAuthState = sampleAnonymousGuest,
+        )
+        val vm = newVm(
+            cache = cache,
+            auth = auth,
+            appleCoordinator = FakeAppleSignInCoordinator(credential = sampleAppleCredential),
+        )
+
+        vm.takeAction(OnboardingAction.SignInWithApple)
+        runCurrent()
+
+        assertEquals(1, auth.linkAppleCalls, "anonymous guest must take the link path")
+        assertEquals(0, auth.appleSignInCalls)
+        assertEquals(OnboardingStep.PickIdentity, vm.state.step)
+        assertTrue(vm.state.identityClaimed)
+        assertNull(vm.state.oauthInFlight)
+        assertEquals(LegalUrls.LEGAL_VERSION, cache.get().acceptedLegalVersion)
+    }
+
+    @Test
+    fun appleSignIn_identityOnAnotherAccount_signsIn_andNavigatesHome() = runUnitTest {
+        // The Apple identity already belongs to an existing account: the link
+        // is rejected, so we switch sessions and skip onboarding entirely.
+        val cache = FakeAppCache()
+        val auth = FakeAuthRepository(
+            linkAppleOutcome = LinkIdentityOutcome.AlreadyOnAnotherAccount,
+            appleSignInOutcome = SignInOutcome.Success,
+            initialAuthState = sampleAnonymousGuest,
+        )
+        val vm = newVm(
+            cache = cache,
+            auth = auth,
+            appleCoordinator = FakeAppleSignInCoordinator(credential = sampleAppleCredential),
+        )
+        val received = mutableListOf<OnboardingEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+
+        vm.takeAction(OnboardingAction.SignInWithApple)
+        runCurrent()
+
+        assertEquals(1, auth.appleSignInCalls, "rejected link must fall back to sign-in")
+        assertTrue(cache.get().hasUserOnboarded)
+        assertEquals(OnboardingEvent.NavigateToHome, received.firstOrNull())
+        assertNull(vm.state.oauthInFlight)
+    }
+
+    @Test
+    fun appleSignIn_sheetDismissed_isQuietNoOp() = runUnitTest {
+        // (null, null) from the coordinator = the user closed the sheet; no
+        // error banner, no in-flight spinner left behind.
+        val vm = newVm(appleCoordinator = FakeAppleSignInCoordinator(credential = null))
+
+        vm.takeAction(OnboardingAction.SignInWithApple)
+        runCurrent()
+
+        assertNull(vm.state.oauthInFlight)
         assertNull(vm.state.authError)
+        assertEquals(OnboardingStep.Welcome, vm.state.step)
+    }
+
+    @Test
+    fun appleSignIn_nativeFailure_surfacesOAuthFailed() = runUnitTest {
+        val vm = newVm(
+            appleCoordinator = FakeAppleSignInCoordinator(errorMessage = "ASAuthorization error"),
+        )
+
+        vm.takeAction(OnboardingAction.SignInWithApple)
+        runCurrent()
+
+        assertEquals(OnboardingAuthError.OAuthFailed, vm.state.authError)
+        assertNull(vm.state.oauthInFlight)
     }
 
     // ---------- Test scaffolding ----------
@@ -521,6 +608,7 @@ class OnboardingViewModelTest : CoroutineTest() {
         profile: FakeProfileRepository = FakeProfileRepository(),
         chips: FakeChipsRepository = FakeChipsRepository(),
         creator: FakeGuestAccountCreator = FakeGuestAccountCreator(),
+        appleCoordinator: FakeAppleSignInCoordinator = FakeAppleSignInCoordinator(),
         clock: kotlin.time.Clock = FixedClock,
     ): OnboardingViewModel {
         val config = EmptyAppConfigMap()
@@ -530,7 +618,7 @@ class OnboardingViewModelTest : CoroutineTest() {
             profileRepository = profile,
             chipsRepository = chips,
             guestAccountCreator = creator,
-            appleSignInCoordinator = NoopAppleSignInCoordinator,
+            appleSignInCoordinator = appleCoordinator,
             onboardingStarterGrant = OnboardingStarterGrant(config),
             clock = clock,
             onboardingSuggestedName = OnboardingSuggestedName(config),
@@ -542,14 +630,6 @@ class OnboardingViewModelTest : CoroutineTest() {
     private object FixedClock : kotlin.time.Clock {
         val instant = kotlin.time.Instant.fromEpochMilliseconds(1_700_000_000_000L)
         override fun now() = instant
-    }
-
-    /** No test here exercises the iOS-only Apple flow; the coordinator is a no-op. */
-    private object NoopAppleSignInCoordinator :
-        com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator {
-        override fun requestCredential(
-            onComplete: (com.dangerfield.cards.libraries.identity.auth.AppleSignInCredential?, String?) -> Unit,
-        ) = onComplete(null, null)
     }
 }
 

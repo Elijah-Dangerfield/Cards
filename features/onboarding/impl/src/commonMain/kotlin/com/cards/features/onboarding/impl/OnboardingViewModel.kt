@@ -110,18 +110,9 @@ class OnboardingViewModel(
     private var exitedToHome = false
 
     init {
-        // DEBUG (onboarding-bounce repro): one line per VM instance. The VM is
-        // scoped to the OnboardingRoute back-stack entry, so its initial step is
-        // Welcome. If this fires MORE THAN ONCE during a single onboarding run,
-        // the entry was destroyed and recreated (e.g. the NavHost rebuilt on a
-        // recomposition / start-destination change) — which silently resets the
-        // user to Welcome. That's the prime suspect for "sent back to the front".
-        logger.d { "VM created (instance=${hashCode().toString(16)})" }
         viewModelScope.launch {
             Catching {
-                val onboarded = appCache.get().hasUserOnboarded
-                logger.d { "Onboarded-guard: hasUserOnboarded=$onboarded" }
-                if (onboarded) {
+                if (appCache.get().hasUserOnboarded) {
                     exitedToHome = true
                     sendEvent(OnboardingEvent.NavigateToHome)
                 } else {
@@ -159,9 +150,6 @@ class OnboardingViewModel(
             OnboardingAction.ContinueFromPickIdentity -> action.handleContinueFromPickIdentity()
             OnboardingAction.ContinueFromHowItWorks -> action.handleContinueFromHowItWorks()
             OnboardingAction.Finish -> action.handleFinish()
-            OnboardingAction.DismissError -> action.updateState {
-                it.copy(authError = null, saveError = null)
-            }
         }
     }
 
@@ -170,7 +158,6 @@ class OnboardingViewModel(
         // user commits their identity (PickIdentity → Continue). Tapping
         // "Continue as guest" just enters the identity step.
         recordLegalConsent()
-        logger.d { "step: Welcome → PickIdentity (Continue as guest)" }
         logger.logEvent("onboarding.auth_selected", "method" to "guest", "returning" to false)
         logStepViewed(OnboardingStep.PickIdentity)
         updateState { it.copy(authError = null, step = OnboardingStep.PickIdentity) }
@@ -350,7 +337,6 @@ class OnboardingViewModel(
         )
         // Point of no return: advance and mark creation started so back is
         // blocked from here (the chosen name is now committed to creation).
-        logger.d { "step: PickIdentity → HowItWorks (creationStarted=true)" }
         logStepViewed(OnboardingStep.HowItWorks)
         updateState { it.copy(step = OnboardingStep.HowItWorks, saveError = null, creationStarted = true) }
 
@@ -379,16 +365,11 @@ class OnboardingViewModel(
         } else {
             // Guest path: mint the account in the background (app scope). The
             // final step joins on the result.
-            logger.d { "guest path: launching guest-account creation in background" }
             guestAccountCreator.start(identity)
         }
     }
 
-    /**
-     * Advances HowItWorks → StarterGrant and kicks off the grant reveal.
-     */
     private suspend fun OnboardingAction.handleContinueFromHowItWorks() {
-        logger.d { "step: HowItWorks → StarterGrant" }
         logStepViewed(OnboardingStep.StarterGrant)
         updateState { it.copy(step = OnboardingStep.StarterGrant) }
         kickOffGrantReveal()
@@ -429,33 +410,20 @@ class OnboardingViewModel(
     }
 
     /**
-     * Steps back through the flow: StarterGrant → HowItWorks → PickIdentity
-     * → Welcome. The control isn't rendered on Welcome (the entry step has
-     * nothing before it; system back exits the app), so the Welcome branch
-     * is a defensive no-op. Always clears the Welcome-step [authError]. Keeps
-     * a [saveError] when we land back on PickIdentity — that's where the
-     * name field lives, so the optimistic save's "taken / invalid" notice
-     * stays visible for the user to fix; it clears once we leave the
-     * identity step entirely.
+     * The only reachable back transition is PickIdentity → Welcome: leaving
+     * PickIdentity always sets [OnboardingState.creationStarted] (and the
+     * OAuth entry sets [OnboardingState.identityClaimed]), both of which pin
+     * the flow forward, and Welcome is the entry step (system back exits the
+     * app). Clears the Welcome-step [authError] so the landing page comes
+     * back fresh.
      */
     private suspend fun OnboardingAction.handleBack() {
         val stepBefore = state.step
         updateState {
-            // Once account creation has kicked off (or an identity was claimed),
-            // there's no going back — the account is forming and the Welcome
-            // sign-in options no longer apply. Back is a no-op from there.
-            if (it.creationStarted || it.identityClaimed) return@updateState it
-            val previous = when (it.step) {
-                OnboardingStep.StarterGrant -> OnboardingStep.HowItWorks
-                OnboardingStep.HowItWorks -> OnboardingStep.PickIdentity
-                OnboardingStep.PickIdentity -> OnboardingStep.Welcome
-                OnboardingStep.Welcome -> OnboardingStep.Welcome
+            if (it.step != OnboardingStep.PickIdentity || it.creationStarted || it.identityClaimed) {
+                return@updateState it
             }
-            it.copy(
-                step = previous,
-                authError = null,
-                saveError = if (previous == OnboardingStep.PickIdentity) it.saveError else null,
-            )
+            it.copy(step = OnboardingStep.Welcome, authError = null)
         }
         if (state.step != stepBefore) logStepViewed(state.step)
     }
@@ -486,7 +454,6 @@ class OnboardingViewModel(
             }
         }
 
-        logger.d { "finish: persisting hasUserOnboarded=true → NavigateToHome (alreadyAuthed=$alreadyAuthed)" }
         exitedToHome = true
         logger.logEvent(
             "onboarding.completed",
@@ -581,7 +548,6 @@ class OnboardingViewModel(
 
 data class OnboardingState(
     val step: OnboardingStep = OnboardingStep.Welcome,
-    val isAuthing: Boolean = false,
     val oauthInFlight: OAuthProvider? = null,
     val authError: OnboardingAuthError? = null,
 
@@ -666,10 +632,9 @@ sealed interface OnboardingEvent {
  * Inline error surfaced under the Welcome step's primary CTAs. Typed so
  * the VM doesn't hold raw user-facing copy — `OnboardingScreen.kt`
  * resolves each variant through Compose Multiplatform resources at
- * render time. The four `data class` variants from the guest-sign-in
- * path carry an optional `debugDetails` payload so the resolver can
- * append a `DEBUG:` suffix on debug builds without dragging the
- * branching into the VM.
+ * render time. Only the OAuth/Apple entries can fail here; the guest path
+ * defers account creation to the app-scoped [GuestAccountCreator], which
+ * retries in the background instead of surfacing an error on Welcome.
  */
 sealed interface OnboardingAuthError {
     /** OAuth provider isn't enabled in Supabase dashboard yet. */
@@ -678,15 +643,6 @@ sealed interface OnboardingAuthError {
     data object OAuthNetworkError : OnboardingAuthError
     /** OAuth invalid credentials / email-not-confirmed / unknown. */
     data object OAuthFailed : OnboardingAuthError
-
-    /** Guest path: Supabase project has anonymous sign-in disabled. */
-    data class AnonymousSignInDisabled(val debugDetails: String?) : OnboardingAuthError
-    /** Guest path: project requires captcha. */
-    data class CaptchaRequired(val debugDetails: String?) : OnboardingAuthError
-    /** Guest path: Supabase publishable key looks wrong or expired. */
-    data class InvalidConfig(val debugDetails: String?) : OnboardingAuthError
-    /** Guest path: network unreachable or generic failure (shared copy). */
-    data class GuestSignInFailed(val debugDetails: String?) : OnboardingAuthError
 }
 
 /**
@@ -715,5 +671,4 @@ sealed interface OnboardingAction {
     /** HowItWorks → StarterGrant; kicks off the grant reveal. */
     data object ContinueFromHowItWorks : OnboardingAction
     data object Finish : OnboardingAction
-    data object DismissError : OnboardingAction
 }
