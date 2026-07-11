@@ -1,6 +1,6 @@
 # Wallet — server-authoritative chip ledger
 
-Chip balance is server-of-record. The client keeps a write-through cache (Room) for offline play, flushes locally-applied events to the server, and trusts the server's authoritative balance on every sync.
+Chip balance is server-of-record. The client keeps two Room tables: the last authoritative **server snapshot** and a pending **outbox** of locally-earned/spent events. The balance the app displays is always derived — snapshot + SUM(pending outbox deltas) — so a grant that lands while a sync request is in flight stays a pending row and keeps counting until the server itself resolves it (the PROG-11 fix; the old single-mutable-balance design let the sync response stomp it). `addChips` / `subtractChips` only enqueue outbox rows; `setBalance` is a pure snapshot overwrite, so MP settlement and IAP redeems keep pending grants riding on top.
 
 ## Schema
 
@@ -17,12 +17,14 @@ Chip balance is server-of-record. The client keeps a write-through cache (Room) 
 |---|---|---|
 | `Applied` | First time the server sees this key | `balance += delta`; ledger row written |
 | `AlreadyApplied` | Duplicate idempotency key | none |
-| `InsufficientChips` | Debit would dip below zero | none server-side; client logs a warning, drops the event, and silently resets to the authoritative balance (no user-facing surface yet — see backlog) |
+| `InsufficientChips` | Debit would dip below zero | none server-side; client logs a warning, drops the event, and emits a `ChipSyncRejection` that the App root surfaces as an error snackbar |
 | `RefusedServerOwned` | Positive delta with a `levelup.*` / `achievement.*` reason | none; the server mints those rewards itself, client drops the event |
 
 A failing event does **not** abort the batch — later events still apply. The response carries the post-batch authoritative balance plus a per-event result row. The client treats all four outcomes as resolved (pending row deleted); an outcome it doesn't recognize leaves the row for a newer client to handle.
 
 **`GET /v1/me/wallet`** — returns the current balance, lazy-creating the row with the starter grant on first contact. Useful as a cheap foreground hydrate when there are no pending events to flush.
+
+There is no client-side starter grant: until the first sync hydrates the snapshot (and while the outbox is empty) the client's balance is `null` and the UI renders a spinner / hides the badge rather than flashing a placeholder.
 
 ## Rate limit
 
@@ -36,4 +38,4 @@ Chips are play-money in V1, so the server clamps per-event deltas but doesn't *d
 
 - Schema: V6 migration (`wallets`, `wallet_events`), V11 (FK + cascade on `auth.users`).
 - Server: `WalletRoutes.kt`, `PostgresWalletRepository.kt`.
-- Client: `libraries/cards/impl/.../ChipsRepositoryImpl.kt` (sync loop lives in `sync()` / `syncLocked()`, ~lines 142-215).
+- Client: `libraries/cards/impl/.../ChipsRepositoryImpl.kt` — balance derivation in `observeBalance()` / `foldBalance()`, outbox writes in `applyDeltaInternal()`, flush + per-event reconciliation in `sync()` / `syncLocked()`. Rejection snackbar wiring in `apps/compose/.../App.kt`.
