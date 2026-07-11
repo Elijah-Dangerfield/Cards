@@ -68,9 +68,15 @@ A cold deep-link works because the conflation holds the request until the Shop V
 
 ### Sibling buses
 
-- `SessionRejectionBus` — same conflated / consume-once shape, but signals the auth layer that a refresh attempt was server-rejected. The repository observes it, clears the dead session, and emits `SessionExpired`.
+Same "app-scoped one-way signal" idea, different delivery semantics — these are **not** conflated / consume-once:
+
+- `SessionRejectionBus` (`:libraries:networking`) — signals the auth layer that a token refresh was definitively server-rejected. The impl is a non-replaying `MutableSharedFlow` (buffer 8, `DROP_OLDEST`): a rejection fired before the collector subscribes is *not* held, which is fine because `SupabaseAuthRepositoryImpl` collects on `appScope` from its `init {}` — constructed during auth bootstrap, before any authed call can fail. The bus also exposes `rejectionEpoch`, a synchronous monotonic counter `authedCall` compares before/after a failed request to classify a 401 as session-death vs a transient hiccup.
+- `AccessDeniedBus` (`:libraries:networking`) — the mechanically-parallel 403-with-envelope path (banned/suspended). Same non-replaying delivery; the app layer routes to the blocking access-denied screen.
+
+The shop bus needs conflation because its consumer (the shop VM) is lazily constructed after the signal fires; the networking buses don't, because their consumers outlive every producer.
 
 ### Key files
 
-- `ShopDeepLinkBus`, `SessionRejectionBus` (both `:libraries:cards`).
-- `ShopViewModel.observeBus`, `ShopState.pendingScrollCategory`.
+- `ShopDeepLinkBus` (`:features:shop` api; impl in `:features:shop:impl`).
+- `SessionRejectionBus`, `AccessDeniedBus` (`:libraries:networking`; impls in `:libraries:networking:impl`).
+- `ShopViewModel` (`init {}` collects `deepLinkBus.scrollRequests`), `ShopState.pendingScrollCategory`.

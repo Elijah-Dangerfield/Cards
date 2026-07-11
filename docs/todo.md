@@ -32,7 +32,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** a new users dashboard shows player counts by platform, session counts and lengths, and anomalies like the longest session, powered by ENG-18 events.
   **Hints:** ENG-18 events land in Loki; blocked in practice until ENG-18's client events flow.
 
-- **ENG-24 `[P2]` Fix the sibling-bus claims in the client-patterns wiki page. (proposed 2026-07-11)** Problem: the "Sibling buses" section says `SessionRejectionBus` has the "same conflated / consume-once shape" as `ShopDeepLinkBus`, and "Key files" places both buses in `:libraries:cards` — but the impl is a non-replaying `MutableSharedFlow` (buffer 8, `DROP_OLDEST`; a rejection fired before the collector subscribes is not held) in `:libraries:networking`, and `ShopDeepLinkBus` lives in `:features:shop`.
-  **Acceptance:** the page describes `SessionRejectionBusImpl`'s actual semantics and names the right modules.
-  **Hints:** `docs/wiki/client-patterns.md` → "Sibling buses" / "Key files"; `libraries/networking/impl/.../SessionRejectionBusImpl.kt`.
-
