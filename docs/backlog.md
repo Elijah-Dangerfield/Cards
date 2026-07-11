@@ -1014,3 +1014,11 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Idea (filed with ENG-20, 2026-07-10):** With sync triggers on levels (`runWhen` + `SyncTriggers`), the remaining edge plumbing can shrink: drop the app-event bus replay 1→0 once `OfflineFirstAppConfigRepository` (the last replay-dependent consumer) is checked/migrated, migrate identity's condition-shaped listeners (`GuestSessionHealer` etc.) onto `runWhen`, then delete `ConnectivityEdgeDispatcher` + `AppEvent.ConnectivityRegained` (SyncTriggers already derives `cameOnline` from the `isOffline` level directly). See `docs/plans/eng-20-runwhen-triggers.md` follow-ups.
 
 **Status:** Backlog.
+
+---
+
+## Matchmaking funnel: attribute invite-link joins (`entry=deep_link`)
+
+**Idea (filed with the ENG-18 taxonomy sweep, 2026-07-11):** `matchmaking.search_started` fires with `entry` public (Find-a-table) or private_code (join-by-code submit), but a join via a shared invite link doesn't route through either instrumented VM, so deep-link joins are invisible in the funnel. When the invite/deep-link funnel matters, add the emit at whatever entry the link-join routes through and register `entry=deep_link` in `docs/wiki/app-events.md`.
+
+**Status:** Backlog. Small; funnel currently only distinguishes public vs private_code.
