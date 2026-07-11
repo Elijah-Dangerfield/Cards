@@ -38,6 +38,7 @@ class GrafanaAppEvents(
     appEventsEnabled: AppEventsEnabled,
     appEventsSampleRate: AppEventsSampleRate,
     klogForwardingEnabled: KlogForwardingEnabled,
+    previousExitProvider: PreviousExitProvider,
 ) : AutoInit {
 
     private val logger = KLog.withTag("GrafanaAppEvents")
@@ -59,11 +60,25 @@ class GrafanaAppEvents(
                 },
             )
             KLog.plant(tree)
-            KLog.logEvent("app.launched", "cold_start" to true)
+            logAppLaunched(previousExitProvider.previousExit())
         } else {
             logger.i { "Grafana app events disabled: no OTLP credentials in this build" }
         }
     }
+}
+
+/**
+ * `app.launched` — once per cold start, first event through the freshly
+ * planted tree (warms the SDK and proves the whole pipe). `previous_exit`
+ * says how the last run ended; iOS is always `unknown` for now (see
+ * [PreviousExitProvider]).
+ */
+internal fun logAppLaunched(previousExit: PreviousExit) {
+    KLog.logEvent(
+        "app.launched",
+        "cold_start" to true,
+        "previous_exit" to previousExit.value,
+    )
 }
 
 /**
