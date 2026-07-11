@@ -68,6 +68,7 @@ import kotlinx.coroutines.withContext
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
 import kotlin.time.Clock
+import kotlin.time.TimeSource
 
 /**
  * Session-agnostic ViewModel behind the play-poker screen. Consumes a
@@ -155,6 +156,12 @@ class PlayPokerViewModel @Inject constructor(
     private var sessionHandsWon: Int = 0
     private var sessionHandsLost: Int = 0
 
+    // game.started → game.ended bracketing for the app-event funnel. Multiple
+    // end paths can race (leave + room close); the latch keeps it one per session.
+    private val sessionStartedAt = TimeSource.Monotonic.markNow()
+    private var gameEndLogged = false
+    private var quickBuyUsedThisSession = false
+
     // Hand number of the last hole-card render projection we logged (GAME-8).
     // Guards the once-per-hand "what the table projected for my seat" line so it
     // fires once cards are dealt, never per snapshot/frame.
@@ -184,6 +191,11 @@ class PlayPokerViewModel @Inject constructor(
     )
 
     init {
+        logger.logEvent(
+            "game.started",
+            "mode" to sessionFactory.xpMode.name.lowercase(),
+            "difficulty" to sessionFactory.difficultyName,
+        )
         // Engine state → SEA pipeline
         viewModelScope.launch {
             session.gameStateFlow.collect { gs ->
@@ -226,12 +238,18 @@ class PlayPokerViewModel @Inject constructor(
                 // the screen pops.
                 appScope.launch { reconcileWalletAfterGame() }
                 when (reason) {
-                    is ClosedReason.MatchOver -> takeAction(
-                        PlayPokerAction.MatchOverResolved(
-                            localPlayerWon = reason.winnerUserId == localPlayerId(),
-                        ),
-                    )
-                    else -> sendEvent(PlayPokerEvent.RoomClosed(reason))
+                    is ClosedReason.MatchOver -> {
+                        logGameEnded("match_over")
+                        takeAction(
+                            PlayPokerAction.MatchOverResolved(
+                                localPlayerWon = reason.winnerUserId == localPlayerId(),
+                            ),
+                        )
+                    }
+                    else -> {
+                        logGameEnded("room_closed")
+                        sendEvent(PlayPokerEvent.RoomClosed(reason))
+                    }
                 }
             }
         }
@@ -243,6 +261,7 @@ class PlayPokerViewModel @Inject constructor(
                 // routes Home, so the balance isn't stale until the next
                 // foreground (MP-21 / CARDS-4B). On appScope so it survives the pop.
                 appScope.launch { reconcileWalletAfterGame() }
+                logGameEnded("opponent_left")
                 sendEvent(PlayPokerEvent.OpponentsLeft)
             }
         }
@@ -586,7 +605,16 @@ class PlayPokerViewModel @Inject constructor(
             // rows show nothing — the unlock still appears later in their
             // achievements list. Always resolve — even with no unlocks — so the
             // awaiting flag clears and the dismiss path can advance.
-            val surfaced = if (appCache.get().showAchievementPopups) earned else emptyList()
+            val showPopups = appCache.get().showAchievementPopups
+            earned.forEach {
+                logger.logEvent(
+                    "achievement.celebration_shown",
+                    "achievement_id" to it.achievement.id.name.lowercase(),
+                    "rarity" to it.achievement.rarity.name.lowercase(),
+                    "silenced" to !showPopups,
+                )
+            }
+            val surfaced = if (showPopups) earned else emptyList()
             takeAction(PlayPokerAction.AchievementsEarned(surfaced))
 
             // The review prompt keys off the *real* unlocks, not what we showed —
@@ -654,6 +682,20 @@ class PlayPokerViewModel @Inject constructor(
         val seatIndex = sessionFactory.humanSeatIndex(state)
         return state.seats.firstOrNull { it.index == seatIndex }?.playerId
     }
+
+    private fun logGameEnded(endReason: String) {
+        if (gameEndLogged) return
+        gameEndLogged = true
+        logger.logEvent(
+            "game.ended",
+            "mode" to sessionFactory.xpMode.name.lowercase(),
+            "hands_played" to sessionHandsWon + sessionHandsLost,
+            "duration_sec" to sessionStartedAt.elapsedNow().inWholeSeconds,
+            "end_reason" to endReason,
+        )
+    }
+
+    private fun PlayerIntent.eventName(): String = this::class.simpleName?.lowercase() ?: "unknown"
 
     // Latches the user-initiated leave teardown (server leave + wallet
     // reconcile) so it runs at most once. Two leave paths can both fire: the
@@ -828,10 +870,14 @@ class PlayPokerViewModel @Inject constructor(
                                 // otherwise be a dead pause then silence (MP-20).
                                 if (submittedTurnToken == turnToken) submittedTurnToken = null
                                 when (e) {
-                                    is IntentTimeoutException ->
+                                    is IntentTimeoutException -> {
+                                        logger.logEvent("game.intent_timeout", "intent_type" to action.intent.eventName())
                                         sendEvent(PlayPokerEvent.IntentFeedback(IntentFeedbackKind.TimedOut))
-                                    is IntentRejectedException ->
+                                    }
+                                    is IntentRejectedException -> {
+                                        logger.logEvent("game.intent_rejected", "intent_type" to action.intent.eventName())
                                         sendEvent(PlayPokerEvent.IntentFeedback(IntentFeedbackKind.Rejected))
+                                    }
                                     else -> Unit
                                 }
                             }
@@ -946,12 +992,14 @@ class PlayPokerViewModel @Inject constructor(
                         reviewPromptCoordinator.requestPrompt(ReviewTrigger.SessionEnd)
                     }.onFailure { logger.w(it) { "SessionEnd review prompt request failed" } }
                 }
+                logGameEnded("left")
                 // On appScope, not viewModelScope: the screen pops this VM the
                 // instant it fires LeaveTable, but the leave must still reach the
                 // server. No-op for solo.
                 appScope.launch { leaveAndReconcileWallet() }
             }
             is PlayPokerAction.LeaveGameFromBust -> {
+                logGameEnded("bust")
                 // Same teardown as LeaveTable, on appScope so it lands as the
                 // screen routes away.
                 appScope.launch { leaveAndReconcileWallet() }
@@ -985,6 +1033,7 @@ class PlayPokerViewModel @Inject constructor(
                     // Flush the credit so the bust dialog's rebuy gate sees the
                     // fresh balance before the player taps Rebuy.
                     if (outcome is IapPurchaseOutcome.Success || outcome is IapPurchaseOutcome.AlreadyOwned) {
+                        quickBuyUsedThisSession = true
                         Catching { chipsRepository.sync() }
                             .onFailure { e -> logger.w(e) { "chip sync after quick-buy failed" } }
                     }
@@ -996,7 +1045,14 @@ class PlayPokerViewModel @Inject constructor(
                 // not the screen.
                 viewModelScope.launch {
                     Catching { session.rebuy() }
-                        .onSuccess { sendEvent(PlayPokerEvent.RebuySucceeded) }
+                        .onSuccess {
+                            logger.logEvent(
+                                "game.rebuy",
+                                "mode" to sessionFactory.xpMode.name.lowercase(),
+                                "via_quick_buy" to quickBuyUsedThisSession,
+                            )
+                            sendEvent(PlayPokerEvent.RebuySucceeded)
+                        }
                         .onFailure { e ->
                             if (e is IntentRejectedException &&
                                 e.reason.contains("insufficient", ignoreCase = true)
@@ -1035,6 +1091,7 @@ class PlayPokerViewModel @Inject constructor(
                 val now = clock.now().toEpochMilliseconds()
                 val currentState = stateFlow.value
                 if (!EmoteGate.canBlast(now, currentState.emojiCooldownEndsAtMs)) return
+                logger.logEvent("emote.sent", "mode" to sessionFactory.xpMode.name.lowercase())
                 action.updateState {
                     it.copy(
                         // null emitter seat → the screen attributes it to the human.
@@ -1075,6 +1132,9 @@ class PlayPokerViewModel @Inject constructor(
                 }
             }
             is PlayPokerAction.ToggleMutePlayer -> {
+                if (action.key !in stateFlow.value.mutedEmojiPlayerKeys) {
+                    logger.logEvent("emote.player_muted")
+                }
                 viewModelScope.launch {
                     appCache.update { data ->
                         val next = data.mutedEmojiPlayerKeys.toMutableSet().apply {

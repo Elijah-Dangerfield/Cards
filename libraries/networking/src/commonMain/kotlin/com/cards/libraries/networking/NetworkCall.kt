@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.core.AuthUnready
 import com.dangerfield.cards.libraries.core.AuthVerdict
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.core.mapFailure
 import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
 import com.dangerfield.cards.libraries.networking.retry.withRetry
@@ -143,8 +144,20 @@ private fun <T> Catching<T>.logFailure(description: String): Catching<T> = onFai
     when (throwable) {
         is AuthUnready ->
             networkCallLogger.i { "$description failed: auth unready (${throwable.reason})" }
-        else ->
+        else -> {
             networkCallLogger.w(throwable) { "$description failed (${throwable.classifyForLog()})" }
+            // A ResponseException means the backend answered (an HTTP status IS
+            // reachability); anything else — timeout, DNS, refused connection —
+            // is the "client couldn't reach us at all" class the app-event
+            // taxonomy exists to catch (docs/plans/client-app-events-otel.md §5).
+            if (throwable !is ResponseException) {
+                networkCallLogger.logEvent(
+                    "net.backend_unreachable",
+                    "operation" to description,
+                    "error_kind" to throwable.classifyForLog(),
+                )
+            }
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.ClosedReason
@@ -41,6 +42,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.time.TimeSource
 
 /**
  * Opens (and reopens) a per-room WebSocket and exposes it through a
@@ -297,6 +299,7 @@ class ReconnectingRoomSocket @Inject constructor(
             _connection.emit(RoomConnection.Connecting)
 
             var attempt = 0
+            var outageStartedAt: TimeSource.Monotonic.ValueTimeMark? = null
 
             while (true) {
                 val sessionResult = transport.open(code)
@@ -304,12 +307,15 @@ class ReconnectingRoomSocket @Inject constructor(
                     when (val classification = classifyHandshake(e)) {
                         Handshake.Terminal -> {
                             logger.w(e) { "Room socket rejected during handshake (terminal)" }
+                            logger.logEvent("room.closed_unexpectedly", "reason" to "rejected")
                             _connection.emit(RoomConnection.Closed(ClosedReason.Rejected))
                             return@coroutineScope
                         }
                         is Handshake.Retry -> {
                             attempt += 1
+                            if (outageStartedAt == null) outageStartedAt = TimeSource.Monotonic.markNow()
                             logger.w(e) { "Room socket handshake failed${classification.suffix} (attempt $attempt)" }
+                            logger.logEvent("conn.reconnecting", "attempt" to attempt)
                             _connection.emit(RoomConnection.Reconnecting(attempt, e))
                             delay(backoffFor(attempt))
                             continue
@@ -320,7 +326,20 @@ class ReconnectingRoomSocket @Inject constructor(
                 // Info: handshake succeeded — pairs with the close/drop logs to
                 // bound a connected window in a reported session's breadcrumbs.
                 logger.i { "Room socket connected (code=$code)" }
-                val outcome = runConnectedSession(session)
+                // conn.recovered fires on the first decoded frame, not the
+                // handshake — a half-open socket accepts the upgrade and drops
+                // without ever becoming healthy, and must not count as recovery.
+                val attemptsBeforeConnect = attempt
+                val outageStart = outageStartedAt
+                val outcome = runConnectedSession(session) {
+                    if (attemptsBeforeConnect > 0) {
+                        logger.logEvent(
+                            "conn.recovered",
+                            "attempts" to attemptsBeforeConnect,
+                            "downtime_ms" to outageStart?.elapsedNow()?.inWholeMilliseconds,
+                        )
+                    }
+                }
                 if (outcome.terminal) return@coroutineScope
 
                 // A session that delivered at least one frame was genuinely
@@ -329,16 +348,22 @@ class ReconnectingRoomSocket @Inject constructor(
                 // A session that dropped without ever delivering a frame is the
                 // half-open-socket signature: do NOT reset, so repeated instant
                 // drops climb toward the ceiling instead of looping forever.
-                if (outcome.deliveredFrame) attempt = 0
+                if (outcome.deliveredFrame) {
+                    attempt = 0
+                    outageStartedAt = null
+                }
 
                 // Clean drop without RoomClosed — server dropped us
                 // (deploy / restart / brief network glitch, or a half-open
                 // peer socket). Retry until the ceiling.
                 attempt += 1
+                if (outageStartedAt == null) outageStartedAt = TimeSource.Monotonic.markNow()
                 if (attempt > MAX_RECONNECT_ATTEMPTS) {
                     logger.w {
                         "Room socket giving up after $MAX_RECONNECT_ATTEMPTS reconnects (code=$code)"
                     }
+                    logger.logEvent("conn.reconnect_failed", "attempts" to MAX_RECONNECT_ATTEMPTS)
+                    logger.logEvent("room.closed_unexpectedly", "reason" to "reconnect_failed")
                     _connection.emit(RoomConnection.Closed(ClosedReason.ReconnectFailed))
                     return@coroutineScope
                 }
@@ -346,6 +371,7 @@ class ReconnectingRoomSocket @Inject constructor(
                 // Info: a routine reconnect (vs. the warn-level handshake-retry
                 // above) — explains a mid-game stall in the user's trail.
                 logger.i { "Room socket reconnecting (code=$code, attempt=$attempt, backoff=${backoff}ms)" }
+                logger.logEvent("conn.reconnecting", "attempt" to attempt)
                 _connection.emit(RoomConnection.Reconnecting(attempt, null))
                 delay(backoff)
             }
@@ -359,7 +385,10 @@ class ReconnectingRoomSocket @Inject constructor(
          * counter reset). Owns its own `coroutineScope` so the writer is
          * structurally a child of this session and dies with it.
          */
-        private suspend fun runConnectedSession(session: RoomSocketSession): SessionOutcome =
+        private suspend fun runConnectedSession(
+            session: RoomSocketSession,
+            onFirstFrame: () -> Unit = {},
+        ): SessionOutcome =
             coroutineScope {
                 val writerJob = launch { drainOutbound(session) }
                 var terminal = false
@@ -367,6 +396,7 @@ class ReconnectingRoomSocket @Inject constructor(
                 try {
                     session.incoming.collect { text ->
                         val event = decode(text) ?: return@collect
+                        if (!deliveredFrame) onFirstFrame()
                         deliveredFrame = true
                         // Debug-only one-liner per inbound wire frame. Rides
                         // only in the in-memory ring buffer dumped on feedback
@@ -456,6 +486,7 @@ class ReconnectingRoomSocket @Inject constructor(
                                 throw TerminalFrameMarker
                             }
                             RoomSocketEventDto.RoomClosed -> {
+                                logger.logEvent("room.closed_unexpectedly", "reason" to "room_deleted")
                                 _connection.emit(RoomConnection.Closed(ClosedReason.RoomDeleted))
                                 terminal = true
                                 // Use a private cancellation marker to
@@ -479,6 +510,7 @@ class ReconnectingRoomSocket @Inject constructor(
                     when (e) {
                         TerminalFrameMarker -> Unit
                         IncompatibleFrameMarker -> {
+                            logger.logEvent("room.closed_unexpectedly", "reason" to "incompatible_version")
                             _connection.emit(RoomConnection.Closed(ClosedReason.IncompatibleVersion))
                             terminal = true
                         }
