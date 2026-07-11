@@ -24,11 +24,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ENG — engineering / structural
 
-- **ENG-18 `[P1]` Client app events: verify the Grafana pipe end-to-end.** Problem: the full Part A taxonomy is instrumented and registered in `docs/wiki/app-events.md`, but the pipeline still ships with blank OTLP credentials, so nothing has been verified against dev Loki.
+- **ENG-18 `[P1]` Client app events: verify the Grafana pipe end-to-end.** Problem: the full Part A taxonomy is instrumented and registered in `docs/wiki/app-events.md`, but `GrafanaCloud` ships blank OTLP credentials — verified 2026-07-11 via the Grafana MCP that dev Loki has zero `{service_name="cards-client"}` streams over 30 days (only `cards-server` exists), so the pipe has never carried an event.
   **Acceptance:** with the owner-pasted logs:write token in `GrafanaCloud` (`libraries/telemetry/impl/.../GrafanaAppEvents.kt`), run the plan's Verification section against dev Loki (correlation query, kill-switch drill, offline drill) and confirm the structured-metadata key Grafana derives for `eventName`.
-  **Hints:** plan at [`docs/plans/client-app-events-otel.md`](plans/client-app-events-otel.md); owner token prerequisite tracked in developer-todo. PR 3 (Warn+ log forwarding behind a flag) and PR 4 (dashboards + the `net.backend_unreachable` alert) follow verification.
+  **Hints:** plan at [`docs/plans/client-app-events-otel.md`](plans/client-app-events-otel.md). Genuinely owner-gated: the token is a grafana.com Cloud Access Policy token (developer-todo), not mintable from the instance API, and every drill needs a debug run of a build carrying it. PR 3 (Warn+ log forwarding behind a flag) and PR 4 (dashboards + the `net.backend_unreachable` alert) follow verification.
 
 - **ENG-19 `[P2]` Grafana users-and-sessions dashboard.** Problem: there is no view of users, platforms, or session behavior at all.
   **Acceptance:** a new users dashboard shows player counts by platform, session counts and lengths, and anomalies like the longest session, powered by ENG-18 events.
-  **Hints:** ENG-18 events land in Loki; blocked in practice until ENG-18's client events flow.
+  **Hints:** blocked in practice until ENG-18's events flow — confirmed 2026-07-11 that Loki holds no `cards-client` data to build against, and the plan defers dashboards until the `eventName` structured-metadata key is confirmed in the first real run.
 
