@@ -4,6 +4,14 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-11 — iOS `previous_exit` is a consume-once MetricKit sample (ENG-25)
+
+**Problem:** `app.launched`'s `previous_exit` was real on Android but hardcoded `unknown` on iOS, hiding iOS crash/ANR/OOM rates from the launch funnel. iOS has no per-launch exit API; MetricKit's `MXAppExitMetric` delivers day-window aggregate counts, up to 24h late, and only on real devices.
+
+**Decision:** Accept MetricKit's granularity instead of faking per-run truth: a Kotlin/Native `MXMetricManagerSubscriber` (inside `IosPreviousExitProvider`, `platform.MetricKit` interop — no Swift/Xcode surface needed) classifies each payload's **foreground** exit counts to the most severe reason (crash > anr > oom > clean), persists it in `NSUserDefaults`, and the next cold start's `app.launched` reports it **exactly once** before clearing (`LatestExitReport`, common + unit-tested). Re-reporting the same window every launch would multiply one crash by the user's launch frequency; consume-once makes iOS `previous_exit` a sparse daily sample — `unknown` on most launches — which dashboards must read as samples, per platform.
+
+**Alternatives rejected:** a clean-exit-marker heuristic (persist foreground/background state, infer abnormal exits per-run like Sentry's watchdog detection) — genuinely per-run but can't distinguish crash/ANR/OOM and misfires on device restarts/upgrades; blending it with MetricKit was judged more machinery than the beta needs (revisit if iOS exit rates become load-bearing). Background exit counts — jetsam kills of suspended apps are routine and would read as fake OOMs next to Android's user-perceived `REASON_LOW_MEMORY`. A Swift subscriber passed through `IosAppComponentFactory` — equivalent at the ObjC runtime, but the Kotlin interop keeps the whole feature in `:libraries:telemetry:impl` and verifiable by the KMP toolchain.
+
 ## 2026-07-11 — Client telemetry batches persist to disk before export (ENG-25)
 
 **Problem:** The OTLP log pipe was fire-and-forget: a batch that failed to export was dropped, so every event emitted offline was lost (verified in the 2026-07-11 offline drill). The reliability events this pipe exists for — `net.backend_unreachable`, reconnect failures — are disproportionately emitted exactly when export can't succeed.

@@ -46,8 +46,13 @@ Deliberate calls from the considered pass over the setup, so nobody re-litigates
   (rate 0.0 == off); rejected — the flag is an instant kill switch for library bugs / ingest
   incidents and reads as one in the QA menu, the rate is a gradual volume dial. Collapsing them
   makes the emergency lever a magic number.
-- **iOS `previous_exit` is still `unknown`** — the MetricKit `MXAppExitMetric` subscriber remains
-  open under ENG-25 in `docs/todo.md`.
+- **iOS `previous_exit` is a day-granular MetricKit sample, not per-run truth.** iOS has no
+  per-launch exit API, so `IosPreviousExitProvider` subscribes to `MXAppExitMetric`, classifies
+  each day-window's foreground exits to the most severe (crash > anr > oom > clean), persists the
+  result, and the next launch reports it exactly once (re-reporting every launch would multiply
+  one crash by launch frequency). Background jetsam kills are deliberately excluded — routine on
+  iOS, they'd read as fake OOMs next to Android's user-perceived `REASON_LOW_MEMORY`. MetricKit
+  never delivers on the simulator; only real devices produce non-unknown values.
 
 **Rules for adding events:** emit through the `logEvent` extension only (never a raw
 `EXTRA_APP_EVENT` extra), fire on user actions / state transitions — never per-frame, per-poll, or
@@ -59,7 +64,7 @@ and anything already in a ledger.
 
 | Event | Attributes | Fires |
 |---|---|---|
-| `app.launched` | `cold_start` (always true), `previous_exit` (clean/crash/anr/oom/unknown) | Once per cold start, on the boot foreground (`GrafanaAppEvents.onForeground`) — after the session tracker rolls session #1, so it shares the boot's `session_id` with every other event (ENG-24; it used to fire at DI init and land orphaned on a pre-rollover id). Doubles as the pipeline smoke test. `previous_exit` comes from Android's historical exit reasons (API 30+; older devices report `unknown`); **iOS always reports `unknown`** until MetricKit wiring lands (ENG-25) — segment by platform before reading exit rates |
+| `app.launched` | `cold_start` (always true), `previous_exit` (clean/crash/anr/oom/unknown) | Once per cold start, on the boot foreground (`GrafanaAppEvents.onForeground`) — after the session tracker rolls session #1, so it shares the boot's `session_id` with every other event (ENG-24; it used to fire at DI init and land orphaned on a pre-rollover id). Doubles as the pipeline smoke test. `previous_exit` comes from Android's historical exit reasons (API 30+; older devices report `unknown`); **iOS derives it from MetricKit** (`MXAppExitMetric` foreground exits), which is day-granular and lags up to 24h — each report is surfaced by exactly one launch then cleared, so most iOS launches say `unknown` and non-unknown values are daily samples, not per-run truth. Always segment by platform before reading exit rates |
 | `app.foregrounded` | `cold_start` | Every foreground (`LifecycleAppEventLogger`); `cold_start=true` on the boot foreground |
 | `app.backgrounded` | `session_duration_sec` | Every background; `session_duration_sec` = whole seconds since the matching foreground (monotonic clock), so session length is a direct query — no span join needed. Omitted in the (shouldn't-happen) case of a background with no prior foreground |
 | `game.started` | `mode` (bots/multiplayer), `difficulty` | `PlayPokerViewModel` init |

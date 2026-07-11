@@ -112,8 +112,8 @@ class AppLaunchedEmitter(
 /**
  * `app.launched` — once per cold start, first event through the freshly
  * planted tree (warms the SDK and proves the whole pipe). `previous_exit`
- * says how the last run ended; iOS is always `unknown` for now (see
- * [PreviousExitProvider]).
+ * says how the last run ended; per-platform caveats live on
+ * [PreviousExitProvider].
  */
 internal fun logAppLaunched(previousExit: PreviousExit) {
     KLog.logEvent(

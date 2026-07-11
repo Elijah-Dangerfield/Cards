@@ -22,9 +22,3 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## ENG — engineering / structural
-
-- **ENG-25 `[P2]` iOS `previous_exit` is hardcoded `unknown` — wire a MetricKit exit-reason source.** Problem: `app.launched`'s `previous_exit` attribute is real on Android (`AndroidPreviousExitProvider`) but `IosPreviousExitProvider` always reports `unknown`, so iOS crash/ANR/OOM rates can't be read from the launch funnel.
-  **Acceptance:** an `MXAppExitMetric` subscriber (Swift, passed through `IosAppComponentFactory`) persists exit counts across launches and `IosPreviousExitProvider` derives the previous run's exit from the delta; dashboards note MetricKit's up-to-24h payload delay.
-  **Hints:** `libraries/telemetry/impl/src/iosMain/.../IosPreviousExitProvider.kt`, `PreviousExitProvider.kt`; MetricKit delivers aggregated daily payloads, not per-launch values — the honest mapping is "since last payload", which is why this is its own slice.
-
