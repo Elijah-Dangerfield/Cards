@@ -114,6 +114,57 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
+    fun markSessionUnrecoverable_tearsDown_toSessionExpired() = runUnitTest {
+        // AUTH-19: the healer found a cached account but no revivable session —
+        // the client-declared twin of a server rejection, same teardown.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+        assertIs<AuthState.Unauthenticated>(repo.current())
+
+        repo.markSessionUnrecoverable(wasAnonymous = true)
+        advanceUntilIdle()
+
+        val state = assertIs<AuthState.Unauthenticated>(repo.current())
+        assertEquals(AuthState.Unauthenticated.Reason.SessionExpired, state.reason)
+        assertTrue(state.wasAnonymous, "the stranded account's anonymity drives the recovery copy")
+        assertEquals(1, gateway.signOutCalls, "any half-dead supabase state is torn down")
+    }
+
+    @Test
+    fun sessionExpired_staysSticky_acrossAFailedReResolve() = runUnitTest {
+        // AUTH-19: retry (healer probe, SessionExpired-screen button,
+        // connectivity flip) re-resolves; when the session still isn't there the
+        // reason must NOT decay to None — that decay made identity self-heal
+        // read a dead session as an ordinary stranding and mint over it.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = anonymousSession(),
+            onSignOut = {
+                setStatus(AuthGatewayStatus.NotAuthenticated)
+                replaceSession(null)
+            },
+        )
+        val bus = FakeSessionRejectionBus()
+        val repo = build(gateway = gateway, sessionRejectionBus = bus)
+        advanceUntilIdle()
+        bus.signalRejected(wasAnonymous = true)
+        advanceUntilIdle()
+
+        val retried = assertIs<AuthState.Unauthenticated>(repo.retry())
+
+        assertEquals(
+            AuthState.Unauthenticated.Reason.SessionExpired,
+            retried.reason,
+            "a still-dead session keeps its declared reason",
+        )
+        assertTrue(retried.wasAnonymous, "anonymity survives the re-resolve for routing")
+    }
+
+    @Test
     fun resolve_notAuthenticated_emitsUnauthenticated_withoutCreatingAnAccount() = runUnitTest {
         // Cold-boot fresh-install path: no session. We no longer auto-create
         // one — the app stays Unauthenticated until onboarding mints an

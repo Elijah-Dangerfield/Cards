@@ -210,10 +210,16 @@ class GuestSessionHealerTest : CoroutineTest() {
     }
 
     @Test
-    fun mints_reusesCachedAuthenticatedIdentity() = runUnitTest {
-        val creator = FakeGuestAccountCreator(result = AccountCreationState.Succeeded)
+    fun stopsForRecovery_insteadOfMintingOverACachedAccount() = runUnitTest {
+        // AUTH-19: a cached server profile with no revivable session means this
+        // device HAS a real account whose token storage failed (the TestFlight
+        // upgrade case). Minting a fresh guest silently strands that account's
+        // chips/XP — the healer must stop and declare the session unrecoverable
+        // so the app routes to the explicit recovery screen.
+        val creator = FakeGuestAccountCreator()
+        val auth = FakeAuth(current = AuthState.Unauthenticated(), retryResult = AuthState.Unauthenticated())
         val healer = build(
-            auth = FakeAuth(current = AuthState.Unauthenticated(), retryResult = AuthState.Unauthenticated()),
+            auth = auth,
             creator = creator,
             onboarded = true,
             profile = Profile.Authenticated(
@@ -230,9 +236,12 @@ class GuestSessionHealerTest : CoroutineTest() {
         healer.onForeground(AppEvent.OnForeground(isColdBoot = false))
         advanceUntilIdle()
 
-        assertEquals(1, creator.ensureCalls)
-        assertEquals("Foxy", creator.lastFallback?.displayName)
-        assertEquals("🦊", creator.lastFallback?.avatarEmoji)
+        assertEquals(0, creator.ensureCalls, "must never mint over a cached account")
+        assertEquals(
+            listOf(true),
+            auth.markedUnrecoverable,
+            "recovery is declared once, carrying the stranded account's anonymity",
+        )
     }
 
     private fun build(
@@ -303,8 +312,12 @@ class GuestSessionHealerTest : CoroutineTest() {
         private val current: AuthState,
         private val retryResult: AuthState = AuthState.Unauthenticated(),
     ) : AuthRepository {
+        val markedUnrecoverable = mutableListOf<Boolean>()
         override suspend fun current(): AuthState = current
         override suspend fun retry(): AuthState = retryResult
+        override suspend fun markSessionUnrecoverable(wasAnonymous: Boolean) {
+            markedUnrecoverable += wasAnonymous
+        }
         override fun observe(): Flow<AuthState> = emptyFlow()
         override suspend fun signInWithEmail(email: String, password: String): SignInOutcome = error("unused")
         override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome = error("unused")

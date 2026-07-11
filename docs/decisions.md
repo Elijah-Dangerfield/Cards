@@ -4,6 +4,16 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-11 — Session loss never mints over an existing account; anonymous sessions keep a file-backed mirror (AUTH-19)
+
+**Problem:** A TestFlight upgrade wiped the Keychain copy of the owner's Supabase session while the app's ordinary files survived. Boot found the cached profile but no token, and `GuestSessionHealer` silently minted a fresh guest *over* the real account — balance/XP stranded server-side, and the recovery attempt (Apple sign-in) minted a third account. An anonymous account has no credential, so a lost token is otherwise unrecoverable by the user.
+
+**Decision:** Two independent guards. (1) **Recovery over minting:** the healer never mints when a cached server-backed profile exists — it declares the session unrecoverable (`AuthRepository.markSessionUnrecoverable`), which runs the same teardown as a server rejection and routes to the existing SessionExpired recovery screen (retry, or an explicit sign-in / start-fresh choice). `Reason.SessionExpired` is now *sticky* across re-resolves — previously one `retry()` decayed it to `None`, which is exactly what re-armed the silent mint. (2) **Anonymous session mirror:** `SecureSessionManager` keeps a file-backed copy (`SessionMirrorStore`, ordinary `CacheFactory.persistent` storage that demonstrably survived the upgrade) of **anonymous sessions only**, consulted when the OS store comes up empty and restored back into it. Security trade, accepted deliberately: the mirror holds the refresh token without OS-keystore encryption, but only while the account's sole credential *is* device possession; the moment the account is claimed the mirror is cleared and the session goes back to Keychain/EncryptedSharedPreferences-only (preserving the AUTH-16 posture where it actually protects something).
+
+**Alternatives rejected:** mirroring every session (weakens AUTH-16 for claimed accounts, which have a real recovery path); seeding the minted guest from the cached profile's name/avatar (what shipped originally — it *looks* like recovery while stranding the data); a Keychain-only fix (the loss mechanism is the OS store itself; no retry logic recovers a deleted item).
+
+**Status:** Shipped, red-first (healer mint-over-cache, reason decay, and markSessionUnrecoverable all reproduced failing first). Keychain read/write statuses are now logged on iOS so the next storage loss is visible in session logs. The stranded accounts (087ac8d1… et al.) remain recoverable only by an admin merge — flagged for the owner.
+
 ## 2026-07-11 — Room host authority follows the effective host, mirrored client/server (ROOM-16)
 
 **Problem:** The client computed "who is host" as the first connected human (implicit promotion when the tagged host disconnects), while the server gated bot/start mutations on the literal `hostUserId` — which is the synthetic system host on every matchmaker-created Public room. The models disagreed, so the client showed affordances the server rejected: the sole human of a rejoined matchmaking room tapped add-bots seven times into silent `not_host` 403s.

@@ -230,6 +230,17 @@ Two variants, both must pass:
 
 ---
 
+### `ONB-18` 🚨 📱 App upgrade keeps the guest session; a lost session shows recovery, never a silent reset (AUTH-19)
+
+**State:** signed in as a guest with visible progress (chips above the starter grant, XP > 0). An older build installed from TestFlight.
+
+1. Install the new build over the old one (TestFlight update, or `xcodebuild`/Studio install over an existing debug build).
+2. Cold-launch.
+
+**Expected:** Lands on Home with the same account — balance, XP, and level unchanged (session survives the upgrade; anonymous sessions carry a file-backed mirror that restores the Keychain copy if the OS store lost it). It must **never** silently reset to 10,000 chips / level 0 — that means a fresh guest was minted over the real account. If the session genuinely can't be recovered, the full-screen "session expired" recovery screen appears instead of Home, offering retry and an explicit sign-in / start-fresh choice; the session log shows `GuestSessionHealer` `STOP_FOR_RECOVERY`, not `MINT`.
+
+---
+
 ## Offline gating
 
 Every network-required surface follows one rule off a cached / fallback identity (no confirmed server session): **reads render cached content**, **server-mutating surfaces soft-gate** (visible, affordances stay tappable but failures surface as a connection error rather than success), and **money + multiplayer hard-gate**. The matrix below walks each surface once so a single offline pass confirms the whole app honors it (AUTH-5).

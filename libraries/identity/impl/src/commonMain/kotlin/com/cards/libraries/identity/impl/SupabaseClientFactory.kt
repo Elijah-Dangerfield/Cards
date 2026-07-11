@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.identity.IdentityConfig
 import com.dangerfield.cards.libraries.identity.auth.SecureSessionStorage
 import com.dangerfield.cards.libraries.identity.impl.auth.SecureSessionManager
+import com.dangerfield.cards.libraries.identity.impl.auth.SessionMirror
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.SettingsSessionManager
@@ -36,6 +37,7 @@ interface SupabaseClientComponent {
     fun provideSupabaseClient(
         config: IdentityConfig,
         secureSessionStorage: SecureSessionStorage,
+        sessionMirror: SessionMirror,
         dispatchers: DispatcherProvider,
     ): SupabaseClient =
         createSupabaseClient(
@@ -58,6 +60,10 @@ interface SupabaseClientComponent {
                     // default Settings exists (never on device); losing the
                     // migration beats crashing the DI graph there.
                     legacy = Catching { SettingsSessionManager(key = storageKey) }.getOrNull(),
+                    // File-backed last resort for anonymous sessions — the
+                    // Keychain lost a session across a TestFlight upgrade and
+                    // a guest has no way back in (AUTH-19).
+                    mirror = sessionMirror,
                     dispatchers = dispatchers,
                 )
 

@@ -22,12 +22,6 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## AUTH — auth + onboarding
-
-- **AUTH-19 `[P0]` TestFlight upgrade drops the Supabase session and silently mints a fresh guest — progression stranded.** Problem: after upgrading to build 740 the app booted with no persisted session (`accessToken: no session`), and `GuestSessionHealer` (MINT_FROM_PENDING) created a brand-new guest over the cached anonymous profile — owner's balance/XP now stranded on the old account (087ac8d1…); his Apple-sign-in recovery attempt minted a third account.
-  **Acceptance:** a session survives an app upgrade (upgrade-path test on session storage), and when a cached profile exists but the session is unrecoverable the app surfaces a recovery/sign-in flow instead of silently minting a fresh guest.
-  **Hints:** supabase-kt session persistence location on iOS; `GuestSessionHealer`, `AuthRepository` bootstrap resolve, `StrandedIdentity` warn; case `docs/agent/feedback-cases/81a8c07d88e24f16b913dc00822e52f5.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-9D
-
 ## PROG — progression / XP / stats
 
 - **PROG-12 `[P1]` Chips earned in an MP session still stale until force-kill — post-PROG-11 residual.** Problem: tester earned 1000 chips playing MP (room ZYQ2CQ, dev) on a build that already contains PROG-11's derived-balance fix, and the displayed balance stayed stale until app force-kill.

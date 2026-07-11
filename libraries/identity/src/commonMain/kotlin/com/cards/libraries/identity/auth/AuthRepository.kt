@@ -119,6 +119,20 @@ interface AuthRepository {
     suspend fun sendPasswordResetEmail(email: String): SendResetOutcome
 
     /**
+     * Declare the device's persisted session unrecoverable: no token survived
+     * (storage lost it) and [retry] couldn't revive one, but local state says a
+     * real account exists. Tears down like a server rejection — emits
+     * [AuthState.Unauthenticated] with [AuthState.Unauthenticated.Reason.SessionExpired]
+     * so the app routes to the recovery screen instead of anything minting a
+     * fresh guest over the stranded account (AUTH-19). [wasAnonymous] routes the
+     * guest copy (unrecoverable, start fresh) vs claimed copy (sign in again).
+     *
+     * Default no-op so test fakes that don't drive recovery needn't implement
+     * it; the production impl overrides.
+     */
+    suspend fun markSessionUnrecoverable(wasAnonymous: Boolean) {}
+
+    /**
      * Tear down the current Supabase session. The next [current] call
      * will trigger a fresh anonymous sign-in.
      */
@@ -250,9 +264,14 @@ sealed interface AuthState {
          *   the auth gate handles navigation as usual. This is also the reason a
          *   never-signed-in-but-onboarded guest (the stranding case) carries, so
          *   identity self-heal mints a session for it.
-         * - [SessionExpired] — the auth server **rejected** our token and a refresh
-         *   failed: the session is genuinely dead. The app boots the user to
-         *   re-authenticate (claimed) or start fresh (guest).
+         * - [SessionExpired] — the session is genuinely dead: either the auth
+         *   server **rejected** our token and a refresh failed, or the client
+         *   declared it unrecoverable ([AuthRepository.markSessionUnrecoverable] —
+         *   storage lost the token while a cached account exists). The app boots
+         *   the user to re-authenticate (claimed) or start fresh (guest). Sticky
+         *   within the run: a re-resolve that still finds no session keeps this
+         *   reason instead of decaying to [None], so identity self-heal never
+         *   mints over a dead-but-declared session.
          * - [SignedOut] — a **deliberate** sign-out / account delete this run. The
          *   distinction from [None] is load-bearing for identity self-heal: it must
          *   NOT resurrect a user who just chose to sign out as a fresh anonymous

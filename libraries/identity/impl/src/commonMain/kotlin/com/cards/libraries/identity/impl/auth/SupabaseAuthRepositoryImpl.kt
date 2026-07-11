@@ -192,14 +192,35 @@ class SupabaseAuthRepositoryImpl(
                     return next
                 }
                 // No session and we no longer auto-create one — settle.
-                AuthGatewayStatus.NotAuthenticated -> return emitUnauthenticatedLocked(cause = null)
+                AuthGatewayStatus.NotAuthenticated -> return settleUnauthenticatedLocked()
                 // Mid-hydration / transient refresh failure — re-poll.
                 AuthGatewayStatus.Initializing,
                 is AuthGatewayStatus.RefreshFailure -> Unit
             }
         }
         logger.w { "Resolve exhausted $MaxResolveAttempts attempts without settling" }
-        return emitUnauthenticatedLocked(cause = null)
+        return settleUnauthenticatedLocked()
+    }
+
+    /**
+     * Settle a resolve that found no session. [AuthState.Unauthenticated.Reason.SessionExpired]
+     * is sticky within the run: a re-resolve (connectivity flip, healer retry,
+     * SessionExpired-screen retry) that still finds nothing keeps the reason —
+     * and its [AuthState.Unauthenticated.wasAnonymous] — instead of decaying to
+     * `None`, which would make identity self-heal read the dead session as an
+     * ordinary stranding and mint a fresh guest over it (AUTH-19).
+     */
+    private suspend fun settleUnauthenticatedLocked(): AuthState.Unauthenticated {
+        val last = lastEmittedOrNull() as? AuthState.Unauthenticated
+        return if (last?.reason == AuthState.Unauthenticated.Reason.SessionExpired) {
+            emitUnauthenticatedLocked(
+                cause = null,
+                reason = AuthState.Unauthenticated.Reason.SessionExpired,
+                wasAnonymous = last.wasAnonymous,
+            )
+        } else {
+            emitUnauthenticatedLocked(cause = null)
+        }
     }
 
     /**
@@ -247,10 +268,21 @@ class SupabaseAuthRepositoryImpl(
     }
 
     /**
-     * The auth server has definitively rejected our session (a refresh it
-     * rejected — token revoked, account deleted, refresh token invalid). Tear the
-     * dead session down: clear the supabase session so the bearer stops
-     * re-attaching the rejected token, then emit
+     * The persisted session is gone and [GuestSessionHealer]'s retry couldn't
+     * revive it, while a cached server profile proves an account exists — the
+     * client-declared twin of a server rejection. Same teardown: the app routes
+     * to recovery instead of the healer minting over the stranded account.
+     */
+    override suspend fun markSessionUnrecoverable(wasAnonymous: Boolean) {
+        logger.w { "Session declared unrecoverable by identity self-heal (wasAnonymous=$wasAnonymous)" }
+        onSessionRejected(wasAnonymous)
+    }
+
+    /**
+     * The session is definitively dead — the auth server rejected it (token
+     * revoked, account deleted, refresh token invalid) or the client declared it
+     * unrecoverable ([markSessionUnrecoverable]). Tear it down: clear the
+     * supabase session so the bearer stops re-attaching a dead token, then emit
      * [AuthState.Unauthenticated.Reason.SessionExpired] so the app can route the
      * user to re-auth (claimed) or a fresh start (guest).
      *
