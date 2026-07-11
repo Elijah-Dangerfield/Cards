@@ -28,3 +28,9 @@
 **Problem:** ENG-19 asked for (a) a chip-source breakdown + sandbox/real split on the economy dashboard and (b) a users-and-sessions dashboard.
 **Approach:** Half (a) is now fully live on `cards-economy` (no code in this repo — Grafana-side): chip source/sink pies over `wallet_events.reason`, and the sandbox/real split shipped with BILL-6's panels. Rewrote the todo bullet to the remaining users-dashboard half, which genuinely needs ENG-18's client events before there is anything to graph.
 **Reviewer notes:** Grafana's dashboard patch API "add at index" op *replaces* instead of inserting — it silently overwrote the conservation-drift panel on the first attempt; caught it by re-listing panel titles and restored via a full-JSON write. Current dashboard (v5) verified to hold all 20 panels.
+
+## refactor(ios): rename Virtu-branded ObjC bridge names to Cards (ENG-15)
+
+**Problem:** The Kotlin-Swift bridge still exported `VirtuNativeViewFactory` / `VirtuNativeAppleSignInButtonKind` / `VirtuNativeAppleSignInButtonStyle` — template-lineage branding two generations stale.
+**Approach:** Renamed the three `@ObjCName` annotations to `CardsNative*` plus all Swift references (`iOSApp.swift`, `Platform/IOSNativeViewFactory.swift`). Audited the bridge for dead code: everything left (the Apple sign-in button factory) is in active use, nothing to prune.
+**Reviewer notes:** Verified per the acceptance: full `xcodebuild` of the `iosApp` scheme against the regenerated framework (arm64 simulator; the generic destination's x86_64 slice fails pre-existing — the Gradle framework is arm64-only, unrelated to this change) — BUILD SUCCEEDED, and the generated `ComposeApp.h` has zero `Virtu` hits / 23 `CardsNative` references.

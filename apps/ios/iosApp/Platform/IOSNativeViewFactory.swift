@@ -3,15 +3,15 @@ import UIKit
 import AuthenticationServices
 import ComposeApp
 
-final class IOSNativeViewFactory: VirtuNativeViewFactory {
+final class IOSNativeViewFactory: CardsNativeViewFactory {
 
     static let shared = IOSNativeViewFactory()
     private let decoder = JSONDecoder()
     private let logger = KLog.shared.withTag(tag:"NativeViewFactory")
 
     func createAppleSignInButton(
-        kind: VirtuNativeAppleSignInButtonKind,
-        style: VirtuNativeAppleSignInButtonStyle,
+        kind: CardsNativeAppleSignInButtonKind,
+        style: CardsNativeAppleSignInButtonStyle,
         cornerRadius: Float,
         onTap: @escaping () -> Void
     ) throws -> UIView {
@@ -84,7 +84,7 @@ final class AppleSignInButtonHost: UIView {
     }
 }
 
-private extension VirtuNativeAppleSignInButtonKind {
+private extension CardsNativeAppleSignInButtonKind {
     var buttonType: ASAuthorizationAppleIDButton.ButtonType {
         switch self {
         case .signIn:
@@ -95,7 +95,7 @@ private extension VirtuNativeAppleSignInButtonKind {
     }
 }
 
-private extension VirtuNativeAppleSignInButtonStyle {
+private extension CardsNativeAppleSignInButtonStyle {
     var buttonStyle: ASAuthorizationAppleIDButton.Style {
         switch self {
         case .black:

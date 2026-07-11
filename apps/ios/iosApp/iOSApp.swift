@@ -49,7 +49,7 @@ struct iOSApp: App {
 struct RootComposeView: View {
     @Environment(\.scenePhase) private var scenePhase
     let appComponent: IosAppComponent
-    let nativeViewFactory: VirtuNativeViewFactory
+    let nativeViewFactory: CardsNativeViewFactory
 
     var body: some View {
         ComposeView(
@@ -62,7 +62,7 @@ struct RootComposeView: View {
 
 struct ComposeView: UIViewControllerRepresentable {
     let appComponent: IosAppComponent
-    let nativeViewFactory: VirtuNativeViewFactory
+    let nativeViewFactory: CardsNativeViewFactory
 
     func makeUIViewController(context: Context) -> UIViewController {
         MainViewControllerKt.MainViewController(
