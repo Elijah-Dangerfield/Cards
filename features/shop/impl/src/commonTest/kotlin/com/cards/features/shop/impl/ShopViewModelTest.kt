@@ -437,16 +437,32 @@ class ShopViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun confirmIapPack_storeUnavailable_emitsStoreUnavailable() = runUnitTest {
+    fun confirmIapPack_storeUnavailable_showsThePurchaseErrorDialog() = runUnitTest {
+        // Failures get a full dialog (state-driven), never just a toast — the
+        // user may have paid and deserves an explanation (BILL-7).
         val purchase = FakePurchaseChipPackUseCase(nextOutcome = IapPurchaseOutcome.StoreUnavailable)
         val vm = buildVm(purchaseChipPack = purchase)
-        val received = mutableListOf<ShopEvent>()
-        backgroundScope.launch { vm.eventFlow.collect { received += it } }
 
         vm.takeAction(ShopAction.ConfirmPurchase(SAMPLE_CATALOG.chipPacks.first()))
 
-        val event = received.firstOrNull { it is ShopEvent.PurchaseFinished }
-        assertEquals(IapPurchaseOutcome.StoreUnavailable, (event as ShopEvent.PurchaseFinished).outcome)
+        assertEquals(PurchaseError.StoreUnavailable, vm.state.purchaseError)
+        vm.takeAction(ShopAction.DismissPurchaseError)
+        assertNull(vm.state.purchaseError)
+    }
+
+    @Test
+    fun confirmIapPack_uncreditedRedeem_showsThePaidButPendingDialog() = runUnitTest {
+        // The paid-but-uncredited case (redeem 400/unreachable) gets its own
+        // copy: the payment stood, the launch redeemer recovers the chips.
+        val purchase = FakePurchaseChipPackUseCase(
+            nextOutcome = IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_REDEEM_UNAVAILABLE),
+        )
+        val vm = buildVm(purchaseChipPack = purchase)
+
+        vm.takeAction(ShopAction.ConfirmPurchase(SAMPLE_CATALOG.chipPacks.first()))
+
+        assertEquals(PurchaseError.UncreditedWillRetry, vm.state.purchaseError)
+        assertFalse(vm.state.purchaseInFlight, "the in-flight overlay clears once the round-trip resolves")
     }
 
     @Test

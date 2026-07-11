@@ -86,6 +86,36 @@ class IOSStoreKitCoordinator: NSObject, BillingStoreKitCoordinator {
         }
     }
 
+    /// Verified transactions StoreKit still holds unfinished — the
+    /// paid-but-uncredited recovery source (BILL-7). A failed server redeem
+    /// leaves the transaction unfinished, and Apple replays it here on every
+    /// launch until `finish()` runs. Handles are retained in the same cache
+    /// `purchase` uses so a later `finishTransaction` can complete them.
+    func loadUnfinishedTransactions(
+        onComplete: @escaping ([BillingStoreKitPurchaseResult]) -> Void
+    ) {
+        Task {
+            var results: [BillingStoreKitPurchaseResult] = []
+            for await verification in Transaction.unfinished {
+                guard case .verified(let transaction) = verification else { continue }
+                let jws = verification.jwsRepresentation
+                await transactions.store(jws, transaction)
+                results.append(
+                    BillingStoreKitPurchaseResult(
+                        status: .success,
+                        productId: transaction.productID,
+                        transactionId: String(transaction.id),
+                        jwsRepresentation: jws,
+                        purchasedAtEpochMs: Int64(transaction.purchaseDate.timeIntervalSince1970 * 1000),
+                        displayPrice: nil,
+                        errorMessage: nil
+                    )
+                )
+            }
+            onComplete(results)
+        }
+    }
+
     private func map(
         _ result: Product.PurchaseResult,
         productId: String

@@ -10,6 +10,10 @@ import com.dangerfield.cards.libraries.billing.PurchaseTransaction
 import com.dangerfield.cards.libraries.billing.QueryProductsResult
 import com.dangerfield.cards.libraries.billing.RealPurchasesEnabled
 import com.dangerfield.cards.libraries.billing.RedeemOutcome
+import com.dangerfield.cards.libraries.billing.StoreKitCoordinator
+import com.dangerfield.cards.libraries.billing.StoreKitProduct
+import com.dangerfield.cards.libraries.billing.StoreKitPurchaseResult
+import com.dangerfield.cards.libraries.billing.StoreKitPurchaseStatus
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
@@ -24,7 +28,10 @@ import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
 import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
+import com.dangerfield.cards.libraries.products.CatalogTimeAnchor
 import com.dangerfield.cards.libraries.products.Product
+import com.dangerfield.cards.libraries.products.ProductCatalog
+import com.dangerfield.cards.libraries.products.ProductsRepository
 import com.dangerfield.cards.libraries.products.StoreSku
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -204,6 +211,80 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         assertEquals(0, billing.purchaseCalls)
     }
 
+    // ---------- outstanding-purchase recovery (BILL-7) ----------
+
+    @Test
+    fun redeemOutstanding_recoversAnUncreditedPurchase() = runUnitTest {
+        // The owner's TestFlight purchases 400'd at redeem and were left
+        // unfinished at the store with no retry path - paid, zero chips.
+        val billing = FakeBillingClient(PurchaseResult.Success(TX))
+        val chips = FakeChipsRepository()
+        val redeem = RecordingBillingRepository(
+            RedeemOutcome.Granted(balance = 42_000, grantedChips = 30_000, alreadyRedeemed = false),
+        )
+        val useCase = build(
+            billing = billing,
+            chips = chips,
+            redeem = redeem,
+            realPurchases = true,
+            coordinator = FakeStoreKitCoordinator(unfinished = listOf(UNFINISHED)),
+        )
+
+        useCase.redeemOutstanding()
+
+        assertEquals(1, redeem.redeemCalls, "the unfinished transaction is replayed through redeem")
+        assertEquals("chip_pack_medium", redeem.lastProductId, "the sku maps back to the catalog product id")
+        assertEquals(42_000L, chips.balanceValue, "the authoritative post-grant balance lands")
+        assertEquals(1, billing.consumeCalls, "a granted replay finishes the store transaction")
+    }
+
+    @Test
+    fun redeemOutstanding_leavesTheTransactionUnfinished_whenRedeemStillFails() = runUnitTest {
+        val billing = FakeBillingClient(PurchaseResult.Success(TX))
+        val chips = FakeChipsRepository(initial = 500L)
+        val useCase = build(
+            billing = billing,
+            chips = chips,
+            redeem = RecordingBillingRepository(RedeemOutcome.Unavailable),
+            realPurchases = true,
+            coordinator = FakeStoreKitCoordinator(unfinished = listOf(UNFINISHED)),
+        )
+
+        useCase.redeemOutstanding()
+
+        assertEquals(0, billing.consumeCalls, "an unredeemed purchase must stay unfinished for the next launch")
+        assertEquals(500L, chips.balanceValue, "nothing is credited locally")
+    }
+
+    @Test
+    fun redeemOutstanding_withoutASession_skipsUntilNextLaunch() = runUnitTest {
+        val redeem = RecordingBillingRepository()
+        val useCase = build(
+            redeem = redeem,
+            realPurchases = true,
+            auth = FakeAuthRepository(AuthState.Unauthenticated()),
+            coordinator = FakeStoreKitCoordinator(unfinished = listOf(UNFINISHED)),
+        )
+
+        useCase.redeemOutstanding()
+
+        assertEquals(0, redeem.redeemCalls, "no session, no authed redeem - retried next launch")
+    }
+
+    @Test
+    fun redeemOutstanding_isANoOp_whenRealPurchasesAreOff() = runUnitTest {
+        val redeem = RecordingBillingRepository()
+        val useCase = build(
+            redeem = redeem,
+            realPurchases = false,
+            coordinator = FakeStoreKitCoordinator(unfinished = listOf(UNFINISHED)),
+        )
+
+        useCase.redeemOutstanding()
+
+        assertEquals(0, redeem.redeemCalls)
+    }
+
     // ---------- scaffolding ----------
 
     private fun build(
@@ -214,13 +295,48 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         auth: AuthRepository = FakeAuthRepository(
             AuthState.Authenticated(userId = USER_ID, isAnonymous = false, email = null),
         ),
+        coordinator: StoreKitCoordinator = FakeStoreKitCoordinator(),
+        catalog: ProductCatalog = ProductCatalog(chipPacks = listOf(PACK)),
     ) = DefaultPurchaseChipPackUseCase(
         billingClient = billing,
         billingRepository = redeem,
         chipsRepository = chips,
         authRepository = auth,
         realPurchasesEnabled = RealPurchasesEnabled(FakeAppConfigMap(realPurchases)),
+        storeKitCoordinator = coordinator,
+        productsRepository = FakeProductsRepository(catalog),
     )
+
+    private class FakeStoreKitCoordinator(
+        private val unfinished: List<StoreKitPurchaseResult> = emptyList(),
+    ) : StoreKitCoordinator {
+        override fun loadProducts(
+            productIds: List<String>,
+            onComplete: (products: List<StoreKitProduct>, errorMessage: String?) -> Unit,
+        ) = onComplete(emptyList(), null)
+
+        override fun purchase(
+            productId: String,
+            appAccountToken: String,
+            onComplete: (result: StoreKitPurchaseResult) -> Unit,
+        ) = error("unused - purchases go through BillingClient in these tests")
+
+        override fun finishTransaction(
+            jwsRepresentation: String,
+            onComplete: (finished: Boolean) -> Unit,
+        ) = onComplete(true)
+
+        override fun loadUnfinishedTransactions(
+            onComplete: (transactions: List<StoreKitPurchaseResult>) -> Unit,
+        ) = onComplete(unfinished)
+    }
+
+    private class FakeProductsRepository(private val catalog: ProductCatalog) : ProductsRepository {
+        override fun observeCatalog(): Flow<ProductCatalog> = MutableStateFlow(catalog)
+        override suspend fun refresh(force: Boolean): Result<ProductCatalog> = Result.success(catalog)
+        override fun observeTimeAnchor(): Flow<CatalogTimeAnchor?> = MutableStateFlow(null)
+        override fun observeIsRefreshing(): Flow<Boolean> = MutableStateFlow(false)
+    }
 
     private class FakeAppConfigMap(realPurchasesEnabled: Boolean) : AppConfigMap() {
         override val map: Map<String, *> =
@@ -314,6 +430,13 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
             iconEmoji = "💰",
             grantsChips = 30_000,
             store = StoreSku("chips_medium", "$4.99"),
+        )
+        val UNFINISHED = StoreKitPurchaseResult(
+            status = StoreKitPurchaseStatus.Success,
+            productId = "chips_medium",
+            transactionId = "order-9",
+            jwsRepresentation = "jws-9",
+            purchasedAtEpochMs = 1_000L,
         )
         val TX = PurchaseTransaction(
             sku = "chips_medium",

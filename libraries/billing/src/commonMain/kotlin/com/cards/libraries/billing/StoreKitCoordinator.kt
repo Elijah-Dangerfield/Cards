@@ -63,6 +63,19 @@ interface StoreKitCoordinator {
         jwsRepresentation: String,
         onComplete: (finished: Boolean) -> Unit,
     )
+
+    /**
+     * Report every verified-but-unfinished transaction StoreKit still holds
+     * (`Transaction.unfinished`). A purchase whose server redeem failed is
+     * deliberately left unfinished (BILL-7) — Apple replays it forever until
+     * `finish()` — so this is the launch-time recovery source: the redeemer
+     * re-runs each one through the normal redeem → grant → finish path. The
+     * coordinator retains the live `Transaction` handles (same cache as
+     * [purchase]) so a later [finishTransaction] can complete them.
+     */
+    fun loadUnfinishedTransactions(
+        onComplete: (transactions: List<StoreKitPurchaseResult>) -> Unit,
+    )
 }
 
 /** A StoreKit `Product` flattened to primitives for the Kotlin/Native boundary. */
@@ -170,6 +183,11 @@ suspend fun StoreKitCoordinator.awaitFinish(
 ): Boolean = suspendCancellableCoroutine { continuation ->
     finishTransaction(jwsRepresentation) { finished -> continuation.resume(finished) }
 }
+
+suspend fun StoreKitCoordinator.awaitUnfinishedTransactions(): List<StoreKitPurchaseResult> =
+    suspendCancellableCoroutine { continuation ->
+        loadUnfinishedTransactions { transactions -> continuation.resume(transactions) }
+    }
 
 /** Raised by [awaitProducts] when the native product lookup reports a hard failure. */
 class StoreKitException(message: String) : Throwable(message)

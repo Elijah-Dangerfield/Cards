@@ -22,12 +22,6 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## BILL — billing
-
-- **BILL-7 `[P1]` iOS chip-pack redeem 400s (`appAppleId` required) — purchases left uncredited behind a toast.** Problem: every TestFlight purchase fails at `POST /v1/billing/redeem` with 400 "appAppleId is required when the environment is Production"; client logs "left uncredited" (orders 2000001203481555/…1803) and shows only a toast.
-  **Acceptance:** TestFlight/production receipts redeem successfully (send/configure `appAppleId`), uncredited orders retry on next launch, a failed purchase shows a full error dialog, and the shop shows a purchase-in-flight loading state (owner directive).
-  **Hints:** `PurchaseChipPackUseCase`, server redeem validation, App Store Server API `appAppleId` requirement; relates BILL-6; case `docs/agent/feedback-cases/b198b3ec3d5145cbb7e3fb7d6c7c41fd.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-9J
-
 ## ENG — engineering / structural
 
 - **ENG-26 `[P2]` Review + unslop the privacy policy and terms of service (owner directive).** Problem: owner wants the GitHub Pages privacy policy and ToS double-checked for accuracy against what the app actually does, and passed through the unslop-text skill.

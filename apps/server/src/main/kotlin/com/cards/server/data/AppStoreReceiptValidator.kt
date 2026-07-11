@@ -5,6 +5,7 @@ import com.apple.itunes.storekit.model.JWSTransactionDecodedPayload
 import com.apple.itunes.storekit.verification.SignedDataVerifier
 import com.apple.itunes.storekit.verification.VerificationException
 import com.apple.itunes.storekit.verification.VerificationStatus
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.config.BillingConfig
 import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.PurchaseReceipt
@@ -159,9 +160,22 @@ class AppStoreReceiptValidator(
             else -> listOf(primary)
         }
         // The verifiers share one certificate load; SignedDataVerifier reads
-        // the streams at construction so each needs a fresh set.
-        return environments.map { environment ->
-            val verifier = buildVerifier(bundleId, environment)
+        // the streams at construction so each needs a fresh set. Construction
+        // is per-environment best-effort: Apple's library refuses to build a
+        // PRODUCTION verifier without the numeric appAppleId, and before this
+        // guard that IllegalArgumentException escaped the first redeem as a
+        // 400 — taking the sandbox verifier down with it, so every TestFlight
+        // purchase failed (BILL-7). Verify with whatever CAN be built and log
+        // the gap loudly.
+        return environments.mapNotNull { environment ->
+            val verifier = Catching { buildVerifier(bundleId, environment) }.getOrElse { e ->
+                logger.warn(
+                    "Cannot build the {} receipt verifier ({}) — set APPLE_APP_APPLE_ID to enable it; " +
+                        "continuing with the remaining environment(s)",
+                    environment, e.message,
+                )
+                return@mapNotNull null
+            }
             EnvironmentDecoder(
                 environment = environment.toPurchaseEnvironment(),
                 decoder = TransactionDecoder { verifier.verifyAndDecodeTransaction(it) },

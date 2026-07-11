@@ -178,6 +178,9 @@ class ShopViewModel @Inject constructor(
             is ShopAction.DismissError -> action.updateState {
                 it.copy(hasRefreshError = false)
             }
+            is ShopAction.DismissPurchaseError -> action.updateState {
+                it.copy(purchaseError = null)
+            }
             is ShopAction.ScrollToCategory -> action.updateState {
                 it.copy(pendingScrollCategory = action.category)
             }
@@ -198,12 +201,27 @@ class ShopViewModel @Inject constructor(
                     return
                 }
                 when (product) {
-                    is Product.ChipPack -> when (val outcome = purchaseChipPack(product)) {
-                        // Anonymous user — fold the use case's gating signal back
-                        // into the shop's dedicated claim-account event.
-                        IapPurchaseOutcome.ClaimAccountRequired ->
-                            sendEvent(ShopEvent.ClaimAccountRequired)
-                        else -> sendEvent(ShopEvent.PurchaseFinished(outcome))
+                    is Product.ChipPack -> {
+                        if (state.purchaseInFlight) return
+                        action.updateState { it.copy(purchaseInFlight = true) }
+                        val outcome = purchaseChipPack(product)
+                        action.updateState { it.copy(purchaseInFlight = false) }
+                        when (outcome) {
+                            // Anonymous user — fold the use case's gating signal
+                            // back into the shop's dedicated claim-account event.
+                            IapPurchaseOutcome.ClaimAccountRequired ->
+                                sendEvent(ShopEvent.ClaimAccountRequired)
+                            // Failures get a full dialog, not a toast — the user
+                            // may have paid and deserves a real explanation
+                            // (owner directive, BILL-7).
+                            is IapPurchaseOutcome.Failed -> action.updateState {
+                                it.copy(purchaseError = purchaseErrorFor(outcome.reason))
+                            }
+                            IapPurchaseOutcome.StoreUnavailable -> action.updateState {
+                                it.copy(purchaseError = PurchaseError.StoreUnavailable)
+                            }
+                            else -> sendEvent(ShopEvent.PurchaseFinished(outcome))
+                        }
                     }
                     is Product.ChipOffer ->
                         if (product.grantsKey == XP_BOOST_GRANTS_KEY) {
@@ -348,6 +366,19 @@ data class ShopState(
      * re-trigger the scroll.
      */
     val pendingScrollCategory: ShopCategory? = null,
+    /**
+     * True from the moment a real-money pack purchase is confirmed until the
+     * store + redeem round-trip resolves. The screen blocks input under a
+     * full-page "finishing your purchase" overlay so the post-payment redeem
+     * wait never reads as a hang (BILL-7, owner directive).
+     */
+    val purchaseInFlight: Boolean = false,
+    /**
+     * Set when a real-money purchase fails; drives the full error dialog
+     * (never just a toast — the user may have paid). Cleared by
+     * [ShopAction.DismissPurchaseError].
+     */
+    val purchaseError: PurchaseError? = null,
 ) {
     fun ownsProduct(productId: String): Boolean = productId in ownedProductIds
 
@@ -431,6 +462,33 @@ data class ShopState(
  * Classifier: [ShopState.sheetModeFor]. Visual rendering:
  * [PurchaseConfirmSheet].
  */
+/**
+ * Why a real-money purchase failed — drives the error dialog's copy. The
+ * distinction matters because the user's money is in different places:
+ * [UncreditedWillRetry] means they paid and the credit is owed (the launch
+ * redeemer recovers it); the others mean nothing was charged or the receipt
+ * was refused outright.
+ */
+enum class PurchaseError {
+    /** Paid at the store; the server credit failed and retries on next launch. */
+    UncreditedWillRetry,
+
+    /** The server refused the receipt — needs support, don't promise chips. */
+    Rejected,
+
+    /** The store itself failed the purchase — nothing was charged. */
+    StoreFailed,
+
+    /** No store connection (offline / no store account). */
+    StoreUnavailable,
+}
+
+internal fun purchaseErrorFor(reason: String): PurchaseError = when (reason) {
+    IapPurchaseOutcome.Failed.REASON_REDEEM_UNAVAILABLE -> PurchaseError.UncreditedWillRetry
+    IapPurchaseOutcome.Failed.REASON_RECEIPT_REJECTED -> PurchaseError.Rejected
+    else -> PurchaseError.StoreFailed
+}
+
 sealed interface PurchaseSheetMode {
     /** Buyable: user is unlocked + can afford + offer is in-window. */
     data object Available : PurchaseSheetMode
@@ -500,6 +558,9 @@ sealed interface ShopAction {
 
     /** The screen finished the deep-link scroll — clear the pending target. */
     data object ScrollConsumed : ShopAction
+
+    /** The user acknowledged the purchase-failure dialog. */
+    data object DismissPurchaseError : ShopAction
 
     /**
      * Confirm the purchase of [product] from inside the sheet. Opening

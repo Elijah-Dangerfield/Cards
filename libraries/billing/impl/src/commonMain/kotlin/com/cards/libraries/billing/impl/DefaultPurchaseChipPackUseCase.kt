@@ -8,12 +8,18 @@ import com.dangerfield.cards.libraries.billing.PurchaseResult
 import com.dangerfield.cards.libraries.billing.PurchaseTransaction
 import com.dangerfield.cards.libraries.billing.RealPurchasesEnabled
 import com.dangerfield.cards.libraries.billing.RedeemOutcome
+import com.dangerfield.cards.libraries.billing.StoreKitCoordinator
+import com.dangerfield.cards.libraries.billing.awaitUnfinishedTransactions
+import com.dangerfield.cards.libraries.billing.toPurchaseResult
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.products.Product
+import com.dangerfield.cards.libraries.products.ProductsRepository
+import kotlinx.coroutines.flow.first
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -44,6 +50,8 @@ class DefaultPurchaseChipPackUseCase(
     private val chipsRepository: ChipsRepository,
     private val authRepository: AuthRepository,
     private val realPurchasesEnabled: RealPurchasesEnabled,
+    private val storeKitCoordinator: StoreKitCoordinator,
+    private val productsRepository: ProductsRepository,
 ) : PurchaseChipPackUseCase {
 
     private val logger = KLog.withTag("PurchaseChipPackUseCase")
@@ -117,14 +125,14 @@ class DefaultPurchaseChipPackUseCase(
                     // config drift like a wrong bundle id). Must be a Sentry
                     // event, not a breadcrumb.
                     logger.e { "Server rejected receipt for order ${transaction.orderId} — no credit" }
-                    IapPurchaseOutcome.Failed("receipt_rejected")
+                    IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_RECEIPT_REJECTED)
                 }
                 RedeemOutcome.Unavailable -> {
-                    // Error on purpose: paid but uncredited until a retry
-                    // drains the unfinished transaction — worth seeing every
-                    // time it happens.
+                    // Error on purpose: paid but uncredited until the
+                    // launch-time redeemer drains the unfinished transaction —
+                    // worth seeing every time it happens.
                     logger.e { "Redeem unreachable for order ${transaction.orderId} — left uncredited" }
-                    IapPurchaseOutcome.Failed("redeem_unavailable")
+                    IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_REDEEM_UNAVAILABLE)
                 }
             }
         }
@@ -140,6 +148,55 @@ class DefaultPurchaseChipPackUseCase(
         } else {
             IapPurchaseOutcome.Success(grantedChips = grantedChips)
         }
+
+    override suspend fun redeemOutstanding() {
+        if (!realPurchasesEnabled()) return
+        val transactions = storeKitCoordinator.awaitUnfinishedTransactions()
+            .map { it.toPurchaseResult() }
+            .mapNotNull { result ->
+                when (result) {
+                    is PurchaseResult.Success -> result.transaction
+                    is PurchaseResult.AlreadyOwned -> result.transaction
+                    else -> null
+                }
+            }
+        if (transactions.isEmpty()) return
+        if (authRepository.current() !is AuthState.Authenticated) {
+            logger.w { "${transactions.size} unfinished purchase(s) waiting but no session — retrying next launch" }
+            return
+        }
+        val packs = Catching { productsRepository.observeCatalog().first() }
+            .getOrNull()?.chipPacks.orEmpty()
+
+        transactions.forEach { transaction ->
+            val pack = packs.firstOrNull { it.store.sku == transaction.sku }
+            if (pack == null) {
+                logger.e {
+                    "Unfinished purchase ${transaction.orderId} has no catalog product " +
+                        "for sku ${transaction.sku} — leaving it for a future catalog"
+                }
+                return@forEach
+            }
+            logger.i { "Retrying uncredited purchase ${transaction.orderId} (${pack.id})" }
+            when (val redeem = billingRepository.redeem(pack.id, transaction)) {
+                is RedeemOutcome.Granted -> {
+                    chipsRepository.setBalance(redeem.balance)
+                    billingClient.consume(transaction.purchaseToken)
+                    logger.i {
+                        "Recovered uncredited purchase ${transaction.orderId}: " +
+                            "${redeem.grantedChips} chips (alreadyRedeemed=${redeem.alreadyRedeemed})"
+                    }
+                    logger.logEvent("purchase.recovered", "product_id" to pack.id)
+                }
+                RedeemOutcome.Rejected ->
+                    // Deliberately left unfinished (matching the direct path):
+                    // consuming would erase the only evidence the user paid.
+                    logger.e { "Server rejected replayed receipt for order ${transaction.orderId}" }
+                RedeemOutcome.Unavailable ->
+                    logger.w { "Redeem still unreachable for order ${transaction.orderId} — retrying next launch" }
+            }
+        }
+    }
 
     private suspend fun creditChipsLocally(pack: Product.ChipPack, transaction: PurchaseTransaction) {
         chipsRepository.addChips(

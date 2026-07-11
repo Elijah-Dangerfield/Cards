@@ -4,6 +4,14 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-11 — Uncredited purchases stay unfinished at the store; a launch redeemer drains them (BILL-7)
+
+**Problem:** Every TestFlight chip-pack purchase 400'd at `/v1/billing/redeem` ("appAppleId is required when the environment is Production" — Apple's `SignedDataVerifier` refuses to construct a PRODUCTION verifier without the numeric app id, and the lazily-thrown exception took the sandbox verifier down with it). The client left the purchase uncredited with only a toast and no retry path: paid, zero chips, forever.
+
+**Decision:** Three layers. (1) Server: verifier construction is per-environment best-effort — a missing `APPLE_APP_APPLE_ID` degrades to sandbox-only verification (TestFlight receipts are sandbox-signed, so testers work) with a loud log; configuring the id enables production verification. (2) Client: a failed redeem already left the StoreKit transaction unfinished — that is now the durable retry queue. A new `StoreKitCoordinator.loadUnfinishedTransactions` (StoreKit 2 `Transaction.unfinished`) feeds `PurchaseChipPackUseCase.redeemOutstanding()`, driven by an `AutoInit` launch redeemer once auth resolves: redeem → grant → finish, idempotent server-side on the transaction id. Rejected receipts stay unfinished on purpose — finishing would erase the only evidence the user paid. (3) Shop UX (owner directive): purchase-in-flight blocks the page under a "finishing your purchase" overlay, and failures show a full dialog whose copy distinguishes paid-but-pending (`redeem_unavailable`) from refused (`receipt_rejected`) from not-charged store failures.
+
+**Alternatives rejected:** a client-side persisted retry queue (StoreKit already IS one — Apple replays unfinished transactions across reinstalls); consuming failed transactions and refunding via support (destroys the receipt); blocking the purchase CTA until the server is verified reachable (adds latency to the happy path for a rare failure).
+
 ## 2026-07-11 — Server-minted rewards signal the client to re-pull the wallet (PROG-12)
 
 **Problem:** ENG-9 moved level-up and achievement chip mints server-side, onto the progression/achievements sync endpoints — but nothing told the wallet. The sync coordinator's per-syncer loops all fire on the same trigger edge, so the wallet sync typically completes *before* (or concurrent with) the sync that mints, and the reward stays invisible until the next edge — observed as "earned 1000 chips, stale until force-kill" (CARDS-98).

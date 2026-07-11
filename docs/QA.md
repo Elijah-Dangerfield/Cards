@@ -620,6 +620,18 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
+### `BILL-7` 🚨 🍎 Failed redeem recovers on next launch; purchase shows loading + a real error dialog
+
+**State:** a TestFlight (or release + `.storekit`) build, claimed account. To force the failure leg: point the client at a server whose Apple validation is broken (or kill the network right after the StoreKit sheet confirms).
+
+1. Buy a chip pack. While the store sheet closes and the redeem settles, watch the shop page.
+2. Force the redeem to fail (step 0's setup) and confirm what appears.
+3. Relaunch the app (with the server healthy again) and let it settle on Home.
+
+**Expected:** While the purchase settles, the shop is blocked by a full-page "Finishing your purchase…" overlay — no frozen-looking wait, no double-buy. A failed redeem shows a full **dialog**, not a toast: "Your chips are on the way" copy (payment stood, credit pending) for a redeem failure, distinct copy for a store-side failure ("you have not been charged"). On the relaunch, the uncredited purchase redeems automatically — the balance includes the pack (session log: "Recovered uncredited purchase") without re-buying. TestFlight purchases must never 400 with `appAppleId is required` (server degrades to sandbox verification when unconfigured). (Covers todo BILL-7; the 2026-07-11 uncredited-purchase incident is the regression this guards.)
+
+---
+
 ## Tooling & debug
 
 ### `GAME-11` ⚠️ 📱 Shake feedback surface sits above an open bottom sheet
