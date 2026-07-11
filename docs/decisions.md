@@ -4,6 +4,21 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-11 — Observability suite: dashboard structure, alert contact point, crash-free via previous_exit
+
+**Decision:** One Grafana suite in three folders (Product / Business / Engineering; see
+`docs/wiki/observability.md`), Pulse as the home dashboard, alert emails to the owner's gmail via a
+single `owner-email` contact point with a 24h repeat cap. Crash-free session/user rates are computed
+in Loki from a `previous_exit` attribute stamped on the next `app.launched` (Android
+ApplicationExitInfo; iOS unknown until MetricKit) rather than from Sentry, because the Grafana
+Sentry datasource cannot chart release-health sessions and a crashing process can't flush its own
+crash log. Warn+ client-log forwarding (`telemetry.klogForwardingEnabled`) defaults ON at beta
+scale. Revenue panels price from `products.ios_fallback_price` (3 packs exist: small $0.99, medium
+$4.99, large $14.99) instead of a hardcoded map. Daily-brief automation deliberately deferred to
+post-launch. Old `cards-server Overview` dashboard deleted (its queries absorbed into `dc-infra`
+with the `!="200"`→`=~"5.."` error-rate fix).
+
+
 This log is for in-repo continuity and future sessions. (The V1 punch list lives in [`todo.md`](./todo.md); the old out-of-repo plan file no longer exists.)
 
 ## What goes here

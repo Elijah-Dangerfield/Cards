@@ -101,6 +101,9 @@ jobs:
       VERSION_CODE_OVERRIDE: ${{ github.run_number }}
       BUILD_NUMBER_OVERRIDE: ${{ github.run_number }}
       RELEASE_CHANNEL_OVERRIDE: prod
+      GRAFANA_OTLP_BASE_URL: ${{ secrets.GRAFANA_OTLP_BASE_URL }}
+      GRAFANA_OTLP_INSTANCE_ID: ${{ secrets.GRAFANA_OTLP_INSTANCE_ID }}
+      GRAFANA_LOGS_WRITE_TOKEN: ${{ secrets.GRAFANA_LOGS_WRITE_TOKEN }}
 
     steps:
       - name: Checkout
@@ -315,6 +318,9 @@ jobs:
       VERSION_CODE_OVERRIDE: ${{ github.run_number }}
       BUILD_NUMBER_OVERRIDE: ${{ github.run_number }}
       RELEASE_CHANNEL_OVERRIDE: prod
+      GRAFANA_OTLP_BASE_URL: ${{ secrets.GRAFANA_OTLP_BASE_URL }}
+      GRAFANA_OTLP_INSTANCE_ID: ${{ secrets.GRAFANA_OTLP_INSTANCE_ID }}
+      GRAFANA_LOGS_WRITE_TOKEN: ${{ secrets.GRAFANA_LOGS_WRITE_TOKEN }}
 
     steps:
       - name: Checkout

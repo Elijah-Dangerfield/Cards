@@ -26,6 +26,24 @@ class AppEventsEnabled(appConfigMap: AppConfigMap) : FlagConfigValue(appConfigMa
 }
 
 /**
+ * Forwards Warn+ KLog lines (no event extra required) to Grafana Cloud as
+ * plain OTLP logs — the ops mirror of client errors into Loki without
+ * waiting on a Sentry crash. Sits behind the same kill switch
+ * ([AppEventsEnabled]) and per-session sampling as app events; events keep
+ * flowing regardless of this flag. Default on at beta scale (owner decision
+ * 2026-07-11); log volume becomes a deliberate second decision when the
+ * user base grows.
+ */
+@Inject
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = QaConfigValue::class, multibinding = true)
+class KlogForwardingEnabled(appConfigMap: AppConfigMap) : FlagConfigValue(appConfigMap) {
+    override val name = "Warn+ logs to Grafana enabled"
+    override val path = "telemetry.klogForwardingEnabled"
+    override val default = true
+}
+
+/**
  * Per-session sampling rate for app events, 0.0..1.0. Sampling is keyed on a
  * stable hash of the session id, so a session's events are all-or-nothing
  * and funnels stay joinable. 1.0 until volume forces a cut.

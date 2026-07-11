@@ -21,7 +21,7 @@ kotlin {
             implementation(libs.otel.kotlin.sdk.api)
             implementation(libs.otel.kotlin.implementation)
             implementation(libs.otel.kotlin.exporters.core)
-            implementation(libs.otel.kotlin.exporters.otlp)
+            implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.contentNegotiation)
             implementation(libs.ktor.client.encoding)
@@ -31,6 +31,9 @@ kotlin {
             implementation(projects.libraries.core)
             implementation(libs.otel.kotlin.api)
             implementation(libs.otel.kotlin.sdk.api)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.ktor.client.mock)
         }
 
         androidMain.dependencies {

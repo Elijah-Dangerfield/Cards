@@ -3,13 +3,24 @@
 The registry of structured events the client emits for product analytics. One event = one
 `logEvent(name, attrs)` call riding the normal KLog tree system: it lands in logcat, as a Sentry
 breadcrumb, and — via `GrafanaLogTree` in `:libraries:telemetry:impl` — as an OTLP log record in
-Grafana Cloud Loki. Full design + dashboards plan:
-[`docs/plans/client-app-events-otel.md`](../plans/client-app-events-otel.md).
+Grafana Cloud Loki. The dashboards these feed are mapped in
+[`docs/wiki/observability.md`](observability.md).
 
 Dashboard queries treat this page as the source of truth for names and attributes. Names are
 dot-namespaced snake_case; every record automatically carries `session_id` + `install_id`
 (per-record) plus resource attributes (`service.name="cards-client"`, deployment environment,
 version, platform).
+
+**Query shape (verified against live Loki 2026-07-11):** stream is
+`{service_name="cards-client", deployment_environment="dev"|"prod"}`; `event_name`, `session_id`,
+and all event attributes are **structured metadata**, so filter with pipes
+(`| event_name="hand.completed"`), not line filters. The server's request logs carry the same
+`session_id` metadata key — that's the cross-service correlation join.
+
+**Delivery is at-most-once.** A batch that fails to export is dropped, not retried — events emitted
+while the device is offline are lost (accepted for behavioral analytics; a persistence exporter is
+the upgrade path if this ever matters). `app.launched` also predates the first-foreground session
+rollover, so it carries its own one-off `session_id` (ENG-24).
 
 **Rules for adding events:** emit through the `logEvent` extension only (never a raw
 `EXTRA_APP_EVENT` extra), fire on user actions / state transitions — never per-frame, per-poll, or
@@ -21,9 +32,9 @@ and anything already in a ledger.
 
 | Event | Attributes | Fires |
 |---|---|---|
-| `app.launched` | `cold_start` (always true) | Boot, from `GrafanaAppEvents` init — doubles as the pipeline smoke test |
+| `app.launched` | `cold_start` (always true), `previous_exit` (clean/crash/anr/oom/unknown) | Boot, from `GrafanaAppEvents` init — doubles as the pipeline smoke test. `previous_exit` comes from Android's historical exit reasons (API 30+; older devices report `unknown`); **iOS always reports `unknown`** until MetricKit wiring lands (ENG-25) — segment by platform before reading exit rates |
 | `app.foregrounded` | `cold_start` | Every foreground (`LifecycleAppEventLogger`); `cold_start=true` on the boot foreground |
-| `app.backgrounded` | — | Every background; session length = foregrounded→backgrounded span per `session_id` |
+| `app.backgrounded` | `session_duration_sec` | Every background; `session_duration_sec` = whole seconds since the matching foreground (monotonic clock), so session length is a direct query — no span join needed. Omitted in the (shouldn't-happen) case of a background with no prior foreground |
 | `game.started` | `mode` (bots/multiplayer), `difficulty` | `PlayPokerViewModel` init |
 | `game.ended` | `mode`, `hands_played`, `duration_sec`, `end_reason` (left/bust/match_over/opponent_left/room_closed) | Once per session (latched) at whichever end path fires first |
 | `hand.completed` | `mode`, `hand_number`, `won`, `showdown` | Each hand the human actually played |
@@ -99,3 +110,18 @@ The events that motivated shipping direct-to-Grafana: what never reaches the bac
 
 Backend-driven — no client events beyond `achievement.celebration_shown` (a UX question). The
 progression questions are answerable from Postgres via the `cards-prod-db` datasource.
+
+## Warn+ log forwarding (not events)
+
+Besides events, `GrafanaLogTree` forwards plain KLog lines at Warn and above to Loki as ordinary
+OTLP logs — client errors visible without waiting on a Sentry crash. Query them with
+
+```
+{service_name="cards-client"} | detected_level=~"warn|error"
+```
+
+These records have **no `event_name`** (that's how you tell them apart from events); they carry
+`session_id`/`install_id`, the logger `tag`, and `exception_type`/`exception_message` when a
+throwable was attached. Gated by `telemetry.klogForwardingEnabled` (remote config, default **on**)
+and still behind the `telemetry.appEventsEnabled` kill switch + per-session sampling — flipping
+the forwarding flag off never affects events.
