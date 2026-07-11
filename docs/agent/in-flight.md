@@ -10,6 +10,13 @@ into the PR body and deletes this file.
 **Reviewer notes:** This means release/TestFlight builds were never affected (wiretap is stripped there) — the bug was dev/debug builds only, contrary to the todo's "affects every quiet MP table on both platforms". The regression test (`SocketKeepaliveTest`) deliberately runs ~19s of real wall-clock (the failure is a real-time ping-scheduler race; unreachable under virtual time) and mimics wiretap with a pass-through raw-session wrapper because the real plugin's DI can't bootstrap under host-JVM JUnit.
 **Deferred:** Banner debounce (only show "lost connection" after a few hundred ms of downtime) — not needed once the keepalive is honest; noted here in case the reviewer disagrees. Nothing filed.
 
+## fix(flowroutines): delete SEAViewModel's dead saved-state write (ENG-27)
+
+**Problem:** `SEAViewModel.onCleared` wrote the state object into a `SavedStateHandle`; plain data-class states fail the handle's savable-type validation, logging an `IllegalArgumentException` error on every VM clear — and nothing ever read the value back, because the default `SavedStateHandle()` is never platform-wired.
+**Approach:** Took the todo's own recommendation: deleted the write, the hydrate-on-init read, the constructor param (nothing in the repo ever passed one), the KDoc claim, and the now-unused `lifecycle-viewmodel-savedstate` dependency. Red-first: a new `SEAViewModelClearTest` plants a recording KLog tree, clears a VM through a real `ViewModelStore`, and asserts no error logs — red with the exact production message ("Can't put value with type … PlainState into saved state") before the deletion. Alternative rejected: wiring real process-death restoration through a platform-provided handle — nothing restores from it today and no screen has needed it; that's a deliberate feature, not a bug fix, and belongs in backlog if ever wanted.
+**Reviewer notes:** Also added `:libraries:core` to flowroutines' commonTest deps (the test needs KLog; commonMain's `implementation` dep wasn't visible to the test compilation).
+**Deferred:** None.
+
 ## fix(rooms): host authority follows the effective host on both sides (ROOM-16)
 
 **Problem:** The sole human member of a rejoined matchmaking room couldn't add bots — seven `not_host` 403s with no visible feedback (CARDS-9N).

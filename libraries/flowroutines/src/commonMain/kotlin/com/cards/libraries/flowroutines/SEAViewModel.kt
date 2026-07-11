@@ -1,6 +1,5 @@
 package com.dangerfield.cards.libraries.flowroutines
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -47,13 +46,9 @@ class IllegalViewModelStateException(
  * triggered or from the view model itself.
  * Tips:
  * - If you need data to load on init, have the view model take an action in the init block.
- *
- * This viewmodel backs the state into the saved state handle if the state is savable.
- * See [SavedStateHandle.ACCEPTABLE_CLASSES]
  */
 abstract class SEAViewModel<S : Any, E : Any, A : Any>(
     private val initialStateArg: S? = null,
-    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
 
     private val actions = Channel<A>(Channel.UNLIMITED)
@@ -63,11 +58,7 @@ abstract class SEAViewModel<S : Any, E : Any, A : Any>(
 
     // Lazy so that we do not let initialState() from the child get called before the child is initialized
     private val mutableStateFlow: MutableStateFlow<S> by lazy {
-        MutableStateFlow(
-            Catching {
-                savedStateHandle.get<S>(STATE_KEY)
-            }.getOrNull() ?: _initialState
-        )
+        MutableStateFlow(_initialState)
     }
 
     /**
@@ -169,7 +160,7 @@ abstract class SEAViewModel<S : Any, E : Any, A : Any>(
      * Sets the initial state to be emitted by the `states` flow.
      *
      * We use a function to force for lazy initialization of the state, allowing the view model to
-     * define the initial state in a more flexible way. Including using SavedStateHandle Args.
+     * define the initial state in a more flexible way.
      */
     protected open fun initialState(): S {
         return initialStateArg
@@ -223,15 +214,5 @@ abstract class SEAViewModel<S : Any, E : Any, A : Any>(
      * @param action the action to be handled
      */
     protected abstract suspend fun handleAction(action: A)
-
-    override fun onCleared() {
-        Catching {
-            savedStateHandle[STATE_KEY] = state
-        }.logOnFailure("Could not save state on clear for state: ${state::class.simpleName}")
-    }
-
-    companion object {
-        private const val STATE_KEY = "state"
-    }
 }
 
