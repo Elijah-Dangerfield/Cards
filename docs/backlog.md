@@ -1011,7 +1011,7 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 
 ## ENG-20 phase 3: retire the replayed-edge machinery entirely
 
-**Idea (filed with ENG-20, 2026-07-10):** With sync triggers on levels (`runWhen` + `SyncTriggers`), the remaining edge plumbing can shrink: drop the app-event bus replay 1→0 once `OfflineFirstAppConfigRepository` (the last replay-dependent consumer) is checked/migrated, migrate identity's condition-shaped listeners (`GuestSessionHealer` etc.) onto `runWhen`, then delete `ConnectivityEdgeDispatcher` + `AppEvent.ConnectivityRegained` (SyncTriggers already derives `cameOnline` from the `isOffline` level directly). See `docs/plans/eng-20-runwhen-triggers.md` follow-ups.
+**Idea (filed with ENG-20, 2026-07-10):** With sync triggers on levels (`runWhen` + `SyncTriggers`), the remaining edge plumbing can shrink: drop the app-event bus replay 1→0 once `OfflineFirstAppConfigRepository` (the last replay-dependent consumer) is checked/migrated, migrate identity's condition-shaped listeners (`GuestSessionHealer` etc.) onto `runWhen`, then delete `ConnectivityEdgeDispatcher` + `AppEvent.ConnectivityRegained` (SyncTriggers already derives `cameOnline` from the `isOffline` level directly).
 
 **Status:** Backlog.
 

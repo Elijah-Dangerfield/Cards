@@ -3,8 +3,8 @@
 The registry of structured events the client emits for product analytics. One event = one
 `logEvent(name, attrs)` call riding the normal KLog tree system: it lands in logcat, as a Sentry
 breadcrumb, and — via `GrafanaLogTree` in `:libraries:telemetry:impl` — as an OTLP log record in
-Grafana Cloud Loki. Full design + dashboards plan:
-[`docs/plans/client-app-events-otel.md`](../plans/client-app-events-otel.md).
+Grafana Cloud Loki. The dashboards these feed are mapped in
+[`docs/wiki/observability.md`](observability.md).
 
 Dashboard queries treat this page as the source of truth for names and attributes. Names are
 dot-namespaced snake_case; every record automatically carries `session_id` + `install_id`

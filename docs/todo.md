@@ -24,10 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ENG — engineering / structural
 
-- **ENG-19 `[P2]` Grafana users-and-sessions dashboard.** Problem: there is no view of users, platforms, or session behavior at all.
-  **Acceptance:** a new users dashboard shows player counts by platform, session counts and lengths, and anomalies like the longest session, powered by ENG-18 events.
-  **Hints:** unblocked 2026-07-11 — credentials are in, the pipe is verified, and events flow to Loki. Query shape: `{service_name="cards-client"}` with `event_name`/`session_id` as structured metadata (`| event_name="..."` pipes, not line filters).
-
 - **ENG-24 `[P2]` `app.launched` carries a pre-rollover session_id.** Problem: `app.launched` fires from `GrafanaAppEvents` AutoInit before the session tracker rolls the session on first foreground, so it lands with a different `session_id` than every other event in the same boot (verified in Loki 2026-07-11: launch `853a6eec…` vs foreground+rest `3f741d6e…`) — session-keyed funnels see an orphan one-event session per cold start.
   **Acceptance:** all events from one cold start share one `session_id` (either emit `app.launched` after the session settles, or count launches via `app.foregrounded cold_start=true` and demote `app.launched` to a pure pipe smoke-test — pick one and update `docs/wiki/app-events.md`).
   **Hints:** `GrafanaAppEvents.kt` init vs `SessionTrackerImpl` foreground rollover ordering.
