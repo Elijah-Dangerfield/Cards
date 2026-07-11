@@ -17,6 +17,7 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 - Import `Preview` from `org.jetbrains.compose.ui.tooling.preview.Preview` — never write the fully-qualified `@org.jetbrains…Preview` inline.
 - Import symbols; don't inline a fully-qualified reference (`PreviewContent`, `KLog`, `Clock`, achievement registries). One import reads far better than an FQN at the callsite.
 - Every public screen-level / component composable has at least one `@Preview` covering meaningful states, not just happy path.
+- Don't preview states the producer can never emit (an `isAuthing` spinner nothing sets) — a preview of an unreachable state pins a lie and hides the dead field.
 
 ## Dead code
 - Delete unused private helpers as you touch a file. A `default…()`/factory with no caller is dead, not "kept for later."
@@ -26,6 +27,8 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 - A branch a prior guard already covers is dead — `if (!canSubmit) return` then `if (pw != confirm) …` never fires when `canSubmit` requires the match. Drop the re-check (and any error variant only it set).
 - When a screen loses an affordance, sweep its VM — the lobby kept a whole join-form state machine (action, derived flags, error variants, length constants) after the form UI was deleted. Its tests kept it looking alive.
 - Dead strings hide in `strings.xml` — grep with word boundaries before trusting "used" (`…_start_button` matched only `…_start_button_waiting`).
+- A VM action no screen dispatches is dead API (`DismissError` with no dismiss affordance) — grep for the *dispatch* (`onAction(…)`), not the handler; its own tests keep it looking alive.
+- `if (!flag) Chrome()` is dead when every path into that screen sets the flag — trace the flag's producers (back buttons on steps only reachable after `creationStarted = true` never rendered).
 
 ## Naming & clarity
 - Don't shadow an outer `val` with an inner one of the same name — rename the inner (e.g. `previousHumans` → `priorHumans`) so each read is unambiguous.
