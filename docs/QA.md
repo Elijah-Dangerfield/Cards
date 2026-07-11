@@ -568,6 +568,18 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
+### `PROG-11` 🚨 📱 Earned chips survive a kill + relaunch (and refused spends say so)
+
+**State:** a signed-in account on Home with a settled chip balance.
+
+1. Play bot hands until an achievement or level-up grants chips; note the new Home balance.
+2. Immediately force-quit the app (before any manual sync), then relaunch and let Home settle.
+3. Optional (needs a network tool or airplane-mode timing): queue a shop spend while offline that the server will refuse (balance already spent elsewhere / on another device), then reconnect and let the wallet sync run.
+
+**Expected:** After the relaunch the balance still includes the grant — earned chips never vanish and then "come back" on a later sync (the display is server snapshot + pending events, and relaunch triggers a sync). In the refused-spend case, the balance corrects to the server's value AND an error snackbar ("A purchase didn't go through, so we put your chips back.") explains it — never a silent balance change. (Covers todo PROG-11 + the ENG-20 relaunch-sync trigger; the 2026-07-09 vanishing-chips incident is the regression this guards.)
+
+---
+
 ## Billing & IAP
 
 ### `BILL-4` 🚨 🍎 iOS chip-pack purchase via StoreKit (local `.storekit` config)

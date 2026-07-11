@@ -22,12 +22,6 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## PROG — progression / XP / stats
-
-- **PROG-11 `[P1]` Chip balance must stay optimistic through every sync ordering (spec-driven).** Problem: a sync posts every pending wallet event in one request, then unconditionally overwrites the local balance with the server's number. Chips granted while that request is in flight get wiped from the display until the next sync, and events the server rejects silently shrink the balance with no message to the user. The owner's 07-09 "my 500 chips vanished" report is this family of bug.
-  **Acceptance:** run a subagent investigation first, write the plan into the case file, then implement it. The shipped behavior must guarantee two things, each pinned by a failing-first test: the displayed balance always equals the server's last snapshot plus pending local events (so no sync ordering can make earned chips disappear), and a rejected event tells the user instead of silently dropping their balance.
-  **Hints:** `ChipsRepositoryImpl.syncLocked` (the window between `getAll()` and `setBalance()`) and `observeBalance` (reads the raw entity, no pending fold). The "why didn't relaunch trigger a sync at all" half of the incident belongs to ENG-20. Case: `docs/agent/feedback-cases/2026-07-09-chips-vanish-on-restart.md`.
-
 ## ENG — engineering / structural
 
 - **ENG-21 `[P2]` Close the user-switch clear window: an old user's in-flight sync can still race `clearFor`.** Problem: `SupabaseAuthRepositoryImpl.emitLocked` awaits `userScopedDataReset.clearFor(previous)` before emitting the new user, but a sync already in flight for the old user is only cancelled when the new emission reaches the sync loops - its writes can land mid-clear. ENG-20's cancel-on-key-change narrowed this pre-existing window; it is not closed.

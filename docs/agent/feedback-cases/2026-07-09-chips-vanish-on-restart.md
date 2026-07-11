@@ -39,3 +39,20 @@ Batching answer for the owner: yes — one `sync()` posts ALL pending rows in a 
 **Code-read addendum (2026-07-10, subagent report):** the outbox IS persisted (`WalletEventEntity`, idempotency-keyed) and the optimistic balance IS persisted (`ChipsEntity.balance`, bumped by `addChips` at grant time). Two defects explain the symptom: (1) `ChipsRepositoryImpl.sync()` applies `setBalance(response.balance)` — server truth stomps the optimistic balance even when pending outbox rows haven't landed, and `observeBalance()` reads the raw entity with no pending-events fold; (2) `UserScopedSyncCoordinator` deliberately skips cold-boot foreground (auth-resolve `UserChanged` is supposed to own it), and in this session the relaunch produced no flush — either `UserChanged` never fired on session restore or its sync silently failed, with the displayed 10,000 implying something hydrated server truth without posting the pending events. MP leave settlement is NOT implicated: `leaveRoom` returns the settled balance in the response and the client applies it directly (MP-29 fix confirmed race-free).
 
 Also confirmed live: TestFlight purchases are StoreKit sandbox (free) but recorded as real — 125,000 unpaid chips now dominate the prod supply and `billing_transactions` has no environment column (BILL-6).
+
+## PROG-11 implementation plan (2026-07-10, worker — investigated via subagent, then implemented)
+
+**Root decision: stop blending. The local `chips` row becomes a pure *server snapshot*, and the displayed balance is always derived as `snapshot + SUM(pending wallet_events deltas)`.** Modes 4 and 5 are both symptoms of one design flaw — a single mutable balance that optimistic writes bump and `setBalance` stomps. Deriving the display kills the whole class: no sync ordering can drop a pending grant, because the grant *is* a pending row until the server resolves it.
+
+Mechanics (investigated against the code 2026-07-10):
+
+1. `WalletEventDao` gains `observePendingDelta(): Flow<Long?>` + `sumPendingDelta(): Long?` (`SELECT SUM(delta)` — NULL on empty; no schema change).
+2. `ChipsDao`: `applyDelta`/`insertIfMissing` die; `upsert` (REPLACE) added. `ChipsEntity.balance` now stores only the last authoritative server value (`setBalance` = snapshot overwrite). No Room migration: same column, new meaning; stale blended values self-correct on first sync.
+3. `ChipsRepositoryImpl.observeBalance()/getBalance()` = `combine(snapshot, pendingSum)` → `snapshot + pending`, `pending` alone pre-first-sync, `null` when neither exists (preserves the documented spinner window).
+4. `addChips/subtractChips` only enqueue the outbox row (IGNORE on the idempotency key). The old countByKey double-count guard is obsolete — the derivation sums each row exactly once.
+5. `sync()` is unchanged in shape (post all → delete resolved → snapshot write) but is now stomp-proof by construction: an event enqueued mid-POST stays in the pending sum after `setBalance`.
+6. Mode 5 surfacing: `ChipsRepository.observeSyncRejections(): Flow<ChipSyncRejection>` (SharedFlow from the impl, emitted when the server answers `InsufficientChips`); collected at App root next to the existing `observeEditRejections` snackbar precedent → error snackbar ("a recent chip spend didn't go through"). `RefusedServerOwned` stays silent by design (the server mints those itself; nothing was lost).
+
+Failing-first tests: (a) grant lands while a sync request is in flight (gated MockEngine) → displayed balance after the sync includes the grant — red against the old stomp, green after; (b) `InsufficientChips` response → rejection emitted + row deleted + balance back to authoritative.
+
+Callers audited (subagent): `setBalance` = MP settle (PlayPokerViewModel/LobbyViewModel, authoritative post-settle balance) + IAP redeem (`DefaultPurchaseChipPackUseCase`) — all are genuine snapshot writes and keep pending grants intact under the fold, which is strictly better than today's stomp. No production code reads `ChipsEntity` outside the repository.

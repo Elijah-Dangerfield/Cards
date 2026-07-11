@@ -713,6 +713,7 @@
     <string name="profile_edit_sync_rejected_name_taken">Couldn't save your name. That one's already taken.</string>
     <string name="profile_edit_sync_rejected_name_invalid">Couldn't save your name. That one's not allowed.</string>
     <string name="profile_edit_sync_rejected_avatar">Couldn't save your avatar. It's no longer available.</string>
+    <string name="chips_sync_rejected_spend_message">A purchase didn't go through, so we put your chips back.</string>
     <string name="profile_edit_save_error_name_taken">Couldn't save. That name is already taken.</string>
     <string name="profile_edit_save_error_name_invalid">Couldn't save. That name isn't allowed.</string>
     <string name="profile_edit_save_error_avatar_emoji">Couldn't save. That avatar isn't available.</string>

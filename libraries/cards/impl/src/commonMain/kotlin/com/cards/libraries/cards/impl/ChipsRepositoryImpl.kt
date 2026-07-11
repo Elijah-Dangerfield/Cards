@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.cards.ChipSyncRejection
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.impl.dto.WalletEventDto
 import com.dangerfield.cards.libraries.cards.impl.dto.WalletEventOutcomeDto
@@ -19,10 +20,12 @@ import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.tatarka.inject.annotations.Inject
@@ -35,16 +38,21 @@ import kotlin.uuid.Uuid
 /**
  * Optimistic local chips, write-through to the server's wallet ledger.
  *
- * [addChips] / [subtractChips] mutate the singleton chips row AND
- * enqueue a [WalletEventEntity] keyed by the caller-supplied idempotency
- * key (or a generated UUID if none was supplied). [sync] picks the
- * pending events up on cold boot / foreground and flushes them through
- * `POST /v1/me/wallet/sync`.
+ * The `chips` row holds only the last authoritative **server snapshot**;
+ * [addChips] / [subtractChips] enqueue a [WalletEventEntity] keyed by the
+ * caller-supplied idempotency key (or a generated UUID), and the balance
+ * the app shows is always derived: snapshot + SUM(pending deltas). That
+ * derivation is the PROG-11 fix — the old design blended optimistic
+ * deltas into one mutable balance that [sync]'s authoritative overwrite
+ * then stomped, hiding any grant that landed while the request was in
+ * flight. Now such a grant stays a pending row and keeps counting until
+ * the server itself resolves it. [sync] flushes the outbox through
+ * `POST /v1/me/wallet/sync` on the coordinator's triggers.
  *
  * **No client-side starter grant.** The server's `findOrCreate` seeds
  * the wallet with the authoritative starter grant; the first [sync]
- * hydrates the local row via [setBalance]. Until that lands, the local
- * store has no row and [observeBalance] / [getBalance] return null. UI
+ * hydrates the snapshot via [setBalance]. Until that lands (and while
+ * the outbox is empty) [observeBalance] / [getBalance] return null. UI
  * renders a spinner / hides the badge in that window — much cleaner than
  * the old "flash a placeholder, then replace with real" UX.
  */
@@ -68,9 +76,22 @@ class ChipsRepositoryImpl(
     private val _isReconciling = MutableStateFlow(false)
     override val isReconciling: StateFlow<Boolean> = _isReconciling.asStateFlow()
 
-    override fun observeBalance(): Flow<Long?> = chipsDao.observeChips().map { it?.balance }
+    private val syncRejections = MutableSharedFlow<ChipSyncRejection>(extraBufferCapacity = 8)
 
-    override suspend fun getBalance(): Long? = chipsDao.getChips()?.balance
+    override fun observeSyncRejections(): Flow<ChipSyncRejection> = syncRejections.asSharedFlow()
+
+    override fun observeBalance(): Flow<Long?> =
+        combine(chipsDao.observeChips(), walletEventDao.observePendingDelta()) { snapshot, pending ->
+            foldBalance(snapshot = snapshot?.balance, pending = pending)
+        }
+
+    override suspend fun getBalance(): Long? =
+        foldBalance(snapshot = chipsDao.getChips()?.balance, pending = walletEventDao.pendingDelta())
+
+    private fun foldBalance(snapshot: Long?, pending: Long?): Long? = when {
+        snapshot != null -> snapshot + (pending ?: 0L)
+        else -> pending
+    }
 
     override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {
         require(amount > 0) { "addChips amount must be positive; got $amount" }
@@ -83,55 +104,33 @@ class ChipsRepositoryImpl(
     }
 
     /**
-     * Shared path for both directions. Order matters:
-     * 1. Bail if this key was already applied — the ledger insert dedups on the
-     *    key, but the balance delta below is not key-aware, so re-applying the
-     *    same key would double-count the optimistic local balance.
-     * 2. Insert the ledger row (idempotent on the key).
-     * 3. Insert a zero-balance row if missing — UPDATE needs something
-     *    to update. First optimistic write before the first sync lands
-     *    here; the row stays at the delta until sync hydrates it. A
-     *    crash between enqueue + UPDATE leaves the user with the right
-     *    pending event, the wrong local balance — the next sync still
-     *    arrives at the authoritative answer.
-     * 4. Apply the delta.
+     * Shared path for both directions: enqueue the outbox row, nothing
+     * else. The displayed balance derives from snapshot + pending, so the
+     * write is visible immediately, a duplicate idempotency key (IGNOREd
+     * by the insert) can't double-count, and a crash right after this
+     * line loses nothing.
      */
     private suspend fun applyDeltaInternal(delta: Long, reason: String, idempotencyKey: String?) {
-        val nowEpochMs = clock.now().toEpochMilliseconds()
-        val key = idempotencyKey ?: Uuid.random().toString()
-        // A caller-supplied key that's already on the ledger means this exact
-        // mutation already landed (event + delta). Skip the whole write so the
-        // local balance isn't double-applied. A generated key never collides.
-        if (walletEventDao.countByKey(key) > 0) return
         walletEventDao.insert(
             WalletEventEntity(
-                idempotencyKey = key,
+                idempotencyKey = idempotencyKey ?: Uuid.random().toString(),
                 delta = delta,
                 reason = reason,
-                appliedAtEpochMs = nowEpochMs,
+                appliedAtEpochMs = clock.now().toEpochMilliseconds(),
             ),
         )
-        chipsDao.insertIfMissing(
-            ChipsEntity(balance = 0L, updatedAtEpochMs = nowEpochMs),
-        )
-        chipsDao.applyDelta(delta = delta, updatedAtEpochMs = nowEpochMs)
     }
 
     override suspend fun setBalance(authoritativeBalance: Long) {
-        val nowEpochMs = clock.now().toEpochMilliseconds()
-        val existing = chipsDao.getChips()
-        if (existing == null) {
-            // First sync after install — insert directly at the
-            // authoritative value. No prior local row to reconcile.
-            chipsDao.insertIfMissing(
-                ChipsEntity(balance = authoritativeBalance, updatedAtEpochMs = nowEpochMs),
-            )
-        } else {
-            val delta = authoritativeBalance - existing.balance
-            if (delta != 0L) {
-                chipsDao.applyDelta(delta = delta, updatedAtEpochMs = nowEpochMs)
-            }
-        }
+        // Zero-delta short-circuit: an unchanged snapshot must not churn
+        // the row's timestamp (every sync would otherwise be a "touch").
+        if (chipsDao.getChips()?.balance == authoritativeBalance) return
+        chipsDao.upsert(
+            ChipsEntity(
+                balance = authoritativeBalance,
+                updatedAtEpochMs = clock.now().toEpochMilliseconds(),
+            ),
+        )
     }
 
     override suspend fun deleteAll() {
@@ -180,20 +179,28 @@ class ChipsRepositoryImpl(
                 walletEventDao.deleteByKeys(resolvedKeys)
             }
 
-            val rejectedCount = response.results.count {
-                it.outcome == WalletEventOutcomeDto.InsufficientChips
-            }
-            if (rejectedCount > 0) {
+            val rejectedKeys = response.results
+                .filter { it.outcome == WalletEventOutcomeDto.InsufficientChips }
+                .map { it.idempotencyKey }
+                .toSet()
+            if (rejectedKeys.isNotEmpty()) {
+                val rejectedChips = pending
+                    .filter { it.idempotencyKey in rejectedKeys }
+                    .sumOf { kotlin.math.abs(it.delta) }
                 syncLogger.w {
-                    "Server rejected $rejectedCount chip events as insufficient — resetting local balance to authoritative."
+                    "Server rejected ${rejectedKeys.size} chip events ($rejectedChips chips) as insufficient — " +
+                        "dropping them and telling the user."
                 }
+                syncRejections.tryEmit(
+                    ChipSyncRejection(rejectedEvents = rejectedKeys.size, rejectedChips = rejectedChips),
+                )
             }
 
-            // Overwrite the local balance with the authoritative value.
-            // After the dropped events that's the correct sum; if the
-            // server applied something we hadn't seen (cross-device
-            // grant), this is also where we pick it up. setBalance
-            // handles the no-local-row case by inserting directly.
+            // Overwrite the snapshot with the authoritative value. Events
+            // still pending (enqueued mid-request, or Unknown outcomes)
+            // keep riding on top of it via the fold; if the server applied
+            // something we hadn't seen (cross-device grant), this is also
+            // where we pick it up.
             setBalance(response.balance)
 
             // Brand-new account: the server just lazy-created the wallet. Flip

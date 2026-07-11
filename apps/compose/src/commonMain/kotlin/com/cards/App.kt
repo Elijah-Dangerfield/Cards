@@ -93,6 +93,7 @@ import com.dangerfield.cards.libraries.ui.snackbar.SnackbarDuration
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.chips_sync_rejected_spend_message
 import cards.libraries.resources.generated.resources.profile_edit_sync_rejected_avatar
 import cards.libraries.resources.generated.resources.profile_edit_sync_rejected_name_invalid
 import cards.libraries.resources.generated.resources.profile_edit_sync_rejected_name_taken
@@ -156,6 +157,19 @@ fun App(appComponent: AppComponent) {
 
     LaunchedEffect(ensureAppConfigLoaded) {
         ensureAppConfigLoaded()
+    }
+
+    // Surface a "spend didn't go through" snackbar when the wallet sync
+    // learns the server refused a queued chip event — the displayed balance
+    // already snapped back to authoritative, so without this the correction
+    // would be silent (PROG-11). App-root so it shows wherever the user is.
+    LaunchedEffect(Unit) {
+        appComponent.chipsRepository.observeSyncRejections().collect {
+            showSnackBar(
+                message = getString(Res.string.chips_sync_rejected_spend_message),
+                level = SnackbarLevel.Error,
+            )
+        }
     }
 
     // Surface a "couldn't save" snackbar when a profile edit queued offline is

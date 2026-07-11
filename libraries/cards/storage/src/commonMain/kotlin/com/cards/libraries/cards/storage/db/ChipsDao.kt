@@ -15,14 +15,11 @@ interface ChipsDao : ClearableDao {
     @Query("SELECT * FROM chips WHERE id = 'user' LIMIT 1")
     suspend fun getChips(): ChipsEntity?
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertIfMissing(entity: ChipsEntity)
-
-    @Query(
-        "UPDATE chips SET balance = balance + :delta, updated_at_epoch_ms = :updatedAtEpochMs " +
-            "WHERE id = 'user'"
-    )
-    suspend fun applyDelta(delta: Long, updatedAtEpochMs: Long)
+    /** Overwrite (or create) the singleton snapshot row. The row holds only
+     *  the last authoritative server balance — optimistic deltas live in the
+     *  wallet-events outbox and are folded on read, never blended in here. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: ChipsEntity)
 
     @Query("DELETE FROM chips")
     override suspend fun deleteAll()

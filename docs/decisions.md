@@ -1070,3 +1070,13 @@ The seam is already clean: join-by-code and matchmaking both go through `RoomSer
 **Alternatives rejected:** deriving balances from the ledger (`balance` as a materialized sum) — bigger surgery than V1 needs and the wallets row is load-bearing for the CHECK constraint; a scheduled reconciliation job — the dashboard stat gives the same signal without new infrastructure.
 
 **Status:** Shipped. Server suite green; audit of every `WalletsTable` mutation confirms all paths (billing, table sessions, wallet API) already funnel through `applyInCurrentTransaction`, which journals.
+
+## 2026-07-10 — Chip balance derives from snapshot + pending outbox, never blended (PROG-11)
+
+**Problem:** The client kept one mutable balance that optimistic writes bumped and every sync's authoritative overwrite stomped. A grant landing while a sync request was in flight vanished from the display until the next sync (the owner's 07-09 "my 500 chips disappeared" report), and a server-refused event silently shrank the balance with no message.
+
+**Decision:** The local `chips` row now holds only the last authoritative **server snapshot**, and the displayed balance is always derived: `snapshot + SUM(pending wallet_events deltas)`. `addChips`/`subtractChips` only enqueue outbox rows (visible immediately via the fold; duplicate idempotency keys can't double-count by construction); `setBalance` is a pure snapshot overwrite (MP settle and IAP redeem keep pending grants riding on top — strictly better than the old stomp). Rejected events (`InsufficientChips`) drop their rows AND announce a `ChipSyncRejection` that the App root surfaces as an error snackbar, mirroring the existing profile-edit-rejection pattern. No Room migration: same column, new meaning; a stale blended value self-corrects on first sync.
+
+**Alternatives rejected:** patching the stomp window with locking around `getAll()`→`setBalance()` (shrinks but can't close the race, and does nothing for display-time folds); posting the outbox row-by-row with per-row balance application (chattier protocol for the same derivation the client can do locally).
+
+**Status:** Shipped. Red-first tests: the mid-sync grant survives the authoritative overwrite (failed at 10,000 vs 10,500 before the fix), rejection announcement, plus the full rewritten chips suites (34 tests). Plan + investigation in `docs/agent/feedback-cases/2026-07-09-chips-vanish-on-restart.md`. QA: new `PROG-11` device test.
