@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-07-10 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-07-11 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -31,4 +31,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - **ENG-19 `[P2]` Grafana users-and-sessions dashboard.** Problem: there is no view of users, platforms, or session behavior at all.
   **Acceptance:** a new users dashboard shows player counts by platform, session counts and lengths, and anomalies like the longest session, powered by ENG-18 events.
   **Hints:** ENG-18 events land in Loki; blocked in practice until ENG-18's client events flow.
+
+- **ENG-24 `[P2]` Fix the sibling-bus claims in the client-patterns wiki page. (proposed 2026-07-11)** Problem: the "Sibling buses" section says `SessionRejectionBus` has the "same conflated / consume-once shape" as `ShopDeepLinkBus`, and "Key files" places both buses in `:libraries:cards` — but the impl is a non-replaying `MutableSharedFlow` (buffer 8, `DROP_OLDEST`; a rejection fired before the collector subscribes is not held) in `:libraries:networking`, and `ShopDeepLinkBus` lives in `:features:shop`.
+  **Acceptance:** the page describes `SessionRejectionBusImpl`'s actual semantics and names the right modules.
+  **Hints:** `docs/wiki/client-patterns.md` → "Sibling buses" / "Key files"; `libraries/networking/impl/.../SessionRejectionBusImpl.kt`.
 
