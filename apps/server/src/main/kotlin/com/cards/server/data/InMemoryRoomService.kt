@@ -376,7 +376,7 @@ class InMemoryRoomService(
     ): AddBotResult = mutex.withLock {
         val state = rooms[code] ?: return@withLock AddBotResult.RoomNotFound
         val current = state.room
-        if (current.hostUserId != requestedBy) return@withLock AddBotResult.NotHost
+        if (!current.wieldsHostPowers(requestedBy)) return@withLock AddBotResult.NotHost
         if (current.status != RoomStatus.Lobby) return@withLock AddBotResult.NotJoinable(current.status)
         if (current.isFull) return@withLock AddBotResult.Full
 
@@ -401,7 +401,7 @@ class InMemoryRoomService(
     ): AddBotResult = mutex.withLock {
         val state = rooms[code] ?: return@withLock AddBotResult.RoomNotFound
         var current = state.room
-        if (current.hostUserId != requestedBy) return@withLock AddBotResult.NotHost
+        if (!current.wieldsHostPowers(requestedBy)) return@withLock AddBotResult.NotHost
         if (current.status != RoomStatus.Lobby) return@withLock AddBotResult.NotJoinable(current.status)
 
         // Add bots up to [target] (or capacity) in ONE critical section, so a
@@ -449,7 +449,7 @@ class InMemoryRoomService(
     ): RemoveBotResult = mutex.withLock {
         val state = rooms[code] ?: return@withLock RemoveBotResult.RoomNotFound
         val current = state.room
-        if (current.hostUserId != requestedBy) return@withLock RemoveBotResult.NotHost
+        if (!current.wieldsHostPowers(requestedBy)) return@withLock RemoveBotResult.NotHost
         val target = current.members.firstOrNull { it.userId == botUserId }
         if (target?.bot == null) return@withLock RemoveBotResult.NotABot
         val next = current.copy(members = current.members.filterNot { it.userId == botUserId })

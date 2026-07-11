@@ -4,6 +4,16 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-11 — Room host authority follows the effective host, mirrored client/server (ROOM-16)
+
+**Problem:** The client computed "who is host" as the first connected human (implicit promotion when the tagged host disconnects), while the server gated bot/start mutations on the literal `hostUserId` — which is the synthetic system host on every matchmaker-created Public room. The models disagreed, so the client showed affordances the server rejected: the sole human of a rejoined matchmaking room tapped add-bots seven times into silent `not_host` 403s.
+
+**Decision:** Authority is the *effective host*, computed identically on both sides: the first connected human in seat order, falling back to the first human when nobody reads connected yet (presence flips lag snapshots). Server: `Room.effectiveHostUserId` + `Room.wieldsHostPowers` gate `addBot` / `fillBotsUpTo` / `removeBot` / private `StartHand` (the synthetic system host always passes — server-internal callers use it, and no real JWT carries the all-zeros subject). Client: `LobbyState.effectiveHostUserId` gained the same fallback. The tagged `hostUserId` remains as data (creation cap, wire compat) but no longer gates mutations. Consequence, accepted deliberately: while a private room's creator is disconnected, the next connected member genuinely holds host powers — the client has always *shown* them those buttons; now the server honors it.
+
+**Alternatives rejected:** reassigning `hostUserId` persistently on every presence flip (state churn, host flapping on brief blips, and the per-host room-creation cap would start counting matchmaking placements); allowing add-bots for any sole human without touching the host model (fixes one symptom, leaves the client/server host models diverged for Start and future host-gated ops).
+
+**Status:** Shipped. Red-first service tests (sole matchmaking member adds/removes bots, disconnected-host promotion), route test updated to the new model, lobby VM tests mirror the fallback; full server + lobby suites green.
+
 ## 2026-07-11 — Observability suite: dashboard structure, alert contact point, crash-free via previous_exit
 
 **Decision:** One Grafana suite in three folders (Product / Business / Engineering; see

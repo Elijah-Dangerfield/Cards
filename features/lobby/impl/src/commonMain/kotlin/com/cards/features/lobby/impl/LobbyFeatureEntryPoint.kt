@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.lobby_error_bot_action_failed
 import cards.libraries.resources.generated.resources.lobby_snackbar_host_promoted_other
 import cards.libraries.resources.generated.resources.lobby_snackbar_host_promoted_you
 import com.dangerfield.cards.features.lobby.LobbyRoute
@@ -30,6 +31,7 @@ import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.routeDeepLink
 import com.dangerfield.cards.libraries.navigation.screen
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarDuration
+import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -174,6 +176,13 @@ class LobbyFeatureEntryPoint(
                             popBackTo(LobbyRoute::class, inclusive = true)
                             navigate(PrivateJoinRoute(rejectedCode = event.code))
                         }
+                        // Error snackbar (not the inline error line): the seat
+                        // grid can push inline text below the fold, which read
+                        // as total silence to the ROOM-16 reporter.
+                        LobbyEvent.BotActionFailed -> showSnackBar(
+                            message = getString(Res.string.lobby_error_bot_action_failed),
+                            level = SnackbarLevel.Error,
+                        )
                     }
                 }
             }

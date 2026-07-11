@@ -737,7 +737,7 @@ private suspend fun handleStartHand(
     if (room.visibility != RoomVisibility.Private) {
         return IntentResult.Rejected("server deals this table")
     }
-    if (room.hostUserId != userId) {
+    if (!room.wieldsHostPowers(userId)) {
         return IntentResult.Rejected("only the host can start the hand")
     }
     return dealFundedHand(room, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)

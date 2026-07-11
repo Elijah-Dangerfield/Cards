@@ -28,12 +28,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** a session survives an app upgrade (upgrade-path test on session storage), and when a cached profile exists but the session is unrecoverable the app surfaces a recovery/sign-in flow instead of silently minting a fresh guest.
   **Hints:** supabase-kt session persistence location on iOS; `GuestSessionHealer`, `AuthRepository` bootstrap resolve, `StrandedIdentity` warn; case `docs/agent/feedback-cases/81a8c07d88e24f16b913dc00822e52f5.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-9D
 
-## ROOM — rooms UI
-
-- **ROOM-16 `[P1]` Sole member of a matchmaking room isn't host — add-bots 403s and reads as "offline".** Problem: after a matchmaking placement + app restart the reporter rejoined room Y4ZHD3 as its only member (`recv snapshot members=1`) yet `POST /bots` 403'd `not_host` seven times with no visible UI feedback; he concluded the app was offline.
-  **Acceptance:** the only human member of a room can add bots (host assigned/reassigned on (re)join), and an add-bots failure shows an explanatory error.
-  **Hints:** `InMemoryRoomService` host assignment on join/leave/rejoin; lobby add-bots error handling; also verify what drove the "offline — some features available" banner (no connectivity event in the trail); case `docs/agent/feedback-cases/4587d9b2aab446d080ab9b7453aaab27.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-9N
-
 ## PROG — progression / XP / stats
 
 - **PROG-12 `[P1]` Chips earned in an MP session still stale until force-kill — post-PROG-11 residual.** Problem: tester earned 1000 chips playing MP (room ZYQ2CQ, dev) on a build that already contains PROG-11's derived-balance fix, and the displayed balance stayed stale until app force-kill.

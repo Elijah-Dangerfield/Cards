@@ -40,7 +40,6 @@ import cards.libraries.resources.generated.resources.lobby_connection_reconnecti
 import cards.libraries.resources.generated.resources.lobby_create_error_back
 import cards.libraries.resources.generated.resources.lobby_create_error_retry
 import cards.libraries.resources.generated.resources.lobby_create_error_title
-import cards.libraries.resources.generated.resources.lobby_error_bot_action_failed
 import cards.libraries.resources.generated.resources.lobby_error_connect_rejected
 import cards.libraries.resources.generated.resources.lobby_error_connection_lost
 import cards.libraries.resources.generated.resources.lobby_error_create_network
@@ -772,5 +771,4 @@ private fun LobbyError.message(): String = when (this) {
     LobbyError.RoomWasClosed -> stringResource(Res.string.lobby_error_room_was_closed)
     LobbyError.ConnectRejected -> stringResource(Res.string.lobby_error_connect_rejected)
     LobbyError.ConnectionLost -> stringResource(Res.string.lobby_error_connection_lost)
-    LobbyError.BotActionFailed -> stringResource(Res.string.lobby_error_bot_action_failed)
 }

@@ -100,8 +100,14 @@ class RoomSocketGameplayRoutesTest {
         val registry = newRegistry()
 
         withRoomSocketTestApp(rooms, registry) { client ->
+            // The host's socket must be open: authority follows the *effective*
+            // host (first connected human, Room.wieldsHostPowers — ROOM-16), so
+            // with the host offline alice would legitimately hold host powers
+            // and her start would be accepted.
+            val hostSocket = client.connect(room.code, host)
             val socket = client.connect(room.code, alice)
             try {
+                hostSocket.drainSnapshot()
                 socket.drainSnapshot()
                 socket.sendFrame(RoomClientFrame.StartHand(clientNonce = "nh-1"))
 
@@ -115,6 +121,7 @@ class RoomSocketGameplayRoutesTest {
                 assertNull(registry.peek(room.code), "no session should exist after a rejected start")
             } finally {
                 socket.closeQuietly()
+                hostSocket.closeQuietly()
             }
         }
     }

@@ -93,6 +93,7 @@ The events that motivated shipping direct-to-Grafana: what never reaches the bac
 | `conn.recovered` | `attempts`, `downtime_ms` | First decoded frame after an outage — a half-open handshake doesn't count |
 | `conn.reconnect_failed` | `attempts` | Reconnect ceiling reached |
 | `room.closed_unexpectedly` | `reason` (rejected/reconnect_failed/room_deleted/incompatible_version) | Terminal socket close, excluding the normal match-over path |
+| `net.offline_banner` | `visible`, `os_online`, `backend_reachable` | Each edge of the app-wide offline banner (`AppStateImpl`), carrying which signal drove it — added after ROOM-16, where a reported banner had no explaining event in the trail |
 | `game.intent_timeout` / `game.intent_rejected` | `intent_type` | Submit failure branches in `PlayPokerViewModel` |
 
 ## Feature usage
