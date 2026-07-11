@@ -196,5 +196,49 @@ fun BuildConfigExtension.writeServerMetadata(metadata: ServerMetadata) {
     buildConfigField("String", "TARGET_ENV", "\"${metadata.targetEnv}\"")
 }
 
+data class TelemetryMetadata(
+    val grafanaOtlpBaseUrl: String,
+    val grafanaOtlpInstanceId: String,
+    val grafanaLogsWriteToken: String,
+)
+
+/**
+ * Grafana Cloud OTLP credentials for client app events (`GrafanaLogTree`).
+ * Resolution: CI env (`GRAFANA_OTLP_BASE_URL` / `GRAFANA_OTLP_INSTANCE_ID` /
+ * `GRAFANA_LOGS_WRITE_TOKEN`, set from GitHub secrets in beta/release
+ * workflows) → `local.properties` (`grafana.otlpBaseUrl` / `.otlpInstanceId` /
+ * `.logsWriteToken`, per-dev) → blank.
+ *
+ * Blank leaves the pipe dormant (`GrafanaCloud.isConfigured` is false; events
+ * still reach logcat + Sentry through the other trees). The repo is public, so
+ * the token must never be committed — GitHub push protection enforces this,
+ * and Grafana auto-revokes `glc_` tokens it finds in public repos.
+ */
+fun Project.loadTelemetryMetadata(): TelemetryMetadata {
+    val properties = Properties()
+    val localProperties = rootProject.file("local.properties")
+    if (localProperties.exists()) {
+        FileInputStream(localProperties).use(properties::load)
+    }
+
+    fun resolve(env: String, key: String): String =
+        System.getenv(env)?.takeIf { it.isNotBlank() }
+            ?: properties.stringOrNull(key)
+            ?: (findProperty(key) as? String)?.takeIf { it.isNotBlank() }
+            ?: ""
+
+    return TelemetryMetadata(
+        grafanaOtlpBaseUrl = resolve("GRAFANA_OTLP_BASE_URL", "grafana.otlpBaseUrl"),
+        grafanaOtlpInstanceId = resolve("GRAFANA_OTLP_INSTANCE_ID", "grafana.otlpInstanceId"),
+        grafanaLogsWriteToken = resolve("GRAFANA_LOGS_WRITE_TOKEN", "grafana.logsWriteToken"),
+    )
+}
+
+fun BuildConfigExtension.writeTelemetryMetadata(metadata: TelemetryMetadata) {
+    buildConfigField("String", "GRAFANA_OTLP_BASE_URL", "\"${metadata.grafanaOtlpBaseUrl}\"")
+    buildConfigField("String", "GRAFANA_OTLP_INSTANCE_ID", "\"${metadata.grafanaOtlpInstanceId}\"")
+    buildConfigField("String", "GRAFANA_LOGS_WRITE_TOKEN", "\"${metadata.grafanaLogsWriteToken}\"")
+}
+
 private fun Properties.stringOrNull(key: String): String? =
     getProperty(key)?.takeIf { it.isNotBlank() }

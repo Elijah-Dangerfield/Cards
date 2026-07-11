@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.telemetry.impl
 
+import com.dangerfield.cards.buildinfo.CardsBuildConfig
 import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.logEvent
@@ -14,7 +15,6 @@ import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
 import kotlin.io.encoding.Base64
 import io.opentelemetry.kotlin.logging.export.batchLogRecordProcessor
-import io.opentelemetry.kotlin.logging.export.otlpHttpLogRecordExporter
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -50,7 +50,9 @@ class GrafanaAppEvents(
                 currentInstallId = { installIdProvider.current() },
                 processorFactory = {
                     batchLogRecordProcessor(
-                        otlpHttpLogRecordExporter(GrafanaCloud.OTLP_BASE_URL, grafanaHttpClient()),
+                        FailSafeLogRecordExporter(
+                            OtlpJsonLogRecordExporter(GrafanaCloud.OTLP_BASE_URL, grafanaHttpClient()),
+                        ),
                     )
                 },
             )
@@ -63,22 +65,21 @@ class GrafanaAppEvents(
 }
 
 /**
- * Grafana Cloud OTLP gateway credentials, hard-coded like `CARDS_SENTRY_DSN`
- * (AppTelemetry.kt precedent): the token is scoped to logs:write only, so it
- * can't read or modify anything. Deliberately not routed through our backend
- * — these events must survive backend outages.
+ * Grafana Cloud OTLP gateway credentials, injected at build time into
+ * `CardsBuildConfig` (see `loadTelemetryMetadata` in build-logic): CI reads
+ * GitHub secrets, local builds read `local.properties` `grafana.*` keys. The
+ * repo is public, so the token never lives in source — even though it is
+ * write-only and ships in the binary regardless (any client credential is
+ * extractable; this one can only append logs). Deliberately not routed
+ * through our backend — these events must survive backend outages.
  *
- * Owner action (tracked in docs/developer-todo.md): mint a Cloud Access
- * Policy token scoped to logs:write in the Grafana Cloud console (do NOT
- * reuse the server's token) and paste the three values. Until then
- * [isConfigured] is false and the tree is never planted — events still
- * reach logcat + Sentry through the other trees.
+ * Unconfigured builds leave [isConfigured] false and the tree is never
+ * planted — events still reach logcat + Sentry through the other trees.
  */
 internal object GrafanaCloud {
-    /** `https://otlp-gateway-<region>.grafana.net/otlp` */
-    const val OTLP_BASE_URL: String = ""
-    const val INSTANCE_ID: String = ""
-    const val LOGS_WRITE_TOKEN: String = ""
+    val OTLP_BASE_URL: String = CardsBuildConfig.GRAFANA_OTLP_BASE_URL
+    val INSTANCE_ID: String = CardsBuildConfig.GRAFANA_OTLP_INSTANCE_ID
+    val LOGS_WRITE_TOKEN: String = CardsBuildConfig.GRAFANA_LOGS_WRITE_TOKEN
 
     val isConfigured: Boolean
         get() = OTLP_BASE_URL.isNotBlank() && INSTANCE_ID.isNotBlank() && LOGS_WRITE_TOKEN.isNotBlank()

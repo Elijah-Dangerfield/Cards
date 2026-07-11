@@ -12,8 +12,10 @@ import com.dangerfield.cards.util.loadServerMetadata
 import com.dangerfield.cards.util.loadVersionMetadata
 import com.dangerfield.cards.util.optInKotlinMarkers
 import com.dangerfield.cards.util.VersionMetadata
+import com.dangerfield.cards.util.loadTelemetryMetadata
 import com.dangerfield.cards.util.writeCommonMetadata
 import com.dangerfield.cards.util.writeServerMetadata
+import com.dangerfield.cards.util.writeTelemetryMetadata
 import com.github.gmazzo.buildconfig.BuildConfigExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -103,6 +105,7 @@ class KotlinMultiplatformConventionPlugin : Plugin<Project> {
             }
             writeCommonMetadata(metadata)
             writeServerMetadata(serverMetadata)
+            writeTelemetryMetadata(loadTelemetryMetadata())
         }
     }
 }
