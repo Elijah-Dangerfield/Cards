@@ -20,10 +20,16 @@ kotlin {
             // AppEventListener — app.launched must wait for the cold-boot
             // dispatch so it carries the settled session_id (ENG-24).
             implementation(projects.libraries.cards)
+            // FileManager — the on-device buffer directory for the durable
+            // export pipeline (ENG-25).
+            implementation(projects.libraries.storage)
+            implementation(projects.libraries.flowroutines)
+            implementation(libs.okio)
             implementation(libs.otel.kotlin.api)
             implementation(libs.otel.kotlin.sdk.api)
             implementation(libs.otel.kotlin.implementation)
             implementation(libs.otel.kotlin.exporters.core)
+            implementation(libs.otel.kotlin.exporters.persistence)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.contentNegotiation)
@@ -33,6 +39,9 @@ kotlin {
         commonTest.dependencies {
             implementation(projects.libraries.core)
             implementation(projects.libraries.cards)
+            implementation(projects.libraries.flowroutines)
+            implementation(projects.libraries.flowroutines.testing)
+            implementation(libs.okio)
             implementation(libs.otel.kotlin.api)
             implementation(libs.otel.kotlin.sdk.api)
             implementation(libs.kotlinx.coroutines.test)

@@ -17,6 +17,7 @@ class GrafanaLogTreeTest {
     private var klogForwardingEnabled = false
     private var sessionId: String? = "session-uuid-1"
     private var installId: String? = "install-uuid-1"
+    private var offline = false
 
     private fun plantTree() {
         KLog.plant(
@@ -26,6 +27,7 @@ class GrafanaLogTreeTest {
                 klogForwardingEnabled = { klogForwardingEnabled },
                 currentSessionId = { sessionId },
                 currentInstallId = { installId },
+                isOffline = { offline },
                 processorFactory = { processor },
             ),
         )
@@ -170,6 +172,21 @@ class GrafanaLogTreeTest {
 
         val counts = processor.records.size
         assertTrue(counts == 0 || counts == 2, "a session's events are all-or-nothing, got $counts of 2")
+    }
+
+    @Test
+    fun isOffline_isStampedAtEmitTime_onEventsAndPlainLogs() {
+        klogForwardingEnabled = true
+        plantTree()
+
+        KLog.logEvent("net.backend_unreachable", "operation" to "sync")
+        offline = true
+        KLog.logEvent("conn.reconnecting", "attempt" to 1)
+        KLog.w("a warn line while offline")
+
+        assertEquals(false, processor.records[0].attributes["is_offline"])
+        assertEquals(true, processor.records[1].attributes["is_offline"])
+        assertEquals(true, processor.records[2].attributes["is_offline"])
     }
 
     @Test

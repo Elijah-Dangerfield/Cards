@@ -33,6 +33,7 @@ class AppLaunchedSessionOrderingTest {
                 klogForwardingEnabled = { false },
                 currentSessionId = { currentSession },
                 currentInstallId = { "install-uuid-1" },
+                isOffline = { false },
                 processorFactory = { processor },
             ),
         )

@@ -4,6 +4,14 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-11 — Client telemetry batches persist to disk before export (ENG-25)
+
+**Problem:** The OTLP log pipe was fire-and-forget: a batch that failed to export was dropped, so every event emitted offline was lost (verified in the 2026-07-11 offline drill). The reliability events this pipe exists for — `net.backend_unreachable`, reconnect failures — are disproportionately emitted exactly when export can't succeed.
+
+**Decision:** Swap the plain batch processor for the library's `persistingLogRecordProcessor` behind our own `durableLogRecordProcessor` seam: batch → disk buffer (`FileManager`-provided app-files directory) → OTLP, with batches deleted only on gateway acknowledgment and leftover batches from prior launches picked up by the same flush loop. Delivery semantics change from at-most-once to effectively at-least-once (rare duplicate on a crash between export and delete — dashboards tolerate it). `is_offline` (from `AppState`) is stamped per-record **at emit time** so late-shipping records describe the connectivity they were born under. A `TelemetryBackgroundFlusher` force-flushes on app background to close the one remaining RAM window (up to one 5s flush tick); it holds the tree through a settable reference because an `AppEventListener` that reaches the config system closes the same DI cycle that split `AppLaunchedEmitter` out. Buffer caps are the library defaults (100 batches / 30 days).
+
+**Alternatives rejected:** building our own persistence on the existing exporter (the library's is purpose-built and sits behind the `processorFactory` seam we already own — if 0.5.0 misbehaves we re-back the seam); gating exports on `AppState.isOffline` to skip doomed POSTs (`isOffline` trips on *backend* unreachability too, and surviving backend outages is this pipe's founding requirement); consolidating the kill-switch flag with the sample rate (an emergency lever shouldn't be a magic number on a volume dial).
+
 ## 2026-07-11 — Uncredited purchases stay unfinished at the store; a launch redeemer drains them (BILL-7)
 
 **Problem:** Every TestFlight chip-pack purchase 400'd at `/v1/billing/redeem` ("appAppleId is required when the environment is Production" — Apple's `SignedDataVerifier` refuses to construct a PRODUCTION verifier without the numeric app id, and the lazily-thrown exception took the sandbox verifier down with it). The client left the purchase uncredited with only a toast and no retry path: paid, zero chips, forever.

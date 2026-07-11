@@ -55,6 +55,7 @@ opentelemetryInstrumentation = "2.11.0-alpha"
 # KMP client-side OTel (io.opentelemetry.kotlin) — experimental, pinned exactly.
 # Distinct from the server's JVM `opentelemetry` entries above.
 opentelemetryKotlin = "0.5.0"
+okio = "3.9.1"
 robolectric = "4.14.1"
 androidxComposeUiTestManifest = "1.9.4"
 
@@ -130,6 +131,8 @@ otel-kotlin-sdk-api = { module = "io.opentelemetry.kotlin:sdk-api", version.ref 
 otel-kotlin-implementation = { module = "io.opentelemetry.kotlin:implementation", version.ref = "opentelemetryKotlin" }
 otel-kotlin-exporters-core = { module = "io.opentelemetry.kotlin:exporters-core", version.ref = "opentelemetryKotlin" }
 otel-kotlin-exporters-otlp = { module = "io.opentelemetry.kotlin:exporters-otlp", version.ref = "opentelemetryKotlin" }
+otel-kotlin-exporters-persistence = { module = "io.opentelemetry.kotlin:exporters-persistence", version.ref = "opentelemetryKotlin" }
+okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 opentelemetry-ktor = { module = "io.opentelemetry.instrumentation:opentelemetry-ktor-3.0", version.ref = "opentelemetryInstrumentation" }
 ktor-serverAuth = { module = "io.ktor:ktor-server-auth-jvm", version.ref = "ktor" }
 ktor-serverAuthJwt = { module = "io.ktor:ktor-server-auth-jwt-jvm", version.ref = "ktor" }

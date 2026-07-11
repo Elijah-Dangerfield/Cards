@@ -7,9 +7,11 @@ Grafana Cloud Loki. The dashboards these feed are mapped in
 [`docs/wiki/observability.md`](observability.md).
 
 Dashboard queries treat this page as the source of truth for names and attributes. Names are
-dot-namespaced snake_case; every record automatically carries `session_id` + `install_id`
-(per-record) plus resource attributes (`service.name="cards-client"`, deployment environment,
-version, platform).
+dot-namespaced snake_case; every record automatically carries `session_id` + `install_id` +
+`is_offline` (per-record) plus resource attributes (`service.name="cards-client"`, deployment
+environment, version, platform). `is_offline` is `AppState.isOffline` captured **at emit time** —
+records that ship later from the disk buffer still say what connectivity looked like when the
+event happened, so reliability funnels can segment "emitted offline" without span archaeology.
 
 **Query shape (verified against live Loki 2026-07-11):** stream is
 `{service_name="cards-client", deployment_environment="dev"|"prod"}`; `event_name`, `session_id`,
@@ -17,9 +19,35 @@ and all event attributes are **structured metadata**, so filter with pipes
 (`| event_name="hand.completed"`), not line filters. The server's request logs carry the same
 `session_id` metadata key — that's the cross-service correlation join.
 
-**Delivery is at-most-once.** A batch that fails to export is dropped, not retried — events emitted
-while the device is offline are lost (accepted for behavioral analytics; a persistence exporter is
-the upgrade path if this ever matters).
+**Delivery is durable, effectively at-least-once** (ENG-25). The export chain is batch → disk
+buffer → OTLP: every batch is written to a file-backed buffer (`<files>/telemetry/…`, via
+`durableLogRecordProcessor`) before export and deleted only after the gateway acknowledges it, so
+events emitted offline survive process death and ship on a later launch or flush tick. Retention is
+the library's defaults — 100 buffered batches, 30-day max age — after which oldest batches are
+dropped. A record can rarely ship twice (export acknowledged but the process dies before the
+buffer delete), so dashboards counting events should tolerate the odd duplicate rather than assume
+exactly-once. Two edges remain lossy by design: records ride in RAM for up to one flush tick (5s)
+before reaching disk, and `TelemetryBackgroundFlusher` closes most of that window by force-flushing
+the pipe (RAM → disk → export attempt) on every app background — the last reliable moment before
+the OS suspends or kills the process.
+
+### Pipeline review (2026-07-11, ENG-25)
+
+Deliberate calls from the considered pass over the setup, so nobody re-litigates them blind:
+
+- **Batch tuning stays at library defaults** (2048-record queue, 5s flush, 512-record export
+  batches, 30s export timeout). Our volume is a handful of events per user-minute; the defaults are
+  sized far above it and the 5s RAM window is bounded by the background flush.
+- **Exports are NOT gated on `AppState.isOffline`.** Tempting (skip doomed POSTs while offline),
+  but `isOffline` also trips on *backend* unreachability — and surviving backend outages is the
+  whole reason this pipe goes direct to Grafana. A failed export while offline just stays in the
+  buffer; the DNS failure is already contained by `FailSafeLogRecordExporter`.
+- **`telemetry.appEventsEnabled` + `appEventsSampleRate` stay separate.** Considered consolidating
+  (rate 0.0 == off); rejected — the flag is an instant kill switch for library bugs / ingest
+  incidents and reads as one in the QA menu, the rate is a gradual volume dial. Collapsing them
+  makes the emergency lever a magic number.
+- **iOS `previous_exit` is still `unknown`** — the MetricKit `MXAppExitMetric` subscriber remains
+  open under ENG-25 in `docs/todo.md`.
 
 **Rules for adding events:** emit through the `logEvent` extension only (never a raw
 `EXTRA_APP_EVENT` extra), fire on user actions / state transitions — never per-frame, per-poll, or

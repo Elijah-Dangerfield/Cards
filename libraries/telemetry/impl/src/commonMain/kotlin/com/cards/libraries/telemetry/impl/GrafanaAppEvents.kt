@@ -3,11 +3,13 @@ package com.dangerfield.cards.libraries.telemetry.impl
 import com.dangerfield.cards.buildinfo.CardsBuildConfig
 import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.AppEventListener
+import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.networking.InstallIdProvider
 import com.dangerfield.cards.libraries.networking.SessionIdProvider
+import com.dangerfield.cards.libraries.storage.FileManager
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.compression.ContentEncoding
@@ -16,7 +18,6 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
 import kotlin.io.encoding.Base64
-import io.opentelemetry.kotlin.logging.export.batchLogRecordProcessor
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -24,10 +25,11 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
  * Boot-time wiring for client app events: constructs [GrafanaLogTree] and
- * plants it at DI init, so the pipe (extension → KLog → tree → exporter) is
- * live before the user can produce events. `app.launched` itself is emitted
- * by [AppLaunchedEmitter] on the cold-boot foreground — see its doc for why
- * emitting from this init orphaned the event's session_id (ENG-24).
+ * plants it at DI init, so the pipe (extension → KLog → tree → batch → disk
+ * buffer → exporter) is live before the user can produce events.
+ * `app.launched` itself is emitted by [AppLaunchedEmitter] on the cold-boot
+ * foreground — see its doc for why emitting from this init orphaned the
+ * event's session_id (ENG-24).
  *
  * [AutoInit] because planting must happen before the user can produce
  * events; a lazily-constructed tree would silently drop everything until
@@ -42,6 +44,9 @@ class GrafanaAppEvents(
     appEventsEnabled: AppEventsEnabled,
     appEventsSampleRate: AppEventsSampleRate,
     klogForwardingEnabled: KlogForwardingEnabled,
+    appState: AppState,
+    fileManager: FileManager,
+    backgroundFlusher: TelemetryBackgroundFlusher,
 ) : AutoInit {
 
     private val logger = KLog.withTag("GrafanaAppEvents")
@@ -54,18 +59,23 @@ class GrafanaAppEvents(
                 klogForwardingEnabled = { klogForwardingEnabled() },
                 currentSessionId = { sessionIdProvider.current() },
                 currentInstallId = { installIdProvider.current() },
+                isOffline = { appState.isOffline.value },
                 processorFactory = {
-                    batchLogRecordProcessor(
-                        FailSafeLogRecordExporter(
-                            OtlpJsonLogRecordExporter(GrafanaCloud.OTLP_BASE_URL, grafanaHttpClient()),
-                        ),
+                    durableLogRecordProcessor(
+                        exporter = OtlpJsonLogRecordExporter(GrafanaCloud.OTLP_BASE_URL, grafanaHttpClient()),
+                        bufferDirectory = fileManager.createFile(BUFFER_DIRECTORY),
                     )
                 },
             )
             KLog.plant(tree)
+            backgroundFlusher.tree = tree
         } else {
             logger.i { "Grafana app events disabled: no OTLP credentials in this build" }
         }
+    }
+
+    private companion object {
+        const val BUFFER_DIRECTORY = "telemetry"
     }
 }
 
