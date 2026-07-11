@@ -108,8 +108,39 @@ class AchievementRepositoryImplSyncTest : CoroutineTest() {
 
     // ---------- Scaffolding ----------
 
+    @Test
+    fun serverMintedAchievementChips_triggerAWalletRePull() = runUnitTest {
+        // PROG-12: achievement chips are minted server-side ON the
+        // achievements sync (ENG-9) — without a re-pull the reward stays
+        // invisible until the next sync trigger. The response's walletBalance
+        // is the mint signal.
+        val chips = RecordingChips()
+        val repo = buildRepo(FakeAchievementDao(earned("A", synced = false)), chips) {
+            respondJson(
+                """{"schemaVersion":1,"earned":[{"achievementId":"A","earnedAtEpochMs":1}],"walletBalance":11000}""",
+            )
+        }
+
+        repo.sync()
+
+        assertEquals(1, chips.syncCalls, "a server-side mint must trigger a wallet re-pull")
+    }
+
+    @Test
+    fun noMint_doesNotTouchTheWallet() = runUnitTest {
+        val chips = RecordingChips()
+        val repo = buildRepo(FakeAchievementDao(), chips) {
+            respondJson("""{"schemaVersion":1,"earned":[]}""")
+        }
+
+        repo.sync()
+
+        assertEquals(0, chips.syncCalls, "a mint-less sync must not spam wallet pulls")
+    }
+
     private fun buildRepo(
         dao: FakeAchievementDao,
+        chips: ChipsRepository = NoopChips,
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): AchievementRepositoryImpl {
         val httpClient = HttpClient(MockEngine(handler)) {
@@ -126,7 +157,7 @@ class AchievementRepositoryImplSyncTest : CoroutineTest() {
             achievementDao = dao,
             playerStatsRepository = NoopPlayerStats,
             progressionRepository = NoopProgression,
-            chipsRepository = NoopChips,
+            chipsRepository = chips,
             grantApi = NoopGrantApi,
             inventoryRepository = NoopInventory,
             networkClient = networkClient,
@@ -193,6 +224,22 @@ class AchievementRepositoryImplSyncTest : CoroutineTest() {
         override suspend fun sync(): Result<Unit> = Result.success(Unit)
         override suspend fun deleteAll() = Unit
         override suspend fun debugSetTotalXp(totalXp: Long) = Unit
+    }
+
+    private class RecordingChips : ChipsRepository {
+        var syncCalls = 0
+            private set
+        override val walletJustCreated = MutableStateFlow(false)
+        override fun observeBalance(): Flow<Long?> = MutableStateFlow(null)
+        override suspend fun getBalance(): Long? = null
+        override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
+        override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
+        override suspend fun setBalance(authoritativeBalance: Long) = Unit
+        override suspend fun deleteAll() = Unit
+        override suspend fun sync(): Result<Unit> {
+            syncCalls++
+            return Result.success(Unit)
+        }
     }
 
     private object NoopChips : ChipsRepository {

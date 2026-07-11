@@ -601,6 +601,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 3. Optional (needs a network tool or airplane-mode timing): queue a shop spend while offline that the server will refuse (balance already spent elsewhere / on another device), then reconnect and let the wallet sync run.
 
 **Expected:** After the relaunch the balance still includes the grant — earned chips never vanish and then "come back" on a later sync (the display is server snapshot + pending events, and relaunch triggers a sync). In the refused-spend case, the balance corrects to the server's value AND an error snackbar ("A purchase didn't go through, so we put your chips back.") explains it — never a silent balance change. (Covers todo PROG-11 + the ENG-20 relaunch-sync trigger; the 2026-07-09 vanishing-chips incident is the regression this guards.)
+- No-restart freshness (PROG-12): in step 1, after the level-up or achievement grant lands, stay in the app and return to Home — the balance reflects the reward within a few seconds **without** any force-quit. Server-minted rewards (level-ups, achievements) now signal the client to re-pull the wallet on the same sync that mints them; the 2026-07-11 "earned 1000 chips, stale until force-kill" report is the regression this guards.
 
 ---
 

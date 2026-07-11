@@ -5,10 +5,12 @@ import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.domain.AchievementRepository
 import com.dangerfield.cards.server.domain.EarnedAchievement
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
+import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -57,6 +59,11 @@ class AchievementsRoutesTest {
             assertEquals("achievement:POT_5000", grant.idempotencyKey)
             assertEquals(500L, grant.delta)
             assertEquals("achievement_grant:POT_5000", grant.reason)
+            assertEquals(
+                Wallet.STARTER_GRANT + 500L,
+                resp.body<AchievementsSyncResponse>().walletBalance,
+                "a mint carries the post-mint balance so the client re-pulls its wallet (PROG-12)",
+            )
         }
     }
 
@@ -74,6 +81,11 @@ class AchievementsRoutesTest {
             assertEquals(HttpStatusCode.OK, resp.status)
             assertEquals(1, wallet.applies.size, "replaying the earned id must not mint twice")
             assertEquals(250L, wallet.applies.single().delta)
+            assertEquals(
+                null,
+                resp.body<AchievementsSyncResponse>().walletBalance,
+                "a replay minted nothing — no re-pull signal",
+            )
         }
     }
 
@@ -93,6 +105,7 @@ class AchievementsRoutesTest {
         ) { resp ->
             assertEquals(HttpStatusCode.OK, resp.status)
             assertTrue(wallet.applies.isEmpty())
+            assertEquals(null, resp.body<AchievementsSyncResponse>().walletBalance, "no mint, no wallet signal")
         }
     }
 

@@ -303,7 +303,24 @@ class ProgressionRepositoryImplTest : CoroutineTest() {
         networkClient = NeverCalledNetworkClient,
         clock = FixedClock(clockEpochMs),
         xpBoostRepository = FixedXpBoostRepository(active = boostActive),
+        chipsRepository = NeverTouchedChips,
     )
+
+    /** Local award paths never touch the wallet — fail loudly if one does. */
+    private object NeverTouchedChips : com.dangerfield.cards.libraries.cards.ChipsRepository {
+        override val walletJustCreated = MutableStateFlow(false)
+        override fun observeBalance(): Flow<Long?> =
+            error("unexpected chips access in a non-sync test")
+        override suspend fun getBalance(): Long? = error("unexpected chips access in a non-sync test")
+        override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) =
+            error("unexpected chips access in a non-sync test")
+        override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) =
+            error("unexpected chips access in a non-sync test")
+        override suspend fun setBalance(authoritativeBalance: Long) =
+            error("unexpected chips access in a non-sync test")
+        override suspend fun deleteAll() = error("unexpected chips access in a non-sync test")
+        override suspend fun sync(): Result<Unit> = error("unexpected chips access in a non-sync test")
+    }
 
     /**
      * These tests exercise the local award/counter paths, never [sync] — so

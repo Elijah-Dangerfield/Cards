@@ -60,6 +60,13 @@ data class ProgressionSyncResponse(
      * The client inserts any key it doesn't already hold, marked synced.
      */
     val recentEvents: List<XpEventSnapshotDto> = emptyList(),
+    /**
+     * Post-mint wallet balance when this sync crossed a rewarded level and
+     * the server credited its chips (ENG-9). Null when nothing was minted.
+     * The client re-pulls its wallet on non-null so the reward shows up
+     * immediately rather than at the next sync trigger (PROG-12).
+     */
+    val walletBalance: Long? = null,
 )
 
 /**

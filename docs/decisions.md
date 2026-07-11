@@ -4,6 +4,14 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-11 — Server-minted rewards signal the client to re-pull the wallet (PROG-12)
+
+**Problem:** ENG-9 moved level-up and achievement chip mints server-side, onto the progression/achievements sync endpoints — but nothing told the wallet. The sync coordinator's per-syncer loops all fire on the same trigger edge, so the wallet sync typically completes *before* (or concurrent with) the sync that mints, and the reward stays invisible until the next edge — observed as "earned 1000 chips, stale until force-kill" (CARDS-98).
+
+**Decision:** The minting endpoints' responses carry a `walletBalance` field, populated only when this request actually minted (a replay signals nothing). The client treats non-null as "the wallet changed server-side" and issues a fresh `ChipsRepository.sync()` — it deliberately does **not** apply the returned balance directly, because a concurrent wallet sync whose server-side read predates the mint can arrive later client-side and stomp it (arrival order ≠ processing order across connections); a pull *issued after* the mint is ordering-safe and serialized by the wallet's own sync mutex. Sync loops stay independent (no coordinator-level ordering between syncers).
+
+**Alternatives rejected:** applying `walletBalance` via `setBalance` (the race above — reintroduces intermittent staleness); ordering the coordinator's loops (couples the isolation/retry design to domain knowledge and still misses mid-session mints); a versioned wallet snapshot (`revision` column + monotonic `setBalance`) — the fully general fix for every balance writer, deferred until a real race is observed since it touches every endpoint that returns a balance plus the MP leave payload.
+
 ## 2026-07-11 — Session loss never mints over an existing account; anonymous sessions keep a file-backed mirror (AUTH-19)
 
 **Problem:** A TestFlight upgrade wiped the Keychain copy of the owner's Supabase session while the app's ordinary files survived. Boot found the cached profile but no token, and `GuestSessionHealer` silently minted a fresh guest *over* the real account — balance/XP stranded server-side, and the recovery attempt (Apple sign-in) minted a third account. An anonymous account has no credential, so a lost token is otherwise unrecoverable by the user.

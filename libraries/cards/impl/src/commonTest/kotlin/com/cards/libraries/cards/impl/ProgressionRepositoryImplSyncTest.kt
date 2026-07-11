@@ -220,11 +220,47 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
         assertEquals(70L, progressionDao.getProgression()?.totalXp, "replay does not double-apply the deltas")
     }
 
+    @Test
+    fun serverMintedLevelChips_triggerAWalletRePull() = runUnitTest {
+        // PROG-12: level chips are minted server-side ON the progression sync
+        // (ENG-9) — the wallet sync refuses the client's own levelup.* credit.
+        // Without a re-pull here the reward stays invisible until the next
+        // sync trigger (observed as "earned 1000 chips, stale until
+        // force-kill"). A walletBalance in the response is the mint signal.
+        val chips = RecordingChipsRepository()
+        val repo = buildRepo(FakeProgressionDao(seedTotalXp = 0L), FakeXpEventDao(xpEvent("k1", 500)), chips) {
+            respondJson(
+                """
+                {"schemaVersion":1,"totalXp":500,"results":[
+                  {"idempotencyKey":"k1","outcome":"Applied","totalXp":500}
+                ],"walletBalance":11000}
+                """.trimIndent(),
+            )
+        }
+
+        repo.sync()
+
+        assertEquals(1, chips.syncCalls, "a server-side mint must trigger a wallet re-pull")
+    }
+
+    @Test
+    fun noMint_doesNotTouchTheWallet() = runUnitTest {
+        val chips = RecordingChipsRepository()
+        val repo = buildRepo(FakeProgressionDao(seedTotalXp = 0L), FakeXpEventDao(), chips) {
+            respondJson("""{"schemaVersion":1,"totalXp":42,"results":[]}""")
+        }
+
+        repo.sync()
+
+        assertEquals(0, chips.syncCalls, "a mint-less sync must not spam wallet pulls")
+    }
+
     // ---------- Scaffolding ----------
 
     private fun buildRepo(
         progressionDao: FakeProgressionDao,
         xpDao: FakeXpEventDao,
+        chips: RecordingChipsRepository = RecordingChipsRepository(),
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): ProgressionRepositoryImpl {
         val httpClient = HttpClient(MockEngine(handler)) {
@@ -245,7 +281,27 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
             networkClient = networkClient,
             clock = FixedClock,
             xpBoostRepository = InactiveXpBoostRepository,
+            chipsRepository = chips,
         )
+    }
+
+    private class RecordingChipsRepository : com.dangerfield.cards.libraries.cards.ChipsRepository {
+        var syncCalls = 0
+            private set
+        override val walletJustCreated = MutableStateFlow(false)
+        override fun observeBalance(): Flow<Long?> = MutableStateFlow(null)
+        override suspend fun getBalance(): Long? = null
+        override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) =
+            error("unused in progression sync tests")
+        override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) =
+            error("unused in progression sync tests")
+        override suspend fun setBalance(authoritativeBalance: Long) =
+            error("unused — the mint signal re-pulls, it never writes the snapshot directly")
+        override suspend fun deleteAll() = error("unused in progression sync tests")
+        override suspend fun sync(): Result<Unit> {
+            syncCalls++
+            return Result.success(Unit)
+        }
     }
 
     private fun MockRequestHandleScope.respondJson(

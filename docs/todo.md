@@ -22,12 +22,6 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## PROG — progression / XP / stats
-
-- **PROG-12 `[P1]` Chips earned in an MP session still stale until force-kill — post-PROG-11 residual.** Problem: tester earned 1000 chips playing MP (room ZYQ2CQ, dev) on a build that already contains PROG-11's derived-balance fix, and the displayed balance stayed stale until app force-kill.
-  **Acceptance:** failing test reproducing the stale path first (MP leave-with-winnings or a grant during an MP session on Android), then the balance reflects the earn within seconds, no restart.
-  **Hints:** `ChipsRepository` derived balance (PROG-11, commit 7c1b5488), MP-29 synchronous leave settlement, backlog "involuntary teardown reconcile"; case `docs/agent/feedback-cases/a8f0a73918514cb884e6e3425715416d.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-98
-
 ## BILL — billing
 
 - **BILL-7 `[P1]` iOS chip-pack redeem 400s (`appAppleId` required) — purchases left uncredited behind a toast.** Problem: every TestFlight purchase fails at `POST /v1/billing/redeem` with 400 "appAppleId is required when the environment is Production"; client logs "left uncredited" (orders 2000001203481555/…1803) and shows only a toast.
