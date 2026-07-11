@@ -28,12 +28,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** a session survives an app upgrade (upgrade-path test on session storage), and when a cached profile exists but the session is unrecoverable the app surfaces a recovery/sign-in flow instead of silently minting a fresh guest.
   **Hints:** supabase-kt session persistence location on iOS; `GuestSessionHealer`, `AuthRepository` bootstrap resolve, `StrandedIdentity` warn; case `docs/agent/feedback-cases/81a8c07d88e24f16b913dc00822e52f5.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-9D
 
-## MP — multiplayer hardening
-
-- **MP-32 `[P1]` MP room socket dies every ~15s — Ktor WS timeout with no ping/pong keepalive.** Problem: every `/v1/rooms/{code}/socket` connection lives almost exactly 15s (15214/15112/15115ms in Loki) then drops and reconnects in ~450ms, flashing the "lost connection" banner throughout MP games — Ktor WebSockets defaults (`timeout=15s`, pings disabled).
-  **Acceptance:** a quiet MP table holds one socket for minutes with no periodic drops; the banner only appears for real outages.
-  **Hints:** server WebSockets plugin install (set `pingPeriod`), client engine timeout; case `docs/agent/feedback-cases/802230965b60445085848716eb01ed3c.md`; https://elijah-dangerfield.sentry.io/issues/CARDS-9A
-
 ## ROOM — rooms UI
 
 - **ROOM-16 `[P1]` Sole member of a matchmaking room isn't host — add-bots 403s and reads as "offline".** Problem: after a matchmaking placement + app restart the reporter rejoined room Y4ZHD3 as its only member (`recv snapshot members=1`) yet `POST /bots` 403'd `not_host` seven times with no visible UI feedback; he concluded the app was offline.

@@ -99,6 +99,7 @@ class Harness(val server: InProcessServer) {
         userId: String = randomUserId(),
         faulty: Boolean = false,
         latencyMs: Long? = null,
+        wiretapWrapped: Boolean = false,
         authGate: AuthGate = AlwaysReadyAuthGate,
     ): TestClient =
         TestClient(
@@ -106,6 +107,7 @@ class Harness(val server: InProcessServer) {
             userId = userId,
             faulty = faulty,
             latencyMs = latencyMs,
+            wiretapWrapped = wiretapWrapped,
             authGate = authGate,
         ).also { clients += it }
 

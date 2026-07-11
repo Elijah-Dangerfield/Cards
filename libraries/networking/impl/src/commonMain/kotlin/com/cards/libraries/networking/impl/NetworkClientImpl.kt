@@ -26,10 +26,8 @@ import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
-import kotlin.time.Duration.Companion.seconds
 import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
@@ -86,10 +84,9 @@ class NetworkClientImpl(
             // WebSocket plugin so callers can open room sockets via the
             // same authenticated client (the Auth bearer is attached on
             // the WS handshake). The plugin is additive — existing HTTP
-            // calls don't notice it.
-            install(WebSockets) {
-                pingIntervalMillis = 15.seconds.inWholeMilliseconds
-            }
+            // calls don't notice it. Keepalive is per-engine; see
+            // installWebSocketKeepalive for the OkHttp trap (MP-32).
+            installWebSocketKeepalive()
             if (BuildInfo.isDebug) {
                 // Wiretap's WS capture (ENG-8) — the gameplay room socket runs
                 // through this authenticated client, so this surfaces every

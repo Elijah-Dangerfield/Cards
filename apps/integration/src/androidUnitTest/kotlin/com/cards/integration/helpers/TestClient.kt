@@ -52,6 +52,12 @@ class TestClient(
     val userId: String = randomUserId(),
     faulty: Boolean = false,
     latencyMs: Long? = null,
+    // Mimic a debug build: wrap the raw engine WS session in a plain
+    // pass-through delegator at the same pipeline phase the Wiretap WS
+    // inspector uses. Defeats Ktor's "engine session is already a
+    // DefaultWebSocketSession" fast path — the config every dev build runs
+    // and the trigger for MP-32. See [wiretapAlikeRawSessionWrapper].
+    wiretapWrapped: Boolean = false,
     // Ungated by default (this suite tests the server contract, not the client
     // auth gate); pass a SettableAuthGate to exercise short-circuit behavior.
     private val authGate: AuthGate = AlwaysReadyAuthGate,
@@ -79,6 +85,13 @@ class TestClient(
         SessionRejectionBusImpl(),
         { authGate },
     )
+
+    init {
+        if (wiretapWrapped) {
+            @OptIn(com.dangerfield.cards.libraries.networking.InternalNetworkingApi::class)
+            networkClient.authenticatedClient.wiretapAlikeRawSessionWrapper()
+        }
+    }
 
     val repository: RoomRepository = run {
         val realTransport = KtorRoomSocketTransport(networkClient, config)
