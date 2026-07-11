@@ -1,6 +1,11 @@
 package com.dangerfield.cards.features.rooms.impl
 
 import app.cash.turbine.test
+import com.dangerfield.cards.libraries.core.logging.EXTRA_APP_EVENT
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.LogEntry
+import com.dangerfield.cards.libraries.core.logging.LogId
+import com.dangerfield.cards.libraries.core.logging.LogTree
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
@@ -780,6 +785,111 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         testScheduler.advanceTimeBy(61.seconds)
         testScheduler.runCurrent()
         assertEquals(SearchPhase.BotFallbackOffer, vm.state.phase)
+    }
+
+    // ---------- Matchmaking funnel app events (ENG-18) ----------
+
+    @Test
+    fun funnelEvents_fireThroughSearchWaitOfferAndAcceptance() = runUnitTest {
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            val mm = FakeMatchmakingRepository(
+                find = FindTableOutcome.Success(roomOf(), created = true),
+            )
+            val vm = buildVm(matchmaking = mm)
+            runCurrent()
+
+            // Empty browse → own waiting table → the 60s window elapses alone.
+            testScheduler.advanceTimeBy(61.seconds)
+            testScheduler.runCurrent()
+
+            vm.takeAction(PublicSearchingAction.PlayBots)
+            runCurrent()
+
+            assertEquals(
+                listOf(
+                    "matchmaking.search_started",
+                    "matchmaking.candidates_shown",
+                    "matchmaking.wait_started",
+                    "matchmaking.bot_offer_shown",
+                    "matchmaking.bot_offer_accepted",
+                ),
+                tree.eventNames(),
+            )
+            assertEquals(0, tree.eventExtras("matchmaking.candidates_shown")["candidate_count"])
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    @Test
+    fun cancellingFromTheChooser_emitsAbandonedWithPhase() = runUnitTest {
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            val mm = FakeMatchmakingRepository(
+                candidates = CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+            )
+            val vm = buildVm(matchmaking = mm)
+            runCurrent()
+            assertEquals(SearchPhase.Choosing, vm.state.phase)
+
+            vm.takeAction(PublicSearchingAction.Cancel)
+            runCurrent()
+
+            val abandoned = tree.eventExtras("matchmaking.abandoned")
+            assertEquals("choosing", abandoned["phase"])
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    @Test
+    fun realPlayerArriving_duringTheWait_emitsArrivalOnce() = runUnitTest {
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            val conn = MutableSharedFlow<RoomConnection>(extraBufferCapacity = 8)
+            val mm = FakeMatchmakingRepository(find = FindTableOutcome.Success(roomOf(), created = true))
+            val vm = buildVm(matchmaking = mm, rooms = FakeRoomRepository(connection = conn))
+            runCurrent()
+            assertEquals(SearchPhase.Searching, vm.state.phase)
+
+            val withOpponent = roomOf(
+                members = listOf(
+                    member(LOCAL_USER, "You", isConnected = true),
+                    member("opponent", "Them", isConnected = true),
+                ),
+            )
+            conn.emit(RoomConnection.Connected(withOpponent))
+            runCurrent()
+            conn.emit(RoomConnection.Connected(withOpponent))
+            runCurrent()
+
+            val arrivals = tree.eventNames().filter { it == "matchmaking.real_player_arrived" }
+            assertEquals(1, arrivals.size, "one arrival event per search episode, not per snapshot")
+            assertEquals("wait", tree.eventExtras("matchmaking.real_player_arrived")["during"])
+
+            vm.takeAction(PublicSearchingAction.Cancel)
+            runCurrent()
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    private class CapturingLogTree : LogTree() {
+        val entries = mutableListOf<LogEntry>()
+        override fun log(entry: LogEntry): LogId? {
+            entries += entry
+            return null
+        }
+
+        fun eventNames(): List<String> =
+            entries.mapNotNull { it.context.extras[EXTRA_APP_EVENT] as? String }
+
+        fun eventExtras(name: String): Map<String, Any?> =
+            entries.first { it.context.extras[EXTRA_APP_EVENT] == name }.context.extras
     }
 
     // ---------- scaffolding ----------

@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.lobby.impl
 
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.RoomRepository
@@ -51,6 +52,7 @@ class PrivateJoinViewModel(
                     return@run
                 }
                 updateState { it.copy(joining = true, error = null) }
+                logger.logEvent("matchmaking.search_started", "entry" to "private_code")
                 when (val outcome = rooms.joinRoom(code)) {
                     is JoinRoomOutcome.Success -> {
                         updateState { it.copy(joining = false) }

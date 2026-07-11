@@ -34,6 +34,7 @@ kotlin {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.libraries.rooms)
             implementation(projects.libraries.identity)
+            implementation(projects.libraries.core)
             implementation(libs.turbine)
         }
     }
