@@ -24,10 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ENG — engineering / structural
 
-- **ENG-32 `[P2]` `docs/wiki/progression.md` + `achievements.md` still describe pre-PROG-12 reward timing. (proposed 2026-07-12)** Problem: both pages say server-minted chips become visible "on the next balance overwrite", but since PROG-12 both sync endpoints return `walletBalance` and the client re-pulls the wallet immediately when it's non-null.
-  **Acceptance:** both pages describe the mint-to-re-pull contract, matching `docs/wiki/wallet.md`.
-  **Hints:** `libraries/cards/impl/src/commonMain/kotlin/com/cards/libraries/cards/impl/ProgressionRepositoryImpl.kt` (`sync`, ~214) and `AchievementRepositoryImpl.kt` (~186); commit `c3d38a33`.
-
 - **ENG-33 `[P2]` `docs/wiki/architecture.md` calls the prod Fly app "future" — it has been live since 2026-07-07. (proposed 2026-07-12)** Problem: the stack table says hosting is "`cards-server-dev`, future `cards-server`", but `cards-server-prod` exists (`apps/server/fly.prod.toml`) and release builds point at it; the page also predates the `apps/admin` config UI, and `apps/server/fly.toml:13` carries the same stale "when we ship" comment.
   **Acceptance:** the page names the real dev + prod apps (and the admin app); the stale fly.toml comment is gone.
   **Hints:** `docs/wiki/architecture.md:16`; `libraries/core/src/commonMain/kotlin/com/cards/libraries/core/AppEnvironment.kt:40`.
