@@ -195,6 +195,8 @@ internal object OrphanSweepFakes {
         ): com.dangerfield.cards.server.domain.RemoveBotResult = error("unused")
         override suspend fun trimBotForNewHumans(code: String, handNumber: Int): UserId? = null
         override suspend fun markConnected(code: String, userId: UserId, connected: Boolean): com.dangerfield.cards.server.domain.Room? = null
+        override suspend fun openSocketConnection(code: String, userId: UserId): Long? = null
+        override suspend fun closeSocketConnectionIfCurrent(code: String, userId: UserId, connectionId: Long): com.dangerfield.cards.server.domain.Room? = null
         override suspend fun markPlaying(code: String): com.dangerfield.cards.server.domain.Room? = null
         override suspend fun markFinished(code: String): com.dangerfield.cards.server.domain.Room? = null
         override suspend fun find(code: String): com.dangerfield.cards.server.domain.Room? = null

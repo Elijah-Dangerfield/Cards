@@ -347,6 +347,36 @@ interface RoomService {
     suspend fun markConnected(code: String, userId: UserId, connected: Boolean): Room?
 
     /**
+     * Open a socket connection for a member: mark them connected (clearing the
+     * seat-grace stamp, exactly like [markConnected] with `true`) and return a
+     * fresh, monotonically increasing **connection id** identifying this socket.
+     * Returns null if the room or member is missing (a non-member spectator).
+     *
+     * The id is the reconnect-race guard. A member may open a new socket before
+     * the old one's server-side teardown has run; the new open bumps the id, so
+     * the stale close — passing its now-superseded id to
+     * [closeSocketConnectionIfCurrent] — no-ops instead of flipping the live
+     * member disconnected and arming a reaper against a connected seat.
+     */
+    suspend fun openSocketConnection(code: String, userId: UserId): Long?
+
+    /**
+     * Close the socket identified by [connectionId]: mark the member
+     * disconnected (stamping `disconnectedAt` so the grace reaper can run),
+     * but **only if [connectionId] is still this member's current connection**.
+     *
+     * When the member reconnected on a newer socket in the meantime, its open
+     * bumped the id, so this superseded close is ignored (returns null) — the
+     * fix for the fast-reconnect race where an old socket's late teardown would
+     * otherwise disconnect a member who is, in fact, live on a new socket.
+     *
+     * Returns the updated room when the close took effect, or null when it was
+     * ignored (superseded id, already disconnected, or room/member gone) — the
+     * route uses "non-null ⇒ arm the grace reaper".
+     */
+    suspend fun closeSocketConnectionIfCurrent(code: String, userId: UserId, connectionId: Long): Room?
+
+    /**
      * Transition the room from [RoomStatus.Lobby] to [RoomStatus.Playing].
      * No-op (returns current room) if already Playing; rejected (returns
      * null) if the room is missing. Triggered by the socket route after a

@@ -255,6 +255,67 @@ class InMemoryRoomServiceTest {
     }
 
     @Test
+    fun openSocketConnection_marksConnected_andReturnsMonotonicId() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host")
+
+        val first = service.openSocketConnection(room.code, host)
+        val second = service.openSocketConnection(room.code, host)
+        assertNotNull(first)
+        assertNotNull(second)
+        assertTrue(second > first, "each open bumps the connection id")
+        val member = service.find(room.code)!!.memberFor(host)!!
+        assertTrue(member.isConnected)
+        assertNull(member.disconnectedAt, "opening a socket clears the seat-grace stamp")
+    }
+
+    @Test
+    fun openSocketConnection_forNonMember_returnsNull() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host")
+        // alice never joined — no seat, so there's no presence to open.
+        assertNull(service.openSocketConnection(room.code, alice))
+    }
+
+    @Test
+    fun closeSocketConnection_currentId_disconnectsAndStampsGrace() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host")
+        val id = service.openSocketConnection(room.code, host)!!
+
+        val after = service.closeSocketConnectionIfCurrent(room.code, host, id)
+        assertNotNull(after, "closing the current socket takes effect")
+        val member = after.memberFor(host)!!
+        assertEquals(false, member.isConnected)
+        assertNotNull(member.disconnectedAt, "a real close arms the grace reaper")
+    }
+
+    @Test
+    fun closeSocketConnection_supersededId_isIgnored_soFastReconnectKeepsSeatLive() = runTest {
+        // The reconnect race the prod-deploy test flake exposed: a member opens a
+        // second socket before the first socket's server-side teardown runs. The
+        // stale close must NOT disconnect the live member or arm a reaper.
+        val service = newService()
+        val room = service.createOrFail(host, "Host")
+        service.join(room.code, alice, "Alice")
+
+        val socketA = service.openSocketConnection(room.code, alice)!!
+        val socketB = service.openSocketConnection(room.code, alice)!! // reconnect, before A tears down
+
+        // A's late teardown carries the now-superseded id → no-op.
+        val afterStale = service.closeSocketConnectionIfCurrent(room.code, alice, socketA)
+        assertNull(afterStale, "a superseded socket's close is ignored")
+        val liveMember = service.find(room.code)!!.memberFor(alice)!!
+        assertTrue(liveMember.isConnected, "the member stays connected on socket B")
+        assertNull(liveMember.disconnectedAt, "no grace stamp — nothing to reap")
+
+        // B's own teardown (the current id) still disconnects normally.
+        val afterReal = service.closeSocketConnectionIfCurrent(room.code, alice, socketB)
+        assertNotNull(afterReal)
+        assertEquals(false, afterReal.memberFor(alice)!!.isConnected)
+    }
+
+    @Test
     fun observe_emitsCurrentRoom_onSubscribe_andOnEveryMutation() = runTest {
         val service = newService()
         val room = service.createOrFail(host, "Host", maxSeats = 4)

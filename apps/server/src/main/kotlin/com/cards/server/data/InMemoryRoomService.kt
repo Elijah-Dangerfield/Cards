@@ -96,6 +96,18 @@ class InMemoryRoomService(
      */
     private val lastBotTrimHand: MutableMap<String, Int> = mutableMapOf()
 
+    /**
+     * Current socket connection id per (code, member). Each [openSocketConnection]
+     * bumps [nextConnectionId] and records it here; the socket carries its own id
+     * and passes it back to [closeSocketConnectionIfCurrent], which acts only when
+     * the id is still current. That's the reconnect-race guard: a socket that was
+     * superseded by a newer one (the member reconnected before the old teardown
+     * ran) can't disconnect the live member or arm a spurious reaper. Guarded by
+     * [mutex] like [rooms]; entries for a room are dropped when it's GC'd ([forget]).
+     */
+    private val connectionIds: MutableMap<Pair<String, UserId>, Long> = mutableMapOf()
+    private var nextConnectionId: Long = 0L
+
     private data class RoomState(
         var room: Room,
         val flow: MutableStateFlow<Room> = MutableStateFlow(room),
@@ -527,6 +539,55 @@ class InMemoryRoomService(
         next
     }
 
+    override suspend fun openSocketConnection(code: String, userId: UserId): Long? = mutex.withLock {
+        val state = rooms[code] ?: return@withLock null
+        val current = state.room
+        val member = current.memberFor(userId) ?: return@withLock null
+        val id = ++nextConnectionId
+        connectionIds[code to userId] = id
+        // Same presence effect as markConnected(true): flip connected + clear the
+        // seat-grace stamp. Skip the rebuild (and its flow emission) when nothing
+        // actually changes — a reconnect onto an already-live member only needs the
+        // bumped id above.
+        if (!member.isConnected || member.disconnectedAt != null) {
+            val next = current.copy(
+                members = current.members.map { m ->
+                    if (m.userId == userId) m.copy(isConnected = true, disconnectedAt = null) else m
+                },
+            )
+            state.update(next)
+            persist(next)
+        }
+        id
+    }
+
+    override suspend fun closeSocketConnectionIfCurrent(
+        code: String,
+        userId: UserId,
+        connectionId: Long,
+    ): Room? = mutex.withLock {
+        // Superseded socket: the member reconnected on a newer socket (which bumped
+        // the id) before this close ran. Ignore it — flipping the live member
+        // disconnected here would arm a reaper against a connected seat.
+        if (connectionIds[code to userId] != connectionId) return@withLock null
+        connectionIds.remove(code to userId)
+        val state = rooms[code] ?: return@withLock null
+        val current = state.room
+        val member = current.memberFor(userId) ?: return@withLock null
+        // Already down (defensive — a matching id closes exactly once): nothing to
+        // do, and returning null keeps the route from arming a duplicate reaper.
+        if (!member.isConnected) return@withLock null
+        val now = clock.now()
+        val next = current.copy(
+            members = current.members.map { m ->
+                if (m.userId == userId) m.copy(isConnected = false, disconnectedAt = now) else m
+            },
+        )
+        state.update(next)
+        persist(next)
+        next
+    }
+
     override suspend fun markPlaying(code: String): Room? = mutex.withLock {
         val state = rooms[code] ?: return@withLock null
         val current = state.room
@@ -698,6 +759,7 @@ class InMemoryRoomService(
         // Drop the per-room trim bookkeeping along with the room — a future code
         // reuse (astronomically unlikely, but cheap to be correct) starts clean.
         lastBotTrimHand.remove(code)
+        connectionIds.keys.removeAll { it.first == code }
         Catching { store.delete(code) }
             .onFailure { log.warn("Room $code delete-persist failed", it) }
     }
