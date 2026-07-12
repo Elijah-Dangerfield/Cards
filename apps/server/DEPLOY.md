@@ -146,9 +146,11 @@ jobs:
             https://cards-server-dev.fly.dev/v1/admin/sweep-anonymous-users
 ```
 
-(This workflow only sweeps dev today — a prod equivalent pointing at
-`cards-server-prod.fly.dev` with `CARDS_ADMIN_API_TOKEN_PROD` hasn't
-been added yet.) Response body shows `candidatesFound / deleted
+(This workflow only sweeps dev. That's deliberate, not a gap: per
+`docs/developer-todo.md` / `docs/decisions.md` 2026-05-29, the
+time-based sweep stays dormant for V1 in prod — a client-driven
+on-orphan delete replaced it — so don't wire a prod cron.) Response
+body shows `candidatesFound / deleted
 / failedToDelete`; a non-zero `failedToDelete` is worth investigating
 in Sentry.
 
