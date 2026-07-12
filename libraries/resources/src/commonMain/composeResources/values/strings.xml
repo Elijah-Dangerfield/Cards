@@ -53,7 +53,7 @@
     <string name="shop_purchase_error_store_failed_title">That didn't go through</string>
     <string name="shop_purchase_error_store_failed_message">The store couldn't complete your purchase, and you haven't been charged. Give it another try in a minute.</string>
     <string name="shop_purchase_error_store_unavailable_title">Store unavailable</string>
-    <string name="shop_purchase_error_store_unavailable_message">We couldn't reach the App Store, so nothing was purchased. Check your connection and try again.</string>
+    <string name="shop_purchase_error_store_unavailable_message">We couldn't reach the store, so nothing was purchased. Check your connection and try again.</string>
     <!-- App - session-expiry boot (the auth server rejected our token mid-run). -->
     <string name="session_expired_title">Session expired</string>
     <string name="session_expired_message">We lost your session. Try again to pick up where you left off, or log out to start over.</string>
