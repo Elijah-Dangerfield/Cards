@@ -12,7 +12,8 @@ Multiplayer is the load-bearing feature of the app. This doc explains how it wor
 - **Each player only sees what they're allowed to.** The server scrubs hole cards per viewer before sending state, so you can't peek at opponents' cards by inspecting traffic.
 - **The current hand is saved to the database.** Every change writes the full game state to one row (`room_sessions`), so a server restart can restore an in-progress hand.
 - **Rooms persist too.** The membership / host registry is a write-through hydrated cache over durable `rooms` + `room_members` tables.
-- **Reconnects are handled.** Server holds your seat for a 5-min grace; the client retries the socket with backoff. Host auto-promotes to the first still-connected member if the host drops.
+- **Reconnects are handled.** Server holds your seat for a 5-min grace; the client retries the socket with backoff.
+- **Host authority is derived, never reassigned.** The *effective host* — the first connected human in seat order, falling back to the first human when nobody reads connected yet — wields the host powers (add/remove bots, Start on a Private table). Client and server compute it identically (`Room.effectiveHostUserId` server-side, `LobbyState.effectiveHostUserId` client-side), so the buttons a player sees always match what the server accepts. When the host drops, the next connected human simply *is* the host; when the original reconnects, seat order hands it back. The tagged `hostUserId` stays as data (creation cap, wire compat) but never gates mutations — on matchmaker-created rooms it's a synthetic system creator no real player can be. ([Room.kt](../../apps/server/src/main/kotlin/com/cards/server/domain/Room.kt))
 
 **Design note:** we deliberately chose **snapshot-only** (re-send the whole game state on every change) over event-sourcing. It's bandwidth-heavier but eliminates a whole class of sync bugs. We tried the event-log path (a `game_events` table) and reverted it — see [`decisions.md`](../decisions.md).
 
@@ -24,7 +25,7 @@ A room has one of three visibilities. The difference shapes who can find it, who
 
 | Visibility | Discoverable by matchmaker? | Code-shareable? | Who deals? |
 |---|:---:|:---:|---|
-| **Private** | ❌ | ✅ | Host (manual Start) |
+| **Private** | ❌ | ✅ | Effective host (manual Start) |
 | **Open** | ✅ | ✅ | Server (auto-deal at 2+ present) |
 | **Public** | ✅ (matchmaker-created) | ❌ | Server (auto-deal at 2+ present) |
 
@@ -99,4 +100,5 @@ Key takeaways:
 - **Blinds** — forced bets the two players left of the dealer post each hand (rotates every hand). No antes in V1.
 - **Snapshot-only** — the server re-sends the full game state on every change (vs. an event log). Our chosen model.
 - **Intent** — a client's requested action ("raise to 200"); the server validates and resolves it.
+- **Effective host** — the member wielding host powers right now: the first connected human in seat order (fallback: first human). Derived fresh from the member list on every read, never stored or reassigned.
 - **Grace** — the 5-min window the server holds a disconnected player's seat before sweeping it.

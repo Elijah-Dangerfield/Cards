@@ -366,14 +366,14 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
-### `MP-5` 🚨 📱 Host disconnect + auto-promotion
+### `MP-5` 🚨 📱 Host disconnect + effective-host handoff
 
 **State:** three+ seated members, host is Device A, a hand not currently mid-deal.
 
 1. Device A (host): force-quit the app (or enable airplane mode).
 2. Observe Devices B and C for ~10s.
 
-**Expected:** Within the grace window the host badge auto-promotes to the first still-connected member. The table keeps playing — the remaining members are not kicked. Device A's seat shows as disconnected (held), not gone. If Device A returns within grace, it reconnects to its seat (see `MP-6`).
+**Expected:** Within the grace window the host badge moves to the first still-connected human in seat order (Device B), and B's host affordances (add/remove bots, Start) actually work — no `not_host` rejections (ROOM-16: host authority is derived, computed the same on client and server). The table keeps playing — the remaining members are not kicked. Device A's seat shows as disconnected (held), not gone. If Device A returns within grace, it reconnects to its seat and the host badge returns to A by seat order (see `MP-6`).
 
 ---
 

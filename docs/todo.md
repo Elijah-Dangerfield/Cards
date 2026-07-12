@@ -22,9 +22,3 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## ENG — engineering / structural
-
-- **ENG-30 `[P2]` `docs/wiki/multiplayer.md` still describes host-drop "auto-promotion" — update to the ROOM-16 effective-host model. (proposed 2026-07-11)** Problem: the page says the host "auto-promotes to the first still-connected member if the host drops," but since ROOM-16 host authority is derived, never reassigned: the effective host is the first connected *human* in seat order (fallback: first human), computed identically client/server, and the tagged `hostUserId` no longer gates mutations (matchmade rooms have a synthetic creator).
-  **Acceptance:** the page's host-authority claims (reconnect bullet, Private "who deals" row) match `Room.effectiveHostUserId` / `Room.wieldsHostPowers` and the 2026-07-11 ROOM-16 decisions entry.
-  **Hints:** `docs/wiki/multiplayer.md:15`; `apps/server/src/main/kotlin/com/cards/server/domain/Room.kt`.
-
