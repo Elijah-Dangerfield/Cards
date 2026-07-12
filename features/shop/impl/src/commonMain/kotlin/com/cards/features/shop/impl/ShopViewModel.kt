@@ -462,6 +462,20 @@ data class ShopState(
  * Classifier: [ShopState.sheetModeFor]. Visual rendering:
  * [PurchaseConfirmSheet].
  */
+sealed interface PurchaseSheetMode {
+    /** Buyable: user is unlocked + can afford + offer is in-window. */
+    data object Available : PurchaseSheetMode
+
+    /** Unlocked but can't afford. Disabled CTA + "Need X more chips" copy. */
+    data class Insufficient(val shortBy: Long) : PurchaseSheetMode
+
+    /** Locked by level. Disabled CTA + "Unlocks at Level N" copy. */
+    data class Locked(val requiredLevel: Int) : PurchaseSheetMode
+
+    /** User already owns this. No buy CTA — close + "manage in profile" hint. */
+    data object Owned : PurchaseSheetMode
+}
+
 /**
  * Why a real-money purchase failed — drives the error dialog's copy. The
  * distinction matters because the user's money is in different places:
@@ -487,20 +501,6 @@ internal fun purchaseErrorFor(reason: String): PurchaseError = when (reason) {
     IapPurchaseOutcome.Failed.REASON_REDEEM_UNAVAILABLE -> PurchaseError.UncreditedWillRetry
     IapPurchaseOutcome.Failed.REASON_RECEIPT_REJECTED -> PurchaseError.Rejected
     else -> PurchaseError.StoreFailed
-}
-
-sealed interface PurchaseSheetMode {
-    /** Buyable: user is unlocked + can afford + offer is in-window. */
-    data object Available : PurchaseSheetMode
-
-    /** Unlocked but can't afford. Disabled CTA + "Need X more chips" copy. */
-    data class Insufficient(val shortBy: Long) : PurchaseSheetMode
-
-    /** Locked by level. Disabled CTA + "Unlocks at Level N" copy. */
-    data class Locked(val requiredLevel: Int) : PurchaseSheetMode
-
-    /** User already owns this. No buy CTA — close + "manage in profile" hint. */
-    data object Owned : PurchaseSheetMode
 }
 
 /**
