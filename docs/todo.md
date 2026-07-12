@@ -38,11 +38,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## GAME — gameplay + table UX
 
-**GAME-31 [P1] — Tame the "curiosity call" so bots stop hero-calling trash**
-- Problem: `BotDecision.choose` applies a difficulty-independent `curiosityCall = 0.10 + (1 − tightness) * 0.10` with NO bet-size term, so ~10–20% of the time a bot calls (or hero-calls an all-in) with any hand. This is the behavior players read as "the bot cheats / saw my cards," and it leaks chips. The `+0.10` slack on the pot-odds test compounds it.
-- Acceptance: curiosity/slack calling decays toward 0 as pot odds rise (no spite-calling large bets / all-ins) and is gated by difficulty; bots still occasionally call light at small sizings so they don't become robotic. Add a test asserting a weak hand folds to a large overbet with curiosity effectively suppressed.
-- Hints: [BotDecision.kt](../libraries/bots/src/commonMain/kotlin/com/cards/libraries/bots/BotDecision.kt) (curiosity at ~:105-106, applied ~:123).
-
 **GAME-30 [P1] — Pre-action toggles (check/fold, check-any)**
 - Problem: no pre-select actions exist; a player must wait for their turn to act even when their decision is already made. Standard poker QoL and a named competitor gap.
 - Acceptance: on the action UI, a player can arm "Check/Fold" and "Check any" before their turn; the armed action fires automatically on turn arrival and clears if the situation changes (e.g. facing a raise cancels "check").
