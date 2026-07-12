@@ -22,9 +22,4 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## ENG — engineering / structural
-
-- **ENG-31 `[P2]` `docs/wiki/remote-config.md` predates config-admin v2 — semver axis and the V77 manifest are missing. (proposed 2026-07-12)** Problem: the page's shipped-axes list omits the semantic app-version bounds (`RuleConditions.minAppVersion`/`maxAppVersion` via `SemVer.compare`), and its "Known limits" still claims the admin UI can't enumerate the client's `ConfiguredValue` registry — the V77 `app_config_manifest` + `POST /v1/admin/config/resolve` union view shipped exactly that.
-  **Acceptance:** the axes list, flow, Known limits, and Code pointers match `AppConfigTargeting.kt`, `AppConfigManifestRepository.kt`, and `ConfigAdminRoutes.kt` (migrations V75–V77).
-  **Hints:** `docs/wiki/remote-config.md:15,36`; `apps/server/src/main/kotlin/com/cards/server/routes/ConfigAdminRoutes.kt`.
 
