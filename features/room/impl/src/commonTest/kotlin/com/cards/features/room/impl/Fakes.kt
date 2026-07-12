@@ -561,6 +561,7 @@ class FakeProductsRepository(
     override fun observeTimeAnchor(): Flow<com.dangerfield.cards.libraries.products.CatalogTimeAnchor?> =
         MutableStateFlow(null)
     override fun observeIsRefreshing(): Flow<Boolean> = MutableStateFlow(false)
+    override fun observeRefreshFailed(): Flow<Boolean> = MutableStateFlow(false)
 }
 
 /** In-memory wallet balance for the rebuy-gate + quick-buy tests. */
