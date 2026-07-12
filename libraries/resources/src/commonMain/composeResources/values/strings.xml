@@ -381,6 +381,7 @@
     <string name="home_active_room_forfeit_dialog_body">Your seat will be released and any stack at the table goes back to your wallet.</string>
     <string name="home_active_room_forfeit_dialog_primary">Forfeit</string>
     <string name="home_active_room_forfeit_dialog_secondary">Stay</string>
+    <string name="home_active_room_forfeit_error">Couldn't leave the room. Your seat is still held, so try again in a moment.</string>
 
     <!-- Home - Tutorial banner (one-tap entry to the tutorial flow). -->
     <string name="home_tutorial_banner_title">New here?</string>

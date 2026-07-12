@@ -30,6 +30,7 @@ import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
 import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
 import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
+import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.social.FriendRepository
@@ -506,8 +507,20 @@ class HomeViewModel(
     private suspend fun forfeit(code: String) {
         // The leave removes the room from the observed flow on success,
         // which clears the banner. On failure the flow is untouched, so the
-        // room correctly stays visible — no optimistic drop to undo.
-        appScope.async { roomRepository.leaveRoom(code) }.await()
+        // room correctly stays visible — but the user just confirmed a
+        // destructive dialog, so a held seat needs an explicit error too
+        // (ROOM-17).
+        when (val outcome = appScope.async { roomRepository.leaveRoom(code) }.await()) {
+            is LeaveRoomOutcome.Success,
+            LeaveRoomOutcome.NotFound,
+            LeaveRoomOutcome.NotInRoom,
+                -> Unit
+            is LeaveRoomOutcome.NetworkError -> sendEvent(HomeEvent.ForfeitFailed)
+            is LeaveRoomOutcome.Unknown -> {
+                homeLogger.w(outcome.cause) { "Forfeit leave failed" }
+                sendEvent(HomeEvent.ForfeitFailed)
+            }
+        }
     }
 
     /**
@@ -686,6 +699,9 @@ sealed interface HomeEvent {
 
     /** The balance dropped under the Casual buy-in — offer the ways back once per episode. */
     data class OpenOutOfChipsSheet(val balance: Long, val casualBuyIn: Long) : HomeEvent
+
+    /** The confirmed Forfeit's leave call failed — the seat is still held, say so. */
+    data object ForfeitFailed : HomeEvent
 }
 
 sealed interface HomeAction {

@@ -22,12 +22,6 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## ROOM — rooms UI
-
-- **ROOM-17 `[P1]` Home's Forfeit action swallows the leave failure — surface an error like the lobby does. (proposed 2026-07-12)** Problem: `HomeViewModel.forfeit()` awaits `roomRepository.leaveRoom(code)` and discards the `LeaveRoomOutcome` — after the user confirms the destructive Forfeit dialog, a failed leave (network/server) keeps the banner with no snackbar, no pending state, no feedback.
-  **Acceptance:** a failed forfeit surfaces an error to the user (Lobby's handling of the same call → `LobbyError.LeaveServerNotNotified` is the model); success still clears the banner via the observed rooms flow.
-  **Hints:** `features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/HomeViewModel.kt` (`forfeit`); pattern at `features/lobby/impl/src/commonMain/kotlin/com/cards/features/lobby/impl/LobbyViewModel.kt:228`.
-
 ## SHOP — consumables + rewards
 
 - **SHOP-10 `[P1]` A failed first catalog fetch renders "Shop is empty for now" with no retry. (proposed 2026-07-12)** Problem: `hasRefreshError` (which drives the retry banner) is only set from the VM's pull-to-refresh path, but the cold-boot catalog load is repository-self-triggered — so a fresh install whose first fetch fails gets `hasLoaded = true` + empty catalog and lands on `EmptyState()`, a misleading "shop is empty" screen with no retry affordance.
