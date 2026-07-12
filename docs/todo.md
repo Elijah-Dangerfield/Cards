@@ -21,3 +21,49 @@ The live punch list of actionable engineering work. Every item is something a wo
 - `[P2]` — Lower urgency, still worker-pickable. Many need a directional call — make a recommendation, ship a slice, let the reviewer course-correct.
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
+
+---
+
+## MP — multiplayer hardening
+
+**MP-31 [P0] — Scrub the undealt deck from broadcast game state**
+- Problem: `GameState.deckRemaining` (the exact future flop/turn/river) is a serialized field sent to every seated client on every state update; `scrubbedFor()` only empties other seats' hole cards, not the deck. No burn cards, so at preflop `deckRemaining[0..2]` is the flop, `[3]` turn, `[4]` river — a modified client can see the whole runout. Contradicts our "bots can't see your cards" claim as a human cheat vector.
+- Acceptance: broadcast/scrubbed state carries no undealt cards; a regression test asserts the scrubbed snapshot's deck is empty. Confirm nothing on the client legitimately reads `deckRemaining` from the socket path (solo `LocalBotsSession` builds its own deck and doesn't go through this).
+- Hints: [GameStateScrub.kt](../libraries/gameplay/src/commonMain/kotlin/com/cards/libraries/gameplay/GameStateScrub.kt), [GameState.kt:17](../libraries/gameplay/src/commonMain/kotlin/com/cards/libraries/gameplay/GameState.kt), [RoomSocketRoutes.kt:306](../apps/server/src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt).
+
+**MP-32 [P1] — Wire opponent modeling into multiplayer bots**
+- Problem: bots have a real adaptive layer (`OpponentTracker` → shove-monster/passive-caller detection → call lighter vs a serial jammer), but it's fed only in solo (`LocalBotsSession`). `ServerBotDriver.drive` calls `BotDecision.choose` without a tracker, so MP bots use a fresh empty tracker every decision and never adapt to anyone — the samey/predictable complaint, for the bots most players actually face.
+- Acceptance: the server holds one `OpponentTracker` per session, fed from the game event/action stream, passed into `choose`; MP bots demonstrably call down a repeat jammer after enough hands (add a test). Consider also detecting a habitual big-bet bluffer, not just literal shovers (`aggressionFrequency`/`pfr` are tracked but unused).
+- Hints: [ServerBotDriver.kt](../apps/server/src/main/kotlin/com/cards/server/game/ServerBotDriver.kt), [OpponentProfile.kt](../libraries/bots/src/commonMain/kotlin/com/cards/libraries/bots/OpponentProfile.kt).
+
+**MP-33 [P1] — Scale multiplayer bot difficulty by stake tier**
+- Problem: public matchmaking fills bot seats with `BotDifficulty.Standard` regardless of the table's buy-in ([MatchmakingRoutes.kt:155](../apps/server/src/main/kotlin/com/cards/server/routes/MatchmakingRoutes.kt)); a Premium table has the same-skill bots as a Casual one. Solo already couples difficulty to stake — MP doesn't. Named competitor complaint ("difficulty doesn't scale by stake").
+- Acceptance: matchmaking derives bot difficulty from the room's `StakeTier` (low tiers → Casual, high tiers → Challenging); private-room host override still respected.
+- Hints: [MatchmakingRoutes.kt](../apps/server/src/main/kotlin/com/cards/server/routes/MatchmakingRoutes.kt), `StakeTier.kt`, restart-fallback in `ServerBotDriver.kt`.
+
+## GAME — gameplay + table UX
+
+**GAME-31 [P1] — Tame the "curiosity call" so bots stop hero-calling trash**
+- Problem: `BotDecision.choose` applies a difficulty-independent `curiosityCall = 0.10 + (1 − tightness) * 0.10` with NO bet-size term, so ~10–20% of the time a bot calls (or hero-calls an all-in) with any hand. This is the behavior players read as "the bot cheats / saw my cards," and it leaks chips. The `+0.10` slack on the pot-odds test compounds it.
+- Acceptance: curiosity/slack calling decays toward 0 as pot odds rise (no spite-calling large bets / all-ins) and is gated by difficulty; bots still occasionally call light at small sizings so they don't become robotic. Add a test asserting a weak hand folds to a large overbet with curiosity effectively suppressed.
+- Hints: [BotDecision.kt](../libraries/bots/src/commonMain/kotlin/com/cards/libraries/bots/BotDecision.kt) (curiosity at ~:105-106, applied ~:123).
+
+**GAME-30 [P1] — Pre-action toggles (check/fold, check-any)**
+- Problem: no pre-select actions exist; a player must wait for their turn to act even when their decision is already made. Standard poker QoL and a named competitor gap.
+- Acceptance: on the action UI, a player can arm "Check/Fold" and "Check any" before their turn; the armed action fires automatically on turn arrival and clears if the situation changes (e.g. facing a raise cancels "check").
+- Hints: action UI in [PlayerActionSheet.kt](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/ui/PlayerActionSheet.kt) / [TableActionBar.kt](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/ui/TableActionBar.kt).
+
+## BILL — billing
+
+**BILL-10 [P1] — Confirm step on the post-bust quick-buy**
+- Problem: the storefront has a two-step `PurchaseConfirmSheet`, but the in-game `QuickBuyChipsSheet` (shown after a MP bust) goes straight to `purchaseChipPack(...)` — one tap closer to a real charge, at the emotionally-loaded just-busted moment. Only the OS store dialog gates it.
+- Acceptance: post-bust quick-buy shows the same lightweight confirm (price + "charged via the App Store / Google Play" line) as the storefront before the purchase fires.
+- Hints: [PlayPokerViewModel.kt:1019](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayPokerViewModel.kt), storefront pattern in `PurchaseConfirmSheet.kt`.
+
+## AUTH — auth + onboarding
+
+**AUTH-9 [P0] — Fix the one false claim on the privacy page (+ 2 minor overstatements)**
+- Problem: [pages/privacy.html](../pages/privacy.html) line 23 says the anonymous account lets chips/items/progress "survive an app reinstall or a phone swap" — FALSE on Android reinstall (encrypted prefs + keystore key wiped on uninstall) and on device-swap for both platforms (iOS keychain item is not `kSecAttrSynchronizable`, no server `recovery_id`). It also contradicts our own [terms.html](../pages/terms.html) line 51, which is correct ("tied to the device… we can't recover anonymous accounts"). This is the only hard falsehood; the rest of both docs audited accurate.
+- Acceptance: rewrite line 23 to state the account is device-local while installed, does NOT auto-move to a new phone or survive uninstall, and that claiming (email/Apple/Google) is the durable path — making privacy.html consistent with terms.html and `docs/wiki/account-lifecycle.md`. Also (minor) narrow the "hosted in the United States" line to Fly+Supabase (Sentry/Grafana region isn't pinned in-repo), and swap the illustrative "game started" telemetry example for a real event (`room.joined`). Consider adding: anonymous accounts can be auto-reaped when abandoned, and `install_id` is stored on the profile row.
+- Note: neither doc currently makes a fairness/randomness claim — keep it that way unless/until a verifiable shuffle ships, since the server uses `Random.Default` (not a CSPRNG), so any "provably fair" wording would be false as built.
+- Hints: iOS keychain [IOSSecureSessionStorage.swift](../apps/ios/iosApp/Platform/IOSSecureSessionStorage.swift), Android [EncryptedSessionStorage.kt](../libraries/identity/impl/src/androidMain/kotlin/com/cards/libraries/identity/impl/auth/EncryptedSessionStorage.kt), ground truth in [docs/wiki/account-lifecycle.md](../docs/wiki/account-lifecycle.md).
