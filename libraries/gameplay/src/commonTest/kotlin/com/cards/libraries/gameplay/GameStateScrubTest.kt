@@ -34,6 +34,7 @@ class GameStateScrubTest {
     private fun state(
         street: BettingRound,
         seats: List<Seat>,
+        deckRemaining: List<Card> = emptyList(),
     ) = GameState(
         settings = settings,
         handNumber = 1,
@@ -44,7 +45,7 @@ class GameStateScrubTest {
         currentBetThisStreet = 0,
         lastFullRaiseSize = 0,
         actingSeatIndex = null,
-        deckRemaining = emptyList(),
+        deckRemaining = deckRemaining,
     )
 
     @Test
@@ -161,6 +162,41 @@ class GameStateScrubTest {
 
         // Viewer folded but still sees their own muck.
         assertEquals(cardsA, scrubbed.seats[0].holeCards)
+    }
+
+    @Test
+    fun undealtDeck_isScrubbed_forSeatedViewer() {
+        val deck = listOf(
+            Card(Rank.Two, Suit.Clubs),
+            Card(Rank.Seven, Suit.Diamonds),
+            Card(Rank.King, Suit.Hearts),
+        )
+        val s = state(
+            BettingRound.Preflop,
+            listOf(seat(0, cardsA), seat(1, cardsB)),
+            deckRemaining = deck,
+        )
+
+        val scrubbed = s.scrubbedFor(viewerSeatIndex = 0)
+
+        // The future flop/turn/river must never reach any client.
+        assertTrue(scrubbed.deckRemaining.isEmpty())
+        // Scrubbing the deck doesn't disturb the viewer's own cards.
+        assertEquals(cardsA, scrubbed.seats[0].holeCards)
+    }
+
+    @Test
+    fun undealtDeck_isScrubbed_evenAtShowdown() {
+        val deck = listOf(Card(Rank.Two, Suit.Clubs), Card(Rank.Seven, Suit.Diamonds))
+        val s = state(
+            BettingRound.Showdown,
+            listOf(seat(0, cardsA), seat(1, cardsB)),
+            deckRemaining = deck,
+        )
+
+        val scrubbed = s.scrubbedFor(viewerSeatIndex = 0)
+
+        assertTrue(scrubbed.deckRemaining.isEmpty())
     }
 
     @Test

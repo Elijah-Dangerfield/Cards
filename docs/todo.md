@@ -26,11 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## MP — multiplayer hardening
 
-**MP-31 [P0] — Scrub the undealt deck from broadcast game state**
-- Problem: `GameState.deckRemaining` (the exact future flop/turn/river) is a serialized field sent to every seated client on every state update; `scrubbedFor()` only empties other seats' hole cards, not the deck. No burn cards, so at preflop `deckRemaining[0..2]` is the flop, `[3]` turn, `[4]` river — a modified client can see the whole runout. Contradicts our "bots can't see your cards" claim as a human cheat vector.
-- Acceptance: broadcast/scrubbed state carries no undealt cards; a regression test asserts the scrubbed snapshot's deck is empty. Confirm nothing on the client legitimately reads `deckRemaining` from the socket path (solo `LocalBotsSession` builds its own deck and doesn't go through this).
-- Hints: [GameStateScrub.kt](../libraries/gameplay/src/commonMain/kotlin/com/cards/libraries/gameplay/GameStateScrub.kt), [GameState.kt:17](../libraries/gameplay/src/commonMain/kotlin/com/cards/libraries/gameplay/GameState.kt), [RoomSocketRoutes.kt:306](../apps/server/src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt).
-
 **MP-32 [P1] — Wire opponent modeling into multiplayer bots**
 - Problem: bots have a real adaptive layer (`OpponentTracker` → shove-monster/passive-caller detection → call lighter vs a serial jammer), but it's fed only in solo (`LocalBotsSession`). `ServerBotDriver.drive` calls `BotDecision.choose` without a tracker, so MP bots use a fresh empty tracker every decision and never adapt to anyone — the samey/predictable complaint, for the bots most players actually face.
 - Acceptance: the server holds one `OpponentTracker` per session, fed from the game event/action stream, passed into `choose`; MP bots demonstrably call down a repeat jammer after enough hands (add a test). Consider also detecting a habitual big-bet bluffer, not just literal shovers (`aggressionFrequency`/`pfr` are tracked but unused).
