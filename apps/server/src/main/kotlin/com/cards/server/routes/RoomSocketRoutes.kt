@@ -152,9 +152,11 @@ fun Route.roomSocketRoutes(
             }
 
             // A spectator holds no seat, so presence/grace bookkeeping doesn't
-            // apply to them — markConnected would no-op on a non-member anyway,
-            // but skipping it keeps the intent explicit.
-            if (!isSpectator) rooms.markConnected(code, userId, connected = true)
+            // apply to them — openSocketConnection returns null for a non-member
+            // anyway, but skipping it keeps the intent explicit. For a member the
+            // returned id tags THIS socket so its own teardown can tell whether a
+            // newer socket has since superseded it (the fast-reconnect race).
+            val connectionId = if (!isSpectator) rooms.openSocketConnection(code, userId) else null
             // Info: one line per socket open anchors "user joined room at T" in
             // Loki — the backend bookend to the client's connection breadcrumb.
             LoggerFactory.getLogger("RoomSocket")
@@ -520,16 +522,19 @@ fun Route.roomSocketRoutes(
                 // A spectator holds no seat — there's nothing to mark
                 // disconnected and nothing to reap, so their socket simply
                 // closes with no presence/grace bookkeeping.
-                val afterDisconnect = if (isSpectator) {
+                val afterDisconnect = if (isSpectator || connectionId == null) {
                     LoggerFactory.getLogger("RoomSocket")
                         .info("Spectator socket closed: room=$code user=$userId")
                     null
                 } else {
-                    // Mark disconnected regardless of close cause. Capture
-                    // the stamp the service just set so the reaper can
-                    // cross-check that the user didn't reconnect (or
-                    // re-drop) during the grace window.
-                    rooms.markConnected(code, userId, connected = false)
+                    // Mark disconnected regardless of close cause — but only if THIS
+                    // socket is still the member's current one. A fast reconnect
+                    // opens a newer socket (bumping the connection id) before this
+                    // teardown runs; closeSocketConnectionIfCurrent then no-ops so we
+                    // don't disconnect a live member or arm a reaper against their
+                    // seat. When it does act it stamps disconnectedAt, which the
+                    // reaper below cross-checks so a later reconnect/re-drop wins.
+                    rooms.closeSocketConnectionIfCurrent(code, userId, connectionId)
                 }
                 val droppedAt = afterDisconnect?.memberFor(userId)?.disconnectedAt
                 if (droppedAt != null) {
