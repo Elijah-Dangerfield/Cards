@@ -87,6 +87,30 @@ class OpponentTrackerTest {
     }
 
     @Test
+    fun habitualAggressorDetected_butNotFlaggedAsShoveMonster() {
+        val tracker = OpponentTracker()
+        repeat(6) { hand ->
+            tracker.observe(handStart(handNumber = hand + 1))
+            tracker.observe(action(1, PlayerAction.Raise(40, 20)))
+        }
+        val profile = tracker.snapshot(1)
+        assertTrue(profile.isHabitualAggressor, "expected habitual aggressor, got $profile")
+        assertFalse(profile.isShoveMonster, "a raiser who never jams is not a shove monster")
+    }
+
+    @Test
+    fun occasionalRaiserIsNotHabitualAggressor() {
+        val tracker = OpponentTracker()
+        repeat(6) { hand ->
+            tracker.observe(handStart(handNumber = hand + 1))
+            tracker.observe(action(1, PlayerAction.Call(10)))
+        }
+        // One lone raise among six calls — not a pattern.
+        tracker.observe(action(1, PlayerAction.Raise(40, 20)))
+        assertFalse(tracker.snapshot(1).isHabitualAggressor)
+    }
+
+    @Test
     fun checkActionIsNotVoluntary() {
         val tracker = OpponentTracker()
         tracker.observe(handStart(handNumber = 1))

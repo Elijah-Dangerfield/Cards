@@ -3,6 +3,7 @@ package com.dangerfield.cards.server.game
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.bots.BotThought
+import com.dangerfield.cards.libraries.bots.OpponentTracker
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
@@ -12,6 +13,7 @@ import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
 import com.dangerfield.cards.server.domain.BotSeat
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -88,6 +90,51 @@ class ServerBotDriverTest {
         }
 
         assertEquals(BettingRound.Complete, session.state.value!!.street, "the hand reaches completion under the driver")
+    }
+
+    @Test
+    fun driver_feedsOpponentTracker_fromTheSessionEventStream() = runTest {
+        val session = GameSession(random = Random(seed = 7))
+        val tracker = OpponentTracker()
+        // Eager scope so the driver's event-stream collector delivers under the
+        // virtual clock; production runs it on real Dispatchers.Default.
+        val driverScope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
+        val driver = ServerBotDriver(
+            session = session,
+            scope = driverScope,
+            cpuDispatcher = UnconfinedTestDispatcher(testScheduler),
+            random = Random(seed = 7),
+            equityIterations = 20,
+            thinkDelay = { _, _, _ -> 0 },
+            nextHandBeatMs = 0,
+            opponentTracker = tracker,
+        )
+        driver.updateRoster(listOf(human, bot))
+        driver.start()
+        session.startHand(listOf(human, bot), settings)
+
+        // The human jams every time it's on the clock; the driver plays the bot
+        // and drives the hand to completion.
+        var guard = 0
+        while (guard++ < 50) {
+            advanceUntilIdle()
+            val state = session.state.value!!
+            if (state.street == BettingRound.Complete) break
+            if (state.actingSeatIndex == 0) {
+                session.applyIntent("human-1", PlayerIntent.AllIn(0), "human-$guard")
+            }
+        }
+        advanceUntilIdle()
+
+        // The tracker the driver was constructed with saw the human's shove — proof
+        // the event stream is wired into the opponent read passed into every
+        // decision (MP-32). The read's effect on decisions is covered in
+        // :libraries:bots (BotDecisionTest / OpponentTrackerTest).
+        val read = tracker.snapshot(0)
+        assertTrue(read.shoveCount >= 1, "driver must feed the human's all-in into the opponent read")
+        assertTrue(read.streetActionCount >= 1, "driver must feed actions into the opponent read")
+
+        driverScope.cancel()
     }
 
     @Test

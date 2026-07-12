@@ -3,6 +3,7 @@ package com.dangerfield.cards.server.game
 import com.dangerfield.cards.libraries.bots.BotDecision
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.bots.BotThought
+import com.dangerfield.cards.libraries.bots.OpponentTracker
 import com.dangerfield.cards.libraries.bots.buildHandContextFromState
 import com.dangerfield.cards.libraries.bots.toBotDifficulty
 import com.dangerfield.cards.libraries.gameplay.BettingRound
@@ -74,6 +75,11 @@ class ServerBotDriver(
     // winnings before being dealt back in. Config (8s, tune). Tests shrink it so a
     // multi-hand run isn't gated on real seconds per boundary.
     private val nextHandBeatMs: Long = 8_000,
+    // One opponent read per session, fed the engine event stream and passed into
+    // every bot decision so MP bots adapt to the humans they actually face — the
+    // same adaptive layer solo already had (MP-32). Injectable so a test can assert
+    // the read the driver built up.
+    private val opponentTracker: OpponentTracker = OpponentTracker(),
 ) {
     // playerId -> bot truth. Mutated only from the single collector coroutine
     // (drive loop) and from updateRoster; updateRoster runs before/around
@@ -101,6 +107,10 @@ class ServerBotDriver(
     fun start() {
         if (job != null) return
         job = scope.launch {
+            // Feed the opponent read from the event stream on its own child job.
+            // A one-decision lag between an action and the read reflecting it is
+            // fine — opponent modeling is inherently historical.
+            launch { session.events.collect { opponentTracker.observe(it.event) } }
             session.state.collectLatest { state -> state?.let { drive(it) } }
         }
     }
@@ -136,6 +146,7 @@ class ServerBotDriver(
                 seatIndex = acting,
                 personality = botSeat.personality,
                 difficulty = botSeat.difficulty,
+                opponentTracker = opponentTracker,
                 random = random,
                 equityIterations = equityIterations,
                 handContext = handContext,

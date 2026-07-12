@@ -4,6 +4,7 @@ import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import kotlinx.serialization.Serializable
+import kotlin.concurrent.Volatile
 
 @Serializable
 data class OpponentProfile(
@@ -30,10 +31,27 @@ data class OpponentProfile(
 
     val isPassiveCaller: Boolean
         get() = handsObserved >= 5 && aggressionFrequency <= 0.25 && vpip >= 0.4
+
+    /**
+     * A player who bets/raises far more than they call — the habitual pressurer
+     * whose big bets are usually air, not a hand. Distinct from [isShoveMonster]
+     * (literal all-ins): this catches the serial over-bettor a bot should call
+     * down lighter, not just the jammer.
+     */
+    val isHabitualAggressor: Boolean
+        get() = handsObserved >= 5 && aggCount >= 6 && aggressionFrequency >= 0.7
 }
 
+/**
+ * Rolling per-seat opponent read, fed the engine's [GameEvent] stream. Safe for
+ * a single writer ([observe], driven from one coroutine) racing concurrent
+ * readers ([snapshot], called from bot-decision threads): the profile map is
+ * published as an immutable value behind a [Volatile] reference and replaced
+ * whole on each update, so a reader never sees a half-mutated map.
+ */
 class OpponentTracker {
-    private val profiles: MutableMap<Int, OpponentProfile> = mutableMapOf()
+    @Volatile
+    private var profiles: Map<Int, OpponentProfile> = emptyMap()
     private val voluntaryPotEntryRecorded: MutableMap<Int, MutableSet<Int>> = mutableMapOf()
     private val preflopRaiseRecorded: MutableMap<Int, MutableSet<Int>> = mutableMapOf()
     private var currentHandNumber: Int = 0
@@ -47,8 +65,8 @@ class OpponentTracker {
             is GameEvent.HandStarted -> {
                 currentHandNumber = event.handNumber
                 currentStreet = BettingRound.Preflop
-                for ((seat, profile) in profiles.toMap()) {
-                    profiles[seat] = profile.copy(handsObserved = profile.handsObserved + 1)
+                profiles = profiles.mapValues { (_, profile) ->
+                    profile.copy(handsObserved = profile.handsObserved + 1)
                 }
             }
             is GameEvent.StreetAdvanced -> {
@@ -62,9 +80,7 @@ class OpponentTracker {
     }
 
     private fun recordAction(seatIndex: Int, action: PlayerAction) {
-        val existing = profiles.getOrPut(seatIndex) {
-            OpponentProfile(seatIndex, handsObserved = 1.coerceAtLeast(1))
-        }
+        val existing = profiles[seatIndex] ?: OpponentProfile(seatIndex, handsObserved = 1)
 
         var updated = existing.copy(streetActionCount = existing.streetActionCount + 1)
 
@@ -98,6 +114,6 @@ class OpponentTracker {
             updated = updated.copy(shoveCount = updated.shoveCount + 1)
         }
 
-        profiles[seatIndex] = updated
+        profiles = profiles + (seatIndex to updated)
     }
 }

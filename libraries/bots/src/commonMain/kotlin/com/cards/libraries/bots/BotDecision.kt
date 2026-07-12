@@ -287,12 +287,22 @@ object BotDecision {
 
         val shoveMonsters = opponents.count { tracker.snapshot(it.index).isShoveMonster }
         val passiveCallers = opponents.count { tracker.snapshot(it.index).isPassiveCaller }
+        // A habitual over-bettor who isn't a literal jammer still bluffs too much;
+        // widen our calling range against them, but less than vs an all-in shover.
+        val habitualAggressors = opponents.count { profile ->
+            val p = tracker.snapshot(profile.index)
+            p.isHabitualAggressor && !p.isShoveMonster
+        }
         var bias = 0.0
         val notes = mutableListOf<String>()
 
         if (shoveMonsters > 0) {
             bias += 0.10
             notes += "shove-monster"
+        }
+        if (habitualAggressors > 0) {
+            bias += 0.06
+            notes += "habitual-aggressor"
         }
         if (passiveCallers > 0) {
             bias -= 0.04

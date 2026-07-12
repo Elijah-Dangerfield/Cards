@@ -24,13 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## MP — multiplayer hardening
-
-**MP-32 [P1] — Wire opponent modeling into multiplayer bots**
-- Problem: bots have a real adaptive layer (`OpponentTracker` → shove-monster/passive-caller detection → call lighter vs a serial jammer), but it's fed only in solo (`LocalBotsSession`). `ServerBotDriver.drive` calls `BotDecision.choose` without a tracker, so MP bots use a fresh empty tracker every decision and never adapt to anyone — the samey/predictable complaint, for the bots most players actually face.
-- Acceptance: the server holds one `OpponentTracker` per session, fed from the game event/action stream, passed into `choose`; MP bots demonstrably call down a repeat jammer after enough hands (add a test). Consider also detecting a habitual big-bet bluffer, not just literal shovers (`aggressionFrequency`/`pfr` are tracked but unused).
-- Hints: [ServerBotDriver.kt](../apps/server/src/main/kotlin/com/cards/server/game/ServerBotDriver.kt), [OpponentProfile.kt](../libraries/bots/src/commonMain/kotlin/com/cards/libraries/bots/OpponentProfile.kt).
-
 ## GAME — gameplay + table UX
 
 **GAME-30 [P1] — Pre-action toggles (check/fold, check-any)**

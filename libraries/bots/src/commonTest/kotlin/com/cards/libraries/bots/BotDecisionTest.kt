@@ -187,6 +187,51 @@ class BotDecisionTest {
     )
 
     @Test
+    fun readsHabitualAggressor_andWidensAgainstThem() {
+        val tracker = OpponentTracker()
+        repeat(6) { hand ->
+            tracker.observe(
+                com.dangerfield.cards.libraries.gameplay.GameEvent.HandStarted(
+                    sequence = 1, handNumber = hand + 1, buttonSeatIndex = 0,
+                ),
+            )
+            tracker.observe(
+                com.dangerfield.cards.libraries.gameplay.GameEvent.ActionTaken(
+                    sequence = 3, seatIndex = 1,
+                    action = com.dangerfield.cards.libraries.gameplay.PlayerAction.Raise(40, 20),
+                    resultingStreetContribution = 40,
+                ),
+            )
+        }
+        val state = facingBetState(
+            heroHole = listOf("Kd", "Jc"),
+            heroStack = 1_000,
+            potBefore = 300,
+            villainBet = 100,
+        )
+
+        val vsAggressor = BotDecision.choose(
+            state = state, seatIndex = 0,
+            personality = BotPersonality.Gina, difficulty = BotDifficulty.Standard,
+            opponentTracker = tracker, random = Random(3L),
+        )
+        val vsUnknown = BotDecision.choose(
+            state = state, seatIndex = 0,
+            personality = BotPersonality.Gina, difficulty = BotDifficulty.Standard,
+            random = Random(3L),
+        )
+
+        assertTrue(
+            vsAggressor.thought.opponentNote?.contains("habitual-aggressor") == true,
+            "expected a habitual-aggressor read, got ${vsAggressor.thought.opponentNote}",
+        )
+        assertTrue(
+            vsAggressor.thought.handStrength > vsUnknown.thought.handStrength,
+            "the aggressor read should bias effective strength up (call/raise lighter)",
+        )
+    }
+
+    @Test
     fun thoughtIncludesRationale() {
         val seats = listOf(
             seatWithHoleCards(0, stack = 1_000, hole = listOf("Ks", "Kh")),
