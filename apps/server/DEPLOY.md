@@ -393,7 +393,7 @@ rationale on why the pin is scoped to `jvm()` and not the whole module).
 
 ## Cost
 
-- VM: shared-cpu-1x with 512MB RAM per environment (256MB OOM-looped the JVM — see the `JAVA_OPTS` note in `fly.toml`).
+- VM: shared-cpu-1x — 512MB RAM in dev, 1GB in prod (256MB OOM-looped the JVM — see the `JAVA_OPTS` note in `fly.toml`).
 - One machine per environment stays warm 24/7 (`min_machines_running = 1`), so the baseline is a few dollars a month per app rather than $0-idle.
 - Bandwidth: free tier covers ~100GB/mo egress; we're not close.
 - Realistic monthly bill across dev + prod: **~$5-15**.
