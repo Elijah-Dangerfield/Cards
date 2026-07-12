@@ -31,11 +31,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - Acceptance: the server holds one `OpponentTracker` per session, fed from the game event/action stream, passed into `choose`; MP bots demonstrably call down a repeat jammer after enough hands (add a test). Consider also detecting a habitual big-bet bluffer, not just literal shovers (`aggressionFrequency`/`pfr` are tracked but unused).
 - Hints: [ServerBotDriver.kt](../apps/server/src/main/kotlin/com/cards/server/game/ServerBotDriver.kt), [OpponentProfile.kt](../libraries/bots/src/commonMain/kotlin/com/cards/libraries/bots/OpponentProfile.kt).
 
-**MP-33 [P1] — Scale multiplayer bot difficulty by stake tier**
-- Problem: public matchmaking fills bot seats with `BotDifficulty.Standard` regardless of the table's buy-in ([MatchmakingRoutes.kt:155](../apps/server/src/main/kotlin/com/cards/server/routes/MatchmakingRoutes.kt)); a Premium table has the same-skill bots as a Casual one. Solo already couples difficulty to stake — MP doesn't. Named competitor complaint ("difficulty doesn't scale by stake").
-- Acceptance: matchmaking derives bot difficulty from the room's `StakeTier` (low tiers → Casual, high tiers → Challenging); private-room host override still respected.
-- Hints: [MatchmakingRoutes.kt](../apps/server/src/main/kotlin/com/cards/server/routes/MatchmakingRoutes.kt), `StakeTier.kt`, restart-fallback in `ServerBotDriver.kt`.
-
 ## GAME — gameplay + table UX
 
 **GAME-30 [P1] — Pre-action toggles (check/fold, check-any)**

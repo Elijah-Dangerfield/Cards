@@ -1,12 +1,13 @@
 package com.dangerfield.cards.server.game
 
 import com.dangerfield.cards.libraries.bots.BotDecision
-import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.bots.BotThought
 import com.dangerfield.cards.libraries.bots.buildHandContextFromState
+import com.dangerfield.cards.libraries.bots.toBotDifficulty
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameState
+import com.dangerfield.cards.libraries.gameplay.StakeTier
 import com.dangerfield.cards.server.domain.BotSeat
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -124,7 +125,7 @@ class ServerBotDriver(
         val playerId = seat.playerId ?: return
         if (seat.holeCards.size != 2) return // pre-deal / odd state — let the engine settle.
 
-        val botSeat = roster[playerId] ?: fallbackBotSeat(playerId, acting).also {
+        val botSeat = roster[playerId] ?: fallbackBotSeat(playerId, acting, state).also {
             roster = roster + (playerId to it)
         }
 
@@ -216,11 +217,13 @@ class ServerBotDriver(
      * Personality for a bot seat the roster doesn't know about — only happens
      * after a server restart hydrates a session whose room (and its personality
      * assignments) is gone. Deterministic by seat so the same revived hand reads
-     * consistently for its remaining life.
+     * consistently for its remaining life. Difficulty is recovered from the
+     * table's stakes (the buy-in is the starting stack) so a revived High/Premium
+     * bot stays sharp rather than dropping to Standard (MP-33).
      */
-    private fun fallbackBotSeat(playerId: String, seatIndex: Int): BotSeat = BotSeat(
+    private fun fallbackBotSeat(playerId: String, seatIndex: Int, state: GameState): BotSeat = BotSeat(
         personality = BotPersonality.Roster[seatIndex % BotPersonality.Roster.size],
-        difficulty = BotDifficulty.Standard,
+        difficulty = StakeTier.fromBuyIn(state.settings.startingStack).toBotDifficulty(),
         revealed = true,
     ).also {
         log.info("Assigned fallback personality {} to unrostered bot {}", it.personality.name, playerId)
