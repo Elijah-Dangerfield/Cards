@@ -35,6 +35,13 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * refresh anything itself. It only ever *creates the identity*; the rest rides
  * the machinery that already exists.
  *
+ * **It never mints over an existing account** (AUTH-19): when a cached
+ * server-backed profile survives locally but its session is gone (storage lost
+ * the token across an upgrade), minting would silently strand that account's
+ * progression behind a fresh empty guest. Instead the healer declares the
+ * session unrecoverable ([AuthRepository.markSessionUnrecoverable]), which
+ * routes the user to the explicit recovery screen.
+ *
  * This is the permanent fix for the stranding bug: even if the durable pending
  * record was ever lost, the next foreground/connectivity edge recovers the user.
  *
@@ -114,31 +121,68 @@ class GuestSessionHealer(
 
         when {
             unauth.reason == AuthState.Unauthenticated.Reason.SessionExpired -> {
-                // The auth server killed the session; the app routes to manual
-                // re-auth. Minting a guest here would paper over a real account.
+                // The session is declared dead (server rejection or client
+                // unrecoverable); the app routes to manual re-auth. Minting a
+                // guest here would paper over a real account.
                 log(source, HealAction.SKIP_SESSION_EXPIRED)
             }
             unauth.reason == AuthState.Unauthenticated.Reason.SignedOut -> {
                 // Deliberate sign-out — do not resurrect as a fresh guest.
                 log(source, HealAction.SKIP_SIGNED_OUT)
             }
-            !hasUserOnboarded() -> {
-                // Pre-onboarding: the user hasn't committed to playing yet, so
-                // there's no identity owed. Onboarding's own start() mints.
-                log(source, HealAction.SKIP_NOT_ONBOARDED)
+            else -> {
+                val stranded = cachedServerProfile()
+                when {
+                    // A server account demonstrably exists on this device but
+                    // its session is gone and retry couldn't revive it. Minting
+                    // a fresh guest here is exactly the AUTH-19 disaster: the
+                    // real account's chips/XP get silently stranded behind a
+                    // brand-new empty one. Stop and route to recovery instead.
+                    stranded != null -> stopForRecovery(source, stranded)
+                    !hasUserOnboarded() -> {
+                        // Pre-onboarding: the user hasn't committed to playing
+                        // yet, so there's no identity owed. Onboarding's own
+                        // start() mints.
+                        log(source, HealAction.SKIP_NOT_ONBOARDED)
+                    }
+                    appState.isOffline.value -> {
+                        // Can't mint offline; the connectivity-regained edge will retry.
+                        log(source, HealAction.SKIP_OFFLINE)
+                    }
+                    else -> mint(source)
+                }
             }
-            appState.isOffline.value -> {
-                // Can't mint offline; the connectivity-regained edge will retry.
-                log(source, HealAction.SKIP_OFFLINE)
-            }
-            else -> mint(source)
         }
     }
 
+    /**
+     * The cached server-backed profile, if one survives locally while we're
+     * session-less — proof this device had a real account whose session storage
+     * failed us. Never true for the legit heal cases: an offline onboarding
+     * surfaces [Profile.Fallback], and a fresh install has no cache at all.
+     */
+    private suspend fun cachedServerProfile(): Profile.Authenticated? =
+        Catching { profileRepository.current() }
+            .logOnFailure { "Reading profile for heal decision failed; assuming none cached" }
+            .getOrNull() as? Profile.Authenticated
+
+    private suspend fun stopForRecovery(source: String, stranded: Profile.Authenticated) {
+        log(source, HealAction.STOP_FOR_RECOVERY)
+        logger.w {
+            "Session unrecoverable: cached profile ${stranded.id} " +
+                "(isAnonymous=${stranded.isAnonymous}) has no session and retry could not revive it — " +
+                "routing to recovery instead of minting over the account"
+        }
+        Catching { authRepository.markSessionUnrecoverable(wasAnonymous = stranded.isAnonymous) }
+            .logOnFailure { "Marking session unrecoverable failed; will re-decide on the next trigger" }
+    }
+
     private suspend fun mint(source: String) {
-        val fallback = deriveIdentity()
-        val action = if (fallback.displayName != null) HealAction.MINT_FROM_PENDING else HealAction.MINT_FRESH
-        log(source, action)
+        log(source, HealAction.MINT)
+        // Null fields let the server generate an identity; the creator prefers
+        // a durably-owed pending record (the user's offline-chosen name/avatar)
+        // over this fallback anyway.
+        val fallback = PendingIdentity(displayName = null, avatarEmoji = null, avatarBackgroundColor = null)
         when (val result = guestAccountCreator.ensureSession(fallback)) {
             is AccountCreationState.Succeeded ->
                 logger.i { "heal source=$source mint=success — UserChanged fan-out will re-sync everything" }
@@ -146,26 +190,6 @@ class GuestSessionHealer(
                 logger.w { "heal source=$source mint=failed (${result.cause?.message}) — will retry on next trigger" }
             else ->
                 logger.w { "heal source=$source mint=unexpected(${result::class.simpleName})" }
-        }
-    }
-
-    /**
-     * Best-effort name/avatar to seed a healed session. A cached *authenticated*
-     * profile (rare for the stranding case, but possible) reuses the user's real
-     * identity; otherwise null fields let the server generate a fresh one. The
-     * creator additionally prefers a durably-owed pending record over this.
-     */
-    private suspend fun deriveIdentity(): PendingIdentity {
-        val profile = Catching { profileRepository.current() }
-            .logOnFailure { "Reading profile to seed heal failed; using a generated identity" }
-            .getOrNull()
-        return when (profile) {
-            is Profile.Authenticated -> PendingIdentity(
-                displayName = profile.displayName,
-                avatarEmoji = profile.avatarEmoji,
-                avatarBackgroundColor = profile.avatarBackgroundColor,
-            )
-            else -> PendingIdentity(displayName = null, avatarEmoji = null, avatarBackgroundColor = null)
         }
     }
 
@@ -187,7 +211,7 @@ class GuestSessionHealer(
         SKIP_NOT_ONBOARDED,
         SKIP_OFFLINE,
         RETRY_RECOVERED,
-        MINT_FROM_PENDING,
-        MINT_FRESH,
+        STOP_FOR_RECOVERY,
+        MINT,
     }
 }

@@ -1022,3 +1022,27 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Idea (filed with the ENG-18 taxonomy sweep, 2026-07-11):** `matchmaking.search_started` fires with `entry` public (Find-a-table) or private_code (join-by-code submit), but a join via a shared invite link doesn't route through either instrumented VM, so deep-link joins are invisible in the funnel. When the invite/deep-link funnel matters, add the emit at whatever entry the link-join routes through and register `entry=deep_link` in `docs/wiki/app-events.md`.
 
 **Status:** Backlog. Small; funnel currently only distinguishes public vs private_code.
+
+---
+
+## Versioned wallet snapshot: `revision` column + monotonic `setBalance`
+
+**Idea (filed with PROG-12, 2026-07-11):** The mint→re-pull contract fixes the reward-staleness race by ordering (a pull issued after the mint reads post-mint state), but the fully general fix for any two wallet writers racing is a server-side `revision` on the wallet row, returned by every read/mutation, with the client's `setBalance` refusing to apply a snapshot older than the one it holds. Design and rejected-for-now reasoning are in `docs/decisions.md` (2026-07-11, PROG-12 entry). Pull if another balance-staleness report arrives with a different shape than the mint edge.
+
+**Status:** Backlog.
+
+---
+
+## Account-linking nudge for beta testers on anonymous accounts
+
+**Idea (filed with AUTH-19, 2026-07-11):** The owner's stranded-account incident happened because a guest account with real progression has no credential to recover with; the session mirror now protects against storage loss, but a claimed account is the only durable recovery path. Once progression passes some threshold (level, chip balance, or days played), surface a gentle one-time "protect your progress" nudge toward claiming. Pairs with the existing claim-account flow; needs a trigger heuristic and copy.
+
+**Status:** Backlog.
+
+---
+
+## In-game quick-buy sheet: purchase-failure dialog parity with the shop
+
+**Idea (filed with BILL-7, 2026-07-11):** BILL-7 gave the shop a blocking "Finishing your purchase" overlay and a full failure dialog distinguishing paid-but-pending / refused / not-charged. The in-game quick-buy chip sheet still surfaces failures as toasts. Apply the same treatment there (the same `PurchaseError` classification already exists in `:features:shop:impl` — lift it somewhere shared) so a paid-but-uncredited purchase mid-game gets the same honest explanation.
+
+**Status:** Backlog.

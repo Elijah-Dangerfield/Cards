@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy — Downcard</title>
+    <title>Privacy Policy · Downcard</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="stylesheet" href="style.css">
@@ -13,41 +13,47 @@
         <header>
             <a href="index.html" style="border: none;"><img src="app-icon.png" alt="Downcard app icon" class="logo"></a>
             <h1>Privacy Policy</h1>
-            <p class="muted">Last updated: 2026-06-27</p>
+            <p class="muted">Last updated: 2026-07-11</p>
         </header>
 
         <main>
-            <p>Downcard collects the minimum it needs to run multiplayer poker between friends and sync your progress across devices. No ads, no analytics SDKs, no third-party tracking. This page lays out exactly what we store, where it lives, and what we don't touch.</p>
+            <p>Downcard collects the minimum it needs to run multiplayer poker between friends, sync your progress across devices, and fix bugs. No ads, no ad tracking, and nothing is sold or shared for marketing. This page lays out exactly what we store, where it lives, and what we don't touch.</p>
 
             <h2>What we store on our server</h2>
-            <p>When you open Downcard the first time, an anonymous account is created for you automatically — no email or password required. That account lets your chips, items, and progress survive an app reinstall or a phone swap.</p>
+            <p>When you open Downcard the first time, an anonymous account is created for you automatically, with no email or password required. That account lets your chips, items, and progress survive an app reinstall or a phone swap.</p>
             <p>Tied to that account, our server stores:</p>
             <ul>
                 <li><strong>Profile:</strong> the display name and avatar emoji you pick.</li>
-                <li><strong>Wallet:</strong> your virtual chip balance.</li>
+                <li><strong>Wallet:</strong> your virtual chip balance and a ledger of chip movements.</li>
                 <li><strong>Inventory and equipment:</strong> which cosmetics you own (felts, card backs, emote packs, titles) and which you have equipped.</li>
-                <li><strong>Progression:</strong> XP, level, unlocked achievements.</li>
+                <li><strong>Progression and play stats:</strong> XP, level, unlocked achievements, and lifetime table stats like hands played and hands won.</li>
                 <li><strong>Multiplayer rooms:</strong> while you're in a multiplayer game, the server tracks your seat at the table so the other players can see your moves. When the room ends, the record is dropped.</li>
             </ul>
-            <p>If you choose to claim your account (link an email or sign in with Apple / Google), we also store the identifier the auth provider gives us — an email address or a stable provider id. We don't store your password; that lives with the auth provider.</p>
-
-            <h2>Where your data lives</h2>
-            <p>We don't run our own data centers. Your account data is stored and authenticated through <a href="https://supabase.com/privacy">Supabase</a>, and our game server runs on <a href="https://fly.io/legal/privacy-policy/">Fly.io</a>. Both host the data in the United States. These providers process data on our behalf under their own security and privacy commitments; we don't hand them your data for their own purposes.</p>
+            <p>If you choose to claim your account (link an email or sign in with Apple / Google), we also store the identifier the auth provider gives us: an email address or a stable provider id. We don't store your password; that lives with the auth provider.</p>
 
             <h2>What's stored on your device</h2>
-            <p>Downcard keeps a local copy of the data above so the app feels instant — your chip balance, items, and recent rooms render off the local store, then reconcile against the server in the background. If you delete the app, the local copy goes with it.</p>
+            <p>Downcard keeps a local copy of the data above so the app feels instant. Your chip balance, items, and recent rooms render off the local store, then reconcile against the server in the background. If you delete the app, the local copy goes with it.</p>
 
-            <h2>Crash reporting</h2>
-            <p>When the app crashes we send a crash log to <a href="https://sentry.io/privacy/">Sentry</a>. The log includes a stack trace, your device model, OS version, and the app version. It does <strong>not</strong> include your account id, display name, chip balance, or anything else tied to your identity.</p>
+            <h2>Crash reports and diagnostics</h2>
+            <p>This is the one place we collect more than gameplay data, so here's the full picture.</p>
+            <ul>
+                <li><strong>Crash and error reports</strong> go to <a href="https://sentry.io/privacy/">Sentry</a>. A report includes a stack trace, your device model, OS version, app version, and, once you're signed in, your account id and display name (plus email on a claimed account). We attach your identity on purpose: when you tell us "the app ate my chips," it's how we find your session and fix it.</li>
+                <li><strong>Bug reports you send from the app</strong> include a log of that session's activity so we can retrace what happened.</li>
+                <li><strong>Usage and reliability telemetry</strong> goes to Grafana Cloud: events like "app opened," "game started," or "purchase completed," plus warning-level logs when something misbehaves. These are tagged with random session and install identifiers so we can follow one broken session end to end.</li>
+            </ul>
+            <p>All of this exists to keep the app working. None of it is used for advertising, sold, or shared with anyone for their own purposes.</p>
+
+            <h2>Where your data lives</h2>
+            <p>We don't run our own data centers. Your account data is stored and authenticated through <a href="https://supabase.com/privacy">Supabase</a>, our game server runs on <a href="https://fly.io/legal/privacy-policy/">Fly.io</a>, and diagnostics live with <a href="https://sentry.io/privacy/">Sentry</a> and <a href="https://grafana.com/legal/privacy-policy/">Grafana Cloud</a>. The data is hosted in the United States. These providers process data on our behalf under their own security and privacy commitments; we don't hand them your data for their own purposes.</p>
 
             <h2>In-app purchases</h2>
-            <p>Chip packs are sold via the Apple App Store or Google Play. The transaction itself happens between you and Apple / Google — Downcard receives a receipt confirming the purchase succeeded, then grants the chips to your account. We don't see or store your payment method.</p>
+            <p>Chip packs are sold via the Apple App Store or Google Play. The transaction itself happens between you and Apple / Google. Downcard receives a receipt confirming the purchase succeeded, then grants the chips to your account. We don't see or store your payment method.</p>
 
             <h2>What we don't collect</h2>
             <p>Downcard does <strong>not</strong>:</p>
             <ul>
                 <li>Show ads, or integrate any advertising SDK.</li>
-                <li>Use analytics SDKs (no Google Analytics, no Mixpanel, no Amplitude, no Facebook SDK).</li>
+                <li>Use marketing or ad-tech analytics (no Google Analytics, no Mixpanel, no Amplitude, no Facebook SDK).</li>
                 <li>Track your location.</li>
                 <li>Read your contacts or photos.</li>
                 <li>Sell, rent, or share your data with third parties for marketing.</li>
@@ -55,29 +61,29 @@
 
             <h2>Permissions the app asks for</h2>
             <ul>
-                <li><strong>Notifications</strong> (opt-in, if you grant it): used for the few moments worth surfacing — league placement, a friend joining a table you're in, a Rare or Legendary achievement unlock. Never time-of-day pings, never "come back" prompts.</li>
+                <li><strong>Notifications</strong> (opt-in, if you grant it): used only for game moments worth knowing about. Never time-of-day pings, never "come back" prompts.</li>
                 <li><strong>Internet access:</strong> required for multiplayer, syncing your wallet and items, and downloading the catalog. The app works offline against bots; multiplayer doesn't.</li>
             </ul>
 
             <h2>How long we keep it</h2>
-            <p>We keep your account data for as long as your account exists. Multiplayer room records are dropped when the room ends. Crash logs age out on Sentry's retention schedule. When you delete your account, the data tied to it is removed (see below).</p>
+            <p>We keep your account data for as long as your account exists. Multiplayer room records are dropped when the room ends. Crash reports and telemetry age out on the providers' retention schedules, typically weeks to a few months. When you delete your account, the data tied to it is removed (see below).</p>
 
             <h2>How we protect your data</h2>
-            <p>Traffic between the app and our server is encrypted in transit (HTTPS/TLS), and data at rest sits with reputable infrastructure providers. No system is perfectly secure, but we collect little enough that there isn't much to lose — no payment details, no location, no contacts.</p>
+            <p>Traffic between the app and our server is encrypted in transit (HTTPS/TLS), and data at rest sits with reputable infrastructure providers. No system is perfectly secure, but we collect little enough that there isn't much to lose: no payment details, no location, no contacts.</p>
 
             <h2>Your privacy rights</h2>
             <p>Wherever you live, you can ask us to:</p>
             <ul>
                 <li><strong>See</strong> what we hold about you.</li>
-                <li><strong>Correct</strong> it — though most of it (display name, avatar) you can edit yourself in the app.</li>
-                <li><strong>Delete</strong> it — you can do this yourself from Profile → Account → Delete account, or email us.</li>
+                <li><strong>Correct</strong> it, though most of it (display name, avatar) you can edit yourself in the app.</li>
+                <li><strong>Delete</strong> it, either yourself from Profile → Account → Delete account, or by emailing us.</li>
                 <li><strong>Export</strong> a copy.</li>
                 <li><strong>Object to</strong> how we process it.</li>
             </ul>
             <p>Email <a href="mailto:contact@downcard.app">contact@downcard.app</a> to exercise any of these. If you're in the EU, the UK, or a US state with its own privacy law, you also have the right to complain to your local data-protection authority.</p>
 
             <h2>Deleting your data</h2>
-            <p>You can delete your account from the app: Profile → Account → Delete account. That removes your profile, wallet, inventory, and progression from our server. There's no soft-delete grace period; once it's gone, it's gone.</p>
+            <p>You can delete your account from the app: Profile → Account → Delete account. That removes your profile, wallet, inventory, and progression from our server. There's no soft-delete grace period; once it's gone, it's gone. Crash reports and telemetry already sent age out on their own retention schedules.</p>
 
             <h2>Children</h2>
             <p>Downcard is intended for adults. It is not directed at anyone under 18, and we don't knowingly collect data from anyone under 18. If you think someone under 18 has created an account, email us and we'll delete it.</p>

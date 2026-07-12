@@ -81,7 +81,11 @@ achievement chips itself when the earned id lands on
 key from a server-owned amounts table (`RewardChips`), and the wallet sync
 refuses any client-asserted `levelup.*` / `achievement.*` credit
 (`RefusedServerOwned`). The client's local credit is optimistic display only —
-the ledger takes the server's number.
+the ledger takes the server's number. Since PROG-12 the mint is also visible
+immediately: the sync response carries a `walletBalance` field, non-null only
+when the request actually minted, and `AchievementRepositoryImpl` reacts by
+issuing a fresh `ChipsRepository.sync()` pull (never applying the returned
+balance directly — see [wallet.md](wallet.md) for the ordering argument).
 
 What stays client-side is unlock **detection**: the server trusts the earned id
 the client reports rather than re-deriving each crossing from the facts ledger.

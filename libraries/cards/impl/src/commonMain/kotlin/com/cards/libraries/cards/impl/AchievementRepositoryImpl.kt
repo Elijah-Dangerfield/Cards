@@ -26,6 +26,7 @@ import com.dangerfield.cards.libraries.cards.impl.dto.AchievementsSyncRequestDto
 import com.dangerfield.cards.libraries.cards.impl.dto.AchievementsSyncResponseDto
 import com.dangerfield.cards.libraries.cards.impl.dto.EarnedAchievementDto
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.networking.NetworkClient
@@ -185,6 +186,17 @@ class AchievementRepositoryImpl(
                         ),
                     )
                 }
+            // The server minted achievement chips during this sync (ENG-9 —
+            // wallet sync refuses the client's own `achievement.*` credit).
+            // Re-pull the wallet so the reward is visible now, not at the next
+            // trigger edge (PROG-12); a pull issued after the mint is
+            // ordering-safe against any concurrent wallet sync.
+            if (response.walletBalance != null) {
+                syncLogger.i { "Server minted achievement chips — re-pulling the wallet" }
+                Catching { chipsRepository.sync() }
+                    .logOnFailure { "Wallet re-pull after achievement-chip mint failed; the next sync edge heals it" }
+            }
+
             syncLogger.d { "Sync complete: ${unsynced.size} sent, ${response.earned.size} server-earned." }
             Unit
         }

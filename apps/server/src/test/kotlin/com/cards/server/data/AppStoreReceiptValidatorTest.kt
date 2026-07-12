@@ -41,6 +41,33 @@ class AppStoreReceiptValidatorTest {
     }
 
     @Test
+    fun productionEnvironment_withoutAppAppleId_degradesInsteadOfThrowing() = runTest {
+        // BILL-7: Apple's SignedDataVerifier cannot be built for PRODUCTION
+        // without the numeric appAppleId. Before the per-environment guard,
+        // the lazily-thrown IllegalArgumentException escaped the first redeem
+        // as a 400 ("appAppleId is required when the environment is
+        // Production") and took the sandbox verifier down with it — every
+        // TestFlight purchase failed. The validator must answer with a
+        // refusal from the environments it CAN build, never throw.
+        val validator = AppStoreReceiptValidator(
+            config = BillingConfig(
+                appleBundleId = "com.cards.app",
+                appleEnvironment = "Production",
+                appleAppAppleId = null,
+                googlePackageName = null,
+                googleServiceAccountJson = null,
+            ),
+            rootCertificates = { emptySet() },
+            decoder = null,
+        )
+        val result = validator.validate(receipt())
+        assertTrue(
+            result is ReceiptValidation.Invalid,
+            "a fake token is refused (not verified) — but via a decision, not an exception; got $result",
+        )
+    }
+
+    @Test
     fun validReceipt_returnsTransactionIdAsOrderId() = runTest {
         val validator = validatorReturning(
             payload().productId("chips_medium").appAccountToken(userId.value).transactionId("txn-42"),

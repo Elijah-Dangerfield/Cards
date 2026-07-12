@@ -46,6 +46,14 @@ internal data class ProgressionSyncResponseDto(
      * switch / reinstall wiped the local ledger.
      */
     val recentEvents: List<XpEventSnapshotDto> = emptyList(),
+    /**
+     * Post-mint wallet balance when this sync crossed a rewarded level and the
+     * server credited the level chips (ENG-9). Null when nothing was minted.
+     * The client treats non-null as "the wallet changed server-side" and
+     * re-pulls it — otherwise the mint stays invisible until the next sync
+     * trigger (PROG-12).
+     */
+    val walletBalance: Long? = null,
 )
 
 @Serializable

@@ -13,7 +13,7 @@ These are stable for this repo — don't rediscover them every run, but reconfir
 
 - **Sentry:** org `elijah-dangerfield`, project `cards`, region `https://us.sentry.io`.
 - **Grafana datasources:** Tempo `grafanacloud-traces`, Loki `grafanacloud-logs`.
-- **Correlation key:** `session_id` (a per-session UUID) ties a session's frontend and backend telemetry. Also available: `install_id` (stable per install), `user.id`. See [reference: session correlation](../../../docs/wiki) and the `SessionIdProvider` in `:libraries:networking`.
+- **Correlation key:** `session_id` (a per-session UUID) ties a session's telemetry across **three** stores: Sentry, the server's Loki stream (`{service_name="cards-server"}`), and — since 2026-07-11 — the **client's own event stream** (`{service_name="cards-client"}`: the full app-event taxonomy plus Warn+ client logs). Also available: `install_id` (stable per install), `user.id`. Event registry: `docs/wiki/app-events.md`; suite map: `docs/wiki/observability.md`; `SessionIdProvider` in `:libraries:networking`.
 - **Todo destination:** `docs/todo.md` (worker-pickable; strict format — see step 5). Larger/blurrier work → one-liner in `docs/backlog.md`.
 - **Processed ledger:** `docs/agent/feedback-log.md` — append-only record of every feedback already handled (keyed by Sentry event id), so reruns skip it.
 - **Case files:** `docs/agent/feedback-cases/<event_id>.md` — one per investigated report, written by step 5b below. Bundles bug description, IDs (including opponents recovered from Loki), reporter client log excerpt, client state at submit time, server activity, and the working theory. The todo's `Hints:` line links here so a worker can pick up the full context cold.
@@ -61,10 +61,15 @@ If `session_id` is absent (older client build before the correlation work shippe
 - **End-user feedback / bug report** — someone describing a problem or experience. These get the full investigation (steps 3–4) before you decide.
 - **Owner change-request / self-note** — the project owner uses the in-app feedback box to jot things he wants changed ("change the X", "add Y", "I want Z", a design/feature tweak). These are *directives*, not problems to reproduce. Tell-tales: first-person imperative or "I want…" phrasing, a feature/design ask rather than a symptom. When a report reads this way, **skip the telemetry dig** (steps 3–4) — there's no session to reconstruct — and turn it straight into a todo (step 5a) or, if larger/fuzzier, a backlog one-liner. Never resolve a directive as "no-action / not reproducible"; it's a wanted change. When unsure which kind it is, treat it as end-user feedback and investigate.
 
-### 3. Reconstruct the session — frontend (Sentry)
+### 3. Reconstruct the session — frontend (Sentry + client events in Loki)
 
 - The feedback event's **breadcrumbs** are the frontend trail (route changes, logged events) leading up to the report.
 - `search_events(dataset='errors', query='session_id:<id>', statsPeriod='24h')` for any crashes/errors in the same session. Also try `user.id:<id>` to widen.
+- **Client event trail (Loki — usually the richest view of what the user experienced):**
+  `query_loki_logs(datasourceUid='grafanacloud-logs', logql='{service_name="cards-client", deployment_environment="prod"} | session_id="<id>"', startRfc3339=..., endRfc3339=...)`
+  Returns the session's app events in order (game/matchmaking/onboarding/purchase funnels, `net.backend_unreachable`, `conn.reconnecting/recovered`, `room.closed_unexpectedly`, `game.intent_timeout` …) **plus Warn+ client log lines** (`detected_level=~"warn|error"`, no `event_name` — forwarded since 2026-07-11 behind `telemetry.klogForwardingEnabled`). Same structured-metadata rules as the server stream: pipe matchers, never line filters. Use `deployment_environment="dev"` for debug-build reports.
+- **"The app crashed" reports — verify with the crash marker:** the *next* `app.launched` from the same install carries `previous_exit` (`crash`/`anr`/`oom`/`clean`/`unknown`):
+  `logql='{service_name="cards-client", deployment_environment="prod"} | install_id="<id>" | event_name="app.launched"'` over a window past the report. `previous_exit="crash"` confirms a hard crash even when Sentry caught nothing; **iOS values are day-granular MetricKit samples** (surfaced by exactly one launch, up to 24h late — most iOS launches say `unknown`), so absence of `crash` on iOS still proves nothing.
 
 ### 4. Reconstruct the session — backend (Grafana)
 
@@ -168,4 +173,5 @@ End with a short summary: N feedback processed, M todos filed (with titles), K r
 - **Idempotent:** the ledger check in step 1 is mandatory — never double-file a todo for the same event.
 - **Read-mostly on infra:** only writes are `docs/todo.md`, `docs/backlog.md`, `docs/agent/feedback-log.md`, and (with a token) the Sentry issue status. No code changes — fixing the bug is a separate worker's job off the todo you file.
 - **Don't invent telemetry:** if Tempo/Loki return nothing for the session_id, say so (likely a dev build that didn't reach the cloud backend, or pre-correlation client) rather than guessing a backend cause.
+- **Absence of client events is weak evidence:** offline-emitted events persist to a disk buffer and ship on a later launch (ENG-25), so they can lag the session by hours or days — and anything emitted before 2026-07-11 predates the buffer and was dropped outright. Don't conclude "the user never did X" from a missing client event alone; corroborate with server logs or breadcrumbs. (Since ENG-24, `app.launched` shares the boot's `session_id`, so a complete trail *does* include its launch event on current builds.)
 - **One feedback can become at most one todo.** Multiple reports of the same root cause → one todo, the rest resolved as duplicate pointing at it.

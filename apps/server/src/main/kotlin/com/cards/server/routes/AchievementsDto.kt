@@ -28,4 +28,11 @@ data class AchievementsSyncResponse(
     val schemaVersion: Int = 1,
     /** The user's full authoritative earned set after this sync. */
     val earned: List<EarnedAchievementDto>,
+    /**
+     * Post-mint wallet balance when this sync recorded an achievement whose
+     * chips the server credits (ENG-9). Null when nothing was minted. The
+     * client re-pulls its wallet on non-null so the reward shows up
+     * immediately rather than at the next sync trigger (PROG-12).
+     */
+    val walletBalance: Long? = null,
 )

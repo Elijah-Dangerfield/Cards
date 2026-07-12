@@ -712,6 +712,57 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun forfeit_networkError_surfacesFailureEvent() = runUnitTest {
+        // ROOM-17: the user confirmed a destructive Forfeit dialog — a leave
+        // that fails over the wire must say so, not keep the banner in silence.
+        val rooms = FakeRoomRepository(
+            activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(sampleRoom(code = "AAA111"))),
+            leaveOutcome = LeaveRoomOutcome.NetworkError(RuntimeException("boom")),
+        )
+        val vm = buildVm(rooms = rooms, profile = seatedProfile())
+        advanceUntilIdle()
+
+        vm.eventFlow.test {
+            vm.takeAction(HomeAction.Forfeit(code = "AAA111"))
+            assertTrue(awaitItem() is HomeEvent.ForfeitFailed)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun forfeit_unknownError_surfacesFailureEvent() = runUnitTest {
+        // A server rejection also leaves the seat held — same feedback path.
+        val rooms = FakeRoomRepository(
+            activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(sampleRoom(code = "AAA111"))),
+            leaveOutcome = LeaveRoomOutcome.Unknown(RuntimeException("boom")),
+        )
+        val vm = buildVm(rooms = rooms, profile = seatedProfile())
+        advanceUntilIdle()
+
+        vm.eventFlow.test {
+            vm.takeAction(HomeAction.Forfeit(code = "AAA111"))
+            assertTrue(awaitItem() is HomeEvent.ForfeitFailed)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun forfeit_success_emitsNoFailureEvent() = runUnitTest {
+        val rooms = FakeRoomRepository(
+            activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(sampleRoom(code = "AAA111"))),
+        )
+        val vm = buildVm(rooms = rooms, profile = seatedProfile())
+        advanceUntilIdle()
+
+        vm.eventFlow.test {
+            vm.takeAction(HomeAction.Forfeit(code = "AAA111"))
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertTrue(vm.stateFlow.value.activeRooms.isEmpty(), "banner clears via the observed rooms flow")
+    }
+
+    @Test
     fun recentOpponents_refreshOnAuth_resolvesIntoState() = runUnitTest {
         // The shelf refreshes once a real session lands; the resolved profiles
         // surface as RecentOpponent tiles (none "Sent" yet).

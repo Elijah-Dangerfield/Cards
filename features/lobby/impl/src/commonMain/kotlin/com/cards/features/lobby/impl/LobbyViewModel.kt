@@ -349,17 +349,16 @@ class LobbyViewModel(
                     // Success needs no local mutation — the new bot seat arrives
                     // over the socket as the next room Snapshot.
                     is AddBotOutcome.Success -> Unit
-                    is AddBotOutcome.NetworkError ->
-                        updateState { it.copy(error = LobbyError.BotActionFailed) }
+                    is AddBotOutcome.NetworkError -> sendEvent(LobbyEvent.BotActionFailed)
                     is AddBotOutcome.Unknown -> {
                         logger.w(outcome.cause) { "Add bot failed" }
-                        updateState { it.copy(error = LobbyError.BotActionFailed) }
+                        sendEvent(LobbyEvent.BotActionFailed)
                     }
                     AddBotOutcome.Full,
                     AddBotOutcome.NotHost,
                     AddBotOutcome.NotJoinable,
                     AddBotOutcome.NotFound,
-                        -> updateState { it.copy(error = LobbyError.BotActionFailed) }
+                        -> sendEvent(LobbyEvent.BotActionFailed)
                 }
             }
 
@@ -373,7 +372,7 @@ class LobbyViewModel(
                     RemoveBotOutcome.Success,
                     RemoveBotOutcome.NotFound,
                         -> Unit
-                    else -> updateState { it.copy(error = LobbyError.BotActionFailed) }
+                    else -> sendEvent(LobbyEvent.BotActionFailed)
                 }
             }
 
@@ -541,13 +540,22 @@ data class LobbyState(
         }
     /**
      * The user who currently owns the room. Computed as the first
-     * *connected* member — this gives implicit auto-promotion when the
+     * *connected* human — this gives implicit auto-promotion when the
      * server-tagged host disconnects (next connected member becomes
      * effective host). When the original host reconnects they may or
-     * may not regain host depending on their seat order.
+     * may not regain host depending on their seat order. Falls back to
+     * the first human when nobody reads as connected yet (our own
+     * presence flip can lag the snapshot right after joining).
+     *
+     * Must mirror the server's `Room.effectiveHostUserId` exactly — the
+     * server gates bot/start mutations on the same rule, so any drift
+     * re-opens ROOM-16 (buttons shown here, `not_host` rejections there).
      */
     val effectiveHostUserId: String?
-        get() = room?.members?.firstOrNull { it.isConnected && !it.isBot }?.userId
+        get() {
+            val humans = room?.members?.filter { !it.isBot } ?: return null
+            return (humans.firstOrNull { it.isConnected } ?: humans.firstOrNull())?.userId
+        }
 
     /** True when the current user owns this room (and a start-game CTA should appear). */
     val isHost: Boolean
@@ -594,8 +602,6 @@ sealed interface LobbyError {
     data object RoomWasClosed : LobbyError
     data object ConnectRejected : LobbyError
     data object ConnectionLost : LobbyError
-    /** Add-/remove-bot call failed (full, network, etc.). */
-    data object BotActionFailed : LobbyError
 }
 
 sealed interface LobbyEvent {
@@ -615,6 +621,12 @@ sealed interface LobbyEvent {
      *  back to the code-entry screen with the bad code so they can fix and
      *  retry, rather than stranding them on a dead lobby spinner (CARDS-28). */
     data class JoinCodeRejected(val code: String) : LobbyEvent
+
+    /** An add/remove-bot call failed (full table, network, server rejection).
+     *  Surfaced as an error snackbar rather than the inline error line, which
+     *  a tall seat grid can push below the fold — the reporter in ROOM-16
+     *  tapped add-bots seven times reading total silence. */
+    data object BotActionFailed : LobbyEvent
 }
 
 sealed interface LobbyAction {

@@ -21,6 +21,7 @@ class AppLaunchedEventTest {
                 klogForwardingEnabled = { false },
                 currentSessionId = { "session-uuid-1" },
                 currentInstallId = { "install-uuid-1" },
+                isOffline = { false },
                 processorFactory = { processor },
             ),
         )

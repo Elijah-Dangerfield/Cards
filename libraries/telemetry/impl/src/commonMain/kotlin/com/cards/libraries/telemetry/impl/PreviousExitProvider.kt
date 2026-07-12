@@ -16,9 +16,9 @@ enum class PreviousExit(val value: String) {
 /**
  * Platform lookup for how the last run ended. Android reads
  * `ActivityManager.getHistoricalProcessExitReasons` (API 30+; older devices
- * report [PreviousExit.Unknown]). iOS reports [PreviousExit.Unknown]
- * unconditionally for now — the honest answer there needs MetricKit
- * (`MXAppExitMetric`) wiring, tracked under ENG-25 in `docs/todo.md`.
+ * report [PreviousExit.Unknown]). iOS derives it from MetricKit exit
+ * reports, which are day-granular and lag a launch — see
+ * `IosPreviousExitProvider` for the exact semantics.
  */
 interface PreviousExitProvider {
     fun previousExit(): PreviousExit

@@ -12,6 +12,7 @@ import androidx.compose.ui.backhandler.BackHandler
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.home_active_room_forfeit_error
 import cards.libraries.resources.generated.resources.home_coming_soon_recently_played_body
 import cards.libraries.resources.generated.resources.home_coming_soon_recently_played_title
 import cards.libraries.resources.generated.resources.home_coming_soon_tournament_body
@@ -19,6 +20,7 @@ import cards.libraries.resources.generated.resources.home_coming_soon_tournament
 import cards.libraries.resources.generated.resources.ui_level_up_reward_chips
 import cards.libraries.resources.generated.resources.ui_level_up_reward_cosmetic
 import cards.libraries.resources.generated.resources.ui_level_up_reward_xp_boost
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.home.LevelUpRoute
@@ -41,6 +43,8 @@ import com.dangerfield.cards.libraries.flowroutines.ObserveWithLifecycle
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.ui.components.LevelUpCelebration
 import com.dangerfield.cards.libraries.ui.components.LevelUpReward
+import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
+import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import com.dangerfield.cards.libraries.navigation.OnTabReselected
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.dialog
@@ -98,6 +102,15 @@ class HomeFeatureEntryPoint(
                     is HomeEvent.OpenOutOfChipsSheet -> {
                         outOfChipsBuyIn = event.casualBuyIn
                     }
+                    // The confirmed Forfeit's leave failed — the banner stays (the
+                    // observed rooms flow is untouched), so tell the user their
+                    // seat is still held rather than leaving the tap silent
+                    // (ROOM-17). Snackbar over inline: the banner has no error
+                    // slot and the failure is transient.
+                    is HomeEvent.ForfeitFailed -> showSnackBar(
+                        message = getString(Res.string.home_active_room_forfeit_error),
+                        level = SnackbarLevel.Error,
+                    )
                 }
             }
             // Routed level-up celebration. The VM derives `levelUpCelebration`

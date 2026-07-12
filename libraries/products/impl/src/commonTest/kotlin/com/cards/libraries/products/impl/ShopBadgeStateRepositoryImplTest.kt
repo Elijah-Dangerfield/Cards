@@ -149,6 +149,7 @@ class ShopBadgeStateRepositoryImplTest : CoroutineTest() {
             Result.success(state.value)
         override fun observeTimeAnchor(): Flow<CatalogTimeAnchor?> = MutableStateFlow(null)
         override fun observeIsRefreshing(): Flow<Boolean> = MutableStateFlow(false)
+        override fun observeRefreshFailed(): Flow<Boolean> = MutableStateFlow(false)
 
         fun emit(value: ProductCatalog) { state.value = value }
     }

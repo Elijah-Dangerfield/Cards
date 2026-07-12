@@ -7,9 +7,11 @@ Grafana Cloud Loki. The dashboards these feed are mapped in
 [`docs/wiki/observability.md`](observability.md).
 
 Dashboard queries treat this page as the source of truth for names and attributes. Names are
-dot-namespaced snake_case; every record automatically carries `session_id` + `install_id`
-(per-record) plus resource attributes (`service.name="cards-client"`, deployment environment,
-version, platform).
+dot-namespaced snake_case; every record automatically carries `session_id` + `install_id` +
+`is_offline` (per-record) plus resource attributes (`service.name="cards-client"`, deployment
+environment, version, platform). `is_offline` is `AppState.isOffline` captured **at emit time** —
+records that ship later from the disk buffer still say what connectivity looked like when the
+event happened, so reliability funnels can segment "emitted offline" without span archaeology.
 
 **Query shape (verified against live Loki 2026-07-11):** stream is
 `{service_name="cards-client", deployment_environment="dev"|"prod"}`; `event_name`, `session_id`,
@@ -17,10 +19,40 @@ and all event attributes are **structured metadata**, so filter with pipes
 (`| event_name="hand.completed"`), not line filters. The server's request logs carry the same
 `session_id` metadata key — that's the cross-service correlation join.
 
-**Delivery is at-most-once.** A batch that fails to export is dropped, not retried — events emitted
-while the device is offline are lost (accepted for behavioral analytics; a persistence exporter is
-the upgrade path if this ever matters). `app.launched` also predates the first-foreground session
-rollover, so it carries its own one-off `session_id` (ENG-24).
+**Delivery is durable, effectively at-least-once** (ENG-25). The export chain is batch → disk
+buffer → OTLP: every batch is written to a file-backed buffer (`<files>/telemetry/…`, via
+`durableLogRecordProcessor`) before export and deleted only after the gateway acknowledges it, so
+events emitted offline survive process death and ship on a later launch or flush tick. Retention is
+the library's defaults — 100 buffered batches, 30-day max age — after which oldest batches are
+dropped. A record can rarely ship twice (export acknowledged but the process dies before the
+buffer delete), so dashboards counting events should tolerate the odd duplicate rather than assume
+exactly-once. Two edges remain lossy by design: records ride in RAM for up to one flush tick (5s)
+before reaching disk, and `TelemetryBackgroundFlusher` closes most of that window by force-flushing
+the pipe (RAM → disk → export attempt) on every app background — the last reliable moment before
+the OS suspends or kills the process.
+
+### Pipeline review (2026-07-11, ENG-25)
+
+Deliberate calls from the considered pass over the setup, so nobody re-litigates them blind:
+
+- **Batch tuning stays at library defaults** (2048-record queue, 5s flush, 512-record export
+  batches, 30s export timeout). Our volume is a handful of events per user-minute; the defaults are
+  sized far above it and the 5s RAM window is bounded by the background flush.
+- **Exports are NOT gated on `AppState.isOffline`.** Tempting (skip doomed POSTs while offline),
+  but `isOffline` also trips on *backend* unreachability — and surviving backend outages is the
+  whole reason this pipe goes direct to Grafana. A failed export while offline just stays in the
+  buffer; the DNS failure is already contained by `FailSafeLogRecordExporter`.
+- **`telemetry.appEventsEnabled` + `appEventsSampleRate` stay separate.** Considered consolidating
+  (rate 0.0 == off); rejected — the flag is an instant kill switch for library bugs / ingest
+  incidents and reads as one in the QA menu, the rate is a gradual volume dial. Collapsing them
+  makes the emergency lever a magic number.
+- **iOS `previous_exit` is a day-granular MetricKit sample, not per-run truth.** iOS has no
+  per-launch exit API, so `IosPreviousExitProvider` subscribes to `MXAppExitMetric`, classifies
+  each day-window's foreground exits to the most severe (crash > anr > oom > clean), persists the
+  result, and the next launch reports it exactly once (re-reporting every launch would multiply
+  one crash by launch frequency). Background jetsam kills are deliberately excluded — routine on
+  iOS, they'd read as fake OOMs next to Android's user-perceived `REASON_LOW_MEMORY`. MetricKit
+  never delivers on the simulator; only real devices produce non-unknown values.
 
 **Rules for adding events:** emit through the `logEvent` extension only (never a raw
 `EXTRA_APP_EVENT` extra), fire on user actions / state transitions — never per-frame, per-poll, or
@@ -32,7 +64,7 @@ and anything already in a ledger.
 
 | Event | Attributes | Fires |
 |---|---|---|
-| `app.launched` | `cold_start` (always true), `previous_exit` (clean/crash/anr/oom/unknown) | Boot, from `GrafanaAppEvents` init — doubles as the pipeline smoke test. `previous_exit` comes from Android's historical exit reasons (API 30+; older devices report `unknown`); **iOS always reports `unknown`** until MetricKit wiring lands (ENG-25) — segment by platform before reading exit rates |
+| `app.launched` | `cold_start` (always true), `previous_exit` (clean/crash/anr/oom/unknown) | Once per cold start, on the boot foreground (`GrafanaAppEvents.onForeground`) — after the session tracker rolls session #1, so it shares the boot's `session_id` with every other event (ENG-24; it used to fire at DI init and land orphaned on a pre-rollover id). Doubles as the pipeline smoke test. `previous_exit` comes from Android's historical exit reasons (API 30+; older devices report `unknown`); **iOS derives it from MetricKit** (`MXAppExitMetric` foreground exits), which is day-granular and lags up to 24h — each report is surfaced by exactly one launch then cleared, so most iOS launches say `unknown` and non-unknown values are daily samples, not per-run truth. Always segment by platform before reading exit rates |
 | `app.foregrounded` | `cold_start` | Every foreground (`LifecycleAppEventLogger`); `cold_start=true` on the boot foreground |
 | `app.backgrounded` | `session_duration_sec` | Every background; `session_duration_sec` = whole seconds since the matching foreground (monotonic clock), so session length is a direct query — no span join needed. Omitted in the (shouldn't-happen) case of a background with no prior foreground |
 | `game.started` | `mode` (bots/multiplayer), `difficulty` | `PlayPokerViewModel` init |
@@ -93,6 +125,7 @@ The events that motivated shipping direct-to-Grafana: what never reaches the bac
 | `conn.recovered` | `attempts`, `downtime_ms` | First decoded frame after an outage — a half-open handshake doesn't count |
 | `conn.reconnect_failed` | `attempts` | Reconnect ceiling reached |
 | `room.closed_unexpectedly` | `reason` (rejected/reconnect_failed/room_deleted/incompatible_version) | Terminal socket close, excluding the normal match-over path |
+| `net.offline_banner` | `visible`, `os_online`, `backend_reachable` | Each edge of the app-wide offline banner (`AppStateImpl`), carrying which signal drove it — added after ROOM-16, where a reported banner had no explaining event in the trail |
 | `game.intent_timeout` / `game.intent_rejected` | `intent_type` | Submit failure branches in `PlayPokerViewModel` |
 
 ## Feature usage

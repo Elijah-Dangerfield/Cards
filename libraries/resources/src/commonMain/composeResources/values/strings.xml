@@ -43,6 +43,17 @@
     <string name="shop_snackbar_not_signed_in_title">Sign in first</string>
     <string name="shop_snackbar_not_signed_in_message">Purchases require a signed-in account.</string>
     <string name="shop_snackbar_purchase_failed_title">Purchase failed</string>
+    <!-- Shop - purchase-in-flight overlay + failure dialogs (BILL-7). -->
+    <string name="shop_purchase_pending_label">Finishing your purchase…</string>
+    <string name="shop_purchase_error_confirm">Got it</string>
+    <string name="shop_purchase_error_uncredited_title">Your chips are on the way</string>
+    <string name="shop_purchase_error_uncredited_message">Your payment went through, but we couldn't add your chips just now. We'll finish up automatically the next time you open the app.</string>
+    <string name="shop_purchase_error_rejected_title">We couldn't verify that purchase</string>
+    <string name="shop_purchase_error_rejected_message">The store confirmed your purchase, but our server couldn't verify it, so no chips were added. If you were charged, send us a note through feedback and we'll sort it out.</string>
+    <string name="shop_purchase_error_store_failed_title">That didn't go through</string>
+    <string name="shop_purchase_error_store_failed_message">The store couldn't complete your purchase, and you haven't been charged. Give it another try in a minute.</string>
+    <string name="shop_purchase_error_store_unavailable_title">Store unavailable</string>
+    <string name="shop_purchase_error_store_unavailable_message">We couldn't reach the store, so nothing was purchased. Check your connection and try again.</string>
     <!-- App - session-expiry boot (the auth server rejected our token mid-run). -->
     <string name="session_expired_title">Session expired</string>
     <string name="session_expired_message">We lost your session. Try again to pick up where you left off, or log out to start over.</string>
@@ -100,6 +111,8 @@
     <!-- Shop - error banner shown when the catalog fetch fails. -->
     <string name="shop_error_title">Couldn't load shop</string>
     <string name="shop_error_retry">Retry</string>
+    <!-- Shop - full-screen state when the first load fails with nothing cached (SHOP-10). -->
+    <string name="shop_load_failed_subtitle">We couldn't reach the shop. Check your connection and try again.</string>
 
     <!-- Shop - quiet responsible-play line on the real-money chip-pack confirm sheet. "Play responsibly" is the tappable link to the NCPG help page. -->
     <string name="shop_purchase_responsible_play">Play responsibly.</string>
@@ -370,6 +383,7 @@
     <string name="home_active_room_forfeit_dialog_body">Your seat will be released and any stack at the table goes back to your wallet.</string>
     <string name="home_active_room_forfeit_dialog_primary">Forfeit</string>
     <string name="home_active_room_forfeit_dialog_secondary">Stay</string>
+    <string name="home_active_room_forfeit_error">Couldn't leave the room. Your seat is still held, so try again in a moment.</string>
 
     <!-- Home - Tutorial banner (one-tap entry to the tutorial flow). -->
     <string name="home_tutorial_banner_title">New here?</string>

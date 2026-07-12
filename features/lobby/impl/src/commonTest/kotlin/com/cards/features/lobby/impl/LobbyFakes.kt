@@ -118,6 +118,7 @@ internal class FakeRoomRepository(
 internal class RecordingRoomRepository(
     private val createOutcome: CreateRoomOutcome,
     val handle: RecordingHandle = RecordingHandle(),
+    private val addBotOutcome: AddBotOutcome? = null,
 ) : StubRoomRepository() {
     val addBotSeatIndexes: MutableList<Int?> = mutableListOf()
     val removedBotUserIds: MutableList<String> = mutableListOf()
@@ -132,7 +133,7 @@ internal class RecordingRoomRepository(
 
     override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome {
         addBotSeatIndexes += seatIndex
-        return AddBotOutcome.Success(
+        return addBotOutcome ?: AddBotOutcome.Success(
             Room(
                 code = code,
                 hostUserId = "host",

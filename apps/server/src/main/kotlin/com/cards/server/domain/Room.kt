@@ -69,6 +69,33 @@ data class Room(
     val seatCount: Int get() = members.size
     val isFull: Boolean get() = seatCount >= maxSeats
     fun memberFor(userId: UserId): RoomMember? = members.firstOrNull { it.userId == userId }
+
+    /**
+     * The member who currently wields host powers (add/remove bots, start a
+     * private hand). Mirrors the client's `effectiveHostUserId` so both sides
+     * always agree on who sees + may use the host affordances: the first
+     * *connected* human in seat order, falling back to the first human when
+     * nobody's connected yet (a just-created room whose socket hasn't opened).
+     *
+     * The tagged [hostUserId] is deliberately not consulted. It can point at
+     * the synthetic system host (matchmaker-created Public rooms) or at a
+     * disconnected creator — both left the room's real occupants unable to do
+     * anything the client showed them buttons for (ROOM-16: the sole human of
+     * a rejoined matchmaking room got `not_host` on add-bots seven times).
+     */
+    val effectiveHostUserId: UserId?
+        get() {
+            val humans = members.filter { !it.isBot }
+            return (humans.firstOrNull { it.isConnected } ?: humans.firstOrNull())?.userId
+        }
+
+    /**
+     * Authority check for host-gated mutations. The synthetic system host
+     * always passes — server-side callers (the disclosed-bot fallback) act as
+     * it, and no real JWT can carry its all-zeros subject.
+     */
+    fun wieldsHostPowers(userId: UserId): Boolean =
+        userId == SYSTEM_HOST_USER_ID || userId == effectiveHostUserId
 }
 
 @OptIn(ExperimentalTime::class)
@@ -245,8 +272,10 @@ interface RoomService {
     suspend fun leave(code: String, userId: UserId): LeaveResult
 
     /**
-     * Seat a backend-driven bot. Host-only — only [Room.hostUserId] may add
-     * bots. The bot gets a synthetic [UserId], a personality auto-assigned to
+     * Seat a backend-driven bot. Host-only — gated on [Room.wieldsHostPowers],
+     * so the effective host (first connected human; matches what the client
+     * shows buttons to) may add bots even on a system-hosted matchmaking room.
+     * The bot gets a synthetic [UserId], a personality auto-assigned to
      * span archetypes against the bots already at the table, and is marked
      * connected immediately (bots never disconnect, so they're never swept).
      *
@@ -280,8 +309,9 @@ interface RoomService {
     ): AddBotResult
 
     /**
-     * Remove a previously-added bot. Host-only. The host is always a human, so
-     * this never empties the room; no host migration / GC concerns apply.
+     * Remove a previously-added bot. Host-only ([Room.wieldsHostPowers]). The
+     * effective host is always a human, so this never empties the room; no
+     * host migration / GC concerns apply.
      */
     suspend fun removeBot(code: String, requestedBy: UserId, botUserId: UserId): RemoveBotResult
 

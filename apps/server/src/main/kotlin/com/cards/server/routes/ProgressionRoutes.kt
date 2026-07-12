@@ -95,16 +95,22 @@ fun Route.progressionRoutes(
                     }
                 }
 
+                // When a crossing mints, the response carries the post-mint
+                // wallet balance so the client knows to re-pull its wallet
+                // now instead of showing the reward stale until the next
+                // sync trigger (PROG-12).
+                var mintedWalletBalance: Long? = null
                 RewardChips.rewardedLevelsCrossed(
                     beforeXp = initial.progression.totalXp,
                     afterXp = lastTotal,
                 ).forEach { level ->
-                    wallet.apply(
+                    val outcome = wallet.apply(
                         userId = userId,
                         idempotencyKey = RewardChips.levelLedgerKey(level),
                         delta = RewardChips.LEVEL_CHIPS.getValue(level),
                         reason = RewardChips.levelLedgerReason(level),
                     )
+                    mintedWalletBalance = outcome.balance
                 }
 
                 // Re-hydration: an event-less sync is the client asking "what
@@ -136,6 +142,7 @@ fun Route.progressionRoutes(
                         results = results,
                         progressionCreated = initial.created,
                         recentEvents = recentEvents,
+                        walletBalance = mintedWalletBalance,
                     ),
                 )
             }

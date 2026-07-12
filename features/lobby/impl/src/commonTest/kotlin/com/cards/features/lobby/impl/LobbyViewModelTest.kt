@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.rooms.AddBotOutcome
 import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
@@ -481,6 +482,43 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun soleMember_notYetConnected_isEffectiveHost() = runUnitTest {
+        // The just-created host's presence flip can lag the first snapshot.
+        // The fallback (first human when nobody reads connected) must mirror
+        // the server's Room.effectiveHostUserId so buttons shown here are
+        // never rejected there (ROOM-16).
+        val rooms = RecordingRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(
+                roomOf(members = listOf(member(LOCAL_USER, "You", isConnected = false))),
+            ),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
+
+        assertTrue(vm.state.isHost, "sole human wields host powers before presence flips")
+    }
+
+    @Test
+    fun addBot_failure_emitsBotActionFailedEvent() = runUnitTest {
+        val rooms = RecordingRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(
+                roomOf(members = listOf(member(LOCAL_USER, "You", isConnected = true))),
+            ),
+            addBotOutcome = AddBotOutcome.NotHost,
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
+
+        vm.eventFlow.test {
+            vm.takeAction(LobbyAction.AddBot(seatIndex = 1))
+            assertIs<LobbyEvent.BotActionFailed>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun removeBot_host_callsRepositoryWithBotUserId() = runUnitTest {
         val rooms = RecordingRoomRepository(
             createOutcome = CreateRoomOutcome.Success(
@@ -676,7 +714,11 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun effectiveHostUserId_noConnectedMembers_isNull() = runUnitTest {
+    fun effectiveHostUserId_noConnectedMembers_fallsBackToFirstHuman() = runUnitTest {
+        // Presence flips can lag the snapshot (a just-joined member reads
+        // disconnected for a beat) — rather than a hostless room, the first
+        // human holds the powers. Mirrors the server's Room.effectiveHostUserId
+        // (ROOM-16).
         val state = LobbyState(
             room = roomOf(
                 members = listOf(
@@ -685,7 +727,7 @@ class LobbyViewModelTest : CoroutineTest() {
                 ),
             ),
         )
-        assertNull(state.effectiveHostUserId)
+        assertEquals("a", state.effectiveHostUserId)
     }
 
     @Test

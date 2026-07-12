@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
@@ -16,6 +17,8 @@ import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionEntity
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
+import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.authedCall
@@ -58,6 +61,7 @@ class ProgressionRepositoryImpl(
     private val networkClient: NetworkClient,
     private val clock: Clock,
     private val xpBoostRepository: XpBoostRepository,
+    private val chipsRepository: ChipsRepository,
 ) : ProgressionRepository, UserScopedSyncer {
 
     private val logger = KLog.withTag("ProgressionRepository")
@@ -209,6 +213,19 @@ class ProgressionRepositoryImpl(
                 totalXp = response.totalXp,
                 updatedAtEpochMs = clock.now().toEpochMilliseconds(),
             )
+
+            // The server minted level-reward chips during this sync (ENG-9
+            // grants them here — wallet sync refuses the client's own
+            // `levelup.*` credit). Without a wallet re-pull the reward stays
+            // invisible until the next trigger edge (PROG-12). A fresh pull
+            // issued *after* the mint is ordering-safe against any concurrent
+            // wallet sync; applying the returned balance directly would not be
+            // (arrival order ≠ server processing order across connections).
+            if (response.walletBalance != null) {
+                syncLogger.i { "Server minted level-reward chips — re-pulling the wallet" }
+                Catching { chipsRepository.sync() }
+                    .logOnFailure { "Wallet re-pull after level-chip mint failed; the next sync edge heals it" }
+            }
 
             syncLogger.d {
                 "Sync complete: ${pending.size} sent, ${resolvedKeys.size} resolved, " +

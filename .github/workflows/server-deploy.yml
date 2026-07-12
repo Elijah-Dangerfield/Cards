@@ -2,8 +2,8 @@
 # Server deploy to Fly.io.
 #
 # Fires on:    push to main, only when something under apps/server/** changes.
-# Side effects: deploys cards-server-dev. (cards-server / prod is a separate
-#              workflow when we ship.)
+# Side effects: deploys cards-server-dev. (cards-server-prod deploys via
+#              server-deploy-prod.yml, gated on a human approval.)
 # Auth:        FLY_API_TOKEN_DEV secret, created via
 #                `fly tokens create deploy -a cards-server-dev --expiry 8760h`
 #              and pasted into Repo Settings → Secrets and variables → Actions.

@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.FindOrCreateProgressionResult
 import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserProgression
+import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.XpEvent
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installRateLimits
@@ -113,6 +114,11 @@ class ProgressionRoutesTest {
             assertEquals("levelup:3", grant.idempotencyKey)
             assertEquals(1_000L, grant.delta)
             assertEquals("levelup_grant:3", grant.reason)
+            assertEquals(
+                Wallet.STARTER_GRANT + 1_000L,
+                resp.body<ProgressionSyncResponse>().walletBalance,
+                "a mint carries the post-mint balance so the client re-pulls its wallet (PROG-12)",
+            )
         }
     }
 
@@ -130,6 +136,11 @@ class ProgressionRoutesTest {
             assertEquals(HttpStatusCode.OK, resp.status)
             assertEquals(listOf("levelup:3", "levelup:5"), wallet.applies.map { it.idempotencyKey })
             assertEquals(listOf(1_000L, 2_500L), wallet.applies.map { it.delta })
+            assertEquals(
+                Wallet.STARTER_GRANT + 3_500L,
+                resp.body<ProgressionSyncResponse>().walletBalance,
+                "the balance after the last crossing rides the response",
+            )
         }
     }
 
@@ -144,6 +155,11 @@ class ProgressionRoutesTest {
         ) { resp ->
             assertEquals(HttpStatusCode.OK, resp.status)
             assertTrue(wallet.applies.isEmpty(), "no rewarded level crossed, no chips minted")
+            assertEquals(
+                null,
+                resp.body<ProgressionSyncResponse>().walletBalance,
+                "no mint, no wallet signal",
+            )
         }
     }
 

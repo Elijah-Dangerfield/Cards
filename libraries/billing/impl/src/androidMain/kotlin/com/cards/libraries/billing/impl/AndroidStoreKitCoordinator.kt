@@ -39,4 +39,8 @@ class AndroidStoreKitCoordinator : StoreKitCoordinator {
         jwsRepresentation: String,
         onComplete: (finished: Boolean) -> Unit,
     ) = onComplete(false)
+
+    override fun loadUnfinishedTransactions(
+        onComplete: (transactions: List<StoreKitPurchaseResult>) -> Unit,
+    ) = onComplete(emptyList())
 }

@@ -14,7 +14,7 @@
                   <BuildableReference
                      BuildableIdentifier = "primary"
                      BlueprintIdentifier = "5A24C30AE7FA235620EF2687"
-                     BuildableName = "Cards.app"
+                     BuildableName = "Downcard.app"
                      BlueprintName = "iosApp"
                      ReferencedContainer = "container:iosApp.xcodeproj">
                   </BuildableReference>
@@ -32,7 +32,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "5A24C30AE7FA235620EF2687"
-               BuildableName = "Cards.app"
+               BuildableName = "Downcard.app"
                BlueprintName = "iosApp"
                ReferencedContainer = "container:iosApp.xcodeproj">
             </BuildableReference>
@@ -61,7 +61,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "5A24C30AE7FA235620EF2687"
-            BuildableName = "Cards.app"
+            BuildableName = "Downcard.app"
             BlueprintName = "iosApp"
             ReferencedContainer = "container:iosApp.xcodeproj">
          </BuildableReference>

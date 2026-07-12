@@ -18,8 +18,7 @@ kotlin {
             implementation(projects.libraries.core)
 
             implementation(libs.androidx.lifecycle.viewmodel)
-            implementation(libs.androidx.lifecycle.viewmodel.savedstate)
-            
+
             // Compose dependencies
             api(compose.runtime)
             api(compose.ui)
@@ -29,6 +28,7 @@ kotlin {
 
         commonTest.dependencies {
             implementation(libs.kotlinx.coroutines.test)
+            implementation(projects.libraries.core)
         }
     }
 }

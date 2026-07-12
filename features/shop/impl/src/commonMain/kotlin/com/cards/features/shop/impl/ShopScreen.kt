@@ -11,8 +11,19 @@ import cards.libraries.resources.generated.resources.shop_get_chips_title
 import cards.libraries.resources.generated.resources.shop_header_subtitle
 import cards.libraries.resources.generated.resources.shop_header_title
 import cards.libraries.resources.generated.resources.shop_idea_footer_button
+import cards.libraries.resources.generated.resources.shop_load_failed_subtitle
 import cards.libraries.resources.generated.resources.shop_need_chips_more
 import cards.libraries.resources.generated.resources.shop_owned_badge
+import cards.libraries.resources.generated.resources.shop_purchase_error_confirm
+import cards.libraries.resources.generated.resources.shop_purchase_error_rejected_message
+import cards.libraries.resources.generated.resources.shop_purchase_error_rejected_title
+import cards.libraries.resources.generated.resources.shop_purchase_error_store_failed_message
+import cards.libraries.resources.generated.resources.shop_purchase_error_store_failed_title
+import cards.libraries.resources.generated.resources.shop_purchase_error_store_unavailable_message
+import cards.libraries.resources.generated.resources.shop_purchase_error_store_unavailable_title
+import cards.libraries.resources.generated.resources.shop_purchase_error_uncredited_message
+import cards.libraries.resources.generated.resources.shop_purchase_error_uncredited_title
+import cards.libraries.resources.generated.resources.shop_purchase_pending_label
 import cards.libraries.resources.generated.resources.shop_personal_cosmetic_hint
 import cards.libraries.resources.generated.resources.shop_section_avatars
 import cards.libraries.resources.generated.resources.shop_section_boosts
@@ -27,6 +38,8 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -92,6 +105,8 @@ import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
+import com.dangerfield.cards.libraries.ui.components.dialog.ModalDialogDefaults
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.screenHorizontalInsets
@@ -145,6 +160,14 @@ fun ShopScreen(
         ) {
             when {
                 !state.hasLoaded && state.isRefreshing -> LoadingState()
+                // A failed load with nothing cached (fresh install, first
+                // fetch dead) is an error, not an empty shop — give it a
+                // retry surface instead of the misleading empty state
+                // (SHOP-10). The bottom ErrorBanner is skipped for this
+                // case; this surface owns the retry.
+                state.hasLoaded && state.catalog.isEmpty && state.hasRefreshError -> LoadFailedState(
+                    onRetry = { onAction(ShopAction.Refresh(force = true)) },
+                )
                 state.hasLoaded && state.catalog.isEmpty -> EmptyState()
                 else -> {
                     // PullToRefreshBox owns the gesture + indicator. We
@@ -168,7 +191,7 @@ fun ShopScreen(
                 }
             }
 
-            if (state.hasRefreshError) {
+            if (state.hasRefreshError && !state.catalog.isEmpty) {
                 ErrorBanner(
                     message = stringResource(Res.string.shop_error_title),
                     onRetry = { onAction(ShopAction.Refresh(force = true)) },
@@ -194,8 +217,80 @@ fun ShopScreen(
                         .shadow(elevation = 6.dp, shape = Radii.Round.shape),
                 )
             }
+
+            // The store sheet has closed but the redeem round-trip is still
+            // settling — block the page so the wait never reads as a hang
+            // and a second tap can't double-purchase (BILL-7).
+            if (state.purchaseInFlight) {
+                PurchaseInFlightOverlay()
+            }
         }
     }
+
+    state.purchaseError?.let { error ->
+        PurchaseErrorDialog(
+            error = error,
+            onDismiss = { onAction(ShopAction.DismissPurchaseError) },
+        )
+    }
+}
+
+@Composable
+private fun PurchaseInFlightOverlay(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(ModalDialogDefaults.scrimColor())
+            // Swallow every tap under the overlay while the purchase settles.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        CircularLoadingIndicator()
+        VerticalSpacerD500()
+        Text(
+            text = stringResource(Res.string.shop_purchase_pending_label),
+            typography = AppTheme.typography.Body.B500,
+        )
+    }
+}
+
+@Composable
+private fun PurchaseErrorDialog(
+    error: PurchaseError,
+    onDismiss: () -> Unit,
+) {
+    val title: String
+    val message: String
+    when (error) {
+        PurchaseError.UncreditedWillRetry -> {
+            title = stringResource(Res.string.shop_purchase_error_uncredited_title)
+            message = stringResource(Res.string.shop_purchase_error_uncredited_message)
+        }
+        PurchaseError.Rejected -> {
+            title = stringResource(Res.string.shop_purchase_error_rejected_title)
+            message = stringResource(Res.string.shop_purchase_error_rejected_message)
+        }
+        PurchaseError.StoreFailed -> {
+            title = stringResource(Res.string.shop_purchase_error_store_failed_title)
+            message = stringResource(Res.string.shop_purchase_error_store_failed_message)
+        }
+        PurchaseError.StoreUnavailable -> {
+            title = stringResource(Res.string.shop_purchase_error_store_unavailable_title)
+            message = stringResource(Res.string.shop_purchase_error_store_unavailable_message)
+        }
+    }
+    Dialog(
+        title = title,
+        description = message,
+        primaryButtonText = stringResource(Res.string.shop_purchase_error_confirm),
+        onDismissRequest = onDismiss,
+        onPrimaryButtonClicked = onDismiss,
+    )
 }
 
 @Composable
@@ -975,6 +1070,46 @@ private fun EmptyState() {
 }
 
 @Composable
+private fun LoadFailedState(onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(96.dp)
+                .clip(CircleShape)
+                .background(AppTheme.colors.surfaceRaised.color),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "📡",
+                typography = AppTheme.typography.Heading.H1100,
+                color = AppTheme.colors.content,
+            )
+        }
+        VerticalSpacerD700()
+        Text(
+            text = stringResource(Res.string.shop_error_title),
+            typography = AppTheme.typography.Heading.H700,
+            color = AppTheme.colors.content,
+        )
+        VerticalSpacerD200()
+        Text(
+            text = stringResource(Res.string.shop_load_failed_subtitle),
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = TextAlign.Center,
+        )
+        VerticalSpacerD700()
+        ButtonPrimary(onClick = onRetry) {
+            Text(text = stringResource(Res.string.shop_error_retry))
+        }
+    }
+}
+
+@Composable
 private fun ErrorBanner(
     message: String,
     onRetry: () -> Unit,
@@ -1042,6 +1177,19 @@ private fun ShopScreenPreview_Empty() {
 
 @Preview
 @Composable
+private fun ShopScreenPreview_FirstLoadFailed() {
+    PreviewContent(bottomBar = PreviewBottomBar.Shop) {
+        ShopScreen(
+            state = ShopState(hasLoaded = true, hasRefreshError = true, chipBalance = 12_450),
+            onAction = {},
+            onProductTap = {},
+            onIdeaTap = {},
+        )
+    }
+}
+
+@Preview
+@Composable
 private fun ShopScreenPreview_FullCatalog() {
     PreviewContent(bottomBar = PreviewBottomBar.Shop) {
         ShopScreen(
@@ -1049,6 +1197,42 @@ private fun ShopScreenPreview_FullCatalog() {
                 hasLoaded = true,
                 chipBalance = 12_450,
                 catalog = previewFullCatalog(),
+            ),
+            onAction = {},
+            onProductTap = {},
+            onIdeaTap = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ShopScreenPreview_PurchaseInFlight() {
+    PreviewContent(bottomBar = PreviewBottomBar.Shop) {
+        ShopScreen(
+            state = ShopState(
+                hasLoaded = true,
+                chipBalance = 12_450,
+                catalog = previewFullCatalog(),
+                purchaseInFlight = true,
+            ),
+            onAction = {},
+            onProductTap = {},
+            onIdeaTap = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ShopScreenPreview_PurchaseErrorUncredited() {
+    PreviewContent(bottomBar = PreviewBottomBar.Shop) {
+        ShopScreen(
+            state = ShopState(
+                hasLoaded = true,
+                chipBalance = 12_450,
+                catalog = previewFullCatalog(),
+                purchaseError = PurchaseError.UncreditedWillRetry,
             ),
             onAction = {},
             onProductTap = {},

@@ -24,6 +24,14 @@ A failing event does **not** abort the batch — later events still apply. The r
 
 **`GET /v1/me/wallet`** — returns the current balance, lazy-creating the row with the starter grant on first contact. Useful as a cheap foreground hydrate when there are no pending events to flush.
 
+### Server mints and the freshness re-pull (PROG-12)
+
+`RefusedServerOwned` is only half the contract: the server mints level-up and achievement chips itself, on the progression/achievements sync endpoints. But every sync loop fires on the same trigger edge, and the wallet sync usually completes *before* the sync that mints — so without a signal, the reward stays invisible until the next edge ("earned 1000 chips, stale until force-kill").
+
+The signal: the minting endpoints return a `walletBalance` field, populated **only when the request actually minted** (an idempotent replay signals nothing). The client (`ProgressionRepositoryImpl` / `AchievementRepositoryImpl`) treats non-null as "the wallet changed server-side" and issues a fresh `ChipsRepository.sync()` pull.
+
+It deliberately does **not** apply the returned balance via `setBalance`: a concurrent wallet sync whose server-side read predates the mint can arrive later client-side and stomp the newer value. A pull *issued after* the mint is ordering-safe — it reads post-mint state by construction and is serialized by the wallet's sync mutex. (Rejected alternatives — direct `setBalance`, coordinator-level sync ordering, versioned snapshots — in `docs/decisions.md`, 2026-07-11.)
+
 There is no client-side starter grant: until the first sync hydrates the snapshot (and while the outbox is empty) the client's balance is `null` and the UI renders a spinner / hides the badge rather than flashing a placeholder.
 
 ## Rate limit

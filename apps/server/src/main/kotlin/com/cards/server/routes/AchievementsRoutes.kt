@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.domain.AchievementRepository
+import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.RewardChips
 import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.plugins.ACHIEVEMENTS_WRITE_LIMIT
@@ -51,6 +52,11 @@ fun Route.achievementsRoutes(
                 val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
                 val body = call.receive<AchievementsSyncRequest>()
 
+                // When an achievement mints, the response carries the
+                // post-mint wallet balance so the client re-pulls its wallet
+                // now instead of showing the reward stale until the next
+                // sync trigger (PROG-12).
+                var mintedWalletBalance: Long? = null
                 body.earned.forEach { earned ->
                     repository.recordEarned(
                         userId = userId,
@@ -58,18 +64,26 @@ fun Route.achievementsRoutes(
                         earnedAt = Instant.fromEpochMilliseconds(earned.earnedAtEpochMs),
                     )
                     RewardChips.ACHIEVEMENT_CHIPS[earned.achievementId]?.let { chips ->
-                        wallet.apply(
+                        val outcome = wallet.apply(
                             userId = userId,
                             idempotencyKey = RewardChips.achievementLedgerKey(earned.achievementId),
                             delta = chips,
                             reason = RewardChips.achievementLedgerReason(earned.achievementId),
                         )
+                        // A replayed (already-ledgered) id minted nothing —
+                        // don't make the client re-pull for it.
+                        if (outcome is ApplyOutcome.Applied && !outcome.wasAlreadyApplied) {
+                            mintedWalletBalance = outcome.balance
+                        }
                     }
                 }
 
                 call.respond(
                     HttpStatusCode.OK,
-                    AchievementsSyncResponse(earned = repository.listEarned(userId).toDto()),
+                    AchievementsSyncResponse(
+                        earned = repository.listEarned(userId).toDto(),
+                        walletBalance = mintedWalletBalance,
+                    ),
                 )
             }
         }

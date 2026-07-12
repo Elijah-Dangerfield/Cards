@@ -35,5 +35,18 @@ sealed interface IapPurchaseOutcome {
     data object ClaimAccountRequired : IapPurchaseOutcome
 
     /** Generic transient error. [reason] is store-provided and not localized. */
-    data class Failed(val reason: String) : IapPurchaseOutcome
+    data class Failed(val reason: String) : IapPurchaseOutcome {
+        companion object {
+            /**
+             * The store took the payment but the server redeem was unreachable
+             * or refused by configuration — the transaction is left unfinished
+             * and the launch-time redeemer retries it (BILL-7). Callers show
+             * "paid, chips on the way" copy for this reason.
+             */
+            const val REASON_REDEEM_UNAVAILABLE: String = "redeem_unavailable"
+
+            /** The server refused the receipt outright — nothing was granted. */
+            const val REASON_RECEIPT_REJECTED: String = "receipt_rejected"
+        }
+    }
 }

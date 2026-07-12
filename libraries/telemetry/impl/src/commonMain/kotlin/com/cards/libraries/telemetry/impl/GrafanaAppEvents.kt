@@ -1,11 +1,15 @@
 package com.dangerfield.cards.libraries.telemetry.impl
 
 import com.dangerfield.cards.buildinfo.CardsBuildConfig
+import com.dangerfield.cards.libraries.cards.AppEvent
+import com.dangerfield.cards.libraries.cards.AppEventListener
+import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.networking.InstallIdProvider
 import com.dangerfield.cards.libraries.networking.SessionIdProvider
+import com.dangerfield.cards.libraries.storage.FileManager
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.compression.ContentEncoding
@@ -14,16 +18,18 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
 import kotlin.io.encoding.Base64
-import io.opentelemetry.kotlin.logging.export.batchLogRecordProcessor
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * Boot-time wiring for client app events: constructs [GrafanaLogTree],
- * plants it, and emits `app.launched` — which both warms the SDK and proves
- * the whole pipe (extension → KLog → tree → exporter) on every cold start.
+ * Boot-time wiring for client app events: constructs [GrafanaLogTree] and
+ * plants it at DI init, so the pipe (extension → KLog → tree → batch → disk
+ * buffer → exporter) is live before the user can produce events.
+ * `app.launched` itself is emitted by [AppLaunchedEmitter] on the cold-boot
+ * foreground — see its doc for why emitting from this init orphaned the
+ * event's session_id (ENG-24).
  *
  * [AutoInit] because planting must happen before the user can produce
  * events; a lazily-constructed tree would silently drop everything until
@@ -38,7 +44,9 @@ class GrafanaAppEvents(
     appEventsEnabled: AppEventsEnabled,
     appEventsSampleRate: AppEventsSampleRate,
     klogForwardingEnabled: KlogForwardingEnabled,
-    previousExitProvider: PreviousExitProvider,
+    appState: AppState,
+    fileManager: FileManager,
+    backgroundFlusher: TelemetryBackgroundFlusher,
 ) : AutoInit {
 
     private val logger = KLog.withTag("GrafanaAppEvents")
@@ -51,18 +59,52 @@ class GrafanaAppEvents(
                 klogForwardingEnabled = { klogForwardingEnabled() },
                 currentSessionId = { sessionIdProvider.current() },
                 currentInstallId = { installIdProvider.current() },
+                isOffline = { appState.isOffline.value },
                 processorFactory = {
-                    batchLogRecordProcessor(
-                        FailSafeLogRecordExporter(
-                            OtlpJsonLogRecordExporter(GrafanaCloud.OTLP_BASE_URL, grafanaHttpClient()),
-                        ),
+                    durableLogRecordProcessor(
+                        exporter = OtlpJsonLogRecordExporter(GrafanaCloud.OTLP_BASE_URL, grafanaHttpClient()),
+                        bufferDirectory = fileManager.createFile(BUFFER_DIRECTORY),
                     )
                 },
             )
             KLog.plant(tree)
-            logAppLaunched(previousExitProvider.previousExit())
+            backgroundFlusher.tree = tree
         } else {
             logger.i { "Grafana app events disabled: no OTLP credentials in this build" }
+        }
+    }
+
+    private companion object {
+        const val BUFFER_DIRECTORY = "telemetry"
+    }
+}
+
+/**
+ * Emits `app.launched` once per cold start — on the boot foreground, NOT at
+ * DI init (ENG-24): init runs before the first foreground, which is when
+ * [AppEvent.ColdBoot] makes the session tracker roll session #1, so an
+ * init-time emission carries the tracker's pre-boot sentinel uuid and every
+ * cold start's launch event lands orphaned from the rest of its session.
+ * [onForeground] with `isColdBoot` is guaranteed to run after every ColdBoot
+ * listener (the dispatcher notifies all listeners per event, in event order),
+ * so the session_id is settled by then.
+ *
+ * A separate class from [GrafanaAppEvents] on purpose: joining the listener
+ * set from a class that (transitively, via the config values → AppConfigMap →
+ * config repository → AppEvents) depends on the dispatcher is a DI cycle.
+ * This emitter depends only on [PreviousExitProvider], which keeps it out of
+ * the loop.
+ */
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = AppEventListener::class, multibinding = true)
+@Inject
+class AppLaunchedEmitter(
+    private val previousExitProvider: PreviousExitProvider,
+) : AppEventListener {
+
+    override fun onForeground(event: AppEvent.OnForeground) {
+        if (event.isColdBoot) {
+            logAppLaunched(previousExitProvider.previousExit())
         }
     }
 }
@@ -70,8 +112,8 @@ class GrafanaAppEvents(
 /**
  * `app.launched` — once per cold start, first event through the freshly
  * planted tree (warms the SDK and proves the whole pipe). `previous_exit`
- * says how the last run ended; iOS is always `unknown` for now (see
- * [PreviousExitProvider]).
+ * says how the last run ended; per-platform caveats live on
+ * [PreviousExitProvider].
  */
 internal fun logAppLaunched(previousExit: PreviousExit) {
     KLog.logEvent(

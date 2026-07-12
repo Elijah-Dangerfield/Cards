@@ -230,6 +230,17 @@ Two variants, both must pass:
 
 ---
 
+### `ONB-18` 🚨 📱 App upgrade keeps the guest session; a lost session shows recovery, never a silent reset (AUTH-19)
+
+**State:** signed in as a guest with visible progress (chips above the starter grant, XP > 0). An older build installed from TestFlight.
+
+1. Install the new build over the old one (TestFlight update, or `xcodebuild`/Studio install over an existing debug build).
+2. Cold-launch.
+
+**Expected:** Lands on Home with the same account — balance, XP, and level unchanged (session survives the upgrade; anonymous sessions carry a file-backed mirror that restores the Keychain copy if the OS store lost it). It must **never** silently reset to 10,000 chips / level 0 — that means a fresh guest was minted over the real account. If the session genuinely can't be recovered, the full-screen "session expired" recovery screen appears instead of Home, offering retry and an explicit sign-in / start-fresh choice; the session log shows `GuestSessionHealer` `STOP_FOR_RECOVERY`, not `MINT`.
+
+---
+
 ## Offline gating
 
 Every network-required surface follows one rule off a cached / fallback identity (no confirmed server session): **reads render cached content**, **server-mutating surfaces soft-gate** (visible, affordances stay tappable but failures surface as a connection error rather than success), and **money + multiplayer hard-gate**. The matrix below walks each surface once so a single offline pass confirms the whole app honors it (AUTH-5).
@@ -243,7 +254,7 @@ Every network-required surface follows one rule off a cached / fallback identity
 Walk each surface and confirm the column it lands in:
 
 1. **Home** — reads cached. Profile header, chip balance, level all render from cache. The "Connection issues" banner shows; no "account needed" dialog fires from navigating Home.
-2. **Shop** — reads cached (catalog grid renders the last-fetched offers). Chip-funded redeems still work (local spend + Pending row); tapping a **real-money** chip pack hard-gates with a connection / not-signed-in error snackbar, never a silent success.
+2. **Shop** — reads cached (catalog grid renders the last-fetched offers). Chip-funded redeems still work (local spend + Pending row); tapping a **real-money** chip pack hard-gates with a connection / not-signed-in error snackbar, never a silent success. On a **fresh install** (nothing cached) an offline Shop shows the "Couldn't load shop" retry state — never the "Shop is empty for now" empty state (SHOP-10); tapping Retry once back online loads the catalog.
 3. **Profile** — reads cached (equipped flair, stats, level all from cache).
 4. **Edit Profile** — soft-gates. The avatar picker falls back to the hardcoded starter list when the pack fetch never landed (`loadError` shown). A name change surfaces a connection error inline; an avatar-only save navigates back optimistically then surfaces a connection-error snackbar — never a silent drop.
 5. **Claim account** — hard-gates. Every link / sign-up path (email + OAuth) surfaces a clear no-connection error, not a hang or generic server error.
@@ -324,6 +335,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - Two devices, same buy-in range (including a tight range that falls between the round stakes, e.g. 3k-4k): Device A searches first and opens a table; Device B searches the same range and is seated *with A* (two members at one table), never stranded on its own empty table (MP-15).
 - Staggered start (ROOM-12): Device A searches and falls through to its own waiting table (no candidates yet). A few seconds later Device B starts a search in the same range. A must still discover B's table while waiting and the two end up at one table — neither sits alone forever. (The older of the two tables wins, so exactly one device migrates.)
 - Joined-table lobby (ROOM-11): when the chooser lists candidates and you tap Join on one, you land on a distinct joined-table screen ("You're in") showing the seat grid with the seated players and a "waiting for more players" / "dealing you in" line — NOT the spinning radar. Once a hand deals you go straight to the live table. (Falling through to the genuine wait, with no candidate picked, still shows the radar.)
+- Sole member wields host powers (ROOM-16): get placed alone in a matchmaking table, kill + relaunch, rejoin via the active-room prompt. As the room's only member, tapping an empty seat's "Add a bot" seats a bot — no silent failure. Force a failure (airplane mode mid-tap) and an error snackbar appears; the failure is never invisible.
 
 ---
 
@@ -339,6 +351,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - **XP + stats credit (PROG-4):** finishing the hand awards XP (the Home/Profile XP total rises, and the hand-end XP burst shows) and advances player-stats — same as a solo bots hand, just at the full MULTIPLAYER multiplier on an all-human table. A finished MP hand must never silently award zero XP.
 - **Showdown reveal survives a reconnect blip (MP-25):** carry a multiway hand to a river showdown, then background/foreground one device right as the hand resolves (so its socket reconnects on the Complete state). On resume that device must STILL show the opponents' revealed hole cards for the just-finished hand — the showdown isn't skipped just because the device missed the live hand-end event. Opponents who folded earlier stay mucked (no cards shown).
 - **Opponent times out / folds preflop (MP-26):** heads-up, let the opponent's 30s turn timer run out preflop (or have them fold) so they never act. The non-acting player (the BB) must NOT be left on a frozen board — they see the hand result (winner takes the pot) and a Next Hand path, not a dead table with no acting seat and no winner. Works even though that device only ever received the terminal Complete snapshot.
+- **Idle table holds its socket (MP-32):** sit at the table without acting for a minute or two (let the turn timer / between-hands beat idle). The "lost connection" banner must never flash on a healthy network — it only appears for a real outage. (Was: every quiet socket on a dev build died at exactly 15s and reconnected, strobing the banner.)
 
 ---
 
@@ -353,14 +366,14 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
-### `MP-5` 🚨 📱 Host disconnect + auto-promotion
+### `MP-5` 🚨 📱 Host disconnect + effective-host handoff
 
 **State:** three+ seated members, host is Device A, a hand not currently mid-deal.
 
 1. Device A (host): force-quit the app (or enable airplane mode).
 2. Observe Devices B and C for ~10s.
 
-**Expected:** Within the grace window the host badge auto-promotes to the first still-connected member. The table keeps playing — the remaining members are not kicked. Device A's seat shows as disconnected (held), not gone. If Device A returns within grace, it reconnects to its seat (see `MP-6`).
+**Expected:** Within the grace window the host badge moves to the first still-connected human in seat order (Device B), and B's host affordances (add/remove bots, Start) actually work — no `not_host` rejections (ROOM-16: host authority is derived, computed the same on client and server). The table keeps playing — the remaining members are not kicked. Device A's seat shows as disconnected (held), not gone. If Device A returns within grace, it reconnects to its seat and the host badge returns to A by seat order (see `MP-6`).
 
 ---
 
@@ -393,6 +406,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - **Net-settle preview (ROOM-4):** on a real-chip table, the leave-confirm dialog states the *net* this leave settles to the wallet (stack minus buy-in, shown as e.g. "+1,250" up or red when down). If you have a posted blind / chips already in the live hand, a sub-note calls out the amount you forfeit by leaving now. A practice / solo table shows no settle line. The net shown matches the wallet change after leaving.
 - **Reconciling affordance (MP-30):** during the brief window after a game/leave while the wallet sync is in flight, the Home header and Shop wallet render the chip badge as *updating* — the number dims and a small spinner sits beside it — then snaps back to full-strength once the authoritative balance confirms. A settled, idle wallet never shows the spinner. (Easiest to see on a slow connection.)
 - **Synchronous leave cash-out (MP-29):** the balance shown after leaving must be correct on the *first* screen you land on even on a slow / flaky connection — the leave call itself settles the stack and returns the balance, so there's no window where the buy-in still reads as escrowed. Leave a real-chip table right after a hand, ideally with the network throttled: the wallet reflects the settled amount immediately, and a repeated back-tap (dead-button guard) never double-credits.
+- **Home Forfeit failure is loud (ROOM-17):** with the "ongoing game" banner showing on Home, go into airplane mode and tap Forfeit → confirm. An error snackbar appears ("Couldn't leave the room…") and the banner stays. Back online, Forfeit clears the banner with no snackbar.
 
 ---
 
@@ -588,6 +602,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 3. Optional (needs a network tool or airplane-mode timing): queue a shop spend while offline that the server will refuse (balance already spent elsewhere / on another device), then reconnect and let the wallet sync run.
 
 **Expected:** After the relaunch the balance still includes the grant — earned chips never vanish and then "come back" on a later sync (the display is server snapshot + pending events, and relaunch triggers a sync). In the refused-spend case, the balance corrects to the server's value AND an error snackbar ("A purchase didn't go through, so we put your chips back.") explains it — never a silent balance change. (Covers todo PROG-11 + the ENG-20 relaunch-sync trigger; the 2026-07-09 vanishing-chips incident is the regression this guards.)
+- No-restart freshness (PROG-12): in step 1, after the level-up or achievement grant lands, stay in the app and return to Home — the balance reflects the reward within a few seconds **without** any force-quit. Server-minted rewards (level-ups, achievements) now signal the client to re-pull the wallet on the same sync that mints them; the 2026-07-11 "earned 1000 chips, stale until force-kill" report is the regression this guards.
 
 ---
 
@@ -603,6 +618,18 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 4. Buy the **same** pack a second time.
 
 **Expected:** Real prices come from StoreKit (not the fallback). After confirming, the chips are credited once and the balance updates. The second purchase of the same pack succeeds again (consumable was finished — no "already purchased" dead end). Cancelling the sheet returns silently with no credit and no error toast. With `billing.realPurchasesEnabled` on, the balance reflects the server-returned authoritative total (no local double-credit). The account token pins to the signed-in user (a mismatched receipt is rejected server-side). Anonymous accounts hard-gate before the sheet ever opens.
+
+---
+
+### `BILL-7` 🚨 🍎 Failed redeem recovers on next launch; purchase shows loading + a real error dialog
+
+**State:** a TestFlight (or release + `.storekit`) build, claimed account. To force the failure leg: point the client at a server whose Apple validation is broken (or kill the network right after the StoreKit sheet confirms).
+
+1. Buy a chip pack. While the store sheet closes and the redeem settles, watch the shop page.
+2. Force the redeem to fail (step 0's setup) and confirm what appears.
+3. Relaunch the app (with the server healthy again) and let it settle on Home.
+
+**Expected:** While the purchase settles, the shop is blocked by a full-page "Finishing your purchase…" overlay — no frozen-looking wait, no double-buy. A failed redeem shows a full **dialog**, not a toast: "Your chips are on the way" copy (payment stood, credit pending) for a redeem failure, distinct copy for a store-side failure ("you have not been charged"). On the relaunch, the uncredited purchase redeems automatically — the balance includes the pack (session log: "Recovered uncredited purchase") without re-buying. TestFlight purchases must never 400 with `appAppleId is required` (server degrades to sandbox verification when unconfigured). (Covers todo BILL-7; the 2026-07-11 uncredited-purchase incident is the regression this guards.)
 
 ---
 

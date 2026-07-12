@@ -694,6 +694,69 @@ class InMemoryRoomServiceTest {
     }
 
     @Test
+    fun addBot_allowsSoleHumanOfMatchmakingRoom() = runTest {
+        val service = newService()
+        val result = service.findOrJoinPublic(
+            userId = host,
+            name = "Host",
+            minBuyIn = 1_000,
+            maxBuyIn = 100_000,
+            blockedUserIds = emptySet(),
+        )
+        val room = assertIs<MatchmakingResult.Created>(result).room
+        assertEquals(SYSTEM_HOST_USER_ID, room.hostUserId, "matchmaker rooms carry the synthetic host")
+        service.markConnected(room.code, host, connected = true)
+
+        val added = service.addBot(room.code, requestedBy = host, difficulty = BotDifficulty.Standard)
+
+        assertIs<AddBotResult.Success>(
+            added,
+            "the sole human of a matchmaker-created room wields host powers (ROOM-16)",
+        )
+    }
+
+    @Test
+    fun addBot_promotesNextConnectedHuman_whenTaggedHostIsDisconnected() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host")
+        service.join(room.code, alice, "Alice")
+        service.markConnected(room.code, alice, connected = true)
+
+        val result = service.addBot(room.code, requestedBy = alice, difficulty = BotDifficulty.Standard)
+
+        assertIs<AddBotResult.Success>(
+            result,
+            "the first connected human wields host powers while the tagged host is offline — " +
+                "mirrors the client's effective-host promotion",
+        )
+    }
+
+    @Test
+    fun removeBot_allowsSoleHumanOfMatchmakingRoom() = runTest {
+        val service = newService()
+        val result = service.findOrJoinPublic(
+            userId = host,
+            name = "Host",
+            minBuyIn = 1_000,
+            maxBuyIn = 100_000,
+            blockedUserIds = emptySet(),
+        )
+        val room = assertIs<MatchmakingResult.Created>(result).room
+        service.markConnected(room.code, host, connected = true)
+        val filled = service.fillBotsUpTo(
+            code = room.code,
+            requestedBy = SYSTEM_HOST_USER_ID,
+            target = 2,
+            difficulty = BotDifficulty.Standard,
+        )
+        val bot = assertIs<AddBotResult.Success>(filled).room.members.first { it.isBot }
+
+        val removed = service.removeBot(room.code, requestedBy = host, botUserId = bot.userId)
+
+        assertIs<RemoveBotResult.Success>(removed)
+    }
+
+    @Test
     fun addBot_assignsDistinctPersonalities() = runTest {
         val service = newService()
         val room = service.createOrFail(host, "Host", maxSeats = 6)

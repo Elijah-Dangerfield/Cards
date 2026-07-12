@@ -66,7 +66,7 @@ differs), set `CARDS_ADMIN_API_TOKEN_PROD` in GitHub to the prod
    ```
    fly apps create cards-server-dev
    ```
-   (`cards-server` for prod, later.)
+   (`cards-server-prod` is the prod counterpart — see "Standing up prod" above.)
 
 4. **Set secrets** (from the repo root):
    ```
@@ -93,7 +93,7 @@ differs), set `CARDS_ADMIN_API_TOKEN_PROD` in GitHub to the prod
      SENTRY_ENVIRONMENT='dev' \
      -a cards-server-dev
    ```
-   For `cards-server` (prod), use `SENTRY_ENVIRONMENT='prod'` against the same Sentry project. Use one Sentry project for the server (separate from the client project) and let `SENTRY_ENVIRONMENT` differentiate dev vs prod issues — easier cross-env grouping than splitting projects.
+   For `cards-server-prod`, use `SENTRY_ENVIRONMENT='prod'` against the same Sentry project. Use one Sentry project for the server (separate from the client project) and let `SENTRY_ENVIRONMENT` differentiate dev vs prod issues — easier cross-env grouping than splitting projects.
 
 5. **Get a deploy token for CI**:
    ```
@@ -146,8 +146,11 @@ jobs:
             https://cards-server-dev.fly.dev/v1/admin/sweep-anonymous-users
 ```
 
-(Equivalent prod workflow lives separately and points at
-`cards-server.fly.dev`.) Response body shows `candidatesFound / deleted
+(This workflow only sweeps dev. That's deliberate, not a gap: per
+`docs/developer-todo.md` / `docs/decisions.md` 2026-05-29, the
+time-based sweep stays dormant for V1 in prod — a client-driven
+on-orphan delete replaced it — so don't wire a prod cron.) Response
+body shows `candidatesFound / deleted
 / failedToDelete`; a non-zero `failedToDelete` is worth investigating
 in Sentry.
 
@@ -336,10 +339,10 @@ wscat -c "wss://cards-server-dev.fly.dev/v1/rooms/AB3KP9/socket" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-Rooms are in-memory; restarts wipe them. The `min_machines_running = 0`
-auto-stop in dev means an idle server WILL kill any open lobby
-sessions on cold-stop. Acceptable for dev; production fly.toml should
-pin `min_machines_running = 1` (already noted in DEPLOY footer below).
+Rooms are in-memory; restarts wipe them. Both fly configs pin
+`min_machines_running = 1` (cold JVM boots were blowing past the client's
+config-refresh timeout), so idle cold-stops aren't a factor anymore — but
+any redeploy or crash still wipes live lobbies.
 
 **Seat sweep cadence matters.** Disconnects are common on mobile;
 without the sweep above wired up, abandoned seats block joiners. Make
@@ -392,16 +395,7 @@ rationale on why the pin is scoped to `jvm()` and not the whole module).
 
 ## Cost
 
-- VM: shared-cpu-1x with 256MB RAM. Free tier covers it.
-- Idle: scales to zero, so cold cost is ~$0 in dev.
+- VM: shared-cpu-1x — 512MB RAM in dev, 1GB in prod (256MB OOM-looped the JVM — see the `JAVA_OPTS` note in `fly.toml`).
+- One machine per environment stays warm 24/7 (`min_machines_running = 1`), so the baseline is a few dollars a month per app rather than $0-idle.
 - Bandwidth: free tier covers ~100GB/mo egress; we're not close.
-- Realistic dev monthly bill: **$0** while we're on free tier.
-
-## When `cards-server` (prod) ships
-
-Copy `fly.toml` to `apps/server/fly.prod.toml`, edit:
-- `app = 'cards-server'`
-- `min_machines_running = 1` (no cold-start stalls for real users)
-- Possibly `[[vm]] memory = '512mb'` if we see GC pressure
-
-Provision with `fly apps create cards-server` + `fly secrets set ... -a cards-server` (pointing at the **prod** Supabase project's `DATABASE_URL` and `SUPABASE_JWT_SECRET`). Then `fly deploy --config apps/server/fly.prod.toml --remote-only`.
+- Realistic monthly bill across dev + prod: **~$5-15**.

@@ -11,6 +11,7 @@ import com.dangerfield.cards.libraries.core.logging.LogTree
 import com.dangerfield.cards.libraries.core.versionString
 import io.opentelemetry.kotlin.OpenTelemetry
 import io.opentelemetry.kotlin.createOpenTelemetry
+import io.opentelemetry.kotlin.export.TelemetryCloseable
 import io.opentelemetry.kotlin.init.LogExportConfigDsl
 import io.opentelemetry.kotlin.logging.SeverityNumber
 import io.opentelemetry.kotlin.logging.export.LogRecordProcessor
@@ -31,8 +32,11 @@ import io.opentelemetry.kotlin.logging.export.LogRecordProcessor
  * reliability events (`net.backend_unreachable`, reconnect failures) must
  * survive a backend outage. See `docs/plans/client-app-events-otel.md`.
  *
- * `session_id` / `install_id` ride on every record (never as resource
- * attributes — the session rolls over mid-process on a 15-min background).
+ * `session_id` / `install_id` / `is_offline` ride on every record (never as
+ * resource attributes — the session rolls over mid-process on a 15-min
+ * background, and connectivity flips freely). `is_offline` is captured at
+ * emit time, so records that ship later from the disk buffer still say what
+ * connectivity looked like when the event happened.
  * All OTel types stay confined to this class: if 0.5.0 misbehaves, the tree
  * gets re-backed without touching call sites.
  */
@@ -42,10 +46,11 @@ class GrafanaLogTree(
     private val klogForwardingEnabled: () -> Boolean,
     private val currentSessionId: () -> String?,
     private val currentInstallId: () -> String?,
+    private val isOffline: () -> Boolean,
     private val processorFactory: LogExportConfigDsl.() -> LogRecordProcessor,
 ) : LogTree() {
 
-    private val openTelemetry: OpenTelemetry by lazy {
+    private val openTelemetryLazy: Lazy<OpenTelemetry> = lazy {
         createOpenTelemetry {
             loggerProvider {
                 serviceName = SERVICE_NAME
@@ -68,8 +73,22 @@ class GrafanaLogTree(
         }
     }
 
+    private val openTelemetry: OpenTelemetry by openTelemetryLazy
+
     private val eventLogger by lazy {
         openTelemetry.loggerProvider.getLogger(name = SERVICE_NAME, version = BuildInfo.versionString())
+    }
+
+    /**
+     * Pushes any batched-in-RAM records through the disk buffer and attempts
+     * an export. Called on app background ([TelemetryBackgroundFlusher]) so
+     * the tail of a session doesn't ride only in memory when the OS suspends
+     * or kills the process. A tree that never exported anything has no SDK to
+     * flush — don't construct one just to flush it.
+     */
+    suspend fun flushExports() {
+        if (!openTelemetryLazy.isInitialized()) return
+        Catching { (openTelemetry as? TelemetryCloseable)?.forceFlush() }
     }
 
     override fun log(entry: LogEntry): LogId? {
@@ -95,6 +114,7 @@ class GrafanaLogTree(
             attributes = {
                 sessionId?.let { setStringAttribute(SESSION_ID_KEY, it) }
                 currentInstallId()?.let { setStringAttribute(INSTALL_ID_KEY, it) }
+                setBooleanAttribute(IS_OFFLINE_KEY, isOffline())
                 if (eventName == null) {
                     entry.tag?.let { setStringAttribute(TAG_KEY, it) }
                     entry.throwable?.let {
@@ -147,6 +167,7 @@ class GrafanaLogTree(
         const val SERVICE_NAME = "cards-client"
         private const val SESSION_ID_KEY = "session_id"
         private const val INSTALL_ID_KEY = "install_id"
+        private const val IS_OFFLINE_KEY = "is_offline"
         private const val TAG_KEY = "tag"
         private const val EXCEPTION_TYPE_KEY = "exception_type"
         private const val EXCEPTION_MESSAGE_KEY = "exception_message"
