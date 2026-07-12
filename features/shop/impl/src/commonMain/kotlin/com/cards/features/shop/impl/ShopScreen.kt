@@ -11,6 +11,7 @@ import cards.libraries.resources.generated.resources.shop_get_chips_title
 import cards.libraries.resources.generated.resources.shop_header_subtitle
 import cards.libraries.resources.generated.resources.shop_header_title
 import cards.libraries.resources.generated.resources.shop_idea_footer_button
+import cards.libraries.resources.generated.resources.shop_load_failed_subtitle
 import cards.libraries.resources.generated.resources.shop_need_chips_more
 import cards.libraries.resources.generated.resources.shop_owned_badge
 import cards.libraries.resources.generated.resources.shop_purchase_error_confirm
@@ -159,6 +160,14 @@ fun ShopScreen(
         ) {
             when {
                 !state.hasLoaded && state.isRefreshing -> LoadingState()
+                // A failed load with nothing cached (fresh install, first
+                // fetch dead) is an error, not an empty shop — give it a
+                // retry surface instead of the misleading empty state
+                // (SHOP-10). The bottom ErrorBanner is skipped for this
+                // case; this surface owns the retry.
+                state.hasLoaded && state.catalog.isEmpty && state.hasRefreshError -> LoadFailedState(
+                    onRetry = { onAction(ShopAction.Refresh(force = true)) },
+                )
                 state.hasLoaded && state.catalog.isEmpty -> EmptyState()
                 else -> {
                     // PullToRefreshBox owns the gesture + indicator. We
@@ -182,7 +191,7 @@ fun ShopScreen(
                 }
             }
 
-            if (state.hasRefreshError) {
+            if (state.hasRefreshError && !state.catalog.isEmpty) {
                 ErrorBanner(
                     message = stringResource(Res.string.shop_error_title),
                     onRetry = { onAction(ShopAction.Refresh(force = true)) },
@@ -1061,6 +1070,46 @@ private fun EmptyState() {
 }
 
 @Composable
+private fun LoadFailedState(onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(96.dp)
+                .clip(CircleShape)
+                .background(AppTheme.colors.surfaceRaised.color),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "📡",
+                typography = AppTheme.typography.Heading.H1100,
+                color = AppTheme.colors.content,
+            )
+        }
+        VerticalSpacerD700()
+        Text(
+            text = stringResource(Res.string.shop_error_title),
+            typography = AppTheme.typography.Heading.H700,
+            color = AppTheme.colors.content,
+        )
+        VerticalSpacerD200()
+        Text(
+            text = stringResource(Res.string.shop_load_failed_subtitle),
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = TextAlign.Center,
+        )
+        VerticalSpacerD700()
+        ButtonPrimary(onClick = onRetry) {
+            Text(text = stringResource(Res.string.shop_error_retry))
+        }
+    }
+}
+
+@Composable
 private fun ErrorBanner(
     message: String,
     onRetry: () -> Unit,
@@ -1119,6 +1168,19 @@ private fun ShopScreenPreview_Empty() {
     PreviewContent(bottomBar = PreviewBottomBar.Shop) {
         ShopScreen(
             state = ShopState(hasLoaded = true, chipBalance = 12_450),
+            onAction = {},
+            onProductTap = {},
+            onIdeaTap = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ShopScreenPreview_FirstLoadFailed() {
+    PreviewContent(bottomBar = PreviewBottomBar.Shop) {
+        ShopScreen(
+            state = ShopState(hasLoaded = true, hasRefreshError = true, chipBalance = 12_450),
             onAction = {},
             onProductTap = {},
             onIdeaTap = {},

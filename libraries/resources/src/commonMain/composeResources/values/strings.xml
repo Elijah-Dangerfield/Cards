@@ -111,6 +111,8 @@
     <!-- Shop - error banner shown when the catalog fetch fails. -->
     <string name="shop_error_title">Couldn't load shop</string>
     <string name="shop_error_retry">Retry</string>
+    <!-- Shop - full-screen state when the first load fails with nothing cached (SHOP-10). -->
+    <string name="shop_load_failed_subtitle">We couldn't reach the shop. Check your connection and try again.</string>
 
     <!-- Shop - quiet responsible-play line on the real-money chip-pack confirm sheet. "Play responsibly" is the tappable link to the NCPG help page. -->
     <string name="shop_purchase_responsible_play">Play responsibly.</string>

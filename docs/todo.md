@@ -22,12 +22,6 @@ The live punch list of actionable engineering work. Every item is something a wo
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
-## SHOP — consumables + rewards
-
-- **SHOP-10 `[P1]` A failed first catalog fetch renders "Shop is empty for now" with no retry. (proposed 2026-07-12)** Problem: `hasRefreshError` (which drives the retry banner) is only set from the VM's pull-to-refresh path, but the cold-boot catalog load is repository-self-triggered — so a fresh install whose first fetch fails gets `hasLoaded = true` + empty catalog and lands on `EmptyState()`, a misleading "shop is empty" screen with no retry affordance.
-  **Acceptance:** a failed initial load shows an error/retry surface instead of the empty state; pull-to-refresh behavior unchanged.
-  **Hints:** `features/shop/impl/src/commonMain/kotlin/com/cards/features/shop/impl/ShopViewModel.kt` (init comment + `RefreshingChanged`); `EmptyState()` in `ShopScreen.kt`.
-
 ## ENG — engineering / structural
 
 - **ENG-31 `[P2]` `docs/wiki/remote-config.md` predates config-admin v2 — semver axis and the V77 manifest are missing. (proposed 2026-07-12)** Problem: the page's shipped-axes list omits the semantic app-version bounds (`RuleConditions.minAppVersion`/`maxAppVersion` via `SemVer.compare`), and its "Known limits" still claims the admin UI can't enumerate the client's `ConfiguredValue` registry — the V77 `app_config_manifest` + `POST /v1/admin/config/resolve` union view shipped exactly that.

@@ -254,7 +254,7 @@ Every network-required surface follows one rule off a cached / fallback identity
 Walk each surface and confirm the column it lands in:
 
 1. **Home** — reads cached. Profile header, chip balance, level all render from cache. The "Connection issues" banner shows; no "account needed" dialog fires from navigating Home.
-2. **Shop** — reads cached (catalog grid renders the last-fetched offers). Chip-funded redeems still work (local spend + Pending row); tapping a **real-money** chip pack hard-gates with a connection / not-signed-in error snackbar, never a silent success.
+2. **Shop** — reads cached (catalog grid renders the last-fetched offers). Chip-funded redeems still work (local spend + Pending row); tapping a **real-money** chip pack hard-gates with a connection / not-signed-in error snackbar, never a silent success. On a **fresh install** (nothing cached) an offline Shop shows the "Couldn't load shop" retry state — never the "Shop is empty for now" empty state (SHOP-10); tapping Retry once back online loads the catalog.
 3. **Profile** — reads cached (equipped flair, stats, level all from cache).
 4. **Edit Profile** — soft-gates. The avatar picker falls back to the hardcoded starter list when the pack fetch never landed (`loadError` shown). A name change surfaces a connection error inline; an avatar-only save navigates back optimistically then surfaces a connection-error snackbar — never a silent drop.
 5. **Claim account** — hard-gates. Every link / sign-up path (email + OAuth) surfaces a clear no-connection error, not a hang or generic server error.

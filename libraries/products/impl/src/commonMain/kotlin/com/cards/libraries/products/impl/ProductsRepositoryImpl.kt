@@ -104,6 +104,7 @@ class ProductsRepositoryImpl(
     private val state = MutableStateFlow(ProductCatalog.Empty)
     private val timeAnchor = MutableStateFlow<CatalogTimeAnchor?>(null)
     private val isRefreshing = MutableStateFlow(false)
+    private val refreshFailed = MutableStateFlow(false)
     private val refreshMutex = Mutex()
 
     /**
@@ -147,6 +148,8 @@ class ProductsRepositoryImpl(
 
     override fun observeIsRefreshing(): Flow<Boolean> = isRefreshing.asStateFlow()
 
+    override fun observeRefreshFailed(): Flow<Boolean> = refreshFailed.asStateFlow()
+
     override suspend fun refresh(force: Boolean): Result<ProductCatalog> = refreshMutex.withLock {
         // Single-flight: two callers racing share the in-flight call's
         // result. When the call lands, the StateFlow update fans out to
@@ -159,8 +162,15 @@ class ProductsRepositoryImpl(
             return@withLock Result.success(state.value)
         }
         isRefreshing.value = true
+        refreshFailed.value = false
         try {
-            doRefresh(currentSessionId)
+            doRefresh(currentSessionId).onFailure { failure ->
+                logger.w(failure) { "Catalog refresh failed" }
+                // Set before isRefreshing flips back so consumers keying
+                // "first load finished" off the refreshing transition see
+                // the failure flag already raised (SHOP-10).
+                refreshFailed.value = true
+            }
         } finally {
             isRefreshing.value = false
         }

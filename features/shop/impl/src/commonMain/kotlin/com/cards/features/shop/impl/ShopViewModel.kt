@@ -73,6 +73,15 @@ class ShopViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            // Same deal for failures: the cold-boot fetch is repo-driven, so
+            // without this a fresh install whose first fetch failed rendered
+            // as a misleading empty shop with no retry (SHOP-10). The repo
+            // clears the flag when the next attempt starts and on success.
+            productsRepository.observeRefreshFailed().collect { failed ->
+                takeAction(ShopAction.RefreshFailedChanged(failed))
+            }
+        }
+        viewModelScope.launch {
             chipsRepository.observeBalance().collect { balance ->
                 takeAction(ShopAction.ChipsChanged(balance))
             }
@@ -124,18 +133,14 @@ class ShopViewModel @Inject constructor(
         when (action) {
             is ShopAction.Refresh -> {
                 // Errors are cleared optimistically — a fresh user pull
-                // dismisses the prior banner immediately. isRefreshing
-                // is driven by the repo flow (observeIsRefreshing)
-                // rather than set here, so any concurrently in-flight
-                // session-rollover refresh stays correctly reflected.
+                // dismisses the prior banner immediately (the repo clears its
+                // failure flag when the attempt starts, but a non-forced
+                // refresh can short-circuit without one). isRefreshing and
+                // hasRefreshError are otherwise driven by the repo flows, so
+                // repo-driven refreshes (cold boot, session rollover) stay
+                // correctly reflected.
                 action.updateState { it.copy(hasRefreshError = false) }
-                viewModelScope.launch {
-                    val result = productsRepository.refresh(force = action.force)
-                    result.onFailure { failure ->
-                        logger.w(failure) { "Catalog refresh failed" }
-                        takeAction(ShopAction.RefreshFailed)
-                    }
-                }
+                viewModelScope.launch { productsRepository.refresh(force = action.force) }
             }
             is ShopAction.RefreshingChanged -> action.updateState {
                 // `hasLoaded` flips true the first time we see a refresh
@@ -146,8 +151,8 @@ class ShopViewModel @Inject constructor(
                 val hasLoaded = it.hasLoaded || (it.isRefreshing && !action.value)
                 it.copy(isRefreshing = action.value, hasLoaded = hasLoaded)
             }
-            is ShopAction.RefreshFailed -> action.updateState {
-                it.copy(hasRefreshError = true)
+            is ShopAction.RefreshFailedChanged -> action.updateState {
+                it.copy(hasRefreshError = action.value)
             }
             is ShopAction.CatalogChanged -> action.updateState {
                 // Disk-hydrated catalog or a successful refresh both
@@ -540,7 +545,13 @@ sealed interface ShopAction {
      * pull-driven or session-rollover-driven.
      */
     data class RefreshingChanged(val value: Boolean) : ShopAction
-    data object RefreshFailed : ShopAction
+
+    /**
+     * Mirrors [com.dangerfield.cards.libraries.products.ProductsRepository.observeRefreshFailed]
+     * so a failed repo-driven refresh (cold boot, session rollover)
+     * surfaces the same error state a failed pull-to-refresh does.
+     */
+    data class RefreshFailedChanged(val value: Boolean) : ShopAction
     data class CatalogChanged(val catalog: ProductCatalog) : ShopAction
     data class ChipsChanged(val balance: Long?) : ShopAction
     data class ChipsReconcilingChanged(val reconciling: Boolean) : ShopAction

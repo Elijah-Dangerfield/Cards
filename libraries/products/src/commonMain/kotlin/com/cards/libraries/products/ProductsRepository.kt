@@ -56,4 +56,15 @@ interface ProductsRepository {
      * perspective. Initial value `false`.
      */
     fun observeIsRefreshing(): Flow<Boolean>
+
+    /**
+     * `true` when the most recent refresh *attempt* failed, regardless
+     * of who triggered it — the repository's own cold-boot / session-
+     * rollover refresh included. Cleared when the next attempt starts
+     * (so an optimistic pull-to-refresh dismisses the error surface
+     * immediately) and stays `false` after a success. Initial value
+     * `false`. Consumers use this to tell "the shop is genuinely
+     * empty" apart from "the first fetch failed" (SHOP-10).
+     */
+    fun observeRefreshFailed(): Flow<Boolean>
 }

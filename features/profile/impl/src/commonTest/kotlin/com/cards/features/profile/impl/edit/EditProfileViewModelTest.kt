@@ -536,6 +536,7 @@ private object NoOpProductsRepository : com.dangerfield.cards.libraries.products
         Result.success(com.dangerfield.cards.libraries.products.ProductCatalog.Empty)
     override fun observeTimeAnchor(): Flow<com.dangerfield.cards.libraries.products.CatalogTimeAnchor?> = flowOf(null)
     override fun observeIsRefreshing(): Flow<Boolean> = flowOf(false)
+    override fun observeRefreshFailed(): Flow<Boolean> = flowOf(false)
 }
 
 private object NoOpInventoryRepository : InventoryRepository {

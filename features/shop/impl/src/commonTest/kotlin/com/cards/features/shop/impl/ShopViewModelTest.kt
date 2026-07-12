@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -83,6 +84,34 @@ class ShopViewModelTest : CoroutineTest() {
 
         assertEquals(2, vm.state.catalog.chipPacks.size, "prior catalog preserved")
         assertTrue(vm.state.hasRefreshError)
+    }
+
+    @Test
+    fun repoDrivenFirstLoadFailure_surfacesRefreshError() = runUnitTest {
+        // SHOP-10: the cold-boot catalog fetch is repository-self-triggered —
+        // no VM action fires it. When it fails on a fresh install, the state
+        // must carry the error so the screen shows a retry surface instead of
+        // a misleading "shop is empty".
+        val repo = FakeProductsRepository(ProductCatalog.Empty)
+        val vm = buildVm(productsRepository = repo)
+
+        repo.simulateSelfRefresh(Result.failure(RuntimeException("cold-boot fetch failed")))
+
+        assertTrue(vm.state.hasLoaded, "the failed first refresh still counts as load-finished")
+        assertTrue(vm.state.hasRefreshError, "a failed first load must not read as an empty shop")
+    }
+
+    @Test
+    fun repoDrivenRefreshSuccess_clearsRefreshError() = runUnitTest {
+        val repo = FakeProductsRepository(ProductCatalog.Empty)
+        val vm = buildVm(productsRepository = repo)
+        repo.simulateSelfRefresh(Result.failure(RuntimeException("first fetch failed")))
+        assertTrue(vm.state.hasRefreshError)
+
+        repo.simulateSelfRefresh(Result.success(SAMPLE_CATALOG))
+
+        assertFalse(vm.state.hasRefreshError, "a later successful refresh clears the error")
+        assertEquals(2, vm.state.catalog.chipPacks.size)
     }
 
     @Test
@@ -584,6 +613,7 @@ class ShopViewModelTest : CoroutineTest() {
         private val state = MutableStateFlow(initial)
         private val timeAnchor = MutableStateFlow<com.dangerfield.cards.libraries.products.CatalogTimeAnchor?>(null)
         private val isRefreshing = MutableStateFlow(false)
+        private val refreshFailed = MutableStateFlow(false)
         var nextRefreshResult: Result<ProductCatalog>? = null
         var refreshCalls: Int = 0
             private set
@@ -595,13 +625,29 @@ class ShopViewModelTest : CoroutineTest() {
 
         override fun observeIsRefreshing(): Flow<Boolean> = isRefreshing.asStateFlow()
 
+        override fun observeRefreshFailed(): Flow<Boolean> = refreshFailed.asStateFlow()
+
+        /** A cold-boot / session-rollover refresh the repo fires on its own —
+         *  no VM action involved, only the observable flows move. */
+        suspend fun simulateSelfRefresh(result: Result<ProductCatalog>) {
+            isRefreshing.value = true
+            refreshFailed.value = false
+            yield()
+            result
+                .onSuccess { state.value = it }
+                .onFailure { refreshFailed.value = true }
+            isRefreshing.value = false
+        }
+
         override suspend fun refresh(force: Boolean): Result<ProductCatalog> {
             refreshCalls++
             isRefreshing.value = true
+            refreshFailed.value = false
             try {
                 val result = nextRefreshResult
                 if (result != null) {
                     nextRefreshResult = null
+                    if (result.isFailure) refreshFailed.value = true
                     return result
                 }
                 // Mirror the impl: every successful refresh updates the time

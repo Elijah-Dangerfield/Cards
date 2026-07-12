@@ -111,6 +111,24 @@ class ProductsRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
+    fun refreshFailed_raisedOnFailure_clearedByNextAttemptAndSuccess() = runUnitTest {
+        // SHOP-10: consumers key their error/retry surface off this flag, so
+        // it must move for repo-driven refreshes too — raised when an attempt
+        // fails, cleared the moment the next attempt starts / succeeds.
+        val source = FakeDataSource(catalog = SAMPLE_DTO)
+        val repo = newRepo(source = source)
+        runCurrent() // init auto-refresh succeeds
+        assertFalse(repo.observeRefreshFailed().firstValue())
+
+        source.failNext = RuntimeException("server 500")
+        assertTrue(repo.refresh(force = true).isFailure)
+        assertTrue(repo.observeRefreshFailed().firstValue(), "a failed attempt raises the flag")
+
+        assertTrue(repo.refresh(force = true).isSuccess)
+        assertFalse(repo.observeRefreshFailed().firstValue(), "the next success clears it")
+    }
+
+    @Test
     fun refresh_isResultBased_notExceptionEscaping() = runUnitTest {
         val source = FakeDataSource(catalog = SAMPLE_DTO).apply {
             failNext = RuntimeException("boom")
