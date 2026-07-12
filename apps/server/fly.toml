@@ -10,7 +10,8 @@
 #   - Console (running VM):     fly ssh console -a cards-server-dev
 #   - Status:                   fly status -a cards-server-dev
 #
-# Production gets its own fly.toml (cards-server) when we ship.
+# Production (cards-server-prod) lives in fly.prod.toml — same shape, its own
+# app name + secrets.
 
 app = 'cards-server-dev'
 primary_region = 'iad'   # US East — closest to Supabase's default `aws-0-us-east-1` pool.
@@ -48,8 +49,8 @@ primary_region = 'iad'   # US East — closest to Supabase's default `aws-0-us-e
   # eating the AppConfig refresh 5s timeout and dragging the first
   # /v1/me roundtrip well past the splash gate's threshold. Idle
   # machines past the first one still auto-stop, so we don't pay for
-  # extra capacity — just the always-warm baseline. Same shape will
-  # carry to the prod fly.toml when we ship.
+  # extra capacity — just the always-warm baseline. fly.prod.toml
+  # mirrors this shape.
   auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1

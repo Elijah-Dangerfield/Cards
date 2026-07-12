@@ -13,9 +13,10 @@ The stack as built. For why each call was made, see [`../decisions.md`](../decis
 | Server DI | kotlin-inject + anvil (same as client) |
 | Server query layer | Exposed + HikariCP + Flyway migrations |
 | Server integration tests | Testcontainers + real Postgres (not mocked) |
-| Hosting (server) | Fly.io — `cards-server-dev`, future `cards-server` |
-| Secrets (server) | `fly secrets set …` in prod; `apps/server/.env` (gitignored) in local dev |
-| CI deploy | GitHub Actions on merge to `main` when `apps/server/**` changes |
+| Hosting (server) | Fly.io — `cards-server-dev` (debug builds point here) and `cards-server-prod` (release builds); configs `apps/server/fly.toml` / `fly.prod.toml`, client mapping in `AppEnvironment` |
+| Secrets (server) | `fly secrets set …` per app on Fly; `apps/server/.env` (gitignored) in local dev |
+| CI deploy | GitHub Actions on merge to `main` when server-affecting paths change — dev deploys automatically, prod queues the same push behind a one-click approval on the `production` environment |
+| Config admin | `apps/admin` — local-only Compose HTML web app against the token-gated `/v1/admin/config` API; nothing hosted, tokens stay in a gitignored file |
 | Crash + error reporting | Sentry (client + server) |
 | Tracing | OpenTelemetry → Grafana Cloud (Tempo for traces, Loki for logs) |
 | Avatar storage (future) | Supabase Storage |
@@ -49,6 +50,8 @@ Scaling past one instance (shard rooms by code, move matchmaking queries into Po
 Server config is exposed via `GET /v1/app-config` and reads typed values from an app-config tree (`identity.*`, `progression.*`, etc.). The client's `:libraries:config` reads the tree through `AppConfigMap`. Scalar values use `BooleanConfigValue` / `LongConfigValue` / `StringConfigValue`; structured payloads (the XP curve, the level→reward table) ride a `JsonConfigValue` extension and decode into typed Kotlin models.
 
 A change to a tunable value lands by editing the config tree on the server — **no client release required**. The client ships a bundled default so it works offline and on the very first launch.
+
+Editing happens through the config admin (`apps/admin`), a Compose HTML web app you run locally: it talks to a deployed server's token-gated `/v1/admin/config` API (`cards-server-dev` or `cards-server-prod` — picking the environment means picking the server), with every change attributed and audit-logged. There is no hosted admin site. See `apps/admin/README.md`.
 
 The progression ladder (XP-per-level curve + level→reward table) is the canonical case: the client grants level rewards offline by stable idempotency keys, and the server reconciles against its own copy of the same config in the progression-sync response. See `wiki/progression.md` for the full flow.
 
