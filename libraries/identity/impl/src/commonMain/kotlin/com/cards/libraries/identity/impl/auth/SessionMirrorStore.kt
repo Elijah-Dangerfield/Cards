@@ -20,7 +20,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * ordinary file-backed cache, which demonstrably survives upgrades, and is only
  * consulted when the secure store comes up empty.
  *
- * Deliberate security trade (see decisions.md 2026-07-12): the mirror holds the
+ * Deliberate security trade (see decisions.md 2026-07-11): the mirror holds the
  * session JSON (refresh token included) in the app sandbox without OS-keystore
  * encryption, but **only for anonymous sessions** — an anonymous account's sole
  * credential *is* device possession, so the mirror adds no attack surface an
