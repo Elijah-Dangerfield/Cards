@@ -103,6 +103,13 @@ data class PlayPokerState(
      * buy-in?) and the quick-buy sheet's balance line.
      */
     val chipBalance: Long? = null,
+    /**
+     * The action the player has armed to fire automatically on their next turn
+     * (GAME-30), or null when nothing is armed. Set from the pre-action bar shown
+     * while waiting; the VM resolves and submits it the moment the turn arrives,
+     * and clears it once it fires (or when a bet makes an armed check illegal).
+     */
+    val armedPreAction: PreAction? = null,
     /** True while the in-game quick-buy chip-pack sheet is shown (MP bust upsell). */
     val quickBuyOpen: Boolean = false,
     /** True while a quick-buy IAP round-trip is in flight; the sheet shows a spinner. */
@@ -215,6 +222,12 @@ sealed interface PlayPokerAction {
     // Player intents (from UI taps)
     data class Submit(val intent: PlayerIntent) : PlayPokerAction
     data object RequestNextHand : PlayPokerAction
+
+    /**
+     * Arm (or, with null, disarm) a pre-selected action from the pre-action bar
+     * shown while waiting for the human's turn (GAME-30). Fires on turn arrival.
+     */
+    data class SetPreAction(val preAction: PreAction?) : PlayPokerAction
 
     // Local UI
     data object ToggleCheatSheet : PlayPokerAction
