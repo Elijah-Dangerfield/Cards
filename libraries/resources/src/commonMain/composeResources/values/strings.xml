@@ -30,6 +30,8 @@
     <string name="shop_snackbar_boost_purchased_title">XP Boost added</string>
     <string name="shop_snackbar_boost_purchased_message">It's in your profile. Activate it for double XP for 5 minutes.</string>
     <string name="shop_snackbar_boost_purchased_action">Activate</string>
+    <string name="shop_snackbar_boost_failed_title">That didn't go through</string>
+    <string name="shop_snackbar_boost_failed_message">Something went wrong, so we put your chips back. Give it another try.</string>
     <string name="shop_snackbar_already_owned_title">Already yours</string>
     <string name="shop_snackbar_already_owned_message">Look for %1$s in your items.</string>
     <string name="shop_snackbar_offer_expired_title">Just missed it</string>

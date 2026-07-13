@@ -343,6 +343,35 @@ class ShopViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun confirmXpBoost_grantFailsAfterDebit_refundsChips_andEmitsFailure() = runUnitTest {
+        // ECON-2: the chip debit and the boost grant hit two different stores,
+        // so they can't be one transaction. If the grant write fails *after*
+        // the chips were debited, the spend must be refunded — the player must
+        // never lose chips and get no boost. Mirrors InventoryRepository's
+        // redeem/refund compensation.
+        val chips = FakeChipsRepository(initialBalance = 10_000)
+        val boost = FakeXpBoostRepository().apply {
+            grantError = RuntimeException("cache write failed")
+        }
+        val vm = buildVm(chipsRepository = chips, xpBoostRepository = boost)
+        val received = mutableListOf<ShopEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+        val offer = SAMPLE_CATALOG.chipOffers.first { it.id == "boost_xp_2x" } // cost 1_000
+
+        vm.takeAction(ShopAction.ConfirmPurchase(offer))
+
+        assertEquals(10_000L, chips.getBalance(), "a grant failure after the debit must refund the spend")
+        assertTrue(
+            received.any { it is ShopEvent.BoostPurchaseFailed },
+            "the failed buy must surface so the tap isn't silent",
+        )
+        assertFalse(
+            received.any { it is ShopEvent.BoostPurchased },
+            "no success signal when the grant never landed",
+        )
+    }
+
+    @Test
     fun confirmXpBoost_insufficientChips_isNoOp() = runUnitTest {
         // ConfirmPurchase gates on the Available sheet mode; an unaffordable
         // boost classifies as Insufficient, so confirm is a pure no-op —
@@ -592,6 +621,9 @@ class ShopViewModelTest : CoroutineTest() {
     private class FakeXpBoostRepository : com.dangerfield.cards.libraries.cards.XpBoostRepository {
         val grantCalls = mutableListOf<Int>()
         val activateCalls = mutableListOf<Long>()
+        /** When set, [grant] throws it — simulates a persist failure so the
+         *  VM's post-debit compensation path can be exercised. */
+        var grantError: Throwable? = null
         private val state = MutableStateFlow(
             com.dangerfield.cards.libraries.cards.XpBoostStatus.None,
         )
@@ -600,6 +632,7 @@ class ShopViewModelTest : CoroutineTest() {
             state.asStateFlow()
         override suspend fun status(): com.dangerfield.cards.libraries.cards.XpBoostStatus = state.value
         override suspend fun grant(count: Int) {
+            grantError?.let { throw it }
             grantCalls += count
         }
         override suspend fun activate(durationMs: Long): Boolean {

@@ -29,6 +29,8 @@ import com.dangerfield.cards.libraries.navigation.screen
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.shop_snackbar_already_owned_message
 import cards.libraries.resources.generated.resources.shop_snackbar_already_owned_title
+import cards.libraries.resources.generated.resources.shop_snackbar_boost_failed_message
+import cards.libraries.resources.generated.resources.shop_snackbar_boost_failed_title
 import cards.libraries.resources.generated.resources.shop_snackbar_boost_purchased_action
 import cards.libraries.resources.generated.resources.shop_snackbar_boost_purchased_message
 import cards.libraries.resources.generated.resources.shop_snackbar_boost_purchased_title
@@ -159,6 +161,12 @@ class ShopFeatureEntryPoint(
                             // Profile where the boost banner's Activate button lights it.
                             actionLabel = getString(Res.string.shop_snackbar_boost_purchased_action),
                             onAction = { scope.launch { router.switchTab(ProfileRoute()) } },
+                        )
+                        is ShopEvent.BoostPurchaseFailed -> showSnackBar(
+                            title = getString(Res.string.shop_snackbar_boost_failed_title),
+                            message = getString(Res.string.shop_snackbar_boost_failed_message),
+                            level = SnackbarLevel.Error,
+                            duration = SnackbarDuration.Short,
                         )
                         is ShopEvent.AlreadyOwned -> showSnackBar(
                             title = getString(Res.string.shop_snackbar_already_owned_title),
