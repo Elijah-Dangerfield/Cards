@@ -37,3 +37,15 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - Problem: the storefront has a two-step `PurchaseConfirmSheet`, but the in-game `QuickBuyChipsSheet` (shown after a MP bust) goes straight to `purchaseChipPack(...)` — one tap closer to a real charge, at the emotionally-loaded just-busted moment. Only the OS store dialog gates it.
 - Acceptance: post-bust quick-buy shows the same lightweight confirm (price + "charged via the App Store / Google Play" line) as the storefront before the purchase fires.
 - Hints: [PlayPokerViewModel.kt:1019](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayPokerViewModel.kt), storefront pattern in `PurchaseConfirmSheet.kt`.
+
+## ENG — engineering + structural
+
+**ENG-28 [P1] — iOS crash: a TLS-incapable Ktor engine is used on a native HTTPS/WSS path**
+- Problem: fatal unhandled `IllegalStateException: TLS sessions are not supported on Native platform` on iOS (Sentry [CARDS-94](https://elijah-dangerfield.sentry.io/issues/CARDS-94), 6 events, HomeRoute, develop) — an engine-less `HttpClient { }` resolves to the CIO/native engine instead of Darwin, so the first HTTPS flush on a background worker aborts the process. Not simulator- or build-type-specific.
+- Acceptance: every iOS HTTP + WebSocket client uses the Darwin (NSURLSession) engine explicitly; no code path can resolve to a TLS-incapable native engine (exercise the telemetry OTLP flush + any WSS connect on iOS, assert no such crash).
+- Hints: prime suspect `grafanaHttpClient()` at [GrafanaAppEvents.kt:157](../libraries/telemetry/impl/src/commonMain/kotlin/com/cards/libraries/telemetry/impl/GrafanaAppEvents.kt) (background OTLP POST); also [NetworkClientImpl.kt:56](../libraries/networking/impl/src/commonMain/kotlin/com/cards/libraries/networking/impl/NetworkClientImpl.kt); audit the iOS dependency graph for a stray `ktor-client-cio`. Case `docs/agent/feedback-cases/CARDS-94.md`.
+
+**ENG-29 [P2] — Stop reporting expected `AuthUnready` control-flow to Sentry as errors**
+- Problem: `AuthUnready` is a deliberate typed short-circuit (auth not ready — `FinishingSetup` / `NeedAccount`), but instances are captured to Sentry as error events on real beta builds (Sentry [CARDS-9C](https://elijah-dangerfield.sentry.io/issues/CARDS-9C) 7 + [CARDS-9M](https://elijah-dangerfield.sentry.io/issues/CARDS-9M) 6 events, HomeRoute, beta-ios-release) — no user impact, but log spam that masks real errors. `SentryLogTree.captureEvent` forwards any error-level throwable to `captureException` with no filter.
+- Acceptance: cold-starting iOS with auth still `FinishingSetup`/`NeedAccount` on HomeRoute produces zero `AuthUnready` events in Sentry; regression test guards it.
+- Hints: filter centrally at [SentryLogTree.kt:101](../libraries/cards/impl/src/commonMain/kotlin/com/cards/libraries/cards/impl/logging/SentryLogTree.kt), or route the HomeRoute startup-sync failure through `onAuthFailure` ([AuthGate.kt:93](../libraries/core/src/commonMain/kotlin/com/cards/libraries/core/AuthGate.kt)) instead of logging at error. Case `docs/agent/feedback-cases/CARDS-9C.md`.

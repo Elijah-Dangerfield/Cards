@@ -19,6 +19,11 @@ duplicate) if a resolved signal gets materially worse.
 | [CARDS-97](https://elijah-dangerfield.sentry.io/issues/CARDS-97) | `SavedStateHandle` can't put `AccountActionsState` (twin CARDS-93) | no-action: already fixed on develop (ENG-27) |
 | [CARDS-9H](https://elijah-dangerfield.sentry.io/issues/CARDS-9H) | Redeem unreachable — order left uncredited | no-action: dup of BILL-7 |
 | [CARDS-96](https://elijah-dangerfield.sentry.io/issues/CARDS-96) | Store did not recognize 3/3 chip-pack SKUs | no-action: dev store-listing noise |
+| [CARDS-94](https://elijah-dangerfield.sentry.io/issues/CARDS-94) | `TLS sessions are not supported on Native platform` (iOS fatal) | → todo ENG-28 |
+| [CARDS-9C](https://elijah-dangerfield.sentry.io/issues/CARDS-9C) | `AuthUnready: FinishingSetup` captured to Sentry as error | → todo ENG-29 |
+| [CARDS-9M](https://elijah-dangerfield.sentry.io/issues/CARDS-9M) | `AuthUnready: NeedAccount` captured to Sentry as error | → todo ENG-29 (collapsed with CARDS-9C) |
+| [CARDS-93](https://elijah-dangerfield.sentry.io/issues/CARDS-93) | `SavedStateHandle` can't put `OnboardingState` | no-action: same root cause as CARDS-97, fixed on develop (ENG-27) |
+| [CARDS-95](https://elijah-dangerfield.sentry.io/issues/CARDS-95) | `CrashedByAdbException: shell-induced crash` (dev emulator) | no-action: adb/emulator-induced kill, not a code defect |
 
 ## Grafana signals
 
@@ -26,6 +31,7 @@ duplicate) if a resolved signal gets materially worse.
 |---|---|---|
 | `alerts:A1-A7-2026-07-12` | Firing-alert sweep (rules A1–A7) | no-action: none firing |
 | `health:writers-2026-07-12` | Single-writer health, both envs | no-action: one healthy writer per env; no server error/fatal logs in 24h |
+| `alerts:A1-A7-2026-07-13` | Firing-alert sweep (rules A1–A7) + Loki server error sweep | no-action: none firing, no OnCall groups, zero cards-server error/fatal logs in 24h |
 
 ---
 
@@ -80,3 +86,51 @@ Filed 0 todos; all no-action. Details:
 Grafana: no OnCall alert groups in 'new' state (A1–A7 clear). Both cards-server writers healthy
 (one acquisition per env post-16:13Z). No ERROR/FATAL cards-server logs 2026-07-11 18:00Z→now.
 Nothing filed. -->
+
+<!-- 2026-07-13 intake-phase observability triage (phase 1b, stacked on feedback-triage 32960aeb).
+Widened the Sentry sweep to 7d (the first run only used a 24h window and missed 5 issues that
+first-seen ~24h ago). Reviewed 10 unresolved Sentry issues + a Grafana alert/log re-sweep.
+Filed 2 todos (ENG-28 P1, ENG-29 P2); no P0. Details:
+
+- CARDS-94 (kotlin.IllegalStateException 'TLS sessions are not supported on Native platform',
+  6 events, 1 user, **fatal / unhandled**, iOS dev-ios-debug simulator, commit aeb0ff5a on
+  develop, route HomeRoute). A Ktor CIO/native engine is being used for a TLS (HTTPS/WSS) call
+  on Kotlin/Native — that engine has no native TLS, so the request aborts the process on a
+  background worker. Not simulator- or build-type-specific. Static inspection: every client
+  module wires darwin(iOS)/okhttp(android) correctly and ktor-client-cio is declared only in
+  apps/server (JVM), so the CIO engine should not be on the iOS classpath — yet the runtime
+  error is CIO's. Leading hypothesis (confidence medium; native stack is stripped): an
+  engine-less `HttpClient { }` resolves to a TLS-incapable engine on Native, prime suspect the
+  telemetry OTLP exporter's grafanaHttpClient() (GrafanaAppEvents.kt:157, background HTTPS POST);
+  also NetworkClientImpl.kt:56/62. → **todo ENG-28 [P1]**, case CARDS-94.md. Fix direction:
+  pass the Darwin engine explicitly on iOS + audit the iOS dep graph for a stray ktor-client-cio.
+
+- CARDS-9C + CARDS-9M (AuthUnready: FinishingSetup / NeedAccount, 7 + 6 events, handled=yes,
+  level error, **beta-ios-release** real TestFlight build cards@1.0+740, commit 5ce8e0b3,
+  route HomeRoute). AuthUnready is a deliberate typed control-flow short-circuit (auth not
+  ready — the network layer returns it without hitting the wire; AuthGate.kt:90). A HomeRoute
+  startup sync fires an authed call before auth is ready, gets the expected AuthUnready, and
+  logs it at error — and SentryLogTree.captureEvent (SentryLogTree.kt:101) forwards any
+  error-level throwable to Sentry.captureException with no filter, so expected control flow
+  becomes false error events. No user impact; log spam that masks real errors. Collapsed both
+  into one → **todo ENG-29 [P2]**, case CARDS-9C.md. Fix: filter AuthUnready out of the Sentry
+  event path centrally, or route the call site through onAuthFailure.
+
+- CARDS-93 (SavedStateHandle can't put OnboardingState, 2 events, dev-android-debug, commit
+  5ce8e0b3). Same root cause as CARDS-97 — SEAViewModel.onCleared's dead saved-state write,
+  deleted on develop by 678177f3 (ENG-27, confirmed ancestor of HEAD; SEAViewModel.onCleared no
+  longer writes saved state). Crash build predates the fix. No-action (collapse → CARDS-97).
+
+- CARDS-95 (RemoteServiceException$CrashedByAdbException 'shell-induced crash', 1 event,
+  dev-android-debug emulator, in_foreground=false). The process was killed via adb/emulator
+  shell — a developer/CI artifact, not an app defect. No-action.
+
+Already-ledgered, re-checked, not materially worse (skipped per idempotency): CARDS-9Q (still
+11 events, same dev self-resolved single-writer window; no "Refusing to boot" in Loki last 24h),
+CARDS-9R (still 2 events), CARDS-96 (4 events, dev store noise), CARDS-97 (14 events, fixed on
+develop). CARDS-9H ticked 1→3 events / 1→2 users but same order id 2000001203481803 and already
+tracked by BILL-7 — no re-open (not order-of-magnitude worse, defect already has an open todo).
+
+Grafana: alerting_manage_rules(states=firing,pending) → none; list_alert_groups(state=new) → [];
+Loki {service_name="cards-server"} | detected_level=~"error|fatal" over 24h → 0 lines
+(1729 scanned). A1–A7 clear, no server errors. Nothing filed from Grafana. -->
