@@ -26,6 +26,7 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 - A sealed/enum case mapped in the UI but never *emitted* is dead — check the producer, not just the consumer (a rendered `…ComingSoon` no VM sets). Drop the case, its mapping, and its string.
 - A branch a prior guard already covers is dead — `if (!canSubmit) return` then `if (pw != confirm) …` never fires when `canSubmit` requires the match. Drop the re-check (and any error variant only it set).
 - When a screen loses an affordance, sweep its VM — the lobby kept a whole join-form state machine (action, derived flags, error variants, length constants) after the form UI was deleted. Its tests kept it looking alive.
+- `internal` helpers in a shared `*Common`/util file go dead silently when the only screen that called them is cut — grep the whole module (not just the file) before trusting an `internal fun` is live (placeholder seat lists + a read-only stake card outlived their deleted public-rooms shells).
 - Dead strings hide in `strings.xml` — grep with word boundaries before trusting "used" (`…_start_button` matched only `…_start_button_waiting`).
 - A VM action no screen dispatches is dead API (`DismissError` with no dismiss affordance) — grep for the *dispatch* (`onAction(…)`), not the handler; its own tests keep it looking alive.
 - `if (!flag) Chrome()` is dead when every path into that screen sets the flag — trace the flag's producers (back buttons on steps only reachable after `creationStarted = true` never rendered).
