@@ -47,5 +47,14 @@ enum class StakeTier(
 
         fun fromName(name: String?): StakeTier =
             entries.firstOrNull { it.name == name } ?: Default
+
+        /**
+         * The tier a table plays at for a given buy-in. Named tiers match exactly;
+         * a custom buy-in floors to the richest tier it can still afford (so a
+         * table between Standard and High reads as Standard, not High). Below the
+         * cheapest tier it clamps up to that tier.
+         */
+        fun fromBuyIn(buyIn: Long): StakeTier =
+            entries.sortedBy { it.buyIn }.lastOrNull { buyIn >= it.buyIn } ?: entries.minBy { it.buyIn }
     }
 }

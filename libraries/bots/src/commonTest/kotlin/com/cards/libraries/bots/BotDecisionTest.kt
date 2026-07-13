@@ -3,8 +3,10 @@ package com.dangerfield.cards.libraries.bots
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEngine
 import com.dangerfield.cards.libraries.gameplay.GameEvent
+import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import com.dangerfield.cards.libraries.gameplay.Pot
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
@@ -107,6 +109,125 @@ class BotDecisionTest {
         assertTrue(
             decision.intent is PlayerIntent.Fold,
             "tight casual bot should fold trash facing a huge bet, got ${decision.intent}",
+        )
+    }
+
+    @Test
+    fun weakHandFoldsToOverbetAcrossEverySeed_curiositySuppressed() {
+        // The loosest personality (Mike) at Casual — the config that used to
+        // curiosity-call ~15-20% of the time. Facing an overbet shove with 2c7d,
+        // curiosity + slack must damp to zero, so every seed folds. This is the
+        // "the bot cheated / hero-called my trash" complaint (GAME-31).
+        var calls = 0
+        for (seed in 0 until 200) {
+            val state = facingBetState(
+                heroHole = listOf("2c", "7d"),
+                heroStack = 1_000,
+                potBefore = 200,
+                villainBet = 800,
+            )
+            val decision = BotDecision.choose(
+                state = state,
+                seatIndex = 0,
+                personality = BotPersonality.Mike,
+                difficulty = BotDifficulty.Casual,
+                random = Random(seed.toLong()),
+            )
+            if (decision.intent !is PlayerIntent.Fold) calls++
+        }
+        assertEquals(0, calls, "trash must never hero-call a shove; curiosity leaked on $calls/200 seeds")
+    }
+
+    @Test
+    fun botStillCallsLightAtSmallSizings() {
+        // Curiosity survives cheap spots: a min-flick into a big pot (tiny pot odds)
+        // should still draw the occasional light call, so bots don't fold robotically.
+        var calls = 0
+        for (seed in 0 until 200) {
+            val state = facingBetState(
+                heroHole = listOf("2c", "7d"),
+                heroStack = 5_000,
+                potBefore = 2_000,
+                villainBet = 50,
+            )
+            val decision = BotDecision.choose(
+                state = state,
+                seatIndex = 0,
+                personality = BotPersonality.Mike,
+                difficulty = BotDifficulty.Casual,
+                random = Random(seed.toLong()),
+            )
+            if (decision.intent is PlayerIntent.Call) calls++
+        }
+        assertTrue(calls > 0, "curiosity should still produce light calls at small sizings; got 0/200")
+    }
+
+    // Heads-up preflop spot where seat 1 has bet [villainBet] into [potBefore] and
+    // seat 0 (the hero) faces the call. Built directly so pot odds are exact.
+    private fun facingBetState(
+        heroHole: List<String>,
+        heroStack: Long,
+        potBefore: Long,
+        villainBet: Long,
+    ): GameState = GameState(
+        settings = baseSettings,
+        handNumber = 1,
+        buttonSeatIndex = 1,
+        seats = listOf(
+            seat(0, stack = heroStack).copy(holeCards = heroHole.map { card(it) }),
+            seat(1, stack = 1_000).copy(contributedThisStreet = villainBet),
+        ),
+        community = emptyList(),
+        street = BettingRound.Preflop,
+        currentBetThisStreet = villainBet,
+        lastFullRaiseSize = villainBet,
+        actingSeatIndex = 0,
+        deckRemaining = emptyList(),
+        pots = listOf(Pot(amount = potBefore, eligibleSeatIndexes = listOf(0, 1))),
+    )
+
+    @Test
+    fun readsHabitualAggressor_andWidensAgainstThem() {
+        val tracker = OpponentTracker()
+        repeat(6) { hand ->
+            tracker.observe(
+                com.dangerfield.cards.libraries.gameplay.GameEvent.HandStarted(
+                    sequence = 1, handNumber = hand + 1, buttonSeatIndex = 0,
+                ),
+            )
+            tracker.observe(
+                com.dangerfield.cards.libraries.gameplay.GameEvent.ActionTaken(
+                    sequence = 3, seatIndex = 1,
+                    action = com.dangerfield.cards.libraries.gameplay.PlayerAction.Raise(40, 20),
+                    resultingStreetContribution = 40,
+                ),
+            )
+        }
+        val state = facingBetState(
+            heroHole = listOf("Kd", "Jc"),
+            heroStack = 1_000,
+            potBefore = 300,
+            villainBet = 100,
+        )
+
+        val vsAggressor = BotDecision.choose(
+            state = state, seatIndex = 0,
+            personality = BotPersonality.Gina, difficulty = BotDifficulty.Standard,
+            opponentTracker = tracker, random = Random(3L),
+        )
+        val vsUnknown = BotDecision.choose(
+            state = state, seatIndex = 0,
+            personality = BotPersonality.Gina, difficulty = BotDifficulty.Standard,
+            random = Random(3L),
+        )
+
+        assertTrue(
+            vsAggressor.thought.opponentNote?.contains("habitual-aggressor") == true,
+            "expected a habitual-aggressor read, got ${vsAggressor.thought.opponentNote}",
+        )
+        assertTrue(
+            vsAggressor.thought.handStrength > vsUnknown.thought.handStrength,
+            "the aggressor read should bias effective strength up (call/raise lighter)",
         )
     }
 

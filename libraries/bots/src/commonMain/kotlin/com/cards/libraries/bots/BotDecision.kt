@@ -26,6 +26,15 @@ data class BotDecisionResult(
 
 object BotDecision {
 
+    // Pot odds at which curiosity + slack calling hit zero. potOdds rises with
+    // bet size (~0.33 for a pot-sized bet, higher into an overbet/shove), so past
+    // this a bot needs genuine equity to call — no spite-calling big bets.
+    private const val PRICE_DAMP_CUTOFF_POT_ODDS = 0.33
+
+    // The most a bot will call beyond raw pot-odds break-even, at the smallest
+    // sizings; decays to zero as the price climbs toward the cutoff above.
+    private const val POT_ODDS_SLACK_MAX = 0.10
+
     fun choose(
         state: GameState,
         seatIndex: Int,
@@ -102,8 +111,21 @@ object BotDecision {
         val slowPlayChance = if (state.street == BettingRound.Preflop) 0.0
         else (0.12 - personality.aggression * 0.10).coerceIn(0.0, 0.15)
         val willSlowPlay = random.nextDouble() < slowPlayChance
-        val curiosityCall = 0.10 + (1.0 - personality.tightness) * 0.10
-        val feelingCurious = random.nextDouble() < curiosityCall
+
+        // Curiosity + pot-odds slack let a bot call a shade wider than raw equity
+        // so it doesn't fold every marginal spot robotically — but both scale down
+        // with the price (a loose player calls a cheap flick, not a shove) and are
+        // gated by difficulty (disciplined bots barely indulge). At a pot-sized bet
+        // or bigger, priceDamp is 0 and the bot needs real equity to continue.
+        val priceDamp = (1.0 - potOdds / PRICE_DAMP_CUTOFF_POT_ODDS).coerceIn(0.0, 1.0)
+        val curiosityCeiling = when (difficulty) {
+            BotDifficulty.Casual -> 0.16
+            BotDifficulty.Standard -> 0.08
+            BotDifficulty.Challenging -> 0.03
+        }
+        val curiosityCall = curiosityCeiling * (1.0 - personality.tightness * 0.5) * priceDamp
+        val feelingCurious = toCall > 0 && random.nextDouble() < curiosityCall
+        val potOddsSlack = POT_ODDS_SLACK_MAX * priceDamp
 
         val intent = when {
             (effectiveStrength >= raiseThreshold || willBluff || willSemiBluff) && !willSlowPlay -> {
@@ -118,9 +140,10 @@ object BotDecision {
                 rationaleParts += if (willSlowPlay) "slow-play check" else "check"
                 PlayerIntent.Check(seatIndex)
             }
-            // Loose threshold for calling: includes pot odds AND a curiosity factor
-            // so bots don't fold robotically every marginal spot.
-            potOdds <= effectiveStrength + 0.10 || feelingCurious -> {
+            // Loose threshold for calling: pot odds plus a price-damped slack AND a
+            // curiosity factor, so bots don't fold robotically in cheap marginal
+            // spots but still respect the price of a big bet.
+            potOdds <= effectiveStrength + potOddsSlack || feelingCurious -> {
                 rationaleParts += if (feelingCurious) "curious call" else "call"
                 if (toCall >= seat.stack) PlayerIntent.AllIn(seatIndex)
                 else PlayerIntent.Call(seatIndex)
@@ -264,12 +287,22 @@ object BotDecision {
 
         val shoveMonsters = opponents.count { tracker.snapshot(it.index).isShoveMonster }
         val passiveCallers = opponents.count { tracker.snapshot(it.index).isPassiveCaller }
+        // A habitual over-bettor who isn't a literal jammer still bluffs too much;
+        // widen our calling range against them, but less than vs an all-in shover.
+        val habitualAggressors = opponents.count { profile ->
+            val p = tracker.snapshot(profile.index)
+            p.isHabitualAggressor && !p.isShoveMonster
+        }
         var bias = 0.0
         val notes = mutableListOf<String>()
 
         if (shoveMonsters > 0) {
             bias += 0.10
             notes += "shove-monster"
+        }
+        if (habitualAggressors > 0) {
+            bias += 0.06
+            notes += "habitual-aggressor"
         }
         if (passiveCallers > 0) {
             bias -= 0.04

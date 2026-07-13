@@ -5,6 +5,12 @@ package com.dangerfield.cards.libraries.gameplay
  * single seated subscriber. Other seats' [Seat.holeCards] are emptied
  * to keep them private; the viewer's own seat is returned unchanged.
  *
+ * [GameState.deckRemaining] is always emptied. With no burn cards, the
+ * head of the deck is the exact future flop/turn/river, so shipping it
+ * to any client hands a modified one the whole runout. Only the
+ * server's [GameEngine] reads it (from its own authoritative state);
+ * nothing on the socket path legitimately consumes it.
+ *
  * Showdown reveal: at [BettingRound.Showdown] and [BettingRound.Complete]
  * any seat that's still [Seat.isInHand] (InHand or AllIn — i.e. went
  * to showdown) keeps its hole cards so the reveal UI works. Seats that
@@ -32,5 +38,5 @@ fun GameState.scrubbedFor(viewerSeatIndex: Int): GameState {
             else -> deBotted.copy(holeCards = emptyList())
         }
     }
-    return copy(seats = updatedSeats)
+    return copy(seats = updatedSeats, deckRemaining = emptyList())
 }

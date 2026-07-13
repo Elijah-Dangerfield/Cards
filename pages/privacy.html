@@ -20,10 +20,11 @@
             <p>Downcard collects the minimum it needs to run multiplayer poker between friends, sync your progress across devices, and fix bugs. No ads, no ad tracking, and nothing is sold or shared for marketing. This page lays out exactly what we store, where it lives, and what we don't touch.</p>
 
             <h2>What we store on our server</h2>
-            <p>When you open Downcard the first time, an anonymous account is created for you automatically, with no email or password required. That account lets your chips, items, and progress survive an app reinstall or a phone swap.</p>
+            <p>When you open Downcard the first time, an anonymous account is created for you automatically, with no email or password required. It lives on this device. It won't move to a new phone on its own, and uninstalling the app loses it for good. To keep your chips, items, and progress across a reinstall or a new device, claim the account by linking an email or signing in with Apple or Google. That's the only way to carry it over.</p>
             <p>Tied to that account, our server stores:</p>
             <ul>
                 <li><strong>Profile:</strong> the display name and avatar emoji you pick.</li>
+                <li><strong>Install identifier:</strong> a random id for your app install, stored on your profile so we can tie your anonymous account to this device and clean up ones that were clearly abandoned.</li>
                 <li><strong>Wallet:</strong> your virtual chip balance and a ledger of chip movements.</li>
                 <li><strong>Inventory and equipment:</strong> which cosmetics you own (felts, card backs, emote packs, titles) and which you have equipped.</li>
                 <li><strong>Progression and play stats:</strong> XP, level, unlocked achievements, and lifetime table stats like hands played and hands won.</li>
@@ -39,12 +40,12 @@
             <ul>
                 <li><strong>Crash and error reports</strong> go to <a href="https://sentry.io/privacy/">Sentry</a>. A report includes a stack trace, your device model, OS version, app version, and, once you're signed in, your account id and display name (plus email on a claimed account). We attach your identity on purpose: when you tell us "the app ate my chips," it's how we find your session and fix it.</li>
                 <li><strong>Bug reports you send from the app</strong> include a log of that session's activity so we can retrace what happened.</li>
-                <li><strong>Usage and reliability telemetry</strong> goes to Grafana Cloud: events like "app opened," "game started," or "purchase completed," plus warning-level logs when something misbehaves. These are tagged with random session and install identifiers so we can follow one broken session end to end.</li>
+                <li><strong>Usage and reliability telemetry</strong> goes to Grafana Cloud: events like "app opened," "room joined," or "purchase completed," plus warning-level logs when something misbehaves. These are tagged with random session and install identifiers so we can follow one broken session end to end.</li>
             </ul>
             <p>All of this exists to keep the app working. None of it is used for advertising, sold, or shared with anyone for their own purposes.</p>
 
             <h2>Where your data lives</h2>
-            <p>We don't run our own data centers. Your account data is stored and authenticated through <a href="https://supabase.com/privacy">Supabase</a>, our game server runs on <a href="https://fly.io/legal/privacy-policy/">Fly.io</a>, and diagnostics live with <a href="https://sentry.io/privacy/">Sentry</a> and <a href="https://grafana.com/legal/privacy-policy/">Grafana Cloud</a>. The data is hosted in the United States. These providers process data on our behalf under their own security and privacy commitments; we don't hand them your data for their own purposes.</p>
+            <p>We don't run our own data centers. Your account data is stored and authenticated through <a href="https://supabase.com/privacy">Supabase</a>, our game server runs on <a href="https://fly.io/legal/privacy-policy/">Fly.io</a>, and diagnostics live with <a href="https://sentry.io/privacy/">Sentry</a> and <a href="https://grafana.com/legal/privacy-policy/">Grafana Cloud</a>. Your account data (Supabase) and our game server (Fly.io) run in the United States; the diagnostics providers handle their data on their own infrastructure. These providers process data on our behalf under their own security and privacy commitments; we don't hand them your data for their own purposes.</p>
 
             <h2>In-app purchases</h2>
             <p>Chip packs are sold via the Apple App Store or Google Play. The transaction itself happens between you and Apple / Google. Downcard receives a receipt confirming the purchase succeeded, then grants the chips to your account. We don't see or store your payment method.</p>
@@ -66,7 +67,7 @@
             </ul>
 
             <h2>How long we keep it</h2>
-            <p>We keep your account data for as long as your account exists. Multiplayer room records are dropped when the room ends. Crash reports and telemetry age out on the providers' retention schedules, typically weeks to a few months. When you delete your account, the data tied to it is removed (see below).</p>
+            <p>We keep your account data for as long as your account exists. An anonymous account that's clearly been abandoned (never claimed, no purchases, and no real progress) may be cleaned up automatically. Multiplayer room records are dropped when the room ends. Crash reports and telemetry age out on the providers' retention schedules, typically weeks to a few months. When you delete your account, the data tied to it is removed (see below).</p>
 
             <h2>How we protect your data</h2>
             <p>Traffic between the app and our server is encrypted in transit (HTTPS/TLS), and data at rest sits with reputable infrastructure providers. No system is perfectly secure, but we collect little enough that there isn't much to lose: no payment details, no location, no contacts.</p>

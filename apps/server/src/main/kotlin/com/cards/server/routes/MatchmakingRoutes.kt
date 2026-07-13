@@ -1,7 +1,8 @@
 package com.dangerfield.cards.server.routes
 
-import com.dangerfield.cards.libraries.bots.BotDifficulty
+import com.dangerfield.cards.libraries.bots.toBotDifficulty
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import com.dangerfield.cards.libraries.gameplay.StakeTier
 import com.dangerfield.cards.server.domain.EquipmentRepository
 import com.dangerfield.cards.server.domain.FriendRepository
 import com.dangerfield.cards.server.domain.MatchmakingResult
@@ -148,11 +149,13 @@ fun Route.matchmakingRoutes(
                     // so the host-only gate passes. fillBotsUpTo is one atomic critical
                     // section, so a double-tap can't overshoot the target into a packed
                     // table — it's idempotent once the table is at/over target.
+                    // Scale bot skill to the table's stakes: a Premium table should
+                    // not be stocked with the same soft bots as a Casual one (MP-33).
                     val filled = rooms.fillBotsUpTo(
                         code = code,
                         requestedBy = SYSTEM_HOST_USER_ID,
                         target = PUBLIC_BOT_FALLBACK_TARGET,
-                        difficulty = BotDifficulty.Standard,
+                        difficulty = StakeTier.fromBuyIn(room.buyIn).toBotDifficulty(),
                         revealed = true,
                     )
                     val current = (filled as? com.dangerfield.cards.server.domain.AddBotResult.Success)?.room ?: room

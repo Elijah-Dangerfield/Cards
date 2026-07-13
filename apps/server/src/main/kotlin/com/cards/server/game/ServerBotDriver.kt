@@ -1,12 +1,14 @@
 package com.dangerfield.cards.server.game
 
 import com.dangerfield.cards.libraries.bots.BotDecision
-import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.bots.BotThought
+import com.dangerfield.cards.libraries.bots.OpponentTracker
 import com.dangerfield.cards.libraries.bots.buildHandContextFromState
+import com.dangerfield.cards.libraries.bots.toBotDifficulty
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameState
+import com.dangerfield.cards.libraries.gameplay.StakeTier
 import com.dangerfield.cards.server.domain.BotSeat
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -73,6 +75,11 @@ class ServerBotDriver(
     // winnings before being dealt back in. Config (8s, tune). Tests shrink it so a
     // multi-hand run isn't gated on real seconds per boundary.
     private val nextHandBeatMs: Long = 8_000,
+    // One opponent read per session, fed the engine event stream and passed into
+    // every bot decision so MP bots adapt to the humans they actually face — the
+    // same adaptive layer solo already had (MP-32). Injectable so a test can assert
+    // the read the driver built up.
+    private val opponentTracker: OpponentTracker = OpponentTracker(),
 ) {
     // playerId -> bot truth. Mutated only from the single collector coroutine
     // (drive loop) and from updateRoster; updateRoster runs before/around
@@ -100,6 +107,10 @@ class ServerBotDriver(
     fun start() {
         if (job != null) return
         job = scope.launch {
+            // Feed the opponent read from the event stream on its own child job.
+            // A one-decision lag between an action and the read reflecting it is
+            // fine — opponent modeling is inherently historical.
+            launch { session.events.collect { opponentTracker.observe(it.event) } }
             session.state.collectLatest { state -> state?.let { drive(it) } }
         }
     }
@@ -124,7 +135,7 @@ class ServerBotDriver(
         val playerId = seat.playerId ?: return
         if (seat.holeCards.size != 2) return // pre-deal / odd state — let the engine settle.
 
-        val botSeat = roster[playerId] ?: fallbackBotSeat(playerId, acting).also {
+        val botSeat = roster[playerId] ?: fallbackBotSeat(playerId, acting, state).also {
             roster = roster + (playerId to it)
         }
 
@@ -135,6 +146,7 @@ class ServerBotDriver(
                 seatIndex = acting,
                 personality = botSeat.personality,
                 difficulty = botSeat.difficulty,
+                opponentTracker = opponentTracker,
                 random = random,
                 equityIterations = equityIterations,
                 handContext = handContext,
@@ -216,11 +228,13 @@ class ServerBotDriver(
      * Personality for a bot seat the roster doesn't know about — only happens
      * after a server restart hydrates a session whose room (and its personality
      * assignments) is gone. Deterministic by seat so the same revived hand reads
-     * consistently for its remaining life.
+     * consistently for its remaining life. Difficulty is recovered from the
+     * table's stakes (the buy-in is the starting stack) so a revived High/Premium
+     * bot stays sharp rather than dropping to Standard (MP-33).
      */
-    private fun fallbackBotSeat(playerId: String, seatIndex: Int): BotSeat = BotSeat(
+    private fun fallbackBotSeat(playerId: String, seatIndex: Int, state: GameState): BotSeat = BotSeat(
         personality = BotPersonality.Roster[seatIndex % BotPersonality.Roster.size],
-        difficulty = BotDifficulty.Standard,
+        difficulty = StakeTier.fromBuyIn(state.settings.startingStack).toBotDifficulty(),
         revealed = true,
     ).also {
         log.info("Assigned fallback personality {} to unrostered bot {}", it.personality.name, playerId)
