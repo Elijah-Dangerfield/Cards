@@ -937,6 +937,10 @@
     <string name="room_quick_buy_success">Added %1$s chips</string>
     <string name="room_quick_buy_failed">Couldn't complete the purchase</string>
     <string name="room_quick_buy_store_unavailable">Store unavailable right now</string>
+    <!-- %1$s = platform store name (App Store / Google Play). -->
+    <string name="room_quick_buy_confirm_charged_via">Charged via your %1$s.</string>
+    <string name="room_quick_buy_confirm_cta">Buy now</string>
+    <string name="room_quick_buy_confirm_cancel">Cancel</string>
 
     <!-- Room - transient notice when a non-last opponent leaves a live table. %1$s is their display name. -->
     <string name="room_opponent_left">%1$s left the table</string>
