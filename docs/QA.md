@@ -532,6 +532,16 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** The failed send stays on the form with the typed message (and any attached screenshots) intact, shows "Couldn't send that. Check your connection and try again." under the form, and never shows the thanks snackbar or navigates back. The retry after reconnecting sends, shows the thanks snackbar, and pops back. (Covers todo ENG-22.)
 
+### `SITE-1` ⚠️ 📱 Support page opens from Settings and reads correctly
+
+**State:** any account, online.
+
+1. Open Profile → Settings → tap "Help and FAQ" under Account & support.
+2. Read the page that opens in the system browser.
+3. Tap the "Contact us" email link.
+
+**Expected:** The system browser opens the support page (dark espresso-and-gold styling matching Privacy/Terms), with an FAQ section and a "Contact us" link. The email link opens a mail composer to contact@downcard.app. The page's footer links (Home / Privacy / Terms) each load. (Covers todo SITE-1.)
+
 ## Solo play
 
 ### `GAME-17` ℹ️ 📱 An instant bot fold reads clearly on the seat and player card

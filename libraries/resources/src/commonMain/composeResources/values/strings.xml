@@ -537,6 +537,8 @@
     <string name="profile_support_feedback_supporting">Tell us what's working and what isn't</string>
     <string name="profile_support_bug_headline">Report a bug</string>
     <string name="profile_support_bug_supporting">Something broken? Let us know</string>
+    <string name="profile_support_help_headline">Help and FAQ</string>
+    <string name="profile_support_help_supporting">Answers to common questions</string>
 
     <!-- Profile - About section rows. -->
     <string name="profile_about_privacy">Privacy policy</string>

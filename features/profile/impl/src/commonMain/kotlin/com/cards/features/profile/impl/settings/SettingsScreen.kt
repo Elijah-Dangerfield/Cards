@@ -57,6 +57,8 @@ import cards.libraries.resources.generated.resources.profile_support_bug_headlin
 import cards.libraries.resources.generated.resources.profile_support_bug_supporting
 import cards.libraries.resources.generated.resources.profile_support_feedback_headline
 import cards.libraries.resources.generated.resources.profile_support_feedback_supporting
+import cards.libraries.resources.generated.resources.profile_support_help_headline
+import cards.libraries.resources.generated.resources.profile_support_help_supporting
 import cards.libraries.resources.generated.resources.profile_turn_feedback_mute
 import cards.libraries.resources.generated.resources.profile_turn_feedback_sound
 import cards.libraries.resources.generated.resources.profile_turn_feedback_vibrate
@@ -114,6 +116,7 @@ fun SettingsScreen(
     onShowAchievementPopupsChange: (Boolean) -> Unit,
     onSendFeedback: () -> Unit,
     onReportBug: () -> Unit,
+    onHelp: () -> Unit,
     onPrivacyPolicy: () -> Unit,
     onTermsOfService: () -> Unit,
     onResponsiblePlay: () -> Unit,
@@ -198,6 +201,12 @@ fun SettingsScreen(
                         supportingText = stringResource(Res.string.profile_support_bug_supporting),
                         leadingContent = { EmojiLeading("🐞") },
                         onClick = onReportBug,
+                    ),
+                    ListSectionItem(
+                        headlineText = stringResource(Res.string.profile_support_help_headline),
+                        supportingText = stringResource(Res.string.profile_support_help_supporting),
+                        leadingContent = { EmojiLeading("❓") },
+                        onClick = onHelp,
                     ),
                     ListSectionItem(
                         headlineText = stringResource(Res.string.profile_about_privacy),
@@ -502,6 +511,7 @@ private fun SettingsScreenPreview_Guest() {
             onShowAchievementPopupsChange = {},
             onSendFeedback = {},
             onReportBug = {},
+            onHelp = {},
             onPrivacyPolicy = {},
             onTermsOfService = {},
             onResponsiblePlay = {},

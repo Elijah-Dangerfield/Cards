@@ -89,7 +89,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Profile + every sub-route reachable from it (edit profile, my items,
  * delete account, claim account, feedback, bug report, QA menu). Game speed
  * + turn-feedback toggles live inline on [ProfileScreen] — no sub-route.
- * Privacy + terms hand off to the system browser via [Router.openWebLink].
+ * Support, privacy, and terms hand off to the system browser via [Router.openWebLink].
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, multibinding = true)
@@ -316,6 +316,7 @@ class ProfileFeatureEntryPoint(
                 },
                 onSendFeedback = { router.navigate(FeedbackRoute()) },
                 onReportBug = { router.navigate(BugReportRoute()) },
+                onHelp = { router.openWebLink(LegalUrls.SUPPORT) },
                 onPrivacyPolicy = { router.openWebLink(LegalUrls.PRIVACY_POLICY) },
                 onTermsOfService = { router.openWebLink(LegalUrls.TERMS_OF_SERVICE) },
                 onResponsiblePlay = { router.openWebLink(LegalUrls.RESPONSIBLE_PLAY) },
