@@ -419,6 +419,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 **Expected:** Device B sees the bust dialog with re-buy options (move another buy-in from wallet, drop to a lower tier, or — if broke — soft-bust protection). Choosing re-buy moves a fresh buy-in wallet → stack and deals B back in on the next hand. Declining leaves the table cleanly. On a subsidized bots-for-chips table, the bust dialog reads "fresh stack on the house" and the chips stay real (cross-ref `MP-6` settlement). Wallet math is correct after the re-buy — no double debit.
 
 - **Heads-up (MP-22):** while Device B sits on the bust dialog (hasn't rebought), Device A (the winner) is NOT offered a tappable "Next hand" at all — A sees the shared rebuy-grace countdown ("Opponent busted. Auto-continues in N") instead of a button that can only be refused. If A somehow does fire a next-hand request, the refusal toasts "waiting for your opponent to rebuy or leave" rather than silently doing nothing. (Cross-ref `MP-12` for the full match-over countdown + result.)
+- **Quick-buy confirm (BILL-10):** from the in-game quick-buy chip sheet, tapping a pack does NOT charge immediately — it opens a confirm step (pack, price, "Charged via your App Store / Google Play", Buy now / Cancel). Only "Buy now" fires the purchase; Cancel returns to the pack list. Matches the storefront's confirm before any real charge.
 
 ---
 

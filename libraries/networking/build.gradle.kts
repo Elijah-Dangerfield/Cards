@@ -33,5 +33,14 @@ kotlin {
             implementation(libs.ktor.client.contentNegotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
         }
+
+        // Engines are `api` so callers building a client with
+        // `platformHttpEngineFactory` link the concrete engine per target.
+        androidMain.dependencies {
+            api(libs.ktor.client.okhttp)
+        }
+        iosMain.dependencies {
+            api(libs.ktor.client.darwin)
+        }
     }
 }
