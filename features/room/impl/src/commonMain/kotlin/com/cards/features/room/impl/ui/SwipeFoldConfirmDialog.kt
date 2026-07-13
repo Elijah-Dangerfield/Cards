@@ -34,7 +34,9 @@ internal fun SwipeFoldConfirmDialog(
     onCancel: () -> Unit,
     onConfirmFold: (dontShowAgain: Boolean) -> Unit,
 ) {
-    var dontShowAgain by remember { mutableStateOf(true) }
+    // Opt-in, never opt-out: confirming a fold must not silently disable the
+    // safety net. The player has to deliberately tick this to skip future dialogs.
+    var dontShowAgain by remember { mutableStateOf(false) }
     Dialog(
         title = stringResource(Res.string.room_swipe_fold_title),
         onDismissRequest = onCancel,

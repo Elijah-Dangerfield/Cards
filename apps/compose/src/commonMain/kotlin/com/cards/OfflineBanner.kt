@@ -5,40 +5,29 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.app_offline_banner_message
-import com.dangerfield.cards.libraries.ui.components.icon.Icon
+import cards.libraries.resources.generated.resources.app_offline_explainer_body
+import cards.libraries.resources.generated.resources.app_offline_explainer_title
+import cards.libraries.resources.generated.resources.app_offline_pill
+import cards.libraries.resources.generated.resources.app_status_explainer_dismiss
+import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
-import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.LocalAppState
-import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Top-of-screen banner shown whenever [LocalAppState]'s `isOffline` is
- * true. Sits in the Scaffold's `topBar` slot alongside [AppGuardBanner]
- * so the Scaffold owns status-bar inset propagation.
+ * Top-of-screen status shown whenever [LocalAppState]'s `isOffline` is true.
+ * Sits in the Scaffold's `topBar` slot alongside [AppGuardBanner] so the
+ * Scaffold owns status-bar inset propagation.
  *
- * Subtle by design — a thin tinted strip + icon + one line of copy. The
- * user can still navigate; this just sets expectations about what won't
- * work.
+ * A compact tappable [StatusPill] — icon + one word — rather than a full-width
+ * strip; tapping opens the explainer dialog so the top of the screen stays clear.
  */
 @Composable
 fun OfflineBanner() {
@@ -54,26 +43,19 @@ fun OfflineBanner() {
 
 @Composable
 internal fun OfflineBannerContent() {
-    val warning = AppTheme.colors.warning
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(warning.color.copy(alpha = 0.18f))
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            icon = Icons.CloudOff(null),
-            color = warning,
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = stringResource(Res.string.app_offline_banner_message),
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.content,
-            textAlign = TextAlign.Start,
+    var explainerOpen by remember { mutableStateOf(false) }
+    StatusPill(
+        icon = Icons.CloudOff(null),
+        label = stringResource(Res.string.app_offline_pill),
+        onClick = { explainerOpen = true },
+    )
+    if (explainerOpen) {
+        Dialog(
+            title = stringResource(Res.string.app_offline_explainer_title),
+            description = stringResource(Res.string.app_offline_explainer_body),
+            primaryButtonText = stringResource(Res.string.app_status_explainer_dismiss),
+            onDismissRequest = { explainerOpen = false },
+            onPrimaryButtonClicked = { explainerOpen = false },
         )
     }
 }

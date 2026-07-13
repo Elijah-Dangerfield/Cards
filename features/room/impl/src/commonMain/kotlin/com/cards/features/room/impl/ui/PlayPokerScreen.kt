@@ -365,8 +365,8 @@ fun PlayPokerScreen(
                         },
                         nextHandCountdown = feltCountdown,
                         onLeaveWithWinnings = leaveTable,
-                        armedPreAction = state.armedPreAction,
-                        onArmPreAction = { onAction(PlayPokerAction.SetPreAction(it)) },
+                        preFoldArmed = state.preFoldArmed,
+                        onArmPreFold = { onAction(PlayPokerAction.SetPreFold(it)) },
                         onIntent = { onAction(PlayPokerAction.Submit(it)) },
                         onExpandRaise = { actionSheetOpen = true },
                         onBlindClick = { blindExplainerOpen = true },
@@ -1062,8 +1062,8 @@ private fun ActiveTable(
      */
     nextHandCountdown: com.dangerfield.cards.features.room.impl.session.NextHandCountdown? = null,
     onLeaveWithWinnings: () -> Unit = {},
-    armedPreAction: com.dangerfield.cards.features.room.impl.PreAction? = null,
-    onArmPreAction: (com.dangerfield.cards.features.room.impl.PreAction?) -> Unit = {},
+    preFoldArmed: Boolean = false,
+    onArmPreFold: (Boolean) -> Unit = {},
     onIntent: (PlayerIntent) -> Unit,
     onExpandRaise: () -> Unit,
     onBlindClick: () -> Unit,
@@ -1136,11 +1136,11 @@ private fun ActiveTable(
                 NextHandCountdownBar(countdown = nextHandCountdown, onLeave = onLeaveWithWinnings)
             } else {
                 // The two share the slot but never both show: QuickActionBar is
-                // visible only on the human's turn, PreActionBar only while
+                // visible only on the human's turn, PreFoldBar only while
                 // waiting. Each collapses its own slot so the player row above
                 // slides down to fill the gap.
                 QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
-                PreActionBar(table = table, armed = armedPreAction, onArm = onArmPreAction)
+                PreFoldBar(table = table, armed = preFoldArmed, onArmChange = onArmPreFold)
             }
         }
     }

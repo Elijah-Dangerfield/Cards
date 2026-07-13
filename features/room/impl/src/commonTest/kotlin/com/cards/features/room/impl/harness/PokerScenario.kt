@@ -196,9 +196,9 @@ class RunningScenario(
         scope.advanceUntilIdle()
     }
 
-    /** Arm (or, with null, disarm) a pre-action from the waiting bar (GAME-30). */
-    suspend fun arm(preAction: PreAction?) {
-        vm.takeAction(PlayPokerAction.SetPreAction(preAction))
+    /** Arm (true) or cancel (false) a pre-fold from the waiting bar (GAME-30). */
+    suspend fun armPreFold(armed: Boolean) {
+        vm.takeAction(PlayPokerAction.SetPreFold(armed))
         scope.advanceUntilIdle()
     }
 

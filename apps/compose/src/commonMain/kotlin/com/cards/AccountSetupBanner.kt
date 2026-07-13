@@ -5,16 +5,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -23,48 +13,37 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.account_setup_banner_message
 import cards.libraries.resources.generated.resources.account_setup_banner_retry
-import cards.libraries.resources.generated.resources.account_setup_banner_retrying
 import cards.libraries.resources.generated.resources.account_setup_explainer_body
 import cards.libraries.resources.generated.resources.account_setup_explainer_confirm
 import cards.libraries.resources.generated.resources.account_setup_explainer_title
+import cards.libraries.resources.generated.resources.account_setup_pill
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
 import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
-import com.dangerfield.cards.libraries.ui.components.button.Button
-import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
-import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
-import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
-import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.system.AppTheme
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Top-of-screen banner shown while a guest account is still being created in the
+ * Top-of-screen status shown while a guest account is still being created in the
  * background after the user finished onboarding offline
  * ([AccountCreationState.Failed]). Sits in the Scaffold's `topBar` slot
  * alongside [OfflineBanner] / [AppGuardBanner].
  *
- * Communicates the degraded state without blocking the user — they can keep
+ * A compact tappable [StatusPill] ("Finishing setup") rather than a full-width
+ * strip — tapping opens an explainer dialog that carries the detail and a Retry
+ * action, so the standing reminder stays out of the way. The user can keep
  * playing bots; [GuestAccountCreator] retries automatically on reconnect /
- * relaunch, and the banner disappears once creation succeeds. A manual **Retry**
- * button drives [GuestAccountCreator.retry] for users who don't want to wait for
- * the next automatic attempt.
+ * relaunch, and the pill disappears once creation succeeds.
  *
- * Once a failure has been seen the banner stays up through the resulting
- * retry ([AccountCreationState.InProgress]) — showing a "Retrying…" state
- * instead of flickering away and back — and only clears on
+ * Once a failure has been seen the pill stays up through the resulting retry
+ * ([AccountCreationState.InProgress]) — Retry is simply hidden in the dialog
+ * while an attempt is already in flight — and only clears on
  * [AccountCreationState.Succeeded]. The first, never-failed creation pass
- * (Idle → InProgress → Succeeded) never shows the banner.
+ * (Idle → InProgress → Succeeded) never shows the pill.
  */
 @Composable
 fun AccountSetupBanner(creator: GuestAccountCreator) {
@@ -117,58 +96,46 @@ internal fun AccountSetupBannerContent(
     isRetrying: Boolean,
     onRetry: () -> Unit,
 ) {
-    val warning = AppTheme.colors.warning
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(warning.color.copy(alpha = 0.18f))
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            icon = Icons.Refresh(null),
-            color = warning,
+    var explainerOpen by remember { mutableStateOf(false) }
+    StatusPill(
+        icon = Icons.Refresh(null),
+        label = stringResource(Res.string.account_setup_pill),
+        onClick = { explainerOpen = true },
+    )
+    if (explainerOpen) {
+        Dialog(
+            title = stringResource(Res.string.account_setup_explainer_title),
+            description = stringResource(Res.string.account_setup_explainer_body),
+            primaryButtonText = stringResource(Res.string.account_setup_explainer_confirm),
+            onDismissRequest = { explainerOpen = false },
+            onPrimaryButtonClicked = { explainerOpen = false },
+            // Retry is the one thing the user can do to speed this up; hidden while
+            // an attempt is already in flight (there'd be nothing to trigger).
+            secondaryButtonText = if (isRetrying) null else stringResource(Res.string.account_setup_banner_retry),
+            onSecondaryButtonClicked = if (isRetrying) {
+                null
+            } else {
+                {
+                    explainerOpen = false
+                    onRetry()
+                }
+            },
         )
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = stringResource(Res.string.account_setup_banner_message),
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.content,
-            textAlign = TextAlign.Start,
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        if (isRetrying) {
-            Text(
-                text = stringResource(Res.string.account_setup_banner_retrying),
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-            )
-        } else {
-            Button(
-                onClick = onRetry,
-                size = ButtonSize.Small,
-                style = ButtonStyle.Text,
-            ) {
-                Text(stringResource(Res.string.account_setup_banner_retry))
-            }
-        }
     }
 }
 
 /**
- * The richer first-contact surface for the degraded-account state. The thin
- * [AccountSetupBanner] is the *standing* reminder, but the first time creation
- * is left pending it's easy to miss — so this one-time dialog explains what's
- * happening (play is safe, setup continues in the background, MP + purchases are
- * paused) before the banner takes over for the rest of the wait.
+ * The richer first-contact surface for the degraded-account state. The compact
+ * [AccountSetupBanner] pill is the *standing* reminder, but the first time
+ * creation is left pending it's easy to miss — so this one-time dialog explains
+ * what's happening (play is safe, setup continues in the background, MP +
+ * purchases are paused) before the pill takes over for the rest of the wait.
  *
  * Shown when [shouldShowAccountSetupExplainer] is true off the live pending
  * status and the persisted `accountSetupExplainerSeen` flag. Dismissing sets the
- * flag — so it only ever shows once per device — and leaves [AccountSetupBanner]
- * in place to keep the state visible until creation succeeds.
+ * flag — so it only ever shows once per device — and leaves the pill in place to
+ * keep the state visible (and tappable for the same explainer) until creation
+ * succeeds.
  */
 @Composable
 fun AccountSetupExplainerDialog(
