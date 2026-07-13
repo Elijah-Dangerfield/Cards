@@ -1255,19 +1255,19 @@ class PlayPokerViewModel @Inject constructor(
 }
 
 /**
- * The cosmetics painted on the play surface this emission — the host's table-wide
- * felt + card back (SHOP-3) when the room sets them, else the local player's own
- * equipped cosmetic, plus the local player's win-odds tool + badge (never
- * table-wide). Lifted to a value type so the felt + card-back + tool + badge land
- * in a single combined emission rather than four racing collectors.
- */
-/**
  * The outcome of evaluating an armed [PreAction] against a projected table
  * (GAME-30): [armed] is what the arm should be after this projection (null once
  * it fires or disarms), [submit] the intent to auto-submit, if any.
  */
 private data class PreActionDecision(val armed: PreAction?, val submit: PlayerIntent?)
 
+/**
+ * The cosmetics painted on the play surface this emission — the host's table-wide
+ * felt + card back (SHOP-3) when the room sets them, else the local player's own
+ * equipped cosmetic, plus the local player's win-odds tool + badge (never
+ * table-wide). Lifted to a value type so the felt + card-back + tool + badge land
+ * in a single combined emission rather than four racing collectors.
+ */
 private data class ResolvedCosmetics(
     val felt: EquippedFelt,
     val cardBack: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle,
