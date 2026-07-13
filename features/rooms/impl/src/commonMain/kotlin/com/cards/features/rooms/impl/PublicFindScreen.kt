@@ -47,6 +47,7 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.color.ProvideContentColor
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.math.roundToInt
 
 /**
@@ -108,7 +109,6 @@ fun PublicFindScreen(
             }
             Spacer(Modifier.height(Dimension.D500))
 
-            // Value chips reflecting the current range endpoints.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -239,7 +239,7 @@ private fun compactChips(value: Int): String = when {
     else -> value.toString()
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PublicFindScreenPreview() {
     PreviewContent {
@@ -247,7 +247,7 @@ private fun PublicFindScreenPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PublicFindScreenInsufficientPreview() {
     PreviewContent {
