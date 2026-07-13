@@ -15,6 +15,7 @@ import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.NetworkConfig
 import com.dangerfield.cards.libraries.networking.NetworkJson
 import com.dangerfield.cards.libraries.networking.NetworkReachability
+import com.dangerfield.cards.libraries.networking.platformHttpEngineFactory
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.call.body
@@ -53,13 +54,13 @@ class NetworkClientImpl(
 ) : NetworkClient {
 
     override val client: HttpClient by lazy {
-        HttpClient {
+        HttpClient(platformHttpEngineFactory) {
             applyCommonConfig(config, headersProvider, reachability, accessDeniedBus)
         }
     }
 
     override val authenticatedClient: HttpClient by lazy {
-        HttpClient {
+        HttpClient(platformHttpEngineFactory) {
             applyCommonConfig(config, headersProvider, reachability, accessDeniedBus)
             install(Auth) {
                 bearer {

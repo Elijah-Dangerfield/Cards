@@ -9,6 +9,7 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.networking.InstallIdProvider
 import com.dangerfield.cards.libraries.networking.SessionIdProvider
+import com.dangerfield.cards.libraries.networking.platformHttpEngineFactory
 import com.dangerfield.cards.libraries.storage.FileManager
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
@@ -154,7 +155,7 @@ internal object GrafanaCloud {
  * basic-auth header, which is the whole reason we supply one:
  * `otlpHttpLogRecordExporter` has no headers parameter.
  */
-private fun grafanaHttpClient(): HttpClient = HttpClient {
+private fun grafanaHttpClient(): HttpClient = HttpClient(platformHttpEngineFactory) {
     install(HttpTimeout) {
         requestTimeoutMillis = 30_000
     }
