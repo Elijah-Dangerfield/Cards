@@ -67,6 +67,7 @@ import cards.libraries.resources.generated.resources.public_searching_title
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomMember
+import com.dangerfield.cards.libraries.rooms.RoomStatus
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.isReduceMotionEnabled
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
@@ -88,6 +89,7 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Public Searching / matchmaking screen — the honest, real-humans-first search.
@@ -535,7 +537,7 @@ private fun BuyInRangeCard(minBuyIn: Long, maxBuyIn: Long) {
 
 private const val ROTATE_INTERVAL_MS = 8_000L
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PublicSearchingScreenPreview() {
     PreviewContent {
@@ -546,7 +548,7 @@ private fun PublicSearchingScreenPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PublicSearchingChooserPreview() {
     PreviewContent {
@@ -566,7 +568,7 @@ private fun PublicSearchingChooserPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PublicSearchingJoinedWaitingPreview() {
     PreviewContent {
@@ -586,7 +588,7 @@ private fun PublicSearchingJoinedWaitingPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PublicSearchingJoinedReadyPreview() {
     PreviewContent {
@@ -630,14 +632,14 @@ private fun previewRoom(members: List<RoomMember>): Room = Room(
     hostUserId = "host",
     createdAtEpochMs = 0,
     maxSeats = 6,
-    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+    status = RoomStatus.Lobby,
     members = members,
     buyIn = 5_000,
     smallBlind = 25,
     bigBlind = 50,
 )
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PublicSearchingOfferPreview() {
     PreviewContent {
@@ -648,7 +650,7 @@ private fun PublicSearchingOfferPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PublicSearchingOfferNearCapPreview() {
     PreviewContent {
@@ -664,7 +666,7 @@ private fun PublicSearchingOfferNearCapPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PublicSearchingOfferExhaustedPreview() {
     PreviewContent {
@@ -680,7 +682,7 @@ private fun PublicSearchingOfferExhaustedPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PublicSearchingJoiningBotsPreview() {
     PreviewContent {
@@ -691,7 +693,7 @@ private fun PublicSearchingJoiningBotsPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PublicSearchingErrorPreview() {
     PreviewContent {
@@ -702,7 +704,7 @@ private fun PublicSearchingErrorPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun PublicSearchingInsufficientErrorPreview() {
     PreviewContent {
