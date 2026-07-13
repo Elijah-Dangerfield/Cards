@@ -16,6 +16,7 @@ import com.dangerfield.cards.libraries.cards.XP_BOOST_GRANTS_KEY
 import com.dangerfield.cards.libraries.cards.XpBoostRepository
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.cards.levelProgressFor
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -261,7 +262,21 @@ class ShopViewModel @Inject constructor(
             amount = offer.costChips,
             reason = "boost.${offer.id}",
         )
-        xpBoostRepository.grant()
+        // The debit and the boost grant live in two different stores (wallet
+        // outbox vs. the boost cache), so they can't share a transaction. If
+        // the grant fails after the debit lands, refund the exact spend so the
+        // player can't lose chips and get no boost — mirrors the redeem/refund
+        // compensation in InventoryRepositoryImpl.
+        val granted = Catching { xpBoostRepository.grant() }
+        if (granted.isFailure) {
+            chipsRepository.addChips(
+                amount = offer.costChips,
+                reason = "boost.refund.${offer.id}",
+            )
+            logger.logEvent("shop.boost_grant_failed", "product_id" to offer.id, "chip_cost" to offer.costChips)
+            sendEvent(ShopEvent.BoostPurchaseFailed(offer))
+            return
+        }
         logger.logEvent("shop.item_redeemed", "product_id" to offer.id, "chip_cost" to offer.costChips)
         // Flush the debit promptly so the wallet ledger reflects the spend
         // without waiting on the next foreground sync. Best-effort — the
@@ -613,6 +628,14 @@ sealed interface ShopEvent {
      * inventory row to jump to.
      */
     data class BoostPurchased(val offer: Product.ChipOffer) : ShopEvent
+
+    /**
+     * The chip-priced XP boost was debited but the boost grant write failed,
+     * so the spend was refunded and nothing was granted (ECON-2). Rare — both
+     * sides are local writes — but the buy can't fail silently, so the screen
+     * shows an error snackbar telling the user their chips are safe.
+     */
+    data class BoostPurchaseFailed(val offer: Product.ChipOffer) : ShopEvent
 
     /**
      * An anonymous user tapped buy on a real-money pack. The screen shows an

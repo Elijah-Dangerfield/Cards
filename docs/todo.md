@@ -23,9 +23,3 @@ The live punch list of actionable engineering work. Every item is something a wo
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
 ---
-
-## Chip economy integrity
-
-- `[P1]` **ECON-2 — Make the chip-funded XP-boost purchase atomic. (proposed 2026-07-13)** `ShopViewModel.confirmXpBoostPurchase` debits chips then calls `xpBoostRepository.grant()` with no compensation — if the grant write fails after the debit, the player loses chips and gets no boost. The sibling spend path `InventoryRepositoryImpl.redeemChipOffer` already guards this (wraps the debit, reverts on failure).
-  **Acceptance:** a grant failure after the debit leaves the balance unchanged (revert the debit, or grant-before-debit), mirroring `redeemChipOffer`; a unit test pins the compensation.
-  **Hints:** `features/shop/impl/.../ShopViewModel.kt:260`; sibling at `libraries/cards/impl/.../InventoryRepositoryImpl.kt:114`.
