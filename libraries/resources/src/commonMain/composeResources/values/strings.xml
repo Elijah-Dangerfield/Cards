@@ -1170,6 +1170,11 @@
     <string name="room_quick_action_raise_button_with_amount">Raise %1$s</string>
     <string name="room_quick_action_more_options_a11y">More raise options</string>
 
+    <!-- Room - Pre-action toggles armed while waiting for your turn (GAME-30). Fire automatically when the turn arrives. -->
+    <string name="room_preaction_check_fold_label">Check/Fold</string>
+    <string name="room_preaction_check_label">Check</string>
+    <string name="room_preaction_armed_a11y">Armed</string>
+
     <!-- Room - PlayPokerScreen chrome: connection banner + top-bar icon a11y + loading state. -->
     <string name="room_connection_lost_banner">Connection lost. We're keeping your seat warm. Back in a moment.</string>
     <string name="room_top_bar_back_a11y">Back</string>

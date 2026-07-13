@@ -35,6 +35,14 @@ sealed interface TableUiState {
         val actingSeatIndex: Int?,
         val isHumanTurn: Boolean,
         val humanLegalActions: LegalActions?,
+        /**
+         * True when the human is in the hand and owes chips to call on the
+         * current street — i.e. checking is off the table right now. Readable
+         * off-turn (unlike [humanLegalActions], which is null unless it's the
+         * human's turn), so the pre-action bar can gate its "check" toggle and
+         * the VM can disarm a pre-armed check the moment a bet lands (GAME-30).
+         */
+        val humanFacesBet: Boolean = false,
         val humanHandLabel: String?,
         val handResult: HandResultView?,
         val smallBlind: Long,
@@ -215,6 +223,9 @@ sealed interface TableUiState {
             }
             val humanSeat = gameState.seats.firstOrNull { it.index == humanSeatIndex }
             val legal = if (isHumanTurn && humanSeat != null) LegalActions.from(gameState, humanSeat) else null
+            val humanFacesBet = humanSeat != null &&
+                humanSeat.handParticipation == HandParticipation.InHand &&
+                gameState.currentBetThisStreet > humanSeat.contributedThisStreet
             val humanHandLabel = humanSeat?.let { previewHandLabel(it.holeCards, gameState.community) }
             val result = effectiveWinners?.let { ev ->
                 HandResultView(
@@ -231,6 +242,7 @@ sealed interface TableUiState {
                 actingSeatIndex = acting,
                 isHumanTurn = isHumanTurn,
                 humanLegalActions = legal,
+                humanFacesBet = humanFacesBet,
                 humanHandLabel = humanHandLabel,
                 handResult = result,
                 smallBlind = gameState.settings.smallBlind,

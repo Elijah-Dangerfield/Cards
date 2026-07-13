@@ -533,6 +533,29 @@ class PlayPokerViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Decide what a projected [state] means for the armed pre-action (GAME-30).
+     * Pure — the caller applies [PreActionDecision.armed] to state and submits
+     * [PreActionDecision.submit] if present. On the human's turn the armed action
+     * resolves against the live legal actions and clears; while still waiting, a
+     * [PreAction.CheckAny] disarms the instant a bet lands (checking is off the
+     * table). A [PreAction.CheckFold] survives a bet — it just becomes a fold.
+     */
+    private fun evaluatePreAction(state: PlayPokerState): PreActionDecision {
+        val armed = state.armedPreAction ?: return PreActionDecision(armed = null, submit = null)
+        val active = state.table as? TableUiState.Active ?: return PreActionDecision(armed, null)
+        val human = active.seats.firstOrNull { it.isHuman } ?: return PreActionDecision(armed, null)
+        return when {
+            active.isHumanTurn -> {
+                val legal = active.humanLegalActions ?: return PreActionDecision(armed, null)
+                PreActionDecision(armed = null, submit = armed.resolve(legal, human.index))
+            }
+            armed == PreAction.CheckAny && active.humanFacesBet ->
+                PreActionDecision(armed = null, submit = null)
+            else -> PreActionDecision(armed, null)
+        }
+    }
+
     private fun handleHandEnded(
         event: GameEvent.HandEnded,
         state: GameState,
@@ -775,19 +798,35 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.GameStateUpdated -> {
                 lastGameState = action.state
                 var projected: TableUiState? = null
-                action.updateState {
+                var preActionToFire: PlayerIntent? = null
+                action.updateState { current ->
                     val table = sessionFactory.tableFor(
                         state = action.state,
                         lastWinners = lastWinners,
                         lastActionBySeat = lastActionBySeat.toMap(),
                         humanProfile = latestHumanProfile,
-                        humanLevel = it.humanLevel,
+                        humanLevel = current.humanLevel,
                         curve = levelCurve,
                     )
                     projected = table
-                    it.copy(table = table)
+                    // A pre-action belongs to the hand it was armed in. Retire it
+                    // on a hand change off the authoritative snapshot hand number,
+                    // so a stale arm can't fire on the fresh deal — the HandStarted
+                    // event and the new-hand snapshot ride unordered flows, so an
+                    // event-driven clear can lose the race (MP especially).
+                    val prevHand = (current.table as? TableUiState.Active)?.handNumber
+                    val newHand = (table as? TableUiState.Active)?.handNumber
+                    val handChanged = prevHand != null && newHand != null && newHand != prevHand
+                    val withTable = current.copy(
+                        table = table,
+                        armedPreAction = if (handChanged) null else current.armedPreAction,
+                    )
+                    val decision = evaluatePreAction(withTable)
+                    preActionToFire = decision.submit
+                    withTable.copy(armedPreAction = decision.armed)
                 }
                 projected?.let { logHoleCardProjection(it) }
+                preActionToFire?.let { takeAction(PlayPokerAction.Submit(it)) }
             }
             is PlayPokerAction.OccupantsUpdated -> action.updateState {
                 it.copy(occupants = action.occupants)
@@ -889,6 +928,19 @@ class PlayPokerViewModel @Inject constructor(
                 action.updateState {
                     it.copy(lastHandXpAwarded = null, recentlyEarned = emptyList())
                 }
+            }
+            is PlayPokerAction.SetPreAction -> {
+                // Arming while it's already the human's turn (a race where the
+                // toggle is tapped as the turn lands) fires straight away; the
+                // usual case just stores the arm for the next turn arrival.
+                var preActionToFire: PlayerIntent? = null
+                action.updateState { current ->
+                    val armed = current.copy(armedPreAction = action.preAction)
+                    val decision = evaluatePreAction(armed)
+                    preActionToFire = decision.submit
+                    armed.copy(armedPreAction = decision.armed)
+                }
+                preActionToFire?.let { takeAction(PlayPokerAction.Submit(it)) }
             }
 
             is PlayPokerAction.ToggleCheatSheet -> action.updateState {
@@ -1201,6 +1253,13 @@ class PlayPokerViewModel @Inject constructor(
     }
 
 }
+
+/**
+ * The outcome of evaluating an armed [PreAction] against a projected table
+ * (GAME-30): [armed] is what the arm should be after this projection (null once
+ * it fires or disarms), [submit] the intent to auto-submit, if any.
+ */
+private data class PreActionDecision(val armed: PreAction?, val submit: PlayerIntent?)
 
 /**
  * The cosmetics painted on the play surface this emission — the host's table-wide

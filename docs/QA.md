@@ -556,6 +556,19 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** The full showdown summary shows first — board, revealed hole cards, the winner's hand — with a "Continue" CTA instead of "Next hand". Tapping it presents the "You went bust" dialog with the "Deal me in" recovery. The reveal never plays half-hidden under the bust dialog's scrim. Busting to a fold-out (no showdown) skips straight to the bust dialog. (Covers todo GAME-18.)
 
+---
+
+### `GAME-30` ⚠️ 📱 Pre-action toggles fire on your turn
+
+**State:** any account in a bot game (works the same in multiplayer); a hand in progress while it's an opponent's turn.
+
+1. While waiting for your turn, tap "Check/Fold" in the action slot — confirm it highlights (armed).
+2. Let the action come to you with no bet to face. Confirm it auto-checks the instant it's your turn (no tap needed).
+3. New hand: arm "Check/Fold" again, then have an opponent bet before your turn. Confirm it auto-folds when your turn arrives.
+4. New hand: arm "Check", then have an opponent bet before your turn. Confirm "Check" un-arms (and greys out) rather than firing, so you act manually.
+
+**Expected:** The two toggles show only while waiting (they collapse the instant it's your turn, replaced by the normal bet bar). An armed toggle highlights. "Check/Fold" always fires on turn arrival — a check when you can, a fold when a bet landed. "Check" only fires as a check; a bet cancels it and hands you back the decision. Arming never fires early, and the arm clears once it resolves or at the next hand. (Covers todo GAME-30.)
+
 ## Progression
 
 ### `PROG-1` ⚠️ 📱 Level-up celebration shows on a fresh account's first level-up

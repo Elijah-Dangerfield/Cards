@@ -1046,3 +1046,35 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Idea (filed with BILL-7, 2026-07-11):** BILL-7 gave the shop a blocking "Finishing your purchase" overlay and a full failure dialog distinguishing paid-but-pending / refused / not-charged. The in-game quick-buy chip sheet still surfaces failures as toasts. Apply the same treatment there (the same `PurchaseError` classification already exists in `:features:shop:impl` — lift it somewhere shared) so a paid-but-uncredited purchase mid-game gets the same honest explanation.
 
 **Status:** Backlog.
+
+---
+
+## Pre-action family: "Call [amount]" / "Call any" + standalone Fold
+
+**Idea (filed with GAME-30, 2026-07-12):** GAME-30 shipped the two no-money-committed pre-action toggles ("Check/Fold", "Check"). The natural next slice is a call-committing family — "Call [amount]" and "Call any" — plus a standalone "Fold". Deferred because a call puts chips in without a fresh confirmation, so it needs its own instant-vs-confirm decision distinct from the check toggles. The resolve/arm/disarm machinery (`PreAction.resolve`, `evaluatePreAction`, the disarm-on-bet projection) is already in place to extend.
+
+**Status:** Backlog. Needs a product call on confirm-vs-instant for chip-committing pre-actions.
+
+---
+
+## Responsible-play link on the in-game quick-buy confirm
+
+**Idea (filed with BILL-10, 2026-07-12):** BILL-10 added a confirm step to the post-bust quick-buy so a real-money chip pack isn't one tap from a charge. The storefront's real-money confirm also carries a "Play responsibly" (NCPG) link; the quick-buy confirm does not. For compliance parity, thread an `onOpenResponsiblePlay` callback from the room VM/router into `QuickBuyChipsSheet` and add the same line. Left out of the confirm-gate itself as a separate compliance decision.
+
+**Status:** Backlog. Compliance parity; needs a call on whether the in-game path requires the same line.
+
+---
+
+## Lift `platformStoreName()` to a shared home
+
+**Idea (filed by reviewer with BILL-10, 2026-07-12):** The `@Composable platformStoreName()` helper (branches `App Store` / `Google Play` off `BuildInfo.platform`) is now duplicated verbatim in `:features:shop:impl` (`PurchaseConfirmSheet.kt`) and `:features:room:impl` (`QuickBuyChipsSheet.kt`), both reading the same `shop_purchase_store_*` strings. Lift it into a shared home both can reach (a small billing-UI helper) so the two confirms can't drift. Minor; two 5-line copies today.
+
+**Status:** Backlog.
+
+---
+
+## Audit the linked iOS klib graph for a transitive ktor-client-cio
+
+**Idea (filed with ENG-28, 2026-07-12):** ENG-28 fixed the iOS TLS crash by binding Darwin explicitly on every first-party HTTP/WS client, so engine-less auto-resolution can no longer pick a TLS-incapable native engine. A static source grep finds CIO only in `:apps:server` (JVM). The remaining gap is a transitive dependency dragging `ktor-client-cio` onto the iOS binary — invisible to a source grep because it needs the resolved klib graph of the linked iOS framework, not the Gradle files. If an iOS TLS/engine crash ever recurs, resolve the iOS binary's klib graph and confirm no CIO is linked.
+
+**Status:** Backlog. Needs the linked iOS binary's resolved graph; not doable from source.
