@@ -576,6 +576,12 @@ fun PlayPokerScreen(
                     ?.takeIf { state.socialEnabled && !seat.isBot && !seat.seatEmpty }
                     ?.let { id -> { onAction(PlayPokerAction.AddFriend(id)) } },
                 friendRequestSent = seat.userId in state.friendRequestSentIds,
+                // Report is a store-compliance path — available on any human
+                // opponent regardless of the social flag, unlike add-friend.
+                onReport = seat.userId
+                    ?.takeIf { !seat.isBot && !seat.seatEmpty }
+                    ?.let { id -> { onAction(PlayPokerAction.ReportPlayer(id)) } },
+                reportSent = seat.userId in state.reportedUserIds,
             )
         }
 

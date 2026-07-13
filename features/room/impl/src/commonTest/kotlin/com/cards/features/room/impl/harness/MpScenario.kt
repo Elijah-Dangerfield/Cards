@@ -126,6 +126,7 @@ class MpScenarioBuilder(
             purchaseChipPack = FakePurchaseChipPackUseCase(),
             profileRepository = FakeProfileRepository(),
             friendRepository = friendRepository,
+            reportRepository = FakeReportRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
             leaveCashOutNotifier = leaveCashOutNotifier,
             dispatcherProvider = dispatchers,

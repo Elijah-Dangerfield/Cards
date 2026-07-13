@@ -23,11 +23,3 @@ The live punch list of actionable engineering work. Every item is something a wo
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
 ---
-
-## Trust & safety
-
-- **[P0] MOD-1 — In-app report-a-player flow.** Google Play's UGC policy requires report **and** block for apps with user-visible content (editable display names + emotes among strangers in public rooms); we ship mute/emote-block only, no report → likely Play rejection at review.
-  - *Acceptance:* a "Report" action on the player card ([`PlayerProfileSheet.kt`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/ui/PlayerProfileSheet.kt), next to the existing mute toggle) that POSTs to a new server route and writes a row to a `player_reports` table (reporter id, reported user id, room/context, reason, created_at); reporter sees a confirmation; **no auto-ban** in V1.
-  - *Hints:* mirror the mute wiring for the entry point; new Ktor route + Postgres migration. A moderation-review UI that pulls these reports for manual decisions, and auto-ban rules, are deferred — see [`post-launch.md`](./post-launch.md).
-
----

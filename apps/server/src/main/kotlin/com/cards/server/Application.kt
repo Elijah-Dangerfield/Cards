@@ -32,6 +32,7 @@ import com.dangerfield.cards.server.routes.equipmentRoutes
 import com.dangerfield.cards.server.routes.friendsRoutes
 import com.dangerfield.cards.server.routes.grantsRoutes
 import com.dangerfield.cards.server.routes.healthRoutes
+import com.dangerfield.cards.server.routes.playerReportRoutes
 import com.dangerfield.cards.server.routes.inventoryRoutes
 import com.dangerfield.cards.server.routes.meRoutes
 import com.dangerfield.cards.server.routes.messageRoutes
@@ -194,6 +195,7 @@ fun Application.installApp(
         avatarRoutes()
         equipmentRoutes(component.equipmentRepository)
         friendsRoutes(component.friendRepository, component.recentOpponentsRepository)
+        playerReportRoutes(component.playerReportRepository)
         recentOpponentsRoutes(component.recentOpponentsRepository)
         profilesRoutes(component.profileRepository)
         roomRoutes(

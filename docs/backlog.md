@@ -1099,3 +1099,11 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out and subsumes much of (1)'s handoff plumbing.
 
 **Status:** Backlog. Infra investment; pull when either deploy disruption at peak or a single-instance concurrency ceiling becomes a real constraint. See the "Server sharding" and server-deploy notes.
+
+---
+
+## Player report: reason picker + confirmation step (MOD-1 follow-on)
+
+**Idea (filed with MOD-1, 2026-07-13):** MOD-1 shipped a single-tap "Report" on the player card that files an append-only report with no reason (the `player_reports.reason` column + the client `reportPlayer(reason=...)` param are already wire-ready, sent null in V1). Two enhancements when moderation matures: (1) a lightweight **reason picker** (offensive name/emotes, cheating, harassment, other) so a human moderator gets signal beyond "user X reported in room Y"; (2) an optional **confirmation step** before filing, if the single-tap-plus-disabled affordance proves too easy to misfire in practice. Both are client-only — the server route already accepts an optional reason and is idempotent-friendly.
+
+**Status:** Backlog. Pair with the deferred moderation-review UI + auto-ban rules (see `post-launch.md`); until a human reads reports, the reason adds little.

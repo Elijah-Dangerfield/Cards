@@ -43,6 +43,9 @@ import cards.libraries.resources.generated.resources.room_intent_timed_out
 import cards.libraries.resources.generated.resources.room_next_hand_resyncing
 import cards.libraries.resources.generated.resources.room_next_hand_unavailable
 import cards.libraries.resources.generated.resources.room_opponent_left
+import cards.libraries.resources.generated.resources.room_player_report_confirmation
+import cards.libraries.resources.generated.resources.room_player_report_failed
+import cards.libraries.resources.generated.resources.room_player_report_rate_limited
 import cards.libraries.resources.generated.resources.room_quick_buy_failed
 import cards.libraries.resources.generated.resources.room_quick_buy_store_unavailable
 import cards.libraries.resources.generated.resources.room_quick_buy_success
@@ -174,6 +177,20 @@ class PlayMultiplayerFeatureEntryPoint(
                                 level = SnackbarLevel.Error,
                             )
                         }
+                        PlayPokerEvent.PlayerReported -> showSnackBar(
+                            message = getString(Res.string.room_player_report_confirmation),
+                            emoji = "🚩",
+                        )
+                        is PlayPokerEvent.PlayerReportFailed -> showSnackBar(
+                            message = getString(
+                                if (event.rateLimited) {
+                                    Res.string.room_player_report_rate_limited
+                                } else {
+                                    Res.string.room_player_report_failed
+                                },
+                            ),
+                            level = SnackbarLevel.Error,
+                        )
                         else -> Unit
                     }
                 }

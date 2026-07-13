@@ -205,6 +205,7 @@ class FakePokerSessionFactory(
     val session: FakePokerSession = FakePokerSession(),
     override val difficultyName: String = "Standard",
     override val xpMode: com.dangerfield.cards.libraries.cards.XpMode = com.dangerfield.cards.libraries.cards.XpMode.BOTS,
+    override val roomCode: String? = null,
     val personalities: Map<Int, Personality> = emptyMap(),
 ) : PokerSessionFactory {
 
@@ -653,6 +654,23 @@ class FakeFriendRepository(
         userId: String,
     ): com.dangerfield.cards.libraries.social.RespondToRequestResult =
         com.dangerfield.cards.libraries.social.RespondToRequestResult.Ok
+}
+
+/** Records report calls and returns a configurable [nextResult]. */
+class FakeReportRepository(
+    var nextResult: com.dangerfield.cards.libraries.social.ReportPlayerResult =
+        com.dangerfield.cards.libraries.social.ReportPlayerResult.Reported,
+) : com.dangerfield.cards.libraries.social.ReportRepository {
+    val reported = mutableListOf<Triple<String, String?, String?>>()
+
+    override suspend fun reportPlayer(
+        userId: String,
+        roomCode: String?,
+        reason: String?,
+    ): com.dangerfield.cards.libraries.social.ReportPlayerResult {
+        reported += Triple(userId, roomCode, reason)
+        return nextResult
+    }
 }
 
 /** Records quick-buy calls and returns a configurable [nextOutcome]. */

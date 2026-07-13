@@ -41,6 +41,9 @@ interface SocialApi {
 
     /** `POST /v1/friends/requests/{id}/decline`. Throws on 4xx. */
     suspend fun declineFriendRequest(userId: String): FriendRequestResultDto
+
+    /** `POST /v1/reports` — file a report against a player. Throws on 4xx. */
+    suspend fun reportPlayer(userId: String, roomCode: String?, reason: String?): PlayerReportResultDto
 }
 
 @Serializable
@@ -77,6 +80,18 @@ data class FriendRequestResultDto(
 data class FriendRequestsResponseDto(
     val schemaVersion: Int = 1,
     val requests: List<String> = emptyList(),
+)
+
+@Serializable
+data class PlayerReportBodyDto(
+    val reportedUserId: String,
+    val roomCode: String? = null,
+    val reason: String? = null,
+)
+
+@Serializable
+data class PlayerReportResultDto(
+    val status: String,
 )
 
 @SingleIn(AppScope::class)
@@ -129,5 +144,16 @@ class HttpSocialApi(
     override suspend fun declineFriendRequest(userId: String): FriendRequestResultDto =
         networkClient.authedCall("friends.request.decline", retry = RetryPolicy.idempotent()) { client ->
             client.post("/v1/friends/requests/$userId/decline").body<FriendRequestResultDto>()
+        }.getOrThrow()
+
+    // POST is a mutation, but filing the same report twice is harmless (append-
+    // only, no dedup server-side), so leave retry at None to keep 4xx surfacing
+    // as ClientRequestException for the 429 mapping rather than silently retrying.
+    override suspend fun reportPlayer(userId: String, roomCode: String?, reason: String?): PlayerReportResultDto =
+        networkClient.authedCall("reports.create") { client ->
+            client.post("/v1/reports") {
+                contentType(ContentType.Application.Json)
+                setBody(PlayerReportBodyDto(reportedUserId = userId, roomCode = roomCode, reason = reason))
+            }.body<PlayerReportResultDto>()
         }.getOrThrow()
 }

@@ -56,6 +56,8 @@ import com.dangerfield.cards.libraries.ui.components.poker.feltForProductId
 import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
 import com.dangerfield.cards.libraries.review.ReviewTrigger
 import com.dangerfield.cards.libraries.social.FriendRepository
+import com.dangerfield.cards.libraries.social.ReportPlayerResult
+import com.dangerfield.cards.libraries.social.ReportRepository
 import com.dangerfield.cards.libraries.social.SendFriendRequestResult
 import com.dangerfield.cards.libraries.social.SocialEnabled
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -94,6 +96,7 @@ class PlayPokerViewModel @Inject constructor(
     private val purchaseChipPack: PurchaseChipPackUseCase,
     private val profileRepository: ProfileRepository,
     private val friendRepository: FriendRepository,
+    private val reportRepository: ReportRepository,
     private val reviewPromptCoordinator: ReviewPromptCoordinator,
     private val leaveCashOutNotifier: LeaveCashOutNotifier,
     private val dispatcherProvider: DispatcherProvider,
@@ -170,6 +173,10 @@ class PlayPokerViewModel @Inject constructor(
     // Opponents we've already fired a friend request at this session — guards a
     // double-tap from sending twice (the inline button also flips to Sent).
     private val requestedFriendIds: MutableSet<String> = mutableSetOf()
+
+    // Opponents we've already filed a report against this session — guards a
+    // double-tap from filing twice (the inline button also flips to Reported).
+    private val reportedIds: MutableSet<String> = mutableSetOf()
 
     // Authenticated profile for the human-seat projection (display name + avatar).
     // Null until the first Authenticated emission; fallback profiles are ignored.
@@ -1239,6 +1246,44 @@ class PlayPokerViewModel @Inject constructor(
                 requestedFriendIds -= action.userId
                 action.updateState {
                     it.copy(friendRequestSentIds = it.friendRequestSentIds - action.userId)
+                }
+            }
+            is PlayPokerAction.ReportPlayer -> {
+                // Optimistic flip to Reported, un-flipped only if the server
+                // rejects — mirrors the add-friend model. The report round-trips
+                // on its own launch so it never stalls the action loop. Reporting
+                // is fire-and-forget: on success the screen toasts a confirmation,
+                // on failure it toasts a retry hint and the flip reverts.
+                if (action.userId !in reportedIds) {
+                    reportedIds += action.userId
+                    action.updateState {
+                        it.copy(reportedUserIds = it.reportedUserIds + action.userId)
+                    }
+                    viewModelScope.launch {
+                        when (
+                            reportRepository.reportPlayer(
+                                userId = action.userId,
+                                roomCode = stateFlow.value.roomCode,
+                                reason = null,
+                            )
+                        ) {
+                            is ReportPlayerResult.Reported -> sendEvent(PlayPokerEvent.PlayerReported)
+                            is ReportPlayerResult.RateLimited -> {
+                                takeAction(PlayPokerAction.ReportPlayerFailed(action.userId))
+                                sendEvent(PlayPokerEvent.PlayerReportFailed(rateLimited = true))
+                            }
+                            is ReportPlayerResult.Error -> {
+                                takeAction(PlayPokerAction.ReportPlayerFailed(action.userId))
+                                sendEvent(PlayPokerEvent.PlayerReportFailed(rateLimited = false))
+                            }
+                        }
+                    }
+                }
+            }
+            is PlayPokerAction.ReportPlayerFailed -> {
+                reportedIds -= action.userId
+                action.updateState {
+                    it.copy(reportedUserIds = it.reportedUserIds - action.userId)
                 }
             }
         }

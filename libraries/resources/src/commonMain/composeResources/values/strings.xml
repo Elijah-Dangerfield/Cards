@@ -958,6 +958,10 @@
     <string name="room_intent_timed_out">That didn't send. Check your connection and try again</string>
     <!-- Room - transient notice when the server refused a submitted action (not your turn / illegal move). -->
     <string name="room_intent_rejected">That move wasn't allowed</string>
+    <!-- Room - player report result toasts (MOD-1). -->
+    <string name="room_player_report_confirmation">Thanks. Our team will take a look.</string>
+    <string name="room_player_report_rate_limited">You've reported a lot recently. Try again in a bit.</string>
+    <string name="room_player_report_failed">Couldn't send that report. Check your connection and try again.</string>
     <!-- Room - shown when a game frame couldn't be read (ENG-7); the table may have been created with a newer app version. -->
     <string name="room_incompatible_version">We're struggling to play this game. It may have been created with a newer app version. Updating may help</string>
 
@@ -1068,6 +1072,11 @@
     <string name="room_player_profile_mute_emoji_headline">Mute emoji</string>
     <string name="room_player_profile_mute_emoji_supporting_muted">You won't see their table blasts.</string>
     <string name="room_player_profile_mute_emoji_supporting_unmuted">Their blasts will show on your screen.</string>
+    <string name="room_player_profile_report_section_title">Safety</string>
+    <string name="room_player_profile_report_headline">Report player</string>
+    <string name="room_player_profile_report_supporting">Send this to our team to review. They won't be told who reported them.</string>
+    <string name="room_player_profile_report_button">Report</string>
+    <string name="room_player_profile_report_button_sent">Reported</string>
     <string name="room_player_profile_bot_callout_title">This is a bot</string>
     <string name="room_player_profile_bot_callout_body">Bots only see their own hand and the community cards. They don't use AI. Each follows a fixed playing style.</string>
 

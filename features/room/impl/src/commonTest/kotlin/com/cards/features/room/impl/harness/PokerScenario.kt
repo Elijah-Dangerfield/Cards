@@ -139,6 +139,7 @@ class SoloScenarioBuilder(
             purchaseChipPack = FakePurchaseChipPackUseCase(),
             profileRepository = FakeProfileRepository(),
             friendRepository = FakeFriendRepository(),
+            reportRepository = FakeReportRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
             leaveCashOutNotifier = FakeLeaveCashOutNotifier(),
             dispatcherProvider = dispatchers,

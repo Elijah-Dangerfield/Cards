@@ -497,6 +497,19 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
+### `MOD-1` 🚨 📱 Report a player from the table
+
+**State:** two devices in the same multiplayer room (or one device + a revealed human opponent), online.
+
+1. Tap the opponent's avatar to open their player card.
+2. Under "Safety", tap "Report".
+3. Reopen the same opponent's card.
+4. Airplane-mode a device and tap "Report" on another opponent to check the failure path.
+
+**Expected:** Tapping Report files the report and toasts a confirmation ("Thanks. Our team will take a look."). The button flips to "Reported" and is disabled; reopening the card keeps it "Reported" for the session. The Report action shows on any human opponent regardless of whether the social features flag is on, and never on bots, empty seats, or your own card. Offline, the report toasts an error and the button reverts so it can be retried. (Covers todo MOD-1.)
+
+---
+
 ## Profile & items
 
 ### `PROF-1` ℹ️ 📱 Default felt + card back show as equipped on a fresh account

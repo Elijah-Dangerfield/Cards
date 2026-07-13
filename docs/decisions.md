@@ -4,6 +4,14 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-13 — Player reports are append-only, single-tap, and live in `:libraries:social` (MOD-1)
+
+**Problem:** Google Play's UGC policy needs an in-app report path (we had mute/emote-block but no report), so store submission was gated. The build had no moderation table, route, or client repository — all three had to be added, and several shapes were judgement calls.
+
+**Decision:** (1) *Storage:* a new append-only `player_reports` table (`V85`) — one row per report, no unique constraint on the pair (a reporter can report the same user across rooms; the route's rate limit bounds abuse), FK to `auth.users` `ON DELETE CASCADE` per the V11 convention, `room_code`/`reason` nullable. No auto-ban and no moderation-review UI in V1 (both deferred to post-launch); a `(reported_user_id, created_at DESC)` index is the seam for that future review. (2) *UX:* a single-tap "Report" button on the player card that flips to "Reported" and disables, mirroring the existing add-friend affordance, with a snackbar confirmation — rather than a confirmation dialog or a reason picker. The deliberate button + disabled-after-tap + toast is enough accidental-tap protection for V1, and keeps the report consistent with mute/add-friend. Reporting is **not** gated on the `social.enabled` flag (unlike add-friend): it's a store-compliance path that must stay available on any human opponent. (3) *Home:* the client `ReportRepository` lives in `:libraries:social` (reusing `SocialApi`/`HttpSocialApi` and the room feature's existing social dependency) rather than a new `:libraries:moderation` module — lowest-friction reuse for a one-endpoint feature.
+
+**Alternatives rejected:** a reason-picker sheet or a confirmation dialog before filing (better moderation signal / accidental-tap protection, but a whole extra overlay + state + strings for a nightly slice — deferred to backlog, and the nullable `reason` column is already wire-ready); a dedicated `:libraries:moderation` module (cleaner boundary matching the MOD prefix, but module boilerplate + DI wiring the room feature would have to pick up, for a single POST); folding report into `FriendRepository` (conflates the friend graph with trust-and-safety — kept as a distinct repository even though the HTTP plumbing is shared).
+
 ## 2026-07-11 — iOS `previous_exit` is a consume-once MetricKit sample (ENG-25)
 
 **Problem:** `app.launched`'s `previous_exit` was real on Android but hardcoded `unknown` on iOS, hiding iOS crash/ANR/OOM rates from the launch funnel. iOS has no per-launch exit API; MetricKit's `MXAppExitMetric` delivers day-window aggregate counts, up to 24h late, and only on real devices.

@@ -136,6 +136,14 @@ data class PlayPokerState(
      */
     val friendRequestSentIds: Set<String> = emptySet(),
     /**
+     * Opponent userIds the local player has reported this session (optimistically
+     * on tap, un-flipped only if the server rejects). Flips the player-card
+     * "Report" affordance to its reported state so a repeat tap is a no-op.
+     * Unlike [friendRequestSentIds] this is not gated on [socialEnabled] —
+     * reporting is a store-compliance path that stays available regardless.
+     */
+    val reportedUserIds: Set<String> = emptySet(),
+    /**
      * Master gate for the at-table "Add friend" affordance (SOC-2). Mirrors the
      * `social.enabled` app-config flag, default off — when false the player-card
      * hides the add-friend section entirely rather than showing it disabled.
@@ -378,6 +386,11 @@ sealed interface PlayPokerAction {
     data class AddFriend(val userId: String) : PlayPokerAction
     /** Internal — the request was rejected by the server; un-flips the Sent state. */
     data class FriendRequestFailed(val userId: String) : PlayPokerAction
+
+    /** "Report" on a human opponent's player card — files a report with the server. */
+    data class ReportPlayer(val userId: String) : PlayPokerAction
+    /** Internal — the report failed; un-flips the reported state so the user can retry. */
+    data class ReportPlayerFailed(val userId: String) : PlayPokerAction
 }
 
 sealed interface PlayPokerEvent {
@@ -434,6 +447,16 @@ sealed interface PlayPokerEvent {
      * hint. MP only — solo submits never throw.
      */
     data class IntentFeedback(val kind: IntentFeedbackKind) : PlayPokerEvent
+
+    /** A player report was filed; the screen toasts a confirmation. MP only. */
+    data object PlayerReported : PlayPokerEvent
+
+    /**
+     * A player report didn't go through — the rate limit tripped
+     * ([rateLimited] = true) or a network/other error. The screen toasts a
+     * kind-specific hint and the reported state un-flips so the user can retry.
+     */
+    data class PlayerReportFailed(val rateLimited: Boolean) : PlayPokerEvent
 }
 
 /**
