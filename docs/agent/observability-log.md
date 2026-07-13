@@ -32,6 +32,7 @@ duplicate) if a resolved signal gets materially worse.
 | `alerts:A1-A7-2026-07-12` | Firing-alert sweep (rules A1–A7) | no-action: none firing |
 | `health:writers-2026-07-12` | Single-writer health, both envs | no-action: one healthy writer per env; no server error/fatal logs in 24h |
 | `alerts:A1-A7-2026-07-13` | Firing-alert sweep (rules A1–A7) + Loki server error sweep | no-action: none firing, no OnCall groups, zero cards-server error/fatal logs in 24h |
+| `alerts:A1-A7-2026-07-13-nightly` | Firing-alert sweep (rules A1–A7) + Loki server error re-sweep (nightly) | no-action: none firing/pending, no OnCall groups, zero cards-server error/fatal logs in 24h |
 
 ---
 
@@ -134,3 +135,27 @@ tracked by BILL-7 — no re-open (not order-of-magnitude worse, defect already h
 Grafana: alerting_manage_rules(states=firing,pending) → none; list_alert_groups(state=new) → [];
 Loki {service_name="cards-server"} | detected_level=~"error|fatal" over 24h → 0 lines
 (1729 scanned). A1–A7 clear, no server errors. Nothing filed from Grafana. -->
+
+<!-- 2026-07-13 (nightly, stacked on eb53b9c0). Feedback-triage before us committed nothing
+(no new feedback). Reviewed 10 unresolved Sentry issues + Grafana alert/log re-sweep.
+Filed 0 todos; all already-dispositioned or no-action. No P0.
+
+Sentry: the exact same 10 unresolved issues as the 2026-07-13 phase-1b run, with identical
+event counts — no new issue and none materially worse, so nothing re-opened:
+- CARDS-9Q (single-writer refuse-to-boot): still 11 events, last seen 12h ago, dev env; no new
+  occurrences since the self-resolved 15:58–16:13Z window. Prompt flagged it as "live and
+  unowned" — it is already ledgered no-action (guard working as designed, dev-only, recovered).
+  Not a duplicate; no todo.
+- CARDS-9R (JsonConvertException unknown key 'walletBalance'): still 2 events, iOS dev-debug.
+  Prompt flagged it too — already ledgered no-action (develop models the payload via c3d38a33;
+  release builds ignore unknown keys). Event count unchanged, so no re-open.
+- CARDS-94 → ENG-28 and CARDS-9C/CARDS-9M → ENG-29 were both FIXED on develop since the last
+  run (commits 8179bdba, 1d70488d). Todos already filed and worked; issues will clear from
+  Sentry once a build containing the fixes ships. No new action.
+- CARDS-97/93 (fixed on develop, ENG-27), CARDS-96 (dev store noise), CARDS-9H (dup BILL-7),
+  CARDS-95 (adb kill): all unchanged, all previously dispositioned no-action. Skipped per idempotency.
+
+Grafana: alerting_manage_rules(states=firing,pending) → null; list_alert_groups(state=new) → [];
+Loki {service_name="cards-server"} | detected_level=~"error|fatal" over 24h → 0 lines
+(2433 scanned). A1–A7 clear, no server errors. Nothing filed from Grafana. -->
+
