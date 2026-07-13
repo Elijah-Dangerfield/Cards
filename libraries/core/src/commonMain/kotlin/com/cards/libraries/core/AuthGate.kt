@@ -88,7 +88,7 @@ interface AuthGate {
  * [onAuthFailure]; `getOrNull()` already ignores it like any other failure.
  */
 class AuthUnready(val reason: AuthReason, cause: Throwable? = null) :
-    Exception("auth unready: $reason", cause)
+    Exception("auth unready: $reason", cause), ExpectedControlFlow
 
 /** Maps an [AuthUnready] failure to a success value; real failures (timeouts, 5xx) pass through. */
 inline fun <T> Catching<T>.mapAuthFailure(map: (AuthReason) -> T): Catching<T> =

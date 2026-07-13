@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.cards.impl.logging
 
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.isExpectedControlFlow
 import com.dangerfield.cards.libraries.core.logging.LogContext
 import com.dangerfield.cards.libraries.core.logging.LogEntry
 import com.dangerfield.cards.libraries.core.logging.LogId
@@ -60,11 +61,23 @@ class SentryLogTree(
             addBreadcrumb(entry)
         }
 
-        if (entry.level.priority >= minEventLevel.priority) {
+        if (shouldCaptureEvent(entry)) {
             return captureEvent(entry)
         }
 
         return null
+    }
+
+    /**
+     * Error-level and above becomes a Sentry event, except a typed, expected
+     * control-flow throwable (e.g. `AuthUnready` short-circuiting an authed call
+     * before it hits the wire): that's a signal the caller handles, not a
+     * failure, so reporting it as an error only pollutes error counts. It still
+     * breadcrumbs and buffers locally.
+     */
+    internal fun shouldCaptureEvent(entry: LogEntry): Boolean {
+        if (entry.level.priority < minEventLevel.priority) return false
+        return entry.throwable?.isExpectedControlFlow != true
     }
 
     /**
