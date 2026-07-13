@@ -36,10 +36,4 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   - *Acceptance:* `pages/support.html` in the same style as privacy/terms, with an FAQ section and a "Contact us" link (`mailto:contact@downcard.app`); linked from `pages/index.html` footer; add `SUPPORT_URL` to [`LegalUrls.kt`](../libraries/core/src/commonMain/kotlin/com/cards/libraries/core/LegalUrls.kt) and surface it in Settings alongside Privacy/Terms. Satisfies the "Support contact + public support URL" launch item in [`developer-todo.md`](./developer-todo.md).
   - *Hints:* copy `pages/privacy.html` structure + `pages/style.css`; deploy is automatic via [`pages.yml`](../.github/workflows/pages.yml) on push to `main`.
 
-## Engineering / structural
-
-- **[P0] ENG-30 — Bind the Darwin engine on the Supabase client (iOS signup fails at TLS).** On iOS TestFlight/release build 821 every `POST /auth/v1/signup` aborts with `TLS sessions are not supported on Native platform`, so no guest account can be minted, `creationDegraded` stays true, and the "Finishing setup" banner is permanent — surviving even account deletion (delete → re-mint → fails again). Loki shows every iOS session in the window hitting it, not just the reporter.
-  - *Acceptance:* an iOS release build mints a guest account on first launch (no TLS warning in the client log; `AccountCreationState` settles to success) and the "Finishing setup" banner clears; add a regression guard that the Supabase client is built with the Darwin engine (mirror `PlatformHttpEngineTest`).
-  - *Hints:* `SupabaseClientFactory.provideSupabaseClient` leaves the Ktor engine to auto-detection (its own KDoc says so) — pass `httpEngine` (Darwin, via `platformHttpEngineFactory`) into `createSupabaseClient { }`, exactly as ENG-28 did for the first-party clients (`NetworkClientImpl`, `PlatformHttpEngine.ios.kt`). Related: backlog "Audit the linked iOS klib graph for a transitive ktor-client-cio". Case `docs/agent/feedback-cases/464d30f47b994010bf3dd700f1d5d09b.md`; Sentry CARDS-9S/CARDS-9T.
-
 ---
