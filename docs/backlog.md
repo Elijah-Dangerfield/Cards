@@ -1107,3 +1107,9 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 **Idea (filed with MOD-1, 2026-07-13):** MOD-1 shipped a single-tap "Report" on the player card that files an append-only report with no reason (the `player_reports.reason` column + the client `reportPlayer(reason=...)` param are already wire-ready, sent null in V1). Two enhancements when moderation matures: (1) a lightweight **reason picker** (offensive name/emotes, cheating, harassment, other) so a human moderator gets signal beyond "user X reported in room Y"; (2) an optional **confirmation step** before filing, if the single-tap-plus-disabled affordance proves too easy to misfire in practice. Both are client-only — the server route already accepts an optional reason and is idempotent-friendly.
 
 **Status:** Backlog. Pair with the deferred moderation-review UI + auto-ban rules (see `post-launch.md`); until a human reads reports, the reason adds little.
+
+## HowToPlaySheet: adopt BottomSheet scrollableContent
+
+**Idea (GAME-32 follow-on, 2026-07-13):** GAME-32 gave the opinionated `BottomSheet` an opt-in `scrollableContent` flag so sheets stop hand-rolling `Column(verticalScroll)`, and migrated `HandRankingsCheatSheet` onto it. The sibling `HowToPlaySheet` (`:features:room:impl`) still hand-rolls its own scroll because it uses the `title`-overload of `BottomSheet`, which doesn't thread `scrollableContent` down to the base. Threading the flag through the two title overloads finishes the story. Not mechanical: the title overload wraps `title + body` together, so the scroll must wrap only `body()` to keep the title pinned — decide the scroll scope deliberately rather than wrapping the whole slot.
+
+**Status:** Backlog. DS plumbing polish; pull when the next sheet wants a scrollable body under a title.
