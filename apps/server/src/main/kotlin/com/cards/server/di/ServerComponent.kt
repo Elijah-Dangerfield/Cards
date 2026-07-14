@@ -16,6 +16,7 @@ import com.dangerfield.cards.server.domain.ModerationRepository
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
 import com.dangerfield.cards.server.domain.OrphanInstallSweep
 import com.dangerfield.cards.server.domain.PlayStyleRepository
+import com.dangerfield.cards.server.domain.PlayerReportRepository
 import com.dangerfield.cards.server.domain.PlayerStatsRepository
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
@@ -85,6 +86,7 @@ abstract class ServerComponent(
     abstract val handsFinishedRepository: HandsFinishedRepository
     abstract val friendRepository: FriendRepository
     abstract val recentOpponentsRepository: RecentOpponentsRepository
+    abstract val playerReportRepository: PlayerReportRepository
     abstract val userMessageRepository: UserMessageRepository
     abstract val roomService: RoomService
     abstract val gameSessionRegistry: GameSessionRegistry

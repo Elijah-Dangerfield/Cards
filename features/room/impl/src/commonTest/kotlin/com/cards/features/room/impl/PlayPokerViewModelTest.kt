@@ -1309,6 +1309,73 @@ class PlayPokerViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun reportPlayer_filesReport_flipsReportedState_andConfirms() = runUnitTest {
+        val reports = FakeReportRepository()
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER, roomCode = "ABCD"),
+            reportRepository = reports,
+        )
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.ReportPlayer("user-9"))
+        advanceUntilIdle()
+
+        assertTrue("user-9" in vm.state.reportedUserIds, "the affordance flips to Reported")
+        assertEquals(
+            listOf(Triple<String, String?, String?>("user-9", "ABCD", null)),
+            reports.reported,
+            "the report carries the target id + room context, no reason in V1",
+        )
+        assertTrue(
+            events.contains(PlayPokerEvent.PlayerReported),
+            "a filed report confirms to the reporter; got $events",
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun reportPlayer_rateLimited_unflips_andToastsRetry() = runUnitTest {
+        val reports = FakeReportRepository(
+            nextResult = com.dangerfield.cards.libraries.social.ReportPlayerResult.RateLimited,
+        )
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER),
+            reportRepository = reports,
+        )
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.ReportPlayer("user-9"))
+        advanceUntilIdle()
+
+        assertFalse("user-9" in vm.state.reportedUserIds, "a rejected report reverts so the user can retry")
+        assertTrue(
+            events.contains(PlayPokerEvent.PlayerReportFailed(rateLimited = true)),
+            "a rate-limited report surfaces the retry hint; got $events",
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun reportPlayer_doubleTap_filesOnce() = runUnitTest {
+        val reports = FakeReportRepository()
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER),
+            reportRepository = reports,
+        )
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.ReportPlayer("user-9"))
+        vm.takeAction(PlayPokerAction.ReportPlayer("user-9"))
+        advanceUntilIdle()
+
+        assertEquals(1, reports.reported.size, "a second tap on an already-reported player is a no-op")
+    }
+
+    @Test
     fun leaveGameFromBust_sendsDurableLeave() = runUnitTest {
         val session = FakePokerSession()
         val vm = buildVm(
@@ -1529,6 +1596,8 @@ class PlayPokerViewModelTest : CoroutineTest() {
         chipsRepository: FakeChipsRepository = FakeChipsRepository(),
         purchaseChipPack: FakePurchaseChipPackUseCase = FakePurchaseChipPackUseCase(),
         equipmentRepository: FakeEquipmentRepository = FakeEquipmentRepository(),
+        friendRepository: FakeFriendRepository = FakeFriendRepository(),
+        reportRepository: FakeReportRepository = FakeReportRepository(),
         clock: kotlin.time.Clock = kotlin.time.Clock.System,
         socialEnabled: Boolean = false,
     ): PlayPokerViewModel = PlayPokerViewModel(
@@ -1545,7 +1614,8 @@ class PlayPokerViewModelTest : CoroutineTest() {
         chipsRepository = chipsRepository,
         purchaseChipPack = purchaseChipPack,
         profileRepository = profileRepository,
-        friendRepository = FakeFriendRepository(),
+        friendRepository = friendRepository,
+        reportRepository = reportRepository,
         reviewPromptCoordinator = reviewPromptCoordinator,
         leaveCashOutNotifier = FakeLeaveCashOutNotifier(),
         dispatcherProvider = dispatchers,

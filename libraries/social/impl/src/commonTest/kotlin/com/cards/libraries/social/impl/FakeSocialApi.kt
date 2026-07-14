@@ -14,11 +14,14 @@ internal class FakeSocialApi(
     var incomingError: Throwable? = null,
     var acceptResult: Result<FriendRequestResultDto> = Result.success(FriendRequestResultDto("ok")),
     var declineResult: Result<FriendRequestResultDto> = Result.success(FriendRequestResultDto("ok")),
+    var reportResult: Result<PlayerReportResultDto> = Result.success(PlayerReportResultDto("received")),
 ) : SocialApi {
 
     var lastLimit: Int? = null
         private set
     var lastSentUserId: String? = null
+        private set
+    var lastReport: Triple<String, String?, String?>? = null
         private set
     var lastAcceptedUserId: String? = null
         private set
@@ -57,6 +60,11 @@ internal class FakeSocialApi(
     override suspend fun declineFriendRequest(userId: String): FriendRequestResultDto {
         lastDeclinedUserId = userId
         return declineResult.getOrThrow()
+    }
+
+    override suspend fun reportPlayer(userId: String, roomCode: String?, reason: String?): PlayerReportResultDto {
+        lastReport = Triple(userId, roomCode, reason)
+        return reportResult.getOrThrow()
     }
 }
 

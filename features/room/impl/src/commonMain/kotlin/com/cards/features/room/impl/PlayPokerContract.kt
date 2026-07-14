@@ -104,12 +104,13 @@ data class PlayPokerState(
      */
     val chipBalance: Long? = null,
     /**
-     * The action the player has armed to fire automatically on their next turn
-     * (GAME-30), or null when nothing is armed. Set from the pre-action bar shown
-     * while waiting; the VM resolves and submits it the moment the turn arrives,
-     * and clears it once it fires (or when a bet makes an armed check illegal).
+     * True when the player has armed a pre-fold from the waiting bar (GAME-30) —
+     * a fold that fires automatically the moment their turn arrives, no matter
+     * what the action did while they waited. Set while it isn't their turn; the
+     * VM submits the fold on turn arrival and clears the flag, and it's retired on
+     * a new deal so a stale arm can't fold a fresh hand. Cancelable until it fires.
      */
-    val armedPreAction: PreAction? = null,
+    val preFoldArmed: Boolean = false,
     /** True while the in-game quick-buy chip-pack sheet is shown (MP bust upsell). */
     val quickBuyOpen: Boolean = false,
     /** True while a quick-buy IAP round-trip is in flight; the sheet shows a spinner. */
@@ -134,6 +135,14 @@ data class PlayPokerState(
      * state. Mirrors Home's recently-played add-friend model.
      */
     val friendRequestSentIds: Set<String> = emptySet(),
+    /**
+     * Opponent userIds the local player has reported this session (optimistically
+     * on tap, un-flipped only if the server rejects). Flips the player-card
+     * "Report" affordance to its reported state so a repeat tap is a no-op.
+     * Unlike [friendRequestSentIds] this is not gated on [socialEnabled] —
+     * reporting is a store-compliance path that stays available regardless.
+     */
+    val reportedUserIds: Set<String> = emptySet(),
     /**
      * Master gate for the at-table "Add friend" affordance (SOC-2). Mirrors the
      * `social.enabled` app-config flag, default off — when false the player-card
@@ -224,10 +233,10 @@ sealed interface PlayPokerAction {
     data object RequestNextHand : PlayPokerAction
 
     /**
-     * Arm (or, with null, disarm) a pre-selected action from the pre-action bar
-     * shown while waiting for the human's turn (GAME-30). Fires on turn arrival.
+     * Arm (true) or cancel (false) a pre-fold from the waiting bar (GAME-30). An
+     * armed pre-fold folds automatically the moment the human's turn arrives.
      */
-    data class SetPreAction(val preAction: PreAction?) : PlayPokerAction
+    data class SetPreFold(val armed: Boolean) : PlayPokerAction
 
     // Local UI
     data object ToggleCheatSheet : PlayPokerAction
@@ -377,6 +386,11 @@ sealed interface PlayPokerAction {
     data class AddFriend(val userId: String) : PlayPokerAction
     /** Internal — the request was rejected by the server; un-flips the Sent state. */
     data class FriendRequestFailed(val userId: String) : PlayPokerAction
+
+    /** "Report" on a human opponent's player card — files a report with the server. */
+    data class ReportPlayer(val userId: String) : PlayPokerAction
+    /** Internal — the report failed; un-flips the reported state so the user can retry. */
+    data class ReportPlayerFailed(val userId: String) : PlayPokerAction
 }
 
 sealed interface PlayPokerEvent {
@@ -433,6 +447,16 @@ sealed interface PlayPokerEvent {
      * hint. MP only — solo submits never throw.
      */
     data class IntentFeedback(val kind: IntentFeedbackKind) : PlayPokerEvent
+
+    /** A player report was filed; the screen toasts a confirmation. MP only. */
+    data object PlayerReported : PlayPokerEvent
+
+    /**
+     * A player report didn't go through — the rate limit tripped
+     * ([rateLimited] = true) or a network/other error. The screen toasts a
+     * kind-specific hint and the reported state un-flips so the user can retry.
+     */
+    data class PlayerReportFailed(val rateLimited: Boolean) : PlayPokerEvent
 }
 
 /**

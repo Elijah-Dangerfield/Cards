@@ -5,9 +5,11 @@ package com.dangerfield.cards.libraries.core
  * (via `Router.openWebLink`). One source of truth so onboarding consent and
  * the Settings rows can't drift apart.
  *
- * [PRIVACY_POLICY] / [TERMS_OF_SERVICE] are published from `pages/` on push to
- * main by `.github/workflows/pages.yml`; swap to a custom domain by dropping a
- * CNAME into `pages/` and editing these constants — the single update point.
+ * [PRIVACY_POLICY] / [TERMS_OF_SERVICE] / [SUPPORT] are published from `pages/`
+ * on push to main by `.github/workflows/pages.yml`; swap to a custom domain by
+ * dropping a CNAME into `pages/` and editing these constants, the single
+ * update point. [SUPPORT] is the public support URL both app stores require on
+ * the listing.
  *
  * [RESPONSIBLE_PLAY] points at the National Council on Problem Gambling
  * (1-800-GAMBLER). Cards is play-money with no cash-out, but it simulates
@@ -17,6 +19,7 @@ package com.dangerfield.cards.libraries.core
 object LegalUrls {
     const val PRIVACY_POLICY: String = "https://elijah-dangerfield.github.io/Cards/privacy.html"
     const val TERMS_OF_SERVICE: String = "https://elijah-dangerfield.github.io/Cards/terms.html"
+    const val SUPPORT: String = "https://elijah-dangerfield.github.io/Cards/support.html"
     const val RESPONSIBLE_PLAY: String = "https://www.ncpgambling.org/"
 
     /**

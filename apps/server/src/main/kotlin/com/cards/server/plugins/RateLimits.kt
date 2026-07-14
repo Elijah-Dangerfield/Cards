@@ -33,6 +33,7 @@ const val PROGRESSION_WRITE_LIMIT = "progression-write"
 const val ACHIEVEMENTS_WRITE_LIMIT = "achievements-write"
 const val ACHIEVEMENT_GRANT_LIMIT = "achievement-grant"
 const val FRIEND_REQUEST_LIMIT = "friend-request"
+const val PLAYER_REPORT_LIMIT = "player-report"
 const val MATCHMAKING_FIND_LIMIT = "matchmaking-find"
 
 fun Application.installRateLimits() {
@@ -94,6 +95,16 @@ fun Application.installRateLimits() {
             // scripted friend-spam impractical. Per-IP keying mirrors the
             // rest of the policy (see file header for the per-user caveat).
             rateLimiter(limit = 50, refillPeriod = 1.hours)
+            requestKey { call -> call.clientIp() }
+        }
+
+        register(RateLimitName(PLAYER_REPORT_LIMIT)) {
+            // POST /v1/reports targets another user, so it's a harassment /
+            // spam surface (a bad actor mass-reporting an opponent). A real
+            // user files a report rarely; 20/hour/IP leaves ample headroom for
+            // legitimate use while making scripted report-floods impractical.
+            // Per-IP keying mirrors the rest of the policy (see file header).
+            rateLimiter(limit = 20, refillPeriod = 1.hours)
             requestKey { call -> call.clientIp() }
         }
 

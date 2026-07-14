@@ -1078,3 +1078,38 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Idea (filed with ENG-28, 2026-07-12):** ENG-28 fixed the iOS TLS crash by binding Darwin explicitly on every first-party HTTP/WS client, so engine-less auto-resolution can no longer pick a TLS-incapable native engine. A static source grep finds CIO only in `:apps:server` (JVM). The remaining gap is a transitive dependency dragging `ktor-client-cio` onto the iOS binary — invisible to a source grep because it needs the resolved klib graph of the linked iOS framework, not the Gradle files. If an iOS TLS/engine crash ever recurs, resolve the iOS binary's klib graph and confirm no CIO is linked.
 
 **Status:** Backlog. Needs the linked iOS binary's resolved graph; not doable from source.
+
+---
+
+## Swipe-up-to-fold + minimal undoable fold indicator (drop the fold button)
+
+**Idea (owner feedback 2026-07-13):** The dedicated "fold when it's my turn" button isn't needed. Fold should just be the **swipe-up gesture** on your cards. Pair it with a **very minimal fold UX/UI indicator** and an **undo** affordance right next to it: when you throw your cards away to fold, an undo button appears **in the spot where you folded**, available as long as the action **hasn't been submitted** to the server yet. Removes a button from the action bar and makes fold feel physical (toss) while staying reversible against misfires. Exact indicator/animation and the "not yet submitted" reversal window are a directional call for whoever picks it up.
+
+**Status:** Backlog. Gameplay-UX polish, post-launch; entry point is the play-screen action controls + card gesture handling in `:features:room`.
+
+---
+
+## Multiple servers + zero-loss games across reboots/deploys
+
+**Idea (owner feedback 2026-07-13):** Two linked pieces of server scaling/resilience work, both blocked today by the single-writer design (live room/hand state is in one process's RAM, gated by the `SingleWriterGuard` Postgres advisory lock in `Application.kt`; `fly.prod.toml` runs one instance, rolling stop-old-before-new). Consequences we accept for now: only one server can run, and a deploy/reboot tears down live tables — the boot-recovery sweep cashes escrowed chips back to wallets (money is safe) but the in-progress hand ends and players get a disconnect blip.
+
+1. **Zero-loss deploys/reboots (do first, smaller).** Survive a restart without ending live games. Options: **graceful drain** (stop taking new hands, let in-flight hands finish or hand off, then swap) and/or fuller **persist + rehydrate** of live session state so the new instance resumes seats/stacks/betting and clients reconnect into the same hand. Partial machinery already exists — `SessionSnapshotStore` (durable snapshot, hydrate-on-lookup) + the WebSocket reconnect grace period — so the gap is finishing the handoff so restart resumes rather than cashes out.
+2. **Multiple servers / horizontal scale (bigger).** Replace the one-instance advisory lock with **per-shard ownership** (shard-by-room-code), a matchmaking/routing layer that sends a player to the instance owning their room, and a Postgres matchmaking query — the deferred "shard-by-code + PG matchmaking" design. Removes the single-instance ceiling for concurrency.
+
+Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out and subsumes much of (1)'s handoff plumbing.
+
+**Status:** Backlog. Infra investment; pull when either deploy disruption at peak or a single-instance concurrency ceiling becomes a real constraint. See the "Server sharding" and server-deploy notes.
+
+---
+
+## Player report: reason picker + confirmation step (MOD-1 follow-on)
+
+**Idea (filed with MOD-1, 2026-07-13):** MOD-1 shipped a single-tap "Report" on the player card that files an append-only report with no reason (the `player_reports.reason` column + the client `reportPlayer(reason=...)` param are already wire-ready, sent null in V1). Two enhancements when moderation matures: (1) a lightweight **reason picker** (offensive name/emotes, cheating, harassment, other) so a human moderator gets signal beyond "user X reported in room Y"; (2) an optional **confirmation step** before filing, if the single-tap-plus-disabled affordance proves too easy to misfire in practice. Both are client-only — the server route already accepts an optional reason and is idempotent-friendly.
+
+**Status:** Backlog. Pair with the deferred moderation-review UI + auto-ban rules (see `post-launch.md`); until a human reads reports, the reason adds little.
+
+## HowToPlaySheet: adopt BottomSheet scrollableContent
+
+**Idea (GAME-32 follow-on, 2026-07-13):** GAME-32 gave the opinionated `BottomSheet` an opt-in `scrollableContent` flag so sheets stop hand-rolling `Column(verticalScroll)`, and migrated `HandRankingsCheatSheet` onto it. The sibling `HowToPlaySheet` (`:features:room:impl`) still hand-rolls its own scroll because it uses the `title`-overload of `BottomSheet`, which doesn't thread `scrollableContent` down to the base. Threading the flag through the two title overloads finishes the story. Not mechanical: the title overload wraps `title + body` together, so the scroll must wrap only `body()` to keep the title pinned — decide the scroll scope deliberately rather than wrapping the whole slot.
+
+**Status:** Backlog. DS plumbing polish; pull when the next sheet wants a scrollable body under a title.

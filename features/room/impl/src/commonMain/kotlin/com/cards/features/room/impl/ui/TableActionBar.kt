@@ -1,7 +1,6 @@
 package com.dangerfield.cards.features.room.impl.ui
 
 import com.dangerfield.cards.features.room.impl.LegalActions
-import com.dangerfield.cards.features.room.impl.PreAction
 import com.dangerfield.cards.features.room.impl.TableUiState
 
 import androidx.compose.animation.AnimatedVisibility
@@ -33,8 +32,8 @@ import cards.libraries.resources.generated.resources.room_quick_action_bet_verb
 import cards.libraries.resources.generated.resources.room_quick_action_call_button
 import cards.libraries.resources.generated.resources.room_quick_action_check_button
 import cards.libraries.resources.generated.resources.room_preaction_armed_a11y
-import cards.libraries.resources.generated.resources.room_preaction_check_fold_label
-import cards.libraries.resources.generated.resources.room_preaction_check_label
+import cards.libraries.resources.generated.resources.room_preaction_armed_fold_label
+import cards.libraries.resources.generated.resources.room_preaction_fold_label
 import cards.libraries.resources.generated.resources.room_quick_action_more_options_a11y
 import cards.libraries.resources.generated.resources.room_quick_action_raise_button_with_amount
 import cards.libraries.resources.generated.resources.room_quick_action_raise_hint_no_chips
@@ -197,16 +196,19 @@ internal fun QuickActionBar(
 }
 
 /**
- * Pre-action toggles shown in the action slot while it's *not* the human's turn
- * (GAME-30). Arming one fires it automatically the moment the turn arrives — the
- * VM resolves "Check/Fold" and "Check" against the live legal actions. Collapses
- * (and hands the slot to [QuickActionBar]) the instant the turn lands.
+ * The single pre-fold control shown in the action slot while it's *not* the
+ * human's turn (GAME-30). Tapping it arms a fold that fires automatically the
+ * moment the turn arrives — always a fold, whatever the action did while waiting.
+ * Armed is a distinct, cancelable state: tap again (any time before it fires) to
+ * back out. Collapses (handing the slot to [QuickActionBar]) the instant the turn
+ * lands. Replaces the old conditional "Check/Fold" + "Check" toggle pair, which
+ * read as two near-identical buttons no casual player could tell apart.
  */
 @Composable
-internal fun PreActionBar(
+internal fun PreFoldBar(
     table: TableUiState.Active,
-    armed: PreAction?,
-    onArm: (PreAction?) -> Unit,
+    armed: Boolean,
+    onArmChange: (Boolean) -> Unit,
 ) {
     val human = table.seats.firstOrNull { it.isHuman }
     val canArm = !table.isHumanTurn &&
@@ -227,65 +229,27 @@ internal fun PreActionBar(
                 shrinkVertically(animationSpec = tween(220)) +
                 fadeOut(animationSpec = tween(140)),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                PreActionChip(
-                    label = stringResource(Res.string.room_preaction_check_fold_label),
-                    armed = armed == PreAction.CheckFold,
-                    enabled = true,
-                    onClick = {
-                        onArm(if (armed == PreAction.CheckFold) null else PreAction.CheckFold)
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                PreActionChip(
-                    label = stringResource(Res.string.room_preaction_check_label),
-                    armed = armed == PreAction.CheckAny,
-                    // A bet on the table means we can no longer check, so an armed
-                    // "Check" would just disarm on our turn — grey it out instead.
-                    enabled = !table.humanFacesBet,
-                    onClick = {
-                        onArm(if (armed == PreAction.CheckAny) null else PreAction.CheckAny)
-                    },
-                    modifier = Modifier.weight(1f),
-                )
+            // Armed reads as a filled primary with a check + "tap to cancel" copy;
+            // unarmed is the plain outlined secondary. Swapping the whole button
+            // type keeps the selected state on DS tokens, not a hand-tuned highlight.
+            if (armed) {
+                ButtonPrimary(
+                    onClick = { onArmChange(false) },
+                    icon = Icons.Check(stringResource(Res.string.room_preaction_armed_a11y)),
+                    flat = true,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(text = stringResource(Res.string.room_preaction_armed_fold_label))
+                }
+            } else {
+                ButtonSecondary(
+                    onClick = { onArmChange(true) },
+                    flat = true,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(text = stringResource(Res.string.room_preaction_fold_label))
+                }
             }
-        }
-    }
-}
-
-@Composable
-private fun PreActionChip(
-    label: String,
-    armed: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    // Armed reads as a filled primary chip with a check; unarmed is the plain
-    // outlined secondary. Swapping the whole button type keeps the selected
-    // state on DS tokens rather than a hand-tuned highlight.
-    if (armed) {
-        ButtonPrimary(
-            onClick = onClick,
-            icon = Icons.Check(stringResource(Res.string.room_preaction_armed_a11y)),
-            enabled = enabled,
-            flat = true,
-            modifier = modifier.fillMaxWidth(),
-        ) {
-            Text(text = label)
-        }
-    } else {
-        ButtonSecondary(
-            onClick = onClick,
-            enabled = enabled,
-            flat = true,
-            modifier = modifier.fillMaxWidth(),
-        ) {
-            Text(text = label)
         }
     }
 }
@@ -348,36 +312,24 @@ private fun QuickActionBarPreview_RaiseBlocked() {
 
 @Preview
 @Composable
-private fun PreActionBarPreview_Waiting() {
+private fun PreFoldBarPreview_Unarmed() {
     PreviewContent {
-        PreActionBar(
+        PreFoldBar(
             table = PreviewSamples.activeTable(actingSeatIndex = 1),
-            armed = null,
-            onArm = {},
+            armed = false,
+            onArmChange = {},
         )
     }
 }
 
 @Preview
 @Composable
-private fun PreActionBarPreview_CheckFoldArmed() {
+private fun PreFoldBarPreview_Armed() {
     PreviewContent {
-        PreActionBar(
+        PreFoldBar(
             table = PreviewSamples.activeTable(actingSeatIndex = 1),
-            armed = PreAction.CheckFold,
-            onArm = {},
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun PreActionBarPreview_FacingBet_CheckDisabled() {
-    PreviewContent {
-        PreActionBar(
-            table = PreviewSamples.activeTable(actingSeatIndex = 1).copy(humanFacesBet = true),
-            armed = null,
-            onArm = {},
+            armed = true,
+            onArmChange = {},
         )
     }
 }

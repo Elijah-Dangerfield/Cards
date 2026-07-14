@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,6 +68,12 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *
  *  When [showCloseButton] is true, the handle is overridden to a close
  *  button anchored top-right; the [dragHandle] choice is ignored.
+ *
+ *  Set [scrollableContent] when [content] is a tall body that should scroll
+ *  within the sheet (a reference list, a long settings stack). The sheet
+ *  wraps [content] in a vertical scroll so callers don't hand-roll a
+ *  `Column(verticalScroll)` per sheet. [stickyTopContent] / [stickyBottomContent]
+ *  stay pinned outside the scroll region.
  */
 @OptIn(LowLevelDSComponent::class)
 @Composable
@@ -81,11 +89,25 @@ fun BottomSheet(
     backgroundColor: ColorResource = AppTheme.colors.surface,
     contentAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     topPadding: Dp = defaultTopPaddingFor(dragHandle),
+    scrollableContent: Boolean = false,
     stickyTopContent: @Composable () -> Unit = {},
     stickyBottomContent: @Composable (() -> Unit)? = null,
     content: @Composable () -> Unit = {},
 ) {
     val effectiveHandle = if (showCloseButton) BottomSheetDragHandle.None else dragHandle
+    val body: @Composable () -> Unit = if (scrollableContent) {
+        {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                content()
+            }
+        }
+    } else {
+        content
+    }
 
     BaseBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -126,7 +148,7 @@ fun BottomSheet(
             ModalContent(
                 modifier = modifier,
                 topContent = stickyTopContent,
-                content = content,
+                content = body,
                 backgroundColor = if (backgroundColor.color.alpha < 1f) backgroundColor.withAlpha(0f) else backgroundColor,
                 bottomContent = stickyBottomContent,
             )

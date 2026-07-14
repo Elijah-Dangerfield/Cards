@@ -31,6 +31,11 @@ import cards.libraries.resources.generated.resources.room_player_profile_mute_em
 import cards.libraries.resources.generated.resources.room_player_profile_mute_emoji_supporting_muted
 import cards.libraries.resources.generated.resources.room_player_profile_mute_emoji_supporting_unmuted
 import cards.libraries.resources.generated.resources.room_player_profile_playing_style_heading
+import cards.libraries.resources.generated.resources.room_player_profile_report_button
+import cards.libraries.resources.generated.resources.room_player_profile_report_button_sent
+import cards.libraries.resources.generated.resources.room_player_profile_report_headline
+import cards.libraries.resources.generated.resources.room_player_profile_report_section_title
+import cards.libraries.resources.generated.resources.room_player_profile_report_supporting
 import cards.libraries.resources.generated.resources.room_player_profile_settings_section_title
 import cards.libraries.resources.generated.resources.room_player_profile_style_locked_body
 import cards.libraries.resources.generated.resources.room_player_profile_style_locked_title
@@ -102,6 +107,15 @@ internal fun PlayerProfileSheet(
     onAddFriend: (() -> Unit)? = null,
     /** True once a request to this opponent is outbound — flips the button to Sent. */
     friendRequestSent: Boolean = false,
+    /**
+     * File a report against this human opponent. Null hides the Report section
+     * (bots, empty seats, your own card). Unlike [onAddFriend] this is not gated
+     * on the social flag — reporting is a store-compliance path that stays
+     * available on any human opponent.
+     */
+    onReport: (() -> Unit)? = null,
+    /** True once a report against this opponent is filed — flips the button to Reported. */
+    reportSent: Boolean = false,
 ) {
     val bubbleColor = resolveAvatarBackground(seat.avatarBackgroundColorHex)
     val handle: BottomSheetDragHandle = topAccessoryEmoji(
@@ -249,6 +263,35 @@ internal fun PlayerProfileSheet(
                                 checked = isMuted,
                                 onCheckedChange = { onToggleMute() },
                             ),
+                        ),
+                    ),
+                )
+            }
+            if (onReport != null) {
+                VerticalSpacerD500()
+                ListSection(
+                    title = stringResource(Res.string.room_player_profile_report_section_title),
+                    items = listOf(
+                        ListSectionItem(
+                            headlineText = stringResource(Res.string.room_player_profile_report_headline),
+                            supportingText = stringResource(Res.string.room_player_profile_report_supporting),
+                            accessory = ListItemAccessory.Custom {
+                                ButtonSecondary(
+                                    onClick = onReport,
+                                    size = ButtonSize.Small,
+                                    enabled = !reportSent,
+                                ) {
+                                    Text(
+                                        text = stringResource(
+                                            if (reportSent) {
+                                                Res.string.room_player_profile_report_button_sent
+                                            } else {
+                                                Res.string.room_player_profile_report_button
+                                            },
+                                        ),
+                                    )
+                                }
+                            },
                         ),
                     ),
                 )
@@ -456,6 +499,23 @@ private fun PlayerProfileSheetPreview_HumanOpponent_AddFriend() {
             onToggleMute = {},
             onDismiss = {},
             onAddFriend = {},
+            onReport = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayerProfileSheetPreview_HumanOpponent_Reported() {
+    PreviewContent {
+        PlayerProfileSheet(
+            seat = PreviewSamples.botSeat(index = 4, name = "Sam")
+                .copy(isBot = false, userId = "user-sam", seatBadge = SeatBadge.Level(7)),
+            isMuted = false,
+            onToggleMute = {},
+            onDismiss = {},
+            onReport = {},
+            reportSent = true,
         )
     }
 }

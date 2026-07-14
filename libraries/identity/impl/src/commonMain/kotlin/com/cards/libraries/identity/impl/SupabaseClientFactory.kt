@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.identity.IdentityConfig
 import com.dangerfield.cards.libraries.identity.auth.SecureSessionStorage
 import com.dangerfield.cards.libraries.identity.impl.auth.SecureSessionManager
 import com.dangerfield.cards.libraries.identity.impl.auth.SessionMirror
+import com.dangerfield.cards.libraries.networking.platformHttpEngineFactory
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.SettingsSessionManager
@@ -26,8 +27,13 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * default plaintext `multiplatform-settings` store, with a one-time silent
  * migration from that old store (AUTH-16).
  *
- * The Ktor engine is auto-detected (`OkHttp` on Android, `Darwin` on iOS)
- * because we have both engines on the classpath via `:apps:compose`.
+ * The Ktor engine is bound explicitly via [platformHttpEngineFactory]
+ * (`OkHttp` on Android, `Darwin` on iOS) rather than left to supabase-kt's
+ * runtime auto-resolution. On iOS auto-resolution could pick the TLS-incapable
+ * native CIO engine, aborting every `POST /auth/v1/signup` with
+ * "TLS sessions are not supported on Native platform" so no guest account ever
+ * mints (ENG-30). ENG-28 bound the first-party clients the same way; this
+ * closes the same gap on the Supabase client.
  */
 @ContributesTo(AppScope::class)
 interface SupabaseClientComponent {
@@ -44,6 +50,8 @@ interface SupabaseClientComponent {
             supabaseUrl = config.supabaseUrl,
             supabaseKey = config.supabasePublishableKey,
         ) {
+            httpEngine = platformHttpEngineFactory.create()
+
             install(Auth) {
                 // alwaysAutoRefresh = true (default) — refresh tokens
                 // before they expire so we don't get a 401 on every call.

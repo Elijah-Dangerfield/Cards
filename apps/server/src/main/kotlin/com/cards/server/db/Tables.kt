@@ -451,6 +451,23 @@ object RecentlyPlayedWithTable : Table("recently_played_with") {
 }
 
 /**
+ * Player reports — the trust-and-safety table behind the in-app "Report a
+ * player" action (MOD-1). One row per report; a reporter may file more than
+ * one against the same user, so there's no unique constraint on the pair. No
+ * auto-ban in V1 — a human reads these later via the reported-user index. See
+ * `V85__player_reports.sql`.
+ */
+object PlayerReportsTable : Table("player_reports") {
+    val id = long("id").autoIncrement()
+    val reporterUserId = uuid("reporter_user_id")
+    val reportedUserId = uuid("reported_user_id")
+    val roomCode = text("room_code").nullable()
+    val reason = text("reason").nullable()
+    val createdAt = timestamp("created_at")
+    override val primaryKey = PrimaryKey(id)
+}
+
+/**
  * Per-user in-app messages. Authored by admins, delivered as either a
  * dialog (modal pop on foreground) or an inbox row (passive entry in
  * the Notifications screen). Acked exactly once; expiry filters out

@@ -48,7 +48,7 @@ When a search returns multiple candidates, the user sees a chooser (the `Choosin
 
 ### Key files
 
-- Server: `apps/server/.../routes/RoomSocketRoutes.kt`, `PublicMatchmakingRoutes.kt`, `GameSessionRegistry` (start gate).
+- Server: `apps/server/.../routes/RoomSocketRoutes.kt`, `MatchmakingRoutes.kt`, `GameSessionRegistry` (start gate).
 - Client: `features/room/impl/.../PublicSearchingViewModel.kt`, `PublicSearchingScreen.kt`.
 
 ---

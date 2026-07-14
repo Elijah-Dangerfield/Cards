@@ -537,6 +537,8 @@
     <string name="profile_support_feedback_supporting">Tell us what's working and what isn't</string>
     <string name="profile_support_bug_headline">Report a bug</string>
     <string name="profile_support_bug_supporting">Something broken? Let us know</string>
+    <string name="profile_support_help_headline">Help and FAQ</string>
+    <string name="profile_support_help_supporting">Answers to common questions</string>
 
     <!-- Profile - About section rows. -->
     <string name="profile_about_privacy">Privacy policy</string>
@@ -838,7 +840,7 @@
     <!-- Room - Swipe-fold confirm dialog (swipe-down to fold while in a hand). -->
     <string name="room_swipe_fold_title">Fold this hand?</string>
     <string name="room_swipe_fold_body">You'll forfeit the round and any chips already in the pot.</string>
-    <string name="room_swipe_fold_dont_show_again">Don't show this again</string>
+    <string name="room_swipe_fold_dont_show_again">Don't ask again</string>
     <string name="room_swipe_fold_cancel_button">Cancel</string>
     <string name="room_swipe_fold_confirm_button">Fold</string>
 
@@ -956,6 +958,10 @@
     <string name="room_intent_timed_out">That didn't send. Check your connection and try again</string>
     <!-- Room - transient notice when the server refused a submitted action (not your turn / illegal move). -->
     <string name="room_intent_rejected">That move wasn't allowed</string>
+    <!-- Room - player report result toasts (MOD-1). -->
+    <string name="room_player_report_confirmation">Thanks. Our team will take a look.</string>
+    <string name="room_player_report_rate_limited">You've reported a lot recently. Try again in a bit.</string>
+    <string name="room_player_report_failed">Couldn't send that report. Check your connection and try again.</string>
     <!-- Room - shown when a game frame couldn't be read (ENG-7); the table may have been created with a newer app version. -->
     <string name="room_incompatible_version">We're struggling to play this game. It may have been created with a newer app version. Updating may help</string>
 
@@ -1066,6 +1072,11 @@
     <string name="room_player_profile_mute_emoji_headline">Mute emoji</string>
     <string name="room_player_profile_mute_emoji_supporting_muted">You won't see their table blasts.</string>
     <string name="room_player_profile_mute_emoji_supporting_unmuted">Their blasts will show on your screen.</string>
+    <string name="room_player_profile_report_section_title">Safety</string>
+    <string name="room_player_profile_report_headline">Report player</string>
+    <string name="room_player_profile_report_supporting">Send this to our team to review. They won't be told who reported them.</string>
+    <string name="room_player_profile_report_button">Report</string>
+    <string name="room_player_profile_report_button_sent">Reported</string>
     <string name="room_player_profile_bot_callout_title">This is a bot</string>
     <string name="room_player_profile_bot_callout_body">Bots only see their own hand and the community cards. They don't use AI. Each follows a fixed playing style.</string>
 
@@ -1173,8 +1184,8 @@
     <string name="room_quick_action_more_options_a11y">More raise options</string>
 
     <!-- Room - Pre-action toggles armed while waiting for your turn (GAME-30). Fire automatically when the turn arrives. -->
-    <string name="room_preaction_check_fold_label">Check/Fold</string>
-    <string name="room_preaction_check_label">Check</string>
+    <string name="room_preaction_fold_label">Fold when it's my turn</string>
+    <string name="room_preaction_armed_fold_label">Folding when it's your turn · Tap to cancel</string>
     <string name="room_preaction_armed_a11y">Armed</string>
 
     <!-- Room - PlayPokerScreen chrome: connection banner + top-bar icon a11y + loading state. -->
@@ -1383,6 +1394,8 @@
     <string name="account_setup_explainer_title">Finishing your account</string>
     <string name="account_setup_explainer_body">You can keep playing right now. Your chips, XP, and progress are all saved on this device. We'll finish setting up your account in the background, and a few things like multiplayer and purchases stay paused until then.</string>
     <string name="account_setup_explainer_confirm">Got it</string>
+    <!-- Compact status-pill label (tap opens the explainer above). -->
+    <string name="account_setup_pill">Finishing setup</string>
 
     <!-- Auth-gate sheet the router substitutes for a gated route. Three reasons,
          each with its own title / body / primary CTA. The "Not now" ghost button
@@ -1412,4 +1425,9 @@
          still pending creation at first launch, replacing the two separate
          offline + account-setup banners with one scenario-specific line. -->
     <string name="app_offline_account_setup_banner">You can keep playing offline, and we'll finish creating your profile once you're back online.</string>
+    <!-- Compact status pills (tap opens the matching explainer dialog). -->
+    <string name="app_offline_pill">Offline</string>
+    <string name="app_offline_explainer_title">You're offline</string>
+    <string name="app_offline_explainer_body">You can keep playing right now. Anything that needs a connection — multiplayer, purchases, and syncing — picks back up automatically once you're back online.</string>
+    <string name="app_status_explainer_dismiss">Got it</string>
 </resources>

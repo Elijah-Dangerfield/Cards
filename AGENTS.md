@@ -382,7 +382,7 @@ When the opinionated default doesn't fit, *extend it* — add a content slot, ex
 
 **Current pairs:**
 - `Dialog` / `BaseDialog` — center modal. Most callers want `Dialog`.
-- `BottomSheet` / `BaseBottomSheet` — slide-up sheet. Most callers want `BottomSheet`. (`HandRankingsCheatSheet` is on `BaseBottomSheet` because the opinionated wrapper doesn't yet expose the content shape it needs — should resolve by extending `BottomSheet`, not entrenching the escape. See `docs/todo.md`.)
+- `BottomSheet` / `BaseBottomSheet` — slide-up sheet. Most callers want `BottomSheet`. For a tall body that scrolls within the sheet, pass `scrollableContent = true` rather than hand-rolling a `Column(verticalScroll)`.
 
 Top-edge emoji bubbles attach to both — dialogs via `emoji = dialogEmoji("🎉")`, sheets via `dragHandle = BottomSheetDragHandle.Emoji(emoji = "🎉")`. Theme-aware construction goes through `dialogEmoji(...)` so defaults always apply.
 
