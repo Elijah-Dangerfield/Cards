@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -48,11 +46,11 @@ import com.dangerfield.cards.libraries.gameplay.HandCategory
 import com.dangerfield.cards.libraries.gameplay.HandEvaluator
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
-import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
-import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BaseBottomSheet
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -202,7 +200,6 @@ private val rankings: List<RankingEntry> = listOf(
  * coaching (your current hand, the stage, how to act) lives on the top-bar
  * [HowToPlaySheet]. The rankings still highlight the hand you currently hold.
  */
-@OptIn(LowLevelDSComponent::class)
 @Composable
 fun HandRankingsCheatSheet(
     onDismiss: () -> Unit,
@@ -213,35 +210,29 @@ fun HandRankingsCheatSheet(
     val currentCategory = remember(holeCards, boardCards) {
         currentHandCategory(holeCards, boardCards)
     }
-    BaseBottomSheet(
+    BottomSheet(
         onDismissRequest = onDismiss,
-        dragHandle = com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle.None,
+        dragHandle = BottomSheetDragHandle.None,
         backgroundColor = AppTheme.colors.surface,
+        scrollableContent = true,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 24.dp),
-        ) {
-            if (roomCode != null) {
-                RoomCodeCard(code = roomCode)
-                VerticalSpacerD800()
-            }
+        if (roomCode != null) {
+            RoomCodeCard(code = roomCode)
+            VerticalSpacerD800()
+        }
 
-            Text(
-                text = stringResource(Res.string.room_cheat_sheet_rankings_heading),
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.content,
-            )
-            VerticalSpacerD600()
+        Text(
+            text = stringResource(Res.string.room_cheat_sheet_rankings_heading),
+            typography = AppTheme.typography.Heading.H700,
+            color = AppTheme.colors.content,
+        )
+        VerticalSpacerD600()
 
-            rankings.forEach { entry ->
-                RankingCard(entry = entry, isCurrent = entry.category == currentCategory)
-                VerticalSpacerD300()
-            }
+        rankings.forEach { entry ->
+            RankingCard(entry = entry, isCurrent = entry.category == currentCategory)
             VerticalSpacerD300()
         }
+        VerticalSpacerD300()
     }
 }
 

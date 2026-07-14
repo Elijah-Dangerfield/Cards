@@ -24,12 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## Gameplay & table UX
-
-- **[P2] GAME-32 — Move `HandRankingsCheatSheet` onto the opinionated `BottomSheet` (proposed 2026-07-13).** It escapes to `BaseBottomSheet` via `@OptIn(LowLevelDSComponent::class)` only because `BottomSheet` doesn't yet expose the content shape it needs; AGENTS.md flags this as an escape to unwind, not entrench.
-  - *Acceptance:* the cheat sheet renders through `BottomSheet` with no `@LowLevelDSComponent` opt-in; the content slot it needed is added to the opinionated `BottomSheet`.
-  - *Hints:* [`HandRankingsCheatSheet.kt`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/ui/HandRankingsCheatSheet.kt) line 216; primitive in [`BottomSheet.kt`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/dialog/bottomsheet/BottomSheet.kt).
-
 ## Engineering
 
 - **[P2] ENG-34 — Fix stale symbol references in `docs/wiki` (proposed 2026-07-13).** Two "Key files" pointers name symbols that no longer exist, sending a reader to a dead reference.
