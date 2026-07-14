@@ -8,12 +8,12 @@ import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
-import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -50,7 +50,12 @@ class PlayerReportRoutesTest {
             bearer = validJwt(),
         ) { resp ->
             assertEquals(HttpStatusCode.OK, resp.status)
-            assertEquals("received", resp.body<PlayerReportResult>().status)
+            // Pin the wire shape exactly: the server encodes with
+            // encodeDefaults = true, so a defaulted field (e.g. schemaVersion)
+            // would land on the wire and the debug client's strict JSON (unknown
+            // keys throw) would reject a successful response. The client DTO
+            // carries only `status`.
+            assertEquals("""{"status":"received"}""", resp.bodyAsText())
             assertEquals(userId to other, repo.lastReporterAndReported)
             assertEquals("ABCD", repo.lastRoom)
             assertEquals("offensive name", repo.lastReason)

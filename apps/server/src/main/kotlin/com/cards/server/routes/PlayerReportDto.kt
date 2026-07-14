@@ -17,9 +17,14 @@ data class PlayerReportBody(
     val reason: String? = null,
 )
 
-/** Result of filing a report. `status` is always `received` on success. */
+/**
+ * Result of filing a report. `status` is always `received` on success. Shaped
+ * like the sibling [FriendRequestResult] action ack (no `schemaVersion`): the
+ * server encodes with `encodeDefaults = true`, so an extra defaulted field
+ * would go on the wire and the debug client's strict JSON (unknown keys throw)
+ * would reject the response even though the report was recorded.
+ */
 @Serializable
 data class PlayerReportResult(
-    val schemaVersion: Int = 1,
     val status: String,
 )
