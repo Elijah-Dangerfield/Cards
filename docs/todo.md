@@ -23,11 +23,3 @@ The live punch list of actionable engineering work. Every item is something a wo
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
 
 ---
-
-## Engineering
-
-- **[P2] ENG-34 — Fix stale symbol references in `docs/wiki` (proposed 2026-07-13).** Two "Key files" pointers name symbols that no longer exist, sending a reader to a dead reference.
-  - *Acceptance:* `client-patterns.md` points at `ProductsRepositoryImpl` in `:libraries:products:impl` (not `ShopCatalogRepositoryImpl`, which no longer exists); `multiplayer.md` points at `MatchmakingRoutes.kt` (not `PublicMatchmakingRoutes.kt`, which no longer exists).
-  - *Hints:* [`client-patterns.md`](./wiki/client-patterns.md) line 31, [`multiplayer.md`](./wiki/multiplayer.md) line 51.
-
----

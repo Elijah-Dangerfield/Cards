@@ -28,7 +28,7 @@ If your repo owns server-driven reference data the user expects to be "reasonabl
 ### Key files
 
 - `SessionTracker` (`:libraries:cards`).
-- `ShopCatalogRepositoryImpl` — the first adopter, the reference example.
+- `ProductsRepositoryImpl` (`:libraries:products:impl`) — the first adopter, the reference example.
 
 ---
 
