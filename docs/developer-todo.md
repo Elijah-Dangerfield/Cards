@@ -8,6 +8,24 @@ Check items off as you do them; delete when the whole section is empty.
 
 ---
 
+## Parked engineering (worker-pickable, deferred by choice)
+
+Normal engineering tasks pulled out of [todo.md](./todo.md) on purpose — to pick up later rather than hand to a worker.
+
+- [x] **Strip WiretapKMP from iOS App Store builds.** *(Done 2026-07-09: `beta.yml`, `release.yml`, and the Fastfile all set `CARDS_WIRETAP_IOS=false`, which `libraries/networking/impl/build.gradle.kts` now reads ahead of the `cards.wiretap.ios` property. Env var instead of `-P` so the CI pre-build link and the xcodebuild-driven embedAndSign agree — a mismatch would silently re-link with Wiretap back in. Local dev default stays `true`.)*
+
+---
+
+## Device QA
+
+Fully QA the build
+
+- [ ] **Set up store test accounts + verify a real chip-pack purchase end-to-end (both platforms).** Once the BILL items ship and listings exist: (a) **Android** — add license testers in Play Console → Setup → License testing, install from the internal-testing track, buy a pack and confirm no real charge, the chips land via the *server* grant (not the old local credit), and the same pack is **buyable again** (proves the consume path); (b) **iOS** — create a Sandbox Apple ID in ASC → Users and Access → Sandbox Testers, buy a pack on a physical device, confirm the StoreKit 2 signed transaction validates server-side and chips land once. Also test: interrupted purchase (kill the app mid-sheet → reopen → no double-credit), and the anonymous-user path (buying as a guest routes to account claim, not the store sheet). Note Apple sandbox + Google license-test purchases are free and don't hit the Paid Apps Agreement banking, so this can run before any real money moves.
+- [ ] **Verify Google sign-in end-to-end on a real device (both platforms).** The browser OAuth return trip (2026-06-27, see [decisions.md](./decisions.md)) can't be tested in CI — it needs a real browser + the Supabase dashboard config below. Steps, run on a physical Android device and an iPhone: (1) launch the app, go to onboarding sign-in (or Profile → claim account); (2) tap **Continue with Google** — the system browser / Custom Tab opens to Google's consent screen; (3) pick an account and approve; (4) the browser should redirect to `cards://login-callback#...` and bounce **back into the app**; (5) confirm you land authenticated (Home, not back on the sign-in screen) and that Profile shows the Google email, `isAnonymous = false`. Also test the **cancel** path (back out of the consent screen → app stays put, no crash, no error spam) and the **claim** path from an anonymous guest (progress should carry — same supabase user id, anon → claimed). If the redirect opens a browser tab that just sits on `cards://login-callback` instead of returning to the app, the scheme isn't registering — re-check the manifest/Info.plist and that the Supabase redirect-URL allowlist (below) contains the exact `cards://login-callback`.
+- [ ] **Verify the encrypted-session-storage upgrade keeps you signed in (both platforms).** AUTH-16 moved the Supabase session from plaintext prefs to Keychain / EncryptedSharedPreferences with a one-time silent migration on first load. The migration is pinned by unit tests with fakes, but not exercised on hardware: install a pre-AUTH-16 build, sign in (claimed account), upgrade in place to a post-AUTH-16 build, relaunch — you should still be signed in with no re-auth prompt, and a subsequent sign-out → relaunch should land on onboarding (no resurrected session).
+- [ ] **Verify iOS `previous_exit` on a real device after a TestFlight cycle (ENG-25).** MetricKit never delivers payloads on the simulator, so the new MetricKit-backed `previous_exit` is unit-tested but unverified end-to-end. After this build has been on a physical iPhone for a day+ (ideally with one forced crash), query Loki for `app.launched` with `previous_exit != "unknown"` from that install and confirm a plausible value arrives.
+---
+
 ## Data / account operations
 
 - [ ] **Admin-merge the AUTH-19 stranded accounts.** Your real progression sits on account `087ac8d1…`; the session-loss bug minted orphans `52f3f9c1` / `6f0a900c` over it. The client fix ships with AUTH-19, but making you whole needs a server-side merge (or a manual wallet/XP grant onto the account you keep + orphan deletes). Case file: `docs/agent/feedback-cases/81a8c07d88e24f16b913dc00822e52f5.md`.
