@@ -7,13 +7,14 @@ import com.dangerfield.cards.libraries.billing.RedeemOutcome
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.networking.NetworkClient
+import com.dangerfield.cards.libraries.networking.apiErrorCode
 import com.dangerfield.cards.libraries.networking.authedCall
 import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
 import io.ktor.client.call.body
+import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
-import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.ContentType
 import kotlinx.serialization.Serializable
@@ -66,27 +67,31 @@ class BillingRepositoryImpl(
                     ),
                 )
             }
-            when (response.status) {
-                HttpStatusCode.OK -> {
-                    val body: RedeemResponseDto = response.body()
-                    RedeemOutcome.Granted(
-                        balance = body.balance,
-                        grantedChips = body.grantedChips,
-                        alreadyRedeemed = body.alreadyRedeemed,
-                    )
-                }
-                HttpStatusCode.BadRequest -> {
-                    logger.w { "redeem rejected for ${transaction.sku}: ${response.status}" }
-                    RedeemOutcome.Rejected
-                }
-                else -> {
-                    logger.w { "redeem failed for ${transaction.sku}: ${response.status}" }
-                    RedeemOutcome.Unavailable
-                }
-            }
+            val body: RedeemResponseDto = response.body()
+            RedeemOutcome.Granted(
+                balance = body.balance,
+                grantedChips = body.grantedChips,
+                alreadyRedeemed = body.alreadyRedeemed,
+            )
         }
-        return result.getOrDefault(RedeemOutcome.Unavailable)
+        return result.getOrElse { throwable -> throwable.toRedeemOutcome() }
     }
+
+    private suspend fun Throwable.toRedeemOutcome(): RedeemOutcome =
+        if (this is ClientRequestException) {
+            // The client runs with expectSuccess, so a 4xx throws here before
+            // the success body parses. A 4xx is the server's definitive "no" on
+            // this receipt (receipt_rejected, unknown_product, ...) — it won't
+            // pass on a retry, so surface an honest failure. A 5xx / timeout /
+            // unreachable server stays Unavailable so the launch-time redeemer
+            // can recover the paid-for purchase later.
+            val code = apiErrorCode()
+            logger.w(this) { "redeem rejected: ${response.status} ($code)" }
+            RedeemOutcome.Rejected
+        } else {
+            logger.w(this) { "redeem unavailable (${this::class.simpleName})" }
+            RedeemOutcome.Unavailable
+        }
 }
 
 private fun BillingPlatform.wireStore(): String? = when (this) {
