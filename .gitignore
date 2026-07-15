@@ -36,3 +36,11 @@ apps/ios/fastlane/.env.local
 
 # Admin tool: local-only dev/prod admin tokens (baked into the bundle at build time)
 apps/admin/admin-tokens.local.properties
+
+# Android signing keystores. THIS REPO IS PUBLIC — a committed keystore is a
+# permanent, world-readable leak of the app signing key. Keystores live outside
+# the repo (~/keys + 1Password); CI reads them from the ANDROID_KEYSTORE_BASE64
+# secret. Never commit one.
+*.jks
+*.keystore
+*.p12
