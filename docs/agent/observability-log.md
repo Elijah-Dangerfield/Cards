@@ -17,7 +17,8 @@ duplicate) if a resolved signal gets materially worse.
 | [CARDS-9R](https://elijah-dangerfield.sentry.io/issues/CARDS-9R) | `JsonConvertException: unknown key 'walletBalance'` (iOS, debug) | no-action: already fixed on develop |
 | [CARDS-9Q](https://elijah-dangerfield.sentry.io/issues/CARDS-9Q) | `SingleWriterGuard` refusing to boot (dev) | no-action: guard working as designed, dev-only, self-resolved |
 | [CARDS-97](https://elijah-dangerfield.sentry.io/issues/CARDS-97) | `SavedStateHandle` can't put `AccountActionsState` (twin CARDS-93) | no-action: already fixed on develop (ENG-27) |
-| [CARDS-9H](https://elijah-dangerfield.sentry.io/issues/CARDS-9H) | Redeem unreachable — order left uncredited | no-action: dup of BILL-7 |
+| [CARDS-9V](https://elijah-dangerfield.sentry.io/issues/CARDS-9V) | `ReceiptRejectedException: apple_account_mismatch` (server, prod) | no-action: dup of BILL-11 (server twin) + BILL-12 |
+| [CARDS-9H](https://elijah-dangerfield.sentry.io/issues/CARDS-9H) | Redeem unreachable — order left uncredited | no-action: dup of BILL-12 (client misclassifies the 400) + BILL-11 root; supersedes prior BILL-7 pointer |
 | [CARDS-96](https://elijah-dangerfield.sentry.io/issues/CARDS-96) | Store did not recognize 3/3 chip-pack SKUs | no-action: dev store-listing noise |
 | [CARDS-94](https://elijah-dangerfield.sentry.io/issues/CARDS-94) | `TLS sessions are not supported on Native platform` (iOS fatal) | → todo ENG-28 |
 | [CARDS-9C](https://elijah-dangerfield.sentry.io/issues/CARDS-9C) | `AuthUnready: FinishingSetup` captured to Sentry as error | → todo ENG-29 |
@@ -33,6 +34,7 @@ duplicate) if a resolved signal gets materially worse.
 | `health:writers-2026-07-12` | Single-writer health, both envs | no-action: one healthy writer per env; no server error/fatal logs in 24h |
 | `alerts:A1-A7-2026-07-13` | Firing-alert sweep (rules A1–A7) + Loki server error sweep | no-action: none firing, no OnCall groups, zero cards-server error/fatal logs in 24h |
 | `alerts:A1-A7-2026-07-13-nightly` | Firing-alert sweep (rules A1–A7) + Loki server error re-sweep (nightly) | no-action: none firing/pending, no OnCall groups, zero cards-server error/fatal logs in 24h |
+| `alerts:A1-A7-2026-07-15-nightly` | Firing-alert sweep (A1–A7) + OnCall + Loki server error/warn sweep + Pulse skim | no-action: none firing/pending, no OnCall groups; billing rejections present but only at WARN (covered by BILL-11/12 via CARDS-9V) |
 
 ---
 
@@ -158,4 +160,37 @@ event counts — no new issue and none materially worse, so nothing re-opened:
 Grafana: alerting_manage_rules(states=firing,pending) → null; list_alert_groups(state=new) → [];
 Loki {service_name="cards-server"} | detected_level=~"error|fatal" over 24h → 0 lines
 (2433 scanned). A1–A7 clear, no server errors. Nothing filed from Grafana. -->
+
+<!-- 2026-07-15 nightly (DRY RUN — no Sentry writes performed; issues left unresolved). Stacked on
+feedback-triage, which filed BILL-11 (CARDS-9Y), BILL-12 (CARDS-A0), ROOM-18 (CARDS-9W) tonight.
+Reviewed 14 unresolved Sentry issues (3 feedback → feedback-triage's, skipped; 10 already ledgered
+& not materially worse; 1 new: CARDS-9V) + Grafana alert/OnCall/Loki sweep + Pulse skim.
+Filed 0 todos — the one new signal deduped into feedback-triage's billing todos. No P0 unowned.
+
+- CARDS-9V (ReceiptRejectedException: apple_account_mismatch, chip_pack_small; server, prod,
+  escalating, 15 events / 1 user; BillingRoutes.kt:125). NEW and unowned by the ledger, but it is
+  the **server-side twin of BILL-11**: same install cb87c0e4, same post-upgrade caller 6f0a900c,
+  same stale appAccountToken 52f3f9c1 (pre-AUTH-19 guest id), same "…803" small pack the BILL-11
+  user reported. Loki trace 9371f0a8… confirms AppStoreReceiptValidator.validate (l.118) →
+  BillingRoutes (l.120) → 400 /v1/billing/redeem, all logged at WARN. The 15 events are the
+  client's cross-launch retry loop = BILL-12. No second todo → **no-action, dup of BILL-11 + BILL-12**,
+  case CARDS-9V.md. (Would resolve in Sentry on a real run; dry-run leaves it unresolved.)
+
+- CARDS-9H (Redeem unreachable — order 2000001203481803 left uncredited; iOS beta-release
+  cards@1.0+840, ShopRoute). Already ledgered as "dup of BILL-7". Re-checked: 3→7 events, last seen
+  17h ago — not order-of-magnitude worse, not re-opened. But it's the SAME install cb87c0e4 / caller
+  6f0a900c / order …803 as CARDS-9V/BILL-11, so its true owner is now **BILL-12** (client turns the
+  400 receipt_rejected into "unreachable/uncredited" + retries) with BILL-11 as the root — pointer
+  corrected in the table above (supersedes the stale BILL-7 tie).
+
+- Other 9 ledgered issues (CARDS-97/9Q/9C/9M/94/96/9R/93/95): event counts unchanged from the
+  2026-07-13 runs, none materially worse, all previously dispositioned. Skipped per idempotency.
+
+Grafana: alerting_manage_rules(states=firing,pending) → null; list_alert_groups(state=new) → [];
+Pulse (dc-pulse) row-1 alerts all covered by A1–A7 (none firing). Loki server error/fatal sweep → 0
+lines, BUT base {service_name="cards-server",deployment_environment="prod"} has 65 lines/24h — the
+billing rejections are logged at WARN, invisible to an error|fatal-only sweep. Nothing filed from
+Grafana. NOTE for human: A5 (≥2 purchase.failed/1h) did NOT fire despite 15 stranded redeems —
+because BILL-12 misclassifies these 400s as "pending/unavailable", the client emits no
+purchase.failed, so the money-loss alert is blind to this exact failure mode. -->
 

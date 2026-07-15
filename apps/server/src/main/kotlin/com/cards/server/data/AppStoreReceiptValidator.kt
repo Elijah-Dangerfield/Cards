@@ -114,10 +114,11 @@ class AppStoreReceiptValidator(
         }
 
         val accountToken = payload.appAccountToken
-        if (accountToken == null || UserId(accountToken) != request.userId) {
+        val boundIdentities = request.accountLineage + request.userId
+        if (accountToken == null || UserId(accountToken) !in boundIdentities) {
             logger.warn(
-                "Apple receipt account mismatch: appAccountToken={} caller={}",
-                accountToken ?: "<absent>", request.userId.value,
+                "Apple receipt account mismatch: appAccountToken={} caller={} lineage={}",
+                accountToken ?: "<absent>", request.userId.value, request.accountLineage.map { it.value },
             )
             return ReceiptValidation.Invalid("apple_account_mismatch")
         }

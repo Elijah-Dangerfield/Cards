@@ -6,6 +6,7 @@ import com.dangerfield.cards.util.SharedConstants
 import com.dangerfield.cards.util.configureAndroid
 import com.dangerfield.cards.util.configureKotlinInject
 import com.dangerfield.cards.util.configureKotlinMultiplatform
+import com.dangerfield.cards.util.configureReleaseSigning
 import com.dangerfield.cards.util.enforceModuleBoundaries
 import com.dangerfield.cards.util.libs
 import com.dangerfield.cards.util.verifyGitHooksInstalled
@@ -85,12 +86,15 @@ class ApplicationConventionPlugin : Plugin<Project> {
                     }
                 }
 
+                val releaseSigning = configureReleaseSigning(this)
+
                 buildTypes {
                     debug {
                         applicationIdSuffix = ".debug"
                     }
                     release {
                         isMinifyEnabled = false
+                        signingConfig = releaseSigning ?: signingConfigs.getByName("debug")
                     }
                 }
             }

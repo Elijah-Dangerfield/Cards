@@ -165,6 +165,7 @@ fun Application.installApp(
             catalog = component.productCatalogSource,
             validator = component.receiptValidator,
             billing = component.billingRepository,
+            profiles = component.profileRepository,
         )
         progressionRoutes(component.progressionRepository, component.walletRepository)
         playStyleRoutes(component.playStyleRepository)

@@ -4,6 +4,16 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-15 — Receipt account binding widens to the install's upgrade lineage (BILL-11)
+
+**Problem:** A StoreKit transaction stamps its `appAccountToken` with whoever the user was at purchase time. After an AUTH-19 account upgrade (anon → anon / anon → claimed on the same device, each a distinct Supabase user id), a pack bought under the prior id carries that old token forever, so `AppStoreReceiptValidator`'s strict `appAccountToken == caller` check rejected it as `apple_account_mismatch` and stranded the purchase uncredited (owner's "only the medium pack works" report). Fresh purchases under the current id redeemed fine.
+
+**Decision:** The receipt's accepted-account set widens from `{caller}` to the caller's **install lineage** — every user id sharing the caller's `install_id`, plus the caller — carried on `PurchaseReceipt.accountLineage` and resolved by a new `ProfileRepository.findInstallLineage(userId)`. The validator accepts a token in that set. The lineage is derived **server-side from the caller's own profile row**, never from the client-supplied `X-Install-Id` header, so a client can't inject a lineage it isn't part of. Empty lineage (unknown profile or unset `install_id`) falls back to the strict `{caller}` binding, so nothing loosens by default. `install_id` is the only lineage anchor available because these upgrades mint new user ids rather than converting one, and it's the same anchor the L1 orphan sweep already trusts.
+
+**Alternatives rejected:** re-stamping the `appAccountToken` on upgrade (StoreKit transactions are immutable once minted — can't retroactively fix already-purchased packs, which is the actual stranded population); trusting the `X-Install-Id` header directly (a client could then present any install to redeem a receipt whose token it doesn't own); a dedicated lineage table (the `profiles.install_id` column + partial index already models exactly this — a new table would duplicate it).
+
+**Status:** Shipped. Red-first: validator rejects a lineage token under the old strict check (`apple_account_mismatch`), accepts it after the widen; route hands the resolved lineage to the validator; `findInstallLineage` Postgres query spans the install and falls back to `{caller}`. Server suite green (Testcontainers lineage query runs in CI — Docker unavailable locally). Reviewer note: an attacker who set their own `X-Install-Id` to a victim's install at `/v1/me` could join the lineage and redeem a victim's un-redeemed receipt — narrow (beta/sandbox only, grants to the attacker, idempotent per transaction), same header-trust surface as the existing orphan sweep; flagged for the real-money go-live review.
+
 ## 2026-07-13 — Player reports are append-only, single-tap, and live in `:libraries:social` (MOD-1)
 
 **Problem:** Google Play's UGC policy needs an in-app report path (we had mute/emote-block but no report), so store submission was gated. The build had no moderation table, route, or client repository — all three had to be added, and several shapes were judgement calls.

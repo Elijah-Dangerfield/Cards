@@ -7,6 +7,8 @@ import com.dangerfield.cards.server.domain.PlatformStore
 import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalog
 import com.dangerfield.cards.server.domain.ProductCatalogSource
+import com.dangerfield.cards.server.domain.Profile
+import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.PurchaseReceipt
 import com.dangerfield.cards.server.domain.ReceiptValidation
@@ -121,6 +123,27 @@ class BillingRoutesTest {
     }
 
     @Test
+    fun redeem_resolvesCallerInstallLineage_andHandsItToValidator() = runTest {
+        // BILL-11: the route must widen the receipt's accepted account set to
+        // the caller's install lineage so a pack bought under a prior identity
+        // (same device, pre-upgrade) still redeems.
+        val prior = UserId(UUID.fromString("52f3f9c1-1a94-4640-b24c-560a9b7534eb"))
+        val capturing = LineageCapturingValidator()
+        callRedeem(
+            billing = FakeBilling(),
+            validator = capturing,
+            profiles = LineageProfiles(setOf(userId, prior)),
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-lineage"),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+        }
+        val seen = capturing.seen ?: error("validator was never called")
+        assertTrue(prior in seen.accountLineage, "the prior identity must reach the validator's lineage")
+        assertTrue(userId in seen.accountLineage, "the caller must be in the resolved lineage")
+    }
+
+    @Test
     fun redeem_unknownProduct_returns400_andDoesNotGrant() = runTest {
         val billing = FakeBilling()
         callRedeem(
@@ -178,6 +201,7 @@ class BillingRoutesTest {
         bearer: String?,
         catalog: ProductCatalogSource = SingleChipPackCatalog,
         validator: ReceiptValidator = EchoTokenValidator,
+        profiles: ProfileRepository = LineageProfiles(setOf(userId)),
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -186,7 +210,7 @@ class BillingRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { billingRoutes(catalog, validator, billing) }
+                routing { billingRoutes(catalog, validator, billing, profiles) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -240,6 +264,31 @@ class BillingRoutesTest {
     private object RejectingValidator : ReceiptValidator {
         override suspend fun validate(request: PurchaseReceipt): ReceiptValidation =
             ReceiptValidation.Invalid(reason = "forged")
+    }
+
+    private class LineageCapturingValidator : ReceiptValidator {
+        var seen: PurchaseReceipt? = null
+        override suspend fun validate(request: PurchaseReceipt): ReceiptValidation {
+            seen = request
+            return ReceiptValidation.Valid(orderId = request.token, environment = PurchaseEnvironment.Production)
+        }
+    }
+
+    private class LineageProfiles(private val lineage: Set<UserId>) : ProfileRepository {
+        override suspend fun findInstallLineage(userId: UserId): Set<UserId> = lineage
+        override suspend fun findOrCreate(userId: UserId): Profile = notNeeded()
+        override suspend fun findById(userId: UserId): Profile = notNeeded()
+        override suspend fun update(
+            userId: UserId,
+            displayName: String?,
+            avatarEmoji: String?,
+            avatarBackgroundColor: String?,
+            clearAvatarBackgroundColor: Boolean,
+        ) = notNeeded()
+        override suspend fun delete(userId: UserId) = notNeeded()
+        override suspend fun touchInstallId(userId: UserId, installId: UUID) = notNeeded()
+        override suspend fun findInstallSiblings(installId: UUID, currentUserId: UserId) = notNeeded()
+        private fun notNeeded(): Nothing = error("not needed for billing redeem")
     }
 
     private object SingleChipPackCatalog : ProductCatalogSource {

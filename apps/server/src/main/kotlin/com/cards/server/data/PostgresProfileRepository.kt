@@ -142,6 +142,21 @@ class PostgresProfileRepository(
         candidates.toList()
     }
 
+    override suspend fun findInstallLineage(userId: UserId): Set<UserId> =
+        database.transaction {
+            val installId = ProfilesTable
+                .selectAll()
+                .where { ProfilesTable.userId eq userId.value }
+                .singleOrNull()
+                ?.get(ProfilesTable.installId)
+                ?: return@transaction setOf(userId)
+
+            ProfilesTable
+                .selectAll()
+                .where { ProfilesTable.installId eq installId }
+                .mapTo(mutableSetOf(userId)) { UserId(it[ProfilesTable.userId]) }
+        }
+
     override suspend fun update(
         userId: UserId,
         displayName: String?,

@@ -39,6 +39,8 @@ search_issues(organizationSlug='elijah-dangerfield', projectSlugOrId='cards', qu
 search_issues(organizationSlug='elijah-dangerfield', projectSlugOrId='cards', query='is:unresolved issue.category:feedback', sort='new')
 ```
 
+**Sentry MCP rate-limits easily.** Space these three queries out rather than firing them back-to-back, and on a `429` back off briefly and retry — the same applies to the per-issue `get_sentry_resource` fetches in step 2. If you're hitting limits, prefer fewer, targeted fetches (see the carrier-fetch note in step 2).
+
 **Pair each carrier to its twin** by matching the twin's `associated_event_id` tag to the carrier's event id (they also share a timestamp, so a timestamp/shortId sort lines them up). Handle each carrier+twin as one report, resolving **both** issues at the end. A twin whose carrier isn't in today's carrier list is a **leftover** — its carrier was handled in a prior run (the carrier query catches carriers, the feedback query catches twins, and a fixed-directly or already-resolved carrier leaves its twin behind). Resolve leftovers no-action, pointing at the already-logged carrier.
 
 Cross-check each candidate's event id against `docs/agent/feedback-log.md`; **skip anything already logged.** If nothing new, write "no new feedback" to the run summary and stop.
@@ -53,6 +55,9 @@ Read **both** paired issues. When fetching with `get_sentry_resource`, **pass th
 - **`session_id`** tag, `install_id`, `user.id`, `route`, `environment`, `release`, and the event **timestamp** (this anchors the backend time window).
 - MP scope tags when present: **`room_code`**, **`seat_index`**, **`hand_number`**, **`opponent_user_ids`** (comma-joined). These are stamped by `RemotePokerSessionFactory` whenever the reporter is in an MP game — absent = report filed outside MP, so skip MP-specific recovery in step 4.
 - **Attachments** on the carrier event: `session-log.txt` (always, when the ring buffer had anything), `client-state.json` (MP only — the latest `GameState` at submit time). Pull both via the Sentry attachments API. The log buffer now includes inbound WS frames (`recv game_state …`, `recv ActionTaken …`, `apply StateSnapshot …`) — read it for what the client was actually told, not just what it did.
+
+> **Builds ≥ 2026-07-11 — the carrier fetch is usually optional.** The twin already carries every tag you need (`session_id`, `install_id`, `route`, `environment`, `release`), and the client event stream in Loki (step 3) is a richer, ordered session view than the `session-log.txt` attachment. For a non-MP report you can skip the carrier fetch entirely — pull it only when you need its breadcrumbs or an MP `client-state.json`. Fewer Sentry calls also eases the rate limit.
+> **Heading quirk:** `get_sentry_resource` on a feedback-category twin renders the user's comment under a `Performance Regression Details → message:` heading. Ignore the misleading heading — the verbatim comment *is* the `message` field, with `associated_event_id` alongside it.
 
 If `session_id` is absent (older client build before the correlation work shipped), fall back to `user.id` + a tight time window and note the degraded correlation in the todo.
 
@@ -137,7 +142,15 @@ Then pick a disposition:
   **Hints:** the file/route/span that points at the cause; case `docs/agent/feedback-cases/<event_id>.md`; Sentry issue URL.
 ```
 
-**Assigning the item ID:** `docs/todo.md` is often reset to empty by the nightly todo-maintainer, and IDs are **never reused** — so don't infer the next number from the open list. Grep the whole `docs/` tree for the current max per prefix and take the next integer above it: `grep -rhoE '\b(PROG|AUTH|GAME|SHOP|SOC|ROOM|MP|ENG|BILL)-[0-9]+' docs/ | sort | tail`.
+**Assigning the item ID:** `docs/todo.md` is often reset to empty by the nightly todo-maintainer, and IDs are **never reused** — so don't infer the next number from the open list. Pick the right existing prefix from the **canonical list in `docs/todo.md`'s preamble** (the "**ID prefixes:**" line — e.g. `BILL` billing, `ROOM` rooms UI, `ENG` engineering, `ECON` chip economy; onboarding falls under `AUTH`, not a separate prefix). Don't invent a new one without reason. Then find that prefix's current max **numerically** and take the next integer:
+
+```
+PFX=BILL; grep -rhoE "\b${PFX}-[0-9]+" docs/ | grep -oE '[0-9]+' | sort -n | tail -1
+```
+
+Query the specific prefix you're filing under — a blanket all-prefix grep sorts lexically (so `BILL-10` < `BILL-9`) and sweeps in `CARDS-*` Sentry short-ids and `AES-`/`SHA-` crypto constants, which aren't work items.
+
+**After a maintainer reset, `docs/todo.md` may have no section headers** — just the preamble and a `---`. If the section for your prefix is missing, add it (e.g. `## Billing (BILL)`) and append your item under it.
 
 Priority guide: crash / data-loss / blocks core MP → `[P0]`; real broken behavior → `[P1]`; polish / rare edge → `[P2]`. If the work is large or needs a product call, put a one-liner in `docs/backlog.md` instead and reference both the case file and Sentry issue. **Owner change-requests** (classified in step 2) skip the case file — they're directives, not investigations — and land straight in `docs/todo.md` (or backlog); priority by impact, default `[P2]` for a pure preference tweak.
 

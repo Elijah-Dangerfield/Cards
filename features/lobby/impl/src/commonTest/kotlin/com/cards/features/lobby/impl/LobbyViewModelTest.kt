@@ -519,6 +519,57 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun addBot_inFlight_marksSeatPending_andIgnoresRepeatTaps() = runUnitTest {
+        // ROOM-18: while a seat's add-bot request is in flight the seat is
+        // pending (drives the spinner) and a repeat tap on it fires no second
+        // request.
+        val gate = CompletableDeferred<AddBotOutcome>()
+        val rooms = RecordingRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(
+                roomOf(members = listOf(member(LOCAL_USER, "You", isConnected = true))),
+            ),
+            addBotGate = gate,
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
+        assertTrue(vm.state.isHost)
+
+        vm.takeAction(LobbyAction.AddBot(seatIndex = 1))
+        runCurrent()
+        assertTrue(1 in vm.state.addingBotSeatIndexes, "seat is pending while the request is in flight")
+
+        vm.takeAction(LobbyAction.AddBot(seatIndex = 1))
+        runCurrent()
+        assertEquals(listOf<Int?>(1), rooms.addBotSeatIndexes, "a repeat tap on a pending seat fires no second request")
+
+        gate.complete(
+            AddBotOutcome.Success(roomOf(members = listOf(member(LOCAL_USER, "You", isConnected = true)))),
+        )
+        runCurrent()
+        assertFalse(1 in vm.state.addingBotSeatIndexes, "seat clears once the request settles")
+    }
+
+    @Test
+    fun addBot_failure_clearsPendingSeat() = runUnitTest {
+        // A failed add-bot request must release the seat so the host can retry.
+        val rooms = RecordingRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(
+                roomOf(members = listOf(member(LOCAL_USER, "You", isConnected = true))),
+            ),
+            addBotOutcome = AddBotOutcome.NetworkError(RuntimeException("offline")),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
+
+        vm.takeAction(LobbyAction.AddBot(seatIndex = 1))
+        runCurrent()
+
+        assertFalse(1 in vm.state.addingBotSeatIndexes, "a failed request releases the seat for retry")
+    }
+
+    @Test
     fun removeBot_host_callsRepositoryWithBotUserId() = runUnitTest {
         val rooms = RecordingRoomRepository(
             createOutcome = CreateRoomOutcome.Success(

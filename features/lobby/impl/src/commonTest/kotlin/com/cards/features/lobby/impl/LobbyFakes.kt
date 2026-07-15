@@ -119,6 +119,9 @@ internal class RecordingRoomRepository(
     private val createOutcome: CreateRoomOutcome,
     val handle: RecordingHandle = RecordingHandle(),
     private val addBotOutcome: AddBotOutcome? = null,
+    /** When set, [addBot] parks on this after recording the call so a test can
+     *  inspect the in-flight state before the request resolves. */
+    private val addBotGate: CompletableDeferred<AddBotOutcome>? = null,
 ) : StubRoomRepository() {
     val addBotSeatIndexes: MutableList<Int?> = mutableListOf()
     val removedBotUserIds: MutableList<String> = mutableListOf()
@@ -133,6 +136,7 @@ internal class RecordingRoomRepository(
 
     override suspend fun addBot(code: String, seatIndex: Int?): AddBotOutcome {
         addBotSeatIndexes += seatIndex
+        addBotGate?.let { return it.await() }
         return addBotOutcome ?: AddBotOutcome.Success(
             Room(
                 code = code,

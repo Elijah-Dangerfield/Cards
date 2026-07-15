@@ -43,6 +43,12 @@ kotlin {
             implementation(projects.libraries.identity)
             implementation(projects.libraries.products)
             implementation(projects.libraries.config)
+            implementation(projects.libraries.networking)
+            implementation(projects.libraries.core)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.contentNegotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.ktor.client.mock)
         }
     }
 }

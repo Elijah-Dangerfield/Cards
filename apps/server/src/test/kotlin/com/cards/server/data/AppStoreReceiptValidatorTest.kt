@@ -28,6 +28,7 @@ class AppStoreReceiptValidatorTest {
 
     private val userId = UserId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
     private val otherUser = UUID.fromString("22222222-2222-2222-2222-222222222222")
+    private val priorIdentity = UUID.fromString("52f3f9c1-1a94-4640-b24c-560a9b7534eb")
 
     @Test
     fun unconfigured_refusesValidation() = runTest {
@@ -150,6 +151,31 @@ class AppStoreReceiptValidatorTest {
     }
 
     @Test
+    fun accountToken_fromInstallLineage_accepted() = runTest {
+        // BILL-11: a pack bought before an account upgrade carries the prior
+        // identity's id as appAccountToken. With that id in the caller's
+        // install lineage, the receipt redeems instead of stranding as
+        // apple_account_mismatch.
+        val validator = validatorReturning(
+            payload().productId("chips_medium").appAccountToken(priorIdentity).transactionId("txn-11"),
+        )
+        val result = validator.validate(receipt(accountLineage = setOf(UserId(priorIdentity))))
+        assertEquals(ReceiptValidation.Valid("txn-11", PurchaseEnvironment.Sandbox), result)
+    }
+
+    @Test
+    fun accountToken_outsideLineage_stillRejected() = runTest {
+        // A token belonging to neither the caller nor any lineage identity is
+        // still a hard mismatch — the lineage widens the accepted set, it
+        // doesn't disable the binding.
+        val validator = validatorReturning(
+            payload().productId("chips_medium").appAccountToken(otherUser).transactionId("txn-1"),
+        )
+        val result = validator.validate(receipt(accountLineage = setOf(UserId(priorIdentity))))
+        assertEquals(ReceiptValidation.Invalid("apple_account_mismatch"), result)
+    }
+
+    @Test
     fun missingAccountToken_rejected() = runTest {
         val validator = validatorReturning(
             payload().productId("chips_medium").transactionId("txn-1"),
@@ -187,12 +213,13 @@ class AppStoreReceiptValidatorTest {
 
     private fun payload() = JWSTransactionDecodedPayload()
 
-    private fun receipt() = PurchaseReceipt(
+    private fun receipt(accountLineage: Set<UserId> = emptySet()) = PurchaseReceipt(
         store = Store.Apple,
         productId = "chip_pack_medium",
         expectedSku = "chips_medium",
         token = "signed-jws",
         userId = userId,
+        accountLineage = accountLineage,
     )
 
     private fun configured() = BillingConfig(
