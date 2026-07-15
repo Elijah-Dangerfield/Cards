@@ -393,6 +393,7 @@ private fun InRoomContent(
         RoomSeat(
             player = member?.toSeatPlayer(state),
             addBot = member == null && state.isHost,
+            loading = member == null && seatIndex in state.addingBotSeatIndexes,
             onClick = when {
                 member == null && state.isHost -> {
                     { onAction(LobbyAction.AddBot(seatIndex)) }
@@ -645,6 +646,35 @@ private fun LobbyScreenPreview_InRoom_AsHost_WaitingForPlayers() {
                     ),
                 ),
                 connectionStatus = ConnectionStatus.Connected,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LobbyScreenPreview_InRoom_AsHost_AddingBot() {
+    // ROOM-18: seat 2's add-bot request is in flight — that tile shows a spinner
+    // and stops taking taps while the remaining empty seat stays tappable.
+    PreviewContent {
+        LobbyScreen(
+            state = LobbyState(
+                currentUserId = "u1",
+                room = Room(
+                    code = "ABC123",
+                    hostUserId = "u1",
+                    createdAtEpochMs = 1_700_000_000_000,
+                    maxSeats = 4,
+                    status = RoomStatus.Lobby,
+                    members = listOf(
+                        RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
+                        RoomMember("u2", "Jane", seatIndex = 1, joinedAtEpochMs = 0, isConnected = true),
+                    ),
+                ),
+                connectionStatus = ConnectionStatus.Connected,
+                addingBotSeatIndexes = setOf(2),
             ),
             onAction = {},
             onBack = {},

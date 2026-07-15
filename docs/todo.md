@@ -21,11 +21,3 @@ The live punch list of actionable engineering work. Every item is something a wo
 - `[P2]` — Lower urgency, still worker-pickable. Many need a directional call — make a recommendation, ship a slice, let the reviewer course-correct.
 
 Everything here is worker-pickable. Human-only work (device QA, dashboard config, content, product decisions) lives in [`developer-todo.md`](./developer-todo.md). Deferred ideas live in [`backlog.md`](./backlog.md) — when an item gets descoped or doesn't fit V1, move it there, don't delete it.
-
----
-
-## Rooms UI (ROOM)
-
-- `[P2]` **ROOM-18 — Add loading / failed / anti-spam states to the "add a bot" button on the add-game screen.** Owner request: tapping "add a bot" gives no pending or error feedback and can be spam-tapped, firing duplicate add-bot requests.
-  **Acceptance:** the button shows a loading state while the add-bot request is in flight, disables to prevent repeat taps, and surfaces a failure state if it errors.
-  **Hints:** add-bot control on the add-game / create-game screen (see `features/lobby/impl/.../PrivateCreateScreen.kt` and the room add-bots path, cf. ROOM-16); https://elijah-dangerfield.sentry.io/issues/CARDS-9W .

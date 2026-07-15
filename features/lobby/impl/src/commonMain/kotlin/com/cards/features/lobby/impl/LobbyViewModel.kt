@@ -345,20 +345,33 @@ class LobbyViewModel(
                 // the authority check that matters.
                 if (!current.isHost) return@run
                 val code = current.room?.code ?: return@run
-                when (val outcome = rooms.addBot(code, action.seatIndex)) {
-                    // Success needs no local mutation — the new bot seat arrives
-                    // over the socket as the next room Snapshot.
-                    is AddBotOutcome.Success -> Unit
-                    is AddBotOutcome.NetworkError -> sendEvent(LobbyEvent.BotActionFailed)
-                    is AddBotOutcome.Unknown -> {
-                        logger.w(outcome.cause) { "Add bot failed" }
-                        sendEvent(LobbyEvent.BotActionFailed)
+                // ROOM-18: a seat with a bot request already in flight ignores
+                // repeat taps, so a spam-tapped seat fires exactly one request.
+                // The UI disables the tile while it's pending; this is the
+                // authority guard behind it.
+                if (action.seatIndex in current.addingBotSeatIndexes) return@run
+                updateState { it.copy(addingBotSeatIndexes = it.addingBotSeatIndexes + action.seatIndex) }
+                // Launch so the action loop stays free to apply the socket
+                // snapshot that seats the new bot; the pending set (not a blocked
+                // loop) is what dedupes concurrent taps on the same seat.
+                viewModelScope.launch {
+                    val outcome = rooms.addBot(code, action.seatIndex)
+                    action.updateState { it.copy(addingBotSeatIndexes = it.addingBotSeatIndexes - action.seatIndex) }
+                    when (outcome) {
+                        // Success needs no local mutation — the new bot seat
+                        // arrives over the socket as the next room Snapshot.
+                        is AddBotOutcome.Success -> Unit
+                        is AddBotOutcome.NetworkError -> sendEvent(LobbyEvent.BotActionFailed)
+                        is AddBotOutcome.Unknown -> {
+                            logger.w(outcome.cause) { "Add bot failed" }
+                            sendEvent(LobbyEvent.BotActionFailed)
+                        }
+                        AddBotOutcome.Full,
+                        AddBotOutcome.NotHost,
+                        AddBotOutcome.NotJoinable,
+                        AddBotOutcome.NotFound,
+                            -> sendEvent(LobbyEvent.BotActionFailed)
                     }
-                    AddBotOutcome.Full,
-                    AddBotOutcome.NotHost,
-                    AddBotOutcome.NotJoinable,
-                    AddBotOutcome.NotFound,
-                        -> sendEvent(LobbyEvent.BotActionFailed)
                 }
             }
 
@@ -517,6 +530,9 @@ data class LobbyState(
      *  Used by [LobbyAction.GameplaySnapshotReceived] to navigate
      *  non-host clients into the play screen exactly once per session. */
     val hasReceivedGameplaySnapshot: Boolean = false,
+    /** Seat indexes whose "Add a bot" request is in flight (ROOM-18). The tile
+     *  shows a spinner and stops taking taps while its index is here. */
+    val addingBotSeatIndexes: Set<Int> = emptySet(),
 ) {
     val isBusy: Boolean get() = creating || joining || leaving
     val isInRoom: Boolean get() = room != null

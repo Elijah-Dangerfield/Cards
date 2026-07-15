@@ -30,6 +30,7 @@ import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_seat_you_label
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
+import com.dangerfield.cards.libraries.ui.components.CircularProgressIndicator
 import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.dashedBorder
@@ -66,7 +67,8 @@ data class RoomSeatPlayer(
  *    an "Open" label — a seat anyone can still take.
  *  - **Add a bot** ([player] == null, [addBot] == true): teal-tinted dashed
  *    affordance the host taps to seat a bot. Pass `addBot = true` only in the
- *    private host lobby.
+ *    private host lobby. Pass [loading] = true while that seat's add-bot request
+ *    is in flight — the tile shows a spinner and stops taking taps (ROOM-18).
  *
  * Designed to drop into `NonLazyVerticalGrid(columns = 3, …)`; the tile fills
  * its column width at a fixed 1 : 1.1 aspect ratio.
@@ -76,6 +78,7 @@ fun RoomSeat(
     player: RoomSeatPlayer?,
     modifier: Modifier = Modifier,
     addBot: Boolean = false,
+    loading: Boolean = false,
     onClick: (() -> Unit)? = null,
 ) {
     val base = modifier
@@ -83,7 +86,7 @@ fun RoomSeat(
         .aspectRatio(1f / 1.1f)
 
     when {
-        player == null && addBot -> AddBotSeat(base, onClick)
+        player == null && addBot -> AddBotSeat(base, loading, onClick)
         player == null -> OpenSeat(base)
         else -> FilledSeat(base, player, onClick)
     }
@@ -220,14 +223,16 @@ private fun OpenSeat(modifier: Modifier) {
 }
 
 @Composable
-private fun AddBotSeat(modifier: Modifier, onClick: (() -> Unit)?) {
+private fun AddBotSeat(modifier: Modifier, loading: Boolean, onClick: (() -> Unit)?) {
     val teal = AppTheme.colors.accentSecondary
     Column(
         modifier = modifier
             .clip(Radii.R750.shape)
             .background(teal.withAlpha(0.06f).color)
             .dashedBorder(strokeWidth = 1.5.dp, color = teal.withAlpha(0.47f), radius = Radii.R750)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            // A tap already in flight (loading) stops taking taps so a spam-
+            // tapped seat can't fire a duplicate add-bot request (ROOM-18).
+            .then(if (onClick != null && !loading) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(Dimension.D400),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -240,10 +245,22 @@ private fun AddBotSeat(modifier: Modifier, onClick: (() -> Unit)?) {
                 .border(1.5.dp, teal.withAlpha(0.33f).color, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            BotGlyph(teal)
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = teal.color,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                BotGlyph(teal)
+            }
         }
         androidx.compose.foundation.layout.Spacer(Modifier.size(Dimension.D300))
-        Text(text = "Add a bot", typography = AppTheme.typography.Label.L400, color = teal)
+        Text(
+            text = if (loading) "Adding…" else "Add a bot",
+            typography = AppTheme.typography.Label.L400,
+            color = teal,
+        )
     }
 }
 
@@ -278,7 +295,7 @@ private fun RoomSeatPreview() {
     PreviewContent(contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
         com.dangerfield.cards.libraries.ui.components.NonLazyVerticalGrid(
             columns = 3,
-            data = listOf(0, 1, 2, 3, 4, 5),
+            data = listOf(0, 1, 2, 3, 4, 5, 6),
             horizontalSpacing = 11.dp,
             verticalSpacing = 11.dp,
         ) { index, _ ->
@@ -288,6 +305,7 @@ private fun RoomSeatPreview() {
                 2 -> RoomSeat(RoomSeatPlayer("Priya", "🐼", "#A8E458", status = RoomSeatStatus.Joining))
                 3 -> RoomSeat(RoomSeatPlayer("Ace Bot", "🤖", "#2E4F49", isBot = true))
                 4 -> RoomSeat(player = null, addBot = true)
+                5 -> RoomSeat(player = null, addBot = true, loading = true)
                 else -> RoomSeat(player = null)
             }
         }
