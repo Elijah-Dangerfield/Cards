@@ -37,10 +37,10 @@ opens a PR.
 > `docs/agent/feedback-log.md`). Commit, no PR, clean tree. **Do not reset or rebase `develop`.**"
 
 **1b. Observability triage.** Spawn a subagent:
-> "Follow `docs/agent/observability-triage.md`: turn Sentry errors/crashes (org `elijah-dangerfield`,
-> project `cards`) and Grafana signals/alerts into `docs/todo.md` items, keeping the ledger at
-> `docs/agent/observability-log.md`. Commit, no PR, clean tree. **Do not reset or rebase `develop`;
-> stack on top of the feedback-triage commit.**"
+> "Use the `observability-triage` skill, driven by `docs/agent/observability-triage.md`: turn Sentry
+> crashes/errors (org `elijah-dangerfield`, project `cards`) and Grafana signals/alerts into
+> `docs/todo.md` items, keeping the ledger at `docs/agent/observability-log.md`. Commit, no PR, clean
+> tree. **Do not reset or rebase `develop`; stack on top of the feedback-triage commit.**"
 
 If either intake subagent finds nothing new, it commits nothing — that's fine and expected. Continue
 regardless.
