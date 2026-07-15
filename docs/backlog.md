@@ -1113,3 +1113,9 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 **Idea (GAME-32 follow-on, 2026-07-13):** GAME-32 gave the opinionated `BottomSheet` an opt-in `scrollableContent` flag so sheets stop hand-rolling `Column(verticalScroll)`, and migrated `HandRankingsCheatSheet` onto it. The sibling `HowToPlaySheet` (`:features:room:impl`) still hand-rolls its own scroll because it uses the `title`-overload of `BottomSheet`, which doesn't thread `scrollableContent` down to the base. Threading the flag through the two title overloads finishes the story. Not mechanical: the title overload wraps `title + body` together, so the scroll must wrap only `body()` to keep the title pinned — decide the scroll scope deliberately rather than wrapping the whole slot.
 
 **Status:** Backlog. DS plumbing polish; pull when the next sheet wants a scrollable body under a title.
+
+## RoomSeat: lift the seat-tile labels to string resources
+
+**Idea (ROOM-18 follow-on, 2026-07-15):** `RoomSeat.kt` in `:libraries:ui` renders several user-facing labels as inline literals ("Add a bot", "Adding…", "Open", "joining…", "up next") while only the "You" pill routes through `:libraries:resources`. ROOM-18 added the "Adding…" literal to match the file's existing convention rather than lift one label in isolation. Do the whole component in one deliberate pass: add `room_seat_*` entries and read them via `stringResource`, so the copy is translatable and word-checkable in one place. Watch the ellipsis characters (use a plain "..." per the strings.xml rules, no backslash escapes / em dashes).
+
+**Status:** Backlog. Small DS hygiene pass; pull when touching RoomSeat again or when localization work starts.
