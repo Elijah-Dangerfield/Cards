@@ -27,23 +27,29 @@ not this orchestrator.
 
 ## Phase 1 — Intake (populate the todo list)
 
-Two subagents, sequentially. Both file into `docs/todo.md` and commit directly to `develop`; neither
-opens a PR.
+Two subagents, sequentially. **The two triage skills _are_ the intake — each subagent invokes its
+skill (the Skill tool) and lets it drive. Do not hand-roll the triage** (no ad-hoc Sentry/Grafana
+querying, no bespoke root-cause hunting outside the skill): the skill already encodes the queries,
+the correlation, the ledger, the case-file format, and the todo house style. The subagent's job is to
+run the skill and enforce the pipeline constraints below. Both file into `docs/todo.md` and commit
+directly to `develop`; neither opens a PR.
 
 **1a. Feedback triage.** Spawn a subagent:
-> "Use the `feedback-triage` skill, driven by `docs/agent/feedback-triage-prompt.md`: triage every
-> unresolved in-app user feedback report, trace each across Sentry + Grafana by `session_id`, and
-> file a `docs/todo.md` item or resolve it as no-action (recording every disposition in
-> `docs/agent/feedback-log.md`). Commit, no PR, clean tree. **Do not reset or rebase `develop`.**"
+> "Invoke the `/feedback-triage` skill and let it drive — don't hand-roll the triage. It reads every
+> unresolved in-app feedback report, traces each across Sentry + Grafana by `session_id`, and files a
+> `docs/todo.md` item or resolves it as no-action, recording every disposition in
+> `docs/agent/feedback-log.md`. Wrap it per `docs/agent/feedback-triage-prompt.md` (branch discipline,
+> house style). Commit, no PR, clean tree. **Do not reset or rebase `develop`.**"
 
 **1b. Observability triage.** Spawn a subagent:
-> "Use the `observability-triage` skill, driven by `docs/agent/observability-triage.md`: turn Sentry
-> crashes/errors (org `elijah-dangerfield`, project `cards`) and Grafana signals/alerts into
-> `docs/todo.md` items, keeping the ledger at `docs/agent/observability-log.md`. Commit, no PR, clean
-> tree. **Do not reset or rebase `develop`; stack on top of the feedback-triage commit.**"
+> "Invoke the `/observability-triage` skill and let it drive — don't hand-roll the triage. It reads
+> unresolved Sentry crashes/errors (org `elijah-dangerfield`, project `cards`) and Grafana
+> alerts/dashboards and files `docs/todo.md` items, keeping the ledger at
+> `docs/agent/observability-log.md`. Wrap it per `docs/agent/observability-triage.md`. Commit, no PR,
+> clean tree. **Do not reset or rebase `develop`; stack on top of the feedback-triage commit.**"
 
-If either intake subagent finds nothing new, it commits nothing — that's fine and expected. Continue
-regardless.
+Between them the two skills fill out `docs/todo.md` for the night. If either finds nothing new, it
+commits nothing — that's fine and expected. Continue regardless.
 
 ## Phase 2 — Todo prep (reconcile)
 
