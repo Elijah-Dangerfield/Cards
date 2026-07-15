@@ -95,6 +95,20 @@ interface ProfileRepository {
         installId: java.util.UUID,
         currentUserId: UserId,
     ): List<UserId>
+
+    /**
+     * The account-upgrade lineage for [userId]: every user id that has owned
+     * this install (the caller plus everyone sharing the caller's
+     * `install_id`), resolved server-side from the caller's own profile row so
+     * a client can't inject a lineage it isn't part of.
+     *
+     * Used by billing to accept a StoreKit receipt whose `appAccountToken` was
+     * stamped under a prior identity on the same device (BILL-11). Always
+     * includes [userId]; returns just `{userId}` when the profile is unknown or
+     * its `install_id` is unset (no lineage to widen to), which preserves the
+     * strict "token must equal the caller" binding.
+     */
+    suspend fun findInstallLineage(userId: UserId): Set<UserId> = setOf(userId)
 }
 
 sealed interface UpdateProfileOutcome {

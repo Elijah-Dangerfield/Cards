@@ -383,6 +383,46 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
         assertTrue(results.isEmpty(), "Sibling lookup is install-scoped — unrelated installs are invisible to it")
     }
 
+    @Test
+    fun findInstallLineage_returnsEveryUserSharingTheCallersInstall() = runTest {
+        // BILL-11: the lineage is every id that has owned this install — the
+        // caller plus prior identities, resolved from the caller's own row.
+        // Unlike the L1 sweep it doesn't filter on anon status or IAP spend:
+        // the whole point is to reach the identity that made the purchase.
+        val repo = newRepository()
+        val install = UUID.randomUUID()
+        val caller = seedAuthUser(isAnonymous = true).also { repo.findOrCreate(it) }
+        val prior = seedAuthUser(isAnonymous = true).also { repo.findOrCreate(it) }
+        val unrelated = seedAuthUser(isAnonymous = true).also { repo.findOrCreate(it) }
+        repo.touchInstallId(caller, install)
+        repo.touchInstallId(prior, install)
+        repo.touchInstallId(unrelated, UUID.randomUUID())
+
+        val lineage = repo.findInstallLineage(caller)
+
+        assertEquals(setOf(caller, prior), lineage, "Lineage spans everyone on the caller's install, and no one else")
+    }
+
+    @Test
+    fun findInstallLineage_returnsJustCaller_whenInstallIdUnset() = runTest {
+        val repo = newRepository()
+        val caller = seedAuthUser(isAnonymous = true).also { repo.findOrCreate(it) }
+
+        val lineage = repo.findInstallLineage(caller)
+
+        assertEquals(setOf(caller), lineage, "No install tag → no lineage to widen to, so the strict binding holds")
+    }
+
+    @Test
+    fun findInstallLineage_returnsJustCaller_whenProfileMissing() = runTest {
+        val repo = newRepository()
+        val unknown = UserId(UUID.randomUUID())
+
+        val lineage = repo.findInstallLineage(unknown)
+
+        assertEquals(setOf(unknown), lineage, "Unknown caller falls back to itself, never an empty accepted set")
+    }
+
     private fun seedIapPurchase(userId: UserId, idempotencyKey: String, reason: String) {
         // wallet_events FKs auth.users directly, not wallets, so we don't
         // need a wallet row — just the event. Matches the V11 schema.

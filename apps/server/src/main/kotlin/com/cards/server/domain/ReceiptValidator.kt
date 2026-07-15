@@ -22,10 +22,11 @@ interface ReceiptValidator {
      *
      * Implementations MUST verify, at minimum, that the receipt is a
      * genuine paid purchase of [PurchaseReceipt.productId] AND that it is
-     * bound to [PurchaseReceipt.userId] — the account token echoed back by
-     * the store (StoreKit `appAccountToken` / Play
-     * `obfuscatedExternalAccountId`), NOT the store order id. Pinning to the
-     * order id would let one user redeem another user's receipt.
+     * bound to the caller — the account token echoed back by the store
+     * (StoreKit `appAccountToken` / Play `obfuscatedExternalAccountId`) must
+     * equal [PurchaseReceipt.userId] or one of [PurchaseReceipt.accountLineage]
+     * (the caller's account-upgrade lineage), NOT the store order id. Pinning
+     * to the order id would let one user redeem another user's receipt.
      */
     suspend fun validate(request: PurchaseReceipt): ReceiptValidation
 }
@@ -57,6 +58,17 @@ enum class Store(val wire: String) {
  * resolves the catalog product and hands the validator the SKU it must see
  * in the decoded transaction, so a receipt for a different product cannot be
  * redeemed against this one.
+ *
+ * [accountLineage] is the caller's account-upgrade lineage: the prior user
+ * ids that owned this install before the current [userId] (AUTH-19 anon →
+ * anon / anon → claimed on the same device, resolved server-side by shared
+ * `install_id`). A StoreKit transaction stamps its `appAccountToken` at
+ * purchase time with whoever the user was then, so a pack bought under a
+ * prior identity carries that old id forever. The validator accepts a
+ * receipt whose account token is [userId] OR any id in [accountLineage] —
+ * that's what lets a purchase made before an account upgrade still redeem
+ * (BILL-11). Empty by default: a caller that doesn't resolve a lineage keeps
+ * the strict "token must equal the caller" binding.
  */
 data class PurchaseReceipt(
     val store: Store,
@@ -64,6 +76,7 @@ data class PurchaseReceipt(
     val expectedSku: String,
     val token: String,
     val userId: UserId,
+    val accountLineage: Set<UserId> = emptySet(),
 )
 
 /**

@@ -3,6 +3,7 @@ package com.dangerfield.cards.server.routes
 import com.dangerfield.cards.server.domain.BillingRepository
 import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalogSource
+import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.PurchaseReceipt
 import com.dangerfield.cards.server.domain.ReceiptValidation
 import com.dangerfield.cards.server.domain.ReceiptValidator
@@ -59,6 +60,7 @@ fun Route.billingRoutes(
     catalog: ProductCatalogSource,
     validator: ReceiptValidator,
     billing: BillingRepository,
+    profiles: ProfileRepository,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         rateLimit(RateLimitName(WALLET_WRITE_LIMIT)) {
@@ -107,6 +109,12 @@ fun Route.billingRoutes(
                         expectedSku = expectedSku,
                         token = body.token,
                         userId = userId,
+                        // A pack bought before an account upgrade carries the
+                        // prior identity's appAccountToken; widen the accepted
+                        // set to the caller's install lineage so it still
+                        // redeems instead of stranding as apple_account_mismatch
+                        // (BILL-11).
+                        accountLineage = profiles.findInstallLineage(userId),
                     ),
                 )
                 val valid = when (validation) {
