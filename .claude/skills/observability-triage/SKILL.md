@@ -32,13 +32,15 @@ Stable for this repo — don't rediscover them every run, but reconfirm if a cal
 ### 1. Sentry — list unresolved crashes/errors
 
 ```
-search_issues(organizationSlug='elijah-dangerfield', projectSlugOrId='cards', query='is:unresolved', sort='freq')
+search_issues(organizationSlug='elijah-dangerfield', projectSlugOrId='cards', query='is:unresolved', sort='freq', period='30d')
 ```
+
+**Set `period` explicitly** (`30d`, or `90d` when catching up) — the default window is narrow, and a shorter one silently drops issues that are still unresolved but last-seen a few days ago.
 
 Then **drop the ones you don't own:**
 
 - **Feedback issues** — title exactly `User feedback` / `Bug report`, or `issue.category:feedback`. `feedback-triage` owns these; skip them here.
-- **Anything already in `docs/agent/observability-log.md`** (by short-id) — already dispositioned. **Re-open only if materially worse** (crash count jumped an order of magnitude, a flapping alert is now sustained): file fresh and note in the ledger why you re-opened.
+- **Anything already in `docs/agent/observability-log.md`** (by short-id) — already dispositioned. **Re-open only if materially worse** (crash count jumped an order of magnitude, a flapping alert is now sustained): file fresh and note in the ledger why you re-opened. Also **re-validate the pointer target** on a prior no-action: if `feedback-triage` has since filed a closer-owning todo (e.g. a Sentry redeem crash you once pointed at an infra item is now better owned by a billing todo), repoint the ledger entry at it.
 - **Anything `feedback-triage` filed tonight** — cross-check `docs/agent/feedback-log.md` and the current `docs/todo.md` so you don't duplicate a root cause it already caught (it runs just before you).
 
 Whatever's left is yours. Rank by the severity order above. If nothing new, write "no new Sentry signals" to the summary and move to Grafana.
@@ -58,7 +60,7 @@ Read the top event (`get_sentry_resource` — pass the full issue `url=`, e.g. `
 alerting_manage_rules(operation='list', states=['firing', 'pending'])
 ```
 
-A *firing* alert is the strongest signal you'll get — triage it like a crash. Pull the rule's query and the window around the trip (`get_alert_group` / re-run the underlying PromQL/LogQL/TraceQL), find what tripped it, and file a todo. **A1 (ledger drift) and A5 (purchase failures) touch money — always `[P0]`.** A2/A3/A6 are prod/infra down. A `pending` alert is a warning worth a look but not yet an incident.
+This returns **`null` (not `[]`) when nothing matches** — `null` means **no alert firing**, not an error; don't misread it. A *firing* alert is the strongest signal you'll get — triage it like a crash. Pull the rule's query and the window around the trip (`get_alert_group` / re-run the underlying PromQL/LogQL/TraceQL), find what tripped it, and file a todo. **A1 (ledger drift) and A5 (purchase failures) touch money — always `[P0]`.** A2/A3/A6 are prod/infra down. A `pending` alert is a warning worth a look but not yet an incident.
 
 ### 4. Grafana — sweep the dashboards for anomalies the alerts miss
 
@@ -70,6 +72,9 @@ Read `docs/wiki/observability.md` first, then start at **Pulse** (`dc-pulse`) �
 - **`dc-funnel`** — an onboarding step whose drop-off suddenly worsened.
 
 A signal earns a todo when it's a **plausible regression or defect**, not merely noteworthy — "crash-free % fell below 99% after last night's build" is a bug; "DAU dipped" is not.
+
+**Also scan the server logs directly** — a failing path can be live before any dashboard panel or alert reflects it. Over the last 24h:
+`query_loki_logs(datasourceUid='grafanacloud-logs', logql='{service_name="cards-server", deployment_environment="prod"} | detected_level=~"warn|error|fatal"', ...)`. **Include `warn`** — money-touching failures like `receipt_rejected` / redeem-400s are logged at WARN, so an `error|fatal`-only filter misses them entirely. Recurring warnings/errors not already owned by a Sentry issue or todo are their own signal. And **`totalLinesScanned: 0` on a filtered query does not mean the server is silent** — the filter just matched nothing; confirm the base stream is live (`query_loki_stats`, or an unfiltered `{service_name="cards-server"}` count) before concluding there are no server logs.
 
 **Know the expected-empty panels so you don't file phantom bugs** (all documented in the wiki's "Known gaps"): matchmaking/MP/Tempo/RED panels read empty (or health-check-only) until real play resumes post-wipe; iOS crash-free shows `previous_exit=unknown` until MetricKit (ENG-25); offline-emitted events drop by design. **Query gotchas:** Loki stream labels are only `service_name` + `deployment_environment` (everything else is structured metadata — pipe filters); gameplay spans are INTERNAL-kind so they're not in `traces_spanmetrics_*` Prom metrics (use TraceQL metrics on Tempo); count users/sessions from `app.foregrounded`, never `app.launched`; prod is the default env.
 
@@ -89,7 +94,13 @@ Then pick a disposition:
 
 Priority: money / crash-loop / data-corruption / prod-down → `[P0]`; a real defect degrading a real flow → `[P1]`; cosmetic / rare / low-blast-radius → `[P2]`. A firing money alert (A1/A5) is always `[P0]`. Large or needs-a-product-call work → one-liner in `docs/backlog.md` instead, referencing the case file and the signal.
 
-**Assigning the item ID:** `docs/todo.md` is often reset to empty by the nightly todo-maintainer, and IDs are **never reused** — don't infer the next number from the open list. Grep the whole tree for the max per prefix: `grep -rhoE '\b(PROG|AUTH|GAME|SHOP|SOC|ROOM|MP|ENG|BILL)-[0-9]+' docs/ | sort | tail`.
+**Assigning the item ID:** `docs/todo.md` is often reset to empty by the nightly todo-maintainer, and IDs are **never reused** — don't infer the next number from the open list. Pick the right existing prefix from the **canonical list in `docs/todo.md`'s preamble** (the "**ID prefixes:**" line — e.g. `ENG` engineering/infra, `BILL` billing, `ECON` chip economy, `ROOM` rooms UI; onboarding falls under `AUTH`). Then find that prefix's current max **numerically** and take the next integer:
+
+```
+PFX=ENG; grep -rhoE "\b${PFX}-[0-9]+" docs/ | grep -oE '[0-9]+' | sort -n | tail -1
+```
+
+Query the specific prefix you're filing under — a blanket all-prefix grep sorts lexically (`BILL-10` < `BILL-9`) and sweeps in `CARDS-*` Sentry short-ids and `AES-`/`SHA-` crypto constants, which aren't work items. If a maintainer reset left `docs/todo.md` with no section headers, add the section for your prefix before appending.
 
 **(b) No action → resolve.** Pre-launch noise (only reachable from a debug build or dev backend), already fixed on `develop` but not yet resolved in Sentry, a known expected-empty panel, or genuinely benign. Still write the case file for a Sentry issue so a rerun has the reasoning; record the *why* in its "Working theory" section.
 
