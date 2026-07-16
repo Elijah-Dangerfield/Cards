@@ -681,6 +681,27 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         assertIs<RefreshOutcome.EmailConfirmed>(outcome)
     }
 
+    @Test
+    fun refreshSession_noSession_returnsSessionExpired_withoutHittingGateway() = runUnitTest {
+        // A fresh email signup leaves NO session (confirmation pending). The
+        // verify screen still calls refreshSession() on resume — there's nothing
+        // to refresh, and supabase-kt throws on a null session. That throw used
+        // to map to Unknown → a silent no-op that stranded the user on the verify
+        // screen. Resolve to SessionExpired (→ back to sign-in) instead, and don't
+        // even attempt the doomed refresh.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+            onRefreshSession = { error("supabase-kt throws when there is no session to refresh") },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val outcome = repo.refreshSession()
+        assertIs<RefreshOutcome.SessionExpired>(outcome)
+        assertEquals(0, gateway.refreshSessionCalls, "no session → skip the refresh entirely")
+    }
+
     // ---------- deleteAccount ----------
 
     @Test

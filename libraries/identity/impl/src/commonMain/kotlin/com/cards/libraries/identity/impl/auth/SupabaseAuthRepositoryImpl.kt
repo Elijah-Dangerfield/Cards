@@ -420,6 +420,15 @@ class SupabaseAuthRepositoryImpl(
         }
 
     override suspend fun refreshSession(): RefreshOutcome = mutex.withLock {
+        // No session to refresh — a fresh email signup pending confirmation has
+        // none, and supabase-kt throws (rather than returning null) on refreshing
+        // nothing. Resolve to SessionExpired up front instead of letting that throw
+        // fall through to Unknown, which strands the verify screen on a silent
+        // no-op (AppResumed swallows Unknown).
+        if (gateway.currentSession() == null) {
+            logger.d { "refreshSession: no current session → SessionExpired" }
+            return@withLock RefreshOutcome.SessionExpired
+        }
         logger.d { "refreshSession: forcing gateway session refresh" }
         Catching {
             gateway.refreshSession()
