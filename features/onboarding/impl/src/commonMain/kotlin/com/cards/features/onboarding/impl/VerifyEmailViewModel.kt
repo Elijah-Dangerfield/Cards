@@ -1,6 +1,9 @@
 package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
@@ -41,6 +44,7 @@ import me.tatarka.inject.annotations.Inject
 class VerifyEmailViewModel(
     private val authRepository: AuthRepository,
     private val appCache: AppCache,
+    private val chipsRepository: ChipsRepository,
     @Assisted private val email: String?,
 ) : SEAViewModel<VerifyEmailState, VerifyEmailEvent, VerifyEmailAction>(
     initialStateArg = VerifyEmailState(email = email.orEmpty()),
@@ -67,9 +71,8 @@ class VerifyEmailViewModel(
 
                 when (authRepository.refreshSession()) {
                     is RefreshOutcome.EmailConfirmed -> {
-                        appCache.update { it.copy(hasUserOnboarded = true) }
                         updateState { it.copy(isRefreshing = false) }
-                        sendEvent(VerifyEmailEvent.NavigateToHome)
+                        routeAfterConfirmation()
                     }
                     is RefreshOutcome.StillPending -> updateState {
                         it.copy(
@@ -98,10 +101,7 @@ class VerifyEmailViewModel(
 
             is VerifyEmailAction.AppResumed -> action.run {
                 when (authRepository.refreshSession()) {
-                    is RefreshOutcome.EmailConfirmed -> {
-                        appCache.update { it.copy(hasUserOnboarded = true) }
-                        sendEvent(VerifyEmailEvent.NavigateToHome)
-                    }
+                    is RefreshOutcome.EmailConfirmed -> routeAfterConfirmation()
                     is RefreshOutcome.SessionExpired ->
                         sendEvent(VerifyEmailEvent.NavigateBackToSignIn)
                     is RefreshOutcome.StillPending,
@@ -126,6 +126,35 @@ class VerifyEmailViewModel(
             }
         }
     }
+
+    /**
+     * Where to go once the email is confirmed. A brand-new signup still needs to
+     * pick a name/avatar and see the starter grant, so it re-enters onboarding at
+     * the identity step; a returning account (its email was merely unconfirmed)
+     * already has a profile + wallet, so it skips straight to Home. Same
+     * new-vs-returning discriminator the OAuth path uses.
+     */
+    private suspend fun routeAfterConfirmation() {
+        if (isBrandNewAccount()) {
+            sendEvent(VerifyEmailEvent.NavigateToOnboarding)
+        } else {
+            appCache.update { it.copy(hasUserOnboarded = true) }
+            sendEvent(VerifyEmailEvent.NavigateToHome)
+        }
+    }
+
+    /**
+     * Whether the just-confirmed account is brand new. Mirrors the onboarding
+     * OAuth path: [ChipsRepository.walletJustCreated] flips true the first time a
+     * fresh account's wallet is synced, and stays false for a returning account
+     * whose wallet already exists. If the sync fails (offline) the signal stays
+     * false and we treat them as returning (Home) rather than trapping a real
+     * user in onboarding.
+     */
+    private suspend fun isBrandNewAccount(): Boolean {
+        Catching { chipsRepository.sync() }.logOnFailure { "Verify-email wallet sync failed" }
+        return chipsRepository.walletJustCreated.value
+    }
 }
 
 data class VerifyEmailState(
@@ -146,6 +175,8 @@ data class VerifyEmailState(
 sealed interface VerifyEmailEvent {
     data object NavigateToHome : VerifyEmailEvent
     data object NavigateBackToSignIn : VerifyEmailEvent
+    /** Brand-new signup confirmed → re-enter onboarding at the identity step. */
+    data object NavigateToOnboarding : VerifyEmailEvent
 }
 
 sealed interface VerifyEmailAction {

@@ -68,6 +68,21 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun init_authenticatedNotOnboarded_opensAtIdentity_claimed() = runUnitTest {
+        // A just-confirmed email signup routed back from VerifyEmail: a real
+        // (non-anonymous) account that hasn't finished onboarding opens at
+        // PickIdentity with the back-to-Welcome control suppressed — not the
+        // guest/OAuth landing it no longer needs.
+        val cache = FakeAppCache(initial = AppData(hasUserOnboarded = false))
+        val auth = FakeAuthRepository(initialAuthState = sampleAuthenticated)
+        val vm = newVm(cache = cache, auth = auth)
+        runCurrent()
+
+        assertEquals(OnboardingStep.PickIdentity, vm.state.step)
+        assertTrue(vm.state.identityClaimed)
+    }
+
+    @Test
     fun starterPack_pinsCanonicalEmojis_inSyncWithServerStarter() {
         val expectedEmojis = listOf("🦊", "🐱", "🐼", "🐯", "🐸", "🦁", "🃏", "🎲")
         assertEquals(expectedEmojis, OnboardingViewModel.STARTER_PACK.map { it.emoji })

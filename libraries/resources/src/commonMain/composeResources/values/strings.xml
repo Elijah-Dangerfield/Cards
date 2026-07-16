@@ -240,6 +240,7 @@
     <string name="onboarding_welcome_continue_guest">Continue as guest</string>
     <string name="onboarding_welcome_oauth_apple">Continue with Apple</string>
     <string name="onboarding_welcome_oauth_google">Continue with Google</string>
+    <string name="onboarding_welcome_sign_up_email">Sign up with email</string>
     <!-- Compact label for the side-by-side OAuth row, where the full "Continue
          with Google" won't fit at half width. -->
     <string name="onboarding_welcome_oauth_google_short">Google</string>

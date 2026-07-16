@@ -110,22 +110,54 @@ class OnboardingViewModel(
     private var exitedToHome = false
 
     init {
-        viewModelScope.launch {
-            Catching {
-                if (appCache.get().hasUserOnboarded) {
+        // Resolve where onboarding opens (Home bounce / identity re-entry /
+        // Welcome landing) through the action loop so state updates run in an
+        // action scope — mirrors VerifyEmail's init → ResolveEmailFromSession.
+        takeAction(OnboardingAction.ResolveEntry)
+    }
+
+    private suspend fun OnboardingAction.handleResolveEntry() {
+        Catching {
+            when {
+                appCache.get().hasUserOnboarded -> {
                     exitedToHome = true
                     sendEvent(OnboardingEvent.NavigateToHome)
-                } else {
-                    logger.logEvent("onboarding.step_viewed", "step" to "welcome")
                 }
-            }.logOnFailure { "Onboarded-guard cache read failed" }
-        }
+                // A real (non-anonymous) account that hasn't finished onboarding
+                // is a just-verified email signup bounced back here from
+                // VerifyEmail. Drop them straight into identity setup (name +
+                // avatar + starter grant) like the OAuth-new path, skipping the
+                // guest/OAuth landing they don't need. identityClaimed suppresses
+                // the back-to-Welcome control.
+                isVerifiedNewAccount() -> {
+                    logStepViewed(OnboardingStep.PickIdentity)
+                    updateState {
+                        it.copy(step = OnboardingStep.PickIdentity, identityClaimed = true)
+                    }
+                }
+                else -> logger.logEvent("onboarding.step_viewed", "step" to "welcome")
+            }
+        }.logOnFailure { "Onboarding entry resolution failed" }
+    }
+
+    /**
+     * True when the session is a real (non-anonymous) account — the only way to
+     * reach onboarding authenticated-but-not-onboarded is a just-confirmed email
+     * signup routed back from [VerifyEmailViewModel]. Guests are Unauthenticated
+     * on launch (creation is deferred), and the OAuth-new path is handled inline
+     * within this same VM, so neither trips this.
+     */
+    private suspend fun isVerifiedNewAccount(): Boolean {
+        val authed = authRepository.current() as? AuthState.Authenticated ?: return false
+        return !authed.isAnonymous
     }
 
     override suspend fun handleAction(action: OnboardingAction) {
         when (action) {
+            OnboardingAction.ResolveEntry -> action.handleResolveEntry()
             OnboardingAction.ContinueAsGuest -> action.handleContinueAsGuest()
             OnboardingAction.SignIn -> sendEvent(OnboardingEvent.NavigateToSignIn)
+            OnboardingAction.SignUp -> sendEvent(OnboardingEvent.NavigateToSignUp)
             OnboardingAction.Back -> action.handleBack()
             is OnboardingAction.SignInWithOAuth -> action.handleOAuth(action.provider)
             OnboardingAction.SignInWithApple -> action.handleAppleSignIn()
@@ -626,6 +658,7 @@ data class AvatarOption(
 sealed interface OnboardingEvent {
     data object NavigateToHome : OnboardingEvent
     data object NavigateToSignIn : OnboardingEvent
+    data object NavigateToSignUp : OnboardingEvent
 }
 
 /**
@@ -656,9 +689,13 @@ sealed interface OnboardingSaveError {
 }
 
 sealed interface OnboardingAction {
+    /** Internal: fired once on init to resolve the opening step / bounce. */
+    data object ResolveEntry : OnboardingAction
     data object ContinueAsGuest : OnboardingAction
     /** Welcome-step entry into the email/password sign-in flow. */
     data object SignIn : OnboardingAction
+    /** Welcome-step entry into the email/password sign-up flow. */
+    data object SignUp : OnboardingAction
     /** Steps back to the previous onboarding step (steps 2–4 only). */
     data object Back : OnboardingAction
     data class SignInWithOAuth(val provider: OAuthProvider) : OnboardingAction

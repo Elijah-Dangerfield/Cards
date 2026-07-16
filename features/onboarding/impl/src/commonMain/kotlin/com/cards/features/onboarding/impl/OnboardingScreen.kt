@@ -71,6 +71,7 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.XpBadge
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
@@ -126,6 +127,7 @@ import cards.libraries.resources.generated.resources.onboarding_welcome_consent_
 import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest
 import cards.libraries.resources.generated.resources.onboarding_welcome_footer
 import cards.libraries.resources.generated.resources.onboarding_welcome_sign_in
+import cards.libraries.resources.generated.resources.onboarding_welcome_sign_up_email
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_apple
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_google
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_google_short
@@ -358,11 +360,14 @@ private fun WelcomeStep(
             }
 
             // Guest is the no-friction hero path, so it leads as the gold
-            // primary CTA. The OAuth providers sit beneath it as a compact
-            // side-by-side pair, and returning users get a quiet inline
-            // sign-in link. Each OAuth slot only shows when its provider flag
-            // is on (off until the Supabase provider is provisioned); with both
-            // off the screen collapses to guest + sign-in.
+            // primary CTA. Beneath it: the OAuth providers as a compact
+            // side-by-side pair, then "Sign up with email" as a neutral
+            // secondary — the email account-creation entry that used to be
+            // buried two screens deep under "Sign in". Returning users still
+            // get the quiet inline sign-in link below. Each OAuth slot only
+            // shows when its provider flag is on (off until the Supabase
+            // provider is provisioned); the email + sign-in paths are always
+            // present, so the screen never collapses below guest + email.
             val oauthBusy = state.oauthInFlight != null
 
             ButtonPrimary(
@@ -376,6 +381,15 @@ private fun WelcomeStep(
             if (state.appleEnabled || state.googleEnabled) {
                 Spacer(modifier = Modifier.height(Dimension.D400))
                 OAuthOptions(state = state, onAction = onAction, oauthBusy = oauthBusy)
+            }
+
+            Spacer(modifier = Modifier.height(Dimension.D400))
+            ButtonSecondary(
+                onClick = { onAction(OnboardingAction.SignUp) },
+                enabled = !oauthBusy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(Res.string.onboarding_welcome_sign_up_email))
             }
 
             // The sign-in link is a tap target, so it gets real breathing room on
