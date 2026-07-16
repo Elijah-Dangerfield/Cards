@@ -128,31 +128,25 @@ fly secrets set \
   -a cards-server-dev
 ```
 
-Trigger once a day. Easiest path is a GitHub Actions cron in
-`.github/workflows/sweep-anon.yml`:
+**No scheduled cron runs this — deliberately, on either env.** Per
+`docs/developer-todo.md` / `docs/decisions.md` 2026-05-29, the time-based
+sweep stays dormant for V1 — a client-driven on-orphan delete
+(`DefaultOrphanInstallSweep`, fires on `/v1/me`) replaced it. This endpoint
+is a manual maintenance valve only; trigger it by hand when the dev
+`auth.users` table needs housekeeping:
 
-```yaml
-on:
-  schedule:
-    - cron: '17 5 * * *'   # 05:17 UTC daily — odd minute so we miss the top-of-hour stampede.
-  workflow_dispatch:        # also runnable manually from the Actions tab
-jobs:
-  sweep:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          curl --fail-with-body -X POST \
-            -H "X-Admin-Token: ${{ secrets.CARDS_ADMIN_API_TOKEN_DEV }}" \
-            https://cards-server-dev.fly.dev/v1/admin/sweep-anonymous-users
+```bash
+stty -echo; printf "Paste CARDS_ADMIN_API_TOKEN_DEV: "; read -r T; stty echo; printf "\n"
+curl --fail-with-body -X POST \
+  -H "X-Admin-Token: $T" \
+  https://cards-server-dev.fly.dev/v1/admin/sweep-anonymous-users && unset T
 ```
 
-(This workflow only sweeps dev. That's deliberate, not a gap: per
-`docs/developer-todo.md` / `docs/decisions.md` 2026-05-29, the
-time-based sweep stays dormant for V1 in prod — a client-driven
-on-orphan delete replaced it — so don't wire a prod cron.) Response
-body shows `candidatesFound / deleted
-/ failedToDelete`; a non-zero `failedToDelete` is worth investigating
-in Sentry.
+Response body shows `candidatesFound / deleted / failedToDelete`; a
+non-zero `failedToDelete` is worth investigating in Sentry. (A dev-only
+GitHub Actions cron at `.github/workflows/sweep-anon.yml` existed from
+2026-05-19 until 2026-07-16, when it was removed to match the "no cron"
+decision. Auto-triggering is a post-launch item — see `docs/post-launch.md`.)
 
 ## Disconnected-room-member reaper (in-process)
 
