@@ -30,9 +30,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** `AuthRepository` sign-in/link entry points return a typed `AuthOutcome`; onboarding/verify/claim branch on it rather than recomputing new-vs-returning locally.
   **Hints:** call sites: `OnboardingViewModel.isBrandNewAccount()`, `VerifyEmailViewModel.isBrandNewAccount()`, `ClaimAccountViewModel`. Ties to AUTH-19 (stable identity). See docs/decisions.md "Deterministic auth-outcome state machine (AUTH-22)".
 
-- `[P2]` **Linking an identity to a guest succeeds silently — no confirmation.** When an anonymous user links Google/Apple/email, the link succeeds with no feedback (OAuth/Apple just `goBack()`; email routes to VerifyEmail). Add a "your account is saved / linked" confirmation on the `Linked` outcome. Depends on AUTH-22.
-  **Acceptance:** a successful anon→identity link shows a clear confirmation dialog (name/provider), for all three providers, distinct from the sign-in and sign-up paths.
-  **Hints:** `ClaimAccountViewModel` / `OnboardingViewModel` link branches; reuse the `Dialog`/`WelcomeDialog` DS surface.
+- `[P2]` **Email-link confirmation after verification.** OAuth + Apple instant links now show an "Your account is saved" dialog (`AccountLinkedRoute`). Email is different: the identity isn't linked until the user confirms via the emailed link, so the confirm has to fire on the VerifyEmail return, not at link-initiation. The blocker is telling apart the two paths that both land on `VerifyEmailEvent.NavigateToHome`: an anon guest who just linked email (should confirm) vs. a returning account whose email was merely unconfirmed signing in (should not). Thread a "this verify began from an anon-guest email link" flag through `VerifyEmailRoute` → `VerifyEmailViewModel` so `routeAfterConfirmation` can decide, then reuse `AccountLinkedRoute("Email")` from the onboarding entry point on Home.
+  **Acceptance:** confirming an email link that was started by an anonymous guest shows the same "account saved" confirmation (provider = Email); a returning user signing in through VerifyEmail does not.
+  **Hints:** `VerifyEmailViewModel.routeAfterConfirmation`, `OnboardingFeatureEntryPoint`; `AccountLinkedRoute` + `AccountLinkedDialog` already exist in `:features:profile`.
 
 ---
 

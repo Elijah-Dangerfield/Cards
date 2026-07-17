@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.profile
 
+import com.dangerfield.cards.libraries.navigation.AnimationType
 import com.dangerfield.cards.libraries.navigation.Route
 import kotlinx.serialization.Serializable
 
@@ -27,3 +28,20 @@ class DeleteAccountRoute : Route()
  */
 @Serializable
 class ClaimAccountRoute : Route()
+
+/**
+ * Celebratory confirmation shown after an anonymous guest successfully links a
+ * real identity (Google/Apple). Distinct from the sign-up welcome and the plain
+ * sign-in bounce: it reassures the user their existing guest progress is now
+ * saved. Routed (not derived state) so it owns its own back-stack lifecycle and
+ * animates in over Profile, mirroring the Home welcome dialog. [providerLabel]
+ * is the display name of the linked provider ("Google" / "Apple").
+ */
+@Serializable
+data class AccountLinkedRoute(
+    val providerLabel: String,
+) : Route(
+    enter = AnimationType.SlideUp,
+    exit = AnimationType.SlideDown,
+    popExit = AnimationType.SlideDown,
+)

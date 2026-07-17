@@ -72,7 +72,7 @@ class ClaimAccountViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun claim_success_emitsClaimedEvent_andClearsSubmitting() = runUnitTest {
+    fun claim_success_emitsClaimedEvent_carryingProvider_andClearsSubmitting() = runUnitTest {
         val identity = FakeAuthRepository(
             linkOutcome = LinkIdentityOutcome.Success,
         )
@@ -80,7 +80,10 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         vm.takeAction(ClaimAccountAction.ClaimWith(OAuthProvider.Google))
 
         vm.eventFlow.test {
-            assertIs<ClaimAccountEvent.Claimed>(awaitItem())
+            val event = assertIs<ClaimAccountEvent.Claimed>(awaitItem())
+            // The provider rides the event so the entry point can name it in
+            // the "your account is saved" confirmation (AUTH-24).
+            assertEquals(OAuthProvider.Google, event.provider)
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(OAuthProvider.Google, identity.lastLinkProvider)
