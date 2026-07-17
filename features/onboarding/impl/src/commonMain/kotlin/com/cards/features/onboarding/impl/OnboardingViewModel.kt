@@ -308,13 +308,14 @@ class OnboardingViewModel(
     }
 
     private suspend fun OnboardingAction.finishAppleSignIn(credential: AppleSignInCredential) {
-        // We always hold an anonymous session here (anon sign-in runs on app
-        // init). Two cases for "Continue with Apple":
-        //   1. Brand-new Apple identity → LINK it to this guest (keeps chips/XP)
-        //      and carry on through the rest of onboarding like any new signup.
-        //   2. The Apple identity already belongs to an existing account → the
-        //      link is rejected, so SIGN IN to that account and skip onboarding
-        //      (it already has a profile). The throwaway anon is orphaned.
+        // Two shapes of "Continue with Apple", decided by whether we're holding an
+        // anonymous guest to link onto:
+        //   1. Anonymous guest present → LINK Apple to it (keeps chips/XP) and
+        //      carry on through onboarding like any new signup.
+        //   2. No anonymous guest (e.g. right after account deletion, which tears
+        //      the session down and suppresses guest self-heal) → SIGN IN. That
+        //      sign-in may hit a pre-existing account OR mint a net-new one, so we
+        //      don't assume — [signInApple] classifies via the brand-new signal.
         val isAnonymousGuest =
             (authRepository.current() as? AuthState.Authenticated)?.isAnonymous == true
         if (isAnonymousGuest) {
@@ -331,28 +332,44 @@ class OnboardingViewModel(
                         )
                     }
                 }
-                LinkIdentityOutcome.AlreadyOnAnotherAccount -> enterExistingAppleAccount(credential)
+                LinkIdentityOutcome.AlreadyOnAnotherAccount -> signInApple(credential)
                 else -> failAppleSignIn()
             }
         } else {
-            enterExistingAppleAccount(credential)
+            signInApple(credential)
         }
     }
 
-    /** Existing-account path: switch sessions, mark onboarded, jump to Home. */
-    private suspend fun OnboardingAction.enterExistingAppleAccount(credential: AppleSignInCredential) {
-        if (authRepository.signInWithApple(credential) is SignInOutcome.Success) {
-            // Switched to a pre-existing account. No grant suppression needed
-            // anymore — the Home gate keys on the live walletJustCreated signal,
-            // which is false for an account whose wallet already existed.
-            recordLegalConsent()
-            logger.logEvent("onboarding.auth_selected", "method" to "apple", "returning" to true)
+    /**
+     * Apple sign-in with no guest to link onto. `signInWithApple` either signs
+     * into a pre-existing Apple account OR mints a net-new one (Supabase creates
+     * on first Apple OIDC — e.g. after an account deletion left no session). We
+     * must NOT assume "existing": classify via [isBrandNewAccount] exactly like
+     * [handleOAuth], so a net-new account runs through onboarding (PickIdentity +
+     * starter-grant reveal) instead of getting dumped cold on Home.
+     */
+    private suspend fun OnboardingAction.signInApple(credential: AppleSignInCredential) {
+        if (authRepository.signInWithApple(credential) !is SignInOutcome.Success) {
+            failAppleSignIn()
+            return
+        }
+        recordLegalConsent()
+        val brandNew = isBrandNewAccount()
+        logger.logEvent("onboarding.auth_selected", "method" to "apple", "returning" to !brandNew)
+        if (brandNew) {
+            logStepViewed(OnboardingStep.PickIdentity)
+            updateState {
+                it.copy(
+                    oauthInFlight = null,
+                    step = OnboardingStep.PickIdentity,
+                    identityClaimed = true,
+                )
+            }
+        } else {
             appCache.update { it.copy(hasUserOnboarded = true) }
             updateState { it.copy(oauthInFlight = null) }
             exitedToHome = true
             sendEvent(OnboardingEvent.NavigateToHome)
-        } else {
-            failAppleSignIn()
         }
     }
 

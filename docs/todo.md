@@ -24,6 +24,22 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
+## Auth & onboarding (AUTH)
+
+- `[P0]` **No deterministic auth-outcome classifier — everything downstream guesses.** The auth layer collapses net-new SIGN-UP, existing-account SIGN-IN, and anonymous→identity LINK into a single `SignInOutcome.Success` / `LinkIdentityOutcome.Success`. New-vs-returning is reconstructed after the fact from `ChipsRepository.walletJustCreated` — a wallet-subsystem side effect that is best-effort (false when the sync fails offline), one-shot, in-memory, and trips on any wallet (re)creation including identity churn. LINK-vs-fresh is read from the `is_anonymous` JWT claim (reliable) but only where each call site remembers to. This is the shared root of the welcome-dialog misfires (AUTH-23) and the Apple-onboarding skip (fixed this session). Build one classifier that returns exactly `SignedUp` / `SignedIn` / `Linked`, threaded from the auth operations (we know statically whether we called a link vs a sign-in), with the "brand-new account" half backed by a server-authoritative signal rather than the wallet proxy.
+  **Acceptance:** a single typed auth outcome (`SignedUp`/`SignedIn`/`Linked`) drives onboarding-vs-home routing, the starter-grant welcome, and the link-confirmation dialog — for Apple, Google, AND email — with no reliance on `walletJustCreated` for classification. Deterministic under offline, identity churn, and post-deletion re-auth.
+  **Hints:** server can expose `isNewAccount` off `ProfileRepository.findOrCreateResult` on `GET /v1/me` (parity with `walletCreated`/`progressionCreated`), or read Supabase `auth.users.created_at`; client classifier belongs near `AuthRepository`; unify `OnboardingViewModel.handleOAuth` / `handleAppleSignIn` / `SignInViewModel` / `SignUpViewModel` / `VerifyEmailViewModel` / `ClaimAccountViewModel`. Ties to AUTH-19 (stable identity). See docs/decisions.md "Auth-outcome state machine".
+
+- `[P1]` **Welcome/starter-grant dialog shows the wallet balance and can fire for an existing account.** `GetHomeScreenNotification.welcome()` passes `chipBalance` as the "gift" (so an established player saw their 132k total called a welcome bonus) and gates on `walletJustCreated`, which tripped on a pre-existing account signing in with Apple. Depends on AUTH-22.
+  **Acceptance:** the welcome shows the actual starter grant (server `STARTER_GRANT` = 10,000, reported by the server — not the balance), and fires exactly once, only for a genuine `SignedUp`. Never for `SignedIn`/`Linked`.
+  **Hints:** `features/home/impl/.../notification/GetHomeScreenNotification.kt:124` (`welcome()`), `WelcomeDialog.kt` (`chips` param), server `WalletLedger` `starter_grant` event carries the real amount.
+
+- `[P2]` **Linking an identity to a guest succeeds silently — no confirmation.** When an anonymous user links Google/Apple/email, the link succeeds with no feedback (OAuth/Apple just `goBack()`; email routes to VerifyEmail). Add a "your account is saved / linked" confirmation on the `Linked` outcome. Depends on AUTH-22.
+  **Acceptance:** a successful anon→identity link shows a clear confirmation dialog (name/provider), for all three providers, distinct from the sign-in and sign-up paths.
+  **Hints:** `ClaimAccountViewModel` / `OnboardingViewModel` link branches; reuse the `Dialog`/`WelcomeDialog` DS surface.
+
+---
+
 ## Billing (BILL)
 
 - `[P1]` **A StoreKit purchase made before a fresh-install identity rollover is not recovered.** The replay failure loop is fixed (a terminal `receipt_rejected` now finishes the stuck transaction so it stops shadowing new purchases), but the chips the user actually paid for are still lost: on a fresh install the anon userId AND the install_id both rotate, so the transaction's `appAccountToken` (a prior identity) matches neither the caller nor `findInstallLineage` (which keys on install_id) → `apple_account_mismatch` → the entitlement is discarded, not credited.

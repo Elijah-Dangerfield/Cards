@@ -589,6 +589,67 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun appleSignIn_noAnonSession_brandNewAccount_runsThroughOnboarding() = runUnitTest {
+        // Regression (bug: delete account -> Continue with Apple skipped onboarding).
+        // After deletion there's NO anonymous session, so the link path is skipped
+        // and we sign in. Supabase mints a NET-NEW account (walletJustCreated=true).
+        // It must run through onboarding (PickIdentity + grant reveal), not land Home.
+        val cache = FakeAppCache()
+        val auth = FakeAuthRepository(
+            appleSignInOutcome = SignInOutcome.Success,
+            initialAuthState = AuthState.Unauthenticated(),
+        )
+        val chips = FakeChipsRepository().apply { walletJustCreated.value = true }
+        val vm = newVm(
+            cache = cache,
+            auth = auth,
+            chips = chips,
+            appleCoordinator = FakeAppleSignInCoordinator(credential = sampleAppleCredential),
+        )
+        val received = mutableListOf<OnboardingEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+
+        vm.takeAction(OnboardingAction.SignInWithApple)
+        runCurrent()
+
+        assertEquals(0, auth.linkAppleCalls, "no anonymous guest to link onto")
+        assertEquals(1, auth.appleSignInCalls)
+        assertEquals(OnboardingStep.PickIdentity, vm.state.step)
+        assertTrue(vm.state.identityClaimed)
+        assertFalse(cache.get().hasUserOnboarded, "net-new account isn't onboarded until they finish")
+        assertTrue(received.isEmpty(), "must not navigate Home from the net-new Apple path")
+        assertNull(vm.state.oauthInFlight)
+    }
+
+    @Test
+    fun appleSignIn_noAnonSession_existingAccount_navigatesHome() = runUnitTest {
+        // No anonymous session, but the Apple sign-in lands on a pre-existing
+        // account (walletJustCreated=false) → skip onboarding straight to Home.
+        val cache = FakeAppCache()
+        val auth = FakeAuthRepository(
+            appleSignInOutcome = SignInOutcome.Success,
+            initialAuthState = AuthState.Unauthenticated(),
+        )
+        val chips = FakeChipsRepository().apply { walletJustCreated.value = false }
+        val vm = newVm(
+            cache = cache,
+            auth = auth,
+            chips = chips,
+            appleCoordinator = FakeAppleSignInCoordinator(credential = sampleAppleCredential),
+        )
+        val received = mutableListOf<OnboardingEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+
+        vm.takeAction(OnboardingAction.SignInWithApple)
+        runCurrent()
+
+        assertEquals(1, auth.appleSignInCalls)
+        assertTrue(cache.get().hasUserOnboarded)
+        assertEquals(OnboardingEvent.NavigateToHome, received.firstOrNull())
+        assertNull(vm.state.oauthInFlight)
+    }
+
+    @Test
     fun appleSignIn_sheetDismissed_isQuietNoOp() = runUnitTest {
         // (null, null) from the coordinator = the user closed the sheet; no
         // error banner, no in-flight spinner left behind.
