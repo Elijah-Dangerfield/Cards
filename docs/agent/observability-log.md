@@ -194,3 +194,8 @@ Grafana. NOTE for human: A5 (≥2 purchase.failed/1h) did NOT fire despite 15 st
 because BILL-12 misclassifies these 400s as "pending/unavailable", the client emits no
 purchase.failed, so the money-loss alert is blind to this exact failure mode. -->
 
+
+<!-- 2026-07-16 observability triage (interactive, after feedback-triage): 14 unresolved non-feedback issues. Three NEW since the 07-15 run — all the replayed-receipt / no-catalog-SKU cluster, same root cause as tonight's BILL-13 (filed by feedback-triage from CARDS-AA). Resolved as duplicates → BILL-13. The rest unchanged/previously dispositioned; CARDS-9V (apple_account_mismatch) grew 15→26 events, still owned by BILL-11/12 (now also BILL-13). No Grafana alerts firing; A5 purchase-failure alert still blind to this mode per prior note (BILL-12 misclassifies the redeem 400s so no purchase.failed is emitted). -->
+- 2026-07-16 · CARDS-A2 · no-action: duplicate of BILL-13 (replayed receipt order 2000001203481555) · https://elijah-dangerfield.sentry.io/issues/CARDS-A2 · case docs/agent/feedback-cases/e452cfd17fe94266bd2bd5fcc730a34e.md
+- 2026-07-16 · CARDS-A4 · no-action: duplicate of BILL-13 (unfinished purchase ...555, no catalog product chips.large) · https://elijah-dangerfield.sentry.io/issues/CARDS-A4 · case docs/agent/feedback-cases/e452cfd17fe94266bd2bd5fcc730a34e.md
+- 2026-07-16 · CARDS-A5 · no-action: duplicate of BILL-13 (unfinished purchase ...803, no catalog product chips.small) · https://elijah-dangerfield.sentry.io/issues/CARDS-A5 · case docs/agent/feedback-cases/e452cfd17fe94266bd2bd5fcc730a34e.md
