@@ -192,7 +192,8 @@ fun SignInScreen(
                     enabled = !state.isSubmitting,
                     isLoading = state.isSubmitting,
                     kind = AppleSignInButtonKind.SignIn,
-                    style = AppleSignInButtonStyle.Dark,
+                    // White per Apple HIG for dark backgrounds (our canvas is near-black).
+                    style = AppleSignInButtonStyle.Light,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

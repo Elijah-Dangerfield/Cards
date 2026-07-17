@@ -10,6 +10,8 @@ import androidx.compose.ui.viewinterop.UIKitView
 import com.dangerfield.cards.libraries.ui.nativeviews.LocalNativeViewFactory
 import com.dangerfield.cards.libraries.ui.nativeviews.NativeAppleSignInButtonKind
 import com.dangerfield.cards.libraries.ui.nativeviews.NativeAppleSignInButtonStyle
+import com.dangerfield.cards.libraries.ui.system.color.toUIColor
+import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.cornerRadiusDp
 
@@ -39,6 +41,12 @@ actual fun AppleSignInButton(
         return
     }
 
+    // The color of the surface the button sits on. The native interop view is
+    // painted this so its square corners blend into the page (see the factory
+    // kdoc). Resolved from the DS here — dark-only today, but reading the token
+    // keeps it correct if a light theme ever lands.
+    val interopBackground = AppTheme.colors.background.toUIColor()
+
     UIKitView(
         modifier = modifier.defaultMinSize(minHeight = 50.dp),
         factory = {
@@ -49,6 +57,7 @@ actual fun AppleSignInButton(
                 // button) so the Apple button rounds identically to the Google
                 // button instead of a stale literal that drifts when the token moves.
                 cornerRadius = Radii.Button.cornerRadiusDp.value,
+                backgroundColor = interopBackground,
                 onTap = { latestOnClick() },
             )
             factory.updateAppleSignInButton(view, effectiveEnabled) { latestOnClick() }
