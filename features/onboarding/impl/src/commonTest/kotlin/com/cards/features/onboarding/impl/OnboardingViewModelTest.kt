@@ -789,7 +789,6 @@ internal class FakeProfileRepository(
 
 internal class FakeChipsRepository(initial: Long? = null) : ChipsRepository {
     val balance = MutableStateFlow(initial)
-    override val walletJustCreated = MutableStateFlow(false)
     var syncCalls: Int = 0
         private set
 

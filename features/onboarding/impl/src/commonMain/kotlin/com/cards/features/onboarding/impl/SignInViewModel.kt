@@ -114,8 +114,8 @@ class SignInViewModel(
             is SignInOutcome.Success -> {
                 // Signing in is "I have an account" → straight to Home. No
                 // grant-flag bookkeeping needed: the Home dialog keys on the
-                // live walletJustCreated signal, which is false for a
-                // pre-existing account.
+                // authoritative account-just-created signal (server `/v1/me`
+                // `isNewAccount`), which is false for a pre-existing account.
                 appCache.update { it.copy(hasUserOnboarded = true) }
                 updateState { it.copy(isSubmitting = false) }
                 logger.i { "Success → marked onboarded, NavigateToHome" }

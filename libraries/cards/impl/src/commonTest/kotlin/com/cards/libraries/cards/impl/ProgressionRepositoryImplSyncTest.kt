@@ -288,7 +288,6 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
     private class RecordingChipsRepository : com.dangerfield.cards.libraries.cards.ChipsRepository {
         var syncCalls = 0
             private set
-        override val walletJustCreated = MutableStateFlow(false)
         override fun observeBalance(): Flow<Long?> = MutableStateFlow(null)
         override suspend fun getBalance(): Long? = null
         override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) =

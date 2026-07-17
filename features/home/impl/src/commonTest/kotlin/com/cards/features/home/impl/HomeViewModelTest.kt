@@ -1058,10 +1058,8 @@ class HomeViewModelTest : CoroutineTest() {
 
     private class FakeChipsRepository(
         initial: Long? = 10_000L,
-        walletJustCreatedInitial: Boolean = false,
     ) : ChipsRepository {
         val balance = MutableStateFlow(initial)
-        override val walletJustCreated = MutableStateFlow(walletJustCreatedInitial)
         val reconciling = MutableStateFlow(false)
         override val isReconciling = reconciling
         override fun observeBalance(): Flow<Long?> = balance

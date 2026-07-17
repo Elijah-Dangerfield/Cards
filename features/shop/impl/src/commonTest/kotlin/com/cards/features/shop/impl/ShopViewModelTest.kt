@@ -779,7 +779,6 @@ class ShopViewModelTest : CoroutineTest() {
          *  and positive IAP credits. */
         val appliedDeltas = mutableListOf<Triple<Long, String, String?>>()
 
-        override val walletJustCreated = MutableStateFlow(false)
         val reconciling = MutableStateFlow(false)
         override val isReconciling = reconciling
         override fun observeBalance(): Flow<Long?> = state.asStateFlow()

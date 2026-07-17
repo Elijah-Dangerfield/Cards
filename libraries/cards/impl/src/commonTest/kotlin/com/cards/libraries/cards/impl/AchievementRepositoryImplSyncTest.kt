@@ -229,7 +229,6 @@ class AchievementRepositoryImplSyncTest : CoroutineTest() {
     private class RecordingChips : ChipsRepository {
         var syncCalls = 0
             private set
-        override val walletJustCreated = MutableStateFlow(false)
         override fun observeBalance(): Flow<Long?> = MutableStateFlow(null)
         override suspend fun getBalance(): Long? = null
         override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
@@ -243,7 +242,6 @@ class AchievementRepositoryImplSyncTest : CoroutineTest() {
     }
 
     private object NoopChips : ChipsRepository {
-        override val walletJustCreated = MutableStateFlow(false)
         override fun observeBalance(): Flow<Long?> = MutableStateFlow(0L)
         override suspend fun getBalance(): Long? = 0L
         override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) = Unit

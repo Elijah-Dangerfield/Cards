@@ -19,7 +19,8 @@ import kotlin.test.assertIs
  *    profile + wallet, so it marks onboarded and goes Home;
  *  - a **brand-new** signup still needs identity + starter grant, so it
  *    re-enters onboarding and does NOT mark onboarded (the flow's Finish
- *    step does). New-vs-returning is read off `walletJustCreated`.
+ *    step does). New-vs-returning is read off the authoritative server
+ *    `/v1/me` `isNewAccount` signal via `ProfileRepository.resolveIsNewAccount`.
  *
  * What we pin:
  *  - IClickedTheLink → EmailConfirmed (returning) marks onboarded + NavigateToHome
@@ -39,14 +40,14 @@ class VerifyEmailViewModelTest : CoroutineTest() {
 
     @Test
     fun iClickedTheLink_emailConfirmed_returning_marksOnboarded_andNavigatesHome() = runUnitTest {
-        // walletJustCreated stays false → the account already had a wallet, so
-        // it's a returning user whose email was merely unconfirmed: Home.
+        // isNewAccount stays false → the server reports a pre-existing account,
+        // so it's a returning user whose email was merely unconfirmed: Home.
         val cache = FakeAppCache()
         val identity = FakeAuthRepository(
             refreshOutcome = RefreshOutcome.EmailConfirmed,
         )
-        val chips = FakeChipsRepository().apply { walletJustCreated.value = false }
-        val vm = buildVm(identity = identity, appCache = cache, chips = chips)
+        val profile = FakeProfileRepository().apply { isNewAccount = false }
+        val vm = buildVm(identity = identity, appCache = cache, profile = profile)
         vm.takeAction(VerifyEmailAction.IClickedTheLink)
 
         vm.eventFlow.test {
@@ -59,13 +60,13 @@ class VerifyEmailViewModelTest : CoroutineTest() {
 
     @Test
     fun iClickedTheLink_emailConfirmed_brandNew_reentersOnboarding_notYetOnboarded() = runUnitTest {
-        // walletJustCreated flips true on the fresh account's first sync → this
-        // is a brand-new signup: re-enter onboarding for identity + grant, and
-        // do NOT mark onboarded (the flow's Finish step owns that).
+        // The server reports isNewAccount=true for a freshly-created account →
+        // this is a brand-new signup: re-enter onboarding for identity + grant,
+        // and do NOT mark onboarded (the flow's Finish step owns that).
         val cache = FakeAppCache()
         val identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.EmailConfirmed)
-        val chips = FakeChipsRepository().apply { walletJustCreated.value = true }
-        val vm = buildVm(identity = identity, appCache = cache, chips = chips)
+        val profile = FakeProfileRepository().apply { isNewAccount = true }
+        val vm = buildVm(identity = identity, appCache = cache, profile = profile)
         vm.takeAction(VerifyEmailAction.IClickedTheLink)
 
         vm.eventFlow.test {
@@ -165,8 +166,8 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     fun appResumed_emailConfirmed_returning_marksOnboarded_andNavigatesHome() = runUnitTest {
         val cache = FakeAppCache()
         val identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.EmailConfirmed)
-        val chips = FakeChipsRepository().apply { walletJustCreated.value = false }
-        val vm = buildVm(identity = identity, appCache = cache, chips = chips)
+        val profile = FakeProfileRepository().apply { isNewAccount = false }
+        val vm = buildVm(identity = identity, appCache = cache, profile = profile)
         vm.takeAction(VerifyEmailAction.AppResumed)
 
         vm.eventFlow.test {
@@ -183,8 +184,8 @@ class VerifyEmailViewModelTest : CoroutineTest() {
         // manual button: a brand-new account re-enters onboarding.
         val cache = FakeAppCache()
         val identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.EmailConfirmed)
-        val chips = FakeChipsRepository().apply { walletJustCreated.value = true }
-        val vm = buildVm(identity = identity, appCache = cache, chips = chips)
+        val profile = FakeProfileRepository().apply { isNewAccount = true }
+        val vm = buildVm(identity = identity, appCache = cache, profile = profile)
         vm.takeAction(VerifyEmailAction.AppResumed)
 
         vm.eventFlow.test {
@@ -315,12 +316,12 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     private fun buildVm(
         identity: FakeAuthRepository = FakeAuthRepository(),
         appCache: FakeAppCache = FakeAppCache(),
-        chips: FakeChipsRepository = FakeChipsRepository(),
+        profile: FakeProfileRepository = FakeProfileRepository(),
         email: String? = sampleEmail,
     ): VerifyEmailViewModel = VerifyEmailViewModel(
         authRepository = identity,
         appCache = appCache,
-        chipsRepository = chips,
+        profileRepository = profile,
         email = email,
     )
 }

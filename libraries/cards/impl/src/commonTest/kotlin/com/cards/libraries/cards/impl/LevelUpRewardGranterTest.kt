@@ -274,7 +274,6 @@ class LevelUpRewardGranterTest : CoroutineTest() {
     private class RecordingChipsRepository : ChipsRepository {
         val grants = mutableListOf<Pair<String, Long>>()
         private val balance = MutableStateFlow<Long?>(0L)
-        override val walletJustCreated = MutableStateFlow(false)
         override fun observeBalance(): Flow<Long?> = balance
         override suspend fun getBalance(): Long? = balance.value
         override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {
