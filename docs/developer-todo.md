@@ -8,6 +8,10 @@ Check items off as you do them; delete when the whole section is empty.
 
 ---
 
+## Server ops
+
+- [ ] **The removed daily "welcome-week" bonus is still reaching users — check the deployed servers + purge residual queued messages.** The 7-day daily grant was deleted in source (PR #89, on `main`), but it was **server-driven**: the old server minted chips on wallet contact and enqueued a "Day N of 7" `UserMessage`. A tester on a debug build (→ **dev** backend) just saw "Day 5 of 7". Two things: (a) confirm the **dev** and **prod** Fly apps are actually running a post-#89 build (both deploy on push to `main`, but confirm the dev app redeployed); (b) the removal stops *new* grants but does NOT purge messages already enqueued in the DB — purge any residual `welcome_week`-reason rows from `user_messages`. Verify by signing in on a debug build and confirming no daily-bonus dialog.
+
 ## Device QA
 
 Fully QA the build

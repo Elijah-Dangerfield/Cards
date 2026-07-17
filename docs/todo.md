@@ -24,6 +24,18 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
+## Auth & onboarding (AUTH)
+
+- `[P2]` **Formalize a single typed `AuthOutcome` from the auth layer.** Every auth path now classifies new-vs-returning off the authoritative `ProfileRepository.resolveIsNewAccount()` signal (onboarding, Home welcome, and VerifyEmail — the `walletJustCreated` proxy is fully retired). Remaining polish: return one typed `AuthOutcome` (`SignedUp`/`SignedIn`/`Linked`) from the auth layer so the three cases are a type at each call site instead of a boolean reconstructed per-call-site (`isBrandNewAccount()` + an `isAnonymous`/link check).
+  **Acceptance:** `AuthRepository` sign-in/link entry points return a typed `AuthOutcome`; onboarding/verify/claim branch on it rather than recomputing new-vs-returning locally.
+  **Hints:** call sites: `OnboardingViewModel.isBrandNewAccount()`, `VerifyEmailViewModel.isBrandNewAccount()`, `ClaimAccountViewModel`. Ties to AUTH-19 (stable identity). See docs/decisions.md "Deterministic auth-outcome state machine (AUTH-22)".
+
+- `[P2]` **Email-link confirmation after verification.** OAuth + Apple instant links now show an "Your account is saved" dialog (`AccountLinkedRoute`). Email is different: the identity isn't linked until the user confirms via the emailed link, so the confirm has to fire on the VerifyEmail return, not at link-initiation. The blocker is telling apart the two paths that both land on `VerifyEmailEvent.NavigateToHome`: an anon guest who just linked email (should confirm) vs. a returning account whose email was merely unconfirmed signing in (should not). Thread a "this verify began from an anon-guest email link" flag through `VerifyEmailRoute` → `VerifyEmailViewModel` so `routeAfterConfirmation` can decide, then reuse `AccountLinkedRoute("Email")` from the onboarding entry point on Home.
+  **Acceptance:** confirming an email link that was started by an anonymous guest shows the same "account saved" confirmation (provider = Email); a returning user signing in through VerifyEmail does not.
+  **Hints:** `VerifyEmailViewModel.routeAfterConfirmation`, `OnboardingFeatureEntryPoint`; `AccountLinkedRoute` + `AccountLinkedDialog` already exist in `:features:profile`.
+
+---
+
 ## Billing (BILL)
 
 - `[P1]` **A StoreKit purchase made before a fresh-install identity rollover is not recovered.** The replay failure loop is fixed (a terminal `receipt_rejected` now finishes the stuck transaction so it stops shadowing new purchases), but the chips the user actually paid for are still lost: on a fresh install the anon userId AND the install_id both rotate, so the transaction's `appAccountToken` (a prior identity) matches neither the caller nor `findInstallLineage` (which keys on install_id) → `apple_account_mismatch` → the entitlement is discarded, not credited.

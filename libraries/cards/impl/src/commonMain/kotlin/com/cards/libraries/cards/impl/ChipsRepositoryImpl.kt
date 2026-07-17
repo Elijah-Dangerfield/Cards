@@ -70,9 +70,6 @@ class ChipsRepositoryImpl(
     private val syncLogger = KLog.withTag("ChipsSync")
     private val syncMutex = Mutex()
 
-    private val _walletJustCreated = MutableStateFlow(false)
-    override val walletJustCreated: StateFlow<Boolean> = _walletJustCreated.asStateFlow()
-
     private val _isReconciling = MutableStateFlow(false)
     override val isReconciling: StateFlow<Boolean> = _isReconciling.asStateFlow()
 
@@ -202,16 +199,6 @@ class ChipsRepositoryImpl(
             // something we hadn't seen (cross-device grant), this is also
             // where we pick it up.
             setBalance(response.balance)
-
-            // Brand-new account: the server just lazy-created the wallet. Flip
-            // the live, in-memory signal — `walletCreated` is true only on this
-            // first-contact response, false on every later sync. The Home gate
-            // ANDs it with !didSeeInitialGrantInOnboarding to reveal the grant.
-            // Not persisted on purpose: a one-shot, server-sourced fact can't
-            // then leak across an account switch.
-            if (response.walletCreated) {
-                _walletJustCreated.value = true
-            }
 
             syncLogger.d {
                 "Sync complete: ${pending.size} sent, " +

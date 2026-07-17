@@ -25,6 +25,7 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
+import com.dangerfield.cards.libraries.identity.OnboardingStarterGrant
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
@@ -58,6 +59,7 @@ class HomeViewModel(
     private val friendRepository: FriendRepository,
     private val playStyleRepository: PlayStyleRepository,
     private val progressionConfig: ProgressionConfig,
+    private val onboardingStarterGrant: OnboardingStarterGrant,
     private val appCache: AppCache,
     private val appScope: AppCoroutineScope,
     socialEnabledConfig: SocialEnabled,
@@ -244,14 +246,14 @@ class HomeViewModel(
             profileRepository.observe(),
             playStyleRepository.observeOwnStyle(),
             appCache.updates,
-            chipsRepository.walletJustCreated,
+            profileRepository.observeAccountJustCreated(),
         ) { values ->
             val progression = values[0] as Progression
             val chips = values[1] as Long?
             val profile = values[2] as Profile
             val playStyle = values[3] as PlayStyleAxes?
             val appData = values[4] as AppData
-            val walletJustCreated = values[5] as Boolean
+            val accountJustCreated = values[5] as Boolean
 
             val currentLevel = levelProgressFor(progression.totalXp, progressionConfig.levelCurve()).level
             val auth = profile as? Profile.Authenticated
@@ -262,8 +264,9 @@ class HomeViewModel(
                     fromExclusive = appData.lastCelebratedLevel,
                     toInclusive = currentLevel,
                 ),
-                walletJustCreated = walletJustCreated,
+                accountJustCreated = accountJustCreated,
                 didSeeInitialGrantInOnboarding = appData.didSeeInitialGrantInOnboarding,
+                starterGrant = onboardingStarterGrant.amountOrNull(),
                 welcomeIdentity = auth?.let {
                     HomeNotificationSnapshot.WelcomeIdentity(
                         displayName = it.displayName,

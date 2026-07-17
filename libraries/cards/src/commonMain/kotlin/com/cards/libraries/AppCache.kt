@@ -103,12 +103,13 @@ data class AppData(
      * never cleared — used to suppress the Home welcome dialog so the grant
      * isn't revealed twice.
      *
-     * Paired with [com.dangerfield.cards.libraries.cards.ChipsRepository.walletJustCreated]
-     * (the live "a wallet was created this session" signal): the Home dialog
-     * fires only when a wallet was just created AND we did *not* already show
-     * the number in onboarding. Because the "just created" half is server-sourced
-     * and live (false for any pre-existing account), this can't leak across an
-     * account switch the way the old persisted "owe a reveal" flag did.
+     * Paired with the authoritative "this account was just created this session"
+     * signal (`ProfileRepository.observeAccountJustCreated`, server `/v1/me`
+     * `isNewAccount`): the Home dialog fires only when the account was just
+     * created AND we did *not* already show the number in onboarding. Because the
+     * "just created" half is server-sourced and live (false for any pre-existing
+     * account), this can't leak across an account switch the way the old
+     * persisted "owe a reveal" flag did.
      */
     val didSeeInitialGrantInOnboarding: Boolean = false,
 

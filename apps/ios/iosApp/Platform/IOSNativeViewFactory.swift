@@ -13,12 +13,14 @@ final class IOSNativeViewFactory: CardsNativeViewFactory {
         kind: CardsNativeAppleSignInButtonKind,
         style: CardsNativeAppleSignInButtonStyle,
         cornerRadius: Float,
+        backgroundColor: UIColor,
         onTap: @escaping () -> Void
     ) throws -> UIView {
         AppleSignInButtonHost(
             type: kind.buttonType,
             style: style.buttonStyle,
             cornerRadius: CGFloat(cornerRadius),
+            backgroundColor: backgroundColor,
             action: onTap
         )
     }
@@ -48,12 +50,22 @@ final class AppleSignInButtonHost: UIView {
         type: ASAuthorizationAppleIDButton.ButtonType,
         style: ASAuthorizationAppleIDButton.Style,
         cornerRadius: CGFloat,
+        backgroundColor: UIColor,
         action: @escaping () -> Void
     ) {
         self.action = action
         self.cornerRadius = cornerRadius
         self.button = ASAuthorizationAppleIDButton(type: type, style: style)
         super.init(frame: .zero)
+
+        // The button draws a correctly-rounded pill, but its view bounds are a
+        // square, and this host is the opaque rectangle Compose punches out of
+        // the Skia canvas. Painting the host the page's background color makes
+        // the square corners around the pill blend into the page, so the
+        // rounding reads correctly. (Clipping the interop layer doesn't work —
+        // the opaque fill is Compose-side; matching its color is what does.)
+        self.backgroundColor = backgroundColor
+        isOpaque = true
 
         button.translatesAutoresizingMaskIntoConstraints = false
         button.cornerRadius = cornerRadius
@@ -72,10 +84,9 @@ final class AppleSignInButtonHost: UIView {
         nil
     }
 
-    // ASAuthorizationAppleIDButton is created at `.zero` then resized to its real
-    // height by Auto Layout. The corner-radius mask set before that first layout
-    // pass isn't re-clipped at the new size, so the button renders square. Re-
-    // applying the radius after each layout makes the DS rounding stick.
+    // ASAuthorizationAppleIDButton is created at `.zero` then resized by Auto
+    // Layout; re-applying the radius after each layout pass keeps the pill
+    // rounded at its real size.
     override func layoutSubviews() {
         super.layoutSubviews()
         button.cornerRadius = cornerRadius

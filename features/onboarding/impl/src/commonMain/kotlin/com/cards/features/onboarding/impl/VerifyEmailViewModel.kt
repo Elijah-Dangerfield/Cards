@@ -1,14 +1,12 @@
 package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.cards.AppCache
-import com.dangerfield.cards.libraries.cards.ChipsRepository
-import com.dangerfield.cards.libraries.core.Catching
-import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
 
@@ -44,7 +42,7 @@ import me.tatarka.inject.annotations.Inject
 class VerifyEmailViewModel(
     private val authRepository: AuthRepository,
     private val appCache: AppCache,
-    private val chipsRepository: ChipsRepository,
+    private val profileRepository: ProfileRepository,
     @Assisted private val email: String?,
 ) : SEAViewModel<VerifyEmailState, VerifyEmailEvent, VerifyEmailAction>(
     initialStateArg = VerifyEmailState(email = email.orEmpty()),
@@ -145,16 +143,15 @@ class VerifyEmailViewModel(
 
     /**
      * Whether the just-confirmed account is brand new. Mirrors the onboarding
-     * OAuth path: [ChipsRepository.walletJustCreated] flips true the first time a
-     * fresh account's wallet is synced, and stays false for a returning account
-     * whose wallet already exists. If the sync fails (offline) the signal stays
-     * false and we treat them as returning (Home) rather than trapping a real
-     * user in onboarding.
+     * OAuth path: reads the authoritative server signal via
+     * [ProfileRepository.resolveIsNewAccount] (`/v1/me`'s `isNewAccount`), which
+     * replaced the best-effort `walletJustCreated` proxy — that proxy depended on
+     * a wallet sync that goes false when offline and tripped on identity churn (a
+     * pre-existing account could look "new"). On error the signal is false, so a
+     * real returning user is routed Home rather than trapped in onboarding.
      */
-    private suspend fun isBrandNewAccount(): Boolean {
-        Catching { chipsRepository.sync() }.logOnFailure { "Verify-email wallet sync failed" }
-        return chipsRepository.walletJustCreated.value
-    }
+    private suspend fun isBrandNewAccount(): Boolean =
+        profileRepository.resolveIsNewAccount()
 }
 
 data class VerifyEmailState(

@@ -308,7 +308,6 @@ class ProgressionRepositoryImplTest : CoroutineTest() {
 
     /** Local award paths never touch the wallet — fail loudly if one does. */
     private object NeverTouchedChips : com.dangerfield.cards.libraries.cards.ChipsRepository {
-        override val walletJustCreated = MutableStateFlow(false)
         override fun observeBalance(): Flow<Long?> =
             error("unexpected chips access in a non-sync test")
         override suspend fun getBalance(): Long? = error("unexpected chips access in a non-sync test")

@@ -25,6 +25,16 @@ data class MeResponse(
      * claim on every request.
      */
     val isAnonymous: Boolean,
+    /**
+     * True only on the response that lazy-created this profile row — i.e. this
+     * is a brand-new account's first contact. The client's auth-outcome
+     * classifier reads it to tell SIGN-UP (net-new) from SIGN-IN (existing):
+     * authoritative and deterministic, unlike the old `walletCreated` proxy
+     * that depended on a best-effort wallet sync. Defaults false so older
+     * responses/clients degrade to "returning". One-shot: only the first
+     * `GET /v1/me` after account creation carries true.
+     */
+    val isNewAccount: Boolean = false,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
 )
@@ -64,12 +74,13 @@ data class PatchMeRequest(
 )
 
 @OptIn(ExperimentalTime::class)
-internal fun Profile.toMeDto(isAnonymous: Boolean): MeResponse = MeResponse(
+internal fun Profile.toMeDto(isAnonymous: Boolean, isNewAccount: Boolean = false): MeResponse = MeResponse(
     userId = userId.value.toString(),
     displayName = displayName,
     avatarEmoji = avatarEmoji,
     avatarBackgroundColor = avatarBackgroundColor,
     isAnonymous = isAnonymous,
+    isNewAccount = isNewAccount,
     createdAtEpochMs = createdAt.toEpochMilliseconds(),
     updatedAtEpochMs = updatedAt.toEpochMilliseconds(),
 )

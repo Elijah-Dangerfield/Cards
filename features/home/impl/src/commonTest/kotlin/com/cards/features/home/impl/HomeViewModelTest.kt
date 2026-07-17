@@ -23,6 +23,8 @@ import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.xpAtStartOfLevel
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.config.AppConfigMap
+import com.dangerfield.cards.libraries.identity.OnboardingStarterGrant
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
@@ -601,14 +603,15 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun welcomeGate_walletJustCreated_waitsForChips_thenFires() = runUnitTest {
-        // walletJustCreated=true + Profile.Authenticated, but chips not yet
-        // hydrated → don't fire. The dialog's job is to reveal the real
-        // number, so the gate waits for the balance before firing.
+    fun welcomeGate_accountJustCreated_waitsForChips_thenFires() = runUnitTest {
+        // accountJustCreated=true + Profile.Authenticated, but chips not yet
+        // hydrated and no starter-grant config → fall back to the balance, so the
+        // gate waits for the balance before firing (reveals the real number).
         val profile = FakeProfileRepository(
             initial = authenticatedProfile(displayName = "FreshInstall", isAnonymous = true),
+            accountJustCreatedInitial = true,
         )
-        val chips = FakeChipsRepository(initial = null, walletJustCreatedInitial = true)
+        val chips = FakeChipsRepository(initial = null)
         val appCache = FakeAppCache() // didSeeInitialGrantInOnboarding = false
         val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
         // A blocking notification only presents once Home is settled (PROG-5).
@@ -631,14 +634,15 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun welcomeGate_walletNotJustCreated_doesNotFire() = runUnitTest {
-        // Returning user / switched-into account: walletJustCreated=false →
+    fun welcomeGate_accountNotJustCreated_doesNotFire() = runUnitTest {
+        // Returning user / switched-into account: accountJustCreated=false →
         // never fire, even with a hydrated balance. This is the leak fix —
-        // the signal is live + server-sourced, false for a pre-existing wallet.
+        // the signal is authoritative + server-sourced, false for a pre-existing
+        // account (the AUTH-23 bug where an established account saw the welcome).
         val profile = FakeProfileRepository(
             initial = authenticatedProfile(displayName = "Returning", isAnonymous = false),
         )
-        val chips = FakeChipsRepository(initial = 250_000L, walletJustCreatedInitial = false)
+        val chips = FakeChipsRepository(initial = 250_000L)
         val appCache = FakeAppCache()
         val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
 
@@ -655,8 +659,9 @@ class HomeViewModelTest : CoroutineTest() {
         // repeat it.
         val profile = FakeProfileRepository(
             initial = authenticatedProfile(displayName = "SawItInOnboarding", isAnonymous = true),
+            accountJustCreatedInitial = true,
         )
-        val chips = FakeChipsRepository(initial = 10_000L, walletJustCreatedInitial = true)
+        val chips = FakeChipsRepository(initial = 10_000L)
         val appCache = FakeAppCache(initial = AppData(didSeeInitialGrantInOnboarding = true))
         val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
 
@@ -670,8 +675,11 @@ class HomeViewModelTest : CoroutineTest() {
     fun welcomeGate_profileFallback_doesNotFire_butFiresOnceProfileResolves() = runUnitTest {
         // Gate waits for an Authenticated profile + hydrated chips — when both
         // arrive (and the wallet was just created, not yet revealed), it fires.
-        val profile = FakeProfileRepository(initial = Profile.Fallback(id = "anon"))
-        val chips = FakeChipsRepository(initial = 10_000L, walletJustCreatedInitial = true)
+        val profile = FakeProfileRepository(
+            initial = Profile.Fallback(id = "anon"),
+            accountJustCreatedInitial = true,
+        )
+        val chips = FakeChipsRepository(initial = 10_000L)
         val appCache = FakeAppCache()
         val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
         vm.takeAction(HomeAction.ScreenResumed)
@@ -917,6 +925,11 @@ class HomeViewModelTest : CoroutineTest() {
         playStyle: FakePlayStyleRepository = FakePlayStyleRepository(),
         appCache: FakeAppCache = FakeAppCache(),
         progressionConfig: ProgressionConfig = FakeProgressionConfig(),
+        // Empty config → the starter-grant amount is unknown, so the welcome
+        // falls back to the fresh account's balance (what these tests assert).
+        onboardingStarterGrant: OnboardingStarterGrant = OnboardingStarterGrant(
+            object : AppConfigMap() { override val map = emptyMap<String, Any>() },
+        ),
         socialEnabled: Boolean = true,
     ): HomeViewModel = HomeViewModel(
         progressionRepository = progression,
@@ -928,6 +941,7 @@ class HomeViewModelTest : CoroutineTest() {
         friendRepository = friends,
         playStyleRepository = playStyle,
         progressionConfig = progressionConfig,
+        onboardingStarterGrant = onboardingStarterGrant,
         appCache = appCache,
         appScope = AppCoroutineScope(dispatchers),
         socialEnabledConfig = SocialEnabled.forTest(socialEnabled),
@@ -1044,10 +1058,8 @@ class HomeViewModelTest : CoroutineTest() {
 
     private class FakeChipsRepository(
         initial: Long? = 10_000L,
-        walletJustCreatedInitial: Boolean = false,
     ) : ChipsRepository {
         val balance = MutableStateFlow(initial)
-        override val walletJustCreated = MutableStateFlow(walletJustCreatedInitial)
         val reconciling = MutableStateFlow(false)
         override val isReconciling = reconciling
         override fun observeBalance(): Flow<Long?> = balance
@@ -1143,11 +1155,15 @@ class HomeViewModelTest : CoroutineTest() {
 
     private class FakeProfileRepository(
         initial: Profile = Profile.Fallback(id = "anon"),
+        accountJustCreatedInitial: Boolean = false,
     ) : ProfileRepository {
         val profile = MutableStateFlow(initial)
+        /** Drives the authoritative brand-new-account signal the welcome gate reads. */
+        val accountJustCreated = MutableStateFlow(accountJustCreatedInitial)
         suspend fun emit(next: Profile) { profile.emit(next) }
         override suspend fun current(): Profile = profile.value
         override fun observe(): Flow<Profile> = profile
+        override fun observeAccountJustCreated(): Flow<Boolean> = accountJustCreated
         override suspend fun update(
             displayName: String?,
             avatarEmoji: String?,

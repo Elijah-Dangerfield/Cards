@@ -87,7 +87,7 @@ class ClaimAccountViewModel(
                 when (authRepository.linkOAuthIdentity(action.provider)) {
                     is LinkIdentityOutcome.Success -> {
                         updateState { it.copy(isSubmitting = false) }
-                        sendEvent(ClaimAccountEvent.Claimed)
+                        sendEvent(ClaimAccountEvent.Claimed(action.provider))
                     }
                     is LinkIdentityOutcome.AlreadyOnAnotherAccount -> updateState {
                         it.copy(
@@ -199,7 +199,7 @@ class ClaimAccountViewModel(
         when (authRepository.linkAppleIdentity(credential)) {
             is LinkIdentityOutcome.Success -> {
                 updateState { it.copy(isSubmitting = false) }
-                sendEvent(ClaimAccountEvent.Claimed)
+                sendEvent(ClaimAccountEvent.Claimed(OAuthProvider.Apple))
             }
             is LinkIdentityOutcome.AlreadyOnAnotherAccount -> updateState {
                 it.copy(
@@ -331,8 +331,12 @@ data class ClaimAccountState(
 }
 
 sealed interface ClaimAccountEvent {
-    /** Link succeeded — current identity now owns the new OAuth identity. */
-    data object Claimed : ClaimAccountEvent
+    /**
+     * Link succeeded — the anonymous guest now owns the linked [provider]
+     * identity. The entry point pops the claim screen and shows the
+     * "your account is saved" confirmation over Profile.
+     */
+    data class Claimed(val provider: OAuthProvider) : ClaimAccountEvent
     /** User accepted switching to a pre-existing OAuth account. */
     data object SwitchedAccounts : ClaimAccountEvent
     /** Email link kicked off — guest stays signed in until they tap the link. */

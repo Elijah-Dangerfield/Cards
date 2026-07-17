@@ -72,29 +72,6 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
-    fun sync_walletCreatedTrue_flipsWalletJustCreated() = runUnitTest {
-        val repo = buildRepo(FakeChipsDao(seedBalance = 0L), FakeWalletEventDao()) {
-            respondJson("""{"schemaVersion":1,"balance":10500,"results":[],"walletCreated":true}""")
-        }
-
-        repo.sync()
-
-        assertTrue(repo.walletJustCreated.value, "walletCreated=true must flip walletJustCreated")
-    }
-
-    @Test
-    fun sync_walletCreatedFalseOrAbsent_leavesSignalFalse() = runUnitTest {
-        // No walletCreated field at all (older/returning-user response).
-        val repo = buildRepo(FakeChipsDao(seedBalance = 0L), FakeWalletEventDao()) {
-            respondJson("""{"schemaVersion":1,"balance":10000,"results":[]}""")
-        }
-
-        repo.sync()
-
-        assertEquals(false, repo.walletJustCreated.value)
-    }
-
-    @Test
     fun allApplied_deletesLocalEvents_andResetsBalanceToAuthoritative() = runUnitTest {
         val walletDao = FakeWalletEventDao().apply {
             insert(walletEvent("k1", delta = 250))

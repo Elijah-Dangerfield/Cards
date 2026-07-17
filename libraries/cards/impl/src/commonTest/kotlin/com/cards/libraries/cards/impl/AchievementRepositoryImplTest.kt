@@ -243,7 +243,6 @@ class AchievementRepositoryImplTest : CoroutineTest() {
     private class FakeChipsRepository : ChipsRepository {
         private val state = MutableStateFlow<Long?>(10_000L)
         fun balance() = state.value
-        override val walletJustCreated = MutableStateFlow(false)
         override fun observeBalance(): Flow<Long?> = state.asStateFlow()
         override suspend fun getBalance(): Long? = state.value
         override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {

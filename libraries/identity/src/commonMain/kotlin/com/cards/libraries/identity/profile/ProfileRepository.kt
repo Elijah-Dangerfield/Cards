@@ -51,6 +51,31 @@ interface ProfileRepository {
         clearAvatarBackgroundColor: Boolean = false,
     ): UpdateProfileOutcome
 
+    /**
+     * Whether the current session's account was **just created** on the server
+     * (a brand-new account's first contact) — the authoritative discriminator
+     * for SIGN-UP vs SIGN-IN, read once right after an identity auth. Sourced
+     * from the server's `/v1/me` `isNewAccount` flag, latched inside the repo so
+     * it survives the profile hydrate racing the caller (the flag is one-shot
+     * server-side). Returns false when unauthenticated or on error — treat "not
+     * sure" as returning, so a real returning user is never trapped in
+     * onboarding. Replaces the best-effort `ChipsRepository.walletJustCreated`
+     * proxy. Consuming: reading it resets the latch. Default false for fakes.
+     */
+    suspend fun resolveIsNewAccount(): Boolean = false
+
+    /**
+     * Reactive form of [resolveIsNewAccount] for observers that can't call a
+     * suspend consume in a flow `combine` (the Home starter-grant gate). Emits
+     * true once a `/v1/me` hydrate reports a brand-new account and stays true for
+     * the session (reset on sign-out / account switch) — it is NOT consumed by
+     * reads, so onboarding's [resolveIsNewAccount] and the Home welcome can both
+     * observe the same latch. Duplicate starter-grant reveals are prevented by
+     * the persisted "already shown" watermark, not by consuming this signal.
+     * Default: a constant-false flow for fakes.
+     */
+    fun observeAccountJustCreated(): Flow<Boolean> = kotlinx.coroutines.flow.flowOf(false)
+
     /** Fetch the curated starter emoji pack so the avatar picker can render. */
     suspend fun fetchAvatarPack(): AvatarPackOutcome
 

@@ -245,7 +245,6 @@ internal class FakeChipsRepository : ChipsRepository {
 
     override fun observeBalance(): Flow<Long?> = balance.asStateFlow()
     override suspend fun getBalance(): Long? = balance.value
-    override val walletJustCreated: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
     override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
     override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
     override suspend fun setBalance(authoritativeBalance: Long) {

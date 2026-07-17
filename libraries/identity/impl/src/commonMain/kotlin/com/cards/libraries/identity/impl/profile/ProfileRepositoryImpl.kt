@@ -23,7 +23,9 @@ import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.ServerResponseException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -94,6 +96,15 @@ class ProfileRepositoryImpl(
     private val sharedState: Flow<Profile> = _state.asSharedFlow()
 
     /**
+     * Latch for the server's one-shot `isNewAccount` flag (see
+     * [resolveIsNewAccount]). Set true when a `/v1/me` hydrate reports a
+     * brand-new account, keyed to [newAccountLatchUserId] so it can't leak
+     * across an account switch. Consumed (reset) by [resolveIsNewAccount].
+     */
+    private val _accountJustCreated = MutableStateFlow(false)
+    private var newAccountLatchUserId: String? = null
+
+    /**
      * One-shot rejections from flushing a queued offline edit the server then
      * refused. `extraBufferCapacity` so an emit from inside the resolve mutex
      * never suspends waiting on a slow collector.
@@ -154,6 +165,21 @@ class ProfileRepositoryImpl(
 
     override fun observe(): Flow<Profile> = sharedState
 
+    override suspend fun resolveIsNewAccount(): Boolean {
+        val auth = authRepository.current()
+        if (auth !is AuthState.Authenticated) return false
+        // Ensure a fresh /v1/me has run this session so the latch is populated —
+        // idempotent get-or-create. The auth-change collector may have already
+        // hydrated (and latched) before us; either way the latch holds the
+        // answer. Errors fall back to "returning" so we never trap a real user.
+        Catching { resolve(auth) }.logOnFailure { "resolveIsNewAccount: hydrate failed" }
+        // Non-consuming: the Home welcome observes the same latch (see
+        // observeAccountJustCreated). Reset happens on sign-out / account switch.
+        return _accountJustCreated.value
+    }
+
+    override fun observeAccountJustCreated(): Flow<Boolean> = _accountJustCreated.asStateFlow()
+
     override fun observeEditRejections(): Flow<ProfileEditRejection> = _editRejections
 
     override suspend fun flushPendingEdits() {
@@ -200,6 +226,17 @@ class ProfileRepositoryImpl(
         Catching {
             logger.d { "GET /v1/me for ${auth.userId}" }
             val me = profileApi.me()
+            // Latch the brand-new-account signal for the auth-outcome classifier.
+            // `isNewAccount` is one-shot server-side (only the /v1/me that created
+            // the profile carries it), and this hydrate can race the classifier —
+            // so capture it here, keyed to the userId so a stale latch can't leak
+            // into a subsequent account switch.
+            if (me.userId != newAccountLatchUserId) {
+                newAccountLatchUserId = me.userId
+                _accountJustCreated.value = me.isNewAccount
+            } else if (me.isNewAccount) {
+                _accountJustCreated.value = true
+            }
             val profile = Profile.Authenticated(
                 id = me.userId,
                 displayName = me.displayName,
@@ -289,6 +326,10 @@ class ProfileRepositoryImpl(
     }
 
     private suspend fun resolveFallbackLocked(auth: AuthState.Unauthenticated): Profile {
+        // Sign-out / delete tears down the session: clear the brand-new-account
+        // latch so it can't leak into whatever account authenticates next.
+        _accountJustCreated.value = false
+        newAccountLatchUserId = null
         // A server-confirmed dead session (the auth server rejected our token):
         // the cached profile is a ghost. Surfacing it as Authenticated is exactly
         // what makes the app keep firing authed calls that all 401. Clear it and

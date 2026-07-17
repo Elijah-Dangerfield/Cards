@@ -229,6 +229,7 @@ Two variants, both must pass:
 3. Return to the app.
 
 **Expected:** The claim reports success and, with no app restart, every "sign in and claim your account" / "Save your progress" prompt disappears — the account now reads as claimed everywhere. Progress (chips, XP, profile) carries over unchanged. Force-quit and relaunch: still claimed, no prompts return.
+- On the successful link a celebratory "Your account is saved" dialog appears over Profile, naming the provider ("You're signed in with Google now…"), distinct from the sign-up welcome-grant dialog; dismissing it ("Keep playing") leaves you on Profile. Same dialog fires for the native Apple claim (names Apple). *(AUTH-24.)*
 
 ---
 

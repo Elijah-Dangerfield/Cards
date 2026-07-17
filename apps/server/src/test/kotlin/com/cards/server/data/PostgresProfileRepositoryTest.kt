@@ -24,6 +24,7 @@ import org.junit.After
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -61,6 +62,30 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
         assertTrue(profile.displayName.isNotBlank())
         assertTrue(profile.avatarEmoji.isNotBlank())
         assertEquals(profile.createdAt, profile.updatedAt)
+    }
+
+    @Test
+    fun findOrCreateResult_firstCall_createdTrue() = runTest {
+        // The brand-new-account signal the client's auth-outcome classifier reads
+        // to tell SIGN-UP from SIGN-IN (surfaced as MeResponse.isNewAccount).
+        val repo = newRepository()
+        val userId = seedAuthUser()
+
+        val result = repo.findOrCreateResult(userId)
+
+        assertTrue(result.created, "first contact for a brand-new account must report created")
+        assertEquals(userId, result.profile.userId)
+    }
+
+    @Test
+    fun findOrCreateResult_secondCall_createdFalse() = runTest {
+        val repo = newRepository()
+        val userId = seedAuthUser()
+        repo.findOrCreateResult(userId)
+
+        val result = repo.findOrCreateResult(userId)
+
+        assertFalse(result.created, "returning account must not report a new-account flag")
     }
 
     @Test

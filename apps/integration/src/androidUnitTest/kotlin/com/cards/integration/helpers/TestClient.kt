@@ -200,8 +200,6 @@ class TestClient(
     private object NoChipsRepository : com.dangerfield.cards.libraries.cards.ChipsRepository {
         override fun observeBalance() = flowOf<Long?>(null)
         override suspend fun getBalance(): Long? = null
-        override val walletJustCreated =
-            kotlinx.coroutines.flow.MutableStateFlow(false)
         override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
         override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) = Unit
         override suspend fun setBalance(authoritativeBalance: Long) = Unit

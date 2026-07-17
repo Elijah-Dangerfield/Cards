@@ -587,7 +587,6 @@ class FakeChipsRepository(
      */
     var creditOnNextSync: Long = 0L
 
-    override val walletJustCreated: StateFlow<Boolean> = MutableStateFlow(false)
     override fun observeBalance(): Flow<Long?> = balance
     override suspend fun getBalance(): Long? = balance.value
     override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {

@@ -8,6 +8,7 @@ import com.dangerfield.cards.server.db.toKotlinInstant
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.AcquisitionSource
 import com.dangerfield.cards.server.domain.AvatarGenerator
+import com.dangerfield.cards.server.domain.FindOrCreateProfileResult
 import com.dangerfield.cards.server.domain.FoundingMemberCatalog
 import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
@@ -207,32 +208,38 @@ class PostgresProfileRepository(
         UpdateProfileOutcome.Success(refreshed)
     }
 
-    override suspend fun findOrCreate(userId: UserId): Profile = database.transaction {
-        // Fast path: already exists.
+    override suspend fun findOrCreate(userId: UserId): Profile =
+        findOrCreateResult(userId).profile
+
+    override suspend fun findOrCreateResult(userId: UserId): FindOrCreateProfileResult = database.transaction {
+        // Fast path: already exists → not a new account.
         val existing = ProfilesTable
             .selectAll()
             .where { ProfilesTable.userId eq userId.value }
             .singleOrNull()
-        if (existing != null) return@transaction existing.toProfile()
+        if (existing != null) {
+            return@transaction FindOrCreateProfileResult(existing.toProfile(), created = false)
+        }
 
         // Insert with retry on display_name collisions. The userId-key
         // collision (concurrent first-contact for the same user) is also
         // handled — if some other request just inserted the profile, our
         // own insert fails, we re-read.
         try {
-            insertWithUniqueName(userId)
+            FindOrCreateProfileResult(insertWithUniqueName(userId), created = true)
         } catch (e: ExposedSQLException) {
             if (e.isUniqueViolation()) {
                 // Either the userId PK or the displayName UQ tripped. The
                 // userId case means a concurrent request beat us; re-read.
                 // The displayName case is handled inside the retry loop —
                 // if it bubbles out here we exhausted retries and surface
-                // the failure.
+                // the failure. We didn't win the insert on this request, so
+                // created = false (the winning request reports the new flag).
                 val raced = ProfilesTable
                     .selectAll()
                     .where { ProfilesTable.userId eq userId.value }
                     .singleOrNull()
-                raced?.toProfile() ?: throw e
+                raced?.let { FindOrCreateProfileResult(it.toProfile(), created = false) } ?: throw e
             } else {
                 throw e
             }

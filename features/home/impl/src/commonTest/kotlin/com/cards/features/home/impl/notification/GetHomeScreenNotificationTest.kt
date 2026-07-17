@@ -57,7 +57,7 @@ class GetHomeScreenNotificationTest {
         val snapshot = base().copy(
             currentLevel = 4,
             lastCelebratedLevel = 3,
-            walletJustCreated = true,
+            accountJustCreated = true,
             didSeeInitialGrantInOnboarding = false,
             welcomeIdentity = identity(),
             chipBalance = 10_000,
@@ -71,12 +71,12 @@ class GetHomeScreenNotificationTest {
     @Test
     fun `welcome requires a hydrated balance and a resolved identity`() {
         val noBalance = base().copy(
-            walletJustCreated = true,
+            accountJustCreated = true,
             welcomeIdentity = identity(),
             chipBalance = null,
         )
         val noIdentity = base().copy(
-            walletJustCreated = true,
+            accountJustCreated = true,
             welcomeIdentity = null,
             chipBalance = 10_000,
         )
@@ -88,10 +88,40 @@ class GetHomeScreenNotificationTest {
     @Test
     fun `welcome never fires once grant was seen in onboarding`() {
         val snapshot = base().copy(
-            walletJustCreated = true,
+            accountJustCreated = true,
             didSeeInitialGrantInOnboarding = true,
             welcomeIdentity = identity(),
             chipBalance = 10_000,
+        )
+
+        assertNull(GetHomeScreenNotification(snapshot))
+    }
+
+    @Test
+    fun `welcome reveals the explicit starter grant, not the wallet balance`() {
+        // Bug (AUTH-23): the dialog showed the user's whole balance as the "gift".
+        val snapshot = base().copy(
+            accountJustCreated = true,
+            welcomeIdentity = identity(),
+            starterGrant = 10_000,
+            chipBalance = 132_250, // a larger balance must NOT be what's revealed
+        )
+
+        val result = GetHomeScreenNotification(snapshot)
+
+        assertTrue(result is HomeNotification.Welcome)
+        assertEquals(10_000L, (result as HomeNotification.Welcome).chips)
+    }
+
+    @Test
+    fun `welcome never fires for a pre-existing account`() {
+        // Bug (AUTH-23): an established account signing in must not see the
+        // starter-grant welcome. accountJustCreated is the authoritative gate.
+        val snapshot = base().copy(
+            accountJustCreated = false,
+            welcomeIdentity = identity(),
+            starterGrant = 10_000,
+            chipBalance = 132_250,
         )
 
         assertNull(GetHomeScreenNotification(snapshot))
@@ -191,7 +221,7 @@ class GetHomeScreenNotificationTest {
         // Wallet just created but the welcome identity hasn't resolved yet — the
         // arbiter must not slip an out-of-chips sheet into that gap.
         val snapshot = base().copy(
-            walletJustCreated = true,
+            accountJustCreated = true,
             welcomeIdentity = null,
             chipBalance = 400,
         )
@@ -227,9 +257,10 @@ class GetHomeScreenNotificationTest {
         currentLevel = null,
         lastCelebratedLevel = 1,
         crossedLevelRewards = emptyList(),
-        walletJustCreated = false,
+        accountJustCreated = false,
         didSeeInitialGrantInOnboarding = false,
         welcomeIdentity = null,
+        starterGrant = null,
         playStyleSampleSize = null,
         playStyleUnlockThreshold = 20,
         playStyleUnlockSeen = false,

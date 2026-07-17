@@ -15,9 +15,11 @@ import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.profile.impl.account.AccountActionsAction
 import com.dangerfield.cards.features.profile.impl.account.AccountActionsEvent
 import com.dangerfield.cards.features.profile.impl.account.AccountActionsViewModel
+import com.dangerfield.cards.features.profile.impl.account.AccountLinkedDialog
 import com.dangerfield.cards.features.profile.impl.account.ClaimAccountEvent
 import com.dangerfield.cards.features.profile.impl.account.ClaimAccountScreen
 import com.dangerfield.cards.features.profile.impl.account.ClaimAccountViewModel
+import com.dangerfield.cards.features.profile.impl.account.label
 import com.dangerfield.cards.features.profile.impl.account.DeleteAccountEvent
 import com.dangerfield.cards.features.profile.impl.account.DeleteAccountScreen
 import com.dangerfield.cards.features.profile.impl.account.DeleteAccountViewModel
@@ -31,6 +33,7 @@ import com.dangerfield.cards.features.profile.impl.feedback.FeedbackViewModel
 import com.dangerfield.cards.features.profile.impl.items.MyItemsAction
 import com.dangerfield.cards.features.profile.impl.items.MyItemsViewModel
 import com.dangerfield.cards.features.profile.impl.notifications.NotificationsScreen
+import com.dangerfield.cards.features.profile.AccountLinkedRoute
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.profile.DeleteAccountRoute
 import com.dangerfield.cards.features.profile.EditProfileRoute
@@ -78,7 +81,9 @@ import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.navigation.OnTabReselected
 import com.dangerfield.cards.libraries.navigation.Router
+import com.dangerfield.cards.libraries.navigation.dialog
 import com.dangerfield.cards.libraries.navigation.screen
+import com.dangerfield.cards.libraries.navigation.toRouteOrNull
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -428,7 +433,12 @@ class ProfileFeatureEntryPoint(
             val state by viewModel.stateFlow.collectAsStateWithLifecycle()
             viewModel.ObserveEvents { event ->
                 when (event) {
-                    ClaimAccountEvent.Claimed -> router.goBack()
+                    is ClaimAccountEvent.Claimed -> router.batch {
+                        // Pop the claim screen, then float the confirmation over
+                        // Profile — the guest is now a real, saved account.
+                        goBack()
+                        navigate(AccountLinkedRoute(event.provider.label))
+                    }
                     ClaimAccountEvent.SwitchedAccounts -> router.navigate(
                         OnboardingRoute(),
                         NavigationOptions(launchSingleTop = true, clearBackStack = true),
@@ -445,6 +455,17 @@ class ProfileFeatureEntryPoint(
             )
         }
 
+        // Post-link confirmation, floated over Profile once the guest links a
+        // real identity. Its own back-stack destination so it animates in/out
+        // like the Home welcome dialog and dismissal is a plain pop.
+        dialog<AccountLinkedRoute> { backStackEntry, dialogState ->
+            val route = backStackEntry.toRouteOrNull<AccountLinkedRoute>() ?: return@dialog
+            AccountLinkedDialog(
+                state = dialogState,
+                providerLabel = route.providerLabel,
+                onDismiss = { router.goBack() },
+            )
+        }
 
         screen<FeedbackRoute> {
             val viewModel: FeedbackViewModel = viewModel { feedbackViewModelFactory() }

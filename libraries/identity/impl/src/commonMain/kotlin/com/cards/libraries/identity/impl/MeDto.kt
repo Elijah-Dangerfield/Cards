@@ -21,6 +21,16 @@ data class MeDto(
      * the call site that triggered the fetch; always read it from here.
      */
     val isAnonymous: Boolean,
+    /**
+     * True only on the response that lazy-created this profile row — i.e. this
+     * `GET /v1/me` is a brand-new account's first contact. Authoritative,
+     * deterministic net-new signal for the auth-outcome classifier (SIGN-UP vs
+     * SIGN-IN), replacing the best-effort `walletJustCreated` proxy. One-shot:
+     * only the first hydrate after account creation carries true, so callers
+     * capture it at the post-auth hydrate, not on every read. Defaults false so
+     * a server on an older build degrades to "returning".
+     */
+    val isNewAccount: Boolean = false,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
 )

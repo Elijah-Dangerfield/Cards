@@ -17,6 +17,20 @@ package com.dangerfield.cards.server.domain
  */
 interface ProfileRepository {
     suspend fun findOrCreate(userId: UserId): Profile
+
+    /**
+     * Like [findOrCreate] but reports whether THIS call created the profile row
+     * — i.e. this is a brand-new account's first contact. It's the authoritative
+     * "net-new account" signal (parity with the wallet's and progression's
+     * `created` flags): deterministic and decoupled from the best-effort wallet
+     * sync the client used to infer newness from. `GET /v1/me` surfaces it as
+     * `MeResponse.isNewAccount` for the client's auth-outcome classifier
+     * (SignedUp vs SignedIn). Default delegates with `created = false` for fakes
+     * that don't distinguish; the Postgres impl reports the real flag.
+     */
+    suspend fun findOrCreateResult(userId: UserId): FindOrCreateProfileResult =
+        FindOrCreateProfileResult(findOrCreate(userId), created = false)
+
     suspend fun findById(userId: UserId): Profile?
 
     /**
@@ -110,6 +124,11 @@ interface ProfileRepository {
      */
     suspend fun findInstallLineage(userId: UserId): Set<UserId> = setOf(userId)
 }
+
+/** Result of [ProfileRepository.findOrCreateResult]: the profile plus whether
+ *  THIS call created it (brand-new account). Parity with the wallet's
+ *  `FindOrCreateResult` and progression's `FindOrCreateProgressionResult`. */
+data class FindOrCreateProfileResult(val profile: Profile, val created: Boolean)
 
 sealed interface UpdateProfileOutcome {
     data class Success(val profile: Profile) : UpdateProfileOutcome

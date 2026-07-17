@@ -228,7 +228,8 @@ fun ClaimAccountScreen(
                             enabled = !state.isSubmitting,
                             isLoading = state.isSubmitting,
                             kind = AppleSignInButtonKind.ContinueFlow,
-                            style = AppleSignInButtonStyle.Dark,
+                            // White per Apple HIG for dark backgrounds (our canvas is near-black).
+                            style = AppleSignInButtonStyle.Light,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }

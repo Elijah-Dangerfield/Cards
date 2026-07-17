@@ -447,7 +447,6 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         val balanceValue: Long? get() = balance.value
         var addChipsCalls = 0
             private set
-        override val walletJustCreated: StateFlow<Boolean> = MutableStateFlow(false)
         override fun observeBalance(): Flow<Long?> = balance.asStateFlow()
         override suspend fun getBalance(): Long? = balance.value
         override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {
