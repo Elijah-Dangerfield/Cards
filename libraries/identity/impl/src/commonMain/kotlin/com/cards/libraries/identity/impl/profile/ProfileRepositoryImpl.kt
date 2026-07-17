@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -172,10 +173,12 @@ class ProfileRepositoryImpl(
         // hydrated (and latched) before us; either way the latch holds the
         // answer. Errors fall back to "returning" so we never trap a real user.
         Catching { resolve(auth) }.logOnFailure { "resolveIsNewAccount: hydrate failed" }
-        val isNew = _accountJustCreated.value
-        _accountJustCreated.value = false // consume
-        return isNew
+        // Non-consuming: the Home welcome observes the same latch (see
+        // observeAccountJustCreated). Reset happens on sign-out / account switch.
+        return _accountJustCreated.value
     }
+
+    override fun observeAccountJustCreated(): Flow<Boolean> = _accountJustCreated.asStateFlow()
 
     override fun observeEditRejections(): Flow<ProfileEditRejection> = _editRejections
 
@@ -323,6 +326,10 @@ class ProfileRepositoryImpl(
     }
 
     private suspend fun resolveFallbackLocked(auth: AuthState.Unauthenticated): Profile {
+        // Sign-out / delete tears down the session: clear the brand-new-account
+        // latch so it can't leak into whatever account authenticates next.
+        _accountJustCreated.value = false
+        newAccountLatchUserId = null
         // A server-confirmed dead session (the auth server rejected our token):
         // the cached profile is a ghost. Surfacing it as Authenticated is exactly
         // what makes the app keep firing authed calls that all 401. Clear it and

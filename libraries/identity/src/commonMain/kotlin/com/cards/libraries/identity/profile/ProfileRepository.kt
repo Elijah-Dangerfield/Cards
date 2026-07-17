@@ -64,6 +64,18 @@ interface ProfileRepository {
      */
     suspend fun resolveIsNewAccount(): Boolean = false
 
+    /**
+     * Reactive form of [resolveIsNewAccount] for observers that can't call a
+     * suspend consume in a flow `combine` (the Home starter-grant gate). Emits
+     * true once a `/v1/me` hydrate reports a brand-new account and stays true for
+     * the session (reset on sign-out / account switch) — it is NOT consumed by
+     * reads, so onboarding's [resolveIsNewAccount] and the Home welcome can both
+     * observe the same latch. Duplicate starter-grant reveals are prevented by
+     * the persisted "already shown" watermark, not by consuming this signal.
+     * Default: a constant-false flow for fakes.
+     */
+    fun observeAccountJustCreated(): Flow<Boolean> = kotlinx.coroutines.flow.flowOf(false)
+
     /** Fetch the curated starter emoji pack so the avatar picker can render. */
     suspend fun fetchAvatarPack(): AvatarPackOutcome
 

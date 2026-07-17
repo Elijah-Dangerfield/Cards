@@ -92,7 +92,7 @@ class ProfileRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun resolveIsNewAccount_serverReportsNew_returnsTrueOnce_thenConsumed() = runUnitTest {
+    fun resolveIsNewAccount_serverReportsNew_latchesTrue_evenAfterServerGoesOneShotFalse() = runUnitTest {
         val auth = FakeAuthRepository()
         val api = FakeProfileApi(meResult = Result.success(SAMPLE_ME.copy(isNewAccount = true)))
         val repo = build(auth, api, newProfileCache())
@@ -100,11 +100,28 @@ class ProfileRepositoryImplTest : CoroutineTest() {
         // Auth change auto-hydrates and latches the one-shot server signal.
         auth.emit(AuthState.Authenticated(userId = "u1", isAnonymous = false, email = "a@b.com"))
         advanceUntilIdle()
-        // Model the server's one-shot: a subsequent /v1/me reports NOT new.
+        // Model the server's one-shot: a subsequent /v1/me reports NOT new. The
+        // latch must hold true regardless — a racing hydrate can't erase it.
         api.meResult = Result.success(SAMPLE_ME.copy(isNewAccount = false))
 
         assertTrue(repo.resolveIsNewAccount(), "latched new-account signal survives the racing hydrate")
-        assertFalse(repo.resolveIsNewAccount(), "consumed — a second read is false")
+        assertTrue(repo.resolveIsNewAccount(), "non-consuming — the Home welcome observes the same latch")
+    }
+
+    @Test
+    fun accountJustCreated_reset_onSignOut() = runUnitTest {
+        val auth = FakeAuthRepository()
+        val api = FakeProfileApi(meResult = Result.success(SAMPLE_ME.copy(isNewAccount = true)))
+        val repo = build(auth, api, newProfileCache())
+        auth.emit(AuthState.Authenticated(userId = "u1", isAnonymous = false, email = "a@b.com"))
+        advanceUntilIdle()
+        assertTrue(repo.observeAccountJustCreated().first())
+
+        // Sign out — the latch must clear so it can't leak into the next account.
+        auth.emit(AuthState.Unauthenticated())
+        advanceUntilIdle()
+
+        assertFalse(repo.observeAccountJustCreated().first())
     }
 
     @Test

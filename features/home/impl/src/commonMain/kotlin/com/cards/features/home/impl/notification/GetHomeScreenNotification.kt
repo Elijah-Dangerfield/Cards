@@ -24,12 +24,25 @@ data class HomeNotificationSnapshot(
     /** Aggregated prizes for the levels crossed since [lastCelebratedLevel]. */
     val crossedLevelRewards: List<LevelReward>,
 
-    /** Live "a wallet was created this session" signal (server-sourced). */
-    val walletJustCreated: Boolean,
-    /** Monotonic: the starter grant was already revealed in onboarding. */
+    /**
+     * Authoritative "this account was just created this session" signal
+     * (server `/v1/me` `isNewAccount`, latched in the profile repo). Replaced
+     * the `walletJustCreated` proxy that tripped on identity churn — a
+     * pre-existing account signing in could look "new" and get the welcome.
+     */
+    val accountJustCreated: Boolean,
+    /** Monotonic: the starter grant was already revealed. */
     val didSeeInitialGrantInOnboarding: Boolean,
     /** Welcome-dialog identity, resolved once the profile + wallet hydrate. Null until then. */
     val welcomeIdentity: WelcomeIdentity?,
+    /**
+     * The explicit starter-grant amount (server-driven `onboarding.starterGrant`
+     * config) the welcome dialog reveals. Null when config hasn't resolved
+     * (offline / pre-config) — the welcome then falls back to the fresh account's
+     * balance, which equals the grant for a brand-new account. This is what fixed
+     * the dialog showing the user's whole balance as the "gift".
+     */
+    val starterGrant: Long?,
 
     /** Play-style hands sampled so far. Null until the style hydrates. */
     val playStyleSampleSize: Long?,
@@ -122,9 +135,12 @@ fun HomeNotificationSnapshot.chipDelta(): HomeNotification.ChipDelta? {
 }
 
 private fun HomeNotificationSnapshot.welcome(): HomeNotification.Welcome? {
-    if (!walletJustCreated || didSeeInitialGrantInOnboarding) return null
+    if (!accountJustCreated || didSeeInitialGrantInOnboarding) return null
     val identity = welcomeIdentity ?: return null
-    val chips = chipBalance ?: return null
+    // Reveal the EXPLICIT starter grant, not the wallet balance. Fall back to the
+    // balance only when the grant config is offline — for a genuinely brand-new
+    // account (the only case that reaches here now) the balance equals the grant.
+    val chips = starterGrant ?: chipBalance ?: return null
     return HomeNotification.Welcome(
         displayName = identity.displayName,
         avatarEmoji = identity.avatarEmoji,
@@ -152,8 +168,8 @@ private fun HomeNotificationSnapshot.outOfChips(): HomeNotification.OutOfChips? 
     if (outOfChipsSeen) return null
     val balance = chipBalance ?: return null
     if (balance >= casualBuyIn) return null
-    // A brand-new wallet is mid-reveal — the starter grant covers the buy-in
+    // A brand-new account is mid-reveal — the starter grant covers the buy-in
     // anyway, but don't stack this behind the welcome dialog on the same visit.
-    if (walletJustCreated) return null
+    if (accountJustCreated) return null
     return HomeNotification.OutOfChips(balance = balance, casualBuyIn = casualBuyIn)
 }
