@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-07-13 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-07-17 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -26,18 +26,18 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## Auth & onboarding (AUTH)
 
-- `[P2]` **Formalize a single typed `AuthOutcome` from the auth layer.** Every auth path now classifies new-vs-returning off the authoritative `ProfileRepository.resolveIsNewAccount()` signal (onboarding, Home welcome, and VerifyEmail — the `walletJustCreated` proxy is fully retired). Remaining polish: return one typed `AuthOutcome` (`SignedUp`/`SignedIn`/`Linked`) from the auth layer so the three cases are a type at each call site instead of a boolean reconstructed per-call-site (`isBrandNewAccount()` + an `isAnonymous`/link check).
+- `[P2]` **Return a single typed `AuthOutcome` from the auth layer.** Each call site reconstructs new-vs-returning as a boolean (`isBrandNewAccount()` + an `isAnonymous`/link check) instead of receiving a typed `SignedUp`/`SignedIn`/`Linked`.
   **Acceptance:** `AuthRepository` sign-in/link entry points return a typed `AuthOutcome`; onboarding/verify/claim branch on it rather than recomputing new-vs-returning locally.
-  **Hints:** call sites: `OnboardingViewModel.isBrandNewAccount()`, `VerifyEmailViewModel.isBrandNewAccount()`, `ClaimAccountViewModel`. Ties to AUTH-19 (stable identity). See docs/decisions.md "Deterministic auth-outcome state machine (AUTH-22)".
+  **Hints:** `OnboardingViewModel.isBrandNewAccount()`, `VerifyEmailViewModel.isBrandNewAccount()`, `ClaimAccountViewModel`; ties to AUTH-19. See docs/decisions.md "Deterministic auth-outcome state machine (AUTH-22)".
 
-- `[P2]` **Email-link confirmation after verification.** OAuth + Apple instant links now show an "Your account is saved" dialog (`AccountLinkedRoute`). Email is different: the identity isn't linked until the user confirms via the emailed link, so the confirm has to fire on the VerifyEmail return, not at link-initiation. The blocker is telling apart the two paths that both land on `VerifyEmailEvent.NavigateToHome`: an anon guest who just linked email (should confirm) vs. a returning account whose email was merely unconfirmed signing in (should not). Thread a "this verify began from an anon-guest email link" flag through `VerifyEmailRoute` → `VerifyEmailViewModel` so `routeAfterConfirmation` can decide, then reuse `AccountLinkedRoute("Email")` from the onboarding entry point on Home.
-  **Acceptance:** confirming an email link that was started by an anonymous guest shows the same "account saved" confirmation (provider = Email); a returning user signing in through VerifyEmail does not.
-  **Hints:** `VerifyEmailViewModel.routeAfterConfirmation`, `OnboardingFeatureEntryPoint`; `AccountLinkedRoute` + `AccountLinkedDialog` already exist in `:features:profile`.
+- `[P2]` **Email-link confirmation after verification.** OAuth + Apple links show an "account saved" dialog on `Linked`; email doesn't, because the identity only links once the emailed link is confirmed and the `VerifyEmailEvent.NavigateToHome` return can't tell an anon-guest link from a returning user with a previously-unconfirmed email.
+  **Acceptance:** confirming an email link started by an anonymous guest shows the same "account saved" dialog (provider = Email); a returning user signing in through VerifyEmail does not.
+  **Hints:** thread an "anon-guest email link" flag through `VerifyEmailRoute` → `VerifyEmailViewModel.routeAfterConfirmation`, then reuse `AccountLinkedRoute("Email")` from `OnboardingFeatureEntryPoint`. `AccountLinkedDialog` already exists in `:features:profile`.
 
 ---
 
 ## Billing (BILL)
 
-- `[P1]` **A StoreKit purchase made before a fresh-install identity rollover is not recovered.** The replay failure loop is fixed (a terminal `receipt_rejected` now finishes the stuck transaction so it stops shadowing new purchases), but the chips the user actually paid for are still lost: on a fresh install the anon userId AND the install_id both rotate, so the transaction's `appAccountToken` (a prior identity) matches neither the caller nor `findInstallLineage` (which keys on install_id) → `apple_account_mismatch` → the entitlement is discarded, not credited.
-  **Acceptance:** a genuine paid purchase whose `appAccountToken` is a prior, unlinkable anon identity is reconciled to the account that now owns the device and the chips are granted — without reopening the "one user redeems another's receipt" hole. Needs a device-stable purchaser link that survives reinstall (the AUTH-19 identity-churn work): e.g. bind `appAccountToken`→install at purchase time, or persist a stable purchaser id the server can match a replayed receipt against.
-  **Hints:** server `AppStoreReceiptValidator` account binding + `PostgresProfileRepository.findInstallLineage`; client `DefaultPurchaseChipPackUseCase.redeemOutstanding` `purchase.discarded`; ties to AUTH-19; related BILL-11/BILL-12, CARDS-96; case `docs/agent/feedback-cases/e452cfd17fe94266bd2bd5fcc730a34e.md`; Sentry CARDS-AA.
+- `[P1]` **A StoreKit purchase made before a fresh-install identity rollover is not recovered.** On a fresh install the anon userId and install_id both rotate, so a replayed receipt's `appAccountToken` (a prior identity) matches neither the caller nor `findInstallLineage` (which keys on install_id) → `apple_account_mismatch` → the paid entitlement is discarded, not credited.
+  **Acceptance:** a genuine paid purchase whose `appAccountToken` is a prior, unlinkable anon identity is reconciled to the account that now owns the device and the chips are granted — without reopening the "one user redeems another's receipt" hole. Needs a device-stable purchaser link that survives reinstall (AUTH-19 identity-churn work).
+  **Hints:** server `AppStoreReceiptValidator` binding + `PostgresProfileRepository.findInstallLineage`; client `DefaultPurchaseChipPackUseCase.redeemOutstanding`; ties to AUTH-19. Case `docs/agent/feedback-cases/e452cfd17fe94266bd2bd5fcc730a34e.md`; Sentry CARDS-AA.
