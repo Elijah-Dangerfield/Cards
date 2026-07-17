@@ -80,6 +80,41 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun iClickedTheLink_emailConfirmed_guestLink_marksOnboarded_showsAccountSaved() = runUnitTest {
+        // An anonymous guest who linked an email keeps their existing account +
+        // progress, so confirmation shows the "account saved" dialog — never
+        // onboarding, never the silent Home bounce. isNewAccount=true here proves
+        // the guest-link flag short-circuits the new-vs-returning check.
+        val cache = FakeAppCache()
+        val identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.EmailConfirmed)
+        val profile = FakeProfileRepository().apply { isNewAccount = true }
+        val vm = buildVm(identity = identity, appCache = cache, profile = profile, guestLink = true)
+        vm.takeAction(VerifyEmailAction.IClickedTheLink)
+
+        vm.eventFlow.test {
+            assertIs<VerifyEmailEvent.NavigateToAccountSaved>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(true, cache.get().hasUserOnboarded)
+    }
+
+    @Test
+    fun appResumed_emailConfirmed_guestLink_showsAccountSaved() = runUnitTest {
+        // The deep-link/resume auto-confirm path takes the guest-link branch too:
+        // the guest tapped the email link and returned to the still-live screen.
+        val cache = FakeAppCache()
+        val identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.EmailConfirmed)
+        val vm = buildVm(identity = identity, appCache = cache, guestLink = true)
+        vm.takeAction(VerifyEmailAction.AppResumed)
+
+        vm.eventFlow.test {
+            assertIs<VerifyEmailEvent.NavigateToAccountSaved>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(true, cache.get().hasUserOnboarded)
+    }
+
+    @Test
     fun iClickedTheLink_stillPending_setsStillPendingBanner() = runUnitTest {
         val vm = buildVm(
             identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.StillPending),
@@ -318,10 +353,12 @@ class VerifyEmailViewModelTest : CoroutineTest() {
         appCache: FakeAppCache = FakeAppCache(),
         profile: FakeProfileRepository = FakeProfileRepository(),
         email: String? = sampleEmail,
+        guestLink: Boolean = false,
     ): VerifyEmailViewModel = VerifyEmailViewModel(
         authRepository = identity,
         appCache = appCache,
         profileRepository = profile,
         email = email,
+        guestLink = guestLink,
     )
 }

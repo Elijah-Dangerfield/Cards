@@ -1205,3 +1205,11 @@ The seam is already clean: join-by-code and matchmaking both go through `RoomSer
 **Alternatives rejected:** firing the dialog on every `VerifyEmailEvent.NavigateToHome` (would wrongly congratulate a returning sign-in); adding the dialog to the onboarding link branch for literal "all providers everywhere" parity (redundant mid-onboarding); a snackbar instead of a dialog (too transient for a milestone the whole claim screen exists to reach).
 
 **Status:** OAuth + Apple shipped with a VM test pinning the provider on the event. Email slice tracked in `docs/todo.md` (AUTH-24, ID retained).
+
+## 2026-07-17 — Email link-confirmation dialog lands on Home, not Profile (AUTH-24)
+
+**Decision:** The deferred email slice of AUTH-24 ships by threading a `guestLink: Boolean` through `VerifyEmailRoute` → `VerifyEmailViewModel`. `ClaimAccountEvent.NavigateToVerifyEmail` now carries the flag: true for a genuine anonymous-guest email link, false for the sign-up fallback (the anon session had already rolled over). On confirmation a guest-linked email short-circuits the new-vs-returning check and emits `NavigateToAccountSaved`, which `OnboardingFeatureEntryPoint` maps to `enterTab(Home)` + `AccountLinkedRoute("Email")` — reusing the existing dialog. This required a new module edge `:features:onboarding:impl → :features:profile` (api) for the shared route; no cycle since profile:impl only depends on onboarding's api.
+
+**Alternatives rejected:** floating the dialog over Profile like the OAuth claim (the email confirm can arrive via a cold-launch deep link with no Profile underneath, so Home + fresh stack is the robust landing); persisting the pending-link state in `AppData` so the cold-launch deep link (`cards://auth/confirmed`, which can't carry the route flag) also shows the dialog — deferred as a follow-up, since the warm path (app alive, `AppResumed` on the live screen) covers the common case and the flag defaulting false only ever *omits* the dialog, never shows the wrong one.
+
+**Status:** Shipped with VM tests (guest-link → `NavigateToAccountSaved`, marks onboarded, overrides `isNewAccount`) and ClaimAccount tests pinning `guestLink` true on the link path / false on the fallback. AUTH-24 fully retired.

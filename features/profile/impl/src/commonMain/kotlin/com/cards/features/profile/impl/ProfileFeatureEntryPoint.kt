@@ -444,7 +444,7 @@ class ProfileFeatureEntryPoint(
                         NavigationOptions(launchSingleTop = true, clearBackStack = true),
                     )
                     is ClaimAccountEvent.NavigateToVerifyEmail -> router.navigate(
-                        VerifyEmailRoute(event.email),
+                        VerifyEmailRoute(event.email, guestLink = event.guestLink),
                     )
                 }
             }

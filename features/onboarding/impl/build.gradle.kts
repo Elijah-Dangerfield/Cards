@@ -19,6 +19,9 @@ kotlin {
         commonMain.dependencies {
             implementation(projects.features.onboarding)
             implementation(projects.features.home)
+            // AccountLinkedRoute lives in :features:profile — the verify-email
+            // flow reuses it to confirm an anonymous guest's email link.
+            implementation(projects.features.profile)
             implementation(projects.libraries.navigation)
 
             implementation(projects.libraries.core)

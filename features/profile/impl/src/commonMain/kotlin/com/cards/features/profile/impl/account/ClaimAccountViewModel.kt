@@ -232,7 +232,7 @@ class ClaimAccountViewModel(
         when (val outcome = authRepository.linkEmailIdentity(email, password)) {
             is LinkEmailIdentityOutcome.VerificationRequired -> {
                 updateState { it.copy(isSubmitting = false) }
-                sendEvent(ClaimAccountEvent.NavigateToVerifyEmail(outcome.email))
+                sendEvent(ClaimAccountEvent.NavigateToVerifyEmail(outcome.email, guestLink = true))
             }
             is LinkEmailIdentityOutcome.EmailAlreadyRegistered -> updateState {
                 it.copy(isSubmitting = false, error = ClaimAccountError.EmailAlreadyRegistered)
@@ -264,7 +264,9 @@ class ClaimAccountViewModel(
         when (val outcome = authRepository.signUpWithEmail(email = email, password = password)) {
             is SignUpOutcome.VerificationRequired -> {
                 updateState { it.copy(isSubmitting = false) }
-                sendEvent(ClaimAccountEvent.NavigateToVerifyEmail(outcome.email))
+                // Fallback = the anon session was already gone, so this is a
+                // fresh sign-up, not a guest link — no "account saved" dialog.
+                sendEvent(ClaimAccountEvent.NavigateToVerifyEmail(outcome.email, guestLink = false))
             }
             is SignUpOutcome.EmailAlreadyRegistered -> updateState {
                 it.copy(isSubmitting = false, error = ClaimAccountError.EmailAlreadyRegistered)
@@ -339,8 +341,16 @@ sealed interface ClaimAccountEvent {
     data class Claimed(val provider: OAuthProvider) : ClaimAccountEvent
     /** User accepted switching to a pre-existing OAuth account. */
     data object SwitchedAccounts : ClaimAccountEvent
-    /** Email link kicked off — guest stays signed in until they tap the link. */
-    data class NavigateToVerifyEmail(val email: String) : ClaimAccountEvent
+    /**
+     * Email link kicked off — guest stays signed in until they tap the link.
+     * [guestLink] is true when this was a genuine anonymous-guest email link
+     * (the confirmed link shows the "account saved" dialog); false when the
+     * anon session had already rolled over and we fell back to a fresh sign-up.
+     */
+    data class NavigateToVerifyEmail(
+        val email: String,
+        val guestLink: Boolean,
+    ) : ClaimAccountEvent
 }
 
 /**

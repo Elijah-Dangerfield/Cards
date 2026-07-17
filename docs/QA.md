@@ -183,6 +183,7 @@ Two variants, both must pass:
 1. Tap the verification link in the email (on the same device).
 
 **Expected:** Opens the app (or web) into the verified state. If on-device, the app's "Verify your email" banner clears; account status flips to verified in Profile.
+- Guest-claim variant (AUTH-24): if this verify-email was started by an anonymous guest claiming their account with email/password (Profile → "Save your progress" → email), tapping the link lands on Home and floats the same "Your account is saved" dialog the Google/Apple claim shows, naming the provider "Email". A brand-new sign-up (not a guest claim) still re-enters onboarding; a returning user's unconfirmed-email sign-in still goes straight to Home with no dialog.
 
 ---
 

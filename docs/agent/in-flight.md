@@ -1,0 +1,8 @@
+# In-flight (nightly cycle)
+
+## feat(auth): confirm the save when a guest links email (AUTH-24)
+
+**Problem:** OAuth/Apple links show an "account saved" dialog on `Linked`, but the email path didn't — at the email-confirm point the VM couldn't tell an anon-guest link from a returning user with a previously-unconfirmed email, so it silently bounced Home.
+**Approach:** Threaded a `guestLink: Boolean` through `VerifyEmailRoute` → `VerifyEmailViewModel`. `ClaimAccountEvent.NavigateToVerifyEmail` now carries it (true on the genuine link path, false on the sign-up fallback). On confirmation a guest link short-circuits the new-vs-returning check and emits `NavigateToAccountSaved`, which the onboarding entry point maps to `enterTab(Home)` + the existing `AccountLinkedRoute("Email")` dialog. Chose Home over floating-over-Profile (like OAuth) because the confirm can arrive via a cold-launch deep link with no Profile underneath; noted loudly in decisions.
+**Reviewer notes:** New module edge `:features:onboarding:impl → :features:profile` (api) so the verify flow can reach `AccountLinkedRoute` — no cycle (profile:impl only uses onboarding's api). One known gap: the cold-launch deep link `cards://auth/confirmed` can't carry the route flag, so a guest who kills the app between requesting and tapping the link won't see the dialog (lands Home silently) — the flag defaulting false only ever omits the dialog, never shows the wrong one. The warm path (app alive, `AppResumed` on the live screen) covers the common case. Persisting the pending-link in `AppData` to close the cold-launch gap is the obvious follow-up.
+**Deferred:** Cold-launch deep-link coverage via an `AppData` pending-link flag — appended to `docs/backlog.md`.

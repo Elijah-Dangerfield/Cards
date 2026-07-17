@@ -39,9 +39,21 @@ class SignUpRoute : Route(
  * the missing email from the active Supabase session on init; the
  * screen falls back to a generic body string while the resolve is in
  * flight or if no email is on the session at all.
+ *
+ * [guestLink] marks the verification as started by an anonymous guest
+ * linking an email identity (the claim-account flow), as opposed to a
+ * brand-new sign-up or a returning user's unconfirmed-email sign-in. On
+ * confirmation the guest keeps their existing progress and account, so
+ * they get the "account saved" confirmation instead of onboarding/home.
+ * The cold-launch deep-link (`cards://auth/confirmed`) can't carry it, so
+ * a guest who kills the app between requesting and tapping the link falls
+ * back to the plain Home route without the dialog — never the wrong one.
  */
 @Serializable
-data class VerifyEmailRoute(val email: String? = null) : Route(
+data class VerifyEmailRoute(
+    val email: String? = null,
+    val guestLink: Boolean = false,
+) : Route(
     enter = AnimationType.SlideInFromRight,
     exit = AnimationType.SlideOutToLeft,
     popExit = AnimationType.SlideOutToRight,

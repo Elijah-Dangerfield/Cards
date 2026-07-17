@@ -44,6 +44,7 @@ class VerifyEmailViewModel(
     private val appCache: AppCache,
     private val profileRepository: ProfileRepository,
     @Assisted private val email: String?,
+    @Assisted private val guestLink: Boolean,
 ) : SEAViewModel<VerifyEmailState, VerifyEmailEvent, VerifyEmailAction>(
     initialStateArg = VerifyEmailState(email = email.orEmpty()),
 ) {
@@ -126,18 +127,28 @@ class VerifyEmailViewModel(
     }
 
     /**
-     * Where to go once the email is confirmed. A brand-new signup still needs to
-     * pick a name/avatar and see the starter grant, so it re-enters onboarding at
-     * the identity step; a returning account (its email was merely unconfirmed)
-     * already has a profile + wallet, so it skips straight to Home. Same
-     * new-vs-returning discriminator the OAuth path uses.
+     * Where to go once the email is confirmed. Three outcomes:
+     *  - an anonymous guest who linked an email identity keeps their existing
+     *    account + progress, so they get the "account saved" confirmation (the
+     *    email equivalent of the OAuth-link dialog) and land on Home;
+     *  - a brand-new signup still needs to pick a name/avatar and see the
+     *    starter grant, so it re-enters onboarding at the identity step;
+     *  - a returning account (its email was merely unconfirmed) already has a
+     *    profile + wallet, so it skips straight to Home.
+     * The guest-link case is known statically from the route; new-vs-returning
+     * uses the same server signal the OAuth path does.
      */
     private suspend fun routeAfterConfirmation() {
-        if (isBrandNewAccount()) {
-            sendEvent(VerifyEmailEvent.NavigateToOnboarding)
-        } else {
-            appCache.update { it.copy(hasUserOnboarded = true) }
-            sendEvent(VerifyEmailEvent.NavigateToHome)
+        when {
+            guestLink -> {
+                appCache.update { it.copy(hasUserOnboarded = true) }
+                sendEvent(VerifyEmailEvent.NavigateToAccountSaved)
+            }
+            isBrandNewAccount() -> sendEvent(VerifyEmailEvent.NavigateToOnboarding)
+            else -> {
+                appCache.update { it.copy(hasUserOnboarded = true) }
+                sendEvent(VerifyEmailEvent.NavigateToHome)
+            }
         }
     }
 
@@ -174,6 +185,8 @@ sealed interface VerifyEmailEvent {
     data object NavigateBackToSignIn : VerifyEmailEvent
     /** Brand-new signup confirmed → re-enter onboarding at the identity step. */
     data object NavigateToOnboarding : VerifyEmailEvent
+    /** Anon guest's email link confirmed → show the "account saved" dialog, then Home. */
+    data object NavigateToAccountSaved : VerifyEmailEvent
 }
 
 sealed interface VerifyEmailAction {

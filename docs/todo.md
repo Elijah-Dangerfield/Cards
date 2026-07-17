@@ -30,10 +30,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** `AuthRepository` sign-in/link entry points return a typed `AuthOutcome`; onboarding/verify/claim branch on it rather than recomputing new-vs-returning locally.
   **Hints:** `OnboardingViewModel.isBrandNewAccount()`, `VerifyEmailViewModel.isBrandNewAccount()`, `ClaimAccountViewModel`; ties to AUTH-19. See docs/decisions.md "Deterministic auth-outcome state machine (AUTH-22)".
 
-- `[P2]` **Email-link confirmation after verification.** OAuth + Apple links show an "account saved" dialog on `Linked`; email doesn't, because the identity only links once the emailed link is confirmed and the `VerifyEmailEvent.NavigateToHome` return can't tell an anon-guest link from a returning user with a previously-unconfirmed email.
-  **Acceptance:** confirming an email link started by an anonymous guest shows the same "account saved" dialog (provider = Email); a returning user signing in through VerifyEmail does not.
-  **Hints:** thread an "anon-guest email link" flag through `VerifyEmailRoute` → `VerifyEmailViewModel.routeAfterConfirmation`, then reuse `AccountLinkedRoute("Email")` from `OnboardingFeatureEntryPoint`. `AccountLinkedDialog` already exists in `:features:profile`.
-
 ---
 
 ## Billing (BILL)

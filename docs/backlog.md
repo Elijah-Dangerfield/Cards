@@ -1119,3 +1119,9 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 **Idea (ROOM-18 follow-on, 2026-07-15):** `RoomSeat.kt` in `:libraries:ui` renders several user-facing labels as inline literals ("Add a bot", "Adding…", "Open", "joining…", "up next") while only the "You" pill routes through `:libraries:resources`. ROOM-18 added the "Adding…" literal to match the file's existing convention rather than lift one label in isolation. Do the whole component in one deliberate pass: add `room_seat_*` entries and read them via `stringResource`, so the copy is translatable and word-checkable in one place. Watch the ellipsis characters (use a plain "..." per the strings.xml rules, no backslash escapes / em dashes).
 
 **Status:** Backlog. Small DS hygiene pass; pull when touching RoomSeat again or when localization work starts.
+
+## Guest email-link "account saved" dialog on cold launch (AUTH-24 follow-on)
+
+**Idea (AUTH-24 follow-on, 2026-07-17):** AUTH-24 shows the "account saved" dialog when an anonymous guest confirms an email link, by threading a `guestLink` flag through `VerifyEmailRoute`. The cold-launch deep link `cards://auth/confirmed` can't carry that flag, so a guest who kills the app between requesting and tapping the link lands on Home with no dialog (the warm `AppResumed` path on the live screen is covered). Close the gap by persisting a "guest email link pending confirmation" marker in `AppData` when the claim flow kicks off `linkEmailIdentity`, then reading + clearing it in `VerifyEmailViewModel.routeAfterConfirmation` so the cold-launch confirm also shows the dialog.
+
+**Status:** Backlog. The flag defaulting false only ever omits the dialog, never shows the wrong one, so this is a completeness polish, not a correctness bug. Pull when touching the verify-email flow or AppData onboarding flags.
