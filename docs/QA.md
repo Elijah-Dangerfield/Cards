@@ -671,6 +671,17 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** While the purchase settles, the shop is blocked by a full-page "Finishing your purchase…" overlay — no frozen-looking wait, no double-buy. A failed redeem shows a full **dialog**, not a toast: "Your chips are on the way" copy (payment stood, credit pending) for a redeem failure, distinct copy for a store-side failure ("you have not been charged"). On the relaunch, the uncredited purchase redeems automatically — the balance includes the pack (session log: "Recovered uncredited purchase") without re-buying. TestFlight purchases must never 400 with `appAppleId is required` (server degrades to sandbox verification when unconfigured). (Covers todo BILL-7; the 2026-07-11 uncredited-purchase incident is the regression this guards.)
 
+### `BILL-13` 🚨 🍎 A terminally-rejected replayed receipt is cleared, not looped forever
+
+**State:** a TestFlight (or release + `.storekit`) build. Buy a chip pack, then reinstall the app so a **fresh anon identity** is created while StoreKit still holds the prior order (or otherwise arrange an unfinished transaction whose `appAccountToken` no longer matches the current account so `/v1/billing/redeem` returns `receipt_rejected`).
+
+1. Launch the fresh install and let it settle — the launch drain replays the stuck order(s).
+2. Watch the session log for the redeem outcome.
+3. Go to Shop and buy the **same** SKU again.
+4. Relaunch once more.
+
+**Expected:** The stuck order is redeemed if it still matches the account; if the server terminally rejects it (`receipt_rejected`), the client **finishes** it (session log: "Terminally rejected replayed receipt … finishing it" + `purchase.discarded`) instead of leaving it to replay. A fresh purchase of the same SKU in step 3 then succeeds normally — it is NOT shadowed by the old stuck transaction. After the step-4 relaunch the terminally-rejected order does NOT reappear in the drain (it was finished). A *transient* failure (server unconfigured / unreachable, 503) must still behave like BILL-7 — left unfinished and recovered on a later launch, never finished/discarded. (Covers todo BILL-13 part 1; the "every single purchase failing on a fresh install" report is the regression this guards.)
+
 ---
 
 ## Tooling & debug

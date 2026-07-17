@@ -119,12 +119,23 @@ class DefaultPurchaseChipPackUseCase(
                     }
                     outcome(redeem.grantedChips, alreadyOwned = alreadyOwned || redeem.alreadyRedeemed)
                 }
-                RedeemOutcome.Rejected -> {
+                RedeemOutcome.RejectedTerminal -> {
                     // Error on purpose: the user PAID and got nothing — the
-                    // server refused the receipt (forged, mismatched, or a
-                    // config drift like a wrong bundle id). Must be a Sentry
-                    // event, not a breadcrumb.
-                    logger.e { "Server rejected receipt for order ${transaction.orderId} — no credit" }
+                    // server terminally refused the receipt (forged, account /
+                    // product mismatch, revoked). Finish the transaction so it
+                    // stops shadowing the user's next purchase attempt (a stuck
+                    // unfinished consumable is what StoreKit hands back on the
+                    // next buy of the same SKU — BILL-13); retrying it can never
+                    // succeed for this identity.
+                    logger.e { "Server terminally rejected receipt for order ${transaction.orderId} — finishing it" }
+                    billingClient.consume(transaction.purchaseToken)
+                    IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_RECEIPT_REJECTED)
+                }
+                RedeemOutcome.Rejected -> {
+                    // A non-terminal 4xx (unknown product / catalog drift): the
+                    // user paid and got nothing, but the transaction is left
+                    // unfinished so a later attempt can still redeem it.
+                    logger.e { "Server rejected receipt for order ${transaction.orderId} — no credit, left for retry" }
                     IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_RECEIPT_REJECTED)
                 }
                 RedeemOutcome.Unavailable -> {
@@ -188,10 +199,22 @@ class DefaultPurchaseChipPackUseCase(
                     }
                     logger.logEvent("purchase.recovered", "product_id" to pack.id)
                 }
+                RedeemOutcome.RejectedTerminal -> {
+                    // The replayed receipt will never validate for this identity
+                    // (its appAccountToken belongs to a prior install/identity we
+                    // can't link on a fresh anon userId). Finishing it stops the
+                    // every-launch replay loop AND unblocks new purchases of the
+                    // same SKU, instead of leaving the shop permanently broken
+                    // (BILL-13). The prior-identity entitlement is not recovered
+                    // here — that needs cross-install ownership reconciliation.
+                    logger.e { "Terminally rejected replayed receipt for order ${transaction.orderId} — finishing it" }
+                    billingClient.consume(transaction.purchaseToken)
+                    logger.logEvent("purchase.discarded", "product_id" to pack.id)
+                }
                 RedeemOutcome.Rejected ->
-                    // Deliberately left unfinished (matching the direct path):
-                    // consuming would erase the only evidence the user paid.
-                    logger.e { "Server rejected replayed receipt for order ${transaction.orderId}" }
+                    // Non-terminal 4xx: left unfinished so a later launch can
+                    // retry once whatever drifted (catalog, product id) resolves.
+                    logger.e { "Server rejected replayed receipt for order ${transaction.orderId} — retrying next launch" }
                 RedeemOutcome.Unavailable ->
                     logger.w { "Redeem still unreachable for order ${transaction.orderId} — retrying next launch" }
             }

@@ -31,7 +31,9 @@ class GooglePlayReceiptValidatorTest {
             lookupFactory = { _, _ -> error("lookup must never build when unconfigured") },
         )
         val result = validator.validate(receipt())
-        assertEquals(ReceiptValidation.Invalid("google_validator_unconfigured"), result)
+        // Retryable: an unconfigured validator must not make the client finish
+        // (and strand) the token — it validates once the credentials are set.
+        assertEquals(ReceiptValidation.Invalid("google_validator_unconfigured", retryable = true), result)
     }
 
     @Test

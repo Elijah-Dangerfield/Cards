@@ -33,9 +33,11 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Marked `RetryPolicy.idempotent()` so a transient network blip doesn't strand a
  * paid-for purchase.
  *
- * A receipt the server rejects (4xx) maps to [RedeemOutcome.Rejected] — nothing
- * was granted. A non-real-store transaction ([BillingPlatform.Fake], which the
- * real endpoint can't verify) and any unreachable-server case map to
+ * A terminal `receipt_rejected` (400) maps to [RedeemOutcome.RejectedTerminal]
+ * — nothing was granted and the caller finishes the stuck transaction; any
+ * other 4xx maps to [RedeemOutcome.Rejected] (no credit, left replayable). A
+ * non-real-store transaction ([BillingPlatform.Fake], which the real endpoint
+ * can't verify), a 503, and any unreachable-server case map to
  * [RedeemOutcome.Unavailable] without ever hitting the wire / crediting.
  */
 @SingleIn(AppScope::class)
@@ -80,18 +82,25 @@ class BillingRepositoryImpl(
     private suspend fun Throwable.toRedeemOutcome(): RedeemOutcome =
         if (this is ClientRequestException) {
             // The client runs with expectSuccess, so a 4xx throws here before
-            // the success body parses. A 4xx is the server's definitive "no" on
-            // this receipt (receipt_rejected, unknown_product, ...) — it won't
-            // pass on a retry, so surface an honest failure. A 5xx / timeout /
-            // unreachable server stays Unavailable so the launch-time redeemer
-            // can recover the paid-for purchase later.
+            // the success body parses. A `receipt_rejected` is the server's
+            // terminal verdict — the receipt will never validate for this
+            // identity, so the caller finishes the stuck transaction rather
+            // than replaying it forever (BILL-13). Any other 4xx
+            // (unknown_product, malformed body, catalog drift) is left
+            // unfinished for a later retry. A 5xx / 503 / timeout / unreachable
+            // server stays Unavailable so the launch-time redeemer can recover
+            // the paid-for purchase later.
             val code = apiErrorCode()
             logger.w(this) { "redeem rejected: ${response.status} ($code)" }
-            RedeemOutcome.Rejected
+            if (code == RECEIPT_REJECTED_CODE) RedeemOutcome.RejectedTerminal else RedeemOutcome.Rejected
         } else {
             logger.w(this) { "redeem unavailable (${this::class.simpleName})" }
             RedeemOutcome.Unavailable
         }
+
+    private companion object {
+        const val RECEIPT_REJECTED_CODE = "receipt_rejected"
+    }
 }
 
 private fun BillingPlatform.wireStore(): String? = when (this) {

@@ -38,7 +38,9 @@ class AppStoreReceiptValidatorTest {
             decoder = null,
         )
         val result = validator.validate(receipt())
-        assertEquals(ReceiptValidation.Invalid("apple_validator_unconfigured"), result)
+        // Retryable: an unconfigured validator must not make the client finish
+        // (and strand) the transaction — it validates once the bundle id is set.
+        assertEquals(ReceiptValidation.Invalid("apple_validator_unconfigured", retryable = true), result)
     }
 
     @Test

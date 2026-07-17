@@ -120,11 +120,30 @@ fun Route.billingRoutes(
                 val valid = when (validation) {
                     is ReceiptValidation.Valid -> validation
                     is ReceiptValidation.Invalid -> {
-                        // The user paid the store and we refused the grant —
-                        // forged receipt, or config drift (wrong bundle id /
-                        // environment / SKU). Both are worth a Sentry issue,
-                        // with the reason distinguishing them; the client only
-                        // ever sees the generic "receipt_rejected".
+                        if (validation.retryable) {
+                            // Transient refusal — the validator is unconfigured
+                            // or the store's own API was unreachable. The same
+                            // receipt validates on a later attempt, so answer
+                            // 503: the client leaves the transaction unfinished
+                            // and the launch-time redeemer retries it, instead
+                            // of finishing (and stranding) a paid purchase.
+                            logger.warn(
+                                "Receipt validation unavailable: reason={} store={} product={} user={}",
+                                validation.reason, store.wire, body.productId, userId.value,
+                            )
+                            return@post call.respondProblem(
+                                HttpStatusCode.ServiceUnavailable,
+                                "receipt_unavailable",
+                                "Receipt validation is temporarily unavailable.",
+                            )
+                        }
+                        // Terminal rejection — forged, mismatched account/product,
+                        // or revoked. The user paid the store and we refused the
+                        // grant, so it's worth a Sentry issue (the reason
+                        // distinguishes forgery from config drift); the client
+                        // only ever sees the generic "receipt_rejected" and
+                        // finishes the stuck transaction so it stops replaying
+                        // and stops shadowing new purchases (BILL-13).
                         logger.warn(
                             "Receipt rejected: reason={} store={} product={} user={}",
                             validation.reason, store.wire, body.productId, userId.value,
