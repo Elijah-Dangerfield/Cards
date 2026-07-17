@@ -28,6 +28,14 @@ sealed interface SignUpOutcome {
     data object WeakPassword : SignUpOutcome
     data object InvalidEmail : SignUpOutcome
     data class NetworkError(val cause: Throwable) : SignUpOutcome
+
+    /**
+     * The signup request didn't complete within the client timeout — usually
+     * a slow confirmation-email round trip, not a dead connection. Distinct
+     * from [NetworkError] so the UI can say "taking a while, try again" rather
+     * than misdirecting the user to check a connection that's actually fine.
+     */
+    data class Timeout(val cause: Throwable) : SignUpOutcome
     data class Unknown(val cause: Throwable) : SignUpOutcome
 }
 
@@ -82,5 +90,8 @@ sealed interface LinkEmailIdentityOutcome {
     data object NotAnonymous : LinkEmailIdentityOutcome
     data object NotSignedIn : LinkEmailIdentityOutcome
     data class NetworkError(val cause: Throwable) : LinkEmailIdentityOutcome
+
+    /** See [SignUpOutcome.Timeout] — same slow-round-trip case on the guest-claim path. */
+    data class Timeout(val cause: Throwable) : LinkEmailIdentityOutcome
     data class Unknown(val cause: Throwable) : LinkEmailIdentityOutcome
 }

@@ -101,9 +101,17 @@ enum class PurchaseEnvironment(val wire: String) {
  *    [PurchaseEnvironment] that verified it.
  *  - [Invalid] — the receipt was rejected (forged, wrong product, wrong
  *    user, refunded, or the validator is unconfigured). [reason] is a short
- *    machine-ish code for logs; never credit on this result.
+ *    machine-ish code for logs; never credit on this result. [retryable]
+ *    distinguishes a transient refusal (validator not yet configured, the
+ *    store's own API was unreachable) — where the same receipt would validate
+ *    on a later attempt — from a terminal one (forged, mismatched, revoked)
+ *    that will never validate. The redeem route turns a terminal Invalid into
+ *    a 400 the client acts on by finishing the stuck transaction, and a
+ *    retryable Invalid into a 503 the client leaves unfinished to replay later
+ *    (BILL-13). Terminal is the safe default: only mark a rejection retryable
+ *    when finishing the transaction would strand a genuinely paid purchase.
  */
 sealed interface ReceiptValidation {
     data class Valid(val orderId: String, val environment: PurchaseEnvironment) : ReceiptValidation
-    data class Invalid(val reason: String) : ReceiptValidation
+    data class Invalid(val reason: String, val retryable: Boolean = false) : ReceiptValidation
 }

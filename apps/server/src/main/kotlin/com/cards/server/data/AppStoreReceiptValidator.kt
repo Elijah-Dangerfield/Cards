@@ -80,7 +80,9 @@ class AppStoreReceiptValidator(
 
     suspend fun validate(request: PurchaseReceipt): ReceiptValidation {
         val decoders = resolvedDecoders
-        if (decoders.isEmpty()) return ReceiptValidation.Invalid("apple_validator_unconfigured")
+        // Unconfigured is transient: the same receipt validates once
+        // APPLE_BUNDLE_ID is set, so it must NOT finish the transaction.
+        if (decoders.isEmpty()) return ReceiptValidation.Invalid("apple_validator_unconfigured", retryable = true)
 
         var payload: JWSTransactionDecodedPayload? = null
         var verifiedBy: EnvironmentDecoder? = null

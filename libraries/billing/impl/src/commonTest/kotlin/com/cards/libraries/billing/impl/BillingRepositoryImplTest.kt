@@ -30,10 +30,13 @@ import kotlin.test.assertTrue
  * branch can read it — the repo has to map the thrown [io.ktor.client.plugins.ClientRequestException]
  * itself. These tests pin that mapping:
  *
- *  - A definitive 400 `receipt_rejected` is a hard failure the user must see
- *    ([RedeemOutcome.Rejected]) — never a transient "chips on the way" that
- *    retries forever ([RedeemOutcome.Unavailable]).
- *  - A 5xx / unreachable server stays [RedeemOutcome.Unavailable] so the
+ *  - A definitive 400 `receipt_rejected` is a terminal failure the user must
+ *    see ([RedeemOutcome.RejectedTerminal]) — the caller finishes the stuck
+ *    transaction rather than replaying it forever (BILL-13) — never a transient
+ *    "chips on the way" that retries ([RedeemOutcome.Unavailable]).
+ *  - A non-terminal 4xx (unknown_product / catalog drift) is [RedeemOutcome.Rejected]:
+ *    no credit, but the transaction is left unfinished for a later retry.
+ *  - A 5xx / 503 / unreachable server stays [RedeemOutcome.Unavailable] so the
  *    launch-time redeemer can recover the paid-for purchase later.
  */
 class BillingRepositoryImplTest : CoroutineTest() {
@@ -47,7 +50,7 @@ class BillingRepositoryImplTest : CoroutineTest() {
     )
 
     @Test
-    fun redeem_badRequestReceiptRejected_isRejectedNotUnavailable() = runUnitTest {
+    fun redeem_badRequestReceiptRejected_isTerminalSoTheStuckTransactionGetsFinished() = runUnitTest {
         val repo = buildRepo { _ ->
             respondJson(
                 """{"error":{"code":"receipt_rejected","message":"The purchase receipt could not be verified."}}""",
@@ -55,7 +58,37 @@ class BillingRepositoryImplTest : CoroutineTest() {
             )
         }
         val outcome = repo.redeem("chip_pack_small", transaction)
+        assertEquals(RedeemOutcome.RejectedTerminal, outcome)
+    }
+
+    @Test
+    fun redeem_badRequestOtherCode_isRejectedNotTerminal_soItStaysReplayable() = runUnitTest {
+        // A non-terminal 4xx (unknown product / catalog drift): still no credit,
+        // but the caller must NOT finish the transaction — a later launch, once
+        // the catalog syncs, can still redeem it.
+        val repo = buildRepo { _ ->
+            respondJson(
+                """{"error":{"code":"unknown_product","message":"No chip pack with that product id."}}""",
+                status = HttpStatusCode.BadRequest,
+            )
+        }
+        val outcome = repo.redeem("chip_pack_small", transaction)
         assertEquals(RedeemOutcome.Rejected, outcome)
+    }
+
+    @Test
+    fun redeem_serviceUnavailable_isUnavailable_notTerminal() = runUnitTest {
+        // The server reports receipt validation temporarily unavailable (503,
+        // validator unconfigured / store API unreachable). This must NOT finish
+        // the transaction — the redeemer retries it later.
+        val repo = buildRepo { _ ->
+            respondJson(
+                """{"error":{"code":"receipt_unavailable","message":"Receipt validation is temporarily unavailable."}}""",
+                status = HttpStatusCode.ServiceUnavailable,
+            )
+        }
+        val outcome = repo.redeem("chip_pack_small", transaction)
+        assertEquals(RedeemOutcome.Unavailable, outcome)
     }
 
     @Test

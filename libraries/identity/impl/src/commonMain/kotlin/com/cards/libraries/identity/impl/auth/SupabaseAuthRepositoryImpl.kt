@@ -24,6 +24,7 @@ import com.dangerfield.cards.libraries.networking.AuthTokenInvalidator
 import com.dangerfield.cards.libraries.networking.SessionRejectionBus
 import io.github.jan.supabase.exceptions.HttpRequestException
 import io.github.jan.supabase.exceptions.RestException
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
@@ -403,12 +404,27 @@ class SupabaseAuthRepositoryImpl(
             Catching {
                 gateway.signUpWithEmail(email, password)
             }.fold(
-                onSuccess = {
-                    logger.i { "signUpWithEmail: VerificationRequired" }
-                    SignUpOutcome.VerificationRequired(email)
+                onSuccess = { result ->
+                    val outcome = when (result) {
+                        // Supabase obfuscated an already-registered email as a
+                        // fake success — route to sign-in, don't flash VerifyEmail
+                        // and drop the user into the app (AUTH-21).
+                        GatewaySignUpResult.EmailAlreadyRegistered ->
+                            SignUpOutcome.EmailAlreadyRegistered
+                        GatewaySignUpResult.VerificationSent ->
+                            SignUpOutcome.VerificationRequired(email)
+                    }
+                    logger.i { "signUpWithEmail: ${outcome::class.simpleName}" }
+                    outcome
                 },
                 onFailure = { e ->
                     val outcome = when (e) {
+                        // supabase-kt rethrows Ktor's timeout raw (not wrapped in
+                        // its HttpRequestException), so it must be matched
+                        // explicitly or it falls through to Unknown. A slow
+                        // confirmation-email send is the usual cause — surface it
+                        // as retryable, not a dead "signup failed" (AUTH-20).
+                        is HttpRequestTimeoutException -> SignUpOutcome.Timeout(e)
                         is RestException -> mapSignUpRestException(e)
                         is HttpRequestException -> SignUpOutcome.NetworkError(e)
                         else -> SignUpOutcome.Unknown(e)
@@ -420,6 +436,15 @@ class SupabaseAuthRepositoryImpl(
         }
 
     override suspend fun refreshSession(): RefreshOutcome = mutex.withLock {
+        // No session to refresh — a fresh email signup pending confirmation has
+        // none, and supabase-kt throws (rather than returning null) on refreshing
+        // nothing. Resolve to SessionExpired up front instead of letting that throw
+        // fall through to Unknown, which strands the verify screen on a silent
+        // no-op (AppResumed swallows Unknown).
+        if (gateway.currentSession() == null) {
+            logger.d { "refreshSession: no current session → SessionExpired" }
+            return@withLock RefreshOutcome.SessionExpired
+        }
         logger.d { "refreshSession: forcing gateway session refresh" }
         Catching {
             gateway.refreshSession()
@@ -877,6 +902,8 @@ class SupabaseAuthRepositoryImpl(
             },
             onFailure = { e ->
                 val outcome = when (e) {
+                    // See signUpWithEmail — same raw-timeout case on the claim path.
+                    is HttpRequestTimeoutException -> LinkEmailIdentityOutcome.Timeout(e)
                     is RestException -> mapLinkEmailRestException(e)
                     is HttpRequestException -> LinkEmailIdentityOutcome.NetworkError(e)
                     else -> LinkEmailIdentityOutcome.Unknown(e)

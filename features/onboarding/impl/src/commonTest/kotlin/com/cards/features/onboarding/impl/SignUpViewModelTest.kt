@@ -180,6 +180,49 @@ class SignUpViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun submit_timeout_surfacesTimeoutError() = runUnitTest {
+        // A slow confirmation-email round trip must read as retryable, not the
+        // dead-end Unknown (AUTH-20).
+        val vm = buildVm(
+            identity = FakeAuthRepository(
+                signUpOutcome = SignUpOutcome.Timeout(RuntimeException("timeout")),
+            ),
+        )
+        vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
+        vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
+        vm.takeAction(SignUpAction.Submit)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertEquals(SignUpError.Timeout, last.error)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun submit_anonymousLink_timeout_surfacesTimeoutError() = runUnitTest {
+        val vm = buildVm(
+            identity = FakeAuthRepository(
+                linkEmailOutcome = LinkEmailIdentityOutcome.Timeout(RuntimeException("timeout")),
+                initialAuthState = anonymousAuthState,
+            ),
+        )
+        vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
+        vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
+        vm.takeAction(SignUpAction.Submit)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertEquals(SignUpError.Timeout, last.error)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun submit_unknown_surfacesUnknownError() = runUnitTest {
         val vm = buildVm(
             identity = FakeAuthRepository(

@@ -80,10 +80,19 @@ class RealSupabaseAuthGateway(
         }
     }
 
-    override suspend fun signUpWithEmail(email: String, password: String) {
-        supabase.auth.signUpWith(Email) {
+    override suspend fun signUpWithEmail(email: String, password: String): GatewaySignUpResult {
+        val user = supabase.auth.signUpWith(Email) {
             this.email = email
             this.password = password
+        }
+        // A null user means auto-confirm is on and the signup logged the user
+        // straight in — a real new account. A non-null user with an empty
+        // `identities` array is Supabase's anti-enumeration fake-success for an
+        // already-registered email; a real new signup carries one identity.
+        return if (user != null && user.identities.isNullOrEmpty()) {
+            GatewaySignUpResult.EmailAlreadyRegistered
+        } else {
+            GatewaySignUpResult.VerificationSent
         }
     }
 

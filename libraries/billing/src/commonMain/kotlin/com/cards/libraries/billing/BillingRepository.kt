@@ -38,15 +38,31 @@ sealed interface RedeemOutcome {
     ) : RedeemOutcome
 
     /**
-     * The server rejected the receipt (forged / unverifiable) or the product id
-     * was unknown. Nothing was granted; the caller must not credit locally.
+     * The server rejected the receipt with a 4xx that isn't a terminal receipt
+     * verdict — an unknown product id, a malformed body, catalog drift. Nothing
+     * was granted; the caller must not credit locally. Unlike
+     * [RejectedTerminal], the transaction is left unfinished so a later attempt
+     * (e.g. once the catalog syncs) can still redeem it.
      */
     data object Rejected : RedeemOutcome
 
     /**
-     * The redeem call couldn't reach the server (network / 5xx / auth). The
+     * The server terminally rejected the receipt: it will never validate for
+     * this identity — forged / unverifiable, a store account or product
+     * mismatch, or a refund/revocation. Nothing was granted, and retrying is
+     * pointless. The caller MUST finish (consume) the transaction: a consumable
+     * left unfinished replays every launch AND shadows every new purchase of
+     * the same SKU, which is what turned one unredeemable receipt into "every
+     * purchase fails" on a fresh install (BILL-13).
+     */
+    data object RejectedTerminal : RedeemOutcome
+
+    /**
+     * The redeem call couldn't reach the server (network / 5xx / auth) or the
+     * server reported receipt validation as temporarily unavailable (503). The
      * purchase stands at the store but isn't credited yet — a later sync or
-     * retry recovers it. The caller must not credit locally.
+     * retry recovers it. The caller must not credit locally, and must leave the
+     * transaction unfinished so the launch-time redeemer can drain it.
      */
     data object Unavailable : RedeemOutcome
 }

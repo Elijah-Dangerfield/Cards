@@ -41,6 +41,7 @@ class OnboardingFeatureEntryPoint(
                 when (event) {
                     OnboardingEvent.NavigateToHome -> router.enterTab(HomeRoute())
                     OnboardingEvent.NavigateToSignIn -> router.navigate(SignInRoute())
+                    OnboardingEvent.NavigateToSignUp -> router.navigate(SignUpRoute())
                 }
             }
 
@@ -122,6 +123,13 @@ class OnboardingFeatureEntryPoint(
                     VerifyEmailEvent.NavigateToHome -> router.enterTab(HomeRoute())
                     VerifyEmailEvent.NavigateBackToSignIn -> router.navigate(
                         SignInRoute(),
+                        NavigationOptions(launchSingleTop = true, clearBackStack = true),
+                    )
+                    // Brand-new signup: drop into onboarding at the identity step
+                    // (the VM detects the authenticated-but-not-onboarded session).
+                    // Clear the auth back stack so Back can't return to verify/signup.
+                    VerifyEmailEvent.NavigateToOnboarding -> router.navigate(
+                        OnboardingRoute(),
                         NavigationOptions(launchSingleTop = true, clearBackStack = true),
                     )
                 }

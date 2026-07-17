@@ -42,6 +42,7 @@ final class IOSNativeViewFactory: CardsNativeViewFactory {
 final class AppleSignInButtonHost: UIView {
     private var action: (() -> Void)
     private let button: ASAuthorizationAppleIDButton
+    private let cornerRadius: CGFloat
 
     init(
         type: ASAuthorizationAppleIDButton.ButtonType,
@@ -50,6 +51,7 @@ final class AppleSignInButtonHost: UIView {
         action: @escaping () -> Void
     ) {
         self.action = action
+        self.cornerRadius = cornerRadius
         self.button = ASAuthorizationAppleIDButton(type: type, style: style)
         super.init(frame: .zero)
 
@@ -68,6 +70,15 @@ final class AppleSignInButtonHost: UIView {
 
     required init?(coder: NSCoder) {
         nil
+    }
+
+    // ASAuthorizationAppleIDButton is created at `.zero` then resized to its real
+    // height by Auto Layout. The corner-radius mask set before that first layout
+    // pass isn't re-clipped at the new size, so the button renders square. Re-
+    // applying the radius after each layout makes the DS rounding stick.
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        button.cornerRadius = cornerRadius
     }
 
     @objc private func handleTap() {

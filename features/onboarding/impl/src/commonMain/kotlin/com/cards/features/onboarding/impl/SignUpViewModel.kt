@@ -82,6 +82,9 @@ class SignUpViewModel(
             is LinkEmailIdentityOutcome.NetworkError -> updateState {
                 it.copy(isSubmitting = false, error = SignUpError.NetworkError)
             }
+            is LinkEmailIdentityOutcome.Timeout -> updateState {
+                it.copy(isSubmitting = false, error = SignUpError.Timeout)
+            }
             is LinkEmailIdentityOutcome.Unknown -> updateState {
                 it.copy(isSubmitting = false, error = SignUpError.Unknown)
             }
@@ -109,6 +112,9 @@ class SignUpViewModel(
             }
             is SignUpOutcome.NetworkError -> updateState {
                 it.copy(isSubmitting = false, error = SignUpError.NetworkError)
+            }
+            is SignUpOutcome.Timeout -> updateState {
+                it.copy(isSubmitting = false, error = SignUpError.Timeout)
             }
             is SignUpOutcome.Unknown -> updateState {
                 it.copy(isSubmitting = false, error = SignUpError.Unknown)
@@ -154,6 +160,7 @@ sealed interface SignUpError {
     data class WeakPassword(val minLength: Int) : SignUpError
     data object InvalidEmail : SignUpError
     data object NetworkError : SignUpError
+    data object Timeout : SignUpError
     data object Unknown : SignUpError
 }
 

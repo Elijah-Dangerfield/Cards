@@ -490,6 +490,27 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         }
     }
 
+    @Test
+    fun emailClaim_timeout_surfacesTimeout() = runUnitTest {
+        // A slow confirmation-email round trip on the guest-claim path must read
+        // as retryable, not the dead-end Unknown (AUTH-20).
+        val identity = FakeAuthRepository(
+            linkEmailOutcome = LinkEmailIdentityOutcome.Timeout(RuntimeException("timeout")),
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(ClaimAccountAction.EmailChanged("you@example.com"))
+        vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.Submit)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertEquals(ClaimAccountError.Timeout, last.error)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     // ---------- scaffolding ----------
 
     private fun buildVm(

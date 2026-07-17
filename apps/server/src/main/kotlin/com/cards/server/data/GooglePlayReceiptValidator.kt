@@ -58,13 +58,17 @@ class GooglePlayReceiptValidator(
 
     suspend fun validate(request: PurchaseReceipt): ReceiptValidation {
         val lookup = lookup
-            ?: return ReceiptValidation.Invalid("google_validator_unconfigured")
+            // Unconfigured is transient: the same token validates once the
+            // service-account credentials are set, so don't finish it.
+            ?: return ReceiptValidation.Invalid("google_validator_unconfigured", retryable = true)
 
         val purchase = try {
             withContext(Dispatchers.IO) { lookup.get(request.expectedSku, request.token) }
         } catch (e: GoogleJsonResponseException) {
+            // A failed lookup is the Play Developer API being unreachable /
+            // erroring — transient, so the token may still validate later.
             logger.warn("Google purchase lookup failed: HTTP {}", e.statusCode)
-            return ReceiptValidation.Invalid("google_lookup_failed")
+            return ReceiptValidation.Invalid("google_lookup_failed", retryable = true)
         }
 
         if (purchase.purchaseState != PURCHASE_STATE_PURCHASED) {

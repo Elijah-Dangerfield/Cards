@@ -123,6 +123,24 @@ class BillingRoutesTest {
     }
 
     @Test
+    fun redeem_retryableRejection_returns503_soClientLeavesTheTransactionReplayable() = runTest {
+        // BILL-13: a transient refusal (validator unconfigured / store API
+        // unreachable) must answer 503, not 400 — the client maps 5xx to
+        // "unavailable" and keeps the transaction unfinished for a later retry
+        // instead of finishing (and stranding) a genuinely paid purchase.
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = UnconfiguredValidator,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-unconfigured"),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.ServiceUnavailable, resp.status)
+        }
+        assertTrue(billing.redeemCalls.isEmpty(), "an unvalidated receipt must never reach the grant")
+    }
+
+    @Test
     fun redeem_resolvesCallerInstallLineage_andHandsItToValidator() = runTest {
         // BILL-11: the route must widen the receipt's accepted account set to
         // the caller's install lineage so a pack bought under a prior identity
@@ -264,6 +282,11 @@ class BillingRoutesTest {
     private object RejectingValidator : ReceiptValidator {
         override suspend fun validate(request: PurchaseReceipt): ReceiptValidation =
             ReceiptValidation.Invalid(reason = "forged")
+    }
+
+    private object UnconfiguredValidator : ReceiptValidator {
+        override suspend fun validate(request: PurchaseReceipt): ReceiptValidation =
+            ReceiptValidation.Invalid(reason = "apple_validator_unconfigured", retryable = true)
     }
 
     private class LineageCapturingValidator : ReceiptValidator {
