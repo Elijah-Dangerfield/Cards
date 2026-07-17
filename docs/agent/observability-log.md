@@ -199,3 +199,13 @@ purchase.failed, so the money-loss alert is blind to this exact failure mode. --
 - 2026-07-16 · CARDS-A2 · no-action: duplicate of BILL-13 (replayed receipt order 2000001203481555) · https://elijah-dangerfield.sentry.io/issues/CARDS-A2 · case docs/agent/feedback-cases/e452cfd17fe94266bd2bd5fcc730a34e.md
 - 2026-07-16 · CARDS-A4 · no-action: duplicate of BILL-13 (unfinished purchase ...555, no catalog product chips.large) · https://elijah-dangerfield.sentry.io/issues/CARDS-A4 · case docs/agent/feedback-cases/e452cfd17fe94266bd2bd5fcc730a34e.md
 - 2026-07-16 · CARDS-A5 · no-action: duplicate of BILL-13 (unfinished purchase ...803, no catalog product chips.small) · https://elijah-dangerfield.sentry.io/issues/CARDS-A5 · case docs/agent/feedback-cases/e452cfd17fe94266bd2bd5fcc730a34e.md
+
+<!-- 2026-07-17 nightly observability triage (stacked on tonight's feedback-triage recovery 1b48ef94 + the 07-16 ledger-recovery commit). Feedback-triage tonight filed AUTH-20 (CARDS-A6), AUTH-21 (CARDS-A8), BILL-13 (CARDS-AA). Reviewed 12 unresolved Sentry issues + Grafana alert/OnCall/Loki sweep. Filed 0 todos — no new, unowned signals.
+
+Sentry: all 12 unresolved issues already dispositioned in this ledger, none materially worse, so nothing re-opened —
+- CARDS-9V (apple_account_mismatch, server prod) ticked 26→28 events, still the BILL-11/12/13 stale-appAccountToken cluster (52f3f9c1, pre-AUTH-19 guest id). Not order-of-magnitude worse; no re-open.
+- CARDS-A2 (replayed receipt …555) is the 07-16 recovered no-action (dup BILL-13); still unresolved in Sentry like its billing-dup siblings CARDS-9V/9H — left as-is (these recur while BILL-13 is open; ledger is source of truth).
+- CARDS-97/9H/9Q/9C/9M/94/96/9R/93/95: event counts unchanged from prior runs, all previously dispositioned (ENG-27/28/29, dev-store noise, single-writer dev, adb kill, walletBalance drift). Skipped per idempotency. CARDS-A4/A5 no longer in the unresolved queue.
+
+Grafana: alerting_manage_rules(states=firing,pending) → null; list_alert_groups(state=new) → []. No alerts firing, no OnCall groups. Loki {service_name="cards-server",deployment_environment=prod} | detected_level=~"warn|error|fatal" over 24h → 11 WARN lines / 212 scanned, base stream live (212 entries). All 11 are known/owned: the apple_account_mismatch redeem-rejection cluster (BILL-11/12/13) + one "Cannot build the Production receipt verifier (appAppleId required) — degrades to sandbox" WARN, which is EXPECTED pre-launch by design (decisions.md 2026-07-07) with the prod-secret ops follow-up already tracked in developer-todo.md (APPLE_APP_APPLE_ID at launch). No error/fatal. Nothing filed. A5 purchase-failure alert still blind to the redeem-400 mode per the standing 07-15 note (human). -->
+
