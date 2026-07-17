@@ -25,6 +25,8 @@ duplicate) if a resolved signal gets materially worse.
 | [CARDS-9M](https://elijah-dangerfield.sentry.io/issues/CARDS-9M) | `AuthUnready: NeedAccount` captured to Sentry as error | → todo ENG-29 (collapsed with CARDS-9C) |
 | [CARDS-93](https://elijah-dangerfield.sentry.io/issues/CARDS-93) | `SavedStateHandle` can't put `OnboardingState` | no-action: same root cause as CARDS-97, fixed on develop (ENG-27) |
 | [CARDS-95](https://elijah-dangerfield.sentry.io/issues/CARDS-95) | `CrashedByAdbException: shell-induced crash` (dev emulator) | no-action: adb/emulator-induced kill, not a code defect |
+| [CARDS-A2](https://elijah-dangerfield.sentry.io/issues/CARDS-A2) | `Server rejected replayed receipt for order …555` (iOS) | no-action: dup of BILL-13 (replayed-receipt cluster) |
+| [CARDS-AB](https://elijah-dangerfield.sentry.io/issues/CARDS-AB) | `Terminally rejected replayed receipt for order …555 — finishing it` (client) | no-action: dup of BILL-13; client's terminal-finish path logged at error → Sentry noise |
 
 ## Grafana signals
 
@@ -35,6 +37,7 @@ duplicate) if a resolved signal gets materially worse.
 | `alerts:A1-A7-2026-07-13` | Firing-alert sweep (rules A1–A7) + Loki server error sweep | no-action: none firing, no OnCall groups, zero cards-server error/fatal logs in 24h |
 | `alerts:A1-A7-2026-07-13-nightly` | Firing-alert sweep (rules A1–A7) + Loki server error re-sweep (nightly) | no-action: none firing/pending, no OnCall groups, zero cards-server error/fatal logs in 24h |
 | `alerts:A1-A7-2026-07-15-nightly` | Firing-alert sweep (A1–A7) + OnCall + Loki server error/warn sweep + Pulse skim | no-action: none firing/pending, no OnCall groups; billing rejections present but only at WARN (covered by BILL-11/12 via CARDS-9V) |
+| `alerts:A1-A7-2026-07-17-nightly` | Firing-alert sweep (A1–A7) + OnCall + Loki server warn/error/fatal sweep | no-action: none firing/pending, no OnCall groups; 4 WARN lines all apple_account_mismatch redeem rejections (covered by BILL-11/12/13) |
 
 ---
 
@@ -208,4 +211,16 @@ Sentry: all 12 unresolved issues already dispositioned in this ledger, none mate
 - CARDS-97/9H/9Q/9C/9M/94/96/9R/93/95: event counts unchanged from prior runs, all previously dispositioned (ENG-27/28/29, dev-store noise, single-writer dev, adb kill, walletBalance drift). Skipped per idempotency. CARDS-A4/A5 no longer in the unresolved queue.
 
 Grafana: alerting_manage_rules(states=firing,pending) → null; list_alert_groups(state=new) → []. No alerts firing, no OnCall groups. Loki {service_name="cards-server",deployment_environment=prod} | detected_level=~"warn|error|fatal" over 24h → 11 WARN lines / 212 scanned, base stream live (212 entries). All 11 are known/owned: the apple_account_mismatch redeem-rejection cluster (BILL-11/12/13) + one "Cannot build the Production receipt verifier (appAppleId required) — degrades to sandbox" WARN, which is EXPECTED pre-launch by design (decisions.md 2026-07-07) with the prod-secret ops follow-up already tracked in developer-todo.md (APPLE_APP_APPLE_ID at launch). No error/fatal. Nothing filed. A5 purchase-failure alert still blind to the redeem-400 mode per the standing 07-15 note (human). -->
+
+<!-- 2026-07-17 nightly observability triage (2nd run tonight; feedback-triage before us created NO commits — no new feedback — so stacked directly on develop HEAD 9f94ea0e). Reviewed 13 unresolved Sentry issues + Grafana alert/OnCall/Loki sweep. Filed 0 todos — one new signal, deduped into an existing billing todo. No P0 unowned.
+
+Sentry: 12 of 13 already dispositioned in this ledger; 1 new (CARDS-AB).
+- CARDS-AB (NEW, 2 events / 2 users, first seen 4h ago; cocoa/iOS dev-ios-debug, release cards@0.1.0+1, develop commit 0eac8990, logger_tag PurchaseChipPackUseCase, route HomeRoute, session 270dc10b). Message: "Terminally rejected replayed receipt for order 2000001203481555 — finishing it". Same order …555 as CARDS-A2 (the 07-16 replayed-receipt dup of BILL-13). This is the CLIENT side of that cluster: the app recognizes a terminally-rejected replayed StoreKit receipt and finishes/consumes it to break the replay loop — i.e. exactly the BILL-13 remediation direction (DefaultPurchaseChipPackUseCase.redeemOutstanding / purchase.discarded). No-action → dup of BILL-13, shared case e452cfd17fe94266bd2bd5fcc730a34e.md. NOTE folded into BILL-13, not a separate todo (one root cause = one todo): the "finishing it" event is a HANDLED/expected outcome yet logged at ERROR, so SentryLogTree forwards it as noise — BILL-13's implementer should demote this path to WARN/INFO once the finish behavior is confirmed correct.
+- Re-checked billing-cluster event growth for materially-worse re-opens; none order-of-magnitude: CARDS-9V 28→30 (2 users), CARDS-9H 7→12 (3 users), CARDS-A2 6 unchanged. All still owned by BILL-11/12/13. No re-open.
+- CARDS-97/9Q/9C/9M/94/96/9R/93/95: event counts unchanged from prior runs, all previously dispositioned (ENG-27/28/29, single-writer dev, dev-store noise, walletBalance drift, adb kill). Skipped per idempotency.
+
+Grafana: alerting_manage_rules(states=firing,pending) → null; list_alert_groups(state=new) → []. No alerts firing, no OnCall groups. Loki {service_name="cards-server",deployment_environment=prod} base stream live (66 entries/24h); | detected_level=~"warn|error|fatal" → 4 WARN lines, all apple_account_mismatch redeem rejections (BillingRoutes.kt:128 / AppStoreReceiptValidator.kt:119, stale appAccountToken 52f3f9c1 = pre-AUTH-19 guest id, new install fd196699/user 7de9b42a this window) — owned by BILL-11/12/13. No error/fatal. Nothing filed. A5 purchase-failure alert still blind to the redeem-400 mode per the standing 07-15 note (human). -->
+
+- 2026-07-17 · CARDS-AB · no-action: duplicate of BILL-13 (client finishing terminally-rejected replayed receipt, order 2000001203481555; handled path logged at error → Sentry noise, demote as part of BILL-13) · https://elijah-dangerfield.sentry.io/issues/CARDS-AB · case docs/agent/feedback-cases/e452cfd17fe94266bd2bd5fcc730a34e.md
+- 2026-07-17 · alerts:A1-A7-2026-07-17-nightly · no-action: none firing/pending, no OnCall groups; 4 WARN redeem rejections all owned by BILL-11/12/13 · dc-pulse / grafanacloud-logs
 
