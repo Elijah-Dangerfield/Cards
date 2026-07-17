@@ -412,12 +412,11 @@ class OnboardingViewModelTest : CoroutineTest() {
 
     @Test
     fun signInWithOAuth_returningAccount_marksOnboardedAndNavigatesHome() = runUnitTest {
-        // walletJustCreated stays false → the account already had a wallet, so
-        // it's a returning sign-in: skip onboarding straight to Home.
+        // isNewAccount=false (the FakeProfileRepository default) → the account
+        // already existed, so it's a returning sign-in: skip straight to Home.
         val cache = FakeAppCache()
         val auth = FakeAuthRepository(oauthSignInOutcome = SignInOutcome.Success)
-        val chips = FakeChipsRepository().apply { walletJustCreated.value = false }
-        val vm = newVm(cache = cache, auth = auth, chips = chips)
+        val vm = newVm(cache = cache, auth = auth)
         val received = mutableListOf<OnboardingEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
 
@@ -432,13 +431,13 @@ class OnboardingViewModelTest : CoroutineTest() {
 
     @Test
     fun signInWithOAuth_brandNewAccount_runsThroughOnboarding_notStraightToHome() = runUnitTest {
-        // walletJustCreated flips true on the first sync of a freshly-created
-        // wallet → brand-new account. It should enter PickIdentity (and finish
-        // the grant reveal) rather than landing cold on Home.
+        // The server reports isNewAccount=true for a freshly-created account →
+        // brand-new. It should enter PickIdentity (and finish the grant reveal)
+        // rather than landing cold on Home.
         val cache = FakeAppCache()
         val auth = FakeAuthRepository(oauthSignInOutcome = SignInOutcome.Success)
-        val chips = FakeChipsRepository().apply { walletJustCreated.value = true }
-        val vm = newVm(cache = cache, auth = auth, chips = chips)
+        val profile = FakeProfileRepository().apply { isNewAccount = true }
+        val vm = newVm(cache = cache, auth = auth, profile = profile)
         val received = mutableListOf<OnboardingEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
 
@@ -523,8 +522,8 @@ class OnboardingViewModelTest : CoroutineTest() {
         // A brand-new OAuth account enters PickIdentity with identityClaimed —
         // the Welcome sign-in options no longer apply, so back must be a no-op.
         val auth = FakeAuthRepository(oauthSignInOutcome = SignInOutcome.Success)
-        val chips = FakeChipsRepository().apply { walletJustCreated.value = true }
-        val vm = newVm(auth = auth, chips = chips)
+        val profile = FakeProfileRepository().apply { isNewAccount = true }
+        val vm = newVm(auth = auth, profile = profile)
         vm.takeAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google))
         runCurrent()
         assertEquals(OnboardingStep.PickIdentity, vm.state.step)
@@ -592,18 +591,18 @@ class OnboardingViewModelTest : CoroutineTest() {
     fun appleSignIn_noAnonSession_brandNewAccount_runsThroughOnboarding() = runUnitTest {
         // Regression (bug: delete account -> Continue with Apple skipped onboarding).
         // After deletion there's NO anonymous session, so the link path is skipped
-        // and we sign in. Supabase mints a NET-NEW account (walletJustCreated=true).
+        // and we sign in. Supabase mints a NET-NEW account (server isNewAccount=true).
         // It must run through onboarding (PickIdentity + grant reveal), not land Home.
         val cache = FakeAppCache()
         val auth = FakeAuthRepository(
             appleSignInOutcome = SignInOutcome.Success,
             initialAuthState = AuthState.Unauthenticated(),
         )
-        val chips = FakeChipsRepository().apply { walletJustCreated.value = true }
+        val profile = FakeProfileRepository().apply { isNewAccount = true }
         val vm = newVm(
             cache = cache,
             auth = auth,
-            chips = chips,
+            profile = profile,
             appleCoordinator = FakeAppleSignInCoordinator(credential = sampleAppleCredential),
         )
         val received = mutableListOf<OnboardingEvent>()
@@ -624,17 +623,15 @@ class OnboardingViewModelTest : CoroutineTest() {
     @Test
     fun appleSignIn_noAnonSession_existingAccount_navigatesHome() = runUnitTest {
         // No anonymous session, but the Apple sign-in lands on a pre-existing
-        // account (walletJustCreated=false) → skip onboarding straight to Home.
+        // account (isNewAccount=false, the default) → skip straight to Home.
         val cache = FakeAppCache()
         val auth = FakeAuthRepository(
             appleSignInOutcome = SignInOutcome.Success,
             initialAuthState = AuthState.Unauthenticated(),
         )
-        val chips = FakeChipsRepository().apply { walletJustCreated.value = false }
         val vm = newVm(
             cache = cache,
             auth = auth,
-            chips = chips,
             appleCoordinator = FakeAppleSignInCoordinator(credential = sampleAppleCredential),
         )
         val received = mutableListOf<OnboardingEvent>()
@@ -766,10 +763,15 @@ internal class FakeProfileRepository(
     var lastUpdateArgs: Pair<String?, Pair<String?, String?>>? = null
         private set
 
+    /** Drives [resolveIsNewAccount] — the authoritative brand-new-account signal
+     *  the VM uses to classify SIGN-UP vs SIGN-IN (server `/v1/me` isNewAccount). */
+    var isNewAccount: Boolean = false
+
     suspend fun emit(next: Profile) { flow.emit(next) }
 
     override suspend fun current(): Profile = flow.value
     override fun observe(): Flow<Profile> = flow
+    override suspend fun resolveIsNewAccount(): Boolean = isNewAccount
 
     override suspend fun update(
         displayName: String?,

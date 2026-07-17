@@ -51,6 +51,19 @@ interface ProfileRepository {
         clearAvatarBackgroundColor: Boolean = false,
     ): UpdateProfileOutcome
 
+    /**
+     * Whether the current session's account was **just created** on the server
+     * (a brand-new account's first contact) — the authoritative discriminator
+     * for SIGN-UP vs SIGN-IN, read once right after an identity auth. Sourced
+     * from the server's `/v1/me` `isNewAccount` flag, latched inside the repo so
+     * it survives the profile hydrate racing the caller (the flag is one-shot
+     * server-side). Returns false when unauthenticated or on error — treat "not
+     * sure" as returning, so a real returning user is never trapped in
+     * onboarding. Replaces the best-effort `ChipsRepository.walletJustCreated`
+     * proxy. Consuming: reading it resets the latch. Default false for fakes.
+     */
+    suspend fun resolveIsNewAccount(): Boolean = false
+
     /** Fetch the curated starter emoji pack so the avatar picker can render. */
     suspend fun fetchAvatarPack(): AvatarPackOutcome
 

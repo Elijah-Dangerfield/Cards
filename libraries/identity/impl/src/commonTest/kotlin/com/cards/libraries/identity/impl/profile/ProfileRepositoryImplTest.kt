@@ -46,6 +46,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -88,6 +89,44 @@ class ProfileRepositoryImplTest : CoroutineTest() {
         val cached = cache.readAuthenticated()
         assertNotNull(cached)
         assertEquals("u1", cached.id)
+    }
+
+    @Test
+    fun resolveIsNewAccount_serverReportsNew_returnsTrueOnce_thenConsumed() = runUnitTest {
+        val auth = FakeAuthRepository()
+        val api = FakeProfileApi(meResult = Result.success(SAMPLE_ME.copy(isNewAccount = true)))
+        val repo = build(auth, api, newProfileCache())
+
+        // Auth change auto-hydrates and latches the one-shot server signal.
+        auth.emit(AuthState.Authenticated(userId = "u1", isAnonymous = false, email = "a@b.com"))
+        advanceUntilIdle()
+        // Model the server's one-shot: a subsequent /v1/me reports NOT new.
+        api.meResult = Result.success(SAMPLE_ME.copy(isNewAccount = false))
+
+        assertTrue(repo.resolveIsNewAccount(), "latched new-account signal survives the racing hydrate")
+        assertFalse(repo.resolveIsNewAccount(), "consumed — a second read is false")
+    }
+
+    @Test
+    fun resolveIsNewAccount_returningAccount_returnsFalse() = runUnitTest {
+        val auth = FakeAuthRepository()
+        val api = FakeProfileApi(meResult = Result.success(SAMPLE_ME.copy(isNewAccount = false)))
+        val repo = build(auth, api, newProfileCache())
+
+        auth.emit(AuthState.Authenticated(userId = "u1", isAnonymous = false, email = "a@b.com"))
+        advanceUntilIdle()
+
+        assertFalse(repo.resolveIsNewAccount())
+    }
+
+    @Test
+    fun resolveIsNewAccount_unauthenticated_returnsFalse() = runUnitTest {
+        val auth = FakeAuthRepository().also { it.emit(AuthState.Unauthenticated()) }
+        val api = FakeProfileApi(meResult = Result.success(SAMPLE_ME.copy(isNewAccount = true)))
+        val repo = build(auth, api, newProfileCache())
+        advanceUntilIdle()
+
+        assertFalse(repo.resolveIsNewAccount(), "no session → treat as returning, never trap in onboarding")
     }
 
     @Test

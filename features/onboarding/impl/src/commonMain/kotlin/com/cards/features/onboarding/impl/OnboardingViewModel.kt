@@ -264,19 +264,17 @@ class OnboardingViewModel(
     }
 
     /**
-     * Whether the just-signed-in account is brand new (first-ever sign-in) vs.
-     * a returning one. The discriminator is [ChipsRepository.walletJustCreated]:
-     * the first wallet sync after a fresh account lazily creates the server
-     * wallet and flips the signal true; a returning account already has a
-     * wallet, so it stays false. Same signal the Home starter-grant gate keys
-     * on. We kick the sync here so the answer is ready before we branch; if the
-     * sync fails (offline) the signal stays false and we treat the user as
-     * returning (Home) rather than trapping them in onboarding.
+     * Whether the just-authenticated account is brand new (SIGN-UP) vs. a
+     * returning one (SIGN-IN). Reads the authoritative server signal via
+     * [ProfileRepository.resolveIsNewAccount] (`/v1/me`'s `isNewAccount`),
+     * which replaced the best-effort `walletJustCreated` proxy: that proxy
+     * depended on a wallet sync that goes false when offline and tripped on
+     * identity churn (a pre-existing account could look "new"). On error the
+     * signal is false, so a real returning user is routed Home rather than
+     * trapped in onboarding.
      */
-    private suspend fun isBrandNewAccount(): Boolean {
-        Catching { chipsRepository.sync() }.logOnFailure { "OAuth wallet sync failed" }
-        return chipsRepository.walletJustCreated.value
-    }
+    private suspend fun isBrandNewAccount(): Boolean =
+        profileRepository.resolveIsNewAccount()
 
     /**
      * Native "Sign in with Apple". Runs the iOS coordinator for the id token,
