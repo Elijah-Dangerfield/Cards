@@ -172,6 +172,7 @@ Two variants, both must pass:
 2. Enter the existing email + any password; submit.
 
 **Expected:** Inline error explains that the account exists. A "Sign in instead" CTA is visible — tapping it pre-fills the email on the sign-in screen.
+- The screen must NOT flash "check your email" and then drop into the app: Supabase returns a fake success (no error, a user with empty identities) for an already-registered email, and that used to route to VerifyEmail which auto-advanced. It now surfaces the inline error directly. *(AUTH-21.)*
 
 ---
 

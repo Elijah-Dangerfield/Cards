@@ -404,9 +404,18 @@ class SupabaseAuthRepositoryImpl(
             Catching {
                 gateway.signUpWithEmail(email, password)
             }.fold(
-                onSuccess = {
-                    logger.i { "signUpWithEmail: VerificationRequired" }
-                    SignUpOutcome.VerificationRequired(email)
+                onSuccess = { result ->
+                    val outcome = when (result) {
+                        // Supabase obfuscated an already-registered email as a
+                        // fake success — route to sign-in, don't flash VerifyEmail
+                        // and drop the user into the app (AUTH-21).
+                        GatewaySignUpResult.EmailAlreadyRegistered ->
+                            SignUpOutcome.EmailAlreadyRegistered
+                        GatewaySignUpResult.VerificationSent ->
+                            SignUpOutcome.VerificationRequired(email)
+                    }
+                    logger.i { "signUpWithEmail: ${outcome::class.simpleName}" }
+                    outcome
                 },
                 onFailure = { e ->
                     val outcome = when (e) {

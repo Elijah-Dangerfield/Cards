@@ -24,14 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## Auth & onboarding (AUTH)
-
-- `[P1]` **Signing up with an already-registered email flashes "check your email" for ~1s then drops into the app.** Supabase's anti-enumeration makes `signUp` on an existing email return a fake success (no clear signal), so the client shows VerifyEmail then auto-advances instead of telling the user "this email is already registered — sign in instead." Confusing, and it lands them in an ambiguous account state. The `develop` "Sign up with email" landing button makes this path far more prominent — should be fixed with/before that ships.
-  **Acceptance:** an already-registered email routes to sign-in with a clear message rather than a VerifyEmail flash; the "instant confirm" case can't silently drop the user into the app.
-  **Hints:** interacts with the `develop` Option-B VerifyEmail branch + the SessionExpired-on-no-session fix; `SignUpViewModel` / `VerifyEmailViewModel`; case `docs/agent/feedback-cases/55f95e228b8540b6a3f25e1539aaeccb.md`; Sentry CARDS-A8.
-
----
-
 ## Billing (BILL)
 
 - `[P1]` **Unfinished StoreKit transactions replay across fresh installs and every redeem fails.** Pending orders `2000001203481803` / `...481555` (SKUs `com.cards.iap.chips.small/large`) survive reinstall and re-post to `POST /v1/billing/redeem` on launch, getting `receipt_rejected` / "Server rejected replayed receipt" against the fresh install's new anon userId → tester reports "every single purchase failing" on a fresh account. Ties to the AUTH-19 identity churn and existing BILL-11/BILL-12; the SKU-unrecognized side is CARDS-96.

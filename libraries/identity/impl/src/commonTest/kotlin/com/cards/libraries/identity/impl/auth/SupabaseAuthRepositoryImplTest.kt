@@ -745,6 +745,41 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         )
     }
 
+    // ---------- signup already-registered obfuscation (AUTH-21) ----------
+
+    @Test
+    fun signUp_obfuscatedAlreadyRegistered_mapsToEmailAlreadyRegistered_notVerification() = runUnitTest {
+        // Supabase anti-enumeration returns a fake-success (no exception, a user
+        // with an empty identities array, no session) for an already-registered
+        // email. The gateway projects that to EmailAlreadyRegistered so the client
+        // shows "already registered, sign in" instead of flashing the verify-email
+        // screen and dropping the user into the app (AUTH-21).
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+            onSignUpWithEmail = { _, _ -> GatewaySignUpResult.EmailAlreadyRegistered },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val outcome = repo.signUpWithEmail("dup@example.com", "password")
+        assertIs<SignUpOutcome.EmailAlreadyRegistered>(outcome)
+    }
+
+    @Test
+    fun signUp_newEmail_mapsToVerificationRequired_withServerEmail() = runUnitTest {
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+            onSignUpWithEmail = { _, _ -> GatewaySignUpResult.VerificationSent },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val outcome = repo.signUpWithEmail("new@example.com", "password")
+        assertEquals(SignUpOutcome.VerificationRequired("new@example.com"), outcome)
+    }
+
     // ---------- signup / link timeout mapping (AUTH-20) ----------
 
     @Test
@@ -895,7 +930,7 @@ internal class FakeSupabaseAuthGateway(
     var onHydrateCurrentUser: suspend FakeSupabaseAuthGateway.() -> Unit = {
         error("hydrateCurrentUser not stubbed for this test")
     },
-    var onSignUpWithEmail: suspend FakeSupabaseAuthGateway.(String, String) -> Unit = { _, _ ->
+    var onSignUpWithEmail: suspend FakeSupabaseAuthGateway.(String, String) -> GatewaySignUpResult = { _, _ ->
         error("signUpWithEmail not stubbed for this test")
     },
     var onLinkEmailIdentity: suspend FakeSupabaseAuthGateway.(String, String) -> Unit = { _, _ ->
@@ -972,9 +1007,8 @@ internal class FakeSupabaseAuthGateway(
     override suspend fun signInWithEmail(email: String, password: String): Unit =
         error("signInWithEmail not stubbed for these tests")
 
-    override suspend fun signUpWithEmail(email: String, password: String) {
+    override suspend fun signUpWithEmail(email: String, password: String): GatewaySignUpResult =
         onSignUpWithEmail(email, password)
-    }
 
     override suspend fun resendVerificationEmail(email: String): Unit =
         error("resendVerificationEmail not stubbed for these tests")

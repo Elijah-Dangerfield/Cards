@@ -42,8 +42,15 @@ interface SupabaseAuthGateway {
     /** Email/password sign-in. Throws on failure. */
     suspend fun signInWithEmail(email: String, password: String)
 
-    /** Email/password sign-up. Throws on failure. Supabase sends a verification email. */
-    suspend fun signUpWithEmail(email: String, password: String)
+    /**
+     * Email/password sign-up. Throws on failure. On success Supabase sends a
+     * verification email — UNLESS the address is already registered, in which
+     * case anti-enumeration returns an obfuscated fake-success (no exception, a
+     * user with an empty `identities` array and no session). The gateway
+     * projects that fork onto [GatewaySignUpResult] so the repository can tell a
+     * real new signup apart from an already-registered email. See AUTH-21.
+     */
+    suspend fun signUpWithEmail(email: String, password: String): GatewaySignUpResult
 
     /** Resend the verification email for an unconfirmed sign-up. Throws on failure. */
     suspend fun resendVerificationEmail(email: String)
@@ -125,6 +132,24 @@ interface SupabaseAuthGateway {
      * Throws on failure.
      */
     suspend fun linkEmailIdentity(email: String, password: String)
+}
+
+/**
+ * What a sign-up call actually did, projected off supabase-kt's response so the
+ * repository never inspects a supabase user object.
+ *
+ * Supabase (with email confirmation on + anti-enumeration) does NOT throw for an
+ * already-registered email — it returns HTTP 200 with a fake user whose
+ * `identities` array is empty and carries no session. A genuinely new signup
+ * returns a user with one identity. Empty identities is the documented signal,
+ * and the same one the anonymity heuristic keys on. See AUTH-21.
+ */
+enum class GatewaySignUpResult {
+    /** A verification email was sent to a genuinely new address. */
+    VerificationSent,
+
+    /** The address is already registered — Supabase obfuscated it as a fake success. */
+    EmailAlreadyRegistered,
 }
 
 /**
