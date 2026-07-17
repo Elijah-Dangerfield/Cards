@@ -757,6 +757,7 @@
     <string name="account_linked_dialog_body">You're signed in with %1$s now, so your chips, XP, and achievements are safe and synced across devices.</string>
     <string name="account_linked_dialog_reassurance">Sign in with %1$s any time to pick up right where you left off.</string>
     <string name="account_linked_dialog_primary_cta">Keep playing</string>
+    <string name="account_linked_provider_email">email</string>
 
     <!-- Profile - Delete account destructive flow. -->
     <string name="profile_delete_back_a11y">Back</string>

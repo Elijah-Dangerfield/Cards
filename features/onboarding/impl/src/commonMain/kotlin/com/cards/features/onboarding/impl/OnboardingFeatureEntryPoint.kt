@@ -4,6 +4,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.account_linked_provider_email
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.onboarding.ForgotPasswordRoute
 import com.dangerfield.cards.features.onboarding.OnboardingRoute
@@ -18,6 +20,7 @@ import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.routeDeepLink
 import com.dangerfield.cards.libraries.navigation.screen
 import me.tatarka.inject.annotations.Inject
+import org.jetbrains.compose.resources.stringResource
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
@@ -119,6 +122,7 @@ class OnboardingFeatureEntryPoint(
             val viewModel: VerifyEmailViewModel =
                 viewModel { verifyEmailViewModelFactory(route.email, route.guestLink) }
             val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
+            val emailProviderLabel = stringResource(Res.string.account_linked_provider_email)
 
             viewModel.ObserveEvents { event ->
                 when (event) {
@@ -142,7 +146,7 @@ class OnboardingFeatureEntryPoint(
                     // down as the stack clears.
                     VerifyEmailEvent.NavigateToAccountSaved -> {
                         router.enterTab(HomeRoute())
-                        router.navigate(AccountLinkedRoute(EMAIL_PROVIDER_LABEL))
+                        router.navigate(AccountLinkedRoute(emailProviderLabel))
                     }
                 }
             }
@@ -153,12 +157,5 @@ class OnboardingFeatureEntryPoint(
                 onBack = { router.goBack() },
             )
         }
-    }
-
-    private companion object {
-        // Provider label rendered into the "account saved" dialog copy for an
-        // email link. Mirrors OAuthProvider.label ("Google"/"Apple") — a plain
-        // constant, not a resource, since AccountLinkedRoute takes the raw label.
-        const val EMAIL_PROVIDER_LABEL = "Email"
     }
 }
