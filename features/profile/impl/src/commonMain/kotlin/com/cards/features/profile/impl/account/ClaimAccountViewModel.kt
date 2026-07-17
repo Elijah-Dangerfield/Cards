@@ -251,6 +251,9 @@ class ClaimAccountViewModel(
             is LinkEmailIdentityOutcome.NetworkError -> updateState {
                 it.copy(isSubmitting = false, error = ClaimAccountError.NetworkError)
             }
+            is LinkEmailIdentityOutcome.Timeout -> updateState {
+                it.copy(isSubmitting = false, error = ClaimAccountError.Timeout)
+            }
             is LinkEmailIdentityOutcome.Unknown -> updateState {
                 it.copy(isSubmitting = false, error = ClaimAccountError.Unknown)
             }
@@ -277,6 +280,9 @@ class ClaimAccountViewModel(
             }
             is SignUpOutcome.NetworkError -> updateState {
                 it.copy(isSubmitting = false, error = ClaimAccountError.NetworkError)
+            }
+            is SignUpOutcome.Timeout -> updateState {
+                it.copy(isSubmitting = false, error = ClaimAccountError.Timeout)
             }
             is SignUpOutcome.Unknown -> updateState {
                 it.copy(isSubmitting = false, error = ClaimAccountError.Unknown)
@@ -349,6 +355,8 @@ sealed interface ClaimAccountError {
     data class ProviderNotEnabled(val provider: OAuthProvider) : ClaimAccountError
     /** Network unreachable (any path). */
     data object NetworkError : ClaimAccountError
+    /** Email-claim path: the request timed out (slow confirmation-email round trip) — retryable. */
+    data object Timeout : ClaimAccountError
     /** Generic claim-failure (OAuth link or email link). */
     data object Unknown : ClaimAccountError
     /** Switch-to-existing OAuth account failed (non-network, non-cancel branches). */

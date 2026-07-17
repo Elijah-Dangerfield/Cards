@@ -27,6 +27,7 @@ import cards.libraries.resources.generated.resources.auth_claim_error_network
 import cards.libraries.resources.generated.resources.auth_claim_error_not_signed_in
 import cards.libraries.resources.generated.resources.auth_claim_error_provider_not_enabled
 import cards.libraries.resources.generated.resources.auth_claim_error_switch_failed
+import cards.libraries.resources.generated.resources.auth_claim_error_timeout
 import cards.libraries.resources.generated.resources.auth_claim_error_unknown
 import cards.libraries.resources.generated.resources.auth_claim_error_weak_password
 import cards.libraries.resources.generated.resources.auth_field_email_label
@@ -314,6 +315,8 @@ private fun ClaimAccountError.message(): String = when (this) {
         stringResource(Res.string.auth_claim_error_provider_not_enabled, provider.label)
     ClaimAccountError.NetworkError ->
         stringResource(Res.string.auth_claim_error_network)
+    ClaimAccountError.Timeout ->
+        stringResource(Res.string.auth_claim_error_timeout)
     ClaimAccountError.Unknown ->
         stringResource(Res.string.auth_claim_error_unknown)
     ClaimAccountError.SwitchFailed ->

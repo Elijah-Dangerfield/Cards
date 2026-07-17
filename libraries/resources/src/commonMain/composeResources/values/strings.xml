@@ -458,6 +458,7 @@
     <string name="auth_sign_up_error_weak_password">Pick a stronger password (at least %1$d characters).</string>
     <string name="auth_sign_up_error_invalid_email">That email doesn't look right.</string>
     <string name="auth_sign_up_error_network">Couldn't reach the server. Check your connection.</string>
+    <string name="auth_sign_up_error_timeout">That took longer than expected. Give it another try.</string>
     <string name="auth_sign_up_error_unknown">Sign up failed. Please try again.</string>
 
     <!-- Claim account - inline error states surfaced by the VM (sealed ClaimAccountError → resource). -->
@@ -465,6 +466,7 @@
     <string name="auth_claim_error_not_signed_in">Sign in first, then claim your account.</string>
     <string name="auth_claim_error_provider_not_enabled">%1$s sign-in isn't available yet. Please try again later.</string>
     <string name="auth_claim_error_network">Couldn't reach the server. Check your connection.</string>
+    <string name="auth_claim_error_timeout">That took longer than expected. Give it another try.</string>
     <string name="auth_claim_error_unknown">Couldn't claim your account. Please try again.</string>
     <string name="auth_claim_error_switch_failed">Couldn't sign in. Please try again.</string>
     <string name="auth_claim_error_email_already_registered">That email is already in use. Try signing in instead.</string>

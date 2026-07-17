@@ -54,6 +54,7 @@ import cards.libraries.resources.generated.resources.auth_sign_up_confirm_passwo
 import cards.libraries.resources.generated.resources.auth_sign_up_error_email_already_registered
 import cards.libraries.resources.generated.resources.auth_sign_up_error_invalid_email
 import cards.libraries.resources.generated.resources.auth_sign_up_error_network
+import cards.libraries.resources.generated.resources.auth_sign_up_error_timeout
 import cards.libraries.resources.generated.resources.auth_sign_up_error_unknown
 import cards.libraries.resources.generated.resources.auth_sign_up_error_weak_password
 import cards.libraries.resources.generated.resources.auth_sign_up_password_helper
@@ -567,6 +568,8 @@ private fun SignUpError.message(): String = when (this) {
         stringResource(Res.string.auth_sign_up_error_invalid_email)
     SignUpError.NetworkError ->
         stringResource(Res.string.auth_sign_up_error_network)
+    SignUpError.Timeout ->
+        stringResource(Res.string.auth_sign_up_error_timeout)
     SignUpError.Unknown ->
         stringResource(Res.string.auth_sign_up_error_unknown)
 }

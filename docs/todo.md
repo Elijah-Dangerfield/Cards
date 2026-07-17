@@ -26,10 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## Auth & onboarding (AUTH)
 
-- `[P1]` **Email signup POST times out at 10s → "signup failed".** The `POST /auth/v1/signup` to Supabase hit `HttpRequestTimeoutException` (10s) and surfaced as a bare NetworkError; tester saw "signup failed? no idea why" with no retry affordance. Likely the built-in Supabase email sender being slow/rate-limited under repeated signups (custom SMTP still unconfigured — see developer-todo.md). More prominent once the `develop` "Sign up with email" landing button ships.
-  **Acceptance:** a slow/timed-out signup shows a clear retryable error (not a dead "failed"), and the auth-call timeout is sized for the confirmation-email round trip (or the send is decoupled from the signup response).
-  **Hints:** `HttpRequestTimeoutException` on `.../auth/v1/signup` in session `fdba0e7a`; `RealSupabaseAuthGateway.signUpWithEmail`; ties to custom-SMTP setup; case `docs/agent/feedback-cases/43b40a0c05454f01a836d82cc8eba17d.md`; Sentry CARDS-A6.
-
 - `[P1]` **Signing up with an already-registered email flashes "check your email" for ~1s then drops into the app.** Supabase's anti-enumeration makes `signUp` on an existing email return a fake success (no clear signal), so the client shows VerifyEmail then auto-advances instead of telling the user "this email is already registered — sign in instead." Confusing, and it lands them in an ambiguous account state. The `develop` "Sign up with email" landing button makes this path far more prominent — should be fixed with/before that ships.
   **Acceptance:** an already-registered email routes to sign-in with a clear message rather than a VerifyEmail flash; the "instant confirm" case can't silently drop the user into the app.
   **Hints:** interacts with the `develop` Option-B VerifyEmail branch + the SessionExpired-on-no-session fix; `SignUpViewModel` / `VerifyEmailViewModel`; case `docs/agent/feedback-cases/55f95e228b8540b6a3f25e1539aaeccb.md`; Sentry CARDS-A8.

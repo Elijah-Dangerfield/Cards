@@ -11,6 +11,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.SettingsSessionManager
 import io.github.jan.supabase.createSupabaseClient
+import kotlin.time.Duration.Companion.seconds
 import me.tatarka.inject.annotations.Provides
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesTo
@@ -51,6 +52,15 @@ interface SupabaseClientComponent {
             supabaseKey = config.supabasePublishableKey,
         ) {
             httpEngine = platformHttpEngineFactory.create()
+
+            // supabase-kt defaults to a 10s request timeout, which is too tight
+            // for `POST /auth/v1/signup`: the built-in email sender does the
+            // confirmation send inside the signup response, so a slow/rate-limited
+            // SMTP round trip blows past 10s and the whole signup fails with no
+            // clear cause (AUTH-20). This client only installs Auth, so the
+            // wider budget applies to auth calls only. Revisit once custom SMTP
+            // (Resend) lands and the send is fast/decoupled from the response.
+            requestTimeout = 30.seconds
 
             install(Auth) {
                 // alwaysAutoRefresh = true (default) — refresh tokens

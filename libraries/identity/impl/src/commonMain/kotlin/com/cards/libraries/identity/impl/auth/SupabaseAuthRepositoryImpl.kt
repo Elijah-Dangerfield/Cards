@@ -24,6 +24,7 @@ import com.dangerfield.cards.libraries.networking.AuthTokenInvalidator
 import com.dangerfield.cards.libraries.networking.SessionRejectionBus
 import io.github.jan.supabase.exceptions.HttpRequestException
 import io.github.jan.supabase.exceptions.RestException
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
@@ -409,6 +410,12 @@ class SupabaseAuthRepositoryImpl(
                 },
                 onFailure = { e ->
                     val outcome = when (e) {
+                        // supabase-kt rethrows Ktor's timeout raw (not wrapped in
+                        // its HttpRequestException), so it must be matched
+                        // explicitly or it falls through to Unknown. A slow
+                        // confirmation-email send is the usual cause — surface it
+                        // as retryable, not a dead "signup failed" (AUTH-20).
+                        is HttpRequestTimeoutException -> SignUpOutcome.Timeout(e)
                         is RestException -> mapSignUpRestException(e)
                         is HttpRequestException -> SignUpOutcome.NetworkError(e)
                         else -> SignUpOutcome.Unknown(e)
@@ -886,6 +893,8 @@ class SupabaseAuthRepositoryImpl(
             },
             onFailure = { e ->
                 val outcome = when (e) {
+                    // See signUpWithEmail — same raw-timeout case on the claim path.
+                    is HttpRequestTimeoutException -> LinkEmailIdentityOutcome.Timeout(e)
                     is RestException -> mapLinkEmailRestException(e)
                     is HttpRequestException -> LinkEmailIdentityOutcome.NetworkError(e)
                     else -> LinkEmailIdentityOutcome.Unknown(e)

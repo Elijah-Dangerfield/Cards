@@ -7,12 +7,15 @@ import com.dangerfield.cards.libraries.cards.UserScopedDataReset
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import com.dangerfield.cards.libraries.identity.impl.MeDto
 import com.dangerfield.cards.libraries.identity.impl.PatchMeRequest
 import com.dangerfield.cards.libraries.identity.impl.ProfileApi
 import com.dangerfield.cards.libraries.identity.impl.AvatarPackResponseDto
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.statement.HttpResponse
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -742,6 +745,46 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         )
     }
 
+    // ---------- signup / link timeout mapping (AUTH-20) ----------
+
+    @Test
+    fun signUp_requestTimeout_mapsToTimeout_notUnknown() = runUnitTest {
+        // supabase-kt rethrows Ktor's HttpRequestTimeoutException raw (it's an
+        // IOException, so Catching keeps it), and it's neither a RestException
+        // nor supabase's HttpRequestException — so before AUTH-20 it fell through
+        // to Unknown ("signup failed"). It must now surface as a retryable Timeout.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+            onSignUpWithEmail = { _, _ ->
+                throw HttpRequestTimeoutException(url = "https://x/auth/v1/signup", timeoutMillis = 30_000L)
+            },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val outcome = repo.signUpWithEmail("new@example.com", "password")
+        assertIs<SignUpOutcome.Timeout>(outcome)
+    }
+
+    @Test
+    fun linkEmail_requestTimeout_mapsToTimeout_notUnknown() = runUnitTest {
+        // Same raw-timeout case on the anonymous-guest claim path.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = anonymousSession(),
+            onLinkEmailIdentity = { _, _ ->
+                throw HttpRequestTimeoutException(url = "https://x/auth/v1/user", timeoutMillis = 30_000L)
+            },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+        assertIs<AuthState.Authenticated>(repo.current())
+
+        val outcome = repo.linkEmailIdentity("new@example.com", "password")
+        assertIs<LinkEmailIdentityOutcome.Timeout>(outcome)
+    }
+
     // ---------- scaffolding ----------
 
     private fun build(
@@ -852,6 +895,12 @@ internal class FakeSupabaseAuthGateway(
     var onHydrateCurrentUser: suspend FakeSupabaseAuthGateway.() -> Unit = {
         error("hydrateCurrentUser not stubbed for this test")
     },
+    var onSignUpWithEmail: suspend FakeSupabaseAuthGateway.(String, String) -> Unit = { _, _ ->
+        error("signUpWithEmail not stubbed for this test")
+    },
+    var onLinkEmailIdentity: suspend FakeSupabaseAuthGateway.(String, String) -> Unit = { _, _ ->
+        error("linkEmailIdentity not stubbed for this test")
+    },
 ) : SupabaseAuthGateway {
 
     private var status: AuthGatewayStatus = initialStatus
@@ -923,8 +972,9 @@ internal class FakeSupabaseAuthGateway(
     override suspend fun signInWithEmail(email: String, password: String): Unit =
         error("signInWithEmail not stubbed for these tests")
 
-    override suspend fun signUpWithEmail(email: String, password: String): Unit =
-        error("signUpWithEmail not stubbed for these tests")
+    override suspend fun signUpWithEmail(email: String, password: String) {
+        onSignUpWithEmail(email, password)
+    }
 
     override suspend fun resendVerificationEmail(email: String): Unit =
         error("resendVerificationEmail not stubbed for these tests")
@@ -969,6 +1019,7 @@ internal class FakeSupabaseAuthGateway(
     override suspend fun signInWithGoogleIdToken(idToken: String, nonce: String?): Unit =
         error("signInWithGoogleIdToken not stubbed for these tests")
 
-    override suspend fun linkEmailIdentity(email: String, password: String): Unit =
-        error("linkEmailIdentity not stubbed for these tests")
+    override suspend fun linkEmailIdentity(email: String, password: String) {
+        onLinkEmailIdentity(email, password)
+    }
 }

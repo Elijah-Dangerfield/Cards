@@ -115,6 +115,7 @@ Two variants, both must pass:
 2. Enter any email + password; submit.
 
 **Expected:** A clear no-connection error appears — not a generic server error, not a hang. The user can back out and choose "Continue as guest" instead.
+- If a signup online is slow enough to time out (server slow to send the confirmation email, not a dead connection), the inline error reads as retryable — "That took longer than expected. Give it another try." — and the Create account button stays tappable to retry, rather than the dead-end "Sign up failed." *(AUTH-20.)*
 
 ---
 
