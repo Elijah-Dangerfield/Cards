@@ -94,7 +94,7 @@ fun Route.meRoutes(
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
-            val profile = repository.findOrCreate(userId)
+            val (profile, isNewAccount) = repository.findOrCreateResult(userId)
             // Tag the profile with the caller's install_id (header). The
             // L1 orphan-cleanup task consults this column to find prior
             // anon rows that share the same install_id and reaps the
@@ -107,7 +107,10 @@ fun Route.meRoutes(
                 repository.touchInstallId(userId, installId)
                 fireInstallSweep(app, installSweep, installId, userId)
             }
-            call.respond(HttpStatusCode.OK, profile.toMeDto(isAnonymous = call.isAnonymousUser()))
+            call.respond(
+                HttpStatusCode.OK,
+                profile.toMeDto(isAnonymous = call.isAnonymousUser(), isNewAccount = isNewAccount),
+            )
         }
 
         get("/v1/me/stats") {
