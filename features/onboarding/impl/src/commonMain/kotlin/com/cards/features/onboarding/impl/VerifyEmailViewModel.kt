@@ -2,11 +2,12 @@ package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
+import com.dangerfield.cards.libraries.identity.auth.AuthOutcome
+import com.dangerfield.cards.libraries.identity.auth.AuthOutcomeClassifier
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
-import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
 
@@ -42,7 +43,7 @@ import me.tatarka.inject.annotations.Inject
 class VerifyEmailViewModel(
     private val authRepository: AuthRepository,
     private val appCache: AppCache,
-    private val profileRepository: ProfileRepository,
+    private val authOutcomeClassifier: AuthOutcomeClassifier,
     @Assisted private val email: String?,
     @Assisted private val guestLink: Boolean,
 ) : SEAViewModel<VerifyEmailState, VerifyEmailEvent, VerifyEmailAction>(
@@ -157,34 +158,22 @@ class VerifyEmailViewModel(
      *    starter grant, so it re-enters onboarding at the identity step;
      *  - a returning account (its email was merely unconfirmed) already has a
      *    profile + wallet, so it skips straight to Home.
-     * The guest-link case is known statically from the route; new-vs-returning
-     * uses the same server signal the OAuth path does.
+     * The guest-link case is known statically from the route ([guestLink]);
+     * new-vs-returning uses the same server signal the OAuth path does.
      */
     private suspend fun routeAfterConfirmation() {
-        when {
-            guestLink -> {
+        when (authOutcomeClassifier.classify(wasLink = guestLink)) {
+            AuthOutcome.Linked -> {
                 appCache.update { it.copy(hasUserOnboarded = true) }
                 sendEvent(VerifyEmailEvent.NavigateToAccountSaved)
             }
-            isBrandNewAccount() -> sendEvent(VerifyEmailEvent.NavigateToOnboarding)
-            else -> {
+            AuthOutcome.SignedUp -> sendEvent(VerifyEmailEvent.NavigateToOnboarding)
+            AuthOutcome.SignedIn -> {
                 appCache.update { it.copy(hasUserOnboarded = true) }
                 sendEvent(VerifyEmailEvent.NavigateToHome)
             }
         }
     }
-
-    /**
-     * Whether the just-confirmed account is brand new. Mirrors the onboarding
-     * OAuth path: reads the authoritative server signal via
-     * [ProfileRepository.resolveIsNewAccount] (`/v1/me`'s `isNewAccount`), which
-     * replaced the best-effort `walletJustCreated` proxy — that proxy depended on
-     * a wallet sync that goes false when offline and tripped on identity churn (a
-     * pre-existing account could look "new"). On error the signal is false, so a
-     * real returning user is routed Home rather than trapped in onboarding.
-     */
-    private suspend fun isBrandNewAccount(): Boolean =
-        profileRepository.resolveIsNewAccount()
 }
 
 data class VerifyEmailState(

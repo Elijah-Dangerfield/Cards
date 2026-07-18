@@ -4,6 +4,16 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-18 — Typed `AuthOutcome` ships as a standalone classifier, not on `AuthRepository` (AUTH-22)
+
+**Problem:** Phase 3 of the auth-outcome work (docs/decisions.md 2026-07-17) called for a typed `SignedUp` / `SignedIn` / `Linked` outcome so onboarding / verify stop rebuilding new-vs-returning from a raw `resolveIsNewAccount()` boolean at each call site. The item's acceptance literally said "`AuthRepository` sign-in/link entry points return a typed `AuthOutcome`."
+
+**Decision:** Introduce `AuthOutcome` + an injectable `AuthOutcomeClassifier` (`DefaultAuthOutcomeClassifier`) rather than putting the classification on `AuthRepository`. The `SignedUp`-vs-`SignedIn` signal is owned by `ProfileRepository`'s one-shot `/v1/me` `isNewAccount` latch, and `ProfileRepositoryImpl` already depends on `AuthRepository` — so making `AuthRepository` return the classified outcome would need it to read that signal, creating a DI cycle and risking double-consuming the one-shot latch the Home welcome also observes. A classifier that sits *above* both (depends on `ProfileRepository` only, reuses the existing latch) keeps the signal single-sourced and the auth→profile dependency one-directional. `Linked` stays statically known: callers pass `wasLink` (the verify-email guest-link path uses `classify(wasLink = guestLink)`, exercising all three cases through one branch). `OnboardingViewModel` / `VerifyEmailViewModel` now branch on the typed outcome; the duplicated `isBrandNewAccount()` helpers are gone.
+
+**Alternatives rejected:** folding classification onto `AuthRepository` per the literal acceptance (DI cycle + latch double-consume); a full `AccountClaimer` facade that owns every sign-in/link method and returns one unified `AuthResult` (correct end state but a large surface duplicating every auth entry point — deferred, the classifier is the incremental slice); giving `ProfileRepository` a typed `resolveAuthOutcome()` (couples the profile layer to auth vocabulary).
+
+**Status:** Shipped. Classifier unit-tested (link → `Linked` without a server read; new → `SignedUp`; returning → `SignedIn`); the existing onboarding/verify VM suites pass unchanged, driving the classifier through the same `profile.isNewAccount` fake, which is the regression guard that behavior was preserved. The static-`Linked` claim paths (`ClaimAccountViewModel`, `finishAppleSignIn`) still branch on `LinkIdentityOutcome` and weren't rerouted — a unified single-entry-point outcome is the deferred `AccountClaimer` follow-up.
+
 ## 2026-07-15 — Receipt account binding widens to the install's upgrade lineage (BILL-11)
 
 **Problem:** A StoreKit transaction stamps its `appAccountToken` with whoever the user was at purchase time. After an AUTH-19 account upgrade (anon → anon / anon → claimed on the same device, each a distinct Supabase user id), a pack bought under the prior id carries that old token forever, so `AppStoreReceiptValidator`'s strict `appAccountToken == caller` check rejected it as `apple_account_mismatch` and stranded the purchase uncredited (owner's "only the medium pack works" report). Fresh purchases under the current id redeemed fine.

@@ -406,7 +406,7 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     ): VerifyEmailViewModel = VerifyEmailViewModel(
         authRepository = identity,
         appCache = appCache,
-        profileRepository = profile,
+        authOutcomeClassifier = FakeAuthOutcomeClassifier(profile),
         email = email,
         guestLink = guestLink,
     )

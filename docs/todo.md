@@ -24,14 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## Auth & onboarding (AUTH)
-
-- `[P2]` **Return a single typed `AuthOutcome` from the auth layer.** Each call site reconstructs new-vs-returning as a boolean (`isBrandNewAccount()` + an `isAnonymous`/link check) instead of receiving a typed `SignedUp`/`SignedIn`/`Linked`.
-  **Acceptance:** `AuthRepository` sign-in/link entry points return a typed `AuthOutcome`; onboarding/verify/claim branch on it rather than recomputing new-vs-returning locally.
-  **Hints:** `OnboardingViewModel.isBrandNewAccount()`, `VerifyEmailViewModel.isBrandNewAccount()`, `ClaimAccountViewModel`; ties to AUTH-19. See docs/decisions.md "Deterministic auth-outcome state machine (AUTH-22)".
-
----
-
 ## Billing (BILL)
 
 - `[P1]` **A StoreKit purchase made before a fresh-install identity rollover is not recovered.** On a fresh install the anon userId and install_id both rotate, so a replayed receipt's `appAccountToken` (a prior identity) matches neither the caller nor `findInstallLineage` (which keys on install_id) → `apple_account_mismatch` → the paid entitlement is discarded, not credited.

@@ -19,6 +19,8 @@ import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
 import com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator
 import com.dangerfield.cards.libraries.identity.auth.AppleSignInCredential
 import com.dangerfield.cards.libraries.identity.auth.awaitCredential
+import com.dangerfield.cards.libraries.identity.auth.AuthOutcome
+import com.dangerfield.cards.libraries.identity.auth.AuthOutcomeClassifier
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
@@ -70,6 +72,7 @@ class OnboardingViewModel(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
     private val chipsRepository: ChipsRepository,
+    private val authOutcomeClassifier: AuthOutcomeClassifier,
     private val guestAccountCreator: GuestAccountCreator,
     private val appleSignInCoordinator: AppleSignInCoordinator,
     private val onboardingStarterGrant: OnboardingStarterGrant,
@@ -217,35 +220,13 @@ class OnboardingViewModel(
         when (val outcome = authRepository.signInWithOAuth(provider)) {
             is SignInOutcome.Success -> {
                 recordLegalConsent()
-                val brandNew = isBrandNewAccount()
+                val outcome = authOutcomeClassifier.classify()
                 logger.logEvent(
                     "onboarding.auth_selected",
                     "method" to provider.name.lowercase(),
-                    "returning" to !brandNew,
+                    "returning" to (outcome != AuthOutcome.SignedUp),
                 )
-                if (brandNew) {
-                    // First-ever sign-in for this identity: run them through the
-                    // rest of onboarding (PickIdentity -> grant reveal) like a
-                    // guest, so they pick a name/avatar and see the starter grant
-                    // instead of landing cold on Home. Mirrors the Apple-link new
-                    // identity path. identityClaimed suppresses the back-to-Welcome
-                    // control (the sign-in options no longer apply).
-                    logStepViewed(OnboardingStep.PickIdentity)
-                    updateState {
-                        it.copy(
-                            oauthInFlight = null,
-                            step = OnboardingStep.PickIdentity,
-                            identityClaimed = true,
-                        )
-                    }
-                } else {
-                    // Returning account already has a profile + wallet — skip
-                    // onboarding straight to Home.
-                    appCache.update { it.copy(hasUserOnboarded = true) }
-                    updateState { it.copy(oauthInFlight = null) }
-                    exitedToHome = true
-                    sendEvent(OnboardingEvent.NavigateToHome)
-                }
+                routeAfterSignIn(outcome)
             }
             SignInOutcome.Cancelled -> updateState { it.copy(oauthInFlight = null) }
             SignInOutcome.ProviderNotEnabled -> updateState {
@@ -264,17 +245,39 @@ class OnboardingViewModel(
     }
 
     /**
-     * Whether the just-authenticated account is brand new (SIGN-UP) vs. a
-     * returning one (SIGN-IN). Reads the authoritative server signal via
-     * [ProfileRepository.resolveIsNewAccount] (`/v1/me`'s `isNewAccount`),
-     * which replaced the best-effort `walletJustCreated` proxy: that proxy
-     * depended on a wallet sync that goes false when offline and tripped on
-     * identity churn (a pre-existing account could look "new"). On error the
-     * signal is false, so a real returning user is routed Home rather than
-     * trapped in onboarding.
+     * Route a fresh (non-link) sign-in by its typed [AuthOutcome]:
+     *  - [AuthOutcome.SignedUp] — first-ever sign-in for this identity: run them
+     *    through the rest of onboarding (PickIdentity -> grant reveal) like a
+     *    guest, so they pick a name/avatar and see the starter grant instead of
+     *    landing cold on Home. `identityClaimed` suppresses the back-to-Welcome
+     *    control (the sign-in options no longer apply).
+     *  - [AuthOutcome.SignedIn] — returning account already has a profile +
+     *    wallet, so skip onboarding straight to Home.
+     *
+     * [AuthOutcome.Linked] can't reach here (Welcome has no anonymous guest to
+     * link onto — guest creation is deferred), so it routes Home like any
+     * already-established account.
      */
-    private suspend fun isBrandNewAccount(): Boolean =
-        profileRepository.resolveIsNewAccount()
+    private suspend fun OnboardingAction.routeAfterSignIn(outcome: AuthOutcome) {
+        when (outcome) {
+            AuthOutcome.SignedUp -> {
+                logStepViewed(OnboardingStep.PickIdentity)
+                updateState {
+                    it.copy(
+                        oauthInFlight = null,
+                        step = OnboardingStep.PickIdentity,
+                        identityClaimed = true,
+                    )
+                }
+            }
+            AuthOutcome.SignedIn, AuthOutcome.Linked -> {
+                appCache.update { it.copy(hasUserOnboarded = true) }
+                updateState { it.copy(oauthInFlight = null) }
+                exitedToHome = true
+                sendEvent(OnboardingEvent.NavigateToHome)
+            }
+        }
+    }
 
     /**
      * Native "Sign in with Apple". Runs the iOS coordinator for the id token,
@@ -342,9 +345,9 @@ class OnboardingViewModel(
      * Apple sign-in with no guest to link onto. `signInWithApple` either signs
      * into a pre-existing Apple account OR mints a net-new one (Supabase creates
      * on first Apple OIDC — e.g. after an account deletion left no session). We
-     * must NOT assume "existing": classify via [isBrandNewAccount] exactly like
-     * [handleOAuth], so a net-new account runs through onboarding (PickIdentity +
-     * starter-grant reveal) instead of getting dumped cold on Home.
+     * must NOT assume "existing": classify via [authOutcomeClassifier] exactly
+     * like [handleOAuth], so a net-new account runs through onboarding
+     * (PickIdentity + starter-grant reveal) instead of getting dumped cold on Home.
      */
     private suspend fun OnboardingAction.signInApple(credential: AppleSignInCredential) {
         if (authRepository.signInWithApple(credential) !is SignInOutcome.Success) {
@@ -352,23 +355,13 @@ class OnboardingViewModel(
             return
         }
         recordLegalConsent()
-        val brandNew = isBrandNewAccount()
-        logger.logEvent("onboarding.auth_selected", "method" to "apple", "returning" to !brandNew)
-        if (brandNew) {
-            logStepViewed(OnboardingStep.PickIdentity)
-            updateState {
-                it.copy(
-                    oauthInFlight = null,
-                    step = OnboardingStep.PickIdentity,
-                    identityClaimed = true,
-                )
-            }
-        } else {
-            appCache.update { it.copy(hasUserOnboarded = true) }
-            updateState { it.copy(oauthInFlight = null) }
-            exitedToHome = true
-            sendEvent(OnboardingEvent.NavigateToHome)
-        }
+        val outcome = authOutcomeClassifier.classify()
+        logger.logEvent(
+            "onboarding.auth_selected",
+            "method" to "apple",
+            "returning" to (outcome != AuthOutcome.SignedUp),
+        )
+        routeAfterSignIn(outcome)
     }
 
     private suspend fun OnboardingAction.failAppleSignIn() =
