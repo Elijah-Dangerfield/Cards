@@ -1137,3 +1137,9 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 **Idea (owner feedback 2026-07-18):** When a screen finishes loading, its content currently pops in all at once — e.g. the shop grid snaps onto the screen once the catalog resolves. Add a deliberate entrance animation so loaded content reveals with a short, subtle staggered fade/slide instead of jumping. Most visible on the list/grid screens (shop, My Items, achievements). Build it as a reusable enter-transition primitive in `:libraries:ui` (`AnimatedVisibility` + a staggered fade+slide, or lazy-list item enter / `animateItemPlacement`) rather than per-screen one-offs, so the motion reads as one system and stays DS-owned. Keep it fast and understated (the goal is polish, not a splashy reveal); honor reduced-motion if/when that setting is surfaced.
 
 **Status:** Backlog. Pure UX polish; pull during a motion pass or when the shop/list screens get design attention.
+
+## Refund / chargeback webhooks (claw back granted chips)
+
+**Idea (dev-todo, 2026-07-18):** Wire **App Store Server Notifications V2** (ASC → your app → App Information → URL) and **Google Real-time Developer Notifications** (Play Console → Monetization setup → a Cloud Pub/Sub topic) to server webhook routes so a refund or chargeback claws back the chips granted for that purchase. Not a launch blocker — chip redemption is already idempotent and one-directional without it (a refund just doesn't un-grant), so this only closes the refund-abuse loop: buy chips, spend or keep them, then refund the purchase.
+
+**Status:** Backlog. Payment-integrity hardening; pull when refund abuse shows up in the ledger or before scaling paid users.
