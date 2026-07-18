@@ -22,18 +22,6 @@ Fully QA the build
 - [ ] **Verify iOS `previous_exit` on a real device after a TestFlight cycle (ENG-25).** MetricKit never delivers payloads on the simulator, so the new MetricKit-backed `previous_exit` is unit-tested but unverified end-to-end. After this build has been on a physical iPhone for a day+ (ideally with one forced crash), query Loki for `app.launched` with `previous_exit != "unknown"` from that install and confirm a plausible value arrives.
 ---
 
-## Data / account operations
-
-- [ ] **Admin-merge the AUTH-19 stranded accounts.** Your real progression sits on account `087ac8d1…`; the session-loss bug minted orphans `52f3f9c1` / `6f0a900c` over it. The client fix ships with AUTH-19, but making you whole needs a server-side merge (or a manual wallet/XP grant onto the account you keep + orphan deletes). Case file: `docs/agent/feedback-cases/81a8c07d88e24f16b913dc00822e52f5.md`.
-
----
-
-## Content writing
-
-- [ ] **Unslop the Supabase-served cosmetic strings.** An em-dash is showing through in the backend cosmetic copy served from Supabase (Sentry [CARDS-70](https://elijah-dangerfield.sentry.io/issues/CARDS-70)); run an `unslop-text` pass over the cosmetic copy. The strings live in the Supabase DB, not this repo, so this is a content edit in the dashboard, not worker-pickable (was SHOP-8 in todo.md).
-
----
-
 ## Legal / compliance
 
 - [ ] **Have a lawyer review the Terms before launch — especially the arbitration clause.** The 2026-06-27 rewrite (AUTH-7, see [decisions.md](./decisions.md)) added a binding-arbitration + class-action-waiver block to [pages/terms.html](../pages/terms.html). It's a reasonable standard version (AAA Consumer Rules, NY seat, small-claims + IP carve-outs, 30-day opt-out, one-year limit) but enforceability turns on drafting and on consumer-arbitration law that shifts by state — get counsel to review before it goes live. While there, sanity-check the 18+ age gate and the limitation-of-liability cap against your actual entity and jurisdiction.
