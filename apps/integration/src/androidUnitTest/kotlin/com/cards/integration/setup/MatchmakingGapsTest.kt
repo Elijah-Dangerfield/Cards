@@ -7,19 +7,19 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
-import kotlin.test.assertNotEquals
 
 /**
- * **Matchmaking gaps beyond the happy path.** Searchers at non-overlapping tiers
- * never share a table, and a searcher matched into a table that's already
- * mid-hand lands as a member-spectator (to be dealt in at the next boundary) —
- * the matchmaking ↔ mid-hand-join seam. (Both tiers here stay within the lenient
- * 1× find-gate on the 10k starter grant.)
+ * **Matchmaking gaps beyond the happy path.** Two humans each waiting alone one
+ * canonical step apart pair up rather than each stranding on their own table
+ * (MP-34), and a searcher matched into a table that's already mid-hand lands as a
+ * member-spectator (to be dealt in at the next boundary) — the matchmaking ↔
+ * mid-hand-join seam. (Both tiers here stay within the lenient 1× find-gate on
+ * the 10k starter grant.)
  */
 class MatchmakingGapsTest : IntegrationTest() {
 
     @Test
-    fun searchersAtDifferentTiers_getSeparateTables() = integration {
+    fun searchersAtAdjacentTiers_pairUpAcrossTheGap() = integration {
         val a = client()
         val b = client()
 
@@ -27,10 +27,9 @@ class MatchmakingGapsTest : IntegrationTest() {
         val second = assertIs<FindTableOutcome.Success>(b.matchmaking.findTable(5_000, 5_000))
 
         assertTrue(first.created, "the 1k searcher opens a 1k table")
-        assertTrue(second.created, "the 5k searcher opens its own table, not the 1k one")
-        assertNotEquals(first.room.code, second.room.code, "non-overlapping tiers never share a table")
-        assertEquals(1_000L, first.room.buyIn)
-        assertEquals(5_000L, second.room.buyIn)
+        assertFalse(second.created, "the 5k searcher is rescued onto the lonely 1k table, not a new one (MP-34)")
+        assertEquals(first.room.code, second.room.code, "two lonely humans one tier apart pair up")
+        assertEquals(1_000L, second.room.buyIn, "they play at the incumbent's affordable stake")
     }
 
     @Test

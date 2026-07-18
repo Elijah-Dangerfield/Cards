@@ -58,6 +58,22 @@ object BuyInTier {
         val nearest = Canonical.minByOrNull { minOf(abs(it - min), abs(it - max)) }!!
         return nearest.coerceIn(min, max)
     }
+
+    /** One canonical step is a 5x jump (1k→5k→25k→100k). */
+    const val STEP_RATIO = 5L
+
+    /**
+     * Whether two stakes are close enough to seat two lonely searchers together
+     * (MP-34): the larger is within one canonical step of the smaller. Beyond one
+     * step the stakes are too far apart to merge — a 1k player doesn't belong at a
+     * 25k table. Used only to *rescue* a waiting singleton across a small gap; the
+     * strict `buyIn in min..max` join still governs the normal path.
+     */
+    fun withinOneStep(a: Long, b: Long): Boolean {
+        val lo = minOf(a, b)
+        val hi = maxOf(a, b)
+        return lo > 0 && hi <= lo * STEP_RATIO
+    }
 }
 
 /**
