@@ -220,13 +220,13 @@ class OnboardingViewModel(
         when (val outcome = authRepository.signInWithOAuth(provider)) {
             is SignInOutcome.Success -> {
                 recordLegalConsent()
-                val outcome = authOutcomeClassifier.classify()
+                val authOutcome = authOutcomeClassifier.classify()
                 logger.logEvent(
                     "onboarding.auth_selected",
                     "method" to provider.name.lowercase(),
-                    "returning" to (outcome != AuthOutcome.SignedUp),
+                    "returning" to (authOutcome != AuthOutcome.SignedUp),
                 )
-                routeAfterSignIn(outcome)
+                routeAfterSignIn(authOutcome)
             }
             SignInOutcome.Cancelled -> updateState { it.copy(oauthInFlight = null) }
             SignInOutcome.ProviderNotEnabled -> updateState {
