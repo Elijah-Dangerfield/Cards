@@ -48,9 +48,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** navigating to stats and back during a live MP hand leaves the server-authoritative turn timer running from where it was; the client re-subscribes to the live deadline rather than restarting a local countdown. Reproduce with a scenario test first.
   **Hints:** the play-screen timer is server-held — screen re-entry likely re-inits a local countdown instead of reading the running deadline. Play-screen timer subscription + nav re-composition. Owner-reported.
 
-- `[P1]` **MP-34 — Two players searching for a public table at the same time don't match each other.** Owner-reported: simultaneous "find a room" searches fail to pair, so both sit waiting. Public matchmaking is still largely an unbuilt shell, so the pairing likely isn't implemented.
-  **Acceptance:** two clients that start a public search within the same window are matched into one room. This needs a design call on the pairing mechanism (server-side matchmaking queue / query), not just a patch — ship a defensible slice and flag the choice loud.
-  **Hints:** ties to the deferred shard-by-code + Postgres matchmaking query in the backend notes; public matchmaking is currently a shell. Owner-reported; needs design.
+- `[P1]` **MP-34 — Two players searching for a public table at the same time don't match each other.** Owner-reported: simultaneous "find a table" searches fail to pair, so both sit waiting. Pairing IS built and atomic (`findOrJoinPublic`), so the likely cause is buy-in fragmentation: two searchers whose ranges snap to different canonical tiers each create their own room by design, never sharing one.
+  **Acceptance:** under low liquidity, two humans who both hit "find a table" reliably end up at the same table even when their buy-in ranges don't exactly line up. Loosen pairing when few real tables exist (widen tolerance / collapse to fewer canonical tiers / make the lone-searcher consolidation poll tier-tolerant) without letting wildly mismatched stakes merge. Reproduce with a two-client integration test first.
+  **Hints:** `InMemoryRoomService.findOrJoinPublic` + `matchmakingCandidates`, `BuyInTier.within` (canonical tiers 1k/5k/25k/100k), and the client's `armWaitingCandidatesPoll`/`migrationTarget` consolidation in `PublicSearchingViewModel`. See `MatchmakingGapsTest.searchersAtDifferentTiers_getSeparateTables` (current intended behavior we'd be relaxing). Owner-reported.
 
 ## Trust & safety (MOD)
 
