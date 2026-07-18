@@ -30,12 +30,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** a genuine paid purchase whose `appAccountToken` is a prior, unlinkable anon identity is reconciled to the account that now owns the device and the chips are granted — without reopening the "one user redeems another's receipt" hole. Needs a device-stable purchaser link that survives reinstall (AUTH-19 identity-churn work).
   **Hints:** server `AppStoreReceiptValidator` binding + `PostgresProfileRepository.findInstallLineage`; client `DefaultPurchaseChipPackUseCase.redeemOutstanding`; ties to AUTH-19. Case `docs/agent/feedback-cases/e452cfd17fe94266bd2bd5fcc730a34e.md`; Sentry CARDS-AA.
 
-## Shop (SHOP)
-
-- `[P2]` **SHOP-11 — Shop is empty on debug / sideloaded builds (dev-experience, not a product bug).** Owner confirmed the empty shop was a debug build. Root cause: `billing.realPurchasesEnabled` defaults to `true`, so a sideloaded debug build queries the real Play catalog (unprovisioned for that build) and gets nothing. The `FakeBillingClient` + `DEV_FAKE_CATALOG` exist precisely for this but aren't the default.
-  **Acceptance:** a debug / sideloaded build shows the chip packs out of the box (fake catalog, local credit) without hand-toggling a QA flag, so the shop is testable and screenshottable off-store. E.g. default `billing.realPurchasesEnabled` to `false` for debug builds. Do not change release behavior.
-  **Hints:** `RealPurchasesEnabled` (`billing.realPurchasesEnabled`, default true) in `libraries/billing`; the `delegate()` gate in `PlayBillingClient`/`StoreKitBillingClient`; `FakeBillingClient(DEV_FAKE_CATALOG)`.
-
 ## Engineering (ENG)
 
 - `[P1]` **ENG-31 — Android edge-swipe back does nothing (can't swipe in from the right edge).** Owner-reported: the Android back gesture from the screen edge doesn't navigate back, leaving users stuck without a gesture back.
@@ -47,10 +41,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P1]` **MP-33 — Opening player stats mid-hand and returning resets the turn timer.** Owner-reported: as a player in a live MP game, tapping stats navigates away, and coming back appears to restart the current hand's timer instead of resuming it.
   **Acceptance:** navigating to stats and back during a live MP hand leaves the server-authoritative turn timer running from where it was; the client re-subscribes to the live deadline rather than restarting a local countdown. Reproduce with a scenario test first.
   **Hints:** the play-screen timer is server-held — screen re-entry likely re-inits a local countdown instead of reading the running deadline. Play-screen timer subscription + nav re-composition. Owner-reported.
-
-- `[P1]` **MP-34 — Two players searching for a public table at the same time don't match each other.** Owner-reported: simultaneous "find a table" searches fail to pair, so both sit waiting. Pairing IS built and atomic (`findOrJoinPublic`), so the likely cause is buy-in fragmentation: two searchers whose ranges snap to different canonical tiers each create their own room by design, never sharing one.
-  **Acceptance:** under low liquidity, two humans who both hit "find a table" reliably end up at the same table even when their buy-in ranges don't exactly line up. Loosen pairing when few real tables exist (widen tolerance / collapse to fewer canonical tiers / make the lone-searcher consolidation poll tier-tolerant) without letting wildly mismatched stakes merge. Reproduce with a two-client integration test first.
-  **Hints:** `InMemoryRoomService.findOrJoinPublic` + `matchmakingCandidates`, `BuyInTier.within` (canonical tiers 1k/5k/25k/100k), and the client's `armWaitingCandidatesPoll`/`migrationTarget` consolidation in `PublicSearchingViewModel`. See `MatchmakingGapsTest.searchersAtDifferentTiers_getSeparateTables` (current intended behavior we'd be relaxing). Owner-reported.
 
 ## Trust & safety (MOD)
 

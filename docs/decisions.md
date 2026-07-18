@@ -4,6 +4,26 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-18 — Matchmaking rescues a lonely searcher across one buy-in tier (MP-34)
+
+**Problem:** Public matchmaking is find-or-create and atomic, so it never double-creates from a timing race. But two people who both hit "find a table" still ended up alone whenever their buy-in ranges snapped to different canonical tiers (1k/5k/25k/100k): the join filter is `room.buyIn in min..max`, so a 5k searcher never lands on a waiting 1k table. At low liquidity that's backwards — a slightly-off stake is better than no game.
+
+**Decision:** When nothing fits the exact range, `findOrJoinPublic` runs a second **relaxed** pass (`lonelyRescueCandidate`) before creating: seat the searcher onto a *lonely singleton lobby table* (exactly one human, no bots, not full, not their own, no blocked member) whose buy-in is within **one canonical step** (`BuyInTier.withinOneStep`, a 5x ratio) of what they asked for **and at or below their `maxBuyIn`** — so a searcher is pulled *down* to an affordable nearby stake but never *up* past the ceiling they set. Closest stake wins, ties → oldest waiting table. The strict in-range join is unchanged and still runs first; the rescue only fires when it finds nothing, so normal same-tier matching is untouched.
+
+**Alternatives rejected:** collapsing the canonical tier list to fewer stakes (blunt — changes every created table's stake, not just the lonely-pairing case); relaxing the client's candidate poll instead (the server is the atomic authority — fixing it there covers every client and needs no ping-pong "who migrates" rule); merging *any* nearby table rather than only singleton lobby ones (would yank a searcher into a busier or mid-hand game at the wrong stake). Direction is one-way by construction: the searcher joins the incumbent's fixed stake, never the reverse, because an existing room's buy-in can't change under seated players.
+
+**Status:** Shipped. Unit tests cover the rescue (one tier below → paired), the affordability ceiling (never pulled above `maxBuyIn`), the >one-tier gap (stays separate), and blocked-member skip; the integration `searchersAtAdjacentTiers_pairUpAcrossTheGap` replaces the old `searchersAtDifferentTiers_getSeparateTables`, which asserted the pre-MP-34 behavior we deliberately relaxed. Server + integration suites green.
+
+## 2026-07-18 — Android debug builds always use the fake billing catalog (SHOP-11)
+
+**Problem:** The shop rendered empty on debug builds. `billing.realPurchasesEnabled` defaults to `true`, so a sideloaded Android debug build queried the live Play catalog — which isn't provisioned for a dev build — and got zero products. The `FakeBillingClient` + `DEV_FAKE_CATALOG` exist for exactly this but weren't reached by default.
+
+**Decision:** `PlayBillingClient.delegate()` uses the fake whenever `BuildInfo.isDebug`, regardless of the flag: a sideloaded dev build has no Play catalog, so the real client can only ever report an empty shop there. The config flag's default stays `true` and now governs release / internal Android builds only. iOS is left alone — a local `.storekit` config backs the shop even in a debug build, so iOS debug purchase testing still works.
+
+**Alternatives rejected:** making the config default `!BuildInfo.isDebug` (cleaner-looking, but the default is build-independent in the admin config manifest, and `ConfigManifestDriftTest` runs on the debug variant where `isDebug` is true, so it would red the build and the manifest could no longer state one shipped default); hard-gating both platforms on `isDebug` (would break iOS's working `.storekit` debug purchase flow). The flag stays a QA override for release/internal builds; on debug Android it's intentionally inert because the alternative is an empty shop.
+
+**Status:** Shipped. `assembleDebug` + billing impl tests + `ConfigManifestDriftTest` green (the manifest default is unchanged at `true`).
+
 ## 2026-07-18 — Typed `AuthOutcome` ships as a standalone classifier, not on `AuthRepository` (AUTH-22)
 
 **Problem:** Phase 3 of the auth-outcome work (docs/decisions.md 2026-07-17) called for a typed `SignedUp` / `SignedIn` / `Linked` outcome so onboarding / verify stop rebuilding new-vs-returning from a raw `resolveIsNewAccount()` boolean at each call site. The item's acceptance literally said "`AuthRepository` sign-in/link entry points return a typed `AuthOutcome`."
