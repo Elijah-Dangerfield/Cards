@@ -26,9 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## Auth & onboarding (AUTH)
 
-- `[P2]` **Account deletion doesn't fully clear on-device preferences.** After delete + re-onboard-as-guest, the shop's "new products" notification dot is missing because the local shop-seen flag (and other prefs) survived the delete, so the new-user dot logic reads a stale "already seen". Client log corroborates leftover local state: `Dropped 1 orphan equipment row(s): [badge_founding_member_1000]` (InventorySync) and a 5s `onboarding.completed` on the second pass.
-  **Acceptance:** deleting the account clears local per-user preferences (shop-seen/unseen, inventory cache, and any other user-scoped prefs) so a fresh guest onboarding presents true new-user state, incl. the shop notification dot; add a regression test for the delete→re-onboard path.
-  **Hints:** account-deletion teardown vs. the shop-seen pref store and `InventorySync` cache; ties to the onboarding "new user" dot logic. Case `docs/agent/feedback-cases/e5ff0d5d8f164eef8ef1edd60a5b838c.md`; Sentry CARDS-AF.
 - `[P2]` **Return a single typed `AuthOutcome` from the auth layer.** Each call site reconstructs new-vs-returning as a boolean (`isBrandNewAccount()` + an `isAnonymous`/link check) instead of receiving a typed `SignedUp`/`SignedIn`/`Linked`.
   **Acceptance:** `AuthRepository` sign-in/link entry points return a typed `AuthOutcome`; onboarding/verify/claim branch on it rather than recomputing new-vs-returning locally.
   **Hints:** `OnboardingViewModel.isBrandNewAccount()`, `VerifyEmailViewModel.isBrandNewAccount()`, `ClaimAccountViewModel`; ties to AUTH-19. See docs/decisions.md "Deterministic auth-outcome state machine (AUTH-22)".

@@ -247,6 +247,18 @@ Two variants, both must pass:
 
 ---
 
+### `ONB-19` ⚠️ 📱 Delete account → continue as guest shows true new-user state (AUTH-27)
+
+**State:** signed into an account that has opened the Shop at least once (so the "new items" dot is cleared) and holds a non-starter chip balance, online.
+
+1. Settings → Delete account → type "delete" → confirm.
+2. On returning to PickIdentity, tap "Continue as guest."
+3. Complete remaining onboarding screens and land on Home.
+
+**Expected:** The next guest presents as a brand-new user — the bottom-nav Shop badge shows the "new items" dot again (the previous account's shop-seen set does not survive the delete), and the Home chip odometer settles on the fresh starter grant without rolling down from the deleted account's balance.
+
+---
+
 ## Offline gating
 
 Every network-required surface follows one rule off a cached / fallback identity (no confirmed server session): **reads render cached content**, **server-mutating surfaces soft-gate** (visible, affordances stay tappable but failures surface as a connection error rather than success), and **money + multiplayer hard-gate**. The matrix below walks each surface once so a single offline pass confirms the whole app honors it (AUTH-5).

@@ -350,6 +350,15 @@ fun AppData.resetAccountScoped(): AppData = copy(
     // Episode state for the previous account's balance — the next account's
     // wallet is a different number entirely.
     outOfChipsSeen = false,
+    // "New items" Shop dot is a per-account discoverability signal — a fresh
+    // account (incl. a continue-as-guest after a delete) should see the dot
+    // until it lands on Shop, not inherit the previous user's "already seen"
+    // set (AUTH-27).
+    shopSeenProductIds = emptySet(),
+    // The Home odometer's roll-from baseline is the previous account's balance;
+    // the next account's wallet is a different number, so clear it and let Home
+    // re-baseline rather than animating a bogus jump on first return.
+    lastShownChipBalance = null,
 )
 
 interface AppCache : Cache<AppData>
