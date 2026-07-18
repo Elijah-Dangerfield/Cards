@@ -43,5 +43,30 @@ runs without a manual kick. Low priority: orphan rows are cheap, and the conserv
 guards (no purchases, no high XP, no active room seat) mean a missed sweep just leaks rows, never
 deletes someone's progress.
 
+## Social / virality
+
+### Friend-game link previews (Universal Links + App Links + web host)
+Rich iMessage/WhatsApp previews showing a Downcard-branded card with stakes + seat count when a
+friend-game link is shared (was product-spec §5.2, since deleted). **Deferred, not a blocker** —
+friend games work today via copy-code; this is virality polish that only pays off once there are
+users sharing links.
+
+Three external pieces gate the engineering work:
+- **iOS Universal Links** — enable the Associated Domains entitlement on the App ID, host the AASA
+  file at `https://downcard.app/.well-known/apple-app-site-association` (served as `application/json`,
+  no redirect). Needs the Apple **Team ID** + bundle id.
+- **Android App Links** — host `assetlinks.json` at `https://downcard.app/.well-known/assetlinks.json`.
+  Needs the Play App Signing **SHA-256 fingerprint** + package name.
+- **Preview endpoint** — a *dynamic* route (e.g. `downcard.app/j/{code}`) serving Open Graph meta
+  (`og:title`, `og:image`, `og:description`) keyed by the friend-code. GitHub Pages can't do this; it
+  needs the Fly server or a serverless function on the same domain.
+
+Then engineering picks up: the Associated Domains plist entry + Android intent-filters, the deep-link
+handler routing `/j/{code}` into the join flow, and the OG-image renderer.
+
+**Why it waited:** the AASA Team ID and the Android signing fingerprint don't exist until **Downcard
+App LLC + the Apple/Google developer accounts are finalized** (see `developer-todo.md`), so any prep
+would go stale. Revisit once those exist and there's real friend-game traffic to justify the renderer.
+
 *(The remote-config / feature-flag system that used to be tracked here shipped 2026-06-26 and
 graduated to [`wiki/remote-config.md`](./wiki/remote-config.md).)*
