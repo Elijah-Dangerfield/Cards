@@ -29,3 +29,31 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P1]` **A StoreKit purchase made before a fresh-install identity rollover is not recovered.** On a fresh install the anon userId and install_id both rotate, so a replayed receipt's `appAccountToken` (a prior identity) matches neither the caller nor `findInstallLineage` (which keys on install_id) → `apple_account_mismatch` → the paid entitlement is discarded, not credited.
   **Acceptance:** a genuine paid purchase whose `appAccountToken` is a prior, unlinkable anon identity is reconciled to the account that now owns the device and the chips are granted — without reopening the "one user redeems another's receipt" hole. Needs a device-stable purchaser link that survives reinstall (AUTH-19 identity-churn work).
   **Hints:** server `AppStoreReceiptValidator` binding + `PostgresProfileRepository.findInstallLineage`; client `DefaultPurchaseChipPackUseCase.redeemOutstanding`; ties to AUTH-19. Case `docs/agent/feedback-cases/e452cfd17fe94266bd2bd5fcc730a34e.md`; Sentry CARDS-AA.
+
+## Shop (SHOP)
+
+- `[P1]` **SHOP-11 — Chip packs don't appear in the shop on Android.** Owner-reported: the shop opens but the purchasable chip packs are missing, so there's nothing to buy.
+  **Acceptance:** the configured chip packs load and render in the shop on Android (real device, release-config) with prices, and a purchase can be started. First rule out an environment/catalog cause (dev build with no products configured, Play Billing catalog not synced) before touching the UI.
+  **Hints:** shop product listing + the billing catalog fetch (Play/StoreKit). Owner-reported; no session id yet — triage to locate the failing product fetch.
+
+## Engineering (ENG)
+
+- `[P1]` **ENG-31 — Android edge-swipe back does nothing (can't swipe in from the right edge).** Owner-reported: the Android back gesture from the screen edge doesn't navigate back, leaving users stuck without a gesture back.
+  **Acceptance:** an edge swipe navigates back consistently across the app on Android gesture-nav devices; predictive-back behaves if enabled. Confirm on a gesture-nav device.
+  **Hints:** app-level Android back / edge-to-edge + predictive-back config in the compose app entry, and per-screen `BackHandler` usage that may be swallowing the gesture. Owner-reported.
+
+## Multiplayer (MP)
+
+- `[P1]` **MP-33 — Opening player stats mid-hand and returning resets the turn timer.** Owner-reported: as a player in a live MP game, tapping stats navigates away, and coming back appears to restart the current hand's timer instead of resuming it.
+  **Acceptance:** navigating to stats and back during a live MP hand leaves the server-authoritative turn timer running from where it was; the client re-subscribes to the live deadline rather than restarting a local countdown. Reproduce with a scenario test first.
+  **Hints:** the play-screen timer is server-held — screen re-entry likely re-inits a local countdown instead of reading the running deadline. Play-screen timer subscription + nav re-composition. Owner-reported.
+
+- `[P1]` **MP-34 — Two players searching for a public table at the same time don't match each other.** Owner-reported: simultaneous "find a room" searches fail to pair, so both sit waiting. Public matchmaking is still largely an unbuilt shell, so the pairing likely isn't implemented.
+  **Acceptance:** two clients that start a public search within the same window are matched into one room. This needs a design call on the pairing mechanism (server-side matchmaking queue / query), not just a patch — ship a defensible slice and flag the choice loud.
+  **Hints:** ties to the deferred shard-by-code + Postgres matchmaking query in the backend notes; public matchmaking is currently a shell. Owner-reported; needs design.
+
+## Trust & safety (MOD)
+
+- `[P2]` **MOD-2 — Reporting needs a bottom sheet with a reason picker plus details.** Owner-requested: when reporting a user, show a bottom sheet where the reporter classifies what happened (multi-select reason list) with an optional free-text field, so reports are easy to triage and classify.
+  **Acceptance:** the report flow opens a DS bottom sheet with a multi-select reason list and an additional text input; selected reasons + text submit with the report and are stored so reports can be filtered by category.
+  **Hints:** existing report entry point (see MOD-1); add a design-system bottom sheet. Owner-requested feature.
