@@ -32,9 +32,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## Shop (SHOP)
 
-- `[P1]` **SHOP-11 — Chip packs don't appear in the shop on Android.** Owner-reported: the shop opens but the purchasable chip packs are missing, so there's nothing to buy.
-  **Acceptance:** the configured chip packs load and render in the shop on Android (real device, release-config) with prices, and a purchase can be started. First rule out an environment/catalog cause (dev build with no products configured, Play Billing catalog not synced) before touching the UI.
-  **Hints:** shop product listing + the billing catalog fetch (Play/StoreKit). Owner-reported; no session id yet — triage to locate the failing product fetch.
+- `[P2]` **SHOP-11 — Shop is empty on debug / sideloaded builds (dev-experience, not a product bug).** Owner confirmed the empty shop was a debug build. Root cause: `billing.realPurchasesEnabled` defaults to `true`, so a sideloaded debug build queries the real Play catalog (unprovisioned for that build) and gets nothing. The `FakeBillingClient` + `DEV_FAKE_CATALOG` exist precisely for this but aren't the default.
+  **Acceptance:** a debug / sideloaded build shows the chip packs out of the box (fake catalog, local credit) without hand-toggling a QA flag, so the shop is testable and screenshottable off-store. E.g. default `billing.realPurchasesEnabled` to `false` for debug builds. Do not change release behavior.
+  **Hints:** `RealPurchasesEnabled` (`billing.realPurchasesEnabled`, default true) in `libraries/billing`; the `delegate()` gate in `PlayBillingClient`/`StoreKitBillingClient`; `FakeBillingClient(DEV_FAKE_CATALOG)`.
 
 ## Engineering (ENG)
 
