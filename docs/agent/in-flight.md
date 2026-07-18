@@ -22,3 +22,11 @@
 ## Cycle note
 
 Stopped at 2 items (both P1, both meaty — repository + ViewModel + tests). The remaining confident AUTH items overlap these exact files/paths: the typed-`AuthOutcome` refactor rewrites `VerifyEmailViewModel`/`OnboardingViewModel`, and AUTH-27 (deletion clearing local prefs) touches `SupabaseAuthRepositoryImpl` — picking either this cycle risks stomping these commits. BILL-1 needs the AUTH-19 device-stable purchaser link that doesn't exist yet. Left them for a focused next run.
+
+## Cycle note (follow-on worker)
+
+Shipped AUTH-27 this run (the deletion/account-change local-state gap the prior worker flagged — no stomp, it's a self-contained `resetAccountScoped()` change + `AppDataTest`, disjoint from the auth-VM commits above).
+
+Deliberately did **not** take AUTH-22 (typed `AuthOutcome`), and recommend the reviewer/human reshape it before it's picked. Its literal acceptance ("`AuthRepository` sign-in/link entry points *return* a typed `AuthOutcome`") collides with the existing architecture: the server-authoritative new-vs-returning signal is the one-shot `/v1/me` `isNewAccount` flag, latched inside `ProfileRepositoryImpl` — and `ProfileRepositoryImpl` depends on `AuthRepository`. So the auth impl can't own the classification without either a DI cycle or a second consumer of a one-shot flag that would race `ProfileRepository`'s latch (which exists specifically to win that race, and which the Home welcome-grant gate reads via `observeAccountJustCreated`). Doing it *soundly* means extracting a shared `AccountNewnessLatch` that both repos depend on and moving the first `/v1/me` hydrate earlier — a real refactor of the most fragile subsystem (recent AUTH-19/21/23/24/25/26 history), with **zero** user-visible change. That risk/reward doesn't clear the confidence bar for a mechanical worker pass, and a thin "classifier wrapper" slice would just relocate the recompute while inventing a marginal abstraction. Left the todo item intact (not sliced) for a focused run or a human directional call: approve the latch extraction, or rescope AUTH-22 to "one shared classifier the VMs call" rather than "auth entry points return it."
+
+BILL-1 still blocked on the AUTH-19 device-stable purchaser link. Honest one-item cycle.
