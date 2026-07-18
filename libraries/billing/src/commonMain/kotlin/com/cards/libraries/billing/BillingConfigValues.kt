@@ -24,6 +24,12 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  *     real store is in the way (simulator shop iteration, previews, Play
  *     listings not yet provisioned). A stray "on" is still safe: a server
  *     without store credentials refuses every receipt rather than trusting one.
+ *
+ * Note: an **Android debug** build has no Play catalog to query, so
+ * `PlayBillingClient` always uses the `FakeBillingClient` there regardless of
+ * this flag — otherwise the shop renders empty on every dev build (SHOP-11).
+ * This flag governs release / internal Android builds and all iOS builds (where
+ * a local `.storekit` config backs the shop even in debug).
  */
 @Inject
 @SingleIn(AppScope::class)

@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.billing.PurchaseResult
 import com.dangerfield.cards.libraries.billing.QueryProductsResult
 import com.dangerfield.cards.libraries.billing.RealPurchasesEnabled
 import com.dangerfield.cards.libraries.cards.ActivityProvider
+import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import kotlinx.coroutines.flow.StateFlow
 import me.tatarka.inject.annotations.Inject
@@ -26,6 +27,11 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  *    for free test purchases).
  *  - **Off** — a [FakeBillingClient] seeded with the chip-pack SKUs, for shop
  *    iteration without provisioned Play listings.
+ *
+ * A **debug** build always takes the fake regardless of the flag: a sideloaded
+ * dev build has no Play catalog, so the real client would report zero products
+ * and the shop would render empty (SHOP-11). The flag governs release / internal
+ * builds, where the catalog actually exists.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
@@ -40,7 +46,8 @@ class PlayBillingClient(
     private val fake = FakeBillingClient(catalog = DEV_FAKE_CATALOG)
     private val real by lazy { RealPlayBillingClient(context, activityProvider, dispatchers) }
 
-    private fun delegate(): BillingClient = if (realPurchasesEnabled()) real else fake
+    private fun delegate(): BillingClient =
+        if (realPurchasesEnabled() && !BuildInfo.isDebug) real else fake
 
     override val connectionState: StateFlow<ConnectionState> get() = delegate().connectionState
     override suspend fun connect(): ConnectionState = delegate().connect()
