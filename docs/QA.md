@@ -44,6 +44,7 @@ Real-device checklist run by a human before each release. Organised by feature. 
 3. Complete remaining onboarding screens.
 
 **Expected:** Lands on Home. Welcome grant dialog shows 10,000 chips. A verification email arrives in the inbox (link tap is covered by `ONB-13`).
+- Submitting a brand-new signup lands on the "Check your email" screen (confirmation required) with a working back path to the landing page. It must NOT bounce to "Welcome back" with a dead back button the instant the verify screen appears. *(AUTH-25.)*
 
 ---
 
@@ -184,6 +185,7 @@ Two variants, both must pass:
 
 **Expected:** Opens the app (or web) into the verified state. If on-device, the app's "Verify your email" banner clears; account status flips to verified in Profile.
 - Guest-claim variant (AUTH-24): if this verify-email was started by an anonymous guest claiming their account with email/password (Profile → "Save your progress" → email), tapping the link lands on Home and floats the same "Your account is saved" dialog the Google/Apple claim shows, naming the provider "Email". A brand-new sign-up (not a guest claim) still re-enters onboarding; a returning user's unconfirmed-email sign-in still goes straight to Home with no dialog.
+- Killed-app variant (AUTH-26): force-quit the app after submitting the sign-up (before tapping the link), then tap the verification link. The link still establishes a session (no silent "ignoring stray redirect" dead-end) and the confirmed account resolves into onboarding rather than dropping back to a logged-out landing page.
 
 ---
 

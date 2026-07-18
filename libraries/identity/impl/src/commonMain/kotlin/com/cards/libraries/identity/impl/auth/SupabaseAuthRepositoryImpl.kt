@@ -704,10 +704,15 @@ class SupabaseAuthRepositoryImpl(
         mutex.withLock {
             val pending = pendingOAuth
             if (pending == null) {
-                // Stray / duplicate redirect (no starter waiting) — nothing to
-                // finish. No-op rather than guess at a session change.
-                logger.w { "completeOAuthRedirect: no pending OAuth handle — ignoring stray redirect" }
-                return@withLock SignInOutcome.Cancelled
+                // No starter is parked. Usually a stray/duplicate redirect — but
+                // it's also the cold-launch email-confirmation case: the user
+                // killed the app mid-signup, so the in-memory pending handle died
+                // with the process, and the confirmation link
+                // (cards://login-callback#access_token=…) is the only carrier of a
+                // live session. Import it directly so a confirmed signup establishes
+                // its session instead of dead-ending on "ignoring stray redirect"
+                // (AUTH-26).
+                return@withLock completeRedirectWithoutPendingLocked(url)
             }
             logger.d { "completeOAuthRedirect: finishing pending ${pending.kind} flow" }
             Catching {
@@ -749,6 +754,36 @@ class SupabaseAuthRepositoryImpl(
                 },
             )
         }
+
+    /**
+     * Finish a `cards://login-callback` redirect that arrived with no parked
+     * starter. The only legitimate producer is a cold-launch email-confirmation
+     * link after the app was killed mid-signup: its fragment carries a live
+     * session that must be imported so the confirmed account isn't stranded
+     * unauthenticated (AUTH-26). Anything else — a genuine stray/duplicate
+     * redirect, or one carrying no tokens — fails the parse and leaves auth state
+     * untouched. Never runs when already authenticated: a stray redirect must not
+     * hijack a live session.
+     */
+    private suspend fun completeRedirectWithoutPendingLocked(url: String): SignInOutcome {
+        if (lastEmittedOrNull() is AuthState.Authenticated) {
+            logger.w { "completeOAuthRedirect: no pending handle, already authenticated — ignoring stray redirect" }
+            return SignInOutcome.Cancelled
+        }
+        return Catching {
+            gateway.completeOAuthRedirect(url)
+            emitAuthenticatedFromGatewayLocked()
+        }.fold(
+            onSuccess = {
+                logger.i { "completeOAuthRedirect: no pending handle — imported session from confirmation link" }
+                SignInOutcome.Success
+            },
+            onFailure = { e ->
+                logger.w(e) { "completeOAuthRedirect: no pending handle and no importable session — ignoring stray redirect" }
+                SignInOutcome.Cancelled
+            },
+        )
+    }
 
     /**
      * Install a fresh pending OAuth handle, cancelling/replacing any prior one

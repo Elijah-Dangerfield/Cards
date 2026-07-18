@@ -622,20 +622,66 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun completeOAuthRedirect_withNoPendingHandle_isNoOp() = runUnitTest {
-        // A stray / duplicate redirect with nothing waiting on it must not touch
-        // auth state or throw.
+    fun completeOAuthRedirect_noPendingHandle_coldLaunchConfirmLink_importsSession() = runUnitTest {
+        // AUTH-26: the user killed the app mid-signup, so no starter is parked
+        // when the confirmation link relaunches the app. The link's fragment
+        // carries a live session — import it directly instead of discarding it,
+        // so the confirmed account isn't stranded unauthenticated.
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.NotAuthenticated,
             session = null,
+            onCompleteOAuthRedirect = {
+                advanceToAuthenticated(claimedSession(userId = "confirmed-1", email = "new@b.com"))
+            },
         )
         val repo = build(gateway = gateway)
         advanceUntilIdle()
 
-        repo.completeOAuthRedirect("cards://login-callback#access_token=t")
+        val outcome = repo.completeOAuthRedirect("cards://login-callback#access_token=t&refresh_token=r")
 
+        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Success>(outcome)
+        assertEquals(1, gateway.completeOAuthRedirectCalls, "cold-launch confirm link must import the session")
+        val state = assertIs<AuthState.Authenticated>(repo.current())
+        assertEquals("confirmed-1", state.userId)
+        assertEquals(false, state.isAnonymous)
+    }
+
+    @Test
+    fun completeOAuthRedirect_noPendingHandle_noImportableSession_isNoOp() = runUnitTest {
+        // A genuine stray / duplicate redirect carries no tokens — parseSessionFromUrl
+        // throws, so the import fails and auth state is left untouched (no throw).
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+            onCompleteOAuthRedirect = { throw IllegalArgumentException("No access token found") },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val outcome = repo.completeOAuthRedirect("cards://login-callback")
+
+        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Cancelled>(outcome)
         assertIs<AuthState.Unauthenticated>(repo.current())
-        assertEquals(0, gateway.completeOAuthRedirectCalls, "no pending handle → the gateway is never touched")
+    }
+
+    @Test
+    fun completeOAuthRedirect_noPendingHandle_alreadyAuthenticated_isNoOp() = runUnitTest {
+        // A stray redirect must never hijack a live session: with a session already
+        // resolved and no starter parked, the redirect is ignored without touching
+        // the gateway.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = claimedSession(userId = "live-1"),
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val outcome = repo.completeOAuthRedirect("cards://login-callback#access_token=t")
+
+        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Cancelled>(outcome)
+        assertEquals(0, gateway.completeOAuthRedirectCalls, "already authenticated → the gateway is never touched")
+        val state = assertIs<AuthState.Authenticated>(repo.current())
+        assertEquals("live-1", state.userId)
     }
 
     @Test

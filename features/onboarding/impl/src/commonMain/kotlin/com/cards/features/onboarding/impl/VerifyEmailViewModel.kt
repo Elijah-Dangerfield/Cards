@@ -81,7 +81,7 @@ class VerifyEmailViewModel(
                     }
                     is RefreshOutcome.SessionExpired -> {
                         updateState { it.copy(isRefreshing = false) }
-                        sendEvent(VerifyEmailEvent.NavigateBackToSignIn)
+                        onNoSessionAfterCheck()
                     }
                     is RefreshOutcome.NetworkError -> updateState {
                         it.copy(
@@ -101,8 +101,13 @@ class VerifyEmailViewModel(
             is VerifyEmailAction.AppResumed -> action.run {
                 when (authRepository.refreshSession()) {
                     is RefreshOutcome.EmailConfirmed -> routeAfterConfirmation()
+                    // A brand-new signup has no session until the confirmation link
+                    // is tapped, so "no session" on a silent resume is just "not
+                    // confirmed yet" — never yank the user out to "Welcome back"
+                    // (AUTH-25). Only a guest whose real session genuinely died gets
+                    // routed back to sign in.
                     is RefreshOutcome.SessionExpired ->
-                        sendEvent(VerifyEmailEvent.NavigateBackToSignIn)
+                        if (guestLink) sendEvent(VerifyEmailEvent.NavigateBackToSignIn)
                     is RefreshOutcome.StillPending,
                     is RefreshOutcome.NetworkError,
                     is RefreshOutcome.Unknown,
@@ -123,6 +128,23 @@ class VerifyEmailViewModel(
                 }
                 updateState { it.copy(isResending = false, banner = banner) }
             }
+        }
+    }
+
+    /**
+     * The explicit "Check verification" tap came back with no session. For a
+     * brand-new signup (or a returning user's unconfirmed-email sign-in) there
+     * simply is no session until the confirmation link is tapped, so this means
+     * "not confirmed yet" — surface the same nudge as [RefreshOutcome.StillPending]
+     * instead of bouncing to "Welcome back" and clearing the back stack (AUTH-25).
+     * A guest who linked an email did have a live session, so a genuine expiry
+     * there still routes to sign in.
+     */
+    private suspend fun VerifyEmailAction.onNoSessionAfterCheck() {
+        if (guestLink) {
+            sendEvent(VerifyEmailEvent.NavigateBackToSignIn)
+        } else {
+            updateState { it.copy(banner = VerifyEmailState.Banner.StillPending) }
         }
     }
 
