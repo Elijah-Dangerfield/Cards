@@ -127,6 +127,7 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         assertEquals(31_000, chips.balanceValue, "client reflects the server's authoritative balance")
         assertEquals(0, chips.addChipsCalls, "no optimistic local credit on the real path")
         assertEquals(1, redeem.redeemCalls)
+        assertEquals(false, redeem.lastReplayed, "an interactive buy is never flagged as a replay")
         assertEquals(1, billing.consumeCalls, "the consumable is consumed after a server-authoritative grant")
         assertEquals(
             PACK.id,
@@ -272,6 +273,7 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         useCase.redeemOutstanding()
 
         assertEquals(1, redeem.redeemCalls, "the unfinished transaction is replayed through redeem")
+        assertEquals(true, redeem.lastReplayed, "the drain path flags the redeem as a replay so grant-on-replay applies")
         assertEquals("chip_pack_medium", redeem.lastProductId, "the sku maps back to the catalog product id")
         assertEquals(42_000L, chips.balanceValue, "the authoritative post-grant balance lands")
         assertEquals(1, billing.consumeCalls, "a granted replay finishes the store transaction")
@@ -455,9 +457,16 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
             private set
         var lastProductId: String? = null
             private set
-        override suspend fun redeem(catalogProductId: String, transaction: PurchaseTransaction): RedeemOutcome {
+        var lastReplayed: Boolean? = null
+            private set
+        override suspend fun redeem(
+            catalogProductId: String,
+            transaction: PurchaseTransaction,
+            replayed: Boolean,
+        ): RedeemOutcome {
             redeemCalls += 1
             lastProductId = catalogProductId
+            lastReplayed = replayed
             return outcome
         }
     }

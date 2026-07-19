@@ -49,6 +49,7 @@ class PostgresBillingRepository(
         productId: String,
         grantedChips: Long,
         environment: PurchaseEnvironment,
+        relaxedAccountBinding: Boolean,
     ): RedeemResult = database.transaction {
         val now = clock.now()
 
@@ -80,11 +81,12 @@ class PostgresBillingRepository(
             // `iap.` strictly means real money — orphan-sweep guards and the
             // economy dashboards key on the prefix. Sandbox mints (TestFlight,
             // Play license testers) get their own prefix so they can never
-            // read as revenue or paying-customer signal.
-            reason = when (environment) {
-                PurchaseEnvironment.Production -> "iap.$productId"
-                PurchaseEnvironment.Sandbox -> "iap_sandbox.$productId"
-            },
+            // read as revenue or paying-customer signal. A grant-on-replay adds
+            // a `.replay` suffix so relaxed grants are queryable, but KEEPS the
+            // `iap.`/`iap_sandbox.` prefix — a relaxed grant is still real money
+            // the user paid, so it must count as spend and protect the account
+            // from the orphan sweep (which keys on `reason LIKE 'iap.%'`).
+            reason = walletReason(environment, productId, relaxedAccountBinding),
             now = now,
         )
         when (outcome) {
@@ -95,6 +97,19 @@ class PostgresBillingRepository(
             // failure shape the caller can't act on.
             is ApplyOutcome.InsufficientChips -> RedeemResult.Granted(balance = outcome.balance)
         }
+    }
+
+    private fun walletReason(
+        environment: PurchaseEnvironment,
+        productId: String,
+        relaxedAccountBinding: Boolean,
+    ): String {
+        val prefix = when (environment) {
+            PurchaseEnvironment.Production -> "iap"
+            PurchaseEnvironment.Sandbox -> "iap_sandbox"
+        }
+        val suffix = if (relaxedAccountBinding) ".replay" else ""
+        return "$prefix.$productId$suffix"
     }
 
     private fun transactionExists(store: String, orderId: String): Boolean =

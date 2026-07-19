@@ -21,6 +21,15 @@ interface BillingRepository {
      * reason). Idempotent on `(store, orderId)`: a repeat call (client retry,
      * racing request) is a no-op that returns the current balance with
      * [RedeemResult.AlreadyRedeemed].
+     *
+     * [relaxedAccountBinding] marks a grant-on-replay: the receipt's account
+     * token belonged to a different one of the user's accounts and the strict
+     * BILL-11 binding was relaxed to credit the current caller (only ever for a
+     * StoreKit-replayed transaction — see `docs/wiki/purchases.md`). It shifts
+     * the wallet-ledger reason to a distinct `.replay` variant so relaxed grants
+     * are queryable, while staying under the `iap.%` prefix that marks real-money
+     * spend (so a paying user is never swept as an orphan). The grant stays
+     * idempotent on the transaction id regardless.
      */
     suspend fun redeem(
         userId: UserId,
@@ -29,6 +38,7 @@ interface BillingRepository {
         productId: String,
         grantedChips: Long,
         environment: PurchaseEnvironment,
+        relaxedAccountBinding: Boolean = false,
     ): RedeemResult
 }
 

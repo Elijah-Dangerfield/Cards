@@ -115,16 +115,11 @@ class AppStoreReceiptValidator(
             return ReceiptValidation.Invalid("apple_product_mismatch")
         }
 
-        val accountToken = payload.appAccountToken
-        val boundIdentities = request.accountLineage + request.userId
-        if (accountToken == null || UserId(accountToken) !in boundIdentities) {
-            logger.warn(
-                "Apple receipt account mismatch: appAccountToken={} caller={} lineage={}",
-                accountToken ?: "<absent>", request.userId.value, request.accountLineage.map { it.value },
-            )
-            return ReceiptValidation.Invalid("apple_account_mismatch")
-        }
-
+        // Revocation and the transaction id are checked BEFORE the account
+        // binding so an account mismatch can be reported as a fully-verified
+        // receipt (paid, unrevoked, real transaction id) that only failed the
+        // binding — the shape grant-on-replay needs. A revoked or malformed
+        // receipt is dead regardless of which account it names.
         if (payload.revocationDate != null) {
             logger.warn("Apple receipt revoked/refunded (transactionId={})", payload.transactionId)
             return ReceiptValidation.Invalid("apple_revoked")
@@ -136,12 +131,31 @@ class AppStoreReceiptValidator(
                 return ReceiptValidation.Invalid("apple_missing_transaction_id")
             }
 
-        return ReceiptValidation.Valid(
-            orderId = transactionId,
-            // The decoded payload is authoritative when it names its
-            // environment; otherwise credit the verifier that accepted it.
-            environment = payload.environment?.toPurchaseEnvironment() ?: verifiedBy.environment,
-        )
+        // The decoded payload is authoritative when it names its environment;
+        // otherwise credit the verifier that accepted it.
+        val environment = payload.environment?.toPurchaseEnvironment() ?: verifiedBy.environment
+
+        val accountToken = payload.appAccountToken
+        if (accountToken == null) {
+            // No token to compare, so no owner to relax toward — a receipt we
+            // can't tie to any account is a hard mismatch, never grant-on-replay.
+            logger.warn("Apple receipt has no appAccountToken (transactionId={})", transactionId)
+            return ReceiptValidation.Invalid("apple_account_mismatch")
+        }
+        val boundIdentities = request.accountLineage + request.userId
+        if (UserId(accountToken) !in boundIdentities) {
+            logger.warn(
+                "Apple receipt account mismatch: appAccountToken={} caller={} lineage={}",
+                accountToken, request.userId.value, request.accountLineage.map { it.value },
+            )
+            return ReceiptValidation.AccountMismatch(
+                orderId = transactionId,
+                environment = environment,
+                receiptOwner = UserId(accountToken),
+            )
+        }
+
+        return ReceiptValidation.Valid(orderId = transactionId, environment = environment)
     }
 
     private fun buildDecoders(): List<EnvironmentDecoder> {

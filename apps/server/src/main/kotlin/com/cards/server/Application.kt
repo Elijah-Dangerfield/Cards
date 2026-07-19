@@ -166,6 +166,7 @@ fun Application.installApp(
             validator = component.receiptValidator,
             billing = component.billingRepository,
             profiles = component.profileRepository,
+            relaxedGrantRateLimiter = component.relaxedGrantRateLimiter,
         )
         progressionRoutes(component.progressionRepository, component.walletRepository)
         playStyleRoutes(component.playStyleRepository)

@@ -1,9 +1,11 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.server.data.RelaxedGrantRateLimiter
 import com.dangerfield.cards.server.domain.BillingRepository
 import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.PurchaseReceipt
 import com.dangerfield.cards.server.domain.ReceiptClassifier
 import com.dangerfield.cards.server.domain.ReceiptValidation
@@ -64,6 +66,7 @@ fun Route.billingRoutes(
     validator: ReceiptValidator,
     billing: BillingRepository,
     profiles: ProfileRepository,
+    relaxedGrantRateLimiter: RelaxedGrantRateLimiter,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         rateLimit(RateLimitName(WALLET_WRITE_LIMIT)) {
@@ -120,36 +123,142 @@ fun Route.billingRoutes(
                         accountLineage = profiles.findInstallLineage(userId),
                     ),
                 )
-                val valid = when (validation) {
-                    is ReceiptValidation.Valid -> validation
-                    is ReceiptValidation.Invalid -> return@post call.respondToInvalid(
+                when (validation) {
+                    is ReceiptValidation.Valid -> call.grantAndRespond(
+                        billing = billing,
+                        userId = userId,
+                        store = store,
+                        orderId = validation.orderId,
+                        productId = body.productId,
+                        grantedChips = product.grantsChips,
+                        environment = validation.environment,
+                        relaxedAccountBinding = false,
+                    )
+                    is ReceiptValidation.AccountMismatch -> call.respondToAccountMismatch(
+                        billing = billing,
+                        rateLimiter = relaxedGrantRateLimiter,
+                        mismatch = validation,
+                        replayed = body.replayed,
+                        store = store,
+                        productId = body.productId,
+                        grantedChips = product.grantsChips,
+                        userId = userId,
+                    )
+                    is ReceiptValidation.Invalid -> call.respondToInvalid(
                         validation, store, body.productId, userId,
                     )
                 }
-
-                logger.info(
-                    "Redeeming {} for user={} (store={}, environment={}, chips={})",
-                    body.productId, userId.value, store.wire, valid.environment.wire, product.grantsChips,
-                )
-                val result = billing.redeem(
-                    userId = userId,
-                    store = store.wire,
-                    orderId = valid.orderId,
-                    productId = body.productId,
-                    grantedChips = product.grantsChips,
-                    environment = valid.environment,
-                )
-                call.respond(
-                    HttpStatusCode.OK,
-                    RedeemResponse(
-                        balance = result.balance,
-                        grantedChips = product.grantsChips,
-                        alreadyRedeemed = result is RedeemResult.AlreadyRedeemed,
-                    ),
-                )
             }
         }
     }
+}
+
+/**
+ * Grant the validated transaction and answer with the authoritative balance.
+ * Idempotent on the store transaction id via [BillingRepository.redeem], so a
+ * retry or a racing request returns the same balance with `alreadyRedeemed`.
+ * [relaxedAccountBinding] is true only on a grant-on-replay.
+ */
+private suspend fun ApplicationCall.grantAndRespond(
+    billing: BillingRepository,
+    userId: UserId,
+    store: Store,
+    orderId: String,
+    productId: String,
+    grantedChips: Long,
+    environment: PurchaseEnvironment,
+    relaxedAccountBinding: Boolean,
+) {
+    logger.info(
+        "Redeeming {} for user={} (store={}, environment={}, chips={}, relaxed={})",
+        productId, userId.value, store.wire, environment.wire, grantedChips, relaxedAccountBinding,
+    )
+    val result = billing.redeem(
+        userId = userId,
+        store = store.wire,
+        orderId = orderId,
+        productId = productId,
+        grantedChips = grantedChips,
+        environment = environment,
+        relaxedAccountBinding = relaxedAccountBinding,
+    )
+    respond(
+        HttpStatusCode.OK,
+        RedeemResponse(
+            balance = result.balance,
+            grantedChips = grantedChips,
+            alreadyRedeemed = result is RedeemResult.AlreadyRedeemed,
+        ),
+    )
+}
+
+/**
+ * Handle a receipt that verified everything except the account binding
+ * (`docs/wiki/purchases.md`). Two paths, decided by whether this is a
+ * StoreKit-replayed transaction:
+ *
+ *  - **Interactive buy** (`replayed == false`) — never relaxed. The buyer is a
+ *    signed-in account, so a genuine receipt carries their id; a mismatch here
+ *    is someone else's receipt. 409 `receipt_account_mismatch`; the client
+ *    finishes it.
+ *  - **StoreKit replay** (`replayed == true`) — the grant-on-replay case. Apple
+ *    only re-presents an unfinished transaction to the Apple ID that bought it,
+ *    so the "different account" is almost always the same human whose in-app id
+ *    changed on reinstall. The receipt is signature-valid, paid, and unrevoked
+ *    (the validator confirmed all of that before reporting the mismatch), and a
+ *    grant can only ever land once per transaction id, so relaxing the binding
+ *    doesn't mint free chips — it only decides which of the user's own accounts
+ *    gets the one grant. This RELAXES the BILL-11 strict account binding, gated
+ *    to the replay path, rate-limited, and logged with a distinct wallet reason.
+ *    A rate-limit trip falls back to the strict 409 so the client still finishes
+ *    the transaction and the shop is unblocked.
+ */
+private suspend fun ApplicationCall.respondToAccountMismatch(
+    billing: BillingRepository,
+    rateLimiter: RelaxedGrantRateLimiter,
+    mismatch: ReceiptValidation.AccountMismatch,
+    replayed: Boolean,
+    store: Store,
+    productId: String,
+    grantedChips: Long,
+    userId: UserId,
+) {
+    if (!replayed) {
+        logger.warn(
+            "Interactive receipt bound to a different account: receiptOwner={} caller={} store={} product={}",
+            mismatch.receiptOwner.value, userId.value, store.wire, productId,
+        )
+        return respondProblem(
+            HttpStatusCode.Conflict,
+            "receipt_account_mismatch",
+            "This purchase belongs to a different account.",
+        )
+    }
+    if (!rateLimiter.tryAcquire(userId)) {
+        logger.warn(
+            "Grant-on-replay rate-limited: refusing to relax receiptOwner={} -> caller={} (store={}, product={})",
+            mismatch.receiptOwner.value, userId.value, store.wire, productId,
+        )
+        return respondProblem(
+            HttpStatusCode.Conflict,
+            "receipt_account_mismatch",
+            "This purchase belongs to a different account.",
+        )
+    }
+    logger.info(
+        "Grant-on-replay: relaxing account binding receiptOwner={} -> caller={} (store={}, product={}, order={}, env={})",
+        mismatch.receiptOwner.value, userId.value, store.wire, productId, mismatch.orderId, mismatch.environment.wire,
+    )
+    grantAndRespond(
+        billing = billing,
+        userId = userId,
+        store = store,
+        orderId = mismatch.orderId,
+        productId = productId,
+        grantedChips = grantedChips,
+        environment = mismatch.environment,
+        relaxedAccountBinding = true,
+    )
 }
 
 /**

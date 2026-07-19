@@ -75,25 +75,36 @@ class GooglePlayReceiptValidator(
             return ReceiptValidation.Invalid("google_not_purchased")
         }
 
-        val accountId = purchase.obfuscatedExternalAccountId
-        if (accountId == null || !accountId.matchesUser(request.userId)) {
-            return ReceiptValidation.Invalid("google_account_mismatch")
-        }
-
+        // The order id is resolved before the account binding so an account
+        // mismatch can be reported as a fully-verified purchase that only failed
+        // the binding — the shape grant-on-replay needs.
         val orderId = purchase.orderId
             ?: return ReceiptValidation.Invalid("google_missing_order_id")
 
-        return ReceiptValidation.Valid(
-            orderId = orderId,
-            // purchaseType is only present for non-standard purchases:
-            // 0 = test (license testers — Play's sandbox equivalent, unpaid),
-            // 1 = promo code, 2 = rewarded. Absent means a normal paid purchase.
-            environment = if (purchase.purchaseType == PURCHASE_TYPE_TEST) {
-                PurchaseEnvironment.Sandbox
-            } else {
-                PurchaseEnvironment.Production
-            },
-        )
+        // purchaseType is only present for non-standard purchases:
+        // 0 = test (license testers — Play's sandbox equivalent, unpaid),
+        // 1 = promo code, 2 = rewarded. Absent means a normal paid purchase.
+        val environment = if (purchase.purchaseType == PURCHASE_TYPE_TEST) {
+            PurchaseEnvironment.Sandbox
+        } else {
+            PurchaseEnvironment.Production
+        }
+
+        val receiptOwner = purchase.obfuscatedExternalAccountId?.let { parseUuidOrNull(it) }
+        if (receiptOwner == null) {
+            // Missing / unparseable account id: no owner to relax toward, so a
+            // hard mismatch rather than a grant-on-replay candidate.
+            return ReceiptValidation.Invalid("google_account_mismatch")
+        }
+        if (UserId(receiptOwner) != request.userId && UserId(receiptOwner) !in request.accountLineage) {
+            return ReceiptValidation.AccountMismatch(
+                orderId = orderId,
+                environment = environment,
+                receiptOwner = UserId(receiptOwner),
+            )
+        }
+
+        return ReceiptValidation.Valid(orderId = orderId, environment = environment)
     }
 
     private fun buildConfigured(): PurchaseLookup? {
@@ -107,11 +118,6 @@ class GooglePlayReceiptValidator(
             return null
         }
         return lookupFactory(packageName, serviceAccountJson)
-    }
-
-    private fun String.matchesUser(userId: UserId): Boolean {
-        val parsed = parseUuidOrNull(this) ?: return false
-        return UserId(parsed) == userId
     }
 
     private fun parseUuidOrNull(value: String): UUID? =

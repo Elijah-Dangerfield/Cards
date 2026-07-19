@@ -50,7 +50,11 @@ class BillingRepositoryImpl(
 
     private val logger = KLog.withTag("BillingRepository")
 
-    override suspend fun redeem(catalogProductId: String, transaction: PurchaseTransaction): RedeemOutcome {
+    override suspend fun redeem(
+        catalogProductId: String,
+        transaction: PurchaseTransaction,
+        replayed: Boolean,
+    ): RedeemOutcome {
         val store = transaction.platform.wireStore() ?: run {
             logger.w { "redeem skipped: ${transaction.platform} has no server store mapping" }
             return RedeemOutcome.Transient
@@ -67,6 +71,7 @@ class BillingRepositoryImpl(
                         store = store,
                         productId = catalogProductId,
                         token = transaction.purchaseToken,
+                        replayed = replayed,
                     ),
                 )
             }
@@ -119,6 +124,7 @@ private data class RedeemRequestDto(
     val store: String,
     val productId: String,
     val token: String,
+    val replayed: Boolean,
 )
 
 @Serializable

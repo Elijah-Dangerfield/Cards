@@ -217,7 +217,10 @@ class DefaultPurchaseChipPackUseCase(
                 return@forEach
             }
             logger.i { "Retrying uncredited purchase ${transaction.orderId} (${pack.id})" }
-            when (val redeem = billingRepository.redeem(pack.id, transaction)) {
+            // replayed = true: this is a store-replayed, unfinished transaction,
+            // so the server may relax the account binding (grant-on-replay) to
+            // recover a paid-but-wrong-account receipt to the current caller.
+            when (val redeem = billingRepository.redeem(pack.id, transaction, replayed = true)) {
                 is RedeemOutcome.Granted -> {
                     reflectBalance(redeem.balance, transaction.orderId)
                     finishTerminal(transaction)

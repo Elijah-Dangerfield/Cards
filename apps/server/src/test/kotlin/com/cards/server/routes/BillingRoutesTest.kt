@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
+import com.dangerfield.cards.server.data.RelaxedGrantRateLimiter
 import com.dangerfield.cards.server.domain.BillingRepository
 import com.dangerfield.cards.server.domain.PlatformStore
 import com.dangerfield.cards.server.domain.Product
@@ -36,6 +37,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import java.util.Date
 import java.util.UUID
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -50,6 +53,7 @@ import kotlin.test.assertTrue
  * Mints HS256 JWTs against a controlled secret + matching verifier, the
  * same pattern as [WalletRoutesTest].
  */
+@OptIn(ExperimentalTime::class)
 class BillingRoutesTest {
 
     private val testIssuer = "https://test-project.supabase.co/auth/v1"
@@ -143,6 +147,65 @@ class BillingRoutesTest {
             assertEquals("receipt_account_mismatch", resp.errorCode())
         }
         assertTrue(billing.redeemCalls.isEmpty(), "a mismatched receipt must never reach the grant")
+    }
+
+    @Test
+    fun redeem_replayedAccountMismatch_grantsOnReplay_relaxingTheAccountBinding() = runTest {
+        // Grant-on-replay: a StoreKit-replayed transaction whose only failure is
+        // the account binding is granted to the current caller, flagged relaxed.
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = ReplayableMismatchValidator,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-replay", replayed = true),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<RedeemResponse>()
+            assertEquals(GRANT, body.grantedChips)
+        }
+        val call = billing.redeemCalls.single()
+        assertTrue(call.relaxedAccountBinding, "a grant-on-replay must be recorded as a relaxed grant")
+        assertEquals(userId, call.userId, "the grant lands on the current caller, not the receipt owner")
+        assertEquals("txn-replay", call.orderId)
+    }
+
+    @Test
+    fun redeem_interactiveAccountMismatch_isNotRelaxed_returns409_andDoesNotGrant() = runTest {
+        // The same account mismatch on an interactive buy (replayed = false) is
+        // never relaxed — only a StoreKit replay is eligible for grant-on-replay.
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = ReplayableMismatchValidator,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-interactive", replayed = false),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.Conflict, resp.status)
+            assertEquals("receipt_account_mismatch", resp.errorCode())
+        }
+        assertTrue(billing.redeemCalls.isEmpty(), "an interactive mismatch must never reach the grant")
+    }
+
+    @Test
+    fun redeem_replayedAccountMismatch_rateLimited_fallsBackTo409() = runTest {
+        // Past the per-user relaxed-grant cap, a replayed mismatch stops being
+        // relaxed and falls back to the strict 409 so the client still finishes
+        // the transaction and the shop is unblocked.
+        val limiter = RelaxedGrantRateLimiter(Clock.System)
+        repeat(RelaxedGrantRateLimiter.MAX_PER_WINDOW) { limiter.tryAcquire(userId) }
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = ReplayableMismatchValidator,
+            rateLimiter = limiter,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-capped", replayed = true),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.Conflict, resp.status)
+            assertEquals("receipt_account_mismatch", resp.errorCode())
+        }
+        assertTrue(billing.redeemCalls.isEmpty(), "a rate-limited relaxed grant must not credit")
     }
 
     @Test
@@ -244,6 +307,7 @@ class BillingRoutesTest {
         catalog: ProductCatalogSource = SingleChipPackCatalog,
         validator: ReceiptValidator = EchoTokenValidator,
         profiles: ProfileRepository = LineageProfiles(setOf(userId)),
+        rateLimiter: RelaxedGrantRateLimiter = RelaxedGrantRateLimiter(Clock.System),
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -252,7 +316,7 @@ class BillingRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { billingRoutes(catalog, validator, billing, profiles) }
+                routing { billingRoutes(catalog, validator, billing, profiles, rateLimiter) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -276,6 +340,7 @@ class BillingRoutesTest {
             val productId: String,
             val grantedChips: Long,
             val environment: PurchaseEnvironment,
+            val relaxedAccountBinding: Boolean,
         )
 
         val redeemCalls: MutableList<Call> = mutableListOf()
@@ -287,8 +352,9 @@ class BillingRoutesTest {
             productId: String,
             grantedChips: Long,
             environment: PurchaseEnvironment,
+            relaxedAccountBinding: Boolean,
         ): RedeemResult {
-            redeemCalls += Call(userId, store, orderId, productId, grantedChips, environment)
+            redeemCalls += Call(userId, store, orderId, productId, grantedChips, environment, relaxedAccountBinding)
             return result
         }
     }
@@ -311,6 +377,15 @@ class BillingRoutesTest {
     private object AccountMismatchValidator : ReceiptValidator {
         override suspend fun validate(request: PurchaseReceipt): ReceiptValidation =
             ReceiptValidation.Invalid(reason = "apple_account_mismatch")
+    }
+
+    private object ReplayableMismatchValidator : ReceiptValidator {
+        override suspend fun validate(request: PurchaseReceipt): ReceiptValidation =
+            ReceiptValidation.AccountMismatch(
+                orderId = request.token,
+                environment = PurchaseEnvironment.Production,
+                receiptOwner = RECEIPT_OWNER,
+            )
     }
 
     private object UnconfiguredValidator : ReceiptValidator {
@@ -375,5 +450,6 @@ class BillingRoutesTest {
     private companion object {
         const val CHIP_PACK_ID = "chip_pack_medium"
         const val GRANT = 30_000L
+        val RECEIPT_OWNER = UserId(UUID.fromString("52f3f9c1-1a94-4640-b24c-560a9b7534eb"))
     }
 }

@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.di
 
 import com.dangerfield.cards.server.config.BillingConfig
 import com.dangerfield.cards.server.config.SupabaseConfig
+import com.dangerfield.cards.server.data.RelaxedGrantRateLimiter
 import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.domain.AchievementRepository
 import com.dangerfield.cards.server.domain.AppConfigAdminRepository
@@ -79,6 +80,7 @@ abstract class ServerComponent(
     abstract val walletRepository: WalletRepository
     abstract val billingRepository: BillingRepository
     abstract val receiptValidator: ReceiptValidator
+    abstract val relaxedGrantRateLimiter: RelaxedGrantRateLimiter
     abstract val progressionRepository: ProgressionRepository
     abstract val playStyleRepository: PlayStyleRepository
     abstract val playerStatsRepository: PlayerStatsRepository

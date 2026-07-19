@@ -19,8 +19,18 @@ interface BillingRepository {
      * differs per platform. The server validates the receipt, resolves the
      * product to its server-side `grantsChips`, and grants idempotently on the
      * store transaction id.
+     *
+     * [replayed] must be true only when draining a store-replayed, unfinished
+     * transaction (the outstanding-purchase path), and false for an interactive
+     * buy. The server uses it to gate grant-on-replay: recovering a
+     * paid-but-wrong-account receipt to the current caller is only ever
+     * considered for a StoreKit-replayed transaction (`docs/wiki/purchases.md`).
      */
-    suspend fun redeem(catalogProductId: String, transaction: PurchaseTransaction): RedeemOutcome
+    suspend fun redeem(
+        catalogProductId: String,
+        transaction: PurchaseTransaction,
+        replayed: Boolean = false,
+    ): RedeemOutcome
 }
 
 /**
