@@ -138,6 +138,25 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
     }
 
     @Test
+    fun on_granted_finishesTransaction_evenWhenLocalBalanceWriteFails() = runUnitTest {
+        // Finish-on-terminal must be unskippable: the server grant is durable and
+        // idempotent, so a failed local balance reflection can't be allowed to
+        // skip the finish — otherwise the granted transaction replays every
+        // launch and shadows the next purchase (BILL-13).
+        val chips = FakeChipsRepository(initial = 1_000, failSetBalance = true)
+        val redeem = RecordingBillingRepository(
+            outcome = RedeemOutcome.Granted(balance = 31_000, grantedChips = 30_000, alreadyRedeemed = false),
+        )
+        val billing = FakeBillingClient(PurchaseResult.Success(APPLE_TX))
+        val useCase = build(billing = billing, chips = chips, redeem = redeem, realPurchases = true)
+
+        val outcome = useCase(PACK)
+
+        assertIs<IapPurchaseOutcome.Success>(outcome)
+        assertEquals(1, billing.consumeCalls, "the granted transaction is finished despite the balance-write failure")
+    }
+
+    @Test
     fun on_alreadyRedeemed_surfacesAlreadyOwned_toSuppressCelebration() = runUnitTest {
         val chips = FakeChipsRepository(initial = 31_000)
         val redeem = RecordingBillingRepository(
@@ -469,7 +488,10 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         }
     }
 
-    private class FakeChipsRepository(initial: Long? = 0L) : ChipsRepository {
+    private class FakeChipsRepository(
+        initial: Long? = 0L,
+        private val failSetBalance: Boolean = false,
+    ) : ChipsRepository {
         private val balance = MutableStateFlow(initial)
         val balanceValue: Long? get() = balance.value
         var addChipsCalls = 0
@@ -483,7 +505,10 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) {
             balance.value = (balance.value ?: 0L) - amount
         }
-        override suspend fun setBalance(authoritativeBalance: Long) { balance.value = authoritativeBalance }
+        override suspend fun setBalance(authoritativeBalance: Long) {
+            if (failSetBalance) error("local balance write failed")
+            balance.value = authoritativeBalance
+        }
         override suspend fun deleteAll() { balance.value = null }
         override suspend fun sync(): Result<Unit> = Result.success(Unit)
     }

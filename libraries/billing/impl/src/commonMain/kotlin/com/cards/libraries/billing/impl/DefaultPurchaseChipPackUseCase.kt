@@ -111,8 +111,8 @@ class DefaultPurchaseChipPackUseCase(
         if (realPurchasesEnabled()) {
             return when (val redeem = billingRepository.redeem(pack.id, transaction)) {
                 is RedeemOutcome.Granted -> {
-                    chipsRepository.setBalance(redeem.balance)
-                    billingClient.consume(transaction.purchaseToken)
+                    reflectBalance(redeem.balance, transaction.orderId)
+                    finishTerminal(transaction)
                     logger.i {
                         "Redeemed ${redeem.grantedChips} chips for order ${transaction.orderId} " +
                             "(alreadyRedeemed=${redeem.alreadyRedeemed})"
@@ -128,7 +128,7 @@ class DefaultPurchaseChipPackUseCase(
                     // next buy of the same SKU — BILL-13); retrying it can never
                     // succeed.
                     logger.e { "Server terminally rejected receipt for order ${transaction.orderId} — finishing it" }
-                    billingClient.consume(transaction.purchaseToken)
+                    finishTerminal(transaction)
                     IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_RECEIPT_REJECTED)
                 }
                 RedeemOutcome.Mismatch -> {
@@ -137,7 +137,7 @@ class DefaultPurchaseChipPackUseCase(
                     // is bound to someone else — finish it rather than replay.
                     // Grant-on-replay is reserved for the StoreKit-drain path.
                     logger.e { "Receipt for order ${transaction.orderId} bound to another account — finishing it" }
-                    billingClient.consume(transaction.purchaseToken)
+                    finishTerminal(transaction)
                     IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_RECEIPT_REJECTED)
                 }
                 RedeemOutcome.Transient -> {
@@ -162,6 +162,31 @@ class DefaultPurchaseChipPackUseCase(
         } else {
             IapPurchaseOutcome.Success(grantedChips = grantedChips)
         }
+
+    /**
+     * Finish (consume / StoreKit `Transaction.finish()`) a transaction that
+     * reached a terminal outcome — granted, dead, or wedged. This is the step
+     * that unblocks the user: an unfinished consumable replays every launch and
+     * shadows the next purchase of the same SKU (BILL-13), so it must run on
+     * every terminal branch and can never be skipped by an earlier failure. Only
+     * transient outcomes are left unfinished, to retry.
+     */
+    private suspend fun finishTerminal(transaction: PurchaseTransaction) {
+        billingClient.consume(transaction.purchaseToken)
+    }
+
+    /**
+     * Reflect the server's authoritative post-grant balance locally. The grant
+     * itself is durable and idempotent server-side, so a failure here is only a
+     * stale local display that the next [ChipsRepository] sync reconciles — it
+     * must never block [finishTerminal], or a granted transaction would replay
+     * forever.
+     */
+    private suspend fun reflectBalance(balance: Long, orderId: String) {
+        Catching { chipsRepository.setBalance(balance) }.getOrElse { error ->
+            logger.w(error) { "Failed to reflect balance for order $orderId; sync will reconcile" }
+        }
+    }
 
     override suspend fun redeemOutstanding() {
         if (!realPurchasesEnabled()) return
@@ -194,8 +219,8 @@ class DefaultPurchaseChipPackUseCase(
             logger.i { "Retrying uncredited purchase ${transaction.orderId} (${pack.id})" }
             when (val redeem = billingRepository.redeem(pack.id, transaction)) {
                 is RedeemOutcome.Granted -> {
-                    chipsRepository.setBalance(redeem.balance)
-                    billingClient.consume(transaction.purchaseToken)
+                    reflectBalance(redeem.balance, transaction.orderId)
+                    finishTerminal(transaction)
                     logger.i {
                         "Recovered uncredited purchase ${transaction.orderId}: " +
                             "${redeem.grantedChips} chips (alreadyRedeemed=${redeem.alreadyRedeemed})"
@@ -209,7 +234,7 @@ class DefaultPurchaseChipPackUseCase(
                     // same SKU, instead of leaving the shop permanently broken
                     // (BILL-13).
                     logger.e { "Terminally rejected replayed receipt for order ${transaction.orderId} — finishing it" }
-                    billingClient.consume(transaction.purchaseToken)
+                    finishTerminal(transaction)
                     logger.logEvent("purchase.discarded", "product_id" to pack.id)
                 }
                 RedeemOutcome.Mismatch -> {
@@ -219,7 +244,7 @@ class DefaultPurchaseChipPackUseCase(
                     // recovering the entitlement to the current account is
                     // grant-on-replay / sign-in-to-claim, layered on next.
                     logger.e { "Replayed receipt for order ${transaction.orderId} bound to another account — finishing it" }
-                    billingClient.consume(transaction.purchaseToken)
+                    finishTerminal(transaction)
                     logger.logEvent("purchase.discarded", "product_id" to pack.id)
                 }
                 RedeemOutcome.Transient ->
