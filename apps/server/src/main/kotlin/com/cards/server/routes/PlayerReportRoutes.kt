@@ -41,11 +41,18 @@ fun Route.playerReportRoutes(reports: PlayerReportRepository) {
                     )
                 }
 
+                val categories = body.categories
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .map { it.take(CATEGORY_MAX_LENGTH) }
+                    .distinct()
+                    .take(MAX_CATEGORIES)
                 reports.record(
                     reporter = me,
                     reported = reported,
                     inRoom = body.roomCode?.trim()?.takeIf { it.isNotBlank() },
                     reason = body.reason?.trim()?.takeIf { it.isNotBlank() }?.take(REASON_MAX_LENGTH),
+                    categories = categories,
                 )
                 call.respond(HttpStatusCode.OK, PlayerReportResult(status = "received"))
             }
@@ -54,6 +61,8 @@ fun Route.playerReportRoutes(reports: PlayerReportRepository) {
 }
 
 private const val REASON_MAX_LENGTH = 500
+private const val CATEGORY_MAX_LENGTH = 40
+private const val MAX_CATEGORIES = 10
 
 private fun String.toUserIdOrNull(): UserId? = try {
     takeIf { it.isNotBlank() }?.let { UserId.parse(it) }

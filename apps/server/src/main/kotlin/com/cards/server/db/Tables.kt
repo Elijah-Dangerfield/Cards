@@ -463,6 +463,7 @@ object PlayerReportsTable : Table("player_reports") {
     val reportedUserId = uuid("reported_user_id")
     val roomCode = text("room_code").nullable()
     val reason = text("reason").nullable()
+    val reasonCategories = text("reason_categories").nullable()
     val createdAt = timestamp("created_at")
     override val primaryKey = PrimaryKey(id)
 }

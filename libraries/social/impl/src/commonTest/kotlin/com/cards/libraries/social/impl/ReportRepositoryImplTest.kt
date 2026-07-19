@@ -28,6 +28,17 @@ class ReportRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
+    fun forwards_reasonCategories_toTheApi() = runUnitTest {
+        val api = FakeSocialApi()
+        val repo = ReportRepositoryImpl(api)
+
+        repo.reportPlayer("u1", roomCode = "ABCD", reason = "stalling", categories = listOf("cheating", "harassment"))
+
+        assertEquals(listOf("cheating", "harassment"), api.lastReportCategories)
+        assertEquals(Triple("u1", "ABCD", "stalling"), api.lastReport)
+    }
+
+    @Test
     fun too_many_requests_maps_to_RateLimited() = runUnitTest {
         val api = FakeSocialApi(
             reportResult = Result.failure(clientResponseException(HttpStatusCode.TooManyRequests)),

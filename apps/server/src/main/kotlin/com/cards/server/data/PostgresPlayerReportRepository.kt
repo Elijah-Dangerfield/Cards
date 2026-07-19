@@ -32,6 +32,7 @@ class PostgresPlayerReportRepository(
         reported: UserId,
         inRoom: String?,
         reason: String?,
+        categories: List<String>,
     ) {
         val now = clock.now().toJavaInstant()
         database.transaction {
@@ -40,6 +41,7 @@ class PostgresPlayerReportRepository(
                 it[reportedUserId] = reported.value
                 it[roomCode] = inRoom
                 it[PlayerReportsTable.reason] = reason
+                it[reasonCategories] = categories.joinToString(",").takeIf { s -> s.isNotEmpty() }
                 it[createdAt] = now
             }
         }

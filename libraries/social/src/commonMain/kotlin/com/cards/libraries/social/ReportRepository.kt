@@ -12,14 +12,17 @@ package com.dangerfield.cards.libraries.social
 interface ReportRepository {
 
     /**
-     * Report [userId], optionally tagged with the [roomCode] it happened in and
-     * a free-text [reason] (null in V1 — there's no reason picker yet). Callers
-     * only offer this on another human, so a self-report can't originate here.
+     * Report [userId], optionally tagged with the [roomCode] it happened in, the
+     * reporter's selected reason [categories] (canonical keys like `harassment` /
+     * `cheating`, empty when none picked), and their optional free-text [reason]
+     * (MOD-2). Callers only offer this on another human, so a self-report can't
+     * originate here.
      */
     suspend fun reportPlayer(
         userId: String,
         roomCode: String?,
         reason: String?,
+        categories: List<String> = emptyList(),
     ): ReportPlayerResult
 }
 
