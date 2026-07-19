@@ -42,17 +42,7 @@ When you touch an item for any reason, leave it in this shape. You don't have to
 3. Align `develop`:
    - **Top-up-only mode (open PR, from step 2)** → `git checkout develop && git pull --rebase origin develop`. Do not reset, do not force-push — you're refilling the list on top of the in-review cycle's commits.
    - **If `docs/agent/in-flight.md` exists on `origin/develop`** → a worker is already mid-cycle. Exit; you should have run before workers, not during.
-   - **Else** → reset `develop` to `main` so workers start clean — but **only when its content already matches `main`** (clears post-merge commit-ID drift without destroying unmerged work):
-     ```
-     git checkout develop
-     git fetch origin
-     if git diff --quiet origin/main origin/develop; then
-       git reset --hard origin/main
-       git push --force-with-lease origin develop
-     else
-       echo "develop has content not in main (human WIP?) — NOT resetting" >&2
-     fi
-     ```
+   - **Else** → `git checkout develop && git pull --rebase origin develop` and stack on top. **Never reset `develop`** (never `reset --hard`, never force-push it). `develop` is the human's long-lived rolling branch; they edit on it and squash-merge to `main` when they're ready. It is expected to sit ahead of `main` between merges, and that drift is normal, not something to clear. Anchor "what's new this cycle" on the previous cycle's `chore: clear nightly in-flight log` marker (as the reviewer does), not on `main`.
 4. Read `AGENTS.md` (architecture + conventions).
 5. Read `docs/todo.md` (everything in it is in scope), `docs/backlog.md`, `docs/developer-todo.md` (**never edit**), and `docs/decisions.md`.
 

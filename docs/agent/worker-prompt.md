@@ -10,20 +10,7 @@ You are one of 4 scheduled workers shipping incremental engineering work for Car
 
 1. `git fetch origin`.
 2. `gh pr list --head develop --state open --json number,url`. If a PR exists, that's fine — keep working (multiple cycles per night stack onto the same PR). Your commits stack on top of whatever's already in the PR, and the reviewer appends a fresh cycle block to the existing PR body so your work shows up under its own heading. Don't open a new PR.
-3. Align `develop` with the right base:
-   - **If `docs/agent/in-flight.md` exists on `origin/develop`** → cycle is mid-stream (an earlier worker has already started). Just stack on top: `git checkout develop && git pull --rebase origin develop`.
-   - **If it doesn't** → one of three things: last cycle's PR merged, no cycle has started yet, or a **follow-on run is stacking onto a still-open PR this same night** (the reviewer clears the in-flight log when it opens/updates the PR, so its absence no longer means "merged"). Reset `develop` to `main` **only when `develop`'s content already matches `main`** — a squash-merged PR leaves develop's old commit IDs "ahead" of main even though the content is identical, and that drift is all you're clearing. When a PR is still open, develop holds real unmerged commits, so the guard below won't reset and you'll stack instead. Guard it so you never force over genuine unmerged work:
-     ```
-     git checkout develop
-     git fetch origin
-     if git diff --quiet origin/main origin/develop; then
-       git reset --hard origin/main
-       git push --force-with-lease origin develop
-     else
-       echo "develop has content not in main (human WIP?) — NOT resetting; stacking instead" >&2
-       git pull --rebase origin develop
-     fi
-     ```
+3. Align `develop`: `git checkout develop && git pull --rebase origin develop` and stack on top. **Never reset `develop`** (never `reset --hard`, never force-push it). It is the human's long-lived rolling branch — they edit on it and squash-merge to `main` when ready — so it is expected to sit ahead of `main` between merges. That drift is normal and is not yours to clear. Your commits always stack on the current `develop` HEAD.
      The force-push fires only when develop and main are content-identical anyway — pure commit-ID drift. If they differ, that's real unmerged work (likely the human's): never force over it.
 4. Read `AGENTS.md` (DS-first, `Catching {}`, `DispatcherProvider`, SEAViewModel, no comments, conventional commits).
 5. Read `docs/todo.md`. Everything in it is worker-pickable. Human-only items live in `docs/developer-todo.md` — never touch that file.

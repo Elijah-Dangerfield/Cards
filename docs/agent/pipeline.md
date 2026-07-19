@@ -60,14 +60,13 @@ One subagent, following the todo-maintainer playbook:
 > those commits as new and valid and only add commits on top of the current HEAD.** Commit, no PR,
 > clean tree."
 
-> ⚠️ **The reset hazard — enforce it.** The todo-maintainer playbook resets `develop` to
-> `origin/main` when their content matches, to clear post-merge commit-id drift. During a live
-> pipeline run that reset would **silently discard Phase 1's intake commits** (they're on `develop`,
-> not `main` yet), and the intake has already marked the corresponding Sentry issues resolved — so
-> the lost todos never resurface. The explicit "do not reset" instruction above prevents it. After
-> this phase returns, sanity-check: `git log --oneline origin/main..develop` must still contain the
-> intake commits. If they vanished, recover with `git reflog` → `git cherry-pick -x <intake-sha>`
-> before continuing.
+> **Never reset `develop`.** No phase resets or force-pushes it — the playbooks were changed to drop
+> that entirely. `develop` is the human's long-lived rolling branch: they edit on it and squash-merge
+> to `main` when ready, so it is expected to sit ahead of `main`, and that drift is normal, not
+> something to clear. Every phase (intake, prep, workers, reviewer) only ever adds commits on top of
+> the current HEAD. Inject "do not reset or rebase `develop`" into every subagent that touches it, and
+> sanity-check after this phase that `git log --oneline <last in-flight-clear>..develop` still holds
+> the intake commits.
 
 ## Phase 3 — Execute (workers, or janitor if the list is empty)
 
