@@ -359,7 +359,13 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         billingRepository = redeem,
         chipsRepository = chips,
         authRepository = auth,
-        realPurchasesEnabled = RealPurchasesEnabled(FakeAppConfigMap(realPurchases)),
+        realPurchasesEnabled = object : RealPurchasesEnabled(FakeAppConfigMap(realPurchases)) {
+            // These tests run on the debug variant, where the class's
+            // debugOverride (false) would otherwise force the fake path and
+            // outrank the injected map. Neutralize it so the map value drives
+            // and both branches stay testable; real debug builds still default off.
+            override val debugOverride: Boolean? = null
+        },
         storeKitCoordinator = coordinator,
         productsRepository = FakeProductsRepository(catalog),
     )
