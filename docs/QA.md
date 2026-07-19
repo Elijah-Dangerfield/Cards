@@ -723,3 +723,12 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Shake the device to open the Network inspector; find the WebSocket / sockets tab.
 
 **Expected:** The gameplay socket connection appears in the inspector (URL `…/v1/rooms/<code>/socket`) alongside the HTTP calls, listing its inbound frames (game_state snapshots, game_event, intent_ack, emoji) and outbound frames (your submitted intents, next-hand requests), plus the connect and the close/error when you leave. A release build never shows the inspector. (Covers todo ENG-8.)
+
+### `ENG-31` 🚨 📱 Android edge-swipe back navigates (not hijacked by the feedback shortcut)
+
+**State:** an Android device set to gesture navigation, on a **debug or TestFlight** build (where the tester right-edge shortcut used to be active), on any pushed screen — e.g. open Settings, or the player-profile sheet.
+
+1. Swipe inward from the **right** screen edge (Android's system back gesture).
+2. Repeat from the **left** edge.
+
+**Expected:** Each edge swipe navigates back / pops the screen, the same as the system back button — it does **not** open the feedback form. (Before ENG-31, a right-edge swipe on a debug/TestFlight build opened feedback instead of going back, so back felt broken.) Feedback is still reachable via shake-to-debug or the Settings entry. On the play screen, back still shows the leave-table confirm by design. (Covers todo ENG-31.)

@@ -29,9 +29,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P1]` **A StoreKit purchase made before a fresh-install identity rollover is not recovered.** On a fresh install the anon userId and install_id both rotate, so a replayed receipt's `appAccountToken` (a prior identity) matches neither the caller nor `findInstallLineage` (which keys on install_id) → `apple_account_mismatch` → the paid entitlement is discarded, not credited.
   **Acceptance:** a genuine paid purchase whose `appAccountToken` is a prior, unlinkable anon identity is reconciled to the account that now owns the device and the chips are granted — without reopening the "one user redeems another's receipt" hole. Needs a device-stable purchaser link that survives reinstall (AUTH-19 identity-churn work).
   **Hints:** server `AppStoreReceiptValidator` binding + `PostgresProfileRepository.findInstallLineage`; client `DefaultPurchaseChipPackUseCase.redeemOutstanding`; ties to AUTH-19. Case `docs/agent/feedback-cases/e452cfd17fe94266bd2bd5fcc730a34e.md`; Sentry CARDS-AA.
-
-## Engineering (ENG)
-
-- `[P1]` **ENG-31 — Android edge-swipe back does nothing (can't swipe in from the right edge).** Owner-reported: the Android back gesture from the screen edge doesn't navigate back, leaving users stuck without a gesture back.
-  **Acceptance:** an edge swipe navigates back consistently across the app on Android gesture-nav devices; predictive-back behaves if enabled. Confirm on a gesture-nav device.
-  **Hints:** app-level Android back / edge-to-edge + predictive-back config in the compose app entry, and per-screen `BackHandler` usage that may be swallowing the gesture. Owner-reported.

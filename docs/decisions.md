@@ -4,6 +4,16 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-18 — The tester right-edge feedback shortcut is disabled on Android (ENG-31)
+
+**Problem:** Owner reported that on Android you can't swipe in from the right edge to go back. The `rightEdgeSwipe` modifier (App root) is a tester shortcut that opens the feedback form on a leftward swipe starting within 24dp of the **right edge**, enabled on debug + TestFlight builds. Its own comment claimed the right edge is "a low-collision zone — neither iOS nor default Android claims a system gesture there." That's wrong for Android: gesture navigation claims **both** edges for system back. So on a debug/TestFlight Android build (which is what the owner runs), a right-edge back swipe hit the feedback shortcut instead of navigating back.
+
+**Decision:** Gate `rightEdgeSwipe` off on Android (`&& BuildInfo.platform != Platform.Android`). It stays on iOS debug/TestFlight, where the right edge genuinely is free (iOS back is the left edge). Android testers reach feedback via shake-to-debug + the Settings entry, so nothing is lost there. The NavHost/system-back wiring is otherwise untouched — predictive back is on by default at targetSdk 36 and no root `BackHandler` swallows it, so ordinary screens already pop on back once the shortcut isn't intercepting the edge.
+
+**Alternatives rejected:** moving the tester shortcut to a different Android gesture (adds tester-behavior surface for a debug-only affordance that shake-to-debug already covers); declaring `android:enableOnBackInvokedCallback` (deprecated/ignored at targetSdk 36 — predictive back is already default-on, so it wouldn't change anything).
+
+**Status:** Fix shipped; Android `assembleDebug` + iOS compile green. **Needs a device-QA pass** — a gesture is not unit-testable here, and confirming the right-edge back swipe now navigates on a gesture-nav Android device is the last step (QA.md `ENG-31`). This removes the confirmed collision; if back still misbehaves on a specific screen it'll be a per-screen `BackHandler` (e.g. the play screen's intentional leave-confirm), not this.
+
 ## 2026-07-18 — Report reason categories store comma-joined; the picker is an inline sheet (MOD-2)
 
 **Problem:** Reporting was single-tap with no reason — a moderator reading `player_reports` couldn't tell harassment from cheating from an offensive name. MOD-2 adds a reason picker + optional details.
