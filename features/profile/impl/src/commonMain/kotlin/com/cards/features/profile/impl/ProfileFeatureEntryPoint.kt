@@ -46,6 +46,7 @@ import com.dangerfield.cards.features.profile.impl.settings.SettingsScreen
 import com.dangerfield.cards.features.progression.AchievementsRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.TutorialRoute
+import com.dangerfield.cards.features.shop.PurchaseHistoryRoute
 import com.dangerfield.cards.features.shop.ShopCategory
 import com.dangerfield.cards.features.shop.ShopDeepLinkBus
 import com.dangerfield.cards.features.shop.ShopGraph
@@ -322,6 +323,7 @@ class ProfileFeatureEntryPoint(
                 onSendFeedback = { router.navigate(FeedbackRoute()) },
                 onReportBug = { router.navigate(BugReportRoute()) },
                 onHelp = { router.openWebLink(LegalUrls.SUPPORT) },
+                onPurchaseHistory = { router.navigate(PurchaseHistoryRoute()) },
                 onPrivacyPolicy = { router.openWebLink(LegalUrls.PRIVACY_POLICY) },
                 onTermsOfService = { router.openWebLink(LegalUrls.TERMS_OF_SERVICE) },
                 onResponsiblePlay = { router.openWebLink(LegalUrls.RESPONSIBLE_PLAY) },
@@ -444,7 +446,7 @@ class ProfileFeatureEntryPoint(
                         NavigationOptions(launchSingleTop = true, clearBackStack = true),
                     )
                     is ClaimAccountEvent.NavigateToVerifyEmail -> router.navigate(
-                        VerifyEmailRoute(event.email),
+                        VerifyEmailRoute(event.email, guestLink = event.guestLink),
                     )
                 }
             }

@@ -144,12 +144,22 @@ class AppStoreReceiptValidatorTest {
     }
 
     @Test
-    fun wrongUserAccountToken_rejected() = runTest {
+    fun wrongUserAccountToken_isRecoverableAccountMismatch() = runTest {
+        // A verified, paid, unrevoked receipt bound to a different account is the
+        // recoverable mismatch — it carries the order id, environment, and
+        // receipt owner a grant-on-replay needs, not a dead Invalid.
         val validator = validatorReturning(
             payload().productId("chips_medium").appAccountToken(otherUser).transactionId("txn-1"),
         )
         val result = validator.validate(receipt())
-        assertEquals(ReceiptValidation.Invalid("apple_account_mismatch"), result)
+        assertEquals(
+            ReceiptValidation.AccountMismatch(
+                orderId = "txn-1",
+                environment = PurchaseEnvironment.Sandbox,
+                receiptOwner = UserId(otherUser),
+            ),
+            result,
+        )
     }
 
     @Test
@@ -166,19 +176,29 @@ class AppStoreReceiptValidatorTest {
     }
 
     @Test
-    fun accountToken_outsideLineage_stillRejected() = runTest {
+    fun accountToken_outsideLineage_isRecoverableAccountMismatch() = runTest {
         // A token belonging to neither the caller nor any lineage identity is
-        // still a hard mismatch — the lineage widens the accepted set, it
-        // doesn't disable the binding.
+        // still a mismatch — the lineage widens the accepted set, it doesn't
+        // disable the binding — but a verified, paid receipt is recoverable, not
+        // dead.
         val validator = validatorReturning(
             payload().productId("chips_medium").appAccountToken(otherUser).transactionId("txn-1"),
         )
         val result = validator.validate(receipt(accountLineage = setOf(UserId(priorIdentity))))
-        assertEquals(ReceiptValidation.Invalid("apple_account_mismatch"), result)
+        assertEquals(
+            ReceiptValidation.AccountMismatch(
+                orderId = "txn-1",
+                environment = PurchaseEnvironment.Sandbox,
+                receiptOwner = UserId(otherUser),
+            ),
+            result,
+        )
     }
 
     @Test
-    fun missingAccountToken_rejected() = runTest {
+    fun missingAccountToken_isDeadMismatch_notRelaxable() = runTest {
+        // No token to compare, so no owner to relax toward: a hard mismatch, not
+        // a grant-on-replay candidate.
         val validator = validatorReturning(
             payload().productId("chips_medium").transactionId("txn-1"),
         )
@@ -196,7 +216,25 @@ class AppStoreReceiptValidatorTest {
                 .revocationDate(1_700_000_000_000L),
         )
         val result = validator.validate(receipt())
-        assertEquals(ReceiptValidation.Invalid("apple_revoked"), result)
+        // The transaction id rides the revoked Invalid so the refund is
+        // recordable against the purchase for support.
+        assertEquals(ReceiptValidation.Invalid("apple_revoked", orderId = "txn-1"), result)
+    }
+
+    @Test
+    fun revokedTakesPrecedenceOverAccountMismatch() = runTest {
+        // Revocation is checked before the account binding: a refunded receipt is
+        // dead regardless of which account it names, so it must never surface as
+        // a grant-on-replay candidate.
+        val validator = validatorReturning(
+            payload()
+                .productId("chips_medium")
+                .appAccountToken(otherUser)
+                .transactionId("txn-1")
+                .revocationDate(1_700_000_000_000L),
+        )
+        val result = validator.validate(receipt())
+        assertEquals(ReceiptValidation.Invalid("apple_revoked", orderId = "txn-1"), result)
     }
 
     @Test

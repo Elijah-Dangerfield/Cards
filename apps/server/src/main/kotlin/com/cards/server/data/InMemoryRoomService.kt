@@ -32,6 +32,7 @@ import kotlinx.coroutines.sync.withLock
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
+import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -245,21 +246,20 @@ class InMemoryRoomService(
 
         val now = clock.now()
         if (candidate != null) {
-            val state = rooms.getValue(candidate.code)
-            val newMember = RoomMember(
-                userId = userId,
-                displayName = name,
-                seatIndex = nextFreeSeat(candidate),
-                joinedAt = now,
-                isConnected = false,
-                disconnectedAt = now,
-                avatarEmoji = sanitizeMemberAvatar(avatarEmoji),
-                avatarBackgroundColor = avatarBackgroundColor,
+            return@withLock MatchmakingResult.Joined(
+                seatSearcher(candidate, userId, name, avatarEmoji, avatarBackgroundColor, now),
             )
-            val next = candidate.copy(members = (candidate.members + newMember).sortedBy { it.seatIndex })
-            state.update(next)
-            persist(next)
-            return@withLock MatchmakingResult.Joined(next)
+        }
+
+        // Relaxed rescue (MP-34): nothing fits this exact range, but another human
+        // may be waiting alone one canonical step away. Seat the two together
+        // rather than opening a second table neither will find. Bounded to a stake
+        // the searcher can still afford — they're never pulled above their ceiling.
+        val rescue = lonelyRescueCandidate(userId, minBuyIn, maxBuyIn, blockedUserIds)
+        if (rescue != null) {
+            return@withLock MatchmakingResult.Joined(
+                seatSearcher(rescue, userId, name, avatarEmoji, avatarBackgroundColor, now),
+            )
         }
 
         // No eligible room — open a fresh Public table seated with just this
@@ -326,6 +326,66 @@ class InMemoryRoomService(
             compareByDescending<Room> { room -> room.members.count { !it.isBot } }
                 .thenBy { it.createdAt },
         )
+
+    /**
+     * A lonely public table to rescue a searcher onto when nothing in their exact
+     * range exists (MP-34) — two humans each waiting alone one canonical step
+     * apart should pair up instead of each opening a table. Restricted to a
+     * single-human lobby table (no bots, not the searcher's own, not full, no
+     * blocked member) whose stake is within one tier of what they asked for and at
+     * or below their buy-in ceiling, so a searcher is never pulled above the stake
+     * they said they'd sit for. Prefers the closest stake, ties → oldest waiting.
+     * Must be called under [mutex].
+     */
+    private fun lonelyRescueCandidate(
+        userId: UserId,
+        minBuyIn: Long,
+        maxBuyIn: Long,
+        blockedUserIds: Set<UserId>,
+    ): Room? {
+        val target = BuyInTier.within(minBuyIn, maxBuyIn)
+        return rooms.values
+            .map { it.room }
+            .filter { room ->
+                room.isMatchmakingEligible &&
+                    room.status == RoomStatus.Lobby &&
+                    !room.isFull &&
+                    room.buyIn <= maxBuyIn &&
+                    room.members.size == 1 &&
+                    room.members.none { it.isBot } &&
+                    room.members.none { it.userId == userId } &&
+                    room.members.none { it.userId in blockedUserIds } &&
+                    BuyInTier.withinOneStep(room.buyIn, target)
+            }
+            .minWithOrNull(
+                compareBy<Room> { abs(it.buyIn - target) }.thenBy { it.createdAt },
+            )
+    }
+
+    /** Seat [userId] into [room], persist, and return the updated room. Under [mutex]. */
+    private suspend fun seatSearcher(
+        room: Room,
+        userId: UserId,
+        name: String,
+        avatarEmoji: String,
+        avatarBackgroundColor: String?,
+        now: Instant,
+    ): Room {
+        val member = RoomMember(
+            userId = userId,
+            displayName = name,
+            seatIndex = nextFreeSeat(room),
+            joinedAt = now,
+            isConnected = false,
+            disconnectedAt = now,
+            avatarEmoji = sanitizeMemberAvatar(avatarEmoji),
+            avatarBackgroundColor = avatarBackgroundColor,
+        )
+        val next = room.copy(members = (room.members + member).sortedBy { it.seatIndex })
+        rooms.getValue(room.code).update(next)
+        persist(next)
+        return next
+    }
 
     override suspend fun leave(code: String, userId: UserId): LeaveResult {
         var closedRoom: Room? = null

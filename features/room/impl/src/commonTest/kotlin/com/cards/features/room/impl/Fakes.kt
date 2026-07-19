@@ -661,13 +661,16 @@ class FakeReportRepository(
         com.dangerfield.cards.libraries.social.ReportPlayerResult.Reported,
 ) : com.dangerfield.cards.libraries.social.ReportRepository {
     val reported = mutableListOf<Triple<String, String?, String?>>()
+    val reportedCategories = mutableListOf<List<String>>()
 
     override suspend fun reportPlayer(
         userId: String,
         roomCode: String?,
         reason: String?,
+        categories: List<String>,
     ): com.dangerfield.cards.libraries.social.ReportPlayerResult {
         reported += Triple(userId, roomCode, reason)
+        reportedCategories += categories
         return nextResult
     }
 }

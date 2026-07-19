@@ -426,6 +426,7 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
         isPublicTable = isPublicTable,
         roomRepository = rooms,
         telemetry = NoopTelemetry,
+        clock = kotlin.time.Clock.System,
     )
 
     /** No-op [Telemetry] — the factory pushes MP scope tags during bootstrap. */

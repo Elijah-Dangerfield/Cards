@@ -103,6 +103,15 @@ sealed interface TableUiState {
          */
         val turnSequence: Long = 0,
         /**
+         * Absolute epoch-ms deadline for the seat currently on the clock, stamped
+         * once per turn by [com.dangerfield.cards.features.room.impl.session.TurnDeadlineTracker]
+         * (MP only). The countdown ring renders time-left against this, so leaving
+         * and returning to the play screen resumes the ring instead of restarting
+         * it (MP-33). Null when no one is on a timed clock (solo, between hands, a
+         * bot acting).
+         */
+        val turnDeadlineEpochMs: Long? = null,
+        /**
          * True when the local user is a member of this MP table but holds no
          * seat in the current snapshot — i.e. they joined an in-progress game
          * and are spectating until the next hand boundary seats them. Drives
@@ -160,6 +169,12 @@ sealed interface TableUiState {
              * false so no countdown is implied where nothing is enforced.
              */
             turnTimerEnforced: Boolean = false,
+            /**
+             * Stable epoch-ms deadline for the acting seat's turn (MP-33), from
+             * [com.dangerfield.cards.features.room.impl.session.TurnDeadlineTracker].
+             * Null for solo sessions and any snapshot with no seat on a timed clock.
+             */
+            turnDeadlineEpochMs: Long? = null,
             /**
              * The server-tunable level curve every derived level on this table
              * runs through, so remote opponents' pills match the level the
@@ -258,6 +273,7 @@ sealed interface TableUiState {
                 subsidizedBotTable = subsidizedBotTable,
                 turnTimerSeconds = gameState.settings.turnTimerSeconds.takeIf { turnTimerEnforced },
                 turnSequence = gameState.lastSequence,
+                turnDeadlineEpochMs = turnDeadlineEpochMs,
                 waitingToBeDealtIn = waitingToBeDealtIn,
             )
         }

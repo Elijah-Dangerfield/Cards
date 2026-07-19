@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.db.toJavaInstant
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.BillingRepository
+import com.dangerfield.cards.server.domain.GrantKind
 import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.RedeemResult
 import com.dangerfield.cards.server.domain.UserId
@@ -49,6 +50,7 @@ class PostgresBillingRepository(
         productId: String,
         grantedChips: Long,
         environment: PurchaseEnvironment,
+        kind: GrantKind,
     ): RedeemResult = database.transaction {
         val now = clock.now()
 
@@ -80,11 +82,12 @@ class PostgresBillingRepository(
             // `iap.` strictly means real money — orphan-sweep guards and the
             // economy dashboards key on the prefix. Sandbox mints (TestFlight,
             // Play license testers) get their own prefix so they can never
-            // read as revenue or paying-customer signal.
-            reason = when (environment) {
-                PurchaseEnvironment.Production -> "iap.$productId"
-                PurchaseEnvironment.Sandbox -> "iap_sandbox.$productId"
-            },
+            // read as revenue or paying-customer signal. A recovery grant adds a
+            // `.replay` / `.goodwill` suffix so it's queryable, but KEEPS the
+            // `iap.`/`iap_sandbox.` prefix — a recovered purchase is still real
+            // money the user paid, so it must count as spend and protect the
+            // account from the orphan sweep (which keys on `reason LIKE 'iap.%'`).
+            reason = walletReason(environment, productId, kind),
             now = now,
         )
         when (outcome) {
@@ -95,6 +98,18 @@ class PostgresBillingRepository(
             // failure shape the caller can't act on.
             is ApplyOutcome.InsufficientChips -> RedeemResult.Granted(balance = outcome.balance)
         }
+    }
+
+    private fun walletReason(
+        environment: PurchaseEnvironment,
+        productId: String,
+        kind: GrantKind,
+    ): String {
+        val prefix = when (environment) {
+            PurchaseEnvironment.Production -> "iap"
+            PurchaseEnvironment.Sandbox -> "iap_sandbox"
+        }
+        return "$prefix.$productId${kind.reasonSuffix}"
     }
 
     private fun transactionExists(store: String, orderId: String): Boolean =

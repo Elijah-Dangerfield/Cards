@@ -18,16 +18,11 @@ class MainActivity : ComponentActivity() {
 
         forwardOAuthCallbackDeepLink(intent)
 
-        // Enable edge-to-edge with light status bar (dark icons)
+        // Enable edge-to-edge. The app is dark on every screen, so use dark
+        // system bars, which render light (white) status/nav icons.
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(
-                android.graphics.Color.TRANSPARENT,
-                android.graphics.Color.TRANSPARENT
-            ),
-            navigationBarStyle = SystemBarStyle.light(
-                android.graphics.Color.TRANSPARENT,
-                android.graphics.Color.TRANSPARENT
-            )
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
 
         val appComponent = (application as CardsApplication).appComponent

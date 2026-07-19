@@ -4,6 +4,7 @@ import com.dangerfield.cards.server.db.BillingTransactionsTable
 import com.dangerfield.cards.server.db.DatabaseTest
 import com.dangerfield.cards.server.db.WalletEventsTable
 import com.dangerfield.cards.server.db.WalletsTable
+import com.dangerfield.cards.server.domain.GrantKind
 import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.RedeemResult
 import com.dangerfield.cards.server.domain.UserId
@@ -124,6 +125,56 @@ class PostgresBillingRepositoryTest : DatabaseTest() {
             false,
             PostgresWalletRepository(database, Clock.System).hasIapSpend(userId),
             "a sandbox mint is not real-money spend",
+        )
+    }
+
+    @Test
+    fun redeem_relaxedAccountBinding_usesDistinctReplayReason_butStillCountsAsRealMoneySpend() = runTest {
+        // Grant-on-replay marks the ledger reason with a `.replay` suffix so
+        // relaxed grants are queryable, but KEEPS the `iap.` prefix: it is still
+        // real money the user paid, so it must count as spend and protect the
+        // account from the orphan sweep (which keys on `reason LIKE 'iap.%'`).
+        val repo = newRepo()
+        val userId = newUser()
+
+        repo.redeem(
+            userId = userId,
+            store = "apple",
+            orderId = "txn-replay",
+            productId = "chip_pack_medium",
+            grantedChips = 30_000,
+            environment = PurchaseEnvironment.Production,
+            kind = GrantKind.GrantOnReplay,
+        )
+
+        assertEquals(listOf("iap.chip_pack_medium.replay"), iapReasonsFor(userId))
+        assertEquals(
+            true,
+            PostgresWalletRepository(database, Clock.System).hasIapSpend(userId),
+            "a relaxed grant is still real-money spend — it must protect the account from the orphan sweep",
+        )
+    }
+
+    @Test
+    fun redeem_goodwill_usesGoodwillReason_butStillCountsAsRealMoneySpend() = runTest {
+        val repo = newRepo()
+        val userId = newUser()
+
+        repo.redeem(
+            userId = userId,
+            store = "apple",
+            orderId = "txn-goodwill",
+            productId = "chip_pack_medium",
+            grantedChips = 30_000,
+            environment = PurchaseEnvironment.Production,
+            kind = GrantKind.Goodwill,
+        )
+
+        assertEquals(listOf("iap.chip_pack_medium.goodwill"), iapReasonsFor(userId))
+        assertEquals(
+            true,
+            PostgresWalletRepository(database, Clock.System).hasIapSpend(userId),
+            "goodwill chips make the wedged purchase right — still real-money spend for orphan protection",
         )
     }
 

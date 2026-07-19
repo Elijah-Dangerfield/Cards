@@ -385,6 +385,7 @@ class ClaimAccountViewModelTest : CoroutineTest() {
             val event = awaitItem()
             assertIs<ClaimAccountEvent.NavigateToVerifyEmail>(event)
             assertEquals("you@example.com", event.email)
+            assertEquals(true, event.guestLink, "genuine guest email link flags guestLink")
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(1, identity.linkEmailCalls)
@@ -467,7 +468,12 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         vm.takeAction(ClaimAccountAction.Submit)
 
         vm.eventFlow.test {
-            assertIs<ClaimAccountEvent.NavigateToVerifyEmail>(awaitItem())
+            val event = awaitItem()
+            assertIs<ClaimAccountEvent.NavigateToVerifyEmail>(event)
+            assertEquals(
+                false, event.guestLink,
+                "sign-up fallback is a fresh account, not a guest link",
+            )
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(1, identity.linkEmailCalls)

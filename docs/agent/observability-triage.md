@@ -14,8 +14,14 @@ disposable.
 ## Start of run
 
 1. `git fetch origin`.
-2. `gh pr list --head develop --state open --json number,url`. **If a PR exists, exit immediately
-   with no commits** — a cycle is already in review; don't stack onto it.
+2. `gh pr list --head develop --state open --json number,url`. **If a PR exists, don't exit — stack
+   onto it.** An earlier cycle opened it and later pipelines stack onto the same PR; your fresh
+   signals belong there too, so a still-open PR must not swallow tonight's telemetry. Do NOT reset
+   `develop` and do NOT reconcile-remove against `main` (this cycle's shipped items aren't on `main`
+   yet — reconciliation is the todo-maintainer's job). Just
+   `git checkout develop && git pull --rebase origin develop`, run the skill, and commit on top. The
+   skill's ledger (`docs/agent/observability-log.md`) already blocks re-filing anything handled, so a
+   signal filed during an open PR won't double up.
 3. If `docs/agent/in-flight.md` exists on `origin/develop`, a worker is mid-cycle — exit; you should
    run before workers, not during.
 4. Otherwise make sure `develop` is current with `origin/develop`.

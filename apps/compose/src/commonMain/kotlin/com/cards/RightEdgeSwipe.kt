@@ -12,11 +12,13 @@ import kotlin.math.abs
 
 /**
  * Tester shortcut to the feedback form: a swipe in from the **right edge**
- * fires [onTriggered]. The right edge is a low-collision zone — neither iOS nor
- * default Android claims a system gesture there — so it's a quick path for
- * testers without interfering with normal use. The caller gates it to tester
- * audiences (debug + TestFlight builds); App Store users keep the Settings
- * entry only.
+ * fires [onTriggered]. The right edge is a low-collision zone on **iOS** (whose
+ * back gesture is the left edge), so it's a quick path for testers there without
+ * interfering with normal use. It is NOT free on Android: gesture navigation
+ * claims both edges for system back, so the caller must not enable this on
+ * Android — it would swallow the back swipe (ENG-31). The caller gates it to
+ * tester audiences (debug + TestFlight) on non-Android platforms; App Store
+ * users keep the Settings entry only, and Android testers use shake-to-debug.
  *
  * No-op when [enabled] is false. It also never consumes pointer events: it
  * only *observes*, arming only when the touch starts within [EDGE_ZONE_DP] of

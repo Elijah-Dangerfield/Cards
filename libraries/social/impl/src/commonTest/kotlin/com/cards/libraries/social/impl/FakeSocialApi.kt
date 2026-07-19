@@ -23,6 +23,8 @@ internal class FakeSocialApi(
         private set
     var lastReport: Triple<String, String?, String?>? = null
         private set
+    var lastReportCategories: List<String> = emptyList()
+        private set
     var lastAcceptedUserId: String? = null
         private set
     var lastDeclinedUserId: String? = null
@@ -62,8 +64,14 @@ internal class FakeSocialApi(
         return declineResult.getOrThrow()
     }
 
-    override suspend fun reportPlayer(userId: String, roomCode: String?, reason: String?): PlayerReportResultDto {
+    override suspend fun reportPlayer(
+        userId: String,
+        roomCode: String?,
+        reason: String?,
+        categories: List<String>,
+    ): PlayerReportResultDto {
         lastReport = Triple(userId, roomCode, reason)
+        lastReportCategories = categories
         return reportResult.getOrThrow()
     }
 }

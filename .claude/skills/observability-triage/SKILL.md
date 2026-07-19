@@ -112,14 +112,15 @@ For **every** signal handled, append to `docs/agent/observability-log.md`:
 - <date> · <short-id | signal-slug> · <"todo: <title>" | "no-action: <reason>" | "backlog"> · <Sentry URL | dashboard/alert link> · case docs/agent/feedback-cases/<id>.md
 ```
 
-Then **resolve the Sentry issue** so it leaves the unresolved queue (Grafana is read-only — see guardrails). Resolve the token from env, falling back to the macOS Keychain so unattended runs work without a plaintext token on disk:
+Then close the loop in Sentry (Grafana is read-only — see guardrails). **Do not resolve an issue you filed a todo for** — it isn't fixed yet; leave it unresolved and only comment that it's triaged, and the worker that ships the fix resolves it then (`worker-prompt.md`). Only **no-action** dispositions resolve here. Record the Sentry issue id in the todo's Hints so the worker can find it. Resolve the token from env, falling back to the macOS Keychain so unattended runs work without a plaintext token on disk:
 
 ```
 TOKEN="${SENTRY_AUTH_TOKEN:-$(security find-generic-password -s cards-sentry-auth-token -w 2>/dev/null)}"
 ```
 
-- **`$TOKEN` non-empty** → resolve via REST (never echo the token):
-  `curl -sS -X PUT "https://us.sentry.io/api/0/organizations/elijah-dangerfield/issues/<issueId>/" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"status":"resolved"}'`
+- **`$TOKEN` non-empty** (never echo the token):
+  - **Todo filed → comment only, leave unresolved:** `curl -sS -X POST ".../issues/<issueId>/comments/" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"text":"Triaged → <TODO-ID>, fix pending"}'`
+  - **No-action → resolve:** `curl -sS -X PUT "https://us.sentry.io/api/0/organizations/elijah-dangerfield/issues/<issueId>/" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"status":"resolved"}'`
 - **`$TOKEN` empty** → the ledger is the source of truth; note in the summary that Sentry status wasn't flipped (store the token in keychain item `cards-sentry-auth-token` to enable it).
 
 ### 7. Run summary

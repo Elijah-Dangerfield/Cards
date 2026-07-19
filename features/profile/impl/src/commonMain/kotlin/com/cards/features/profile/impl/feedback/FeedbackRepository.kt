@@ -2,8 +2,6 @@ package com.dangerfield.cards.features.profile.impl.feedback
 
 import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.core.Catching
-import com.dangerfield.cards.libraries.core.logging.KLog
-import com.dangerfield.cards.libraries.core.logging.logEvent
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -41,12 +39,6 @@ class FeedbackRepositoryImpl @Inject constructor(
                 errorCode = errorCode,
                 email = email,
                 screenshots = screenshots,
-            )
-        }.onSuccess {
-            KLog.logEvent(
-                "feedback.submitted",
-                "is_bug" to isBugReport,
-                "has_screenshots" to screenshots.isNotEmpty(),
             )
         }
     }

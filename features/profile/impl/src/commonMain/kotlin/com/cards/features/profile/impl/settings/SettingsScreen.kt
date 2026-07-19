@@ -58,6 +58,8 @@ import cards.libraries.resources.generated.resources.profile_support_bug_support
 import cards.libraries.resources.generated.resources.profile_support_feedback_headline
 import cards.libraries.resources.generated.resources.profile_support_feedback_supporting
 import cards.libraries.resources.generated.resources.profile_support_help_headline
+import cards.libraries.resources.generated.resources.purchases_settings_headline
+import cards.libraries.resources.generated.resources.purchases_settings_supporting
 import cards.libraries.resources.generated.resources.profile_support_help_supporting
 import cards.libraries.resources.generated.resources.profile_turn_feedback_mute
 import cards.libraries.resources.generated.resources.profile_turn_feedback_sound
@@ -117,6 +119,7 @@ fun SettingsScreen(
     onSendFeedback: () -> Unit,
     onReportBug: () -> Unit,
     onHelp: () -> Unit,
+    onPurchaseHistory: () -> Unit,
     onPrivacyPolicy: () -> Unit,
     onTermsOfService: () -> Unit,
     onResponsiblePlay: () -> Unit,
@@ -207,6 +210,12 @@ fun SettingsScreen(
                         supportingText = stringResource(Res.string.profile_support_help_supporting),
                         leadingContent = { EmojiLeading("❓") },
                         onClick = onHelp,
+                    ),
+                    ListSectionItem(
+                        headlineText = stringResource(Res.string.purchases_settings_headline),
+                        supportingText = stringResource(Res.string.purchases_settings_supporting),
+                        leadingContent = { EmojiLeading("🧾") },
+                        onClick = onPurchaseHistory,
                     ),
                     ListSectionItem(
                         headlineText = stringResource(Res.string.profile_about_privacy),
@@ -512,6 +521,7 @@ private fun SettingsScreenPreview_Guest() {
             onSendFeedback = {},
             onReportBug = {},
             onHelp = {},
+            onPurchaseHistory = {},
             onPrivacyPolicy = {},
             onTermsOfService = {},
             onResponsiblePlay = {},

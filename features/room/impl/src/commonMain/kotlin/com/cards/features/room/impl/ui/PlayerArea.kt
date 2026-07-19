@@ -375,6 +375,7 @@ internal fun PlayerArea(
                 // enforcement) suppresses it. Re-arms on the turn token.
                 countdownSeconds = table.turnTimerSeconds?.takeIf { human.isActing },
                 turnKey = table.handNumber to table.turnSequence,
+                deadlineEpochMs = table.turnDeadlineEpochMs,
                 winOdds = humanWinOdds,
                 winOddsFlipHintSeen = winOddsFlipHintSeen,
                 onFirstFlip = onWinOddsFlipped,
@@ -536,6 +537,7 @@ private fun PlayerInfoTile(
     stackOverride: Long?,
     countdownSeconds: Int?,
     turnKey: Any,
+    deadlineEpochMs: Long? = null,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onStackClick: () -> Unit,
@@ -630,6 +632,7 @@ private fun PlayerInfoTile(
                 TurnCountdownRing(
                     turnKey = turnKey,
                     durationSeconds = countdownSeconds,
+                    deadlineEpochMs = deadlineEpochMs,
                     modifier = Modifier.size(56.dp),
                 )
             }
@@ -755,6 +758,7 @@ private fun FlippablePlayerInfoTile(
     stackOverride: Long?,
     countdownSeconds: Int?,
     turnKey: Any,
+    deadlineEpochMs: Long? = null,
     winOdds: EquityBreakdown?,
     winOddsFlipHintSeen: Boolean,
     onFirstFlip: () -> Unit,
@@ -835,6 +839,7 @@ private fun FlippablePlayerInfoTile(
                 stackOverride = stackOverride,
                 countdownSeconds = countdownSeconds,
                 turnKey = turnKey,
+                deadlineEpochMs = deadlineEpochMs,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
                 onStackClick = onStackClick,

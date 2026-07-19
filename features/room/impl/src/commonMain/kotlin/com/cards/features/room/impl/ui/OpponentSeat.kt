@@ -94,6 +94,7 @@ internal fun OpponentSeat(
     avatarSize: Dp,
     turnTimerSeconds: Int?,
     turnKey: Any,
+    deadlineEpochMs: Long? = null,
     onBlindClick: () -> Unit = {},
     onAvatarTap: () -> Unit = {},
 ) {
@@ -161,6 +162,7 @@ internal fun OpponentSeat(
                 countdownSeconds != null -> TurnCountdownRing(
                     turnKey = turnKey,
                     durationSeconds = countdownSeconds,
+                    deadlineEpochMs = deadlineEpochMs,
                     modifier = Modifier.size(ringSize),
                 )
                 !outOfHand && seat.isActing -> GoldSeatRing(modifier = Modifier.size(ringSize))

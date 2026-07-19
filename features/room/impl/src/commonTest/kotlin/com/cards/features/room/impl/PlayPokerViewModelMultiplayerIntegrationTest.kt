@@ -518,6 +518,7 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
             isPublicTable = false,
             roomRepository = ConnectingRoomRepository(handle),
             telemetry = NoopTelemetry,
+            clock = kotlin.time.Clock.System,
         )
         val progression = FakeProgressionRepository()
         val playerStats = FakePlayerStatsRepository()

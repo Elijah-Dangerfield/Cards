@@ -163,6 +163,31 @@ object BillingTransactionsTable : Table("billing_transactions") {
 }
 
 /**
+ * The redeem-attempt disposition log — one evolving row per store transaction,
+ * upserted on every attempt. The source of truth for support and the Grafana
+ * billing-health panel; distinct from [BillingTransactionsTable] (the atomic
+ * grant record). See `V88__billing_events.sql`.
+ */
+object BillingEventsTable : Table("billing_events") {
+    val id = long("id").autoIncrement()
+    val store = text("store")
+    val transactionId = text("transaction_id")
+    val callerUserId = uuid("caller_user_id")
+    val receiptOwner = uuid("receipt_owner").nullable()
+    val productId = text("product_id")
+    val reason = text("reason").nullable()
+    val finalAction = text("final_action")
+    val attemptCount = integer("attempt_count")
+    val firstSeenAt = timestamp("first_seen_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        uniqueIndex("billing_events_store_txn_uq", store, transactionId)
+    }
+}
+
+/**
  * Server-authoritative XP total, one row per user. Lazy-created on first
  * progression contact. `total_xp` is summed from [XpEventsTable]; `level`
  * is derived client-side from the curve, never stored. See
@@ -463,6 +488,7 @@ object PlayerReportsTable : Table("player_reports") {
     val reportedUserId = uuid("reported_user_id")
     val roomCode = text("room_code").nullable()
     val reason = text("reason").nullable()
+    val reasonCategories = text("reason_categories").nullable()
     val createdAt = timestamp("created_at")
     override val primaryKey = PrimaryKey(id)
 }

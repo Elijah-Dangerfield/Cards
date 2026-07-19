@@ -111,38 +111,48 @@ class DefaultPurchaseChipPackUseCase(
         if (realPurchasesEnabled()) {
             return when (val redeem = billingRepository.redeem(pack.id, transaction)) {
                 is RedeemOutcome.Granted -> {
-                    chipsRepository.setBalance(redeem.balance)
-                    billingClient.consume(transaction.purchaseToken)
+                    reflectBalance(redeem.balance, transaction.orderId)
+                    finishTerminal(transaction)
                     logger.i {
                         "Redeemed ${redeem.grantedChips} chips for order ${transaction.orderId} " +
                             "(alreadyRedeemed=${redeem.alreadyRedeemed})"
                     }
                     outcome(redeem.grantedChips, alreadyOwned = alreadyOwned || redeem.alreadyRedeemed)
                 }
-                RedeemOutcome.RejectedTerminal -> {
+                RedeemOutcome.Dead -> {
                     // Error on purpose: the user PAID and got nothing — the
-                    // server terminally refused the receipt (forged, account /
-                    // product mismatch, revoked). Finish the transaction so it
-                    // stops shadowing the user's next purchase attempt (a stuck
+                    // server terminally refused the receipt (forged, wrong
+                    // product, revoked). Finish the transaction so it stops
+                    // shadowing the user's next purchase attempt (a stuck
                     // unfinished consumable is what StoreKit hands back on the
                     // next buy of the same SKU — BILL-13); retrying it can never
-                    // succeed for this identity.
+                    // succeed.
                     logger.e { "Server terminally rejected receipt for order ${transaction.orderId} — finishing it" }
-                    billingClient.consume(transaction.purchaseToken)
+                    finishTerminal(transaction)
                     IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_RECEIPT_REJECTED)
                 }
-                RedeemOutcome.Rejected -> {
-                    // A non-terminal 4xx (unknown product / catalog drift): the
-                    // user paid and got nothing, but the transaction is left
-                    // unfinished so a later attempt can still redeem it.
-                    logger.e { "Server rejected receipt for order ${transaction.orderId} — no credit, left for retry" }
+                RedeemOutcome.Mismatch -> {
+                    // The interactive buyer is a signed-in account, so a genuine
+                    // receipt carries their id. A mismatch here means the receipt
+                    // is bound to someone else — finish it rather than replay.
+                    // Grant-on-replay is reserved for the StoreKit-drain path.
+                    logger.e { "Receipt for order ${transaction.orderId} bound to another account — finishing it" }
+                    finishTerminal(transaction)
                     IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_RECEIPT_REJECTED)
                 }
-                RedeemOutcome.Unavailable -> {
+                RedeemOutcome.ClaimSignIn -> {
+                    // Not expected on the interactive path (anonymous buyers are
+                    // stopped before this), but if it ever surfaces, leave the
+                    // transaction unfinished so a post-sign-in drain resolves it.
+                    logger.e { "Redeem asked for sign-in-to-claim on the interactive path for order ${transaction.orderId}" }
+                    IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_REDEEM_UNAVAILABLE)
+                }
+                RedeemOutcome.Transient -> {
                     // Error on purpose: paid but uncredited until the
                     // launch-time redeemer drains the unfinished transaction —
-                    // worth seeing every time it happens.
-                    logger.e { "Redeem unreachable for order ${transaction.orderId} — left uncredited" }
+                    // worth seeing every time it happens. Left unfinished so a
+                    // later retry can still redeem it.
+                    logger.e { "Redeem unresolved for order ${transaction.orderId} — left uncredited for retry" }
                     IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_REDEEM_UNAVAILABLE)
                 }
             }
@@ -159,6 +169,31 @@ class DefaultPurchaseChipPackUseCase(
         } else {
             IapPurchaseOutcome.Success(grantedChips = grantedChips)
         }
+
+    /**
+     * Finish (consume / StoreKit `Transaction.finish()`) a transaction that
+     * reached a terminal outcome — granted, dead, or wedged. This is the step
+     * that unblocks the user: an unfinished consumable replays every launch and
+     * shadows the next purchase of the same SKU (BILL-13), so it must run on
+     * every terminal branch and can never be skipped by an earlier failure. Only
+     * transient outcomes are left unfinished, to retry.
+     */
+    private suspend fun finishTerminal(transaction: PurchaseTransaction) {
+        billingClient.consume(transaction.purchaseToken)
+    }
+
+    /**
+     * Reflect the server's authoritative post-grant balance locally. The grant
+     * itself is durable and idempotent server-side, so a failure here is only a
+     * stale local display that the next [ChipsRepository] sync reconciles — it
+     * must never block [finishTerminal], or a granted transaction would replay
+     * forever.
+     */
+    private suspend fun reflectBalance(balance: Long, orderId: String) {
+        Catching { chipsRepository.setBalance(balance) }.getOrElse { error ->
+            logger.w(error) { "Failed to reflect balance for order $orderId; sync will reconcile" }
+        }
+    }
 
     override suspend fun redeemOutstanding() {
         if (!realPurchasesEnabled()) return
@@ -189,34 +224,51 @@ class DefaultPurchaseChipPackUseCase(
                 return@forEach
             }
             logger.i { "Retrying uncredited purchase ${transaction.orderId} (${pack.id})" }
-            when (val redeem = billingRepository.redeem(pack.id, transaction)) {
+            // replayed = true: this is a store-replayed, unfinished transaction,
+            // so the server may relax the account binding (grant-on-replay) to
+            // recover a paid-but-wrong-account receipt to the current caller.
+            when (val redeem = billingRepository.redeem(pack.id, transaction, replayed = true)) {
                 is RedeemOutcome.Granted -> {
-                    chipsRepository.setBalance(redeem.balance)
-                    billingClient.consume(transaction.purchaseToken)
+                    reflectBalance(redeem.balance, transaction.orderId)
+                    finishTerminal(transaction)
                     logger.i {
                         "Recovered uncredited purchase ${transaction.orderId}: " +
                             "${redeem.grantedChips} chips (alreadyRedeemed=${redeem.alreadyRedeemed})"
                     }
                     logger.logEvent("purchase.recovered", "product_id" to pack.id)
                 }
-                RedeemOutcome.RejectedTerminal -> {
-                    // The replayed receipt will never validate for this identity
-                    // (its appAccountToken belongs to a prior install/identity we
-                    // can't link on a fresh anon userId). Finishing it stops the
+                RedeemOutcome.Dead -> {
+                    // The replayed receipt will never validate — forged, wrong
+                    // product, or revoked/refunded. Finishing it stops the
                     // every-launch replay loop AND unblocks new purchases of the
                     // same SKU, instead of leaving the shop permanently broken
-                    // (BILL-13). The prior-identity entitlement is not recovered
-                    // here — that needs cross-install ownership reconciliation.
+                    // (BILL-13).
                     logger.e { "Terminally rejected replayed receipt for order ${transaction.orderId} — finishing it" }
-                    billingClient.consume(transaction.purchaseToken)
+                    finishTerminal(transaction)
                     logger.logEvent("purchase.discarded", "product_id" to pack.id)
                 }
-                RedeemOutcome.Rejected ->
-                    // Non-terminal 4xx: left unfinished so a later launch can
-                    // retry once whatever drifted (catalog, product id) resolves.
-                    logger.e { "Server rejected replayed receipt for order ${transaction.orderId} — retrying next launch" }
-                RedeemOutcome.Unavailable ->
-                    logger.w { "Redeem still unreachable for order ${transaction.orderId} — retrying next launch" }
+                RedeemOutcome.Mismatch -> {
+                    // The replayed receipt is genuine and paid but bound to a
+                    // prior identity we can't link on this caller. Finishing it
+                    // stops the replay loop and unblocks new purchases (BILL-13);
+                    // recovering the entitlement to the current account is
+                    // grant-on-replay / sign-in-to-claim, layered on next.
+                    logger.e { "Replayed receipt for order ${transaction.orderId} bound to another account — finishing it" }
+                    finishTerminal(transaction)
+                    logger.logEvent("purchase.discarded", "product_id" to pack.id)
+                }
+                RedeemOutcome.ClaimSignIn -> {
+                    // The receipt is genuine and paid but the current session is
+                    // anonymous. Leave the transaction unfinished (do NOT finish
+                    // it) so the next drain after the user signs in resolves it
+                    // cleanly against their own account, and surface the nudge.
+                    logger.i { "Purchase ${transaction.orderId} needs sign-in to claim — left for a post-sign-in drain" }
+                    logger.logEvent("purchase.claim_sign_in", "product_id" to pack.id)
+                }
+                RedeemOutcome.Transient ->
+                    // Unresolved (unreachable server, 5xx, catalog drift): left
+                    // unfinished so a later launch can retry it.
+                    logger.w { "Redeem unresolved for replayed order ${transaction.orderId} — retrying next launch" }
             }
         }
     }

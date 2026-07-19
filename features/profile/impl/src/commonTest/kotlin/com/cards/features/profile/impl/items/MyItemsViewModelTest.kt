@@ -152,6 +152,46 @@ class MyItemsViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun ownedItems_delistedSlotCosmetic_staysEquippable() = runUnitTest {
+        // The catalog dropped this table theme (server pulled it in V64/V70)
+        // but the user still owns it. Ownership is permanent, so the row must
+        // keep its Equip button — otherwise a user who unequips it can never
+        // put it back on, breaking the Terms' "existing owners keep what
+        // they've purchased" promise.
+        val inventory = FakeInventoryRepository(
+            initial = listOf(
+                inventoryItem("table_sunset", AcquisitionSource.Purchased),
+            ),
+        )
+        // Empty catalog — the product row is gone.
+        val vm = buildVm(inventoryRepository = inventory)
+
+        val owned = vm.state.ownedItems.associateBy { it.productId }
+        assertTrue(
+            owned.getValue("table_sunset").isEquippable,
+            "a delisted-but-owned slot cosmetic must remain equippable",
+        )
+    }
+
+    @Test
+    fun ownedItems_delistedPack_staysNonEquippable() = runUnitTest {
+        // A pack (avatar / emote) has no slot and nothing to equip. If its
+        // catalog row is gone it must NOT sprout a dead Equip button.
+        val inventory = FakeInventoryRepository(
+            initial = listOf(
+                inventoryItem("avatars_animals", AcquisitionSource.Purchased),
+            ),
+        )
+        val vm = buildVm(inventoryRepository = inventory)
+
+        val owned = vm.state.ownedItems.associateBy { it.productId }
+        assertTrue(
+            !owned.getValue("avatars_animals").isEquippable,
+            "a delisted pack has no slot and stays non-equippable",
+        )
+    }
+
+    @Test
     fun toggleEquipped_nonSlotProduct_doesNotTouchOtherEquipment() = runUnitTest {
         // Tools / avatar packs / emote packs don't claim a slot — the
         // user can have several on at once.

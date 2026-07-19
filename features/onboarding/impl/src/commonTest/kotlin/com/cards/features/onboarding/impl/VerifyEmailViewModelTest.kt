@@ -26,8 +26,10 @@ import kotlin.test.assertIs
  *  - IClickedTheLink → EmailConfirmed (returning) marks onboarded + NavigateToHome
  *  - IClickedTheLink → EmailConfirmed (brand-new) → NavigateToOnboarding, not onboarded
  *  - IClickedTheLink → StillPending stays put, sets StillPending banner
- *  - IClickedTheLink → SessionExpired emits NavigateBackToSignIn (no banner)
+ *  - IClickedTheLink → SessionExpired (brand-new signup) stays put on StillPending;
+ *    (guest link) emits NavigateBackToSignIn
  *  - IClickedTheLink → NetworkError surfaces NetworkError banner
+ *  - AppResumed → SessionExpired (brand-new signup) is silent; (guest link) bounces
  *  - AppResumed → EmailConfirmed (brand-new) → NavigateToOnboarding
  *  - Resend → Sent surfaces ResendSent banner + clears isResending
  *  - Resend → RateLimited surfaces ResendRateLimited banner
@@ -80,6 +82,41 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun iClickedTheLink_emailConfirmed_guestLink_marksOnboarded_showsAccountSaved() = runUnitTest {
+        // An anonymous guest who linked an email keeps their existing account +
+        // progress, so confirmation shows the "account saved" dialog — never
+        // onboarding, never the silent Home bounce. isNewAccount=true here proves
+        // the guest-link flag short-circuits the new-vs-returning check.
+        val cache = FakeAppCache()
+        val identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.EmailConfirmed)
+        val profile = FakeProfileRepository().apply { isNewAccount = true }
+        val vm = buildVm(identity = identity, appCache = cache, profile = profile, guestLink = true)
+        vm.takeAction(VerifyEmailAction.IClickedTheLink)
+
+        vm.eventFlow.test {
+            assertIs<VerifyEmailEvent.NavigateToAccountSaved>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(true, cache.get().hasUserOnboarded)
+    }
+
+    @Test
+    fun appResumed_emailConfirmed_guestLink_showsAccountSaved() = runUnitTest {
+        // The deep-link/resume auto-confirm path takes the guest-link branch too:
+        // the guest tapped the email link and returned to the still-live screen.
+        val cache = FakeAppCache()
+        val identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.EmailConfirmed)
+        val vm = buildVm(identity = identity, appCache = cache, guestLink = true)
+        vm.takeAction(VerifyEmailAction.AppResumed)
+
+        vm.eventFlow.test {
+            assertIs<VerifyEmailEvent.NavigateToAccountSaved>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(true, cache.get().hasUserOnboarded)
+    }
+
+    @Test
     fun iClickedTheLink_stillPending_setsStillPendingBanner() = runUnitTest {
         val vm = buildVm(
             identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.StillPending),
@@ -95,7 +132,11 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun iClickedTheLink_sessionExpired_emitsNavigateBackToSignIn() = runUnitTest {
+    fun iClickedTheLink_sessionExpired_brandNewSignup_showsStillPending_doesNotTrap() = runUnitTest {
+        // AUTH-25: a brand-new signup (guestLink=false) has no session until the
+        // confirmation link is tapped, so "no session" on an explicit check means
+        // "not confirmed yet" — surface the StillPending nudge, never bounce the
+        // user to "Welcome back" and clear their back stack.
         val cache = FakeAppCache(initial = AppData(hasUserOnboarded = false))
         val vm = buildVm(
             identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.SessionExpired),
@@ -103,14 +144,32 @@ class VerifyEmailViewModelTest : CoroutineTest() {
         )
         vm.takeAction(VerifyEmailAction.IClickedTheLink)
 
-        vm.eventFlow.test {
-            assertIs<VerifyEmailEvent.NavigateBackToSignIn>(awaitItem())
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.banner != VerifyEmailState.Banner.StillPending) last = awaitItem()
+            assertEquals(false, last.isRefreshing)
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(
             false, cache.get().hasUserOnboarded,
-            "session expired must not flip onboarding done",
+            "no session must not flip onboarding done",
         )
+    }
+
+    @Test
+    fun iClickedTheLink_sessionExpired_guestLink_emitsNavigateBackToSignIn() = runUnitTest {
+        // A guest who linked an email did have a live session; a genuine expiry
+        // there still routes back to sign in.
+        val vm = buildVm(
+            identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.SessionExpired),
+            guestLink = true,
+        )
+        vm.takeAction(VerifyEmailAction.IClickedTheLink)
+
+        vm.eventFlow.test {
+            assertIs<VerifyEmailEvent.NavigateBackToSignIn>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
@@ -225,9 +284,34 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun appResumed_sessionExpired_emitsNavigateBackToSignIn() = runUnitTest {
+    fun appResumed_sessionExpired_brandNewSignup_isSilent_doesNotTrap() = runUnitTest {
+        // AUTH-25 regression: VerifyEmailScreen fires AppResumed on mount. For a
+        // brand-new signup there's no session yet, so refreshSession reports
+        // SessionExpired — which used to yank the user straight to "Welcome back"
+        // (back stack cleared) the instant the verify screen appeared. The silent
+        // resume path must stay put and wait for confirmation.
+        val cache = FakeAppCache()
         val identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.SessionExpired)
-        val vm = buildVm(identity = identity)
+        val vm = buildVm(identity = identity, appCache = cache)
+
+        // Events are buffered on an UNLIMITED channel, so taking the action first
+        // then collecting still catches any navigation that fired.
+        vm.takeAction(VerifyEmailAction.AppResumed)
+        runCurrent()
+        vm.eventFlow.test {
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, identity.refreshCalls)
+        assertEquals(null, vm.stateFlow.value.banner)
+        assertEquals(false, cache.get().hasUserOnboarded)
+    }
+
+    @Test
+    fun appResumed_sessionExpired_guestLink_emitsNavigateBackToSignIn() = runUnitTest {
+        // A guest whose linked-email session genuinely died still routes back.
+        val identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.SessionExpired)
+        val vm = buildVm(identity = identity, guestLink = true)
         vm.takeAction(VerifyEmailAction.AppResumed)
 
         vm.eventFlow.test {
@@ -318,10 +402,12 @@ class VerifyEmailViewModelTest : CoroutineTest() {
         appCache: FakeAppCache = FakeAppCache(),
         profile: FakeProfileRepository = FakeProfileRepository(),
         email: String? = sampleEmail,
+        guestLink: Boolean = false,
     ): VerifyEmailViewModel = VerifyEmailViewModel(
         authRepository = identity,
         appCache = appCache,
-        profileRepository = profile,
+        authOutcomeClassifier = FakeAuthOutcomeClassifier(profile),
         email = email,
+        guestLink = guestLink,
     )
 }

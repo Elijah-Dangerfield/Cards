@@ -8,12 +8,21 @@ import kotlinx.serialization.Serializable
  * StoreKit 2 signed-transaction JWS, or a Play purchase token). The userId
  * is never in the body — it comes from the JWT `sub` claim, and the
  * receipt must carry a matching account token.
+ *
+ * [replayed] is true only when the client is draining a store-replayed,
+ * unfinished transaction (the outstanding-purchase path), false for an
+ * interactive buy. It gates grant-on-replay: the account-binding relaxation
+ * that recovers a paid-but-wrong-account receipt is only ever considered for a
+ * StoreKit-replayed transaction, never a receipt the client submits directly in
+ * the normal buy flow (`docs/wiki/purchases.md`). Defaults false so an older
+ * client is treated as a strict interactive buy.
  */
 @Serializable
 data class RedeemRequest(
     val store: String,
     val productId: String,
     val token: String,
+    val replayed: Boolean = false,
 )
 
 /**
@@ -21,11 +30,37 @@ data class RedeemRequest(
  * authoritative post-grant chip balance the client reflects directly.
  * [alreadyRedeemed] is true on an idempotent replay (the transaction was
  * already redeemed; the balance is unchanged by this call) so the client
- * can suppress a duplicate "chips added" celebration.
+ * can suppress a duplicate "chips added" celebration. [goodwill] is true when
+ * the grant was a wedged-purchase escalation (goodwill chips), so the client
+ * can show the "we hit a snag, we made it right" message instead of a plain
+ * "chips added."
  */
 @Serializable
 data class RedeemResponse(
     val balance: Long,
     val grantedChips: Long,
     val alreadyRedeemed: Boolean,
+    val goodwill: Boolean = false,
+)
+
+/**
+ * `GET /v1/billing/history` response — the caller's purchase attempts, newest
+ * first, for the in-app purchase-history screen. Deliberately minimal: the
+ * client already holds the localized catalog, so it resolves the pack title,
+ * icon, and chip amount from [PurchaseHistoryItem.productId] itself. [status] is
+ * one of `added` | `pending` | `refunded`; [dateEpochMs] is when the row was
+ * last touched.
+ */
+@Serializable
+data class PurchaseHistoryResponse(
+    val items: List<PurchaseHistoryItem>,
+)
+
+@Serializable
+data class PurchaseHistoryItem(
+    val store: String,
+    val transactionId: String,
+    val productId: String,
+    val status: String,
+    val dateEpochMs: Long,
 )

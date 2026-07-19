@@ -33,12 +33,15 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Marked `RetryPolicy.idempotent()` so a transient network blip doesn't strand a
  * paid-for purchase.
  *
- * A terminal `receipt_rejected` (400) maps to [RedeemOutcome.RejectedTerminal]
- * — nothing was granted and the caller finishes the stuck transaction; any
- * other 4xx maps to [RedeemOutcome.Rejected] (no credit, left replayable). A
- * non-real-store transaction ([BillingPlatform.Fake], which the real endpoint
- * can't verify), a 503, and any unreachable-server case map to
- * [RedeemOutcome.Unavailable] without ever hitting the wire / crediting.
+ * The server's disposition rides the problem code: `receipt_dead` (400) ->
+ * [RedeemOutcome.Dead] (caller finishes the stuck transaction),
+ * `receipt_account_mismatch` (409) -> [RedeemOutcome.Mismatch] (recoverable via
+ * sign-in-to-claim / grant-on-replay), `receipt_claim_sign_in` (409) ->
+ * [RedeemOutcome.ClaimSignIn] (an anonymous caller must sign in to claim; leave
+ * the transaction unfinished). Everything else — `receipt_transient` (503), any
+ * other 4xx (unknown product / catalog drift), a 5xx, an unreachable server, or
+ * a non-real-store transaction ([BillingPlatform.Fake]) — maps to
+ * [RedeemOutcome.Transient] (no credit, left unfinished for a later retry).
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
@@ -49,10 +52,14 @@ class BillingRepositoryImpl(
 
     private val logger = KLog.withTag("BillingRepository")
 
-    override suspend fun redeem(catalogProductId: String, transaction: PurchaseTransaction): RedeemOutcome {
+    override suspend fun redeem(
+        catalogProductId: String,
+        transaction: PurchaseTransaction,
+        replayed: Boolean,
+    ): RedeemOutcome {
         val store = transaction.platform.wireStore() ?: run {
             logger.w { "redeem skipped: ${transaction.platform} has no server store mapping" }
-            return RedeemOutcome.Unavailable
+            return RedeemOutcome.Transient
         }
 
         val result: Catching<RedeemOutcome> = networkClient.authedCall(
@@ -66,6 +73,7 @@ class BillingRepositoryImpl(
                         store = store,
                         productId = catalogProductId,
                         token = transaction.purchaseToken,
+                        replayed = replayed,
                     ),
                 )
             }
@@ -74,6 +82,7 @@ class BillingRepositoryImpl(
                 balance = body.balance,
                 grantedChips = body.grantedChips,
                 alreadyRedeemed = body.alreadyRedeemed,
+                goodwill = body.goodwill,
             )
         }
         return result.getOrElse { throwable -> throwable.toRedeemOutcome() }
@@ -82,24 +91,30 @@ class BillingRepositoryImpl(
     private suspend fun Throwable.toRedeemOutcome(): RedeemOutcome =
         if (this is ClientRequestException) {
             // The client runs with expectSuccess, so a 4xx throws here before
-            // the success body parses. A `receipt_rejected` is the server's
-            // terminal verdict — the receipt will never validate for this
-            // identity, so the caller finishes the stuck transaction rather
-            // than replaying it forever (BILL-13). Any other 4xx
-            // (unknown_product, malformed body, catalog drift) is left
-            // unfinished for a later retry. A 5xx / 503 / timeout / unreachable
-            // server stays Unavailable so the launch-time redeemer can recover
-            // the paid-for purchase later.
+            // the success body parses. The server's disposition rides the
+            // problem code: `receipt_dead` finishes the stuck transaction
+            // (BILL-13); `receipt_account_mismatch` is left recoverable; any
+            // other 4xx (unknown_product, malformed body, catalog drift) is a
+            // transient left unfinished for a later retry. A 5xx / 503 / timeout
+            // / unreachable server is likewise transient so the launch-time
+            // redeemer can recover the paid-for purchase later.
             val code = apiErrorCode()
             logger.w(this) { "redeem rejected: ${response.status} ($code)" }
-            if (code == RECEIPT_REJECTED_CODE) RedeemOutcome.RejectedTerminal else RedeemOutcome.Rejected
+            when (code) {
+                RECEIPT_DEAD_CODE -> RedeemOutcome.Dead
+                RECEIPT_ACCOUNT_MISMATCH_CODE -> RedeemOutcome.Mismatch
+                RECEIPT_CLAIM_SIGN_IN_CODE -> RedeemOutcome.ClaimSignIn
+                else -> RedeemOutcome.Transient
+            }
         } else {
             logger.w(this) { "redeem unavailable (${this::class.simpleName})" }
-            RedeemOutcome.Unavailable
+            RedeemOutcome.Transient
         }
 
     private companion object {
-        const val RECEIPT_REJECTED_CODE = "receipt_rejected"
+        const val RECEIPT_DEAD_CODE = "receipt_dead"
+        const val RECEIPT_ACCOUNT_MISMATCH_CODE = "receipt_account_mismatch"
+        const val RECEIPT_CLAIM_SIGN_IN_CODE = "receipt_claim_sign_in"
     }
 }
 
@@ -114,6 +129,7 @@ private data class RedeemRequestDto(
     val store: String,
     val productId: String,
     val token: String,
+    val replayed: Boolean,
 )
 
 @Serializable
@@ -121,4 +137,5 @@ private data class RedeemResponseDto(
     val balance: Long,
     val grantedChips: Long,
     val alreadyRedeemed: Boolean,
+    val goodwill: Boolean = false,
 )

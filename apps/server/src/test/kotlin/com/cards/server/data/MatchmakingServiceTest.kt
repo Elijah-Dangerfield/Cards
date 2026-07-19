@@ -161,6 +161,59 @@ class MatchmakingServiceTest {
     }
 
     @Test
+    fun lonelySearcher_oneTierBelow_isRescuedOntoTheWaitingTable() = runTest {
+        val svc = service()
+        // Someone is waiting alone at 1k with no in-range table for a 5k searcher.
+        val waiting = assertIs<MatchmakingResult.Created>(svc.findOrJoinPublic(user(), "Waiter", 1_000, 1_000, noBlocks))
+
+        val result = svc.findOrJoinPublic(user(), "Arriver", 5_000, 5_000, noBlocks)
+
+        val joined = assertIs<MatchmakingResult.Joined>(result)
+        assertEquals(waiting.room.code, joined.room.code, "rescued onto the lonely table instead of minting a new one")
+        assertEquals(2, joined.room.members.size)
+        assertEquals(1_000L, joined.room.buyIn, "seated at the incumbent's affordable stake")
+    }
+
+    @Test
+    fun lonelySearchers_moreThanOneTierApart_getSeparateTables() = runTest {
+        val svc = service()
+        val low = assertIs<MatchmakingResult.Created>(svc.findOrJoinPublic(user(), "Low", 1_000, 1_000, noBlocks))
+        // 25k is two canonical steps above 1k — too far to merge two waiting players.
+        val high = svc.findOrJoinPublic(user(), "High", 25_000, 25_000, noBlocks)
+
+        val created = assertIs<MatchmakingResult.Created>(high)
+        assertTrue(created.room.code != low.room.code, "stakes more than one tier apart never merge")
+        assertEquals(25_000L, created.room.buyIn)
+    }
+
+    @Test
+    fun lonelySearcher_isNeverRescuedAboveTheirBuyInCeiling() = runTest {
+        val svc = service()
+        // A lonely human waiting at 5k.
+        val rich = assertIs<MatchmakingResult.Created>(svc.findOrJoinPublic(user(), "Rich", 5_000, 5_000, noBlocks))
+        // A searcher who'll only sit for 1k must not be pulled up to the 5k table.
+        val result = svc.findOrJoinPublic(user(), "Thrifty", 1_000, 1_000, noBlocks)
+
+        val created = assertIs<MatchmakingResult.Created>(result)
+        assertTrue(created.room.code != rich.room.code, "never seated above the buy-in ceiling asked for")
+        assertEquals(1_000L, created.room.buyIn)
+    }
+
+    @Test
+    fun rescue_skipsALonelyRoomWithABlockedMember() = runTest {
+        val svc = service()
+        val enemy = user()
+        // The only lonely table one tier away is hosted by someone I've blocked.
+        assertIs<MatchmakingResult.Created>(svc.findOrJoinPublic(enemy, "Enemy", 1_000, 1_000, noBlocks))
+
+        val result = svc.findOrJoinPublic(user(), "Me", 5_000, 5_000, blockedUserIds = setOf(enemy))
+
+        val created = assertIs<MatchmakingResult.Created>(result)
+        assertFalse(created.room.members.any { it.userId == enemy }, "rescue never co-seats a blocked user")
+        assertEquals(5_000L, created.room.buyIn)
+    }
+
+    @Test
     fun find_outOfRangeRoom_isSkipped() = runTest {
         val svc = service()
         // An existing table at 1,000.

@@ -12,7 +12,9 @@ interface PlayerReportRepository {
 
     /**
      * Record [reporter]'s report of [reported], captured [inRoom] (null when
-     * the context isn't a room) with an optional free-text [reason]. Callers
+     * the context isn't a room) with an optional free-text [reason] and the
+     * reporter's selected reason [categories] (canonical keys, already
+     * sanitized/capped by the caller; empty when none were picked). Callers
      * validate that [reporter] and [reported] differ before calling.
      */
     suspend fun record(
@@ -20,5 +22,6 @@ interface PlayerReportRepository {
         reported: UserId,
         inRoom: String?,
         reason: String?,
+        categories: List<String>,
     )
 }

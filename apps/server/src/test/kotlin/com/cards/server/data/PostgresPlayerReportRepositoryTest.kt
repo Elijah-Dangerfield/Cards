@@ -34,7 +34,7 @@ class PostgresPlayerReportRepositoryTest : DatabaseTest() {
         val reporter = newUser()
         val reported = newUser()
 
-        repo.record(reporter, reported, inRoom = "ABCD", reason = "harassment")
+        repo.record(reporter, reported, inRoom = "ABCD", reason = "harassment", categories = listOf("harassment", "cheating"))
 
         val rows = database.blockingTransaction {
             PlayerReportsTable.selectAll()
@@ -46,6 +46,7 @@ class PostgresPlayerReportRepositoryTest : DatabaseTest() {
         assertEquals(reporter.value, row[PlayerReportsTable.reporterUserId])
         assertEquals("ABCD", row[PlayerReportsTable.roomCode])
         assertEquals("harassment", row[PlayerReportsTable.reason])
+        assertEquals("harassment,cheating", row[PlayerReportsTable.reasonCategories])
     }
 
     @Test
@@ -54,8 +55,8 @@ class PostgresPlayerReportRepositoryTest : DatabaseTest() {
         val reporter = newUser()
         val reported = newUser()
 
-        repo.record(reporter, reported, inRoom = "ROOM1", reason = null)
-        repo.record(reporter, reported, inRoom = "ROOM2", reason = null)
+        repo.record(reporter, reported, inRoom = "ROOM1", reason = null, categories = emptyList())
+        repo.record(reporter, reported, inRoom = "ROOM2", reason = null, categories = emptyList())
 
         val count = database.blockingTransaction {
             PlayerReportsTable.selectAll()
@@ -71,7 +72,7 @@ class PostgresPlayerReportRepositoryTest : DatabaseTest() {
         val reporter = newUser()
         val reported = newUser()
 
-        repo.record(reporter, reported, inRoom = null, reason = null)
+        repo.record(reporter, reported, inRoom = null, reason = null, categories = emptyList())
 
         val row = database.blockingTransaction {
             PlayerReportsTable.selectAll()
@@ -80,6 +81,7 @@ class PostgresPlayerReportRepositoryTest : DatabaseTest() {
         }
         assertNull(row[PlayerReportsTable.roomCode])
         assertNull(row[PlayerReportsTable.reason])
+        assertNull(row[PlayerReportsTable.reasonCategories], "no categories persists as NULL")
     }
 
     private fun newRepo(): PostgresPlayerReportRepository =

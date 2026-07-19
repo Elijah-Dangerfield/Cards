@@ -63,6 +63,30 @@ class PlayerReportRoutesTest {
     }
 
     @Test
+    fun report_capturesReasonCategories_trimmedAndDeduped() = runTest {
+        val repo = FakeReportRepo()
+        callPost(
+            repo,
+            body = """{"reportedUserId":"$other","reason":"they kept stalling",""" +
+                """"categories":["cheating"," harassment ","cheating",""]}""",
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(listOf("cheating", "harassment"), repo.lastCategories)
+            assertEquals("they kept stalling", repo.lastReason)
+        }
+    }
+
+    @Test
+    fun report_noCategories_defaultsToEmpty() = runTest {
+        val repo = FakeReportRepo()
+        callPost(repo, body = """{"reportedUserId":"$other"}""", bearer = validJwt()) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(emptyList(), repo.lastCategories)
+        }
+    }
+
+    @Test
     fun report_blankRoomAndReason_normalizeToNull() = runTest {
         val repo = FakeReportRepo()
         callPost(
@@ -119,12 +143,20 @@ class PlayerReportRoutesTest {
         var lastReporterAndReported: Pair<UserId, UUID>? = null
         var lastRoom: String? = null
         var lastReason: String? = null
+        var lastCategories: List<String> = emptyList()
 
-        override suspend fun record(reporter: UserId, reported: UserId, inRoom: String?, reason: String?) {
+        override suspend fun record(
+            reporter: UserId,
+            reported: UserId,
+            inRoom: String?,
+            reason: String?,
+            categories: List<String>,
+        ) {
             recordCalls++
             lastReporterAndReported = reporter to reported.value
             lastRoom = inRoom
             lastReason = reason
+            lastCategories = categories
         }
     }
 

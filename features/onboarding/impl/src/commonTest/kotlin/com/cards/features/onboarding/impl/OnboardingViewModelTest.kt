@@ -9,6 +9,8 @@ import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
 import com.dangerfield.cards.libraries.identity.OnboardingStarterGrant
 import com.dangerfield.cards.libraries.identity.OnboardingSuggestedName
 import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
+import com.dangerfield.cards.libraries.identity.auth.AuthOutcome
+import com.dangerfield.cards.libraries.identity.auth.AuthOutcomeClassifier
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
 import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
@@ -690,6 +692,7 @@ class OnboardingViewModelTest : CoroutineTest() {
             authRepository = auth,
             profileRepository = profile,
             chipsRepository = chips,
+            authOutcomeClassifier = FakeAuthOutcomeClassifier(profile),
             guestAccountCreator = creator,
             appleSignInCoordinator = appleCoordinator,
             onboardingStarterGrant = OnboardingStarterGrant(config),
@@ -742,6 +745,20 @@ internal class FakeGuestAccountCreator(
     override suspend fun ensureSession(fallbackIdentity: PendingIdentity): AccountCreationState {
         start(fallbackIdentity)
         return _state.value
+    }
+}
+
+/**
+ * Mirrors `DefaultAuthOutcomeClassifier`: reads the brand-new-account signal off
+ * the [FakeProfileRepository] so tests keep driving it via `profile.isNewAccount`.
+ */
+internal class FakeAuthOutcomeClassifier(
+    private val profile: FakeProfileRepository,
+) : AuthOutcomeClassifier {
+    override suspend fun classify(wasLink: Boolean): AuthOutcome = when {
+        wasLink -> AuthOutcome.Linked
+        profile.isNewAccount -> AuthOutcome.SignedUp
+        else -> AuthOutcome.SignedIn
     }
 }
 

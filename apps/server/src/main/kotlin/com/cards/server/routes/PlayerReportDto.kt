@@ -6,15 +6,18 @@ import kotlinx.serialization.Serializable
  * Wire formats for the player-report endpoint (MOD-1).
  *
  * `reportedUserId` is the Supabase `auth.users` UUID as a string — the same id
- * the room membership surfaces to the client. `roomCode` and `reason` are
- * optional context: the report is room-scoped today but the wire doesn't force
- * it, and V1 has no reason picker.
+ * the room membership surfaces to the client. `roomCode`, `reason`, and
+ * `categories` are optional context: the report is room-scoped today but the
+ * wire doesn't force it. `categories` are the reporter's selected reason tags
+ * (canonical keys like `harassment` / `cheating`) and `reason` is their optional
+ * free-text detail (MOD-2). `categories` defaults empty for wire back-compat.
  */
 @Serializable
 data class PlayerReportBody(
     val reportedUserId: String,
     val roomCode: String? = null,
     val reason: String? = null,
+    val categories: List<String> = emptyList(),
 )
 
 /**

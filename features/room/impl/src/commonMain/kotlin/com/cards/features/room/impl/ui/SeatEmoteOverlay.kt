@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -65,10 +66,15 @@ internal fun SeatEmoteOverlay(
         val targetIndex = emitterSeatIndex ?: humanSeatIndex
         val bounds = targetIndex?.let { anchors.seatAvatarBounds[it] } ?: return@Box
         val anchor = bounds.center - overlayOrigin
+        // Your own emote drifts straight up (reads best from your own seat). An
+        // opponent's travels from their avatar toward the table centre so it's
+        // noticeable to everyone else, not tucked at the top of the screen.
+        val isLocalEmote = targetIndex == humanSeatIndex
+        val overlayCenter = Offset(overlaySize.width / 2f, overlaySize.height / 2f)
 
         val progress = remember(current.emittedAtEpochMs) { Animatable(0f) }
         LaunchedEffect(current.emittedAtEpochMs) {
-            progress.animateTo(1f, tween(durationMillis = 1_400, easing = LinearOutSlowInEasing))
+            progress.animateTo(1f, tween(durationMillis = 1_800, easing = LinearOutSlowInEasing))
             onComplete(current.emittedAtEpochMs)
         }
 
@@ -82,9 +88,17 @@ internal fun SeatEmoteOverlay(
                 val s = 0.5f + 0.5f * (p / 0.25f).coerceIn(0f, 1f)
                 scaleX = s
                 scaleY = s
-                translationX = anchor.x - size.width / 2f
-                // Sit just above the avatar and drift further up as it fades.
-                translationY = anchor.y - size.height / 2f - liftPx - risePx * p
+                if (isLocalEmote) {
+                    translationX = anchor.x - size.width / 2f
+                    // Sit just above the avatar and drift further up as it fades.
+                    translationY = anchor.y - size.height / 2f - liftPx - risePx * p
+                } else {
+                    // Travel most of the way to the table centre; it fades as it
+                    // arrives, so it draws the eye without blanketing the board.
+                    val pos = lerp(anchor, overlayCenter, 0.7f * p)
+                    translationX = pos.x - size.width / 2f
+                    translationY = pos.y - size.height / 2f - liftPx
+                }
                 alpha = when {
                     p < 0.12f -> p / 0.12f
                     p > 0.65f -> ((1f - p) / 0.35f).coerceIn(0f, 1f)

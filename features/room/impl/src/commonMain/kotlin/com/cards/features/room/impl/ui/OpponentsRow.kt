@@ -56,6 +56,7 @@ internal fun OpponentsRow(
     // suppresses the ring entirely. See [TableUiState.Active.turnSequence].
     val turnTimerSeconds = table.turnTimerSeconds
     val turnKey = table.handNumber to table.turnSequence
+    val deadlineEpochMs = table.turnDeadlineEpochMs
     if (opponents.size > PackedOpponentLimit) {
         ScrollingOpponentsRow(
             opponents = opponents,
@@ -64,6 +65,7 @@ internal fun OpponentsRow(
             actingSeatIndex = table.actingSeatIndex,
             turnTimerSeconds = turnTimerSeconds,
             turnKey = turnKey,
+            deadlineEpochMs = deadlineEpochMs,
             onBlindClick = onBlindClick,
             onAvatarTap = onAvatarTap,
         )
@@ -74,6 +76,7 @@ internal fun OpponentsRow(
             handComplete = handComplete,
             turnTimerSeconds = turnTimerSeconds,
             turnKey = turnKey,
+            deadlineEpochMs = deadlineEpochMs,
             onBlindClick = onBlindClick,
             onAvatarTap = onAvatarTap,
         )
@@ -89,6 +92,7 @@ private fun PackedOpponentsRow(
     handComplete: Boolean,
     turnTimerSeconds: Int?,
     turnKey: Any,
+    deadlineEpochMs: Long? = null,
     onBlindClick: () -> Unit,
     onAvatarTap: (SeatView) -> Unit = {},
 ) {
@@ -115,6 +119,7 @@ private fun PackedOpponentsRow(
                         avatarSize = avatarSize,
                         turnTimerSeconds = turnTimerSeconds,
                         turnKey = turnKey,
+                        deadlineEpochMs = deadlineEpochMs,
                         onBlindClick = onBlindClick,
                         onAvatarTap = { onAvatarTap(seat) },
                     )
@@ -132,6 +137,7 @@ private fun ScrollingOpponentsRow(
     actingSeatIndex: Int?,
     turnTimerSeconds: Int?,
     turnKey: Any,
+    deadlineEpochMs: Long? = null,
     onBlindClick: () -> Unit,
     onAvatarTap: (SeatView) -> Unit = {},
 ) {
@@ -203,6 +209,7 @@ private fun ScrollingOpponentsRow(
                     avatarSize = ScrollingAvatarSize,
                     turnTimerSeconds = turnTimerSeconds,
                     turnKey = turnKey,
+                    deadlineEpochMs = deadlineEpochMs,
                     onBlindClick = onBlindClick,
                     onAvatarTap = { onAvatarTap(seat) },
                 )

@@ -26,6 +26,10 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  *    for free test purchases).
  *  - **Off** — a [FakeBillingClient] seeded with the chip-pack SKUs, for shop
  *    iteration without provisioned Play listings.
+ *
+ * The flag defaults off on debug builds (`RealPurchasesEnabled.debugOverride`),
+ * so a sideloaded dev build with no Play catalog gets the fake and the shop
+ * still renders (SHOP-11) — no platform-specific handling needed here.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)

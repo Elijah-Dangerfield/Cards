@@ -99,19 +99,41 @@ enum class PurchaseEnvironment(val wire: String) {
  *    platform's stable transaction id, which becomes the
  *    `(store, order_id)` idempotency key for the grant, and the
  *    [PurchaseEnvironment] that verified it.
- *  - [Invalid] — the receipt was rejected (forged, wrong product, wrong
- *    user, refunded, or the validator is unconfigured). [reason] is a short
- *    machine-ish code for logs; never credit on this result. [retryable]
- *    distinguishes a transient refusal (validator not yet configured, the
- *    store's own API was unreachable) — where the same receipt would validate
- *    on a later attempt — from a terminal one (forged, mismatched, revoked)
- *    that will never validate. The redeem route turns a terminal Invalid into
- *    a 400 the client acts on by finishing the stuck transaction, and a
- *    retryable Invalid into a 503 the client leaves unfinished to replay later
- *    (BILL-13). Terminal is the safe default: only mark a rejection retryable
- *    when finishing the transaction would strand a genuinely paid purchase.
+ *  - [AccountMismatch] — the receipt is signature-valid, for the right product,
+ *    paid, and not revoked; the ONLY thing that failed is the account binding.
+ *    Its [receiptOwner] (the `appAccountToken` / `obfuscatedExternalAccountId`
+ *    the store echoed back) is neither the caller nor any lineage id. This is
+ *    the recoverable case (`docs/wiki/purchases.md`): sign-in-to-claim, or
+ *    grant-on-replay for a StoreKit-replayed transaction. It carries the
+ *    [orderId] and [environment] a relaxed grant needs, exactly like [Valid], so
+ *    the route can grant to the current caller without re-validating.
+ *  - [Invalid] — the receipt was rejected (forged, wrong product, refunded, a
+ *    missing/unparseable account token, or the validator is unconfigured).
+ *    [reason] is a short machine-ish code for logs; never credit on this result.
+ *    [retryable] distinguishes a transient refusal (validator not yet
+ *    configured, the store's own API was unreachable) — where the same receipt
+ *    would validate on a later attempt — from a terminal one (forged, wrong
+ *    product, revoked) that will never validate. The redeem route classifies
+ *    Invalid into a 503 (transient, left replayable) or a 400 (dead, finished);
+ *    terminal is the safe default (BILL-13).
  */
 sealed interface ReceiptValidation {
     data class Valid(val orderId: String, val environment: PurchaseEnvironment) : ReceiptValidation
-    data class Invalid(val reason: String, val retryable: Boolean = false) : ReceiptValidation
+    data class AccountMismatch(
+        val orderId: String,
+        val environment: PurchaseEnvironment,
+        val receiptOwner: UserId,
+    ) : ReceiptValidation
+
+    /**
+     * [orderId] is populated when the receipt decoded far enough to carry a
+     * store transaction id (a revoked / refunded receipt) so the disposition can
+     * still be recorded against that purchase for support; null for a failure
+     * that never yielded one (forged signature, unconfigured validator).
+     */
+    data class Invalid(
+        val reason: String,
+        val retryable: Boolean = false,
+        val orderId: String? = null,
+    ) : ReceiptValidation
 }

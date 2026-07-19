@@ -164,17 +164,26 @@ For **every** feedback handled, append to `docs/agent/feedback-log.md`. Include 
 - <date> · <event_id> · session <id> · <"todo: <title>" | "no-action: <reason>" | "backlog"> · <Sentry issue URL> · case docs/agent/feedback-cases/<event_id>.md
 ```
 
-Then resolve in Sentry so it leaves the unresolved queue. Resolve the token from
-the env, falling back to the macOS Keychain (so unattended runs work without a
-plaintext token on disk):
+Then close the loop in Sentry. **Do not resolve an issue you filed a todo for** —
+it isn't fixed yet, and resolving-at-triage is exactly what let a dropped todo
+disappear with no trace. Leave a todo-filed issue **unresolved** and only comment
+that it's triaged; the worker that ships the fix resolves it then (`worker-prompt.md`).
+Only **no-action** dispositions (duplicate, praise, not-a-defect, user error) get
+resolved here — there's no fix coming, so resolving is correct. Either way, record
+the Sentry issue id in the todo's Hints / the case file so the worker can find it.
+
+Resolve the token from the env, falling back to the macOS Keychain (so unattended
+runs work without a plaintext token on disk):
 
 ```
 TOKEN="${SENTRY_AUTH_TOKEN:-$(security find-generic-password -s cards-sentry-auth-token -w 2>/dev/null)}"
 ```
 
-- **If `$TOKEN` is non-empty**, resolve via REST (never echo the token):
-  `curl -sS -X PUT "https://us.sentry.io/api/0/organizations/elijah-dangerfield/issues/<issueId>/" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"status":"resolved"}'`
-  (Optionally POST a comment to `/comments/` with the disposition.)
+- **If `$TOKEN` is non-empty** (never echo the token):
+  - **Todo filed → comment only, leave unresolved:**
+    `curl -sS -X POST "https://us.sentry.io/api/0/organizations/elijah-dangerfield/issues/<issueId>/comments/" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"text":"Triaged → <TODO-ID>, fix pending"}'`
+  - **No-action → resolve via REST:**
+    `curl -sS -X PUT "https://us.sentry.io/api/0/organizations/elijah-dangerfield/issues/<issueId>/" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"status":"resolved"}'`
 - **If `$TOKEN` is empty**, the ledger is the source of truth — the search in step 1 still finds the issue, but the event-id check skips it. Note in the run summary that Sentry status wasn't flipped (store the token in the keychain item `cards-sentry-auth-token` to enable it).
 
 ### 7. Run summary

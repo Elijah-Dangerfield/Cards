@@ -76,18 +76,52 @@ class GooglePlayReceiptValidatorTest {
     }
 
     @Test
-    fun wrongAccountId_rejected() = runTest {
+    fun wrongAccountId_isRecoverableAccountMismatch() = runTest {
+        // A verified, paid purchase bound to a different (parseable) account is
+        // the recoverable mismatch — it carries the order id, environment, and
+        // receipt owner a grant-on-replay needs, not a dead Invalid.
         val validator = validatorReturning(
             purchase(state = 0, accountId = otherUser, orderId = "GPA.1"),
+        )
+        val result = validator.validate(receipt())
+        assertEquals(
+            ReceiptValidation.AccountMismatch(
+                orderId = "GPA.1",
+                environment = PurchaseEnvironment.Production,
+                receiptOwner = UserId(UUID.fromString(otherUser)),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun accountId_fromLineage_accepted() = runTest {
+        // A pack bought under a prior identity on the same install redeems when
+        // that id is in the caller's lineage — the Google validator honors the
+        // lineage the same way Apple does.
+        val prior = UUID.fromString("52f3f9c1-1a94-4640-b24c-560a9b7534eb")
+        val validator = validatorReturning(
+            purchase(state = 0, accountId = prior.toString(), orderId = "GPA.lineage"),
+        )
+        val result = validator.validate(receipt(accountLineage = setOf(UserId(prior))))
+        assertEquals(ReceiptValidation.Valid("GPA.lineage", PurchaseEnvironment.Production), result)
+    }
+
+    @Test
+    fun missingAccountId_isDeadMismatch_notRelaxable() = runTest {
+        // No account id at all: no owner to relax toward, so a hard mismatch
+        // rather than a grant-on-replay candidate.
+        val validator = validatorReturning(
+            purchase(state = 0, accountId = null, orderId = "GPA.1"),
         )
         val result = validator.validate(receipt())
         assertEquals(ReceiptValidation.Invalid("google_account_mismatch"), result)
     }
 
     @Test
-    fun missingAccountId_rejected() = runTest {
+    fun unparseableAccountId_isDeadMismatch_notRelaxable() = runTest {
         val validator = validatorReturning(
-            purchase(state = 0, accountId = null, orderId = "GPA.1"),
+            purchase(state = 0, accountId = "not-a-uuid", orderId = "GPA.1"),
         )
         val result = validator.validate(receipt())
         assertEquals(ReceiptValidation.Invalid("google_account_mismatch"), result)
@@ -105,12 +139,13 @@ class GooglePlayReceiptValidatorTest {
             .setObfuscatedExternalAccountId(accountId)
             .setOrderId(orderId)
 
-    private fun receipt() = PurchaseReceipt(
+    private fun receipt(accountLineage: Set<UserId> = emptySet()) = PurchaseReceipt(
         store = Store.Google,
         productId = "chip_pack_medium",
         expectedSku = "chips_medium",
         token = "purchase-token",
         userId = userId,
+        accountLineage = accountLineage,
     )
 
     private fun configured() = BillingConfig(

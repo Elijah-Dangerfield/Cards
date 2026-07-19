@@ -1,18 +1,33 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.server.data.RelaxedGrantRateLimiter
+import com.dangerfield.cards.server.domain.BillingEventAction
+import com.dangerfield.cards.server.domain.BillingEventAttempt
+import com.dangerfield.cards.server.domain.BillingEventsRepository
 import com.dangerfield.cards.server.domain.BillingRepository
+import com.dangerfield.cards.server.domain.GrantKind
 import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.PurchaseEnvironment
 import com.dangerfield.cards.server.domain.PurchaseReceipt
+import com.dangerfield.cards.server.domain.ReceiptClassifier
 import com.dangerfield.cards.server.domain.ReceiptValidation
 import com.dangerfield.cards.server.domain.ReceiptValidator
+import com.dangerfield.cards.server.domain.RedeemDisposition
 import com.dangerfield.cards.server.domain.RedeemResult
 import com.dangerfield.cards.server.domain.Store
+import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.UserMessageKind
+import com.dangerfield.cards.server.domain.UserMessageRepository
+import java.util.UUID
+import kotlin.time.ExperimentalTime
 import com.dangerfield.cards.server.http.clientContext
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.WALLET_WRITE_LIMIT
 import com.dangerfield.cards.server.plugins.captureToSentry
+import com.dangerfield.cards.server.plugins.isAnonymousUser
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
@@ -23,6 +38,7 @@ import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import org.slf4j.LoggerFactory
 
@@ -56,11 +72,30 @@ private val logger = LoggerFactory.getLogger("BillingRoutes")
 private class ReceiptRejectedException(reason: String, store: String, productId: String) :
     RuntimeException("Receipt rejected: $reason (store=$store, product=$productId)")
 
+/**
+ * Raised (captured, never thrown) to flag a wedged purchase escalation for
+ * review: a paid transaction that couldn't resolve normally past the retry cap
+ * and was made right with goodwill chips.
+ */
+private class WedgedPurchaseException(store: String, productId: String, orderId: String, attempts: Int) :
+    RuntimeException("Wedged purchase escalated: store=$store product=$productId order=$orderId attempts=$attempts")
+
+/**
+ * How many attempts a stuck transaction gets before the wedged escalation gives
+ * up and grants goodwill chips. Counts against the billing-events attempt tally,
+ * which every server-reached drain bumps.
+ */
+private const val WEDGED_ATTEMPT_CAP = 5
+
+@OptIn(ExperimentalTime::class)
 fun Route.billingRoutes(
     catalog: ProductCatalogSource,
     validator: ReceiptValidator,
     billing: BillingRepository,
     profiles: ProfileRepository,
+    relaxedGrantRateLimiter: RelaxedGrantRateLimiter,
+    billingEvents: BillingEventsRepository,
+    messages: UserMessageRepository,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         rateLimit(RateLimitName(WALLET_WRITE_LIMIT)) {
@@ -117,71 +152,369 @@ fun Route.billingRoutes(
                         accountLineage = profiles.findInstallLineage(userId),
                     ),
                 )
-                val valid = when (validation) {
-                    is ReceiptValidation.Valid -> validation
-                    is ReceiptValidation.Invalid -> {
-                        if (validation.retryable) {
-                            // Transient refusal — the validator is unconfigured
-                            // or the store's own API was unreachable. The same
-                            // receipt validates on a later attempt, so answer
-                            // 503: the client leaves the transaction unfinished
-                            // and the launch-time redeemer retries it, instead
-                            // of finishing (and stranding) a paid purchase.
-                            logger.warn(
-                                "Receipt validation unavailable: reason={} store={} product={} user={}",
-                                validation.reason, store.wire, body.productId, userId.value,
-                            )
-                            return@post call.respondProblem(
-                                HttpStatusCode.ServiceUnavailable,
-                                "receipt_unavailable",
-                                "Receipt validation is temporarily unavailable.",
-                            )
+                when (validation) {
+                    is ReceiptValidation.Valid -> {
+                        call.grantAndRespond(
+                            billing = billing,
+                            billingEvents = billingEvents,
+                            userId = userId,
+                            store = store,
+                            orderId = validation.orderId,
+                            productId = body.productId,
+                            grantedChips = product.grantsChips,
+                            environment = validation.environment,
+                            kind = GrantKind.Normal,
+                            receiptOwner = null,
+                        )
+                        // Only a drain recovery is worth an in-app message; an
+                        // interactive buy is celebrated by the shop in the moment.
+                        if (body.replayed) {
+                            messages.enqueueGranted(userId, store, validation.orderId, product.grantsChips)
                         }
-                        // Terminal rejection — forged, mismatched account/product,
-                        // or revoked. The user paid the store and we refused the
-                        // grant, so it's worth a Sentry issue (the reason
-                        // distinguishes forgery from config drift); the client
-                        // only ever sees the generic "receipt_rejected" and
-                        // finishes the stuck transaction so it stops replaying
-                        // and stops shadowing new purchases (BILL-13).
-                        logger.warn(
-                            "Receipt rejected: reason={} store={} product={} user={}",
-                            validation.reason, store.wire, body.productId, userId.value,
-                        )
-                        captureToSentry(
-                            ReceiptRejectedException(validation.reason, store.wire, body.productId),
-                            context = "billing_redeem",
-                        )
-                        return@post call.respondProblem(
-                            HttpStatusCode.BadRequest,
-                            "receipt_rejected",
-                            "The purchase receipt could not be verified.",
-                        )
                     }
-                }
-
-                logger.info(
-                    "Redeeming {} for user={} (store={}, environment={}, chips={})",
-                    body.productId, userId.value, store.wire, valid.environment.wire, product.grantsChips,
-                )
-                val result = billing.redeem(
-                    userId = userId,
-                    store = store.wire,
-                    orderId = valid.orderId,
-                    productId = body.productId,
-                    grantedChips = product.grantsChips,
-                    environment = valid.environment,
-                )
-                call.respond(
-                    HttpStatusCode.OK,
-                    RedeemResponse(
-                        balance = result.balance,
+                    is ReceiptValidation.AccountMismatch -> call.respondToAccountMismatch(
+                        billing = billing,
+                        billingEvents = billingEvents,
+                        messages = messages,
+                        rateLimiter = relaxedGrantRateLimiter,
+                        mismatch = validation,
+                        replayed = body.replayed,
+                        anonymousCaller = call.isAnonymousUser(),
+                        store = store,
+                        productId = body.productId,
                         grantedChips = product.grantsChips,
-                        alreadyRedeemed = result is RedeemResult.AlreadyRedeemed,
-                    ),
-                )
+                        userId = userId,
+                    )
+                    is ReceiptValidation.Invalid -> call.respondToInvalid(
+                        validation, billingEvents, messages, body.replayed, store, body.productId, userId,
+                    )
+                }
             }
         }
+
+        // A read, so outside the wallet-write rate limit: the client's
+        // purchase-history screen + its "sync purchases" refresh.
+        get("/v1/billing/history") {
+            val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+            val items = billingEvents.historyFor(userId).map { record ->
+                PurchaseHistoryItem(
+                    store = record.store,
+                    transactionId = record.transactionId,
+                    productId = record.productId,
+                    status = record.action.historyStatus(),
+                    dateEpochMs = record.updatedAt.toEpochMilliseconds(),
+                )
+            }
+            call.respond(HttpStatusCode.OK, PurchaseHistoryResponse(items))
+        }
+    }
+}
+
+/**
+ * Collapse a billing-events disposition to the coarse status the history screen
+ * shows: chips landed, still working on it, or refunded.
+ */
+private fun BillingEventAction.historyStatus(): String = when (this) {
+    BillingEventAction.Granted, BillingEventAction.GrantedOnReplay, BillingEventAction.Escalated -> "added"
+    BillingEventAction.Mismatch, BillingEventAction.ClaimSignIn -> "pending"
+    BillingEventAction.FinishedDead -> "refunded"
+}
+
+/**
+ * Grant the transaction and answer with the authoritative balance. Idempotent
+ * on the store transaction id via [BillingRepository.redeem], so a retry or a
+ * racing request returns the same balance with `alreadyRedeemed`. [kind]
+ * distinguishes a clean grant from grant-on-replay and the wedged goodwill
+ * grant, and drives both the wallet-ledger reason and the recorded event.
+ */
+private suspend fun ApplicationCall.grantAndRespond(
+    billing: BillingRepository,
+    billingEvents: BillingEventsRepository,
+    userId: UserId,
+    store: Store,
+    orderId: String,
+    productId: String,
+    grantedChips: Long,
+    environment: PurchaseEnvironment,
+    kind: GrantKind,
+    receiptOwner: UserId?,
+    reason: String? = null,
+) {
+    logger.info(
+        "Redeeming {} for user={} (store={}, environment={}, chips={}, kind={})",
+        productId, userId.value, store.wire, environment.wire, grantedChips, kind,
+    )
+    val result = billing.redeem(
+        userId = userId,
+        store = store.wire,
+        orderId = orderId,
+        productId = productId,
+        grantedChips = grantedChips,
+        environment = environment,
+        kind = kind,
+    )
+    billingEvents.recordSafely(
+        BillingEventAttempt(
+            store = store.wire,
+            transactionId = orderId,
+            callerUser = userId,
+            receiptOwner = receiptOwner,
+            productId = productId,
+            reason = reason,
+            action = when (kind) {
+                GrantKind.Normal -> BillingEventAction.Granted
+                GrantKind.GrantOnReplay -> BillingEventAction.GrantedOnReplay
+                GrantKind.Goodwill -> BillingEventAction.Escalated
+            },
+        ),
+    )
+    respond(
+        HttpStatusCode.OK,
+        RedeemResponse(
+            balance = result.balance,
+            grantedChips = grantedChips,
+            alreadyRedeemed = result is RedeemResult.AlreadyRedeemed,
+            goodwill = kind == GrantKind.Goodwill,
+        ),
+    )
+}
+
+/**
+ * Handle a receipt that verified everything except the account binding
+ * (`docs/wiki/purchases.md`). Two paths, decided by whether this is a
+ * StoreKit-replayed transaction:
+ *
+ *  - **Interactive buy** (`replayed == false`) — never relaxed. The buyer is a
+ *    signed-in account, so a genuine receipt carries their id; a mismatch here
+ *    is someone else's receipt. 409 `receipt_account_mismatch`; the client
+ *    finishes it.
+ *  - **StoreKit replay** (`replayed == true`) — the grant-on-replay case. Apple
+ *    only re-presents an unfinished transaction to the Apple ID that bought it,
+ *    so the "different account" is almost always the same human whose in-app id
+ *    changed on reinstall. The receipt is signature-valid, paid, and unrevoked
+ *    (the validator confirmed all of that before reporting the mismatch), and a
+ *    grant can only ever land once per transaction id, so relaxing the binding
+ *    doesn't mint free chips — it only decides which of the user's own accounts
+ *    gets the one grant. This RELAXES the BILL-11 strict account binding, gated
+ *    to the replay path, rate-limited, and logged with a distinct wallet reason.
+ *    A rate-limit trip falls back to the strict 409 so the client still finishes
+ *    the transaction and the shop is unblocked.
+ *
+ * Before granting blind on a replay, an **anonymous** caller is nudged to sign
+ * in first (`receipt_claim_sign_in`): re-login makes the receipt match its own
+ * account token cleanly (a plain [ReceiptValidation.Valid] grant, no relaxation
+ * at all), which is both safer and lands the chips on the durable claimed
+ * account rather than a throwaway anonymous one. The client leaves the
+ * transaction unfinished so the next drain after sign-in resolves it; grant-and-
+ * finish stays the fallback (via the wedged escalation) if they never do.
+ */
+private suspend fun ApplicationCall.respondToAccountMismatch(
+    billing: BillingRepository,
+    billingEvents: BillingEventsRepository,
+    messages: UserMessageRepository,
+    rateLimiter: RelaxedGrantRateLimiter,
+    mismatch: ReceiptValidation.AccountMismatch,
+    replayed: Boolean,
+    anonymousCaller: Boolean,
+    store: Store,
+    productId: String,
+    grantedChips: Long,
+    userId: UserId,
+) {
+    suspend fun recordMismatch(reason: String, action: BillingEventAction) = billingEvents.recordSafely(
+        BillingEventAttempt(
+            store = store.wire,
+            transactionId = mismatch.orderId,
+            callerUser = userId,
+            receiptOwner = mismatch.receiptOwner,
+            productId = productId,
+            reason = reason,
+            action = action,
+        ),
+    )
+
+    // A wedged purchase: this transaction has been re-attempted past the retry
+    // cap and still can't resolve normally (an anonymous caller who never signs
+    // in, or a persistent rate-limit trip). Rather than leave the user paid-but-
+    // blocked forever, make it right with goodwill chips and finish it.
+    suspend fun escalateToGoodwill(priorAttempts: Int) {
+        logger.warn(
+            "Wedged purchase escalated to goodwill after {} attempts: caller={} store={} product={} order={}",
+            priorAttempts, userId.value, store.wire, productId, mismatch.orderId,
+        )
+        captureToSentry(
+            WedgedPurchaseException(store.wire, productId, mismatch.orderId, priorAttempts),
+            context = "billing_redeem",
+        )
+        grantAndRespond(
+            billing = billing,
+            billingEvents = billingEvents,
+            userId = userId,
+            store = store,
+            orderId = mismatch.orderId,
+            productId = productId,
+            grantedChips = grantedChips,
+            environment = mismatch.environment,
+            kind = GrantKind.Goodwill,
+            receiptOwner = mismatch.receiptOwner,
+            reason = "wedged_escalation",
+        )
+        messages.enqueueGoodwill(userId, store, mismatch.orderId, grantedChips)
+    }
+
+    if (!replayed) {
+        logger.warn(
+            "Interactive receipt bound to a different account: receiptOwner={} caller={} store={} product={}",
+            mismatch.receiptOwner.value, userId.value, store.wire, productId,
+        )
+        recordMismatch("account_mismatch_interactive", BillingEventAction.Mismatch)
+        return respondProblem(
+            HttpStatusCode.Conflict,
+            "receipt_account_mismatch",
+            "This purchase belongs to a different account.",
+        )
+    }
+
+    val priorAttempts = billingEvents.attemptCountFor(store.wire, mismatch.orderId)
+    val wedged = priorAttempts + 1 >= WEDGED_ATTEMPT_CAP
+
+    if (anonymousCaller) {
+        if (wedged) return escalateToGoodwill(priorAttempts)
+        // Prefer the clean fix: sign in so the receipt matches its own account.
+        // Don't spend a rate-limit slot — we haven't granted anything.
+        logger.info(
+            "Grant-on-replay deferred: anonymous caller nudged to sign in to claim receiptOwner={} (store={}, product={})",
+            mismatch.receiptOwner.value, store.wire, productId,
+        )
+        recordMismatch("account_mismatch_anonymous", BillingEventAction.ClaimSignIn)
+        messages.enqueueClaimSignIn(userId, store, mismatch.orderId)
+        return respondProblem(
+            HttpStatusCode.Conflict,
+            "receipt_claim_sign_in",
+            "Sign in to claim your purchase.",
+        )
+    }
+    if (!rateLimiter.tryAcquire(userId)) {
+        if (wedged) return escalateToGoodwill(priorAttempts)
+        logger.warn(
+            "Grant-on-replay rate-limited: refusing to relax receiptOwner={} -> caller={} (store={}, product={})",
+            mismatch.receiptOwner.value, userId.value, store.wire, productId,
+        )
+        recordMismatch("account_mismatch_rate_limited", BillingEventAction.Mismatch)
+        return respondProblem(
+            HttpStatusCode.Conflict,
+            "receipt_account_mismatch",
+            "This purchase belongs to a different account.",
+        )
+    }
+    logger.info(
+        "Grant-on-replay: relaxing account binding receiptOwner={} -> caller={} (store={}, product={}, order={}, env={})",
+        mismatch.receiptOwner.value, userId.value, store.wire, productId, mismatch.orderId, mismatch.environment.wire,
+    )
+    grantAndRespond(
+        billing = billing,
+        billingEvents = billingEvents,
+        userId = userId,
+        store = store,
+        orderId = mismatch.orderId,
+        productId = productId,
+        grantedChips = grantedChips,
+        environment = mismatch.environment,
+        kind = GrantKind.GrantOnReplay,
+        receiptOwner = mismatch.receiptOwner,
+        reason = "account_mismatch_relaxed",
+    )
+    messages.enqueueGranted(userId, store, mismatch.orderId, grantedChips)
+}
+
+/**
+ * Turn a rejected receipt into the disposition-specific response the client
+ * acts on (see `docs/wiki/purchases.md`). The disposition, not the raw reason,
+ * decides both the HTTP status and what the client does next:
+ *
+ *  - [RedeemDisposition.Transient] -> 503 `receipt_transient`: the client leaves
+ *    the transaction unfinished so the launch-time redeemer retries it, instead
+ *    of finishing (and stranding) a genuinely paid purchase.
+ *  - [RedeemDisposition.Mismatch] -> 409 `receipt_account_mismatch`: genuine,
+ *    paid, signed, just tied to a different one of the user's accounts. Left
+ *    recoverable (sign-in-to-claim / grant-on-replay); not a Sentry issue
+ *    because it is an expected reinstall state, tracked on the billing-health
+ *    panel rather than paged on.
+ *  - [RedeemDisposition.Dead] -> 400 `receipt_dead`: forged / wrong product /
+ *    revoked. Worth a Sentry issue (the reason distinguishes forgery from config
+ *    drift); the client finishes the stuck transaction so it stops replaying and
+ *    stops shadowing new purchases (BILL-13).
+ */
+private suspend fun ApplicationCall.respondToInvalid(
+    validation: ReceiptValidation.Invalid,
+    billingEvents: BillingEventsRepository,
+    messages: UserMessageRepository,
+    replayed: Boolean,
+    store: Store,
+    productId: String,
+    userId: UserId,
+): Unit = when (ReceiptClassifier.classify(validation)) {
+    RedeemDisposition.Transient -> {
+        logger.warn(
+            "Receipt validation unavailable: reason={} store={} product={} user={}",
+            validation.reason, store.wire, productId, userId.value,
+        )
+        respondProblem(
+            HttpStatusCode.ServiceUnavailable,
+            "receipt_transient",
+            "Receipt validation is temporarily unavailable.",
+        )
+    }
+    RedeemDisposition.Mismatch -> {
+        logger.warn(
+            "Receipt bound to a different account: reason={} store={} product={} user={}",
+            validation.reason, store.wire, productId, userId.value,
+        )
+        respondProblem(
+            HttpStatusCode.Conflict,
+            "receipt_account_mismatch",
+            "This purchase belongs to a different account.",
+        )
+    }
+    // Wedged is never produced by the classifier, but folding it here with Dead
+    // keeps the `when` total and finishes the transaction if it ever appears.
+    // Wedged is never produced by the classifier, but folding it here with Dead
+    // keeps the `when` total and finishes the transaction if it ever appears.
+    RedeemDisposition.Dead, RedeemDisposition.Wedged -> {
+        logger.warn(
+            "Receipt rejected: reason={} store={} product={} user={}",
+            validation.reason, store.wire, productId, userId.value,
+        )
+        captureToSentry(
+            ReceiptRejectedException(validation.reason, store.wire, productId),
+            context = "billing_redeem",
+        )
+        // A dead receipt that still carries a transaction id (a refund/revoke) is
+        // recordable against the purchase so support can see "this was refunded";
+        // a pre-decode failure (forged, unconfigured) has no id to anchor on.
+        validation.orderId?.let { orderId ->
+            billingEvents.recordSafely(
+                BillingEventAttempt(
+                    store = store.wire,
+                    transactionId = orderId,
+                    callerUser = userId,
+                    receiptOwner = null,
+                    productId = productId,
+                    reason = validation.reason,
+                    action = BillingEventAction.FinishedDead,
+                ),
+            )
+            // A refund/revoke discovered while draining is worth telling the user
+            // so the missing chips read as intentional, not a random failure.
+            if (replayed && validation.reason == "apple_revoked") {
+                messages.enqueueRefunded(userId, store, orderId)
+            }
+        }
+        respondProblem(
+            HttpStatusCode.BadRequest,
+            "receipt_dead",
+            "The purchase receipt could not be verified.",
+        )
     }
 }
 
@@ -190,3 +523,98 @@ private suspend fun ApplicationCall.respondProblem(
     code: String,
     message: String,
 ) = respond(status, mapOf("error" to mapOf("code" to code, "message" to message)))
+
+/**
+ * Write a billing-events row best-effort: audit must never block or fail a
+ * grant (the money-path record is `billing_transactions`), so a write failure
+ * is logged and swallowed.
+ */
+private suspend fun BillingEventsRepository.recordSafely(attempt: BillingEventAttempt) {
+    Catching { record(attempt) }.onFailure { error ->
+        logger.warn(
+            "billing_events write failed for store={} txn={}: {}",
+            attempt.store, attempt.transactionId, error.message,
+        )
+    }
+}
+
+// Every drain outcome closes the loop with an in-app message so a delayed grant,
+// a refund, or a sign-in nudge reads as intentional rather than random (see
+// docs/wiki/purchases.md). Keyed per (transaction, outcome) so the idempotent
+// create dedupes the every-launch drain; best-effort so messaging never blocks
+// a grant.
+
+private suspend fun UserMessageRepository.enqueueGranted(
+    userId: UserId,
+    store: Store,
+    orderId: String,
+    grantedChips: Long,
+) = enqueueBilling(
+    userId = userId,
+    key = "billing_granted.${store.wire}.$orderId",
+    emoji = "🎉",
+    title = "Your chips are here",
+    body = "We found a purchase and added ${formatChips(grantedChips)} chips to your balance.",
+)
+
+private suspend fun UserMessageRepository.enqueueGoodwill(
+    userId: UserId,
+    store: Store,
+    orderId: String,
+    grantedChips: Long,
+) = enqueueBilling(
+    userId = userId,
+    key = "billing_goodwill.${store.wire}.$orderId",
+    emoji = "💛",
+    title = "We sorted it out",
+    body = "We hit a snag with a recent purchase, so we've added ${formatChips(grantedChips)} chips to make it right.",
+)
+
+private suspend fun UserMessageRepository.enqueueRefunded(
+    userId: UserId,
+    store: Store,
+    orderId: String,
+) = enqueueBilling(
+    userId = userId,
+    key = "billing_refunded.${store.wire}.$orderId",
+    emoji = null,
+    title = "Purchase refunded",
+    body = "A recent purchase was refunded, so those chips weren't added.",
+)
+
+private suspend fun UserMessageRepository.enqueueClaimSignIn(
+    userId: UserId,
+    store: Store,
+    orderId: String,
+) = enqueueBilling(
+    userId = userId,
+    key = "billing_claim.${store.wire}.$orderId",
+    emoji = "🎁",
+    title = "You've got chips waiting",
+    body = "Sign in with the account you bought it on and we'll add your chips.",
+)
+
+@OptIn(ExperimentalTime::class)
+private suspend fun UserMessageRepository.enqueueBilling(
+    userId: UserId,
+    key: String,
+    emoji: String?,
+    title: String,
+    body: String,
+) {
+    Catching {
+        create(
+            id = UUID.randomUUID(),
+            userId = userId,
+            idempotencyKey = key,
+            kind = UserMessageKind.Dialog,
+            emoji = emoji,
+            title = title,
+            body = body,
+            deepLink = null,
+            expiresAt = null,
+        )
+    }.onFailure { error -> logger.warn("billing user-message enqueue failed for {}: {}", key, error.message) }
+}
+
+private fun formatChips(amount: Long): String = "%,d".format(amount)

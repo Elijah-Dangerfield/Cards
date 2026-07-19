@@ -21,6 +21,12 @@ interface BillingRepository {
      * reason). Idempotent on `(store, orderId)`: a repeat call (client retry,
      * racing request) is a no-op that returns the current balance with
      * [RedeemResult.AlreadyRedeemed].
+     *
+     * [kind] distinguishes a normal grant from the two recovery grants, and
+     * shifts the wallet-ledger reason to a distinct `.replay` / `.goodwill`
+     * variant so each is queryable — while staying under the `iap.%` prefix that
+     * marks real-money spend (so a paying user is never swept as an orphan). The
+     * grant stays idempotent on the transaction id regardless of kind.
      */
     suspend fun redeem(
         userId: UserId,
@@ -29,7 +35,25 @@ interface BillingRepository {
         productId: String,
         grantedChips: Long,
         environment: PurchaseEnvironment,
+        kind: GrantKind = GrantKind.Normal,
     ): RedeemResult
+}
+
+/**
+ * Why a redeem granted, which flows into the wallet-ledger reason suffix so the
+ * billing-health panel and support can tell the paths apart.
+ *
+ *  - [Normal] — the receipt matched the caller cleanly.
+ *  - [GrantOnReplay] — the account binding was relaxed for a StoreKit replay
+ *    (the receipt named a different one of the user's own accounts). BILL-11.
+ *  - [Goodwill] — a wedged purchase escalated past the retry cap: rather than
+ *    leave the user paid-but-blocked, we make it right with goodwill chips and
+ *    finish it (`docs/wiki/purchases.md`).
+ */
+enum class GrantKind(val reasonSuffix: String) {
+    Normal(""),
+    GrantOnReplay(".replay"),
+    Goodwill(".goodwill"),
 }
 
 /**

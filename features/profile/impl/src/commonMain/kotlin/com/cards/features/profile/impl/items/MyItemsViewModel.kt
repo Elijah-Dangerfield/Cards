@@ -162,9 +162,10 @@ data class OwnedItem(
     /**
      * Mirrored from the catalog `Product.isEquippable`. False for unlock-
      * style products (avatar packs, emote packs) — the row still renders,
-     * but the Equip/Unequip button is suppressed. Falls back to false
-     * when the catalog entry is missing so a stale-catalog row doesn't
-     * silently show an Equip button that doesn't do anything.
+     * but the Equip/Unequip button is suppressed. When the catalog entry is
+     * missing (product delisted after purchase) we fall back to the cosmetic
+     * slot: a slot cosmetic stays equippable so a delisted-but-owned item can
+     * still be re-equipped; a slotless pack/chip stays non-equippable.
      */
     val isEquippable: Boolean,
     /**
@@ -256,7 +257,15 @@ data class MyItemsState(
                     description = (product as? Product.ChipOffer)?.description,
                     iconEmoji = product?.iconEmoji ?: "🎁",
                     isEquipped = item.productId in equippedIds || isDefaultEquipped,
-                    isEquippable = product?.isEquippable ?: false,
+                    // Ownership outlives the catalog: if the server pulled the
+                    // product after purchase (e.g. the sunset/neon table themes
+                    // dropped in V64/V70), fall back to the slot to decide the
+                    // Equip button. A slot cosmetic stays equippable so an owner
+                    // who unequips it can put it back on; packs/chips (no slot)
+                    // stay inert. The slot set matches the server's own
+                    // `is_equippable` prefix rule (V12 + V43).
+                    isEquippable = product?.isEquippable
+                        ?: (cosmeticSlotFor(item.productId) != null),
                     acquisitionSource = item.acquisitionSource,
                     tier = tierForProductId(item.productId),
                     acquiredAtEpochMs = item.purchasedAtEpochMs,

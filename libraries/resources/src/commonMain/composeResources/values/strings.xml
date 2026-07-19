@@ -757,6 +757,7 @@
     <string name="account_linked_dialog_body">You're signed in with %1$s now, so your chips, XP, and achievements are safe and synced across devices.</string>
     <string name="account_linked_dialog_reassurance">Sign in with %1$s any time to pick up right where you left off.</string>
     <string name="account_linked_dialog_primary_cta">Keep playing</string>
+    <string name="account_linked_provider_email">email</string>
 
     <!-- Profile - Delete account destructive flow. -->
     <string name="profile_delete_back_a11y">Back</string>
@@ -1086,6 +1087,16 @@
     <string name="room_player_profile_report_supporting">Send this to our team to review. They won't be told who reported them.</string>
     <string name="room_player_profile_report_button">Report</string>
     <string name="room_player_profile_report_button_sent">Reported</string>
+    <string name="report_sheet_title">Report %1$s</string>
+    <string name="report_sheet_subtitle">Tell us what happened. Pick anything that applies — they won't be told who reported them.</string>
+    <string name="report_reason_harassment">Harassment or abuse</string>
+    <string name="report_reason_cheating">Cheating or collusion</string>
+    <string name="report_reason_offensive_name">Offensive name or avatar</string>
+    <string name="report_reason_spam">Spam or advertising</string>
+    <string name="report_reason_other">Something else</string>
+    <string name="report_details_hint">Add details (optional)</string>
+    <string name="report_submit_button">Submit report</string>
+    <string name="report_cancel_button">Cancel</string>
     <string name="room_player_profile_bot_callout_title">This is a bot</string>
     <string name="room_player_profile_bot_callout_body">Bots only see their own hand and the community cards. They don't use AI. Each follows a fixed playing style.</string>
 
@@ -1201,6 +1212,7 @@
     <string name="room_connection_lost_banner">Connection lost. We're keeping your seat warm. Back in a moment.</string>
     <string name="room_top_bar_back_a11y">Back</string>
     <string name="room_top_bar_hand_info_a11y">Hand info and rankings</string>
+    <string name="room_top_bar_report_bug_a11y">Report a bug</string>
     <string name="room_board_rankings_a11y">View hand rankings</string>
     <string name="room_loading_dealing_in">Dealing in…</string>
     <string name="room_waiting_to_be_dealt_in">You'll be dealt in next hand</string>
@@ -1439,4 +1451,18 @@
     <string name="app_offline_explainer_title">You're offline</string>
     <string name="app_offline_explainer_body">You can keep playing right now. Anything that needs a connection — multiplayer, purchases, and syncing — picks back up automatically once you're back online.</string>
     <string name="app_status_explainer_dismiss">Got it</string>
+
+    <!-- Purchase history screen -->
+    <string name="purchases_title">Purchases</string>
+    <string name="purchases_settings_headline">Purchase history</string>
+    <string name="purchases_settings_supporting">See your chip packs and check for missing purchases</string>
+    <string name="purchases_sync_button">Check for missing purchases</string>
+    <string name="purchases_status_added">Added</string>
+    <string name="purchases_status_pending">Pending</string>
+    <string name="purchases_status_refunded">Refunded</string>
+    <string name="purchases_empty_title">No purchases yet</string>
+    <string name="purchases_empty_message">Chip packs you buy will show up here.</string>
+    <string name="purchases_unavailable_title">Couldn't load your purchases</string>
+    <string name="purchases_unavailable_message">Check your connection and give it another go.</string>
+    <string name="purchases_unavailable_retry">Try again</string>
 </resources>

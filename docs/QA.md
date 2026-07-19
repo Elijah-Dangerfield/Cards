@@ -44,6 +44,7 @@ Real-device checklist run by a human before each release. Organised by feature. 
 3. Complete remaining onboarding screens.
 
 **Expected:** Lands on Home. Welcome grant dialog shows 10,000 chips. A verification email arrives in the inbox (link tap is covered by `ONB-13`).
+- Submitting a brand-new signup lands on the "Check your email" screen (confirmation required) with a working back path to the landing page. It must NOT bounce to "Welcome back" with a dead back button the instant the verify screen appears. *(AUTH-25.)*
 
 ---
 
@@ -183,6 +184,8 @@ Two variants, both must pass:
 1. Tap the verification link in the email (on the same device).
 
 **Expected:** Opens the app (or web) into the verified state. If on-device, the app's "Verify your email" banner clears; account status flips to verified in Profile.
+- Guest-claim variant (AUTH-24): if this verify-email was started by an anonymous guest claiming their account with email/password (Profile → "Save your progress" → email), tapping the link lands on Home and floats the same "Your account is saved" dialog the Google/Apple claim shows, naming the provider "Email". A brand-new sign-up (not a guest claim) still re-enters onboarding; a returning user's unconfirmed-email sign-in still goes straight to Home with no dialog.
+- Killed-app variant (AUTH-26): force-quit the app after submitting the sign-up (before tapping the link), then tap the verification link. The link still establishes a session (no silent "ignoring stray redirect" dead-end) and the confirmed account resolves into onboarding rather than dropping back to a logged-out landing page.
 
 ---
 
@@ -241,6 +244,18 @@ Two variants, both must pass:
 2. Cold-launch.
 
 **Expected:** Lands on Home with the same account — balance, XP, and level unchanged (session survives the upgrade; anonymous sessions carry a file-backed mirror that restores the Keychain copy if the OS store lost it). It must **never** silently reset to 10,000 chips / level 0 — that means a fresh guest was minted over the real account. If the session genuinely can't be recovered, the full-screen "session expired" recovery screen appears instead of Home, offering retry and an explicit sign-in / start-fresh choice; the session log shows `GuestSessionHealer` `STOP_FOR_RECOVERY`, not `MINT`.
+
+---
+
+### `ONB-19` ⚠️ 📱 Delete account → continue as guest shows true new-user state (AUTH-27)
+
+**State:** signed into an account that has opened the Shop at least once (so the "new items" dot is cleared) and holds a non-starter chip balance, online.
+
+1. Settings → Delete account → type "delete" → confirm.
+2. On returning to PickIdentity, tap "Continue as guest."
+3. Complete remaining onboarding screens and land on Home.
+
+**Expected:** The next guest presents as a brand-new user — the bottom-nav Shop badge shows the "new items" dot again (the previous account's shop-seen set does not survive the delete), and the Home chip odometer settles on the fresh starter grant without rolling down from the deleted account's balance.
 
 ---
 
@@ -336,6 +351,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - When the bot-fallback offer appears and you've already drawn down some of today's house-funded subsidy, the offer shows a heads-up line naming the remaining bonus chips (or "you've used today's bonus chips" once exhausted). With full headroom no caveat shows. Tapping "Keep waiting" clears the line (MP-6).
 - The no-results state reads as a calm centered message ("We couldn't find anyone right now" + a supportive line), not a promotional banner. "Keep waiting for players" is the primary action; "Play bots for real chips" sits below it as a secondary offer; "Try again later" is the quiet exit. The subsidy disclosure (above) stays legible in this treatment (ROOM-9).
 - Two devices, same buy-in range (including a tight range that falls between the round stakes, e.g. 3k-4k): Device A searches first and opens a table; Device B searches the same range and is seated *with A* (two members at one table), never stranded on its own empty table (MP-15).
+- Two devices, buy-in ranges one tier apart (e.g. Device A picks 1k, Device B picks 5k), both waiting alone: Device B is rescued onto A's table and they play at A's stake (1k) rather than each sitting alone — two nearby lonely searchers pair up. Set the ranges more than one tier apart (e.g. 1k vs 25k) and they correctly stay on separate tables (MP-34).
 - Staggered start (ROOM-12): Device A searches and falls through to its own waiting table (no candidates yet). A few seconds later Device B starts a search in the same range. A must still discover B's table while waiting and the two end up at one table — neither sits alone forever. (The older of the two tables wins, so exactly one device migrates.)
 - Joined-table lobby (ROOM-11): when the chooser lists candidates and you tap Join on one, you land on a distinct joined-table screen ("You're in") showing the seat grid with the seated players and a "waiting for more players" / "dealing you in" line — NOT the spinning radar. Once a hand deals you go straight to the live table. (Falling through to the genuine wait, with no candidate picked, still shows the radar.)
 - Sole member wields host powers (ROOM-16): get placed alone in a matchmaking table, kill + relaunch, rejoin via the active-room prompt. As the room's only member, tapping an empty seat's "Add a bot" seats a bot — no silent failure. Force a failure (airplane mode mid-tap) and an error snackbar appears; the failure is never invisible.
@@ -356,6 +372,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - **Showdown reveal survives a reconnect blip (MP-25):** carry a multiway hand to a river showdown, then background/foreground one device right as the hand resolves (so its socket reconnects on the Complete state). On resume that device must STILL show the opponents' revealed hole cards for the just-finished hand — the showdown isn't skipped just because the device missed the live hand-end event. Opponents who folded earlier stay mucked (no cards shown).
 - **Opponent times out / folds preflop (MP-26):** heads-up, let the opponent's 30s turn timer run out preflop (or have them fold) so they never act. The non-acting player (the BB) must NOT be left on a frozen board — they see the hand result (winner takes the pot) and a Next Hand path, not a dead table with no acting seat and no winner. Works even though that device only ever received the terminal Complete snapshot.
 - **Idle table holds its socket (MP-32):** sit at the table without acting for a minute or two (let the turn timer / between-hands beat idle). The "lost connection" banner must never flash on a healthy network — it only appears for a real outage. (Was: every quiet socket on a dev build died at exactly 15s and reconnected, strobing the banner.)
+- **Turn timer survives a stats round-trip (MP-33):** while the countdown ring around the acting seat is visibly depleting, tap the stats / XP button, wait a beat, then navigate back to the table. The ring resumes from the real time-left (roughly where it was), not restarted from full — and the server's auto-fold / auto-check still lands at the true deadline.
 
 ---
 
@@ -506,11 +523,13 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 **State:** two devices in the same multiplayer room (or one device + a revealed human opponent), online.
 
 1. Tap the opponent's avatar to open their player card.
-2. Under "Safety", tap "Report".
-3. Reopen the same opponent's card.
-4. Airplane-mode a device and tap "Report" on another opponent to check the failure path.
+2. Under "Safety", tap "Report" — a bottom sheet opens with a reason picker.
+3. Pick one or more reasons (and optionally type details), then tap "Submit report".
+4. Reopen the same opponent's card.
+5. Airplane-mode a device and submit a report on another opponent to check the failure path.
 
-**Expected:** Tapping Report files the report and toasts a confirmation ("Thanks. Our team will take a look."). The button flips to "Reported" and is disabled; reopening the card keeps it "Reported" for the session. The Report action shows on any human opponent regardless of whether the social features flag is on, and never on bots, empty seats, or your own card. Offline, the report toasts an error and the button reverts so it can be retried. (Covers todo MOD-1.)
+**Expected:** The report sheet's "Submit report" stays disabled until at least one reason is selected. Submitting files the report and toasts a confirmation ("Thanks. Our team will take a look."). The card's Report button flips to "Reported" and is disabled; reopening the card keeps it "Reported" for the session. The Report action shows on any human opponent regardless of whether the social features flag is on, and never on bots, empty seats, or your own card. Offline, the report toasts an error and the button reverts so it can be retried. (Covers todo MOD-1.)
+- **Reason picker + details (MOD-2):** the sheet offers multi-select reason tags (harassment, cheating, offensive name, spam, something else) plus an optional free-text box; the selected reasons and text ride with the report (a moderator can filter by category). Cancel closes the sheet without filing.
 
 ---
 
@@ -683,6 +702,27 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** The stuck order is redeemed if it still matches the account; if the server terminally rejects it (`receipt_rejected`), the client **finishes** it (session log: "Terminally rejected replayed receipt … finishing it" + `purchase.discarded`) instead of leaving it to replay. A fresh purchase of the same SKU in step 3 then succeeds normally — it is NOT shadowed by the old stuck transaction. After the step-4 relaunch the terminally-rejected order does NOT reappear in the drain (it was finished). A *transient* failure (server unconfigured / unreachable, 503) must still behave like BILL-7 — left unfinished and recovered on a later launch, never finished/discarded. (Covers todo BILL-13 part 1; the "every single purchase failing on a fresh install" report is the regression this guards.)
 
+### `BILL-14` 🚨 🍎 Reinstall-before-sign-in recovers: sign-in-to-claim, then grant-on-replay
+
+**State:** a TestFlight (or release + `.storekit`) build, signed in with a claimed account. Buy a chip pack, then reinstall so the launch drain replays the order while the app is **anonymous** (not yet signed back in). Needs a real device + a StoreKit sandbox account.
+
+1. Launch the fresh install anonymously and let the drain run.
+2. Reopen the app (foreground) to let in-app messages deliver.
+3. Sign back in with the original account.
+4. Reopen once more.
+
+**Expected:** While anonymous, the stuck purchase is NOT granted blind — it stays unfinished and an in-app message "You've got chips waiting / Sign in with the account you bought it on…" appears (session log: `purchase.claim_sign_in`; server 409 `receipt_claim_sign_in`). After signing back in, the next drain redeems it cleanly (the receipt matches via lineage) OR grant-on-replay credits the current account; the balance gains the pack and a "Your chips are here" message appears. A purchase that never resolves past the retry cap is escalated to a **goodwill** grant ("We sorted it out"), finished so it can't shadow new buys, and flagged to Sentry. Every outcome reaches the user — no silent success or failure. (Covers the purchase-recovery model in `docs/wiki/purchases.md`.)
+
+### `SHOP-11` 🍎🤖 Purchase-history screen + sync
+
+**State:** any build with at least one completed (or stuck) chip-pack purchase on the account.
+
+1. Shop → tap "Purchase history" (under the chip packs).
+2. Review the list.
+3. Tap "Check for missing purchases".
+
+**Expected:** Each purchase shows its pack, chip amount, and status (Added / Pending / Refunded), newest first. A delisted pack still renders with a generic label, not a blank row. "Check for missing purchases" re-runs the outstanding-purchase drain and the list reloads; a purchase that resolves flips from Pending to Added. With no purchases the screen shows a calm "No purchases yet", and a failed load with nothing to show offers a retry, not a misleading empty state.
+
 ---
 
 ## Tooling & debug
@@ -695,6 +735,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. With the sheet still up, shake the device to bring up the "sun" feedback dialog (and, from it, tap through to the feedback form).
 
 **Expected:** The shake dialog — and the feedback form it opens — render fully on top of the bottom sheet and its scrim, never behind it. Tapping the dialog scrim / back dismisses the dialog and returns to the sheet. (Covers todo GAME-11.)
+- **Mid-game bug button (debug/TestFlight only):** the play-poker top bar shows a small bug icon next to the "?" help icon. Tapping it opens the feedback form without leaving the table. It never appears on an App Store build.
 
 ### `ENG-8` ℹ️ 📱 Wiretap captures the gameplay WebSocket
 
@@ -704,3 +745,12 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Shake the device to open the Network inspector; find the WebSocket / sockets tab.
 
 **Expected:** The gameplay socket connection appears in the inspector (URL `…/v1/rooms/<code>/socket`) alongside the HTTP calls, listing its inbound frames (game_state snapshots, game_event, intent_ack, emoji) and outbound frames (your submitted intents, next-hand requests), plus the connect and the close/error when you leave. A release build never shows the inspector. (Covers todo ENG-8.)
+
+### `ENG-31` 🚨 📱 Android edge-swipe back navigates (not hijacked by the feedback shortcut)
+
+**State:** an Android device set to gesture navigation, on a **debug or TestFlight** build (where the tester right-edge shortcut used to be active), on any pushed screen — e.g. open Settings, or the player-profile sheet.
+
+1. Swipe inward from the **right** screen edge (Android's system back gesture).
+2. Repeat from the **left** edge.
+
+**Expected:** Each edge swipe navigates back / pops the screen, the same as the system back button — it does **not** open the feedback form. (Before ENG-31, a right-edge swipe on a debug/TestFlight build opened feedback instead of going back, so back felt broken.) Feedback is still reachable via shake-to-debug or the Settings entry. On the play screen, back still shows the leave-table confirm by design. (Covers todo ENG-31.)

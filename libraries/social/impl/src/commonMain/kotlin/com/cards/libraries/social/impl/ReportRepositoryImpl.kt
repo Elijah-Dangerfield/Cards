@@ -29,7 +29,8 @@ class ReportRepositoryImpl(
         userId: String,
         roomCode: String?,
         reason: String?,
-    ): ReportPlayerResult = Catching { api.reportPlayer(userId, roomCode, reason) }.fold(
+        categories: List<String>,
+    ): ReportPlayerResult = Catching { api.reportPlayer(userId, roomCode, reason, categories) }.fold(
         onSuccess = { ReportPlayerResult.Reported },
         onFailure = { e ->
             logger.w(e) { "reportPlayer failed for $userId" }

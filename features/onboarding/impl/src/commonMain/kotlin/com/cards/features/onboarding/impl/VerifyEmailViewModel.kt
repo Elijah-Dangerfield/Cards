@@ -2,11 +2,12 @@ package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
+import com.dangerfield.cards.libraries.identity.auth.AuthOutcome
+import com.dangerfield.cards.libraries.identity.auth.AuthOutcomeClassifier
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
-import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
 
@@ -42,8 +43,9 @@ import me.tatarka.inject.annotations.Inject
 class VerifyEmailViewModel(
     private val authRepository: AuthRepository,
     private val appCache: AppCache,
-    private val profileRepository: ProfileRepository,
+    private val authOutcomeClassifier: AuthOutcomeClassifier,
     @Assisted private val email: String?,
+    @Assisted private val guestLink: Boolean,
 ) : SEAViewModel<VerifyEmailState, VerifyEmailEvent, VerifyEmailAction>(
     initialStateArg = VerifyEmailState(email = email.orEmpty()),
 ) {
@@ -80,7 +82,7 @@ class VerifyEmailViewModel(
                     }
                     is RefreshOutcome.SessionExpired -> {
                         updateState { it.copy(isRefreshing = false) }
-                        sendEvent(VerifyEmailEvent.NavigateBackToSignIn)
+                        onNoSessionAfterCheck()
                     }
                     is RefreshOutcome.NetworkError -> updateState {
                         it.copy(
@@ -100,8 +102,13 @@ class VerifyEmailViewModel(
             is VerifyEmailAction.AppResumed -> action.run {
                 when (authRepository.refreshSession()) {
                     is RefreshOutcome.EmailConfirmed -> routeAfterConfirmation()
+                    // A brand-new signup has no session until the confirmation link
+                    // is tapped, so "no session" on a silent resume is just "not
+                    // confirmed yet" — never yank the user out to "Welcome back"
+                    // (AUTH-25). Only a guest whose real session genuinely died gets
+                    // routed back to sign in.
                     is RefreshOutcome.SessionExpired ->
-                        sendEvent(VerifyEmailEvent.NavigateBackToSignIn)
+                        if (guestLink) sendEvent(VerifyEmailEvent.NavigateBackToSignIn)
                     is RefreshOutcome.StillPending,
                     is RefreshOutcome.NetworkError,
                     is RefreshOutcome.Unknown,
@@ -126,32 +133,47 @@ class VerifyEmailViewModel(
     }
 
     /**
-     * Where to go once the email is confirmed. A brand-new signup still needs to
-     * pick a name/avatar and see the starter grant, so it re-enters onboarding at
-     * the identity step; a returning account (its email was merely unconfirmed)
-     * already has a profile + wallet, so it skips straight to Home. Same
-     * new-vs-returning discriminator the OAuth path uses.
+     * The explicit "Check verification" tap came back with no session. For a
+     * brand-new signup (or a returning user's unconfirmed-email sign-in) there
+     * simply is no session until the confirmation link is tapped, so this means
+     * "not confirmed yet" — surface the same nudge as [RefreshOutcome.StillPending]
+     * instead of bouncing to "Welcome back" and clearing the back stack (AUTH-25).
+     * A guest who linked an email did have a live session, so a genuine expiry
+     * there still routes to sign in.
      */
-    private suspend fun routeAfterConfirmation() {
-        if (isBrandNewAccount()) {
-            sendEvent(VerifyEmailEvent.NavigateToOnboarding)
+    private suspend fun VerifyEmailAction.onNoSessionAfterCheck() {
+        if (guestLink) {
+            sendEvent(VerifyEmailEvent.NavigateBackToSignIn)
         } else {
-            appCache.update { it.copy(hasUserOnboarded = true) }
-            sendEvent(VerifyEmailEvent.NavigateToHome)
+            updateState { it.copy(banner = VerifyEmailState.Banner.StillPending) }
         }
     }
 
     /**
-     * Whether the just-confirmed account is brand new. Mirrors the onboarding
-     * OAuth path: reads the authoritative server signal via
-     * [ProfileRepository.resolveIsNewAccount] (`/v1/me`'s `isNewAccount`), which
-     * replaced the best-effort `walletJustCreated` proxy — that proxy depended on
-     * a wallet sync that goes false when offline and tripped on identity churn (a
-     * pre-existing account could look "new"). On error the signal is false, so a
-     * real returning user is routed Home rather than trapped in onboarding.
+     * Where to go once the email is confirmed. Three outcomes:
+     *  - an anonymous guest who linked an email identity keeps their existing
+     *    account + progress, so they get the "account saved" confirmation (the
+     *    email equivalent of the OAuth-link dialog) and land on Home;
+     *  - a brand-new signup still needs to pick a name/avatar and see the
+     *    starter grant, so it re-enters onboarding at the identity step;
+     *  - a returning account (its email was merely unconfirmed) already has a
+     *    profile + wallet, so it skips straight to Home.
+     * The guest-link case is known statically from the route ([guestLink]);
+     * new-vs-returning uses the same server signal the OAuth path does.
      */
-    private suspend fun isBrandNewAccount(): Boolean =
-        profileRepository.resolveIsNewAccount()
+    private suspend fun routeAfterConfirmation() {
+        when (authOutcomeClassifier.classify(wasLink = guestLink)) {
+            AuthOutcome.Linked -> {
+                appCache.update { it.copy(hasUserOnboarded = true) }
+                sendEvent(VerifyEmailEvent.NavigateToAccountSaved)
+            }
+            AuthOutcome.SignedUp -> sendEvent(VerifyEmailEvent.NavigateToOnboarding)
+            AuthOutcome.SignedIn -> {
+                appCache.update { it.copy(hasUserOnboarded = true) }
+                sendEvent(VerifyEmailEvent.NavigateToHome)
+            }
+        }
+    }
 }
 
 data class VerifyEmailState(
@@ -174,6 +196,8 @@ sealed interface VerifyEmailEvent {
     data object NavigateBackToSignIn : VerifyEmailEvent
     /** Brand-new signup confirmed → re-enter onboarding at the identity step. */
     data object NavigateToOnboarding : VerifyEmailEvent
+    /** Anon guest's email link confirmed → show the "account saved" dialog, then Home. */
+    data object NavigateToAccountSaved : VerifyEmailEvent
 }
 
 sealed interface VerifyEmailAction {

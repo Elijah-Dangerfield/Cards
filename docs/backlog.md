@@ -1119,3 +1119,47 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 **Idea (ROOM-18 follow-on, 2026-07-15):** `RoomSeat.kt` in `:libraries:ui` renders several user-facing labels as inline literals ("Add a bot", "Adding…", "Open", "joining…", "up next") while only the "You" pill routes through `:libraries:resources`. ROOM-18 added the "Adding…" literal to match the file's existing convention rather than lift one label in isolation. Do the whole component in one deliberate pass: add `room_seat_*` entries and read them via `stringResource`, so the copy is translatable and word-checkable in one place. Watch the ellipsis characters (use a plain "..." per the strings.xml rules, no backslash escapes / em dashes).
 
 **Status:** Backlog. Small DS hygiene pass; pull when touching RoomSeat again or when localization work starts.
+
+## Guest email-link "account saved" dialog on cold launch (AUTH-24 follow-on)
+
+**Idea (AUTH-24 follow-on, 2026-07-17):** AUTH-24 shows the "account saved" dialog when an anonymous guest confirms an email link, by threading a `guestLink` flag through `VerifyEmailRoute`. The cold-launch deep link `cards://auth/confirmed` can't carry that flag, so a guest who kills the app between requesting and tapping the link lands on Home with no dialog (the warm `AppResumed` path on the live screen is covered). Close the gap by persisting a "guest email link pending confirmation" marker in `AppData` when the claim flow kicks off `linkEmailIdentity`, then reading + clearing it in `VerifyEmailViewModel.routeAfterConfirmation` so the cold-launch confirm also shows the dialog.
+
+**Status:** Backlog. The flag defaulting false only ever omits the dialog, never shows the wrong one, so this is a completeness polish, not a correctness bug. Pull when touching the verify-email flow or AppData onboarding flags.
+
+## Cold-launch email confirmation: same-frame routing into onboarding (AUTH-26 residual)
+
+**Idea (worker note 2026-07-18):** AUTH-26 makes a `cards://login-callback` confirmation link establish + persist a session even when the app was killed mid-signup (`SupabaseAuthRepositoryImpl.completeRedirectWithoutPendingLocked`). But on that killed-then-relaunch path the app boots session-less and `OnboardingViewModel.ResolveEntry` can run before the async import lands, so the user may sit on the Welcome/landing step (now silently authenticated) until the next auth resolve routes them into the identity step. Close the loop so the freshly-imported cold-launch account routes into onboarding on the same launch — e.g. an app-level reaction to the auth transition, or re-resolving onboarding entry when auth flips to authenticated-not-onboarded. Needs device verification (deep-link + process-kill timing).
+
+**Status:** Backlog. Low-severity edge (the app-backgrounded-not-killed path already routes immediately); pull when the auth deep-link paths get device QA.
+
+## Animated screen-entrance transitions (staggered content reveal)
+
+**Idea (owner feedback 2026-07-18):** When a screen finishes loading, its content currently pops in all at once — e.g. the shop grid snaps onto the screen once the catalog resolves. Add a deliberate entrance animation so loaded content reveals with a short, subtle staggered fade/slide instead of jumping. Most visible on the list/grid screens (shop, My Items, achievements). Build it as a reusable enter-transition primitive in `:libraries:ui` (`AnimatedVisibility` + a staggered fade+slide, or lazy-list item enter / `animateItemPlacement`) rather than per-screen one-offs, so the motion reads as one system and stays DS-owned. Keep it fast and understated (the goal is polish, not a splashy reveal); honor reduced-motion if/when that setting is surfaced.
+
+**Status:** Backlog. Pure UX polish; pull during a motion pass or when the shop/list screens get design attention.
+
+## Refund / chargeback webhooks (claw back granted chips)
+
+**Idea (dev-todo, 2026-07-18):** Wire **App Store Server Notifications V2** (ASC → your app → App Information → URL) and **Google Real-time Developer Notifications** (Play Console → Monetization setup → a Cloud Pub/Sub topic) to server webhook routes so a refund or chargeback claws back the chips granted for that purchase. Not a launch blocker — chip redemption is already idempotent and one-directional without it (a refund just doesn't un-grant), so this only closes the refund-abuse loop: buy chips, spend or keep them, then refund the purchase.
+
+**Status:** Backlog. Payment-integrity hardening; pull when refund abuse shows up in the ledger or before scaling paid users.
+
+## Unified single-entry-point auth facade (AUTH-22 follow-on)
+
+**Idea (AUTH-22 follow-on, 2026-07-18):** AUTH-22 replaced the duplicated new-vs-returning booleans with a typed `AuthOutcome` (`SignedUp` / `SignedIn` / `Linked`) resolved by an `AuthOutcomeClassifier` that sits above the repos and reads the server's one-shot `/v1/me` new-account signal. The classifier is a deliberate stop short of the item's stated end state: sign-in and account-link still have several entry points across `AuthRepository` (OAuth, Apple, email, guest-link), each returning its own result type, with callers stitching the outcome together. The fuller move is one `AccountClaimer` facade that unifies every sign-in/link method behind a single call returning one typed `AuthResult`, so onboarding / verify / claim never touch `AuthRepository` shapes directly. Deferred as too big for the AUTH-22 slice; folding classification onto `AuthRepository` itself was rejected because `ProfileRepository` (which owns the new-account latch) already depends on `AuthRepository`, so the facade has to live above both. See decisions.md (2026-07-18).
+
+**Status:** Backlog. Architectural cleanup with no user-visible change; pull when the auth entry points next get substantial work, or if a third consumer of the outcome appears.
+
+## Gate real-money purchases during announced maintenance (BILL follow-on)
+
+**Idea (2026-07-19):** When the server announces *non-blocking* maintenance (the banner variant of `AppGuard`, not the full-block), the shop is still reachable and a real-money purchase can settle at Apple/Google while our redeem is degraded. Today that degrades gracefully (the "Your chips are on the way" dialog + the launch-drain retry + the optimistic Pending row in purchase history), but it still charges the user into a known-degraded window. Nice-to-have: disable the buy buttons (or show "purchases paused for maintenance") when `AppGuard` reports maintenance, so we don't take money we can't immediately honor. Blocking maintenance already gates the whole app, so this is only the banner case. Product call: weigh a lost sale vs. a smoother recovery — deferred, not clearly worth blocking a sale.
+
+**Status:** Backlog. Pull if support sees "paid during maintenance, no chips" reports, or before a planned maintenance window with live paying users.
+
+## Grant-on-replay / install-lineage security follow-ups (BILL-11, from the 2026-07-19 review)
+
+**Findings (deep security review of `feat/purchase-recovery`):** the money-path invariant (one grant per genuine transaction id, no cash-out) holds and forged/revoked receipts can't reach any grant, but two guardrails are weaker than `docs/wiki/purchases.md` implied: (1) the `replayed` flag is client-asserted and not corroborated server-side, so the true bound on grant-on-replay is "possession of a genuine, unredeemed signed receipt," not "StoreKit-replay only" — an attacker holding a victim's receipt can redirect that one already-paid purchase to their own account. (2) `ProfileRepository.findInstallLineage` derives from the mutable, client-set `X-Install-Id` header (not a server-established AUTH-19 linkage) and, worse, a lineage match promotes a *mismatched* token to a clean `Valid` grant — bypassing the rate limit, the `.replay` reason, and the audit trail. Both require possessing the victim's genuine token, so neither is an independent chip mint; acceptable for freemium/no-cash-out, but worth tightening. The wiki was corrected to state the real bound.
+
+**Fixes to consider:** gate lineage membership on server-recorded same-install upgrades rather than the client header, and/or cap accounts per `install_id`; route a lineage-matched *mismatched* token through the same rate-limited, distinctly-logged path as grant-on-replay instead of a clean `Valid`; add a per-caller cap on grant-on-replay toward *distinct* receipt owners (one human's reinstall lineage is one owner; many owners is the anomaly). Also minor: `RelaxedGrantRateLimiter` never evicts empty per-user deques (slow memory creep), and Google refunds that leave `purchaseState=PURCHASED` aren't caught (backstop is the deferred voided-purchases webhook).
+
+**Status:** Backlog. Pull before scaling paid users or if abuse shows in `billing_events` (spike in distinct receipt owners per caller, or grant-on-replay rate).

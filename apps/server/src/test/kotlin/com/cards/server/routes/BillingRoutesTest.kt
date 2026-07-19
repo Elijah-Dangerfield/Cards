@@ -2,7 +2,17 @@ package com.dangerfield.cards.server.routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
+import com.dangerfield.cards.server.data.RelaxedGrantRateLimiter
+import com.dangerfield.cards.server.domain.BillingEventAction
+import com.dangerfield.cards.server.domain.BillingEventAttempt
+import com.dangerfield.cards.server.domain.BillingEventRecord
+import com.dangerfield.cards.server.domain.BillingEventsRepository
 import com.dangerfield.cards.server.domain.BillingRepository
+import com.dangerfield.cards.server.domain.CreateMessageOutcome
+import com.dangerfield.cards.server.domain.UserMessage
+import com.dangerfield.cards.server.domain.UserMessageKind
+import com.dangerfield.cards.server.domain.UserMessageRepository
+import com.dangerfield.cards.server.domain.GrantKind
 import com.dangerfield.cards.server.domain.PlatformStore
 import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalog
@@ -22,6 +32,7 @@ import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -36,6 +47,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import java.util.Date
 import java.util.UUID
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -50,6 +63,7 @@ import kotlin.test.assertTrue
  * Mints HS256 JWTs against a controlled secret + matching verifier, the
  * same pattern as [WalletRoutesTest].
  */
+@OptIn(ExperimentalTime::class)
 class BillingRoutesTest {
 
     private val testIssuer = "https://test-project.supabase.co/auth/v1"
@@ -109,7 +123,10 @@ class BillingRoutesTest {
     }
 
     @Test
-    fun redeem_rejectedReceipt_returns400_andDoesNotGrant() = runTest {
+    fun redeem_deadReceipt_returns400_receiptDead_andDoesNotGrant() = runTest {
+        // A forged / terminally-rejected receipt classifies Dead: 400
+        // `receipt_dead`, which the client acts on by finishing the stuck
+        // transaction so it stops replaying (BILL-13).
         val billing = FakeBilling()
         callRedeem(
             billing = billing,
@@ -118,15 +135,206 @@ class BillingRoutesTest {
             bearer = validJwt(),
         ) { resp ->
             assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertEquals("receipt_dead", resp.errorCode())
         }
         assertTrue(billing.redeemCalls.isEmpty(), "a forged receipt must never reach the grant")
     }
 
     @Test
-    fun redeem_retryableRejection_returns503_soClientLeavesTheTransactionReplayable() = runTest {
+    fun redeem_accountMismatch_returns409_receiptAccountMismatch_andDoesNotGrant() = runTest {
+        // A genuine, paid receipt bound to a different one of the user's accounts
+        // classifies Mismatch: 409 `receipt_account_mismatch`, which the client
+        // treats as recoverable (sign-in-to-claim / grant-on-replay) rather than
+        // finishing it as dead.
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = AccountMismatchValidator,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-mismatch"),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.Conflict, resp.status)
+            assertEquals("receipt_account_mismatch", resp.errorCode())
+        }
+        assertTrue(billing.redeemCalls.isEmpty(), "a mismatched receipt must never reach the grant")
+    }
+
+    @Test
+    fun redeem_replayedAccountMismatch_grantsOnReplay_relaxingTheAccountBinding() = runTest {
+        // Grant-on-replay: a StoreKit-replayed transaction whose only failure is
+        // the account binding is granted to the current caller, flagged relaxed.
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = ReplayableMismatchValidator,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-replay", replayed = true),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<RedeemResponse>()
+            assertEquals(GRANT, body.grantedChips)
+        }
+        val call = billing.redeemCalls.single()
+        assertEquals(GrantKind.GrantOnReplay, call.kind, "a grant-on-replay must be recorded as a relaxed grant")
+        assertEquals(userId, call.userId, "the grant lands on the current caller, not the receipt owner")
+        assertEquals("txn-replay", call.orderId)
+    }
+
+    @Test
+    fun redeem_recordsBillingEvent_perDisposition() = runTest {
+        val grantEvents = RecordingBillingEvents()
+        callRedeem(
+            billing = FakeBilling(),
+            billingEvents = grantEvents,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-ev"),
+            bearer = validJwt(),
+        ) { resp -> assertEquals(HttpStatusCode.OK, resp.status) }
+        val granted = grantEvents.recorded.single()
+        assertEquals(BillingEventAction.Granted, granted.action)
+        assertEquals("txn-ev", granted.transactionId)
+        assertEquals(userId, granted.callerUser)
+
+        val replayEvents = RecordingBillingEvents()
+        callRedeem(
+            billing = FakeBilling(),
+            validator = ReplayableMismatchValidator,
+            billingEvents = replayEvents,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-rp", replayed = true),
+            bearer = validJwt(),
+        ) { resp -> assertEquals(HttpStatusCode.OK, resp.status) }
+        val relaxed = replayEvents.recorded.single()
+        assertEquals(BillingEventAction.GrantedOnReplay, relaxed.action)
+        assertEquals(RECEIPT_OWNER, relaxed.receiptOwner, "the relaxed grant records the receipt's owning account")
+    }
+
+    @Test
+    fun redeem_drainGrant_enqueuesAFoundYourPurchaseMessage() = runTest {
+        val messages = RecordingMessages()
+        callRedeem(
+            billing = FakeBilling(),
+            messages = messages,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-drain", replayed = true),
+            bearer = validJwt(),
+        ) { resp -> assertEquals(HttpStatusCode.OK, resp.status) }
+        assertEquals(1, messages.created.size, "a drain recovery closes the loop with a message")
+        assertEquals("billing_granted.apple.txn-drain", messages.created.single().idempotencyKey)
+    }
+
+    @Test
+    fun redeem_interactiveGrant_doesNotEnqueueAMessage() = runTest {
+        // An interactive buy is celebrated by the shop in the moment; a duplicate
+        // in-app message would be noise.
+        val messages = RecordingMessages()
+        callRedeem(
+            billing = FakeBilling(),
+            messages = messages,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-live", replayed = false),
+            bearer = validJwt(),
+        ) { resp -> assertEquals(HttpStatusCode.OK, resp.status) }
+        assertTrue(messages.created.isEmpty(), "interactive buys are not messaged")
+    }
+
+    @Test
+    fun redeem_wedgedEscalation_enqueuesAGoodwillMessage() = runTest {
+        val messages = RecordingMessages()
+        callRedeem(
+            billing = FakeBilling(),
+            validator = ReplayableMismatchValidator,
+            billingEvents = RecordingBillingEvents(priorAttempts = 10),
+            messages = messages,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-gw", replayed = true),
+            bearer = anonymousJwt(),
+        ) { resp -> assertEquals(HttpStatusCode.OK, resp.status) }
+        assertEquals("billing_goodwill.apple.txn-gw", messages.created.single().idempotencyKey)
+    }
+
+    @Test
+    fun redeem_wedgedPurchase_escalatesToGoodwillGrant() = runTest {
+        // A purchase re-attempted well past the retry cap (here an anonymous
+        // caller who never signs in) is made whole with goodwill chips and
+        // finished, rather than left paid-but-blocked forever.
+        val events = RecordingBillingEvents(priorAttempts = 10)
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = ReplayableMismatchValidator,
+            billingEvents = events,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-wedged", replayed = true),
+            bearer = anonymousJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<RedeemResponse>()
+            assertTrue(body.goodwill, "a wedged escalation grants goodwill chips")
+        }
+        val call = billing.redeemCalls.single()
+        assertEquals(GrantKind.Goodwill, call.kind, "the escalation grants goodwill, not a normal grant")
+        assertTrue(
+            events.recorded.any { it.action == BillingEventAction.Escalated },
+            "the escalation is recorded for review",
+        )
+    }
+
+    @Test
+    fun redeem_replayedAccountMismatch_anonymousCaller_nudgesSignInToClaim_andDoesNotGrant() = runTest {
+        // An anonymous caller is nudged to sign in first (re-login matches the
+        // receipt cleanly and lands the chips on the durable account) rather than
+        // granted blind on a relaxed binding.
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = ReplayableMismatchValidator,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-anon", replayed = true),
+            bearer = anonymousJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.Conflict, resp.status)
+            assertEquals("receipt_claim_sign_in", resp.errorCode())
+        }
+        assertTrue(billing.redeemCalls.isEmpty(), "an anonymous caller is nudged to sign in, never granted blind")
+    }
+
+    @Test
+    fun redeem_interactiveAccountMismatch_isNotRelaxed_returns409_andDoesNotGrant() = runTest {
+        // The same account mismatch on an interactive buy (replayed = false) is
+        // never relaxed — only a StoreKit replay is eligible for grant-on-replay.
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = ReplayableMismatchValidator,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-interactive", replayed = false),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.Conflict, resp.status)
+            assertEquals("receipt_account_mismatch", resp.errorCode())
+        }
+        assertTrue(billing.redeemCalls.isEmpty(), "an interactive mismatch must never reach the grant")
+    }
+
+    @Test
+    fun redeem_replayedAccountMismatch_rateLimited_fallsBackTo409() = runTest {
+        // Past the per-user relaxed-grant cap, a replayed mismatch stops being
+        // relaxed and falls back to the strict 409 so the client still finishes
+        // the transaction and the shop is unblocked.
+        val limiter = RelaxedGrantRateLimiter(Clock.System)
+        repeat(RelaxedGrantRateLimiter.MAX_PER_WINDOW) { limiter.tryAcquire(userId) }
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = ReplayableMismatchValidator,
+            rateLimiter = limiter,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-capped", replayed = true),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.Conflict, resp.status)
+            assertEquals("receipt_account_mismatch", resp.errorCode())
+        }
+        assertTrue(billing.redeemCalls.isEmpty(), "a rate-limited relaxed grant must not credit")
+    }
+
+    @Test
+    fun redeem_retryableRejection_returns503_receiptTransient_soClientLeavesTheTransactionReplayable() = runTest {
         // BILL-13: a transient refusal (validator unconfigured / store API
-        // unreachable) must answer 503, not 400 — the client maps 5xx to
-        // "unavailable" and keeps the transaction unfinished for a later retry
+        // unreachable) must answer 503, not 400 — the client maps it to
+        // "transient" and keeps the transaction unfinished for a later retry
         // instead of finishing (and stranding) a genuinely paid purchase.
         val billing = FakeBilling()
         callRedeem(
@@ -136,6 +344,7 @@ class BillingRoutesTest {
             bearer = validJwt(),
         ) { resp ->
             assertEquals(HttpStatusCode.ServiceUnavailable, resp.status)
+            assertEquals("receipt_transient", resp.errorCode())
         }
         assertTrue(billing.redeemCalls.isEmpty(), "an unvalidated receipt must never reach the grant")
     }
@@ -186,6 +395,46 @@ class BillingRoutesTest {
     }
 
     @Test
+    fun history_returnsCallersPurchases_withCoarseStatus() = runTest {
+        val events = RecordingBillingEvents(
+            history = listOf(
+                record("txn-1", BillingEventAction.Granted),
+                record("txn-2", BillingEventAction.ClaimSignIn),
+                record("txn-3", BillingEventAction.FinishedDead),
+            ),
+        )
+        testApplication {
+            application {
+                installSerialization()
+                installRateLimits()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing {
+                    billingRoutes(
+                        SingleChipPackCatalog, EchoTokenValidator, FakeBilling(),
+                        LineageProfiles(setOf(userId)), RelaxedGrantRateLimiter(Clock.System), events, RecordingMessages(),
+                    )
+                }
+            }
+            val client = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+            val resp = client.get("/v1/billing/history") { header(HttpHeaders.Authorization, "Bearer ${validJwt()}") }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<PurchaseHistoryResponse>()
+            assertEquals(listOf("added", "pending", "refunded"), body.items.map { it.status })
+        }
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private fun record(txn: String, action: BillingEventAction) = BillingEventRecord(
+        store = "apple",
+        transactionId = txn,
+        productId = CHIP_PACK_ID,
+        action = action,
+        reason = null,
+        updatedAt = kotlin.time.Instant.fromEpochMilliseconds(0),
+    )
+
+    @Test
     fun redeem_returns401_whenAuthHeaderMissing() = runTest {
         val billing = FakeBilling()
         callRedeem(
@@ -208,6 +457,15 @@ class BillingRoutesTest {
         .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
         .sign(Algorithm.HMAC256(testSecret))
 
+    private fun anonymousJwt(): String = JWT.create()
+        .withIssuer(testIssuer)
+        .withAudience("authenticated")
+        .withSubject(userId.value.toString())
+        .withClaim("is_anonymous", true)
+        .withIssuedAt(Date())
+        .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
+        .sign(Algorithm.HMAC256(testSecret))
+
     private val testVerifier = JWT.require(Algorithm.HMAC256(testSecret))
         .withIssuer(testIssuer)
         .withAudience("authenticated")
@@ -220,6 +478,9 @@ class BillingRoutesTest {
         catalog: ProductCatalogSource = SingleChipPackCatalog,
         validator: ReceiptValidator = EchoTokenValidator,
         profiles: ProfileRepository = LineageProfiles(setOf(userId)),
+        rateLimiter: RelaxedGrantRateLimiter = RelaxedGrantRateLimiter(Clock.System),
+        billingEvents: BillingEventsRepository = RecordingBillingEvents(),
+        messages: RecordingMessages = RecordingMessages(),
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -228,7 +489,7 @@ class BillingRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { billingRoutes(catalog, validator, billing, profiles) }
+                routing { billingRoutes(catalog, validator, billing, profiles, rateLimiter, billingEvents, messages) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -252,6 +513,7 @@ class BillingRoutesTest {
             val productId: String,
             val grantedChips: Long,
             val environment: PurchaseEnvironment,
+            val kind: GrantKind,
         )
 
         val redeemCalls: MutableList<Call> = mutableListOf()
@@ -263,8 +525,9 @@ class BillingRoutesTest {
             productId: String,
             grantedChips: Long,
             environment: PurchaseEnvironment,
+            kind: GrantKind,
         ): RedeemResult {
-            redeemCalls += Call(userId, store, orderId, productId, grantedChips, environment)
+            redeemCalls += Call(userId, store, orderId, productId, grantedChips, environment, kind)
             return result
         }
     }
@@ -284,6 +547,20 @@ class BillingRoutesTest {
             ReceiptValidation.Invalid(reason = "forged")
     }
 
+    private object AccountMismatchValidator : ReceiptValidator {
+        override suspend fun validate(request: PurchaseReceipt): ReceiptValidation =
+            ReceiptValidation.Invalid(reason = "apple_account_mismatch")
+    }
+
+    private object ReplayableMismatchValidator : ReceiptValidator {
+        override suspend fun validate(request: PurchaseReceipt): ReceiptValidation =
+            ReceiptValidation.AccountMismatch(
+                orderId = request.token,
+                environment = PurchaseEnvironment.Production,
+                receiptOwner = RECEIPT_OWNER,
+            )
+    }
+
     private object UnconfiguredValidator : ReceiptValidator {
         override suspend fun validate(request: PurchaseReceipt): ReceiptValidation =
             ReceiptValidation.Invalid(reason = "apple_validator_unconfigured", retryable = true)
@@ -295,6 +572,59 @@ class BillingRoutesTest {
             seen = request
             return ReceiptValidation.Valid(orderId = request.token, environment = PurchaseEnvironment.Production)
         }
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private class RecordingMessages : UserMessageRepository {
+        data class Created(val idempotencyKey: String, val title: String, val body: String)
+        val created: MutableList<Created> = mutableListOf()
+        override suspend fun create(
+            id: UUID,
+            userId: UserId,
+            idempotencyKey: String,
+            kind: UserMessageKind,
+            emoji: String?,
+            title: String,
+            body: String,
+            deepLink: String?,
+            expiresAt: kotlin.time.Instant?,
+        ): CreateMessageOutcome {
+            created += Created(idempotencyKey, title, body)
+            return CreateMessageOutcome(
+                message = UserMessage(
+                    id = id,
+                    userId = userId,
+                    idempotencyKey = idempotencyKey,
+                    kind = kind,
+                    emoji = emoji,
+                    title = title,
+                    body = body,
+                    deepLink = deepLink,
+                    createdAt = kotlin.time.Instant.fromEpochMilliseconds(0),
+                    expiresAt = expiresAt,
+                    ackedAt = null,
+                ),
+                wasAlreadyCreated = false,
+            )
+        }
+        override suspend fun unreadFor(userId: UserId, now: kotlin.time.Instant, limit: Int) = notNeeded()
+        override suspend fun ackMany(userId: UserId, ids: List<UUID>, at: kotlin.time.Instant) = notNeeded()
+        override suspend fun sweepExpiredAndAcked(now: kotlin.time.Instant) = notNeeded()
+        override suspend fun deleteAllForUser(userId: UserId) = notNeeded()
+        private fun notNeeded(): Nothing = error("not needed for billing redeem")
+    }
+
+    private class RecordingBillingEvents(
+        private val priorAttempts: Int = 0,
+        private val history: List<BillingEventRecord> = emptyList(),
+    ) : BillingEventsRepository {
+        val recorded: MutableList<BillingEventAttempt> = mutableListOf()
+        override suspend fun record(event: BillingEventAttempt) {
+            recorded += event
+        }
+        override suspend fun attemptCountFor(store: String, transactionId: String): Int =
+            priorAttempts + recorded.count { it.store == store && it.transactionId == transactionId }
+        override suspend fun historyFor(userId: UserId, limit: Int): List<BillingEventRecord> = history
     }
 
     private class LineageProfiles(private val lineage: Set<UserId>) : ProfileRepository {
@@ -334,8 +664,18 @@ class BillingRoutesTest {
         )
     }
 
+    private suspend fun io.ktor.client.statement.HttpResponse.errorCode(): String =
+        body<ProblemResponse>().error.code
+
+    @kotlinx.serialization.Serializable
+    private data class ProblemResponse(val error: ProblemError)
+
+    @kotlinx.serialization.Serializable
+    private data class ProblemError(val code: String, val message: String)
+
     private companion object {
         const val CHIP_PACK_ID = "chip_pack_medium"
         const val GRANT = 30_000L
+        val RECEIPT_OWNER = UserId(UUID.fromString("52f3f9c1-1a94-4640-b24c-560a9b7534eb"))
     }
 }

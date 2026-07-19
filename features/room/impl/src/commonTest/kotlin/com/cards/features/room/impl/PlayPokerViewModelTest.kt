@@ -1319,14 +1319,21 @@ class PlayPokerViewModelTest : CoroutineTest() {
         val job = launch { vm.eventFlow.collect { events += it } }
         advanceUntilIdle()
 
-        vm.takeAction(PlayPokerAction.ReportPlayer("user-9"))
+        vm.takeAction(
+            PlayPokerAction.ReportPlayer("user-9", categories = listOf("cheating", "harassment"), reason = "kept stalling"),
+        )
         advanceUntilIdle()
 
         assertTrue("user-9" in vm.state.reportedUserIds, "the affordance flips to Reported")
         assertEquals(
-            listOf(Triple<String, String?, String?>("user-9", "ABCD", null)),
+            listOf(Triple<String, String?, String?>("user-9", "ABCD", "kept stalling")),
             reports.reported,
-            "the report carries the target id + room context, no reason in V1",
+            "the report carries the target id + room context + reason",
+        )
+        assertEquals(
+            listOf(listOf("cheating", "harassment")),
+            reports.reportedCategories,
+            "the selected reason categories ride with the report (MOD-2)",
         )
         assertTrue(
             events.contains(PlayPokerEvent.PlayerReported),

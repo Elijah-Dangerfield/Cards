@@ -110,6 +110,7 @@ class MpScenarioBuilder(
                 leaveOutcome = { LeaveRoomOutcome.Success(settledBalance = leaveSettledBalance) },
             ),
             telemetry = HarnessTelemetry,
+            clock = Clock.System,
         )
         val vm = PlayPokerViewModel(
             sessionFactory = factory,

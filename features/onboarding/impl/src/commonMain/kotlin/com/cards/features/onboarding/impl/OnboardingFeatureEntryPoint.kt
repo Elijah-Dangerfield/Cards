@@ -4,12 +4,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.account_linked_provider_email
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.onboarding.ForgotPasswordRoute
 import com.dangerfield.cards.features.onboarding.OnboardingRoute
 import com.dangerfield.cards.features.onboarding.SignInRoute
 import com.dangerfield.cards.features.onboarding.SignUpRoute
 import com.dangerfield.cards.features.onboarding.VerifyEmailRoute
+import com.dangerfield.cards.features.profile.AccountLinkedRoute
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
@@ -17,6 +20,7 @@ import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.routeDeepLink
 import com.dangerfield.cards.libraries.navigation.screen
 import me.tatarka.inject.annotations.Inject
+import org.jetbrains.compose.resources.stringResource
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
@@ -28,7 +32,7 @@ class OnboardingFeatureEntryPoint(
     private val onboardingViewModelFactory: () -> OnboardingViewModel,
     private val signInViewModelFactory: () -> SignInViewModel,
     private val signUpViewModelFactory: () -> SignUpViewModel,
-    private val verifyEmailViewModelFactory: (email: String?) -> VerifyEmailViewModel,
+    private val verifyEmailViewModelFactory: (email: String?, guestLink: Boolean) -> VerifyEmailViewModel,
     private val forgotPasswordViewModelFactory: () -> ForgotPasswordViewModel,
 ) : FeatureEntryPoint {
 
@@ -115,8 +119,10 @@ class OnboardingFeatureEntryPoint(
             ),
         ) { backStackEntry ->
             val route = backStackEntry.toRoute<VerifyEmailRoute>()
-            val viewModel: VerifyEmailViewModel = viewModel { verifyEmailViewModelFactory(route.email) }
+            val viewModel: VerifyEmailViewModel =
+                viewModel { verifyEmailViewModelFactory(route.email, route.guestLink) }
             val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
+            val emailProviderLabel = stringResource(Res.string.account_linked_provider_email)
 
             viewModel.ObserveEvents { event ->
                 when (event) {
@@ -132,6 +138,16 @@ class OnboardingFeatureEntryPoint(
                         OnboardingRoute(),
                         NavigationOptions(launchSingleTop = true, clearBackStack = true),
                     )
+                    // Anon guest linked email: clear the auth/claim stack, land on
+                    // Home, and float the same "account saved" confirmation the
+                    // OAuth claim shows so the instant-once-confirmed link doesn't
+                    // complete silently. Both ops enqueue synchronously (trySend),
+                    // so the dialog push can't be stranded by the screen tearing
+                    // down as the stack clears.
+                    VerifyEmailEvent.NavigateToAccountSaved -> {
+                        router.enterTab(HomeRoute())
+                        router.navigate(AccountLinkedRoute(emailProviderLabel))
+                    }
                 }
             }
 
