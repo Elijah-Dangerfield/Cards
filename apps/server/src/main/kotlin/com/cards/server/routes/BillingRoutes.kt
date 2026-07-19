@@ -19,6 +19,10 @@ import com.dangerfield.cards.server.domain.RedeemDisposition
 import com.dangerfield.cards.server.domain.RedeemResult
 import com.dangerfield.cards.server.domain.Store
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.UserMessageKind
+import com.dangerfield.cards.server.domain.UserMessageRepository
+import java.util.UUID
+import kotlin.time.ExperimentalTime
 import com.dangerfield.cards.server.http.clientContext
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.WALLET_WRITE_LIMIT
@@ -89,6 +93,7 @@ fun Route.billingRoutes(
     profiles: ProfileRepository,
     relaxedGrantRateLimiter: RelaxedGrantRateLimiter,
     billingEvents: BillingEventsRepository,
+    messages: UserMessageRepository,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         rateLimit(RateLimitName(WALLET_WRITE_LIMIT)) {
@@ -146,21 +151,29 @@ fun Route.billingRoutes(
                     ),
                 )
                 when (validation) {
-                    is ReceiptValidation.Valid -> call.grantAndRespond(
-                        billing = billing,
-                        billingEvents = billingEvents,
-                        userId = userId,
-                        store = store,
-                        orderId = validation.orderId,
-                        productId = body.productId,
-                        grantedChips = product.grantsChips,
-                        environment = validation.environment,
-                        kind = GrantKind.Normal,
-                        receiptOwner = null,
-                    )
+                    is ReceiptValidation.Valid -> {
+                        call.grantAndRespond(
+                            billing = billing,
+                            billingEvents = billingEvents,
+                            userId = userId,
+                            store = store,
+                            orderId = validation.orderId,
+                            productId = body.productId,
+                            grantedChips = product.grantsChips,
+                            environment = validation.environment,
+                            kind = GrantKind.Normal,
+                            receiptOwner = null,
+                        )
+                        // Only a drain recovery is worth an in-app message; an
+                        // interactive buy is celebrated by the shop in the moment.
+                        if (body.replayed) {
+                            messages.enqueueGranted(userId, store, validation.orderId, product.grantsChips)
+                        }
+                    }
                     is ReceiptValidation.AccountMismatch -> call.respondToAccountMismatch(
                         billing = billing,
                         billingEvents = billingEvents,
+                        messages = messages,
                         rateLimiter = relaxedGrantRateLimiter,
                         mismatch = validation,
                         replayed = body.replayed,
@@ -171,7 +184,7 @@ fun Route.billingRoutes(
                         userId = userId,
                     )
                     is ReceiptValidation.Invalid -> call.respondToInvalid(
-                        validation, billingEvents, store, body.productId, userId,
+                        validation, billingEvents, messages, body.replayed, store, body.productId, userId,
                     )
                 }
             }
@@ -270,6 +283,7 @@ private suspend fun ApplicationCall.grantAndRespond(
 private suspend fun ApplicationCall.respondToAccountMismatch(
     billing: BillingRepository,
     billingEvents: BillingEventsRepository,
+    messages: UserMessageRepository,
     rateLimiter: RelaxedGrantRateLimiter,
     mismatch: ReceiptValidation.AccountMismatch,
     replayed: Boolean,
@@ -317,6 +331,7 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
             receiptOwner = mismatch.receiptOwner,
             reason = "wedged_escalation",
         )
+        messages.enqueueGoodwill(userId, store, mismatch.orderId, grantedChips)
     }
 
     if (!replayed) {
@@ -344,6 +359,7 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
             mismatch.receiptOwner.value, store.wire, productId,
         )
         recordMismatch("account_mismatch_anonymous", BillingEventAction.ClaimSignIn)
+        messages.enqueueClaimSignIn(userId, store, mismatch.orderId)
         return respondProblem(
             HttpStatusCode.Conflict,
             "receipt_claim_sign_in",
@@ -380,6 +396,7 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
         receiptOwner = mismatch.receiptOwner,
         reason = "account_mismatch_relaxed",
     )
+    messages.enqueueGranted(userId, store, mismatch.orderId, grantedChips)
 }
 
 /**
@@ -403,6 +420,8 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
 private suspend fun ApplicationCall.respondToInvalid(
     validation: ReceiptValidation.Invalid,
     billingEvents: BillingEventsRepository,
+    messages: UserMessageRepository,
+    replayed: Boolean,
     store: Store,
     productId: String,
     userId: UserId,
@@ -457,6 +476,11 @@ private suspend fun ApplicationCall.respondToInvalid(
                     action = BillingEventAction.FinishedDead,
                 ),
             )
+            // A refund/revoke discovered while draining is worth telling the user
+            // so the missing chips read as intentional, not a random failure.
+            if (replayed && validation.reason == "apple_revoked") {
+                messages.enqueueRefunded(userId, store, orderId)
+            }
         }
         respondProblem(
             HttpStatusCode.BadRequest,
@@ -485,3 +509,84 @@ private suspend fun BillingEventsRepository.recordSafely(attempt: BillingEventAt
         )
     }
 }
+
+// Every drain outcome closes the loop with an in-app message so a delayed grant,
+// a refund, or a sign-in nudge reads as intentional rather than random (see
+// docs/wiki/purchases.md). Keyed per (transaction, outcome) so the idempotent
+// create dedupes the every-launch drain; best-effort so messaging never blocks
+// a grant.
+
+private suspend fun UserMessageRepository.enqueueGranted(
+    userId: UserId,
+    store: Store,
+    orderId: String,
+    grantedChips: Long,
+) = enqueueBilling(
+    userId = userId,
+    key = "billing_granted.${store.wire}.$orderId",
+    emoji = "🎉",
+    title = "Your chips are here",
+    body = "We found a purchase and added ${formatChips(grantedChips)} chips to your balance.",
+)
+
+private suspend fun UserMessageRepository.enqueueGoodwill(
+    userId: UserId,
+    store: Store,
+    orderId: String,
+    grantedChips: Long,
+) = enqueueBilling(
+    userId = userId,
+    key = "billing_goodwill.${store.wire}.$orderId",
+    emoji = "💛",
+    title = "We sorted it out",
+    body = "We hit a snag with a recent purchase, so we've added ${formatChips(grantedChips)} chips to make it right.",
+)
+
+private suspend fun UserMessageRepository.enqueueRefunded(
+    userId: UserId,
+    store: Store,
+    orderId: String,
+) = enqueueBilling(
+    userId = userId,
+    key = "billing_refunded.${store.wire}.$orderId",
+    emoji = null,
+    title = "Purchase refunded",
+    body = "A recent purchase was refunded, so those chips weren't added.",
+)
+
+private suspend fun UserMessageRepository.enqueueClaimSignIn(
+    userId: UserId,
+    store: Store,
+    orderId: String,
+) = enqueueBilling(
+    userId = userId,
+    key = "billing_claim.${store.wire}.$orderId",
+    emoji = "🎁",
+    title = "You've got chips waiting",
+    body = "Sign in with the account you bought it on and we'll add your chips.",
+)
+
+@OptIn(ExperimentalTime::class)
+private suspend fun UserMessageRepository.enqueueBilling(
+    userId: UserId,
+    key: String,
+    emoji: String?,
+    title: String,
+    body: String,
+) {
+    Catching {
+        create(
+            id = UUID.randomUUID(),
+            userId = userId,
+            idempotencyKey = key,
+            kind = UserMessageKind.Dialog,
+            emoji = emoji,
+            title = title,
+            body = body,
+            deepLink = null,
+            expiresAt = null,
+        )
+    }.onFailure { error -> logger.warn("billing user-message enqueue failed for {}: {}", key, error.message) }
+}
+
+private fun formatChips(amount: Long): String = "%,d".format(amount)

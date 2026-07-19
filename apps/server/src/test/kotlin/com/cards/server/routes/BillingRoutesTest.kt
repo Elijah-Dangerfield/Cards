@@ -7,6 +7,10 @@ import com.dangerfield.cards.server.domain.BillingEventAction
 import com.dangerfield.cards.server.domain.BillingEventAttempt
 import com.dangerfield.cards.server.domain.BillingEventsRepository
 import com.dangerfield.cards.server.domain.BillingRepository
+import com.dangerfield.cards.server.domain.CreateMessageOutcome
+import com.dangerfield.cards.server.domain.UserMessage
+import com.dangerfield.cards.server.domain.UserMessageKind
+import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.GrantKind
 import com.dangerfield.cards.server.domain.PlatformStore
 import com.dangerfield.cards.server.domain.Product
@@ -202,6 +206,47 @@ class BillingRoutesTest {
     }
 
     @Test
+    fun redeem_drainGrant_enqueuesAFoundYourPurchaseMessage() = runTest {
+        val messages = RecordingMessages()
+        callRedeem(
+            billing = FakeBilling(),
+            messages = messages,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-drain", replayed = true),
+            bearer = validJwt(),
+        ) { resp -> assertEquals(HttpStatusCode.OK, resp.status) }
+        assertEquals(1, messages.created.size, "a drain recovery closes the loop with a message")
+        assertEquals("billing_granted.apple.txn-drain", messages.created.single().idempotencyKey)
+    }
+
+    @Test
+    fun redeem_interactiveGrant_doesNotEnqueueAMessage() = runTest {
+        // An interactive buy is celebrated by the shop in the moment; a duplicate
+        // in-app message would be noise.
+        val messages = RecordingMessages()
+        callRedeem(
+            billing = FakeBilling(),
+            messages = messages,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-live", replayed = false),
+            bearer = validJwt(),
+        ) { resp -> assertEquals(HttpStatusCode.OK, resp.status) }
+        assertTrue(messages.created.isEmpty(), "interactive buys are not messaged")
+    }
+
+    @Test
+    fun redeem_wedgedEscalation_enqueuesAGoodwillMessage() = runTest {
+        val messages = RecordingMessages()
+        callRedeem(
+            billing = FakeBilling(),
+            validator = ReplayableMismatchValidator,
+            billingEvents = RecordingBillingEvents(priorAttempts = 10),
+            messages = messages,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-gw", replayed = true),
+            bearer = anonymousJwt(),
+        ) { resp -> assertEquals(HttpStatusCode.OK, resp.status) }
+        assertEquals("billing_goodwill.apple.txn-gw", messages.created.single().idempotencyKey)
+    }
+
+    @Test
     fun redeem_wedgedPurchase_escalatesToGoodwillGrant() = runTest {
         // A purchase re-attempted well past the retry cap (here an anonymous
         // caller who never signs in) is made whole with goodwill chips and
@@ -393,6 +438,7 @@ class BillingRoutesTest {
         profiles: ProfileRepository = LineageProfiles(setOf(userId)),
         rateLimiter: RelaxedGrantRateLimiter = RelaxedGrantRateLimiter(Clock.System),
         billingEvents: BillingEventsRepository = RecordingBillingEvents(),
+        messages: RecordingMessages = RecordingMessages(),
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -401,7 +447,7 @@ class BillingRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { billingRoutes(catalog, validator, billing, profiles, rateLimiter, billingEvents) }
+                routing { billingRoutes(catalog, validator, billing, profiles, rateLimiter, billingEvents, messages) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -484,6 +530,46 @@ class BillingRoutesTest {
             seen = request
             return ReceiptValidation.Valid(orderId = request.token, environment = PurchaseEnvironment.Production)
         }
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private class RecordingMessages : UserMessageRepository {
+        data class Created(val idempotencyKey: String, val title: String, val body: String)
+        val created: MutableList<Created> = mutableListOf()
+        override suspend fun create(
+            id: UUID,
+            userId: UserId,
+            idempotencyKey: String,
+            kind: UserMessageKind,
+            emoji: String?,
+            title: String,
+            body: String,
+            deepLink: String?,
+            expiresAt: kotlin.time.Instant?,
+        ): CreateMessageOutcome {
+            created += Created(idempotencyKey, title, body)
+            return CreateMessageOutcome(
+                message = UserMessage(
+                    id = id,
+                    userId = userId,
+                    idempotencyKey = idempotencyKey,
+                    kind = kind,
+                    emoji = emoji,
+                    title = title,
+                    body = body,
+                    deepLink = deepLink,
+                    createdAt = kotlin.time.Instant.fromEpochMilliseconds(0),
+                    expiresAt = expiresAt,
+                    ackedAt = null,
+                ),
+                wasAlreadyCreated = false,
+            )
+        }
+        override suspend fun unreadFor(userId: UserId, now: kotlin.time.Instant, limit: Int) = notNeeded()
+        override suspend fun ackMany(userId: UserId, ids: List<UUID>, at: kotlin.time.Instant) = notNeeded()
+        override suspend fun sweepExpiredAndAcked(now: kotlin.time.Instant) = notNeeded()
+        override suspend fun deleteAllForUser(userId: UserId) = notNeeded()
+        private fun notNeeded(): Nothing = error("not needed for billing redeem")
     }
 
     private class RecordingBillingEvents(
