@@ -5,10 +5,13 @@ import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.PurchaseReceipt
+import com.dangerfield.cards.server.domain.ReceiptClassifier
 import com.dangerfield.cards.server.domain.ReceiptValidation
 import com.dangerfield.cards.server.domain.ReceiptValidator
+import com.dangerfield.cards.server.domain.RedeemDisposition
 import com.dangerfield.cards.server.domain.RedeemResult
 import com.dangerfield.cards.server.domain.Store
+import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.http.clientContext
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.WALLET_WRITE_LIMIT
@@ -119,45 +122,9 @@ fun Route.billingRoutes(
                 )
                 val valid = when (validation) {
                     is ReceiptValidation.Valid -> validation
-                    is ReceiptValidation.Invalid -> {
-                        if (validation.retryable) {
-                            // Transient refusal — the validator is unconfigured
-                            // or the store's own API was unreachable. The same
-                            // receipt validates on a later attempt, so answer
-                            // 503: the client leaves the transaction unfinished
-                            // and the launch-time redeemer retries it, instead
-                            // of finishing (and stranding) a paid purchase.
-                            logger.warn(
-                                "Receipt validation unavailable: reason={} store={} product={} user={}",
-                                validation.reason, store.wire, body.productId, userId.value,
-                            )
-                            return@post call.respondProblem(
-                                HttpStatusCode.ServiceUnavailable,
-                                "receipt_unavailable",
-                                "Receipt validation is temporarily unavailable.",
-                            )
-                        }
-                        // Terminal rejection — forged, mismatched account/product,
-                        // or revoked. The user paid the store and we refused the
-                        // grant, so it's worth a Sentry issue (the reason
-                        // distinguishes forgery from config drift); the client
-                        // only ever sees the generic "receipt_rejected" and
-                        // finishes the stuck transaction so it stops replaying
-                        // and stops shadowing new purchases (BILL-13).
-                        logger.warn(
-                            "Receipt rejected: reason={} store={} product={} user={}",
-                            validation.reason, store.wire, body.productId, userId.value,
-                        )
-                        captureToSentry(
-                            ReceiptRejectedException(validation.reason, store.wire, body.productId),
-                            context = "billing_redeem",
-                        )
-                        return@post call.respondProblem(
-                            HttpStatusCode.BadRequest,
-                            "receipt_rejected",
-                            "The purchase receipt could not be verified.",
-                        )
-                    }
+                    is ReceiptValidation.Invalid -> return@post call.respondToInvalid(
+                        validation, store, body.productId, userId,
+                    )
                 }
 
                 logger.info(
@@ -182,6 +149,71 @@ fun Route.billingRoutes(
                 )
             }
         }
+    }
+}
+
+/**
+ * Turn a rejected receipt into the disposition-specific response the client
+ * acts on (see `docs/wiki/purchases.md`). The disposition, not the raw reason,
+ * decides both the HTTP status and what the client does next:
+ *
+ *  - [RedeemDisposition.Transient] -> 503 `receipt_transient`: the client leaves
+ *    the transaction unfinished so the launch-time redeemer retries it, instead
+ *    of finishing (and stranding) a genuinely paid purchase.
+ *  - [RedeemDisposition.Mismatch] -> 409 `receipt_account_mismatch`: genuine,
+ *    paid, signed, just tied to a different one of the user's accounts. Left
+ *    recoverable (sign-in-to-claim / grant-on-replay); not a Sentry issue
+ *    because it is an expected reinstall state, tracked on the billing-health
+ *    panel rather than paged on.
+ *  - [RedeemDisposition.Dead] -> 400 `receipt_dead`: forged / wrong product /
+ *    revoked. Worth a Sentry issue (the reason distinguishes forgery from config
+ *    drift); the client finishes the stuck transaction so it stops replaying and
+ *    stops shadowing new purchases (BILL-13).
+ */
+private suspend fun ApplicationCall.respondToInvalid(
+    validation: ReceiptValidation.Invalid,
+    store: Store,
+    productId: String,
+    userId: UserId,
+): Unit = when (ReceiptClassifier.classify(validation)) {
+    RedeemDisposition.Transient -> {
+        logger.warn(
+            "Receipt validation unavailable: reason={} store={} product={} user={}",
+            validation.reason, store.wire, productId, userId.value,
+        )
+        respondProblem(
+            HttpStatusCode.ServiceUnavailable,
+            "receipt_transient",
+            "Receipt validation is temporarily unavailable.",
+        )
+    }
+    RedeemDisposition.Mismatch -> {
+        logger.warn(
+            "Receipt bound to a different account: reason={} store={} product={} user={}",
+            validation.reason, store.wire, productId, userId.value,
+        )
+        respondProblem(
+            HttpStatusCode.Conflict,
+            "receipt_account_mismatch",
+            "This purchase belongs to a different account.",
+        )
+    }
+    // Wedged is never produced by the classifier, but folding it here with Dead
+    // keeps the `when` total and finishes the transaction if it ever appears.
+    RedeemDisposition.Dead, RedeemDisposition.Wedged -> {
+        logger.warn(
+            "Receipt rejected: reason={} store={} product={} user={}",
+            validation.reason, store.wire, productId, userId.value,
+        )
+        captureToSentry(
+            ReceiptRejectedException(validation.reason, store.wire, productId),
+            context = "billing_redeem",
+        )
+        respondProblem(
+            HttpStatusCode.BadRequest,
+            "receipt_dead",
+            "The purchase receipt could not be verified.",
+        )
     }
 }
 

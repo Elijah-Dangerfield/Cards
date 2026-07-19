@@ -23,13 +23,19 @@ interface BillingRepository {
     suspend fun redeem(catalogProductId: String, transaction: PurchaseTransaction): RedeemOutcome
 }
 
-/** Outcome of a [BillingRepository.redeem] round-trip. */
+/**
+ * Outcome of a [BillingRepository.redeem] round-trip, mirroring the server's
+ * redeem disposition (see `docs/wiki/purchases.md`). The disposition decides
+ * whether the caller finishes the transaction or leaves it open to retry, and
+ * whether recovery (sign-in-to-claim / grant-on-replay) is worth attempting.
+ */
 sealed interface RedeemOutcome {
     /**
      * Server granted (or idempotently re-confirmed) the purchase. [balance] is
      * the authoritative post-grant chip balance the client reflects directly;
      * [grantedChips] is the server-side pack amount; [alreadyRedeemed] is true on
      * an idempotent replay so the caller can suppress a duplicate celebration.
+     * Terminal: the caller finishes the transaction.
      */
     data class Granted(
         val balance: Long,
@@ -38,31 +44,31 @@ sealed interface RedeemOutcome {
     ) : RedeemOutcome
 
     /**
-     * The server rejected the receipt with a 4xx that isn't a terminal receipt
-     * verdict — an unknown product id, a malformed body, catalog drift. Nothing
-     * was granted; the caller must not credit locally. Unlike
-     * [RejectedTerminal], the transaction is left unfinished so a later attempt
-     * (e.g. once the catalog syncs) can still redeem it.
+     * The receipt is genuine, paid, signed, and not revoked, but its account
+     * token is bound to a different one of the user's own accounts (the common
+     * reinstall-before-sign-in case). Nothing was granted. Recoverable: the
+     * caller can nudge "sign in to claim your purchase," and the server can
+     * grant to the current caller on a StoreKit replay (grant-on-replay).
      */
-    data object Rejected : RedeemOutcome
+    data object Mismatch : RedeemOutcome
 
     /**
-     * The server terminally rejected the receipt: it will never validate for
-     * this identity — forged / unverifiable, a store account or product
-     * mismatch, or a refund/revocation. Nothing was granted, and retrying is
-     * pointless. The caller MUST finish (consume) the transaction: a consumable
-     * left unfinished replays every launch AND shadows every new purchase of
-     * the same SKU, which is what turned one unredeemable receipt into "every
-     * purchase fails" on a fresh install (BILL-13).
+     * The server terminally rejected the receipt: it will never validate —
+     * forged / unverifiable, wrong product, or a refund/revocation. Nothing was
+     * granted, and retrying is pointless. The caller MUST finish (consume) the
+     * transaction: a consumable left unfinished replays every launch AND shadows
+     * every new purchase of the same SKU, which is what turned one unredeemable
+     * receipt into "every purchase fails" on a fresh install (BILL-13).
      */
-    data object RejectedTerminal : RedeemOutcome
+    data object Dead : RedeemOutcome
 
     /**
-     * The redeem call couldn't reach the server (network / 5xx / auth) or the
-     * server reported receipt validation as temporarily unavailable (503). The
-     * purchase stands at the store but isn't credited yet — a later sync or
-     * retry recovers it. The caller must not credit locally, and must leave the
+     * The redeem couldn't be resolved yet: the server was unreachable (network /
+     * 5xx / auth), receipt validation was temporarily unavailable (503), or a
+     * 4xx we don't finish on (unknown product / catalog drift). The purchase
+     * stands at the store but isn't credited yet — a later sync or retry
+     * recovers it. The caller must not credit locally, and must leave the
      * transaction unfinished so the launch-time redeemer can drain it.
      */
-    data object Unavailable : RedeemOutcome
+    data object Transient : RedeemOutcome
 }

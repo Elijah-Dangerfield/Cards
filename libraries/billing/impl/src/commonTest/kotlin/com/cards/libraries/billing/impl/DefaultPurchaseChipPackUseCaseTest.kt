@@ -157,52 +157,53 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
     }
 
     @Test
-    fun on_rejectedReceipt_grantsNothing_andReturnsFailed() = runUnitTest {
+    fun on_deadReceipt_finishesTransaction_soItStopsShadowingTheNextPurchase() = runUnitTest {
+        // BILL-13: a dead receipt (forged, wrong product, revoked) must be
+        // finished — a stuck unfinished consumable is what StoreKit hands back on
+        // the next buy of the same SKU, so leaving it turns one bad receipt into
+        // "every purchase fails".
         val chips = FakeChipsRepository(initial = 1_000)
-        val redeem = RecordingBillingRepository(outcome = RedeemOutcome.Rejected)
+        val redeem = RecordingBillingRepository(outcome = RedeemOutcome.Dead)
         val billing = FakeBillingClient(PurchaseResult.Success(APPLE_TX))
         val useCase = build(billing = billing, chips = chips, redeem = redeem, realPurchases = true)
 
         val outcome = useCase(PACK)
 
         assertIs<IapPurchaseOutcome.Failed>(outcome)
-        assertEquals(1_000, chips.balanceValue, "a forged/rejected receipt mints no chips")
-        assertEquals(0, chips.addChipsCalls)
-        assertEquals(0, billing.consumeCalls, "nothing to consume on a rejected receipt")
-    }
-
-    @Test
-    fun on_terminalRejection_finishesTransaction_soItStopsShadowingTheNextPurchase() = runUnitTest {
-        // BILL-13: a terminally-rejected receipt (its appAccountToken belongs to
-        // a prior, unlinkable identity) must be finished — a stuck unfinished
-        // consumable is what StoreKit hands back on the next buy of the same SKU,
-        // so leaving it turns one bad receipt into "every purchase fails".
-        val chips = FakeChipsRepository(initial = 1_000)
-        val redeem = RecordingBillingRepository(outcome = RedeemOutcome.RejectedTerminal)
-        val billing = FakeBillingClient(PurchaseResult.Success(APPLE_TX))
-        val useCase = build(billing = billing, chips = chips, redeem = redeem, realPurchases = true)
-
-        val outcome = useCase(PACK)
-
-        assertIs<IapPurchaseOutcome.Failed>(outcome)
-        assertEquals(1_000, chips.balanceValue, "a terminally rejected receipt mints no chips")
+        assertEquals(1_000, chips.balanceValue, "a dead receipt mints no chips")
         assertEquals(0, chips.addChipsCalls)
         assertEquals(1, billing.consumeCalls, "the stuck transaction is finished so it can't block the next buy")
     }
 
     @Test
-    fun on_unreachableServer_grantsNothing_andReturnsFailed() = runUnitTest {
+    fun on_accountMismatch_finishesTransaction_andReturnsFailed() = runUnitTest {
+        // The interactive buyer is signed in, so a genuine receipt carries their
+        // id; a mismatch means the receipt is bound to another account. Finish it
+        // rather than replay — grant-on-replay is reserved for the drain path.
         val chips = FakeChipsRepository(initial = 1_000)
-        val redeem = RecordingBillingRepository(outcome = RedeemOutcome.Unavailable)
-        val useCase = build(
-            billing = FakeBillingClient(PurchaseResult.Success(APPLE_TX)),
-            chips = chips,
-            redeem = redeem,
-            realPurchases = true,
-        )
+        val redeem = RecordingBillingRepository(outcome = RedeemOutcome.Mismatch)
+        val billing = FakeBillingClient(PurchaseResult.Success(APPLE_TX))
+        val useCase = build(billing = billing, chips = chips, redeem = redeem, realPurchases = true)
+
+        val outcome = useCase(PACK)
+
+        assertIs<IapPurchaseOutcome.Failed>(outcome)
+        assertEquals(1_000, chips.balanceValue, "a mismatched receipt mints no chips on the interactive path")
+        assertEquals(0, chips.addChipsCalls)
+        assertEquals(1, billing.consumeCalls, "the mismatched transaction is finished so it can't block the next buy")
+    }
+
+    @Test
+    fun on_transientFailure_grantsNothing_leavesUnfinished_andReturnsFailed() = runUnitTest {
+        val chips = FakeChipsRepository(initial = 1_000)
+        val redeem = RecordingBillingRepository(outcome = RedeemOutcome.Transient)
+        val billing = FakeBillingClient(PurchaseResult.Success(APPLE_TX))
+        val useCase = build(billing = billing, chips = chips, redeem = redeem, realPurchases = true)
 
         assertIs<IapPurchaseOutcome.Failed>(useCase(PACK))
-        assertEquals(1_000, chips.balanceValue, "an unreachable redeem leaves the purchase uncredited")
+        assertEquals(1_000, chips.balanceValue, "an unresolved redeem leaves the purchase uncredited")
+        assertEquals(0, chips.addChipsCalls)
+        assertEquals(0, billing.consumeCalls, "a transient failure stays unfinished for a later retry")
     }
 
     // ---------- auth gates (path-independent) ----------
@@ -264,7 +265,7 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         val useCase = build(
             billing = billing,
             chips = chips,
-            redeem = RecordingBillingRepository(RedeemOutcome.Unavailable),
+            redeem = RecordingBillingRepository(RedeemOutcome.Transient),
             realPurchases = true,
             coordinator = FakeStoreKitCoordinator(unfinished = listOf(UNFINISHED)),
         )
@@ -276,41 +277,61 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
     }
 
     @Test
-    fun redeemOutstanding_terminalRejection_finishesStuckTransaction_toStopTheReplayLoop() = runUnitTest {
-        // BILL-13: the tester's fresh install replays orders minted under a prior
-        // identity; the server terminally rejects them. Left unfinished they
-        // replay every launch and block new purchases, so the drain must finish
-        // them — even though nothing is credited (the entitlement isn't
-        // recovered here; that needs cross-install ownership reconciliation).
+    fun redeemOutstanding_deadReceipt_finishesStuckTransaction_toStopTheReplayLoop() = runUnitTest {
+        // BILL-13: a dead replayed receipt (forged, wrong product, revoked). Left
+        // unfinished it replays every launch and blocks new purchases, so the
+        // drain must finish it — even though nothing is credited.
         val billing = FakeBillingClient(PurchaseResult.Success(TX))
         val chips = FakeChipsRepository(initial = 500L)
         val useCase = build(
             billing = billing,
             chips = chips,
-            redeem = RecordingBillingRepository(RedeemOutcome.RejectedTerminal),
+            redeem = RecordingBillingRepository(RedeemOutcome.Dead),
             realPurchases = true,
             coordinator = FakeStoreKitCoordinator(unfinished = listOf(UNFINISHED)),
         )
 
         useCase.redeemOutstanding()
 
-        assertEquals(1, billing.consumeCalls, "a terminally rejected replay is finished so it stops looping")
-        assertEquals(500L, chips.balanceValue, "nothing is credited on a terminal rejection")
+        assertEquals(1, billing.consumeCalls, "a dead replay is finished so it stops looping")
+        assertEquals(500L, chips.balanceValue, "nothing is credited on a dead receipt")
     }
 
     @Test
-    fun redeemOutstanding_nonTerminalRejection_leavesTheTransactionUnfinished() = runUnitTest {
+    fun redeemOutstanding_accountMismatch_finishesStuckTransaction_toStopTheReplayLoop() = runUnitTest {
+        // A replayed receipt bound to a prior identity we can't link on this
+        // caller. Left unfinished it replays every launch and blocks new
+        // purchases, so the drain finishes it (grant-on-replay / sign-in-to-claim
+        // recovery is layered on next).
         val billing = FakeBillingClient(PurchaseResult.Success(TX))
+        val chips = FakeChipsRepository(initial = 500L)
         val useCase = build(
             billing = billing,
-            redeem = RecordingBillingRepository(RedeemOutcome.Rejected),
+            chips = chips,
+            redeem = RecordingBillingRepository(RedeemOutcome.Mismatch),
             realPurchases = true,
             coordinator = FakeStoreKitCoordinator(unfinished = listOf(UNFINISHED)),
         )
 
         useCase.redeemOutstanding()
 
-        assertEquals(0, billing.consumeCalls, "a non-terminal 4xx stays replayable for a later launch")
+        assertEquals(1, billing.consumeCalls, "a mismatched replay is finished so it stops looping")
+        assertEquals(500L, chips.balanceValue, "nothing is credited on a mismatch (yet)")
+    }
+
+    @Test
+    fun redeemOutstanding_transientFailure_leavesTheTransactionUnfinished() = runUnitTest {
+        val billing = FakeBillingClient(PurchaseResult.Success(TX))
+        val useCase = build(
+            billing = billing,
+            redeem = RecordingBillingRepository(RedeemOutcome.Transient),
+            realPurchases = true,
+            coordinator = FakeStoreKitCoordinator(unfinished = listOf(UNFINISHED)),
+        )
+
+        useCase.redeemOutstanding()
+
+        assertEquals(0, billing.consumeCalls, "a transient failure stays replayable for a later launch")
     }
 
     @Test

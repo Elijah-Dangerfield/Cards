@@ -119,30 +119,33 @@ class DefaultPurchaseChipPackUseCase(
                     }
                     outcome(redeem.grantedChips, alreadyOwned = alreadyOwned || redeem.alreadyRedeemed)
                 }
-                RedeemOutcome.RejectedTerminal -> {
+                RedeemOutcome.Dead -> {
                     // Error on purpose: the user PAID and got nothing — the
-                    // server terminally refused the receipt (forged, account /
-                    // product mismatch, revoked). Finish the transaction so it
-                    // stops shadowing the user's next purchase attempt (a stuck
+                    // server terminally refused the receipt (forged, wrong
+                    // product, revoked). Finish the transaction so it stops
+                    // shadowing the user's next purchase attempt (a stuck
                     // unfinished consumable is what StoreKit hands back on the
                     // next buy of the same SKU — BILL-13); retrying it can never
-                    // succeed for this identity.
+                    // succeed.
                     logger.e { "Server terminally rejected receipt for order ${transaction.orderId} — finishing it" }
                     billingClient.consume(transaction.purchaseToken)
                     IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_RECEIPT_REJECTED)
                 }
-                RedeemOutcome.Rejected -> {
-                    // A non-terminal 4xx (unknown product / catalog drift): the
-                    // user paid and got nothing, but the transaction is left
-                    // unfinished so a later attempt can still redeem it.
-                    logger.e { "Server rejected receipt for order ${transaction.orderId} — no credit, left for retry" }
+                RedeemOutcome.Mismatch -> {
+                    // The interactive buyer is a signed-in account, so a genuine
+                    // receipt carries their id. A mismatch here means the receipt
+                    // is bound to someone else — finish it rather than replay.
+                    // Grant-on-replay is reserved for the StoreKit-drain path.
+                    logger.e { "Receipt for order ${transaction.orderId} bound to another account — finishing it" }
+                    billingClient.consume(transaction.purchaseToken)
                     IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_RECEIPT_REJECTED)
                 }
-                RedeemOutcome.Unavailable -> {
+                RedeemOutcome.Transient -> {
                     // Error on purpose: paid but uncredited until the
                     // launch-time redeemer drains the unfinished transaction —
-                    // worth seeing every time it happens.
-                    logger.e { "Redeem unreachable for order ${transaction.orderId} — left uncredited" }
+                    // worth seeing every time it happens. Left unfinished so a
+                    // later retry can still redeem it.
+                    logger.e { "Redeem unresolved for order ${transaction.orderId} — left uncredited for retry" }
                     IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_REDEEM_UNAVAILABLE)
                 }
             }
@@ -199,24 +202,30 @@ class DefaultPurchaseChipPackUseCase(
                     }
                     logger.logEvent("purchase.recovered", "product_id" to pack.id)
                 }
-                RedeemOutcome.RejectedTerminal -> {
-                    // The replayed receipt will never validate for this identity
-                    // (its appAccountToken belongs to a prior install/identity we
-                    // can't link on a fresh anon userId). Finishing it stops the
+                RedeemOutcome.Dead -> {
+                    // The replayed receipt will never validate — forged, wrong
+                    // product, or revoked/refunded. Finishing it stops the
                     // every-launch replay loop AND unblocks new purchases of the
                     // same SKU, instead of leaving the shop permanently broken
-                    // (BILL-13). The prior-identity entitlement is not recovered
-                    // here — that needs cross-install ownership reconciliation.
+                    // (BILL-13).
                     logger.e { "Terminally rejected replayed receipt for order ${transaction.orderId} — finishing it" }
                     billingClient.consume(transaction.purchaseToken)
                     logger.logEvent("purchase.discarded", "product_id" to pack.id)
                 }
-                RedeemOutcome.Rejected ->
-                    // Non-terminal 4xx: left unfinished so a later launch can
-                    // retry once whatever drifted (catalog, product id) resolves.
-                    logger.e { "Server rejected replayed receipt for order ${transaction.orderId} — retrying next launch" }
-                RedeemOutcome.Unavailable ->
-                    logger.w { "Redeem still unreachable for order ${transaction.orderId} — retrying next launch" }
+                RedeemOutcome.Mismatch -> {
+                    // The replayed receipt is genuine and paid but bound to a
+                    // prior identity we can't link on this caller. Finishing it
+                    // stops the replay loop and unblocks new purchases (BILL-13);
+                    // recovering the entitlement to the current account is
+                    // grant-on-replay / sign-in-to-claim, layered on next.
+                    logger.e { "Replayed receipt for order ${transaction.orderId} bound to another account — finishing it" }
+                    billingClient.consume(transaction.purchaseToken)
+                    logger.logEvent("purchase.discarded", "product_id" to pack.id)
+                }
+                RedeemOutcome.Transient ->
+                    // Unresolved (unreachable server, 5xx, catalog drift): left
+                    // unfinished so a later launch can retry it.
+                    logger.w { "Redeem unresolved for replayed order ${transaction.orderId} — retrying next launch" }
             }
         }
     }

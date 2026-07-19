@@ -109,7 +109,10 @@ class BillingRoutesTest {
     }
 
     @Test
-    fun redeem_rejectedReceipt_returns400_andDoesNotGrant() = runTest {
+    fun redeem_deadReceipt_returns400_receiptDead_andDoesNotGrant() = runTest {
+        // A forged / terminally-rejected receipt classifies Dead: 400
+        // `receipt_dead`, which the client acts on by finishing the stuck
+        // transaction so it stops replaying (BILL-13).
         val billing = FakeBilling()
         callRedeem(
             billing = billing,
@@ -118,15 +121,35 @@ class BillingRoutesTest {
             bearer = validJwt(),
         ) { resp ->
             assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertEquals("receipt_dead", resp.errorCode())
         }
         assertTrue(billing.redeemCalls.isEmpty(), "a forged receipt must never reach the grant")
     }
 
     @Test
-    fun redeem_retryableRejection_returns503_soClientLeavesTheTransactionReplayable() = runTest {
+    fun redeem_accountMismatch_returns409_receiptAccountMismatch_andDoesNotGrant() = runTest {
+        // A genuine, paid receipt bound to a different one of the user's accounts
+        // classifies Mismatch: 409 `receipt_account_mismatch`, which the client
+        // treats as recoverable (sign-in-to-claim / grant-on-replay) rather than
+        // finishing it as dead.
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = AccountMismatchValidator,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-mismatch"),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.Conflict, resp.status)
+            assertEquals("receipt_account_mismatch", resp.errorCode())
+        }
+        assertTrue(billing.redeemCalls.isEmpty(), "a mismatched receipt must never reach the grant")
+    }
+
+    @Test
+    fun redeem_retryableRejection_returns503_receiptTransient_soClientLeavesTheTransactionReplayable() = runTest {
         // BILL-13: a transient refusal (validator unconfigured / store API
-        // unreachable) must answer 503, not 400 — the client maps 5xx to
-        // "unavailable" and keeps the transaction unfinished for a later retry
+        // unreachable) must answer 503, not 400 — the client maps it to
+        // "transient" and keeps the transaction unfinished for a later retry
         // instead of finishing (and stranding) a genuinely paid purchase.
         val billing = FakeBilling()
         callRedeem(
@@ -136,6 +159,7 @@ class BillingRoutesTest {
             bearer = validJwt(),
         ) { resp ->
             assertEquals(HttpStatusCode.ServiceUnavailable, resp.status)
+            assertEquals("receipt_transient", resp.errorCode())
         }
         assertTrue(billing.redeemCalls.isEmpty(), "an unvalidated receipt must never reach the grant")
     }
@@ -284,6 +308,11 @@ class BillingRoutesTest {
             ReceiptValidation.Invalid(reason = "forged")
     }
 
+    private object AccountMismatchValidator : ReceiptValidator {
+        override suspend fun validate(request: PurchaseReceipt): ReceiptValidation =
+            ReceiptValidation.Invalid(reason = "apple_account_mismatch")
+    }
+
     private object UnconfiguredValidator : ReceiptValidator {
         override suspend fun validate(request: PurchaseReceipt): ReceiptValidation =
             ReceiptValidation.Invalid(reason = "apple_validator_unconfigured", retryable = true)
@@ -333,6 +362,15 @@ class BillingRoutesTest {
             ),
         )
     }
+
+    private suspend fun io.ktor.client.statement.HttpResponse.errorCode(): String =
+        body<ProblemResponse>().error.code
+
+    @kotlinx.serialization.Serializable
+    private data class ProblemResponse(val error: ProblemError)
+
+    @kotlinx.serialization.Serializable
+    private data class ProblemError(val code: String, val message: String)
 
     private companion object {
         const val CHIP_PACK_ID = "chip_pack_medium"
