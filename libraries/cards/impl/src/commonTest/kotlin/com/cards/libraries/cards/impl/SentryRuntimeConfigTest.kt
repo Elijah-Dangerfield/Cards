@@ -19,7 +19,7 @@ class SentryRuntimeConfigTest {
 
     private fun config(tracesSampleRate: Double? = 0.15) = SentryRuntimeConfig(
         dsn = "https://key@o1.ingest.sentry.io/1",
-        environment = "prod-ios-release",
+        environment = "store-ios-release",
         release = "cards@0.1.0+2",
         sendDefaultPii = false,
         attachStacktrace = true,

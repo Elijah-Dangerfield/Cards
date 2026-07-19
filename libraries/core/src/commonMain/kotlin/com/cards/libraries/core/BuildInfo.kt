@@ -32,14 +32,15 @@ val BuildInfo.versionTag: String get() = "${BuildInfo.versionName}-${BuildInfo.r
 fun BuildInfo.versionString(): String = "$versionName ($buildNumber)"
 
 /**
- * Human-facing build identifier for the Settings/About row. Prod shows a clean
- * `"0.1.0 (247)"`; any non-prod channel (a `beta.yml` internal build, a dev
- * build) appends the channel — `"0.1.0 (247) · beta"` — so a tester can read
- * off exactly which build they're on when reporting an issue. The build number
- * is CI-monotonic (see `loadVersionMetadata`), so it maps back to a commit.
+ * Human-facing build identifier for the Settings/About row. The store build
+ * shows a clean `"0.1.0 (247)"`; any other channel (a `beta.yml` internal
+ * build, a local build) appends the channel — `"0.1.0 (247) · beta"` — so a
+ * tester can read off exactly which build they're on when reporting an issue.
+ * The build number is CI-monotonic (see `loadVersionMetadata`), so it maps
+ * back to a commit.
  */
 fun BuildInfo.versionDisplay(): String =
-    versionString() + if (releaseChannel != "prod") " · $releaseChannel" else ""
+    versionString() + if (releaseChannel != "store") " · $releaseChannel" else ""
 
 
 enum class Platform {
