@@ -1454,7 +1454,8 @@
 
     <!-- Purchase history screen -->
     <string name="purchases_title">Purchases</string>
-    <string name="purchases_shop_link">Purchase history</string>
+    <string name="purchases_settings_headline">Purchase history</string>
+    <string name="purchases_settings_supporting">See your chip packs and check for missing purchases</string>
     <string name="purchases_sync_button">Check for missing purchases</string>
     <string name="purchases_status_added">Added</string>
     <string name="purchases_status_pending">Pending</string>

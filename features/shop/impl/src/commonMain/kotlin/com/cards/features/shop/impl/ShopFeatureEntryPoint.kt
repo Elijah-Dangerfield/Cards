@@ -209,18 +209,7 @@ class ShopFeatureEntryPoint(
                         router.navigate(ShopProductSheetRoute(productId))
                     },
                     onIdeaTap = { router.navigate(FeedbackRoute()) },
-                    onHistoryTap = { router.navigate(PurchaseHistoryRoute()) },
                     scrollState = scrollState,
-                )
-            }
-
-            screen<PurchaseHistoryRoute> {
-                val historyVm: PurchaseHistoryViewModel = viewModel { purchaseHistoryVmFactory() }
-                val historyState = historyVm.stateFlow.collectAsStateWithLifecycle().value
-                PurchaseHistoryScreen(
-                    state = historyState,
-                    onAction = historyVm::takeAction,
-                    onBack = { router.goBack() },
                 )
             }
 
@@ -260,6 +249,19 @@ class ShopFeatureEntryPoint(
                     onOpenResponsiblePlay = { router.openWebLink(LegalUrls.RESPONSIBLE_PLAY) },
                 )
             }
+        }
+
+        // Top-level (not nested in ShopGraph) so it can be pushed over any tab —
+        // the canonical entry point is Settings, so it opens over Profile without
+        // yanking the user into the Shop tab.
+        screen<PurchaseHistoryRoute> {
+            val historyVm: PurchaseHistoryViewModel = viewModel { purchaseHistoryVmFactory() }
+            val historyState = historyVm.stateFlow.collectAsStateWithLifecycle().value
+            PurchaseHistoryScreen(
+                state = historyState,
+                onAction = historyVm::takeAction,
+                onBack = { router.goBack() },
+            )
         }
     }
 }
