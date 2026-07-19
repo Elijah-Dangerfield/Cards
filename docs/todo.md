@@ -35,9 +35,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P1]` **ENG-31 — Android edge-swipe back does nothing (can't swipe in from the right edge).** Owner-reported: the Android back gesture from the screen edge doesn't navigate back, leaving users stuck without a gesture back.
   **Acceptance:** an edge swipe navigates back consistently across the app on Android gesture-nav devices; predictive-back behaves if enabled. Confirm on a gesture-nav device.
   **Hints:** app-level Android back / edge-to-edge + predictive-back config in the compose app entry, and per-screen `BackHandler` usage that may be swallowing the gesture. Owner-reported.
-
-## Trust & safety (MOD)
-
-- `[P2]` **MOD-2 — Reporting needs a bottom sheet with a reason picker plus details.** Owner-requested: when reporting a user, show a bottom sheet where the reporter classifies what happened (multi-select reason list) with an optional free-text field, so reports are easy to triage and classify.
-  **Acceptance:** the report flow opens a DS bottom sheet with a multi-select reason list and an additional text input; selected reasons + text submit with the report and are stored so reports can be filtered by category.
-  **Hints:** existing report entry point (see MOD-1); add a design-system bottom sheet. Owner-requested feature.

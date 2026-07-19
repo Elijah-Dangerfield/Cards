@@ -523,11 +523,13 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 **State:** two devices in the same multiplayer room (or one device + a revealed human opponent), online.
 
 1. Tap the opponent's avatar to open their player card.
-2. Under "Safety", tap "Report".
-3. Reopen the same opponent's card.
-4. Airplane-mode a device and tap "Report" on another opponent to check the failure path.
+2. Under "Safety", tap "Report" — a bottom sheet opens with a reason picker.
+3. Pick one or more reasons (and optionally type details), then tap "Submit report".
+4. Reopen the same opponent's card.
+5. Airplane-mode a device and submit a report on another opponent to check the failure path.
 
-**Expected:** Tapping Report files the report and toasts a confirmation ("Thanks. Our team will take a look."). The button flips to "Reported" and is disabled; reopening the card keeps it "Reported" for the session. The Report action shows on any human opponent regardless of whether the social features flag is on, and never on bots, empty seats, or your own card. Offline, the report toasts an error and the button reverts so it can be retried. (Covers todo MOD-1.)
+**Expected:** The report sheet's "Submit report" stays disabled until at least one reason is selected. Submitting files the report and toasts a confirmation ("Thanks. Our team will take a look."). The card's Report button flips to "Reported" and is disabled; reopening the card keeps it "Reported" for the session. The Report action shows on any human opponent regardless of whether the social features flag is on, and never on bots, empty seats, or your own card. Offline, the report toasts an error and the button reverts so it can be retried. (Covers todo MOD-1.)
+- **Reason picker + details (MOD-2):** the sheet offers multi-select reason tags (harassment, cheating, offensive name, spam, something else) plus an optional free-text box; the selected reasons and text ride with the report (a moderator can filter by category). Cancel closes the sheet without filing.
 
 ---
 

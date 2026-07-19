@@ -4,6 +4,18 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-18 — Report reason categories store comma-joined; the picker is an inline sheet (MOD-2)
+
+**Problem:** Reporting was single-tap with no reason — a moderator reading `player_reports` couldn't tell harassment from cheating from an offensive name. MOD-2 adds a reason picker + optional details.
+
+**Decision (storage):** Store the selected reason tags as canonical keys (`harassment`, `cheating`, `offensive_name`, `spam`, `other`) comma-joined in one nullable `reason_categories TEXT` column (migration V87), alongside the existing free-text `reason`. The route sanitizes (trim, drop blanks, dedupe, cap length + count) before persisting; `categories` defaults empty across the wire DTOs for back-compat.
+
+**Decision (UI):** The picker is an inline state-driven `ReportPlayerSheet` (DS `BottomSheet` + `SelectChip` multi-select + `OutlinedTextField`), opened from the player-profile sheet's Report action, not a nav-route bottom sheet. The play screen already drives its sheets (profile, badge) off local state (`profileSheetSeat`), so a route would have been the odd one out. Submit is gated on ≥1 reason selected; the optimistic "Reported" flip and rate-limit/error revert are unchanged.
+
+**Alternatives rejected:** a normalized `player_report_categories` child table or a Postgres `text[]` (more machinery than a low-volume moderation log filtered with a LIKE earns; Exposed array support is also awkward); a `bottomSheet<ReportPlayerSheetRoute>` nav route (adds a route + VM for a sheet the screen can own in local state, and would have to interop with the profile sheet's own local-state presentation).
+
+**Status:** Shipped. Server route test (categories captured, trimmed, deduped; empty default), Postgres test (persist joined / NULL when none), client repo test (categories forwarded), VM test (categories + reason ride with the report). Android `assembleDebug` + iOS compile green. The sheet's visuals want a device-QA pass (MOD-1 in QA.md updated).
+
 ## 2026-07-18 — The turn-countdown ring anchors to a client-derived per-turn deadline (MP-33)
 
 **Problem:** The on-table countdown ring was a composition-local fixed-duration tween keyed on the turn token, with no time anchor. Tapping stats pushes a full screen, so the play screen leaves composition; on return the ring's `Animatable`/`LaunchedEffect` re-initialized and re-ran the full sweep from full — the timer visibly jumped back up even though the server's real clock kept ticking.
