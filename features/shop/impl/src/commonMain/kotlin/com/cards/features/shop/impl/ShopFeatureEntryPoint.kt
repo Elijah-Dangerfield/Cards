@@ -9,6 +9,8 @@ import androidx.navigation.toRoute
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dangerfield.cards.features.shop.PurchaseHistoryRoute
 import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.features.shop.ShopRoute
@@ -71,6 +73,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class ShopFeatureEntryPoint(
     private val shopVmFactory: () -> ShopViewModel,
+    private val purchaseHistoryVmFactory: () -> PurchaseHistoryViewModel,
     private val appCache: AppCache,
 ) : FeatureEntryPoint {
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -206,7 +209,18 @@ class ShopFeatureEntryPoint(
                         router.navigate(ShopProductSheetRoute(productId))
                     },
                     onIdeaTap = { router.navigate(FeedbackRoute()) },
+                    onHistoryTap = { router.navigate(PurchaseHistoryRoute()) },
                     scrollState = scrollState,
+                )
+            }
+
+            screen<PurchaseHistoryRoute> {
+                val historyVm: PurchaseHistoryViewModel = viewModel { purchaseHistoryVmFactory() }
+                val historyState = historyVm.stateFlow.collectAsStateWithLifecycle().value
+                PurchaseHistoryScreen(
+                    state = historyState,
+                    onAction = historyVm::takeAction,
+                    onBack = { router.goBack() },
                 )
             }
 

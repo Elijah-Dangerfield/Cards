@@ -10,6 +10,7 @@ import cards.libraries.resources.generated.resources.shop_get_chips_footnote
 import cards.libraries.resources.generated.resources.shop_get_chips_title
 import cards.libraries.resources.generated.resources.shop_header_subtitle
 import cards.libraries.resources.generated.resources.shop_header_title
+import cards.libraries.resources.generated.resources.purchases_shop_link
 import cards.libraries.resources.generated.resources.shop_idea_footer_button
 import cards.libraries.resources.generated.resources.shop_load_failed_subtitle
 import cards.libraries.resources.generated.resources.shop_need_chips_more
@@ -146,6 +147,7 @@ fun ShopScreen(
     onAction: (ShopAction) -> Unit,
     onProductTap: (productId: String) -> Unit,
     onIdeaTap: () -> Unit,
+    onHistoryTap: () -> Unit = {},
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState(),
 ) {
@@ -185,6 +187,7 @@ fun ShopScreen(
                             onAction = onAction,
                             onProductTap = onProductTap,
                             onIdeaTap = onIdeaTap,
+                            onHistoryTap = onHistoryTap,
                             scrollState = scrollState,
                         )
                     }
@@ -299,6 +302,7 @@ private fun CatalogContent(
     onAction: (ShopAction) -> Unit,
     onProductTap: (productId: String) -> Unit,
     onIdeaTap: () -> Unit,
+    onHistoryTap: () -> Unit = {},
     scrollState: ScrollState = rememberScrollState(),
 ) {
     // Content offset of each category's section header, captured as the
@@ -334,6 +338,11 @@ private fun CatalogContent(
             packs = state.catalog.chipPacks,
             onProductTap = onProductTap,
         )
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Button(onClick = onHistoryTap, size = ButtonSize.Small, style = ButtonStyle.Text) {
+                Text(stringResource(Res.string.purchases_shop_link))
+            }
+        }
         VerticalSpacerD800()
 
         // Cosmetics grouped by product type so the shop reads as organized

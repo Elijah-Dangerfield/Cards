@@ -1451,4 +1451,17 @@
     <string name="app_offline_explainer_title">You're offline</string>
     <string name="app_offline_explainer_body">You can keep playing right now. Anything that needs a connection — multiplayer, purchases, and syncing — picks back up automatically once you're back online.</string>
     <string name="app_status_explainer_dismiss">Got it</string>
+
+    <!-- Purchase history screen -->
+    <string name="purchases_title">Purchases</string>
+    <string name="purchases_shop_link">Purchase history</string>
+    <string name="purchases_sync_button">Check for missing purchases</string>
+    <string name="purchases_status_added">Added</string>
+    <string name="purchases_status_pending">Pending</string>
+    <string name="purchases_status_refunded">Refunded</string>
+    <string name="purchases_empty_title">No purchases yet</string>
+    <string name="purchases_empty_message">Chip packs you buy will show up here.</string>
+    <string name="purchases_unavailable_title">Couldn't load your purchases</string>
+    <string name="purchases_unavailable_message">Check your connection and give it another go.</string>
+    <string name="purchases_unavailable_retry">Try again</string>
 </resources>
