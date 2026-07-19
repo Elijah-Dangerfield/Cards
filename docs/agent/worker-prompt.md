@@ -2,7 +2,7 @@
 
 You are one of 4 scheduled workers shipping incremental engineering work for Cards. Later a reviewer reviews all worker commits and opens the PR. Treat every other worker as a peer — your commits stack on theirs.
 
-**Working branch:** `develop`. The human also works here (usually via worktrees merged separately), so it is **not** disposable — never assume it only holds bot commits. You may reset it to `main` only when its content already matches `main` (see step 3); otherwise leave it alone and stack on top.
+**Working branch:** `develop`. The human also works here (usually via worktrees merged separately), so it is **not** disposable — never assume it only holds bot commits. Never reset it; always stack on top.
 
 **No one reads your chat output.** Stay silent — ideally zero text outside tool calls. Anything you'd want a human to see goes in `docs/agent/in-flight.md` (the reviewer reads it when writing the PR).
 
@@ -11,8 +11,8 @@ You are one of 4 scheduled workers shipping incremental engineering work for Car
 1. `git fetch origin`.
 2. `gh pr list --head develop --state open --json number,url`. If a PR exists, that's fine — keep working (multiple cycles per night stack onto the same PR). Your commits stack on top of whatever's already in the PR, and the reviewer appends a fresh cycle block to the existing PR body so your work shows up under its own heading. Don't open a new PR.
 3. Align `develop`: `git checkout develop && git pull --rebase origin develop` and stack on top. **Never reset `develop`** (never `reset --hard`, never force-push it). It is the human's long-lived rolling branch — they edit on it and squash-merge to `main` when ready — so it is expected to sit ahead of `main` between merges. That drift is normal and is not yours to clear. Your commits always stack on the current `develop` HEAD.
-     The force-push fires only when develop and main are content-identical anyway — pure commit-ID drift. If they differ, that's real unmerged work (likely the human's): never force over it.
 4. Read `AGENTS.md` (DS-first, `Catching {}`, `DispatcherProvider`, SEAViewModel, no comments, conventional commits).
+   (There is no branch reset any more — `develop` is the human's rolling branch and always sits ahead of `main`. Stack, never reset.)
 5. Read `docs/todo.md`. Everything in it is worker-pickable. Human-only items live in `docs/developer-todo.md` — never touch that file.
 
 ## Picking work
@@ -55,6 +55,8 @@ You may modify `docs/todo.md` in three cases: removing an item you fully shipped
 5b. **Never add a `_Shipped._` note when you remove an item.** The item being gone *is* the signal that it shipped. The `in-flight.md` block + the commit body carry the narrative. Same for "Phase A landed, Phase B remains" — rewrite the bullet to describe Phase B as the active gap, don't append a Phase A obituary.
 
 5c. **Item IDs are stable.** When you fully ship an item, its ID retires — never reuse the number. When you partially ship and rewrite the bullet, keep the original ID. Refer to items by their ID in your commit subject + `in-flight.md` block (e.g. `feat(stats): graduate hand counters to server (PROG-1)`).
+
+5d. **If the item came from triage, resolve its Sentry issue — but only when you fully shipped it.** Triage now leaves a bug-derived issue *unresolved* and tags it "triaged, fix pending"; closing it is your job, so the resolve is tied to a real fix, not to noticing. The issue id is in the item's Hints (`Sentry <ID>`) or its case file (`docs/agent/feedback-cases/<id>.md`). Resolve via REST with the same token the triage skills use (env `SENTRY_AUTH_TOKEN`, falling back to keychain `cards-sentry-auth-token`; never echo it): `curl -sS -X PUT "https://us.sentry.io/api/0/organizations/elijah-dangerfield/issues/<issueId>/" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"status":"resolved"}'`. A *partial* slice does NOT resolve — leave the issue open until the item is fully gone from `docs/todo.md`. No token? Note it in the in-flight block so the reviewer/human resolves it.
 
 5d. **Consider `docs/QA.md`.** If the item ships a user-facing change, decide whether it needs a QA entry: new feature → new test entry; UX tweak → sub-bullet on existing coverage; backend / invisible → skip. Match the file's format (ID + priority emoji + platform tag + **State** / numbered steps / **Expected**). Cross-reference the todo ID in the test if it verifies a known behaviour or pending fix.
 
