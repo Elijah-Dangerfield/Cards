@@ -388,7 +388,11 @@ sealed interface PlayPokerAction {
     data class FriendRequestFailed(val userId: String) : PlayPokerAction
 
     /** "Report" on a human opponent's player card — files a report with the server. */
-    data class ReportPlayer(val userId: String) : PlayPokerAction
+    data class ReportPlayer(
+        val userId: String,
+        val categories: List<String> = emptyList(),
+        val reason: String? = null,
+    ) : PlayPokerAction
     /** Internal — the report failed; un-flips the reported state so the user can retry. */
     data class ReportPlayerFailed(val userId: String) : PlayPokerAction
 }

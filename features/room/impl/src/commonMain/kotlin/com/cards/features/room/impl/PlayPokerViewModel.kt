@@ -1264,7 +1264,8 @@ class PlayPokerViewModel @Inject constructor(
                             reportRepository.reportPlayer(
                                 userId = action.userId,
                                 roomCode = stateFlow.value.roomCode,
-                                reason = null,
+                                reason = action.reason,
+                                categories = action.categories,
                             )
                         ) {
                             is ReportPlayerResult.Reported -> sendEvent(PlayPokerEvent.PlayerReported)

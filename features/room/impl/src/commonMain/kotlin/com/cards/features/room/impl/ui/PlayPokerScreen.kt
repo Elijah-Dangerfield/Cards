@@ -131,6 +131,7 @@ fun PlayPokerScreen(
     var leaveConfirmOpen by remember { mutableStateOf(false) }
     var swipeFoldConfirmOpen by remember { mutableStateOf(false) }
     var profileSheetSeat by remember { mutableStateOf<SeatView?>(null) }
+    var reportSheetSeat by remember { mutableStateOf<SeatView?>(null) }
     var selfCardOpen by remember { mutableStateOf(false) }
     // A badge/title chip tapped on the player-profile sheet — opens its
     // read-about-it detail sheet.
@@ -580,7 +581,7 @@ fun PlayPokerScreen(
                 // opponent regardless of the social flag, unlike add-friend.
                 onReport = seat.userId
                     ?.takeIf { !seat.isBot && !seat.seatEmpty }
-                    ?.let { id -> { onAction(PlayPokerAction.ReportPlayer(id)) } },
+                    ?.let { { reportSheetSeat = seat; profileSheetSeat = null } },
                 reportSent = seat.userId in state.reportedUserIds,
             )
         }
@@ -602,6 +603,19 @@ fun PlayPokerScreen(
 
         selectedBadge?.let { badge ->
             BadgeDetailSheet(badge = badge, onDismiss = { selectedBadge = null })
+        }
+
+        reportSheetSeat?.let { seat ->
+            ReportPlayerSheet(
+                seat = seat,
+                onDismiss = { reportSheetSeat = null },
+                onSubmit = { categories, reason ->
+                    seat.userId?.let { id ->
+                        onAction(PlayPokerAction.ReportPlayer(id, categories = categories, reason = reason))
+                    }
+                    reportSheetSeat = null
+                },
+            )
         }
 
         // Bot-mode achievement-unlock celebration is sequenced *after* the

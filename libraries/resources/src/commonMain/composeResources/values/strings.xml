@@ -1087,6 +1087,16 @@
     <string name="room_player_profile_report_supporting">Send this to our team to review. They won't be told who reported them.</string>
     <string name="room_player_profile_report_button">Report</string>
     <string name="room_player_profile_report_button_sent">Reported</string>
+    <string name="report_sheet_title">Report %1$s</string>
+    <string name="report_sheet_subtitle">Tell us what happened. Pick anything that applies — they won't be told who reported them.</string>
+    <string name="report_reason_harassment">Harassment or abuse</string>
+    <string name="report_reason_cheating">Cheating or collusion</string>
+    <string name="report_reason_offensive_name">Offensive name or avatar</string>
+    <string name="report_reason_spam">Spam or advertising</string>
+    <string name="report_reason_other">Something else</string>
+    <string name="report_details_hint">Add details (optional)</string>
+    <string name="report_submit_button">Submit report</string>
+    <string name="report_cancel_button">Cancel</string>
     <string name="room_player_profile_bot_callout_title">This is a bot</string>
     <string name="room_player_profile_bot_callout_body">Bots only see their own hand and the community cards. They don't use AI. Each follows a fixed playing style.</string>
 
