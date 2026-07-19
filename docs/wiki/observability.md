@@ -13,6 +13,7 @@ green, close the tab.**
 | Downcard — Business | Revenue (`dc-revenue`) | Real money only: $, % payers, per-pack breakdowns (pinned prod) |
 | Downcard — Engineering | Infra (`dc-infra`) | Backend/DB health: Fly machine, Supabase, RED, memory/OOM |
 | Downcard — Engineering | Game Server Pipeline (`cards-gameplay`) | Turn-processing internals from Tempo traces |
+| Downcard — Engineering | Billing Health (`dc-billing-health`) | Chip-purchase recovery pipeline: stuck purchases with age, mismatch rate, grant-on-replay, refunds, wedged escalations, retry distribution — sliceable by reason |
 
 ## Conventions
 
@@ -29,6 +30,10 @@ green, close the tab.**
 - **Warn+ client logs** land in Loki behind `telemetry.klogForwardingEnabled` (default on):
   `{service_name="cards-client"} | detected_level=~"warn|error"`.
 - Event registry: [`app-events.md`](app-events.md). Ledger reasons: [`wallet.md`](wallet.md).
+- **Billing Health source:** the `billing_events` disposition log (Postgres), one evolving row per store
+  transaction. Env is the datasource toggle (`$env`), not a column — `billing_events` has no environment
+  field. Panels stay empty until the server ships the `V88__billing_events.sql` migration; the redeem
+  route then upserts a row on every attempt. See [`purchases.md`](purchases.md).
 
 ## Alerts (folder Downcard — Engineering → email `owner-email`)
 
