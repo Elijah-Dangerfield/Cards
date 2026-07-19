@@ -122,7 +122,9 @@ class AppStoreReceiptValidator(
         // receipt is dead regardless of which account it names.
         if (payload.revocationDate != null) {
             logger.warn("Apple receipt revoked/refunded (transactionId={})", payload.transactionId)
-            return ReceiptValidation.Invalid("apple_revoked")
+            // Carry the transaction id so the refund is recordable against the
+            // purchase for support / "this was refunded" messaging.
+            return ReceiptValidation.Invalid("apple_revoked", orderId = payload.transactionId)
         }
 
         val transactionId = payload.transactionId

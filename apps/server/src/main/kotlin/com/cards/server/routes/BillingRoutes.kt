@@ -1,6 +1,10 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.data.RelaxedGrantRateLimiter
+import com.dangerfield.cards.server.domain.BillingEventAction
+import com.dangerfield.cards.server.domain.BillingEventAttempt
+import com.dangerfield.cards.server.domain.BillingEventsRepository
 import com.dangerfield.cards.server.domain.BillingRepository
 import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalogSource
@@ -68,6 +72,7 @@ fun Route.billingRoutes(
     billing: BillingRepository,
     profiles: ProfileRepository,
     relaxedGrantRateLimiter: RelaxedGrantRateLimiter,
+    billingEvents: BillingEventsRepository,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         rateLimit(RateLimitName(WALLET_WRITE_LIMIT)) {
@@ -127,6 +132,7 @@ fun Route.billingRoutes(
                 when (validation) {
                     is ReceiptValidation.Valid -> call.grantAndRespond(
                         billing = billing,
+                        billingEvents = billingEvents,
                         userId = userId,
                         store = store,
                         orderId = validation.orderId,
@@ -134,9 +140,11 @@ fun Route.billingRoutes(
                         grantedChips = product.grantsChips,
                         environment = validation.environment,
                         relaxedAccountBinding = false,
+                        receiptOwner = null,
                     )
                     is ReceiptValidation.AccountMismatch -> call.respondToAccountMismatch(
                         billing = billing,
+                        billingEvents = billingEvents,
                         rateLimiter = relaxedGrantRateLimiter,
                         mismatch = validation,
                         replayed = body.replayed,
@@ -147,7 +155,7 @@ fun Route.billingRoutes(
                         userId = userId,
                     )
                     is ReceiptValidation.Invalid -> call.respondToInvalid(
-                        validation, store, body.productId, userId,
+                        validation, billingEvents, store, body.productId, userId,
                     )
                 }
             }
@@ -163,6 +171,7 @@ fun Route.billingRoutes(
  */
 private suspend fun ApplicationCall.grantAndRespond(
     billing: BillingRepository,
+    billingEvents: BillingEventsRepository,
     userId: UserId,
     store: Store,
     orderId: String,
@@ -170,6 +179,7 @@ private suspend fun ApplicationCall.grantAndRespond(
     grantedChips: Long,
     environment: PurchaseEnvironment,
     relaxedAccountBinding: Boolean,
+    receiptOwner: UserId?,
 ) {
     logger.info(
         "Redeeming {} for user={} (store={}, environment={}, chips={}, relaxed={})",
@@ -183,6 +193,17 @@ private suspend fun ApplicationCall.grantAndRespond(
         grantedChips = grantedChips,
         environment = environment,
         relaxedAccountBinding = relaxedAccountBinding,
+    )
+    billingEvents.recordSafely(
+        BillingEventAttempt(
+            store = store.wire,
+            transactionId = orderId,
+            callerUser = userId,
+            receiptOwner = receiptOwner,
+            productId = productId,
+            reason = if (relaxedAccountBinding) "account_mismatch_relaxed" else null,
+            action = if (relaxedAccountBinding) BillingEventAction.GrantedOnReplay else BillingEventAction.Granted,
+        ),
     )
     respond(
         HttpStatusCode.OK,
@@ -225,6 +246,7 @@ private suspend fun ApplicationCall.grantAndRespond(
  */
 private suspend fun ApplicationCall.respondToAccountMismatch(
     billing: BillingRepository,
+    billingEvents: BillingEventsRepository,
     rateLimiter: RelaxedGrantRateLimiter,
     mismatch: ReceiptValidation.AccountMismatch,
     replayed: Boolean,
@@ -234,11 +256,24 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
     grantedChips: Long,
     userId: UserId,
 ) {
+    suspend fun recordMismatch(reason: String, action: BillingEventAction) = billingEvents.recordSafely(
+        BillingEventAttempt(
+            store = store.wire,
+            transactionId = mismatch.orderId,
+            callerUser = userId,
+            receiptOwner = mismatch.receiptOwner,
+            productId = productId,
+            reason = reason,
+            action = action,
+        ),
+    )
+
     if (!replayed) {
         logger.warn(
             "Interactive receipt bound to a different account: receiptOwner={} caller={} store={} product={}",
             mismatch.receiptOwner.value, userId.value, store.wire, productId,
         )
+        recordMismatch("account_mismatch_interactive", BillingEventAction.Mismatch)
         return respondProblem(
             HttpStatusCode.Conflict,
             "receipt_account_mismatch",
@@ -252,6 +287,7 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
             "Grant-on-replay deferred: anonymous caller nudged to sign in to claim receiptOwner={} (store={}, product={})",
             mismatch.receiptOwner.value, store.wire, productId,
         )
+        recordMismatch("account_mismatch_anonymous", BillingEventAction.ClaimSignIn)
         return respondProblem(
             HttpStatusCode.Conflict,
             "receipt_claim_sign_in",
@@ -263,6 +299,7 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
             "Grant-on-replay rate-limited: refusing to relax receiptOwner={} -> caller={} (store={}, product={})",
             mismatch.receiptOwner.value, userId.value, store.wire, productId,
         )
+        recordMismatch("account_mismatch_rate_limited", BillingEventAction.Mismatch)
         return respondProblem(
             HttpStatusCode.Conflict,
             "receipt_account_mismatch",
@@ -275,6 +312,7 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
     )
     grantAndRespond(
         billing = billing,
+        billingEvents = billingEvents,
         userId = userId,
         store = store,
         orderId = mismatch.orderId,
@@ -282,6 +320,7 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
         grantedChips = grantedChips,
         environment = mismatch.environment,
         relaxedAccountBinding = true,
+        receiptOwner = mismatch.receiptOwner,
     )
 }
 
@@ -305,6 +344,7 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
  */
 private suspend fun ApplicationCall.respondToInvalid(
     validation: ReceiptValidation.Invalid,
+    billingEvents: BillingEventsRepository,
     store: Store,
     productId: String,
     userId: UserId,
@@ -333,6 +373,8 @@ private suspend fun ApplicationCall.respondToInvalid(
     }
     // Wedged is never produced by the classifier, but folding it here with Dead
     // keeps the `when` total and finishes the transaction if it ever appears.
+    // Wedged is never produced by the classifier, but folding it here with Dead
+    // keeps the `when` total and finishes the transaction if it ever appears.
     RedeemDisposition.Dead, RedeemDisposition.Wedged -> {
         logger.warn(
             "Receipt rejected: reason={} store={} product={} user={}",
@@ -342,6 +384,22 @@ private suspend fun ApplicationCall.respondToInvalid(
             ReceiptRejectedException(validation.reason, store.wire, productId),
             context = "billing_redeem",
         )
+        // A dead receipt that still carries a transaction id (a refund/revoke) is
+        // recordable against the purchase so support can see "this was refunded";
+        // a pre-decode failure (forged, unconfigured) has no id to anchor on.
+        validation.orderId?.let { orderId ->
+            billingEvents.recordSafely(
+                BillingEventAttempt(
+                    store = store.wire,
+                    transactionId = orderId,
+                    callerUser = userId,
+                    receiptOwner = null,
+                    productId = productId,
+                    reason = validation.reason,
+                    action = BillingEventAction.FinishedDead,
+                ),
+            )
+        }
         respondProblem(
             HttpStatusCode.BadRequest,
             "receipt_dead",
@@ -355,3 +413,17 @@ private suspend fun ApplicationCall.respondProblem(
     code: String,
     message: String,
 ) = respond(status, mapOf("error" to mapOf("code" to code, "message" to message)))
+
+/**
+ * Write a billing-events row best-effort: audit must never block or fail a
+ * grant (the money-path record is `billing_transactions`), so a write failure
+ * is logged and swallowed.
+ */
+private suspend fun BillingEventsRepository.recordSafely(attempt: BillingEventAttempt) {
+    Catching { record(attempt) }.onFailure { error ->
+        logger.warn(
+            "billing_events write failed for store={} txn={}: {}",
+            attempt.store, attempt.transactionId, error.message,
+        )
+    }
+}

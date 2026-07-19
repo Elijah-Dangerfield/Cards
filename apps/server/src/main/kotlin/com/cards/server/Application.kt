@@ -167,6 +167,7 @@ fun Application.installApp(
             billing = component.billingRepository,
             profiles = component.profileRepository,
             relaxedGrantRateLimiter = component.relaxedGrantRateLimiter,
+            billingEvents = component.billingEventsRepository,
         )
         progressionRoutes(component.progressionRepository, component.walletRepository)
         playStyleRoutes(component.playStyleRepository)

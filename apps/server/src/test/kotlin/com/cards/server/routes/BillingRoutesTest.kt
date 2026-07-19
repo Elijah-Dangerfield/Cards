@@ -3,6 +3,9 @@ package com.dangerfield.cards.server.routes
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.data.RelaxedGrantRateLimiter
+import com.dangerfield.cards.server.domain.BillingEventAction
+import com.dangerfield.cards.server.domain.BillingEventAttempt
+import com.dangerfield.cards.server.domain.BillingEventsRepository
 import com.dangerfield.cards.server.domain.BillingRepository
 import com.dangerfield.cards.server.domain.PlatformStore
 import com.dangerfield.cards.server.domain.Product
@@ -171,6 +174,33 @@ class BillingRoutesTest {
     }
 
     @Test
+    fun redeem_recordsBillingEvent_perDisposition() = runTest {
+        val grantEvents = RecordingBillingEvents()
+        callRedeem(
+            billing = FakeBilling(),
+            billingEvents = grantEvents,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-ev"),
+            bearer = validJwt(),
+        ) { resp -> assertEquals(HttpStatusCode.OK, resp.status) }
+        val granted = grantEvents.recorded.single()
+        assertEquals(BillingEventAction.Granted, granted.action)
+        assertEquals("txn-ev", granted.transactionId)
+        assertEquals(userId, granted.callerUser)
+
+        val replayEvents = RecordingBillingEvents()
+        callRedeem(
+            billing = FakeBilling(),
+            validator = ReplayableMismatchValidator,
+            billingEvents = replayEvents,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-rp", replayed = true),
+            bearer = validJwt(),
+        ) { resp -> assertEquals(HttpStatusCode.OK, resp.status) }
+        val relaxed = replayEvents.recorded.single()
+        assertEquals(BillingEventAction.GrantedOnReplay, relaxed.action)
+        assertEquals(RECEIPT_OWNER, relaxed.receiptOwner, "the relaxed grant records the receipt's owning account")
+    }
+
+    @Test
     fun redeem_replayedAccountMismatch_anonymousCaller_nudgesSignInToClaim_andDoesNotGrant() = runTest {
         // An anonymous caller is nudged to sign in first (re-login matches the
         // receipt cleanly and lands the chips on the durable account) rather than
@@ -335,6 +365,7 @@ class BillingRoutesTest {
         validator: ReceiptValidator = EchoTokenValidator,
         profiles: ProfileRepository = LineageProfiles(setOf(userId)),
         rateLimiter: RelaxedGrantRateLimiter = RelaxedGrantRateLimiter(Clock.System),
+        billingEvents: BillingEventsRepository = RecordingBillingEvents(),
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -343,7 +374,7 @@ class BillingRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { billingRoutes(catalog, validator, billing, profiles, rateLimiter) }
+                routing { billingRoutes(catalog, validator, billing, profiles, rateLimiter, billingEvents) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -425,6 +456,13 @@ class BillingRoutesTest {
         override suspend fun validate(request: PurchaseReceipt): ReceiptValidation {
             seen = request
             return ReceiptValidation.Valid(orderId = request.token, environment = PurchaseEnvironment.Production)
+        }
+    }
+
+    private class RecordingBillingEvents : BillingEventsRepository {
+        val recorded: MutableList<BillingEventAttempt> = mutableListOf()
+        override suspend fun record(event: BillingEventAttempt) {
+            recorded += event
         }
     }
 

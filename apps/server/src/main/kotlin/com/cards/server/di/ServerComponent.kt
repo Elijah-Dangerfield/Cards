@@ -8,6 +8,7 @@ import com.dangerfield.cards.server.domain.AchievementRepository
 import com.dangerfield.cards.server.domain.AppConfigAdminRepository
 import com.dangerfield.cards.server.domain.AppConfigManifestRepository
 import com.dangerfield.cards.server.domain.AppConfigSource
+import com.dangerfield.cards.server.domain.BillingEventsRepository
 import com.dangerfield.cards.server.domain.BillingRepository
 import com.dangerfield.cards.server.domain.EquipmentRepository
 import com.dangerfield.cards.server.domain.FriendRepository
@@ -79,6 +80,7 @@ abstract class ServerComponent(
     abstract val inventoryRepository: InventoryRepository
     abstract val walletRepository: WalletRepository
     abstract val billingRepository: BillingRepository
+    abstract val billingEventsRepository: BillingEventsRepository
     abstract val receiptValidator: ReceiptValidator
     abstract val relaxedGrantRateLimiter: RelaxedGrantRateLimiter
     abstract val progressionRepository: ProgressionRepository

@@ -124,5 +124,16 @@ sealed interface ReceiptValidation {
         val environment: PurchaseEnvironment,
         val receiptOwner: UserId,
     ) : ReceiptValidation
-    data class Invalid(val reason: String, val retryable: Boolean = false) : ReceiptValidation
+
+    /**
+     * [orderId] is populated when the receipt decoded far enough to carry a
+     * store transaction id (a revoked / refunded receipt) so the disposition can
+     * still be recorded against that purchase for support; null for a failure
+     * that never yielded one (forged signature, unconfigured validator).
+     */
+    data class Invalid(
+        val reason: String,
+        val retryable: Boolean = false,
+        val orderId: String? = null,
+    ) : ReceiptValidation
 }

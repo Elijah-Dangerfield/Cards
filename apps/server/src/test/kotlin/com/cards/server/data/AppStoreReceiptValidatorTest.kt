@@ -216,7 +216,9 @@ class AppStoreReceiptValidatorTest {
                 .revocationDate(1_700_000_000_000L),
         )
         val result = validator.validate(receipt())
-        assertEquals(ReceiptValidation.Invalid("apple_revoked"), result)
+        // The transaction id rides the revoked Invalid so the refund is
+        // recordable against the purchase for support.
+        assertEquals(ReceiptValidation.Invalid("apple_revoked", orderId = "txn-1"), result)
     }
 
     @Test
@@ -232,7 +234,7 @@ class AppStoreReceiptValidatorTest {
                 .revocationDate(1_700_000_000_000L),
         )
         val result = validator.validate(receipt())
-        assertEquals(ReceiptValidation.Invalid("apple_revoked"), result)
+        assertEquals(ReceiptValidation.Invalid("apple_revoked", orderId = "txn-1"), result)
     }
 
     @Test
