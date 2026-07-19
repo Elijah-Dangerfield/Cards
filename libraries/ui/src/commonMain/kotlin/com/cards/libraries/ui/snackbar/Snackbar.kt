@@ -166,7 +166,7 @@ private fun SnackbarSurface(
                             Modifier
                         }
                     )
-                    .padding(Dimension.D500),
+                    .padding(Dimension.D600),
                 content = { content() }
             )
         }
@@ -274,7 +274,7 @@ private val SnackbarEmojiBubbleSize = 36.dp
 object SnackbarDefaults {
     val shape: Shape @Composable get() = Radii.R600.shape
     val backgroundColor: ColorResource @Composable get() = AppTheme.colors.surfaceRaised
-    val contentColor: ColorResource @Composable get() = AppTheme.colors.contentSecondary
+    val contentColor: ColorResource @Composable get() = AppTheme.colors.content
 }
 
 // ---------------------------------------------------------------------
