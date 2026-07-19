@@ -341,6 +341,27 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
     }
 
     @Test
+    fun redeemOutstanding_claimSignIn_leavesTheTransactionUnfinished_forAPostSignInDrain() = runUnitTest {
+        // An anonymous session gets nudged to sign in. The transaction must be
+        // left unfinished so the next drain after sign-in resolves it cleanly —
+        // finishing it here would throw away the recoverable purchase.
+        val billing = FakeBillingClient(PurchaseResult.Success(TX))
+        val chips = FakeChipsRepository(initial = 500L)
+        val useCase = build(
+            billing = billing,
+            chips = chips,
+            redeem = RecordingBillingRepository(RedeemOutcome.ClaimSignIn),
+            realPurchases = true,
+            coordinator = FakeStoreKitCoordinator(unfinished = listOf(UNFINISHED)),
+        )
+
+        useCase.redeemOutstanding()
+
+        assertEquals(0, billing.consumeCalls, "a sign-in-to-claim purchase stays unfinished for a post-sign-in drain")
+        assertEquals(500L, chips.balanceValue, "nothing is credited until they sign in")
+    }
+
+    @Test
     fun redeemOutstanding_transientFailure_leavesTheTransactionUnfinished() = runUnitTest {
         val billing = FakeBillingClient(PurchaseResult.Success(TX))
         val useCase = build(

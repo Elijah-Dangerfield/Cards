@@ -171,6 +171,24 @@ class BillingRoutesTest {
     }
 
     @Test
+    fun redeem_replayedAccountMismatch_anonymousCaller_nudgesSignInToClaim_andDoesNotGrant() = runTest {
+        // An anonymous caller is nudged to sign in first (re-login matches the
+        // receipt cleanly and lands the chips on the durable account) rather than
+        // granted blind on a relaxed binding.
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = ReplayableMismatchValidator,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-anon", replayed = true),
+            bearer = anonymousJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.Conflict, resp.status)
+            assertEquals("receipt_claim_sign_in", resp.errorCode())
+        }
+        assertTrue(billing.redeemCalls.isEmpty(), "an anonymous caller is nudged to sign in, never granted blind")
+    }
+
+    @Test
     fun redeem_interactiveAccountMismatch_isNotRelaxed_returns409_andDoesNotGrant() = runTest {
         // The same account mismatch on an interactive buy (replayed = false) is
         // never relaxed — only a StoreKit replay is eligible for grant-on-replay.
@@ -291,6 +309,15 @@ class BillingRoutesTest {
         .withIssuer(testIssuer)
         .withAudience("authenticated")
         .withSubject(userId.value.toString())
+        .withIssuedAt(Date())
+        .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
+        .sign(Algorithm.HMAC256(testSecret))
+
+    private fun anonymousJwt(): String = JWT.create()
+        .withIssuer(testIssuer)
+        .withAudience("authenticated")
+        .withSubject(userId.value.toString())
+        .withClaim("is_anonymous", true)
         .withIssuedAt(Date())
         .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
         .sign(Algorithm.HMAC256(testSecret))

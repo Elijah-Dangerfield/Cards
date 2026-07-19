@@ -140,6 +140,13 @@ class DefaultPurchaseChipPackUseCase(
                     finishTerminal(transaction)
                     IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_RECEIPT_REJECTED)
                 }
+                RedeemOutcome.ClaimSignIn -> {
+                    // Not expected on the interactive path (anonymous buyers are
+                    // stopped before this), but if it ever surfaces, leave the
+                    // transaction unfinished so a post-sign-in drain resolves it.
+                    logger.e { "Redeem asked for sign-in-to-claim on the interactive path for order ${transaction.orderId}" }
+                    IapPurchaseOutcome.Failed(IapPurchaseOutcome.Failed.REASON_REDEEM_UNAVAILABLE)
+                }
                 RedeemOutcome.Transient -> {
                     // Error on purpose: paid but uncredited until the
                     // launch-time redeemer drains the unfinished transaction —
@@ -249,6 +256,14 @@ class DefaultPurchaseChipPackUseCase(
                     logger.e { "Replayed receipt for order ${transaction.orderId} bound to another account — finishing it" }
                     finishTerminal(transaction)
                     logger.logEvent("purchase.discarded", "product_id" to pack.id)
+                }
+                RedeemOutcome.ClaimSignIn -> {
+                    // The receipt is genuine and paid but the current session is
+                    // anonymous. Leave the transaction unfinished (do NOT finish
+                    // it) so the next drain after the user signs in resolves it
+                    // cleanly against their own account, and surface the nudge.
+                    logger.i { "Purchase ${transaction.orderId} needs sign-in to claim — left for a post-sign-in drain" }
+                    logger.logEvent("purchase.claim_sign_in", "product_id" to pack.id)
                 }
                 RedeemOutcome.Transient ->
                     // Unresolved (unreachable server, 5xx, catalog drift): left

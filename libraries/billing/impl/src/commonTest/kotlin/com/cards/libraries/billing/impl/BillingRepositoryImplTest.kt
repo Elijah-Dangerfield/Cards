@@ -77,6 +77,20 @@ class BillingRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
+    fun redeem_conflictClaimSignIn_isClaimSignIn() = runUnitTest {
+        // 409 receipt_claim_sign_in: an anonymous caller must sign in to claim.
+        // Not granted, not finished — the next drain after sign-in resolves it.
+        val repo = buildRepo { _ ->
+            respondJson(
+                """{"error":{"code":"receipt_claim_sign_in","message":"Sign in to claim your purchase."}}""",
+                status = HttpStatusCode.Conflict,
+            )
+        }
+        val outcome = repo.redeem("chip_pack_small", transaction)
+        assertEquals(RedeemOutcome.ClaimSignIn, outcome)
+    }
+
+    @Test
     fun redeem_badRequestOtherCode_isTransient_soItStaysReplayable() = runUnitTest {
         // A non-terminal 4xx (unknown product / catalog drift): still no credit,
         // but the caller must NOT finish the transaction — a later launch, once

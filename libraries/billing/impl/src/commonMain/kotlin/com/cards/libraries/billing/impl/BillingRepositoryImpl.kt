@@ -36,9 +36,11 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * The server's disposition rides the problem code: `receipt_dead` (400) ->
  * [RedeemOutcome.Dead] (caller finishes the stuck transaction),
  * `receipt_account_mismatch` (409) -> [RedeemOutcome.Mismatch] (recoverable via
- * sign-in-to-claim / grant-on-replay). Everything else — `receipt_transient`
- * (503), any other 4xx (unknown product / catalog drift), a 5xx, an unreachable
- * server, or a non-real-store transaction ([BillingPlatform.Fake]) — maps to
+ * sign-in-to-claim / grant-on-replay), `receipt_claim_sign_in` (409) ->
+ * [RedeemOutcome.ClaimSignIn] (an anonymous caller must sign in to claim; leave
+ * the transaction unfinished). Everything else — `receipt_transient` (503), any
+ * other 4xx (unknown product / catalog drift), a 5xx, an unreachable server, or
+ * a non-real-store transaction ([BillingPlatform.Fake]) — maps to
  * [RedeemOutcome.Transient] (no credit, left unfinished for a later retry).
  */
 @SingleIn(AppScope::class)
@@ -100,6 +102,7 @@ class BillingRepositoryImpl(
             when (code) {
                 RECEIPT_DEAD_CODE -> RedeemOutcome.Dead
                 RECEIPT_ACCOUNT_MISMATCH_CODE -> RedeemOutcome.Mismatch
+                RECEIPT_CLAIM_SIGN_IN_CODE -> RedeemOutcome.ClaimSignIn
                 else -> RedeemOutcome.Transient
             }
         } else {
@@ -110,6 +113,7 @@ class BillingRepositoryImpl(
     private companion object {
         const val RECEIPT_DEAD_CODE = "receipt_dead"
         const val RECEIPT_ACCOUNT_MISMATCH_CODE = "receipt_account_mismatch"
+        const val RECEIPT_CLAIM_SIGN_IN_CODE = "receipt_claim_sign_in"
     }
 }
 

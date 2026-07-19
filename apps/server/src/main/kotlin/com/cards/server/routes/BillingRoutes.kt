@@ -18,6 +18,7 @@ import com.dangerfield.cards.server.http.clientContext
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.WALLET_WRITE_LIMIT
 import com.dangerfield.cards.server.plugins.captureToSentry
+import com.dangerfield.cards.server.plugins.isAnonymousUser
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
@@ -139,6 +140,7 @@ fun Route.billingRoutes(
                         rateLimiter = relaxedGrantRateLimiter,
                         mismatch = validation,
                         replayed = body.replayed,
+                        anonymousCaller = call.isAnonymousUser(),
                         store = store,
                         productId = body.productId,
                         grantedChips = product.grantsChips,
@@ -212,12 +214,21 @@ private suspend fun ApplicationCall.grantAndRespond(
  *    to the replay path, rate-limited, and logged with a distinct wallet reason.
  *    A rate-limit trip falls back to the strict 409 so the client still finishes
  *    the transaction and the shop is unblocked.
+ *
+ * Before granting blind on a replay, an **anonymous** caller is nudged to sign
+ * in first (`receipt_claim_sign_in`): re-login makes the receipt match its own
+ * account token cleanly (a plain [ReceiptValidation.Valid] grant, no relaxation
+ * at all), which is both safer and lands the chips on the durable claimed
+ * account rather than a throwaway anonymous one. The client leaves the
+ * transaction unfinished so the next drain after sign-in resolves it; grant-and-
+ * finish stays the fallback (via the wedged escalation) if they never do.
  */
 private suspend fun ApplicationCall.respondToAccountMismatch(
     billing: BillingRepository,
     rateLimiter: RelaxedGrantRateLimiter,
     mismatch: ReceiptValidation.AccountMismatch,
     replayed: Boolean,
+    anonymousCaller: Boolean,
     store: Store,
     productId: String,
     grantedChips: Long,
@@ -232,6 +243,19 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
             HttpStatusCode.Conflict,
             "receipt_account_mismatch",
             "This purchase belongs to a different account.",
+        )
+    }
+    if (anonymousCaller) {
+        // Prefer the clean fix: sign in so the receipt matches its own account.
+        // Don't spend a rate-limit slot — we haven't granted anything.
+        logger.info(
+            "Grant-on-replay deferred: anonymous caller nudged to sign in to claim receiptOwner={} (store={}, product={})",
+            mismatch.receiptOwner.value, store.wire, productId,
+        )
+        return respondProblem(
+            HttpStatusCode.Conflict,
+            "receipt_claim_sign_in",
+            "Sign in to claim your purchase.",
         )
     }
     if (!rateLimiter.tryAcquire(userId)) {

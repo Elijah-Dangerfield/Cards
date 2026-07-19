@@ -63,6 +63,16 @@ sealed interface RedeemOutcome {
     data object Mismatch : RedeemOutcome
 
     /**
+     * A StoreKit-replayed receipt that would grant-on-replay, but the current
+     * caller is anonymous — so the server nudged them to sign in first, because
+     * re-login makes the receipt match its own account cleanly and lands the
+     * chips on the durable claimed account. Nothing was granted. The caller must
+     * leave the transaction unfinished so the next drain after sign-in resolves
+     * it, and surface a "sign in to claim your purchase" message.
+     */
+    data object ClaimSignIn : RedeemOutcome
+
+    /**
      * The server terminally rejected the receipt: it will never validate —
      * forged / unverifiable, wrong product, or a refund/revocation. Nothing was
      * granted, and retrying is pointless. The caller MUST finish (consume) the
