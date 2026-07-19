@@ -55,6 +55,7 @@ import cards.libraries.resources.generated.resources.room_practice_tier_explaine
 import cards.libraries.resources.generated.resources.room_showdown_continue_button
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_hand_info_a11y
+import cards.libraries.resources.generated.resources.room_top_bar_report_bug_a11y
 import cards.libraries.resources.generated.resources.room_waiting_to_be_dealt_in
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
@@ -106,6 +107,10 @@ fun PlayPokerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onTapXp: () -> Unit = {},
+    /** Opens the feedback form from a bug-icon button in the top bar. The entry
+     *  point wires this only on debug / TestFlight builds (null hides the button)
+     *  so testers can file mid-game feedback without leaving the table. */
+    onReportBug: (() -> Unit)? = null,
     /** Hides the centered Level pill in the top bar. The tutorial sets
      *  this false so its own step-counter pill can occupy the centered
      *  slot without colliding. */
@@ -324,6 +329,7 @@ fun PlayPokerScreen(
                     } else {
                         null
                     },
+                    onReportBug = onReportBug,
                     showXpPill = showXpPill,
                     centerSlot = topBarCenterSlot,
                 )
@@ -1000,6 +1006,7 @@ private fun TopBar(
     onBack: () -> Unit,
     onTapXp: () -> Unit = {},
     onHelp: (() -> Unit)? = null,
+    onReportBug: (() -> Unit)? = null,
     showXpPill: Boolean = true,
     centerSlot: (@Composable () -> Unit)? = null,
 ) {
@@ -1021,12 +1028,25 @@ private fun TopBar(
             onClick = onBack,
             modifier = Modifier.align(Alignment.CenterStart),
         )
-        if (onHelp != null) {
-            IconButton(
-                icon = Icons.Question(stringResource(Res.string.room_top_bar_hand_info_a11y)),
-                onClick = onHelp,
-                modifier = Modifier.align(Alignment.CenterEnd),
-            )
+        Row(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Debug / TestFlight only (the entry point gates it): a bug button
+            // that opens the feedback form so testers can report mid-game without
+            // leaving the table.
+            if (onReportBug != null) {
+                IconButton(
+                    icon = Icons.Bug(stringResource(Res.string.room_top_bar_report_bug_a11y)),
+                    onClick = onReportBug,
+                )
+            }
+            if (onHelp != null) {
+                IconButton(
+                    icon = Icons.Question(stringResource(Res.string.room_top_bar_hand_info_a11y)),
+                    onClick = onHelp,
+                )
+            }
         }
         if (centerSlot != null) {
             // Caller-supplied content (e.g. the tutorial's step counter) owns

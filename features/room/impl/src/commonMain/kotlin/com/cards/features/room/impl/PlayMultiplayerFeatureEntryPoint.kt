@@ -21,7 +21,9 @@ import androidx.navigation.toRoute
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
+import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.progression.StatsRoute
+import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.features.room.PlayMultiplayerRoute
 import com.dangerfield.cards.features.room.RoomKind
 import com.dangerfield.cards.features.rooms.PublicFindRoute
@@ -234,6 +236,14 @@ class PlayMultiplayerFeatureEntryPoint(
                     }
                 },
                 onTapXp = { router.navigate(StatsRoute()) },
+                // Debug / TestFlight only: a bug button in the top bar for filing
+                // mid-game feedback without leaving the table (ENG). Null on App
+                // Store builds hides it.
+                onReportBug = if (BuildInfo.isDebug || BuildInfo.isTestFlight) {
+                    { router.navigate(FeedbackRoute()) }
+                } else {
+                    null
+                },
             )
         }
     }

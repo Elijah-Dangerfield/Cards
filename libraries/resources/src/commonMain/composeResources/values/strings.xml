@@ -1212,6 +1212,7 @@
     <string name="room_connection_lost_banner">Connection lost. We're keeping your seat warm. Back in a moment.</string>
     <string name="room_top_bar_back_a11y">Back</string>
     <string name="room_top_bar_hand_info_a11y">Hand info and rankings</string>
+    <string name="room_top_bar_report_bug_a11y">Report a bug</string>
     <string name="room_board_rankings_a11y">View hand rankings</string>
     <string name="room_loading_dealing_in">Dealing in…</string>
     <string name="room_waiting_to_be_dealt_in">You'll be dealt in next hand</string>

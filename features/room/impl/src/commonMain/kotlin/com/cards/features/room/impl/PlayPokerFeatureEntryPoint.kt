@@ -9,7 +9,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
+import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.progression.StatsRoute
+import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.features.room.PlayBotsRoute
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
@@ -54,6 +56,13 @@ class PlayPokerFeatureEntryPoint(
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
                 onTapXp = { router.navigate(StatsRoute()) },
+                // Debug / TestFlight only: mid-game feedback shortcut (null on
+                // App Store builds hides the button).
+                onReportBug = if (BuildInfo.isDebug || BuildInfo.isTestFlight) {
+                    { router.navigate(FeedbackRoute()) }
+                } else {
+                    null
+                },
             )
         }
     }

@@ -714,6 +714,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. With the sheet still up, shake the device to bring up the "sun" feedback dialog (and, from it, tap through to the feedback form).
 
 **Expected:** The shake dialog — and the feedback form it opens — render fully on top of the bottom sheet and its scrim, never behind it. Tapping the dialog scrim / back dismisses the dialog and returns to the sheet. (Covers todo GAME-11.)
+- **Mid-game bug button (debug/TestFlight only):** the play-poker top bar shows a small bug icon next to the "?" help icon. Tapping it opens the feedback form without leaving the table. It never appears on an App Store build.
 
 ### `ENG-8` ℹ️ 📱 Wiretap captures the gameplay WebSocket
 
