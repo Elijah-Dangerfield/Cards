@@ -20,6 +20,7 @@ import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
+import kotlin.time.Clock
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -59,7 +60,13 @@ class RemotePokerSessionFactory @Inject constructor(
     @Assisted private val isPublicTable: Boolean,
     private val roomRepository: RoomRepository,
     private val telemetry: Telemetry,
+    clock: Clock,
 ) : PokerSessionFactory {
+
+    // Stamps a stable per-turn deadline so the on-table countdown ring survives a
+    // navigation round-trip (MP-33) instead of restarting from full. Held here so
+    // it outlives any single composition of the play screen.
+    private val turnDeadlineTracker = TurnDeadlineTracker(clock)
 
     override val difficultyName: String = "Multiplayer"
 
@@ -240,6 +247,7 @@ class RemotePokerSessionFactory @Inject constructor(
             // stake, house-funded. Private bots-only stays practice.
             subsidizedBotTable = isPublicTable && MultiplayerCredit.isBotsOnly(state),
             turnTimerEnforced = true,
+            turnDeadlineEpochMs = turnDeadlineTracker.deadlineFor(state),
             curve = curve,
             // A seatless local member is a mid-game joiner spectating until the
             // next hand boundary seats them — surface the "dealt in next hand"
