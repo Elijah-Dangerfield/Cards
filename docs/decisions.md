@@ -4,6 +4,16 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-18 — The turn-countdown ring anchors to a client-derived per-turn deadline (MP-33)
+
+**Problem:** The on-table countdown ring was a composition-local fixed-duration tween keyed on the turn token, with no time anchor. Tapping stats pushes a full screen, so the play screen leaves composition; on return the ring's `Animatable`/`LaunchedEffect` re-initialized and re-ran the full sweep from full — the timer visibly jumped back up even though the server's real clock kept ticking.
+
+**Decision:** Stamp a stable absolute `turnDeadlineEpochMs` once per turn (`handNumber to lastSequence`) in a `TurnDeadlineTracker` held by `RemotePokerSessionFactory` (which outlives any single composition), surface it on `TableUiState.Active`, and have `TurnCountdownRing` render remaining = `deadline - now` — so a re-entry recomputes the real time-left and resumes. The tracker only stamps for a human seat on a timer-enforced table; no acting seat / a bot clears it.
+
+**Client-derived, not server-broadcast — deliberately.** The ring is explicitly a *visual*: the server (`TurnTimerDriver`) stays authoritative on the actual auto-act timeout, unchanged. A full server-broadcast per-turn deadline (like the between-hands `NextHandPending.deadlineEpochMs`) would also fix cross-client clock drift and reconnect-mid-turn ring accuracy, but it touches the gameplay hot path and wire protocol for a visual-only gain. The client anchor fully fixes the reported bug (and any nav-away reset) with no server/protocol risk. The server-authoritative version is a noted follow-up if drift/reconnect ring precision ever matters.
+
+**Status:** Shipped. `TurnDeadlineTracker` unit-tested (stamps clock+timer; a re-projection of the same turn keeps the same deadline even as the clock advances — the MP-33 guard; a new turn re-arms; null for no-acting / bot). Room-impl suite + `assembleDebug` + iOS compile green.
+
 ## 2026-07-18 — Matchmaking rescues a lonely searcher across one buy-in tier (MP-34)
 
 **Problem:** Public matchmaking is find-or-create and atomic, so it never double-creates from a timing race. But two people who both hit "find a table" still ended up alone whenever their buy-in ranges snapped to different canonical tiers (1k/5k/25k/100k): the join filter is `room.buyIn in min..max`, so a 5k searcher never lands on a waiting 1k table. At low liquidity that's backwards — a slightly-off stake is better than no game.

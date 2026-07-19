@@ -36,12 +36,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** an edge swipe navigates back consistently across the app on Android gesture-nav devices; predictive-back behaves if enabled. Confirm on a gesture-nav device.
   **Hints:** app-level Android back / edge-to-edge + predictive-back config in the compose app entry, and per-screen `BackHandler` usage that may be swallowing the gesture. Owner-reported.
 
-## Multiplayer (MP)
-
-- `[P1]` **MP-33 — Opening player stats mid-hand and returning resets the turn timer.** Owner-reported: as a player in a live MP game, tapping stats navigates away, and coming back appears to restart the current hand's timer instead of resuming it.
-  **Acceptance:** navigating to stats and back during a live MP hand leaves the server-authoritative turn timer running from where it was; the client re-subscribes to the live deadline rather than restarting a local countdown. Reproduce with a scenario test first.
-  **Hints:** the play-screen timer is server-held — screen re-entry likely re-inits a local countdown instead of reading the running deadline. Play-screen timer subscription + nav re-composition. Owner-reported.
-
 ## Trust & safety (MOD)
 
 - `[P2]` **MOD-2 — Reporting needs a bottom sheet with a reason picker plus details.** Owner-requested: when reporting a user, show a bottom sheet where the reporter classifies what happened (multi-select reason list) with an optional free-text field, so reports are easy to triage and classify.
