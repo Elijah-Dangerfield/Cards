@@ -259,8 +259,16 @@ fun App(appComponent: AppComponent) {
                     .fillMaxSize()
                     // Tester shortcut: swipe in from the right edge to jump
                     // straight to the feedback form. Debug + TestFlight only —
-                    // App Store users go through Settings instead.
-                    .rightEdgeSwipe(enabled = BuildInfo.isDebug || BuildInfo.isTestFlight) {
+                    // App Store users go through Settings instead. Never on
+                    // Android: the right edge is that platform's system
+                    // back-gesture zone, so this shortcut swallowed the back
+                    // swipe there (ENG-31). Android testers use shake-to-debug
+                    // instead; iOS's back gesture is the left edge, so the right
+                    // edge is free there.
+                    .rightEdgeSwipe(
+                        enabled = (BuildInfo.isDebug || BuildInfo.isTestFlight) &&
+                            BuildInfo.platform != Platform.Android,
+                    ) {
                         router.navigate(FeedbackRoute())
                     },
             ) {
