@@ -135,9 +135,10 @@ The events that motivated shipping direct-to-Grafana: what never reaches the bac
 | `settings.changed` | `key` (game_speed/turn_feedback/show_achievement_popups), `value` | Settings screen writes |
 | `cosmetic.equipped` | `product_id`, `slot`, `auto` | My Items equip toggle (`auto=false`) + post-purchase auto-equip (`auto=true`) |
 | `achievement.celebration_shown` | `achievement_id`, `rarity`, `silenced` | Per unlock at hand end; `silenced=true` when the user muted popups (unlock still banked) |
-| `feedback.submitted` | `is_bug`, `has_screenshots` | `FeedbackRepositoryImpl` success — feedback and bug-report flows |
 | `emote.sent` | `mode` | Emoji blast passes the cooldown gate |
 | `emote.player_muted` | — | Muting a player (unmute is silent) |
+
+In-app feedback is not a Loki event. `FeedbackRepositoryImpl` sends it straight to Sentry via `captureUserFeedback` (verbatim message, screenshots, log/state attachments), and the Pulse dashboard reads it from the Sentry datasource. There is no `feedback.submitted` event anymore.
 
 ## Achievements & progression
 
