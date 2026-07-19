@@ -702,6 +702,27 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** The stuck order is redeemed if it still matches the account; if the server terminally rejects it (`receipt_rejected`), the client **finishes** it (session log: "Terminally rejected replayed receipt … finishing it" + `purchase.discarded`) instead of leaving it to replay. A fresh purchase of the same SKU in step 3 then succeeds normally — it is NOT shadowed by the old stuck transaction. After the step-4 relaunch the terminally-rejected order does NOT reappear in the drain (it was finished). A *transient* failure (server unconfigured / unreachable, 503) must still behave like BILL-7 — left unfinished and recovered on a later launch, never finished/discarded. (Covers todo BILL-13 part 1; the "every single purchase failing on a fresh install" report is the regression this guards.)
 
+### `BILL-14` 🚨 🍎 Reinstall-before-sign-in recovers: sign-in-to-claim, then grant-on-replay
+
+**State:** a TestFlight (or release + `.storekit`) build, signed in with a claimed account. Buy a chip pack, then reinstall so the launch drain replays the order while the app is **anonymous** (not yet signed back in). Needs a real device + a StoreKit sandbox account.
+
+1. Launch the fresh install anonymously and let the drain run.
+2. Reopen the app (foreground) to let in-app messages deliver.
+3. Sign back in with the original account.
+4. Reopen once more.
+
+**Expected:** While anonymous, the stuck purchase is NOT granted blind — it stays unfinished and an in-app message "You've got chips waiting / Sign in with the account you bought it on…" appears (session log: `purchase.claim_sign_in`; server 409 `receipt_claim_sign_in`). After signing back in, the next drain redeems it cleanly (the receipt matches via lineage) OR grant-on-replay credits the current account; the balance gains the pack and a "Your chips are here" message appears. A purchase that never resolves past the retry cap is escalated to a **goodwill** grant ("We sorted it out"), finished so it can't shadow new buys, and flagged to Sentry. Every outcome reaches the user — no silent success or failure. (Covers the purchase-recovery model in `docs/wiki/purchases.md`.)
+
+### `SHOP-11` 🍎🤖 Purchase-history screen + sync
+
+**State:** any build with at least one completed (or stuck) chip-pack purchase on the account.
+
+1. Shop → tap "Purchase history" (under the chip packs).
+2. Review the list.
+3. Tap "Check for missing purchases".
+
+**Expected:** Each purchase shows its pack, chip amount, and status (Added / Pending / Refunded), newest first. A delisted pack still renders with a generic label, not a blank row. "Check for missing purchases" re-runs the outstanding-purchase drain and the list reloads; a purchase that resolves flips from Pending to Added. With no purchases the screen shows a calm "No purchases yet", and a failed load with nothing to show offers a retry, not a misleading empty state.
+
 ---
 
 ## Tooling & debug
