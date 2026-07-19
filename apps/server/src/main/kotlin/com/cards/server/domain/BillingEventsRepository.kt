@@ -15,6 +15,13 @@ interface BillingEventsRepository {
 
     /** Upsert the attempt for `(store, transactionId)`, incrementing its count. */
     suspend fun record(event: BillingEventAttempt)
+
+    /**
+     * How many times `(store, transactionId)` has already been recorded, 0 if
+     * never. The wedged escalation reads this to decide when a stuck purchase
+     * has been re-attempted past the retry cap.
+     */
+    suspend fun attemptCountFor(store: String, transactionId: String): Int
 }
 
 /**

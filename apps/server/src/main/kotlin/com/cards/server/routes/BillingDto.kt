@@ -30,11 +30,15 @@ data class RedeemRequest(
  * authoritative post-grant chip balance the client reflects directly.
  * [alreadyRedeemed] is true on an idempotent replay (the transaction was
  * already redeemed; the balance is unchanged by this call) so the client
- * can suppress a duplicate "chips added" celebration.
+ * can suppress a duplicate "chips added" celebration. [goodwill] is true when
+ * the grant was a wedged-purchase escalation (goodwill chips), so the client
+ * can show the "we hit a snag, we made it right" message instead of a plain
+ * "chips added."
  */
 @Serializable
 data class RedeemResponse(
     val balance: Long,
     val grantedChips: Long,
     val alreadyRedeemed: Boolean,
+    val goodwill: Boolean = false,
 )

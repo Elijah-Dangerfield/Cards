@@ -33,6 +33,20 @@ class PostgresBillingEventsRepository(
     private val clock: Clock,
 ) : BillingEventsRepository {
 
+    override suspend fun attemptCountFor(store: String, transactionId: String): Int =
+        database.transaction {
+            BillingEventsTable
+                .selectAll()
+                .where {
+                    (BillingEventsTable.store eq store) and
+                        (BillingEventsTable.transactionId eq transactionId)
+                }
+                .limit(1)
+                .singleOrNull()
+                ?.get(BillingEventsTable.attemptCount)
+                ?: 0
+        }
+
     override suspend fun record(event: BillingEventAttempt) {
         database.transaction {
             val now = clock.now().toJavaInstant()

@@ -82,6 +82,7 @@ class BillingRepositoryImpl(
                 balance = body.balance,
                 grantedChips = body.grantedChips,
                 alreadyRedeemed = body.alreadyRedeemed,
+                goodwill = body.goodwill,
             )
         }
         return result.getOrElse { throwable -> throwable.toRedeemOutcome() }
@@ -136,4 +137,5 @@ private data class RedeemResponseDto(
     val balance: Long,
     val grantedChips: Long,
     val alreadyRedeemed: Boolean,
+    val goodwill: Boolean = false,
 )

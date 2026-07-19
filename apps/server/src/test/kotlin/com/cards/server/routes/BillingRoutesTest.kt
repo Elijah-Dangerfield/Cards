@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.BillingEventAction
 import com.dangerfield.cards.server.domain.BillingEventAttempt
 import com.dangerfield.cards.server.domain.BillingEventsRepository
 import com.dangerfield.cards.server.domain.BillingRepository
+import com.dangerfield.cards.server.domain.GrantKind
 import com.dangerfield.cards.server.domain.PlatformStore
 import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalog
@@ -168,7 +169,7 @@ class BillingRoutesTest {
             assertEquals(GRANT, body.grantedChips)
         }
         val call = billing.redeemCalls.single()
-        assertTrue(call.relaxedAccountBinding, "a grant-on-replay must be recorded as a relaxed grant")
+        assertEquals(GrantKind.GrantOnReplay, call.kind, "a grant-on-replay must be recorded as a relaxed grant")
         assertEquals(userId, call.userId, "the grant lands on the current caller, not the receipt owner")
         assertEquals("txn-replay", call.orderId)
     }
@@ -198,6 +199,32 @@ class BillingRoutesTest {
         val relaxed = replayEvents.recorded.single()
         assertEquals(BillingEventAction.GrantedOnReplay, relaxed.action)
         assertEquals(RECEIPT_OWNER, relaxed.receiptOwner, "the relaxed grant records the receipt's owning account")
+    }
+
+    @Test
+    fun redeem_wedgedPurchase_escalatesToGoodwillGrant() = runTest {
+        // A purchase re-attempted well past the retry cap (here an anonymous
+        // caller who never signs in) is made whole with goodwill chips and
+        // finished, rather than left paid-but-blocked forever.
+        val events = RecordingBillingEvents(priorAttempts = 10)
+        val billing = FakeBilling()
+        callRedeem(
+            billing = billing,
+            validator = ReplayableMismatchValidator,
+            billingEvents = events,
+            request = RedeemRequest(store = "apple", productId = CHIP_PACK_ID, token = "txn-wedged", replayed = true),
+            bearer = anonymousJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<RedeemResponse>()
+            assertTrue(body.goodwill, "a wedged escalation grants goodwill chips")
+        }
+        val call = billing.redeemCalls.single()
+        assertEquals(GrantKind.Goodwill, call.kind, "the escalation grants goodwill, not a normal grant")
+        assertTrue(
+            events.recorded.any { it.action == BillingEventAction.Escalated },
+            "the escalation is recorded for review",
+        )
     }
 
     @Test
@@ -398,7 +425,7 @@ class BillingRoutesTest {
             val productId: String,
             val grantedChips: Long,
             val environment: PurchaseEnvironment,
-            val relaxedAccountBinding: Boolean,
+            val kind: GrantKind,
         )
 
         val redeemCalls: MutableList<Call> = mutableListOf()
@@ -410,9 +437,9 @@ class BillingRoutesTest {
             productId: String,
             grantedChips: Long,
             environment: PurchaseEnvironment,
-            relaxedAccountBinding: Boolean,
+            kind: GrantKind,
         ): RedeemResult {
-            redeemCalls += Call(userId, store, orderId, productId, grantedChips, environment, relaxedAccountBinding)
+            redeemCalls += Call(userId, store, orderId, productId, grantedChips, environment, kind)
             return result
         }
     }
@@ -459,11 +486,15 @@ class BillingRoutesTest {
         }
     }
 
-    private class RecordingBillingEvents : BillingEventsRepository {
+    private class RecordingBillingEvents(
+        private val priorAttempts: Int = 0,
+    ) : BillingEventsRepository {
         val recorded: MutableList<BillingEventAttempt> = mutableListOf()
         override suspend fun record(event: BillingEventAttempt) {
             recorded += event
         }
+        override suspend fun attemptCountFor(store: String, transactionId: String): Int =
+            priorAttempts + recorded.count { it.store == store && it.transactionId == transactionId }
     }
 
     private class LineageProfiles(private val lineage: Set<UserId>) : ProfileRepository {

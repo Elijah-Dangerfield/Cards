@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.domain.BillingEventAction
 import com.dangerfield.cards.server.domain.BillingEventAttempt
 import com.dangerfield.cards.server.domain.BillingEventsRepository
 import com.dangerfield.cards.server.domain.BillingRepository
+import com.dangerfield.cards.server.domain.GrantKind
 import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
@@ -65,6 +66,21 @@ private val logger = LoggerFactory.getLogger("BillingRoutes")
  */
 private class ReceiptRejectedException(reason: String, store: String, productId: String) :
     RuntimeException("Receipt rejected: $reason (store=$store, product=$productId)")
+
+/**
+ * Raised (captured, never thrown) to flag a wedged purchase escalation for
+ * review: a paid transaction that couldn't resolve normally past the retry cap
+ * and was made right with goodwill chips.
+ */
+private class WedgedPurchaseException(store: String, productId: String, orderId: String, attempts: Int) :
+    RuntimeException("Wedged purchase escalated: store=$store product=$productId order=$orderId attempts=$attempts")
+
+/**
+ * How many attempts a stuck transaction gets before the wedged escalation gives
+ * up and grants goodwill chips. Counts against the billing-events attempt tally,
+ * which every server-reached drain bumps.
+ */
+private const val WEDGED_ATTEMPT_CAP = 5
 
 fun Route.billingRoutes(
     catalog: ProductCatalogSource,
@@ -139,7 +155,7 @@ fun Route.billingRoutes(
                         productId = body.productId,
                         grantedChips = product.grantsChips,
                         environment = validation.environment,
-                        relaxedAccountBinding = false,
+                        kind = GrantKind.Normal,
                         receiptOwner = null,
                     )
                     is ReceiptValidation.AccountMismatch -> call.respondToAccountMismatch(
@@ -164,10 +180,11 @@ fun Route.billingRoutes(
 }
 
 /**
- * Grant the validated transaction and answer with the authoritative balance.
- * Idempotent on the store transaction id via [BillingRepository.redeem], so a
- * retry or a racing request returns the same balance with `alreadyRedeemed`.
- * [relaxedAccountBinding] is true only on a grant-on-replay.
+ * Grant the transaction and answer with the authoritative balance. Idempotent
+ * on the store transaction id via [BillingRepository.redeem], so a retry or a
+ * racing request returns the same balance with `alreadyRedeemed`. [kind]
+ * distinguishes a clean grant from grant-on-replay and the wedged goodwill
+ * grant, and drives both the wallet-ledger reason and the recorded event.
  */
 private suspend fun ApplicationCall.grantAndRespond(
     billing: BillingRepository,
@@ -178,12 +195,13 @@ private suspend fun ApplicationCall.grantAndRespond(
     productId: String,
     grantedChips: Long,
     environment: PurchaseEnvironment,
-    relaxedAccountBinding: Boolean,
+    kind: GrantKind,
     receiptOwner: UserId?,
+    reason: String? = null,
 ) {
     logger.info(
-        "Redeeming {} for user={} (store={}, environment={}, chips={}, relaxed={})",
-        productId, userId.value, store.wire, environment.wire, grantedChips, relaxedAccountBinding,
+        "Redeeming {} for user={} (store={}, environment={}, chips={}, kind={})",
+        productId, userId.value, store.wire, environment.wire, grantedChips, kind,
     )
     val result = billing.redeem(
         userId = userId,
@@ -192,7 +210,7 @@ private suspend fun ApplicationCall.grantAndRespond(
         productId = productId,
         grantedChips = grantedChips,
         environment = environment,
-        relaxedAccountBinding = relaxedAccountBinding,
+        kind = kind,
     )
     billingEvents.recordSafely(
         BillingEventAttempt(
@@ -201,8 +219,12 @@ private suspend fun ApplicationCall.grantAndRespond(
             callerUser = userId,
             receiptOwner = receiptOwner,
             productId = productId,
-            reason = if (relaxedAccountBinding) "account_mismatch_relaxed" else null,
-            action = if (relaxedAccountBinding) BillingEventAction.GrantedOnReplay else BillingEventAction.Granted,
+            reason = reason,
+            action = when (kind) {
+                GrantKind.Normal -> BillingEventAction.Granted
+                GrantKind.GrantOnReplay -> BillingEventAction.GrantedOnReplay
+                GrantKind.Goodwill -> BillingEventAction.Escalated
+            },
         ),
     )
     respond(
@@ -211,6 +233,7 @@ private suspend fun ApplicationCall.grantAndRespond(
             balance = result.balance,
             grantedChips = grantedChips,
             alreadyRedeemed = result is RedeemResult.AlreadyRedeemed,
+            goodwill = kind == GrantKind.Goodwill,
         ),
     )
 }
@@ -268,6 +291,34 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
         ),
     )
 
+    // A wedged purchase: this transaction has been re-attempted past the retry
+    // cap and still can't resolve normally (an anonymous caller who never signs
+    // in, or a persistent rate-limit trip). Rather than leave the user paid-but-
+    // blocked forever, make it right with goodwill chips and finish it.
+    suspend fun escalateToGoodwill(priorAttempts: Int) {
+        logger.warn(
+            "Wedged purchase escalated to goodwill after {} attempts: caller={} store={} product={} order={}",
+            priorAttempts, userId.value, store.wire, productId, mismatch.orderId,
+        )
+        captureToSentry(
+            WedgedPurchaseException(store.wire, productId, mismatch.orderId, priorAttempts),
+            context = "billing_redeem",
+        )
+        grantAndRespond(
+            billing = billing,
+            billingEvents = billingEvents,
+            userId = userId,
+            store = store,
+            orderId = mismatch.orderId,
+            productId = productId,
+            grantedChips = grantedChips,
+            environment = mismatch.environment,
+            kind = GrantKind.Goodwill,
+            receiptOwner = mismatch.receiptOwner,
+            reason = "wedged_escalation",
+        )
+    }
+
     if (!replayed) {
         logger.warn(
             "Interactive receipt bound to a different account: receiptOwner={} caller={} store={} product={}",
@@ -280,7 +331,12 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
             "This purchase belongs to a different account.",
         )
     }
+
+    val priorAttempts = billingEvents.attemptCountFor(store.wire, mismatch.orderId)
+    val wedged = priorAttempts + 1 >= WEDGED_ATTEMPT_CAP
+
     if (anonymousCaller) {
+        if (wedged) return escalateToGoodwill(priorAttempts)
         // Prefer the clean fix: sign in so the receipt matches its own account.
         // Don't spend a rate-limit slot — we haven't granted anything.
         logger.info(
@@ -295,6 +351,7 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
         )
     }
     if (!rateLimiter.tryAcquire(userId)) {
+        if (wedged) return escalateToGoodwill(priorAttempts)
         logger.warn(
             "Grant-on-replay rate-limited: refusing to relax receiptOwner={} -> caller={} (store={}, product={})",
             mismatch.receiptOwner.value, userId.value, store.wire, productId,
@@ -319,8 +376,9 @@ private suspend fun ApplicationCall.respondToAccountMismatch(
         productId = productId,
         grantedChips = grantedChips,
         environment = mismatch.environment,
-        relaxedAccountBinding = true,
+        kind = GrantKind.GrantOnReplay,
         receiptOwner = mismatch.receiptOwner,
+        reason = "account_mismatch_relaxed",
     )
 }
 

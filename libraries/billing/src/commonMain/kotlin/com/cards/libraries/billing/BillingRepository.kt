@@ -45,12 +45,15 @@ sealed interface RedeemOutcome {
      * the authoritative post-grant chip balance the client reflects directly;
      * [grantedChips] is the server-side pack amount; [alreadyRedeemed] is true on
      * an idempotent replay so the caller can suppress a duplicate celebration.
-     * Terminal: the caller finishes the transaction.
+     * [goodwill] is true when the grant was a wedged-purchase escalation, so the
+     * caller can show the "we hit a snag, we made it right" message. Terminal:
+     * the caller finishes the transaction.
      */
     data class Granted(
         val balance: Long,
         val grantedChips: Long,
         val alreadyRedeemed: Boolean,
+        val goodwill: Boolean = false,
     ) : RedeemOutcome
 
     /**
