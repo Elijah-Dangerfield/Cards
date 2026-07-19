@@ -38,6 +38,7 @@ import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import org.slf4j.LoggerFactory
 
@@ -86,6 +87,7 @@ private class WedgedPurchaseException(store: String, productId: String, orderId:
  */
 private const val WEDGED_ATTEMPT_CAP = 5
 
+@OptIn(ExperimentalTime::class)
 fun Route.billingRoutes(
     catalog: ProductCatalogSource,
     validator: ReceiptValidator,
@@ -189,7 +191,33 @@ fun Route.billingRoutes(
                 }
             }
         }
+
+        // A read, so outside the wallet-write rate limit: the client's
+        // purchase-history screen + its "sync purchases" refresh.
+        get("/v1/billing/history") {
+            val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+            val items = billingEvents.historyFor(userId).map { record ->
+                PurchaseHistoryItem(
+                    store = record.store,
+                    transactionId = record.transactionId,
+                    productId = record.productId,
+                    status = record.action.historyStatus(),
+                    dateEpochMs = record.updatedAt.toEpochMilliseconds(),
+                )
+            }
+            call.respond(HttpStatusCode.OK, PurchaseHistoryResponse(items))
+        }
     }
+}
+
+/**
+ * Collapse a billing-events disposition to the coarse status the history screen
+ * shows: chips landed, still working on it, or refunded.
+ */
+private fun BillingEventAction.historyStatus(): String = when (this) {
+    BillingEventAction.Granted, BillingEventAction.GrantedOnReplay, BillingEventAction.Escalated -> "added"
+    BillingEventAction.Mismatch, BillingEventAction.ClaimSignIn -> "pending"
+    BillingEventAction.FinishedDead -> "refunded"
 }
 
 /**

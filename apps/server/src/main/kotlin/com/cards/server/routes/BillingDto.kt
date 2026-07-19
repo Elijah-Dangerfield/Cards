@@ -42,3 +42,25 @@ data class RedeemResponse(
     val alreadyRedeemed: Boolean,
     val goodwill: Boolean = false,
 )
+
+/**
+ * `GET /v1/billing/history` response — the caller's purchase attempts, newest
+ * first, for the in-app purchase-history screen. Deliberately minimal: the
+ * client already holds the localized catalog, so it resolves the pack title,
+ * icon, and chip amount from [PurchaseHistoryItem.productId] itself. [status] is
+ * one of `added` | `pending` | `refunded`; [dateEpochMs] is when the row was
+ * last touched.
+ */
+@Serializable
+data class PurchaseHistoryResponse(
+    val items: List<PurchaseHistoryItem>,
+)
+
+@Serializable
+data class PurchaseHistoryItem(
+    val store: String,
+    val transactionId: String,
+    val productId: String,
+    val status: String,
+    val dateEpochMs: Long,
+)

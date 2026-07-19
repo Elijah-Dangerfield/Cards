@@ -3,10 +3,15 @@ package com.dangerfield.cards.server.data
 import com.dangerfield.cards.server.db.BillingEventsTable
 import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.db.toJavaInstant
+import com.dangerfield.cards.server.db.toKotlinInstant
 import com.dangerfield.cards.server.di.ServerScope
+import com.dangerfield.cards.server.domain.BillingEventAction
 import com.dangerfield.cards.server.domain.BillingEventAttempt
+import com.dangerfield.cards.server.domain.BillingEventRecord
 import com.dangerfield.cards.server.domain.BillingEventsRepository
+import com.dangerfield.cards.server.domain.UserId
 import me.tatarka.inject.annotations.Inject
+import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
@@ -32,6 +37,25 @@ class PostgresBillingEventsRepository(
     private val database: Database,
     private val clock: Clock,
 ) : BillingEventsRepository {
+
+    override suspend fun historyFor(userId: UserId, limit: Int): List<BillingEventRecord> =
+        database.transaction {
+            BillingEventsTable
+                .selectAll()
+                .where { BillingEventsTable.callerUserId eq userId.value }
+                .orderBy(BillingEventsTable.updatedAt to SortOrder.DESC)
+                .limit(limit)
+                .map { row ->
+                    BillingEventRecord(
+                        store = row[BillingEventsTable.store],
+                        transactionId = row[BillingEventsTable.transactionId],
+                        productId = row[BillingEventsTable.productId],
+                        action = BillingEventAction.entries.first { it.wire == row[BillingEventsTable.finalAction] },
+                        reason = row[BillingEventsTable.reason],
+                        updatedAt = row[BillingEventsTable.updatedAt].toKotlinInstant(),
+                    )
+                }
+        }
 
     override suspend fun attemptCountFor(store: String, transactionId: String): Int =
         database.transaction {

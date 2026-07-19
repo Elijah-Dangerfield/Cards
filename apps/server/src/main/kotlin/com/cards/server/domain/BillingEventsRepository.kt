@@ -22,7 +22,25 @@ interface BillingEventsRepository {
      * has been re-attempted past the retry cap.
      */
     suspend fun attemptCountFor(store: String, transactionId: String): Int
+
+    /**
+     * The caller's purchase attempts, newest first, capped at [limit]. Backs the
+     * in-app purchase-history screen; each row carries the product, the latest
+     * disposition, and when it was last touched.
+     */
+    suspend fun historyFor(userId: UserId, limit: Int = 50): List<BillingEventRecord>
 }
+
+/** A billing-events row as read back for the purchase-history screen. */
+@kotlin.OptIn(kotlin.time.ExperimentalTime::class)
+data class BillingEventRecord(
+    val store: String,
+    val transactionId: String,
+    val productId: String,
+    val action: BillingEventAction,
+    val reason: String?,
+    val updatedAt: kotlin.time.Instant,
+)
 
 /**
  * One redeem attempt against an identified store transaction. [receiptOwner] is

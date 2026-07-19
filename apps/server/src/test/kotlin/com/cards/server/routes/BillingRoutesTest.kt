@@ -5,6 +5,7 @@ import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.data.RelaxedGrantRateLimiter
 import com.dangerfield.cards.server.domain.BillingEventAction
 import com.dangerfield.cards.server.domain.BillingEventAttempt
+import com.dangerfield.cards.server.domain.BillingEventRecord
 import com.dangerfield.cards.server.domain.BillingEventsRepository
 import com.dangerfield.cards.server.domain.BillingRepository
 import com.dangerfield.cards.server.domain.CreateMessageOutcome
@@ -31,6 +32,7 @@ import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -393,6 +395,46 @@ class BillingRoutesTest {
     }
 
     @Test
+    fun history_returnsCallersPurchases_withCoarseStatus() = runTest {
+        val events = RecordingBillingEvents(
+            history = listOf(
+                record("txn-1", BillingEventAction.Granted),
+                record("txn-2", BillingEventAction.ClaimSignIn),
+                record("txn-3", BillingEventAction.FinishedDead),
+            ),
+        )
+        testApplication {
+            application {
+                installSerialization()
+                installRateLimits()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing {
+                    billingRoutes(
+                        SingleChipPackCatalog, EchoTokenValidator, FakeBilling(),
+                        LineageProfiles(setOf(userId)), RelaxedGrantRateLimiter(Clock.System), events, RecordingMessages(),
+                    )
+                }
+            }
+            val client = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+            val resp = client.get("/v1/billing/history") { header(HttpHeaders.Authorization, "Bearer ${validJwt()}") }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<PurchaseHistoryResponse>()
+            assertEquals(listOf("added", "pending", "refunded"), body.items.map { it.status })
+        }
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private fun record(txn: String, action: BillingEventAction) = BillingEventRecord(
+        store = "apple",
+        transactionId = txn,
+        productId = CHIP_PACK_ID,
+        action = action,
+        reason = null,
+        updatedAt = kotlin.time.Instant.fromEpochMilliseconds(0),
+    )
+
+    @Test
     fun redeem_returns401_whenAuthHeaderMissing() = runTest {
         val billing = FakeBilling()
         callRedeem(
@@ -574,6 +616,7 @@ class BillingRoutesTest {
 
     private class RecordingBillingEvents(
         private val priorAttempts: Int = 0,
+        private val history: List<BillingEventRecord> = emptyList(),
     ) : BillingEventsRepository {
         val recorded: MutableList<BillingEventAttempt> = mutableListOf()
         override suspend fun record(event: BillingEventAttempt) {
@@ -581,6 +624,7 @@ class BillingRoutesTest {
         }
         override suspend fun attemptCountFor(store: String, transactionId: String): Int =
             priorAttempts + recorded.count { it.store == store && it.transactionId == transactionId }
+        override suspend fun historyFor(userId: UserId, limit: Int): List<BillingEventRecord> = history
     }
 
     private class LineageProfiles(private val lineage: Set<UserId>) : ProfileRepository {
