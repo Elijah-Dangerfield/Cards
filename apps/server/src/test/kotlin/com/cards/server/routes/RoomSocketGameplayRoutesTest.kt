@@ -839,6 +839,44 @@ class RoomSocketGameplayRoutesTest {
     }
 
     @Test
+    fun matchmakingPair_createdThenChooserJoin_serverAutoDealsForBoth() = runTest {
+        // MP-35 repro: the reported funnel is asymmetric — searcher A opens a fresh
+        // public table via find (Created) and waits, then searcher B discovers it
+        // through the read-only candidates browse and JOINS by code (the chooser
+        // pick, a REST join distinct from the dual-findOrJoinPublic path already
+        // covered). With both seated + connected the server must auto-deal for both
+        // — proving the server auto-start is sound for the created+chooser-join+
+        // staggered-connect path, so the "game never starts" gap is client-side.
+        val rooms = newRoomService()
+        val registry = newRegistry()
+        val wallets = InMemoryTestWalletRepository()
+
+        val created = assertIs<com.dangerfield.cards.server.domain.MatchmakingResult.Created>(
+            rooms.findOrJoinPublic(host, "QuickJack", 1_000, 1_000, emptySet()),
+        ).room
+
+        withRoomSocketTestApp(rooms, registry, wallets = wallets) { client ->
+            val quickJack = client.connect(created.code, host)
+            quickJack.drainSnapshot()
+
+            val candidates = rooms.findPublicCandidates(alice, 1_000, 1_000, emptySet())
+            assertEquals(listOf(created.code), candidates.map { it.code }, "the searcher sees the waiting table")
+            assertIs<com.dangerfield.cards.server.domain.JoinResult.Success>(
+                rooms.join(created.code, alice, "SlyTen"),
+            )
+            val slyTen = client.connect(created.code, alice)
+            try {
+                slyTen.drainSnapshot()
+                quickJack.receiveUntilGameState()
+                slyTen.receiveUntilGameState()
+            } finally {
+                quickJack.closeQuietly()
+                slyTen.closeQuietly()
+            }
+        }
+    }
+
+    @Test
     fun leavingMidGame_cashesOutTheCurrentStack_toTheWallet() = runTest {
         val rooms = newRoomService()
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)
