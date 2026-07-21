@@ -669,6 +669,12 @@ class PlayPokerViewModel @Inject constructor(
         if (handNumber != null) lastRecordedStatHand = handNumber
     }
 
+    private suspend fun requestReviewPrompt(trigger: ReviewTrigger) {
+        Catching {
+            reviewPromptCoordinator.requestPrompt(trigger)
+        }.onFailure { logger.w(it) { "Review prompt request failed for $trigger" } }
+    }
+
     private suspend fun maybeRequestReviewPrompt(
         priorLevel: Int?,
         earned: List<EarnedAchievement>,
@@ -678,7 +684,7 @@ class PlayPokerViewModel @Inject constructor(
                 it.achievement.rarity.ordinal >= AchievementRarity.RARE.ordinal
             }
             if (unlockedRareOrBetter) {
-                reviewPromptCoordinator.requestPrompt(ReviewTrigger.AchievementUnlocked)
+                requestReviewPrompt(ReviewTrigger.AchievementUnlocked)
                 return@Catching
             }
             if (priorLevel != null) {
@@ -688,7 +694,7 @@ class PlayPokerViewModel @Inject constructor(
                 ).level
                 if (newLevel > priorLevel) {
                     sendEvent(PlayPokerEvent.PlayHaptic(HapticKind.LevelUp))
-                    reviewPromptCoordinator.requestPrompt(ReviewTrigger.LevelUp)
+                    requestReviewPrompt(ReviewTrigger.LevelUp)
                 }
             }
         }.onFailure { logger.w(it) { "Review prompt request failed" } }
@@ -1041,10 +1047,11 @@ class PlayPokerViewModel @Inject constructor(
                 it.copy(sessionHandsWon = action.won, sessionHandsLost = action.lost)
             }
             is PlayPokerAction.LeaveTable -> {
-                if (sessionFactory.xpMode == XpMode.BOTS) {
-                    Catching {
-                        reviewPromptCoordinator.requestPrompt(ReviewTrigger.SessionEnd)
-                    }.onFailure { logger.w(it) { "SessionEnd review prompt request failed" } }
+                // Only ask at a genuine peak: a bot session the player ended up
+                // on (more hands won than lost). A losing grind that quits out is
+                // not a positive moment, so it never triggers the prompt.
+                if (sessionFactory.xpMode == XpMode.BOTS && sessionHandsWon > sessionHandsLost) {
+                    requestReviewPrompt(ReviewTrigger.SessionEnd)
                 }
                 logGameEnded("left")
                 // On appScope, not viewModelScope: the screen pops this VM the
@@ -1058,14 +1065,22 @@ class PlayPokerViewModel @Inject constructor(
                 // screen routes away.
                 appScope.launch { leaveAndReconcileWallet() }
             }
-            is PlayPokerAction.MatchOverResolved -> action.updateState {
+            is PlayPokerAction.MatchOverResolved -> {
+                // Winning a real-chip multiplayer match is the strongest positive
+                // moment we have — ask for a review here (bots-mode SessionEnd
+                // never covered MP wins).
+                if (action.localPlayerWon && state.isRealMultiplayer) {
+                    requestReviewPrompt(ReviewTrigger.MultiplayerWin)
+                }
                 // The match ended — surface the result and drop the now-stale
                 // countdown. The screen routes off (firing LeaveGameFromBust) when
                 // the player dismisses the result overlay.
-                it.copy(
-                    matchOverResult = MatchOverResult(localPlayerWon = action.localPlayerWon),
-                    matchOverCountdown = null,
-                )
+                action.updateState {
+                    it.copy(
+                        matchOverResult = MatchOverResult(localPlayerWon = action.localPlayerWon),
+                        matchOverCountdown = null,
+                    )
+                }
             }
             is PlayPokerAction.OpenQuickBuy -> action.updateState { it.copy(quickBuyOpen = true) }
             is PlayPokerAction.DismissQuickBuy -> action.updateState { it.copy(quickBuyOpen = false) }

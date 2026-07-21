@@ -26,9 +26,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## Gameplay (GAME)
 
-- `[P2]` **Review-prompt triggers fire at weak or mis-timed moments.** The three `requestPrompt` call sites in `PlayPokerViewModel` ask at soft spots: `SessionEnd` fires on any non-bust bot-mode leave without checking the session was net-positive, so a losing grind still gets asked; multiplayer wins — the strongest positive moment — never trigger a prompt (SessionEnd is bots-only); and the achievement / level-up asks fire immediately on top of the celebration sheet, so the OS prompt can step on the reveal.
-  **Acceptance:** we ask at genuine peaks — gate `SessionEnd` on a net-positive / leave-with-winnings outcome, add a real-chip MP win trigger, and defer the achievement / level-up ask until the celebration sheet is dismissed. The gating gate (3-day install age + 30-day cooldown, money-safety ordering) stays exactly as-is.
-  **Hints:** call sites `PlayPokerViewModel.kt:681` (achievement), `:691` (level-up), `:1043` (SessionEnd); coordinator `RealReviewPromptCoordinator`.
+- `[P2]` **The achievement / level-up review ask fires on top of the celebration sheet.** In bot mode a hand that unlocks a rare+ achievement (or levels the player up) requests the OS review prompt immediately at hand-end, so it can step on the achievement-celebration reveal.
+  **Acceptance:** defer the achievement / level-up ask so it fires when the celebration sheet is dismissed, not at hand-end. When no celebration shows (silenced popups / no surfaced unlock), keep the immediate behaviour.
+  **Hints:** ask is requested in `maybeRequestReviewPrompt` (`PlayPokerViewModel`); the bot-mode celebration dismisses via `AchievementCelebrationSheet` `onContinue` in `PlayPokerScreen`; a `pendingReviewTrigger` stash flushed on a new `CelebrationDismissed` action is the intended shape.
 
 - `[P2]` **Give mid-hand joiners a real spectator view, not a blank table.** A player who joins a room mid-hand lands in a bare spectating state with no player area rendered and no explanation, so it reads as broken.
   **Acceptance:** a mid-hand joiner sees the seated players and table rendered with a clear "you'll be dealt in on the next hand" affordance until they're dealt in.
