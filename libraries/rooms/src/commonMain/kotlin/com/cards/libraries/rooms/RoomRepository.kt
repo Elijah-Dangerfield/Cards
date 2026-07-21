@@ -219,4 +219,13 @@ sealed interface ClosedReason {
      * out.
      */
     data class MatchOver(val winnerUserId: String) : ClosedReason
+
+    /**
+     * The server-dealt hand left this connected member out solely because their
+     * balance fell under the entry bar between finding the table and the deal
+     * (MP matchmaking). Terminal and distinct from [RoomDeleted] so the search
+     * screen shows a real "you need [minBalanceToSit] chips to sit here" state
+     * with a route back, instead of hanging on "dealing you in" forever.
+     */
+    data class SeatUnaffordable(val minBalanceToSit: Long) : ClosedReason
 }

@@ -471,6 +471,21 @@ class ReconnectingRoomSocket @Inject constructor(
                                 )
                             RoomSocketEventDto.NextHandCleared ->
                                 _gameplayFrames.emit(GameplayFrame.NextHandCleared)
+                            // Terminal: the server-dealt hand left this member out
+                            // because their balance fell under the entry bar between
+                            // find and deal. Close as SeatUnaffordable (not RoomDeleted)
+                            // so the search screen shows a real "need X chips" state
+                            // with a route back rather than hanging on "dealing you in".
+                            is RoomSocketEventDto.SeatUnaffordable -> {
+                                logger.logEvent("room.closed_unexpectedly", "reason" to "seat_unaffordable")
+                                _connection.emit(
+                                    RoomConnection.Closed(
+                                        ClosedReason.SeatUnaffordable(event.minBalanceToSit),
+                                    ),
+                                )
+                                terminal = true
+                                throw TerminalFrameMarker
+                            }
                             // Terminal: grace expired, the match is over. Close as
                             // ClosedReason.MatchOver (not RoomDeleted) so the screen
                             // shows a match-over result naming the winner instead of

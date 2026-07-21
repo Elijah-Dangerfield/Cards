@@ -4,9 +4,9 @@ import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.di.ServerScope
+import com.dangerfield.cards.libraries.gameplay.BuyInTier
 import com.dangerfield.cards.server.domain.AddBotResult
 import com.dangerfield.cards.server.domain.BotSeat
-import com.dangerfield.cards.server.domain.BuyInTier
 import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.EntryBar
 import com.dangerfield.cards.server.domain.JoinResult

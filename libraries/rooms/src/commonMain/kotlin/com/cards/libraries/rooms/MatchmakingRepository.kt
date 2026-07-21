@@ -63,9 +63,24 @@ sealed interface SubsidyBudgetOutcome {
     data class Unknown(val cause: Throwable) : SubsidyBudgetOutcome
 }
 
+/**
+ * One joinable table in the matchmaking chooser, carrying the server's
+ * entry-bar verdict alongside the [room]. [affordable] is the server-
+ * authoritative "can this caller sit here?" flag (the 4× entry bar lives
+ * server-side, never on the client); an unaffordable table is still listed
+ * (aspirational) but rendered disabled. [minBalanceToSit] is the smallest
+ * balance that clears the bar for this table, so the UI can show a real
+ * "need X chips" number instead of computing one.
+ */
+data class MatchmakingCandidate(
+    val room: Room,
+    val affordable: Boolean,
+    val minBalanceToSit: Long,
+)
+
 sealed interface CandidatesOutcome {
     /** The qualifying tables (possibly empty — no match → offer bots). */
-    data class Success(val rooms: List<Room>) : CandidatesOutcome
+    data class Success(val rooms: List<MatchmakingCandidate>) : CandidatesOutcome
 
     /** The buy-in range was malformed or outside the allowed band (400). */
     data class InvalidRange(val message: String) : CandidatesOutcome

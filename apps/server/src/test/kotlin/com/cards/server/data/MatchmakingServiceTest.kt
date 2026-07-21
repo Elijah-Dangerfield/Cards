@@ -2,7 +2,7 @@ package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
-import com.dangerfield.cards.server.domain.BuyInTier
+import com.dangerfield.cards.libraries.gameplay.BuyInTier
 import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.EntryBar
 import com.dangerfield.cards.server.domain.MatchmakingResult

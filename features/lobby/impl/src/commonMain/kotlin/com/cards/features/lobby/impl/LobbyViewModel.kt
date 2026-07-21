@@ -320,6 +320,18 @@ class LobbyViewModel(
                                 joining = false,
                                 leaving = false,
                             )
+                            // Seat-unaffordable is a public-matchmaking-only terminal
+                            // (handled on the search screen); a private/host lobby never
+                            // sends it. If it somehow lands here the seat is gone, so
+                            // close out like the room being gone.
+                            is ClosedReason.SeatUnaffordable -> it.copy(
+                                room = null,
+                                connectionStatus = ConnectionStatus.Disconnected,
+                                error = LobbyError.RoomWasClosed,
+                                creating = false,
+                                joining = false,
+                                leaving = false,
+                            )
                         }
                     }.also { appliedState = it }
                 }
