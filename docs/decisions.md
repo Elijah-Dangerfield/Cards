@@ -4,6 +4,16 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-07-21 — MP achievements earned with no at-table reveal surface as a Home celebration (PROG-13)
+
+**Problem:** A finished real-chip multiplayer hand renders its result on the felt (the leave-with-winnings countdown), not in a dialog, so the at-table achievement reveal that solo/practice hands get never fires. The only real-chip surface was the bust dialog, so an unlock was only ever seen if the player busted the hand that earned it.
+
+**Decision:** Bank the unsurfaced unlocks at hand-end in a new account-scoped `AppData.pendingHomeAchievementIds` queue and let Home drain it through the existing notification arbiter, celebrating on the next settled return via the shared celebration sheet. Enqueue only when real chips are at stake and the player did not bust (a bust already shows the unlocks inline in `MultiplayerBustDialog`, so skipping avoids a double-fire), and only for the already-popup-gated `surfaced` list so a silenced session queues nothing. The queue persists until dismiss, so a process death mid-celebration re-celebrates on next launch (a no-missed-fire bias). The `AchievementCelebrationSheet` moved from `features/room/impl` into `:libraries:ui` so the bot table and Home render the identical DS celebration.
+
+**Alternatives rejected:** a new routed full-screen celebration like the level-up takeover (a bottom sheet matches how achievements are already celebrated and dodges a new nav route with a `List` route-arg NavType); ordering the achievement celebration below the level-up in the arbiter (the achievement is the concrete thing just earned with no other surface, whereas the level-up survives on its watermark and fires on the next settle after the queue drains — flip the order in `GetHomeScreenNotification` if the full-screen level-up moment should lead instead).
+
+**Status:** Shipped. Red-first tests cover the enqueue (queued without bust, not queued on bust, nothing queued when silenced), the Home drain (presents on settle, drains on dismiss, not until settled), and the arbiter priority. Android `assembleDebug`, iOS compile, and server tests green. New QA case under MP-1B.
+
 ## 2026-07-18 — The tester right-edge feedback shortcut is disabled on Android (ENG-31)
 
 **Problem:** Owner reported that on Android you can't swipe in from the right edge to go back. The `rightEdgeSwipe` modifier (App root) is a tester shortcut that opens the feedback form on a leftward swipe starting within 24dp of the **right edge**, enabled on debug + TestFlight builds. Its own comment claimed the right edge is "a low-collision zone — neither iOS nor default Android claims a system gesture there." That's wrong for Android: gesture navigation claims **both** edges for system back. So on a debug/TestFlight Android build (which is what the owner runs), a right-edge back swipe hit the feedback shortcut instead of navigating back.
