@@ -24,3 +24,10 @@ Non-engineering gates that block a public launch. None are worker-pickable.
   After this, TestFlight purchases stop working (that's expected) — test future chip packs on a debug build against dev. Background: [decisions.md](./decisions.md) 2026-07-07.
 
 ---
+## Deferred product decisions
+
+Product-direction calls only you can make. Engineering work stays in [todo.md](./todo.md); it can't finish until you pick a direction here.
+
+- [ ] **Decide how two people who search for a game at nearly the same time get seated together (MP-35).** The server correctly deals a table the moment two people are seated on it (now covered by a test). The gap is client-side: when the second searcher arrives, they land on a manual "pick a table to join" chooser and the two don't automatically end up together, so the person who searched first can sit waiting. Choose between (a) auto-seating the second searcher straight onto the first person's table (fastest match, drops the chooser) or (b) keeping the deliberate chooser and making the waiting side converge onto it. The engineering task (MP-35 in todo.md) is blocked until you pick.
+
+---
