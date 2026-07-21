@@ -295,8 +295,9 @@
     <string name="public_find_explainer_body">Set what you're happy to buy in for. If a hand's already running, you're in for the next one.</string>
     <string name="public_find_range_label">Your buy-in range</string>
     <string name="public_find_range_per_table">per table</string>
-    <string name="public_find_blinds_label">Blinds</string>
-    <string name="public_find_blinds_value">Scale with buy-in · 25/50 to 100/200</string>
+    <!-- Live preview of the table the current range maps to. %1$s is the buy-in, %2$s/%3$s the blinds. -->
+    <string name="public_find_preview_label">What you'll get</string>
+    <string name="public_find_preview_value">Buy-in %1$s · blinds %2$s/%3$s</string>
     <string name="public_find_cta">Find a table</string>
     <string name="public_find_cta_hint">Usually seated in a few seconds</string>
     <string name="public_find_balance_cap">Capped at your balance</string>
@@ -317,7 +318,11 @@
     <!-- Chooser - the qualifying tables the user can pick from (SPEC §2). -->
     <string name="public_searching_choose_title">Tables you can join</string>
     <string name="public_searching_choose_subtitle">Pick a table to take a seat. Joining buys you in at that table's stakes.</string>
-    <string name="public_searching_choose_seats">%1$d of %2$d seated</string>
+    <!-- Candidate card: buy-in (%1$s) leads, then blinds (%1$s/%2$s), then real-player count. -->
+    <string name="public_searching_choose_buyin">Buy-in %1$s</string>
+    <string name="public_searching_choose_blinds">Blinds %1$s/%2$s</string>
+    <!-- Shown on a table the caller can't afford, with the chips (%1$s) it takes to sit. -->
+    <string name="public_searching_choose_need_chips">Need %1$s chips to sit</string>
     <string name="public_searching_choose_humans_one">1 real player</string>
     <string name="public_searching_choose_humans">%1$d real players</string>
     <string name="public_searching_choose_join">Join</string>
@@ -343,6 +348,8 @@
     <!-- Search failed (network / rate limit / rejected). -->
     <string name="public_searching_error_body">We couldn't reach the tables just now. Check your connection and try again.</string>
     <string name="public_searching_error_insufficient">That buy-in is more than your balance. Go back and lower your range.</string>
+    <!-- Terminal seat_unaffordable state: the deal happened without us because our balance dropped. %1$s is the chips needed. -->
+    <string name="public_searching_error_cannot_be_seated">You need %1$s chips to sit at that table. Top up or lower your range and try again.</string>
     <string name="public_searching_error_retry">Try again</string>
     <string name="public_searching_error_back">Back</string>
 

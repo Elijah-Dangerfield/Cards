@@ -31,16 +31,19 @@ import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.public_searching_buyin_label
 import cards.libraries.resources.generated.resources.public_searching_cancel
+import cards.libraries.resources.generated.resources.public_searching_choose_blinds
+import cards.libraries.resources.generated.resources.public_searching_choose_buyin
 import cards.libraries.resources.generated.resources.public_searching_choose_humans
 import cards.libraries.resources.generated.resources.public_searching_choose_humans_one
 import cards.libraries.resources.generated.resources.public_searching_choose_join
+import cards.libraries.resources.generated.resources.public_searching_choose_need_chips
 import cards.libraries.resources.generated.resources.public_searching_choose_none
-import cards.libraries.resources.generated.resources.public_searching_choose_seats
 import cards.libraries.resources.generated.resources.public_searching_choose_start_fresh
 import cards.libraries.resources.generated.resources.public_searching_choose_subtitle
 import cards.libraries.resources.generated.resources.public_searching_choose_title
 import cards.libraries.resources.generated.resources.public_searching_error_body
 import cards.libraries.resources.generated.resources.public_searching_error_back
+import cards.libraries.resources.generated.resources.public_searching_error_cannot_be_seated
 import cards.libraries.resources.generated.resources.public_searching_error_insufficient
 import cards.libraries.resources.generated.resources.public_searching_error_retry
 import cards.libraries.resources.generated.resources.public_searching_joined_leave
@@ -65,6 +68,7 @@ import cards.libraries.resources.generated.resources.public_searching_rotate_5
 import cards.libraries.resources.generated.resources.public_searching_rotate_6
 import cards.libraries.resources.generated.resources.public_searching_title
 import com.dangerfield.cards.libraries.cards.formatThousands
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.rooms.RoomStatus
@@ -226,6 +230,12 @@ private fun ColumnScope.ChoosingContent(
 
 @Composable
 private fun CandidateCard(candidate: TableCandidate, onJoin: () -> Unit) {
+    // Blinds come from the same buy-in → stakes derivation the server uses, so the
+    // card shows the exact table the user is about to sit at.
+    val blinds = RoomSettings.forBuyIn(candidate.buyIn, candidate.maxSeats)
+    // An unaffordable table stays listed (aspirational) but reads as out of reach:
+    // dimmed content, a disabled Join, and the exact chips it takes to sit.
+    val buyInColor = if (candidate.affordable) AppTheme.colors.content else AppTheme.colors.contentDisabled
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -240,33 +250,45 @@ private fun CandidateCard(candidate: TableCandidate, onJoin: () -> Unit) {
                 ChipCoin(size = 16.dp)
                 Spacer(Modifier.size(Dimension.D200))
                 Text(
-                    text = formatThousands(candidate.buyIn),
+                    text = stringResource(Res.string.public_searching_choose_buyin, formatThousands(candidate.buyIn)),
                     typography = AppTheme.typography.Label.L500,
-                    color = AppTheme.colors.content,
+                    color = buyInColor,
                 )
             }
             Spacer(Modifier.height(Dimension.D100))
             Text(
-                text = if (candidate.humans == 1) {
-                    stringResource(Res.string.public_searching_choose_humans_one)
-                } else {
-                    stringResource(Res.string.public_searching_choose_humans, candidate.humans)
-                },
-                typography = AppTheme.typography.Label.L400,
-                color = AppTheme.colors.accentSecondary,
-            )
-            Text(
                 text = stringResource(
-                    Res.string.public_searching_choose_seats,
-                    candidate.seatsTaken,
-                    candidate.maxSeats,
+                    Res.string.public_searching_choose_blinds,
+                    formatThousands(blinds.smallBlind),
+                    formatThousands(blinds.bigBlind),
                 ),
                 typography = AppTheme.typography.Label.L300,
                 color = AppTheme.colors.contentTertiary,
             )
+            Spacer(Modifier.height(Dimension.D100))
+            if (candidate.affordable) {
+                Text(
+                    text = if (candidate.humans == 1) {
+                        stringResource(Res.string.public_searching_choose_humans_one)
+                    } else {
+                        stringResource(Res.string.public_searching_choose_humans, candidate.humans)
+                    },
+                    typography = AppTheme.typography.Label.L400,
+                    color = AppTheme.colors.accentSecondary,
+                )
+            } else {
+                Text(
+                    text = stringResource(
+                        Res.string.public_searching_choose_need_chips,
+                        formatThousands(candidate.minBalanceToSit),
+                    ),
+                    typography = AppTheme.typography.Label.L400,
+                    color = AppTheme.colors.contentTertiary,
+                )
+            }
         }
         Spacer(Modifier.size(Dimension.D400))
-        ButtonPrimary(onClick = onJoin) {
+        ButtonPrimary(onClick = onJoin, enabled = candidate.affordable) {
             Text(stringResource(Res.string.public_searching_choose_join))
         }
     }
@@ -468,20 +490,26 @@ private fun ColumnScope.ErrorContent(
     error: SearchError,
     onAction: (PublicSearchingAction) -> Unit,
 ) {
-    // Insufficient balance is the one error a retry can't fix — the fix is to go
-    // back and lower the range, so we drop the "Try again" button for it.
-    val insufficient = error == SearchError.InsufficientBalance
+    // Two errors a retry can't fix — the fix is to go back and lower the range or
+    // top up — so we drop the "Try again" button for them. CannotBeSeated names the
+    // exact chips needed; InsufficientBalance is the pre-search range check.
+    val message = when (error) {
+        SearchError.InsufficientBalance -> stringResource(Res.string.public_searching_error_insufficient)
+        is SearchError.CannotBeSeated ->
+            stringResource(Res.string.public_searching_error_cannot_be_seated, formatThousands(error.neededChips))
+        else -> stringResource(Res.string.public_searching_error_body)
+    }
+    val retryable = error != SearchError.InsufficientBalance && error !is SearchError.CannotBeSeated
     Spacer(Modifier.weight(1f))
     Text(
-        text = if (insufficient) stringResource(Res.string.public_searching_error_insufficient)
-        else stringResource(Res.string.public_searching_error_body),
+        text = message,
         typography = AppTheme.typography.Body.B500,
         color = AppTheme.colors.contentSecondary,
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.weight(1f))
-    if (!insufficient) {
+    if (retryable) {
         ButtonPrimary(
             onClick = { onAction(PublicSearchingAction.Retry) },
             modifier = Modifier.fillMaxWidth(),
@@ -567,9 +595,16 @@ private fun PublicSearchingChooserPreview() {
                 minBuyIn = 1_000,
                 maxBuyIn = 25_000,
                 candidates = listOf(
-                    TableCandidate(code = "ABC123", buyIn = 5_000, seatsTaken = 4, maxSeats = 6, humans = 3),
-                    TableCandidate(code = "DEF456", buyIn = 2_500, seatsTaken = 2, maxSeats = 6, humans = 2),
-                    TableCandidate(code = "GHI789", buyIn = 10_000, seatsTaken = 5, maxSeats = 6, humans = 1),
+                    TableCandidate(code = "ABC123", buyIn = 1_000, maxSeats = 6, humans = 3),
+                    TableCandidate(code = "DEF456", buyIn = 5_000, maxSeats = 6, humans = 2),
+                    TableCandidate(
+                        code = "GHI789",
+                        buyIn = 25_000,
+                        maxSeats = 6,
+                        humans = 1,
+                        affordable = false,
+                        minBalanceToSit = 100_000,
+                    ),
                 ),
             ),
             onAction = {},
@@ -722,6 +757,21 @@ private fun PublicSearchingInsufficientErrorPreview() {
                 minBuyIn = 1_000,
                 maxBuyIn = 25_000,
                 error = SearchError.InsufficientBalance,
+            ),
+            onAction = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PublicSearchingCannotBeSeatedPreview() {
+    PreviewContent {
+        PublicSearchingScreen(
+            state = PublicSearchingState(
+                minBuyIn = 1_000,
+                maxBuyIn = 25_000,
+                error = SearchError.CannotBeSeated(neededChips = 4_000),
             ),
             onAction = {},
         )

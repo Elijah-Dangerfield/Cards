@@ -29,6 +29,7 @@ import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
+import com.dangerfield.cards.libraries.rooms.MatchmakingCandidate
 import com.dangerfield.cards.libraries.rooms.MatchmakingRepository
 import com.dangerfield.cards.libraries.rooms.PlayBotsOutcome
 import com.dangerfield.cards.libraries.rooms.RemoveBotOutcome
@@ -76,11 +77,9 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     @Test
     fun onStart_withCandidates_showsChooser_withoutSeating() = runUnitTest {
         val mm = FakeMatchmakingRepository(
-            candidates = CandidatesOutcome.Success(
-                listOf(
-                    roomOf(code = "AAA111", members = listOf(member("h1", "H1", isConnected = true))),
-                    roomOf(code = "BBB222", members = emptyList()),
-                ),
+            candidates = candidatesOf(
+                roomOf(code = "AAA111", members = listOf(member("h1", "H1", isConnected = true))),
+                roomOf(code = "BBB222", members = emptyList()),
             ),
         )
         val vm = buildVm(matchmaking = mm)
@@ -100,8 +99,9 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     @Test
     fun joinCandidate_joinsByCode_andHandsOffWhenDealing() = runUnitTest {
         val conn = MutableSharedFlow<RoomConnection>(extraBufferCapacity = 8)
+        // Two candidates so the chooser shows (a lone affordable table now auto-joins).
         val mm = FakeMatchmakingRepository(
-            candidates = CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+            candidates = candidatesOf(roomOf(code = "AAA111"), roomOf(code = "BBB222")),
         )
         val rooms = FakeRoomRepository(
             connection = conn,
@@ -144,7 +144,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
             members = listOf(member(LOCAL_USER, "You", isConnected = true)),
         )
         val mm = FakeMatchmakingRepository(
-            candidates = CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+            candidates = candidatesOf(roomOf(code = "AAA111"), roomOf(code = "BBB222")),
         )
         val rooms = FakeRoomRepository(
             connection = conn,
@@ -191,7 +191,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
             find = FindTableOutcome.Success(ownTable, created = true),
             candidatesSequence = listOf(
                 CandidatesOutcome.Success(emptyList()),
-                CandidatesOutcome.Success(listOf(olderPeerTable)),
+                candidatesOf(olderPeerTable),
             ),
         )
         val vm = buildVm(matchmaking = mm, rooms = FakeRoomRepository())
@@ -211,7 +211,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     @Test
     fun joinCandidate_overBalance_surfacesInsufficientError() = runUnitTest {
         val mm = FakeMatchmakingRepository(
-            candidates = CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+            candidates = candidatesOf(roomOf(code = "AAA111"), roomOf(code = "BBB222")),
         )
         val rooms = FakeRoomRepository(join = JoinRoomOutcome.OverBalance("too rich"))
         val vm = buildVm(matchmaking = mm, rooms = rooms)
@@ -227,7 +227,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     fun startFreshTable_fromChooser_fallsThroughToTheGenuineWait() = runUnitTest {
         val mm = FakeMatchmakingRepository(
             find = FindTableOutcome.Success(roomOf(), created = true),
-            candidates = CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+            candidates = candidatesOf(roomOf(code = "AAA111"), roomOf(code = "BBB222")),
         )
         val vm = buildVm(matchmaking = mm)
         runCurrent()
@@ -244,21 +244,21 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     fun chooser_rePollsCandidates_andRefreshesTheVisibleList() = runUnitTest {
         val mm = FakeMatchmakingRepository(
             candidatesSequence = listOf(
-                CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
-                CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"), roomOf(code = "BBB222"))),
+                candidatesOf(roomOf(code = "AAA111"), roomOf(code = "BBB222")),
+                candidatesOf(roomOf(code = "AAA111"), roomOf(code = "BBB222"), roomOf(code = "CCC333")),
             ),
         )
         val vm = buildVm(matchmaking = mm)
         runCurrent()
         assertEquals(SearchPhase.Choosing, vm.state.phase)
-        assertEquals(listOf("AAA111"), vm.state.candidates.map { it.code })
+        assertEquals(listOf("AAA111", "BBB222"), vm.state.candidates.map { it.code })
 
         // A re-poll fires on the interval and surfaces the newly-formed table.
         testScheduler.advanceTimeBy(6.seconds)
         testScheduler.runCurrent()
 
         assertEquals(SearchPhase.Choosing, vm.state.phase)
-        assertEquals(listOf("AAA111", "BBB222"), vm.state.candidates.map { it.code })
+        assertEquals(listOf("AAA111", "BBB222", "CCC333"), vm.state.candidates.map { it.code })
 
         // Tear the live poll down so the test's virtual clock can drain.
         vm.takeAction(PublicSearchingAction.Cancel)
@@ -270,7 +270,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         val mm = FakeMatchmakingRepository(
             find = FindTableOutcome.Success(roomOf(), created = true),
             candidatesSequence = listOf(
-                CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+                candidatesOf(roomOf(code = "AAA111"), roomOf(code = "BBB222")),
                 CandidatesOutcome.Success(emptyList()),
             ),
         )
@@ -296,13 +296,13 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     fun chooser_transientRePollFailure_keepsTheExistingList() = runUnitTest {
         val mm = FakeMatchmakingRepository(
             candidatesSequence = listOf(
-                CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+                candidatesOf(roomOf(code = "AAA111"), roomOf(code = "BBB222")),
                 CandidatesOutcome.NetworkError(RuntimeException("blip")),
             ),
         )
         val vm = buildVm(matchmaking = mm)
         runCurrent()
-        assertEquals(listOf("AAA111"), vm.state.candidates.map { it.code })
+        assertEquals(listOf("AAA111", "BBB222"), vm.state.candidates.map { it.code })
 
         // A flaky re-poll leaves the chooser untouched rather than yanking it
         // out from under the user.
@@ -310,7 +310,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         testScheduler.runCurrent()
 
         assertEquals(SearchPhase.Choosing, vm.state.phase)
-        assertEquals(listOf("AAA111"), vm.state.candidates.map { it.code })
+        assertEquals(listOf("AAA111", "BBB222"), vm.state.candidates.map { it.code })
         assertNull(vm.state.error)
 
         // Tear the live poll down so the test's virtual clock can drain.
@@ -332,7 +332,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
                 // Initial browse: nothing yet → fall through to the genuine wait.
                 CandidatesOutcome.Success(emptyList()),
                 // A wait-time re-poll surfaces the peer's table (born just before ours).
-                CandidatesOutcome.Success(listOf(olderPeerTable)),
+                candidatesOf(olderPeerTable),
             ),
         )
         val rooms = FakeRoomRepository()
@@ -362,7 +362,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
             find = FindTableOutcome.Success(ownTable, created = true),
             candidatesSequence = listOf(
                 CandidatesOutcome.Success(emptyList()),
-                CandidatesOutcome.Success(listOf(ownTable)),
+                candidatesOf(ownTable),
             ),
         )
         val rooms = FakeRoomRepository()
@@ -390,7 +390,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
             find = FindTableOutcome.Success(ownTable, created = true),
             candidatesSequence = listOf(
                 CandidatesOutcome.Success(emptyList()),
-                CandidatesOutcome.Success(listOf(ownTable, newerPeerTable)),
+                candidatesOf(ownTable, newerPeerTable),
             ),
         )
         val rooms = FakeRoomRepository()
@@ -703,6 +703,87 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun mixedAffordabilityCandidates_carryTheServerFlagsThroughToEntries() = runUnitTest {
+        // The client never recomputes the 4× bar — each entry's affordable /
+        // minBalanceToSit come straight from the server candidate.
+        val mm = FakeMatchmakingRepository(
+            candidates = CandidatesOutcome.Success(
+                listOf(
+                    candidate(roomOf(code = "AAA111", buyIn = 1_000), affordable = true, minBalanceToSit = 4_000),
+                    candidate(roomOf(code = "BBB222", buyIn = 25_000), affordable = false, minBalanceToSit = 100_000),
+                ),
+            ),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+
+        assertEquals(SearchPhase.Choosing, vm.state.phase)
+        val entries = vm.state.candidates.associateBy { it.code }
+        assertEquals(true, entries.getValue("AAA111").affordable)
+        assertEquals(false, entries.getValue("BBB222").affordable)
+        assertEquals(100_000, entries.getValue("BBB222").minBalanceToSit)
+
+        vm.takeAction(PublicSearchingAction.Cancel)
+        runCurrent()
+    }
+
+    @Test
+    fun singleAffordableCandidate_autoJoins_ratherThanShowingAOneRowChooser() = runUnitTest {
+        // Convergence (MP-35): one obvious affordable table is no choice at all, so
+        // we join it directly (phase → Joined) instead of forcing a manual tap.
+        val mm = FakeMatchmakingRepository(
+            candidates = CandidatesOutcome.Success(listOf(candidate(roomOf(code = "AAA111")))),
+        )
+        val rooms = FakeRoomRepository(
+            join = JoinRoomOutcome.Success(roomOf(code = "AAA111"), alreadyJoined = false),
+        )
+        val vm = buildVm(matchmaking = mm, rooms = rooms)
+        runCurrent()
+
+        assertEquals(SearchPhase.Joined, vm.state.phase, "a lone affordable table auto-joins")
+        assertEquals(listOf("AAA111"), rooms.joinedCodes, "it joined the obvious table without a chooser")
+
+        vm.takeAction(PublicSearchingAction.Cancel)
+        runCurrent()
+    }
+
+    @Test
+    fun singleUnaffordableCandidate_showsTheDisabledChooser_notAutoJoin() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            candidates = CandidatesOutcome.Success(
+                listOf(candidate(roomOf(code = "AAA111", buyIn = 25_000), affordable = false, minBalanceToSit = 100_000)),
+            ),
+        )
+        val rooms = FakeRoomRepository()
+        val vm = buildVm(matchmaking = mm, rooms = rooms)
+        runCurrent()
+
+        assertEquals(SearchPhase.Choosing, vm.state.phase, "a lone unaffordable table can't be auto-joined")
+        assertEquals(emptyList(), rooms.joinedCodes, "we never seat at an unaffordable table")
+
+        vm.takeAction(PublicSearchingAction.Cancel)
+        runCurrent()
+    }
+
+    @Test
+    fun seatUnaffordableFrame_terminatesWithCannotBeSeated_notInfiniteDealing() = runUnitTest {
+        // A balance drop between find and deal: the server dealt without us and sent
+        // seat_unaffordable, surfaced as a terminal Closed. The search must show a
+        // real "need X chips" state, not sit on "dealing you in" forever.
+        val conn = MutableSharedFlow<RoomConnection>(extraBufferCapacity = 8)
+        val mm = FakeMatchmakingRepository(find = FindTableOutcome.Success(roomOf(), created = true))
+        val vm = buildVm(matchmaking = mm, rooms = FakeRoomRepository(connection = conn))
+        runCurrent()
+        assertEquals(SearchPhase.Searching, vm.state.phase)
+
+        conn.emit(RoomConnection.Closed(ClosedReason.SeatUnaffordable(minBalanceToSit = 4_000)))
+        runCurrent()
+
+        assertEquals(SearchError.CannotBeSeated(neededChips = 4_000), vm.state.error)
+        assertEquals(1, mm.findCalls, "a terminal seat-unaffordable is not re-found")
+    }
+
+    @Test
     fun searchTimedOut_whileJoiningBots_isIgnored() = runUnitTest {
         // A stray late timer must not re-offer bots once the player already
         // accepted them.
@@ -829,7 +910,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         KLog.plant(tree)
         try {
             val mm = FakeMatchmakingRepository(
-                candidates = CandidatesOutcome.Success(listOf(roomOf(code = "AAA111"))),
+                candidates = candidatesOf(roomOf(code = "AAA111"), roomOf(code = "BBB222")),
             )
             val vm = buildVm(matchmaking = mm)
             runCurrent()
@@ -910,6 +991,16 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     )
 
     private val LOCAL_USER = "11111111-1111-1111-1111-111111111111"
+
+    private fun candidate(
+        room: Room,
+        affordable: Boolean = true,
+        minBalanceToSit: Long = 0,
+    ) = MatchmakingCandidate(room = room, affordable = affordable, minBalanceToSit = minBalanceToSit)
+
+    /** Wrap rooms as affordable candidates — the common case for the chooser/migration fakes. */
+    private fun candidatesOf(vararg rooms: Room): CandidatesOutcome.Success =
+        CandidatesOutcome.Success(rooms.map { candidate(it) })
 
     private fun member(
         userId: String,
