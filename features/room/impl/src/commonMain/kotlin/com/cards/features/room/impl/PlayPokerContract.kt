@@ -241,6 +241,7 @@ sealed interface PlayPokerAction {
     // Local UI
     data object ToggleCheatSheet : PlayPokerAction
     data object DismissEarnedToast : PlayPokerAction
+    data object CelebrationDismissed : PlayPokerAction
 
     // Settings mirrors (cache flow → state)
     data class XpChanged(val totalXp: Long) : PlayPokerAction

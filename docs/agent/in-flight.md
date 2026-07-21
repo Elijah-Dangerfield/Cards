@@ -1,0 +1,7 @@
+# In-flight
+
+## fix(room): defer review ask past celebration sheet (GAME-1)
+
+**Problem:** In bot mode a hand that unlocks a rare+ achievement (or levels the player up) fired the OS review prompt immediately at hand-end, stepping on the achievement-celebration reveal.
+**Approach:** `maybeRequestReviewPrompt` now resolves the trigger and, when a celebration sheet will show (bots + surfaced unlocks), stashes it in `pendingReviewTrigger` instead of firing. A new `CelebrationDismissed` action (fired from `AchievementCelebrationSheet` `onContinue`) flushes the stash. When no celebration shows (popups silenced / no surfaced unlock / MP), the ask still fires immediately at hand-end. Considered gating on the trigger alone, but a *common* achievement also renders the sheet while only firing a LevelUp ask, so the deferral keys off "will the sheet show," not the trigger's rarity.
+**Reviewer notes:** The level-up haptic still fires at hand-end (inside `resolveReviewTrigger`), only the review *ask* is deferred — that felt right (haptic isn't a visual step-on) but is a judgement call. If a player leaves the table without dismissing the sheet, the stashed ask is simply dropped (LeaveTable has its own SessionEnd ask). Three existing review-wiring tests were rewritten to assert deferral + flush; added `handEnded_unlockWithPopupsSilenced_requestsReviewPromptImmediately` for the immediate path. No QA entry — the OS review prompt is throttled/invisible to a device tester.

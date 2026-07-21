@@ -940,7 +940,62 @@ class PlayPokerViewModelTest : CoroutineTest() {
     // ---------- Review prompt wiring ----------
 
     @Test
-    fun handEnded_unlocksRareAchievement_requestsReviewPrompt() = runUnitTest {
+    fun handEnded_unlocksRareAchievement_defersReviewPromptUntilCelebrationDismissed() = runUnitTest {
+        val achievements = FakeAchievementRepository().apply {
+            nextEarned = listOf(testEarnedAchievement(rarity = AchievementRarity.RARE))
+        }
+        val coordinator = FakeReviewPromptCoordinator()
+        val factory = FakePokerSessionFactory()
+        val vm = buildVm(
+            factory = factory,
+            achievementRepository = achievements,
+            reviewPromptCoordinator = coordinator,
+        )
+
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(sequence = 0, winners = emptyList(), board = emptyList(), revealedHoleCards = emptyMap()),
+            stubGameState(),
+            1_000L,
+        )
+
+        assertTrue(
+            coordinator.requested.isEmpty(),
+            "the ask must wait for the celebration sheet, not fire at hand-end",
+        )
+
+        vm.takeAction(PlayPokerAction.CelebrationDismissed)
+
+        assertEquals(listOf(ReviewTrigger.AchievementUnlocked), coordinator.requested)
+    }
+
+    @Test
+    fun handEnded_unlocksLegendaryAchievement_defersReviewPromptUntilCelebrationDismissed() = runUnitTest {
+        val achievements = FakeAchievementRepository().apply {
+            nextEarned = listOf(testEarnedAchievement(rarity = AchievementRarity.LEGENDARY))
+        }
+        val coordinator = FakeReviewPromptCoordinator()
+        val factory = FakePokerSessionFactory()
+        val vm = buildVm(
+            factory = factory,
+            achievementRepository = achievements,
+            reviewPromptCoordinator = coordinator,
+        )
+
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(sequence = 0, winners = emptyList(), board = emptyList(), revealedHoleCards = emptyMap()),
+            stubGameState(),
+            1_000L,
+        )
+
+        assertTrue(coordinator.requested.isEmpty())
+
+        vm.takeAction(PlayPokerAction.CelebrationDismissed)
+
+        assertEquals(listOf(ReviewTrigger.AchievementUnlocked), coordinator.requested)
+    }
+
+    @Test
+    fun handEnded_unlockWithPopupsSilenced_requestsReviewPromptImmediately() = runUnitTest {
         val achievements = FakeAchievementRepository().apply {
             nextEarned = listOf(testEarnedAchievement(rarity = AchievementRarity.RARE))
         }
@@ -948,6 +1003,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         val factory = FakePokerSessionFactory()
         buildVm(
             factory = factory,
+            appCache = FakeAppCache(AppData(showAchievementPopups = false)),
             achievementRepository = achievements,
             reviewPromptCoordinator = coordinator,
         )
@@ -958,29 +1014,11 @@ class PlayPokerViewModelTest : CoroutineTest() {
             1_000L,
         )
 
-        assertEquals(listOf(ReviewTrigger.AchievementUnlocked), coordinator.requested)
-    }
-
-    @Test
-    fun handEnded_unlocksLegendaryAchievement_requestsReviewPrompt() = runUnitTest {
-        val achievements = FakeAchievementRepository().apply {
-            nextEarned = listOf(testEarnedAchievement(rarity = AchievementRarity.LEGENDARY))
-        }
-        val coordinator = FakeReviewPromptCoordinator()
-        val factory = FakePokerSessionFactory()
-        buildVm(
-            factory = factory,
-            achievementRepository = achievements,
-            reviewPromptCoordinator = coordinator,
+        assertEquals(
+            listOf(ReviewTrigger.AchievementUnlocked),
+            coordinator.requested,
+            "with no celebration to step on, the ask fires at hand-end",
         )
-
-        factory.capturedOnHandEnded?.invoke(
-            GameEvent.HandEnded(sequence = 0, winners = emptyList(), board = emptyList(), revealedHoleCards = emptyMap()),
-            stubGameState(),
-            1_000L,
-        )
-
-        assertEquals(listOf(ReviewTrigger.AchievementUnlocked), coordinator.requested)
     }
 
     @Test
@@ -1065,7 +1103,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         }
         val coordinator = FakeReviewPromptCoordinator()
         val factory = FakePokerSessionFactory()
-        buildVm(
+        val vm = buildVm(
             factory = factory,
             progressionRepository = progression,
             achievementRepository = achievements,
@@ -1077,6 +1115,8 @@ class PlayPokerViewModelTest : CoroutineTest() {
             stubGameState(),
             1_000L,
         )
+
+        vm.takeAction(PlayPokerAction.CelebrationDismissed)
 
         assertEquals(
             listOf(ReviewTrigger.AchievementUnlocked),

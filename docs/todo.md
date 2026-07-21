@@ -26,10 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## Gameplay (GAME)
 
-- `[P2]` **The achievement / level-up review ask fires on top of the celebration sheet.** In bot mode a hand that unlocks a rare+ achievement (or levels the player up) requests the OS review prompt immediately at hand-end, so it can step on the achievement-celebration reveal.
-  **Acceptance:** defer the achievement / level-up ask so it fires when the celebration sheet is dismissed, not at hand-end. When no celebration shows (silenced popups / no surfaced unlock), keep the immediate behaviour.
-  **Hints:** ask is requested in `maybeRequestReviewPrompt` (`PlayPokerViewModel`); the bot-mode celebration dismisses via `AchievementCelebrationSheet` `onContinue` in `PlayPokerScreen`; a `pendingReviewTrigger` stash flushed on a new `CelebrationDismissed` action is the intended shape.
-
 - `[P2]` **Give mid-hand joiners a real spectator view, not a blank table.** A player who joins a room mid-hand lands in a bare spectating state with no player area rendered and no explanation, so it reads as broken.
   **Acceptance:** a mid-hand joiner sees the seated players and table rendered with a clear "you'll be dealt in on the next hand" affordance until they're dealt in.
   **Hints:** play-screen spectator/seated rendering and the mid-hand join path; Sentry CARDS-B7 (owner request).

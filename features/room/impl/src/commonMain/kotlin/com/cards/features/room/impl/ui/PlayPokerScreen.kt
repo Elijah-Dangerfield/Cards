@@ -754,6 +754,7 @@ fun PlayPokerScreen(
                 showSettingsHint = state.showAchievementSettingsHint,
                 onContinue = {
                     celebrationActive = false
+                    onAction(PlayPokerAction.CelebrationDismissed)
                     onAction(PlayPokerAction.RequestNextHand)
                 },
             )
