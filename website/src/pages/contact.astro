@@ -1,0 +1,57 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// FormSubmit delivers submissions to this address. The first submission from a
+// new domain triggers a one-time activation email FormSubmit sends here.
+const FORM_ENDPOINT = 'https://formsubmit.co/contact@downcard.app';
+const inputStyle =
+  'background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:15px 18px;font:500 16px Poppins;color:var(--ink);outline:none';
+---
+
+<Layout title="Contact — Downcard" description="Get in touch with the Downcard team.">
+  <div class="pad-x" style="max-width:1000px;margin:0 auto;padding:72px 32px 110px">
+    <div style="font:800 52px Poppins;letter-spacing:-2px;margin-bottom:12px">Get in touch</div>
+    <div style="font:500 20px/1.6 Poppins;color:var(--muted);max-width:560px;margin-bottom:56px">Bug reports, feature ideas, or just want to say hi? We read everything.</div>
+
+    <div class="contact-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <a href="mailto:contact@downcard.app" style="background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:32px;display:block">
+        <div style="width:52px;height:52px;border-radius:14px;background:rgba(31,158,136,.12);display:flex;align-items:center;justify-content:center;margin-bottom:20px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1f9e88" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M4 7l8 6 8-6"></path></svg></div>
+        <div style="font:700 21px Poppins;margin-bottom:6px">Email us</div>
+        <div style="font:600 17px Poppins;color:#1f9e88">contact@downcard.app</div>
+      </a>
+      <div style="background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:32px">
+        <div style="width:52px;height:52px;border-radius:14px;background:rgba(233,194,85,.16);display:flex;align-items:center;justify-content:center;margin-bottom:20px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c9a63c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></div>
+        <div style="font:700 21px Poppins;margin-bottom:6px">Quick replies</div>
+        <div style="font:600 17px Poppins;color:var(--muted)">We usually get back within a day.</div>
+      </div>
+    </div>
+
+    <form
+      action={FORM_ENDPOINT}
+      method="POST"
+      style="background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:40px;margin-top:20px"
+    >
+      <div style="font:700 24px Poppins;margin-bottom:24px">Send a message</div>
+
+      <!-- FormSubmit config -->
+      <input type="hidden" name="_subject" value="New message from downcard.app" />
+      <input type="hidden" name="_template" value="table" />
+      <input type="hidden" name="_captcha" value="false" />
+      <input type="hidden" name="_next" value="https://downcard.app/thanks" />
+      <!-- Honeypot: bots fill this, humans don't -->
+      <input type="text" name="_honey" style="display:none" tabindex="-1" autocomplete="off" />
+
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <input name="name" required placeholder="Your name" style={inputStyle} />
+        <input type="email" name="email" required placeholder="Your email" style={inputStyle} />
+      </div>
+      <textarea
+        name="message"
+        required
+        placeholder="What's on your mind?"
+        rows="5"
+        style={`width:100%;${inputStyle};resize:vertical;margin-bottom:16px`}></textarea>
+      <button type="submit" style="background:#0d0c0b;color:#F5F0E6;border:none;border-radius:14px;padding:15px 32px;font:700 17px Poppins;cursor:pointer">Send message</button>
+    </form>
+  </div>
+</Layout>

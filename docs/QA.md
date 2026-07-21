@@ -337,6 +337,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** The shared text reads naturally and contains the room code plus a `cards://join/CODE` link. Tapping it on Device B opens the app straight into that room's lobby (code pre-filled, auto-joins), no manual code entry. Both devices then show both members seated. The "Copy code" button still copies the bare code for paste-anywhere use.
 
+- In-game share (ROOM-19): once the game has started, the play-screen top bar shows a share icon between the back arrow area and the help (?) button. Tapping it opens the same platform share sheet with the same `cards://join/CODE` invite text, so a mid-game invite doesn't require hunting for the code. Solo bot games show no share icon.
+
 ---
 
 ### `MP-2` ⚠️ 📱 Find a public game via matchmaking
@@ -369,6 +371,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 **Expected:** Each device only ever sees its own hole cards — opponents' cards stay face-down until showdown reveal. Turn passes correctly; the action ring/timer points at the acting seat. At showdown the winning hand is revealed and the pot moves to the winner's stack. The post-hand summary shows the result. No duplicate-card crash, no stuck turn.
 
 - **XP + stats credit (PROG-4):** finishing the hand awards XP (the Home/Profile XP total rises, and the hand-end XP burst shows) and advances player-stats — same as a solo bots hand, just at the full MULTIPLAYER multiplier on an all-human table. A finished MP hand must never silently award zero XP.
+- **Mid-game achievement surfaces back home (PROG-13):** win a real-chip MP hand (no bust) that unlocks an achievement — at the table there's no reveal, the result stays on the felt. Leave and return Home: the achievement celebration sheet plays there once, then never again on later Home visits. If instead you *bust* the hand that earns it, the unlock shows inline in the bust dialog and does NOT replay on Home (no double celebration). With "achievement pop-ups" off in Settings, neither surface shows.
 - **Showdown reveal survives a reconnect blip (MP-25):** carry a multiway hand to a river showdown, then background/foreground one device right as the hand resolves (so its socket reconnects on the Complete state). On resume that device must STILL show the opponents' revealed hole cards for the just-finished hand — the showdown isn't skipped just because the device missed the live hand-end event. Opponents who folded earlier stay mucked (no cards shown).
 - **Opponent times out / folds preflop (MP-26):** heads-up, let the opponent's 30s turn timer run out preflop (or have them fold) so they never act. The non-acting player (the BB) must NOT be left on a frozen board — they see the hand result (winner takes the pot) and a Next Hand path, not a dead table with no acting seat and no winner. Works even though that device only ever received the terminal Complete snapshot.
 - **Idle table holds its socket (MP-32):** sit at the table without acting for a minute or two (let the turn timer / between-hands beat idle). The "lost connection" banner must never flash on a healthy network — it only appears for a real outage. (Was: every quiet socket on a dev build died at exactly 15s and reconnected, strobing the banner.)

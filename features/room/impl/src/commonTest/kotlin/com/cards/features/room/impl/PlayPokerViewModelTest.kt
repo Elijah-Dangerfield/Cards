@@ -1086,13 +1086,88 @@ class PlayPokerViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun leaveTable_inBotMode_requestsSessionEndPrompt() = runUnitTest {
+    fun leaveTable_inBotMode_netPositive_requestsSessionEndPrompt() = runUnitTest {
         val coordinator = FakeReviewPromptCoordinator()
-        val vm = buildVm(reviewPromptCoordinator = coordinator)
+        val factory = FakePokerSessionFactory()
+        val vm = buildVm(factory = factory, reviewPromptCoordinator = coordinator)
+
+        // A won hand → net-positive session tally.
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(
+                sequence = 1,
+                winners = listOf(HandWinner(seatIndex = 0, amount = 200, handRank = null, byFold = true)),
+                board = emptyList(),
+                revealedHoleCards = emptyMap(),
+            ),
+            stubGameState(),
+            1_000L,
+        )
 
         vm.takeAction(PlayPokerAction.LeaveTable)
 
         assertEquals(listOf(ReviewTrigger.SessionEnd), coordinator.requested)
+    }
+
+    @Test
+    fun leaveTable_inBotMode_notNetPositive_doesNotRequestSessionEnd() = runUnitTest {
+        val coordinator = FakeReviewPromptCoordinator()
+        val factory = FakePokerSessionFactory()
+        val vm = buildVm(factory = factory, reviewPromptCoordinator = coordinator)
+
+        // A lost hand → the session is not net-positive.
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(
+                sequence = 1,
+                winners = listOf(HandWinner(seatIndex = 1, amount = 200, handRank = null, byFold = true)),
+                board = emptyList(),
+                revealedHoleCards = emptyMap(),
+            ),
+            stubGameState(),
+            1_000L,
+        )
+
+        vm.takeAction(PlayPokerAction.LeaveTable)
+
+        assertTrue(
+            ReviewTrigger.SessionEnd !in coordinator.requested,
+            "a losing grind is not a positive moment — SessionEnd must not fire",
+        )
+    }
+
+    @Test
+    fun matchOverResolved_localWonRealMp_requestsMultiplayerWinPrompt() = runUnitTest {
+        val coordinator = FakeReviewPromptCoordinator()
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(
+            session = session,
+            xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER,
+        )
+        val vm = buildVm(factory = factory, reviewPromptCoordinator = coordinator)
+        // Project an Active table so isRealMultiplayer resolves true.
+        session.emitGameState(stubGameState())
+
+        vm.takeAction(PlayPokerAction.MatchOverResolved(localPlayerWon = true))
+
+        assertEquals(listOf(ReviewTrigger.MultiplayerWin), coordinator.requested)
+    }
+
+    @Test
+    fun matchOverResolved_localLostRealMp_doesNotRequestPrompt() = runUnitTest {
+        val coordinator = FakeReviewPromptCoordinator()
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(
+            session = session,
+            xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER,
+        )
+        val vm = buildVm(factory = factory, reviewPromptCoordinator = coordinator)
+        session.emitGameState(stubGameState())
+
+        vm.takeAction(PlayPokerAction.MatchOverResolved(localPlayerWon = false))
+
+        assertTrue(
+            ReviewTrigger.MultiplayerWin !in coordinator.requested,
+            "losing the match is not a positive moment",
+        )
     }
 
     @Test

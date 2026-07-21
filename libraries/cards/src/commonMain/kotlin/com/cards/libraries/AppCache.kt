@@ -299,6 +299,20 @@ data class AppData(
      * record (accepted version + when).
      */
     val legalConsentAcceptedAt: Long? = null,
+
+    /**
+     * [AchievementId] names of achievements earned during a real-chip
+     * multiplayer game that had no in-game celebration surface to show them
+     * (a real-chip hand that finished without the local player busting shows
+     * its result on the felt, not in a dialog, so the at-table achievement
+     * reveal never fires there). They queue here at hand-end and are drained by
+     * Home, which celebrates them on the next settled return so the player still
+     * learns what they earned (PROG-13). A bust surfaces its unlocks inline in
+     * the [MultiplayerBustDialog], so those are never enqueued — no double-fire.
+     * Ordered oldest-first; deduped. Account-scoped (achievements are
+     * account-bound), so it clears on [resetAccountScoped].
+     */
+    val pendingHomeAchievementIds: List<String> = emptyList(),
 )
 
 /**
@@ -359,6 +373,10 @@ fun AppData.resetAccountScoped(): AppData = copy(
     // the next account's wallet is a different number, so clear it and let Home
     // re-baseline rather than animating a bogus jump on first return.
     lastShownChipBalance = null,
+    // Achievements are account-bound, so a queue of MP unlocks awaiting their
+    // Home celebration belongs to the previous account — drop it so the next
+    // account never sees a celebration for something it didn't earn.
+    pendingHomeAchievementIds = emptyList(),
 )
 
 interface AppCache : Cache<AppData>

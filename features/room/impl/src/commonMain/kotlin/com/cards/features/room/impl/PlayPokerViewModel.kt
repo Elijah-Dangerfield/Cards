@@ -638,10 +638,42 @@ class PlayPokerViewModel @Inject constructor(
             }
             val surfaced = if (showPopups) earned else emptyList()
             takeAction(PlayPokerAction.AchievementsEarned(surfaced))
+            enqueueUnsurfacedMpUnlocks(surfaced, context)
 
             // The review prompt keys off the *real* unlocks, not what we showed —
             // a silenced celebration shouldn't also suppress a review ask.
             maybeRequestReviewPrompt(priorLevel = priorLevel, earned = earned)
+        }
+    }
+
+    /**
+     * Bank achievements earned in a real-chip multiplayer hand that had no
+     * in-game surface to reveal them, so Home can celebrate them on return
+     * (PROG-13). A finished real-chip hand shows its result on the felt (with the
+     * leave-with-winnings countdown), not in a dialog, so the at-table reveal
+     * that solo/practice get never fires. A bust is the one real-chip case with
+     * an inline surface — the [MultiplayerBustDialog] already shows the unlocks —
+     * so those are skipped here to avoid a double celebration. [surfaced] already
+     * honours the "silence pop-ups" setting, so a silenced session enqueues
+     * nothing, matching the muted at-table behaviour.
+     */
+    private suspend fun enqueueUnsurfacedMpUnlocks(
+        surfaced: List<EarnedAchievement>,
+        context: AchievementHandContext,
+    ) {
+        if (surfaced.isEmpty()) return
+        if (!stateFlow.value.realChipsAtStake) return
+        val humanBusted = context.humanEndingStack <= 0L
+        if (humanBusted) return
+        val ids = surfaced.map { it.achievement.id.name }
+        logger.logEvent(
+            "achievement.home_celebration_enqueued",
+            "count" to ids.size,
+        )
+        appCache.update { data ->
+            data.copy(
+                pendingHomeAchievementIds = (data.pendingHomeAchievementIds + ids).distinct(),
+            )
         }
     }
 
@@ -669,6 +701,12 @@ class PlayPokerViewModel @Inject constructor(
         if (handNumber != null) lastRecordedStatHand = handNumber
     }
 
+    private suspend fun requestReviewPrompt(trigger: ReviewTrigger) {
+        Catching {
+            reviewPromptCoordinator.requestPrompt(trigger)
+        }.onFailure { logger.w(it) { "Review prompt request failed for $trigger" } }
+    }
+
     private suspend fun maybeRequestReviewPrompt(
         priorLevel: Int?,
         earned: List<EarnedAchievement>,
@@ -678,7 +716,7 @@ class PlayPokerViewModel @Inject constructor(
                 it.achievement.rarity.ordinal >= AchievementRarity.RARE.ordinal
             }
             if (unlockedRareOrBetter) {
-                reviewPromptCoordinator.requestPrompt(ReviewTrigger.AchievementUnlocked)
+                requestReviewPrompt(ReviewTrigger.AchievementUnlocked)
                 return@Catching
             }
             if (priorLevel != null) {
@@ -688,7 +726,7 @@ class PlayPokerViewModel @Inject constructor(
                 ).level
                 if (newLevel > priorLevel) {
                     sendEvent(PlayPokerEvent.PlayHaptic(HapticKind.LevelUp))
-                    reviewPromptCoordinator.requestPrompt(ReviewTrigger.LevelUp)
+                    requestReviewPrompt(ReviewTrigger.LevelUp)
                 }
             }
         }.onFailure { logger.w(it) { "Review prompt request failed" } }
@@ -799,6 +837,17 @@ class PlayPokerViewModel @Inject constructor(
                 var projected: TableUiState? = null
                 var preActionToFire: PlayerIntent? = null
                 action.updateState { current ->
+                    // A pre-fold and the per-seat action pills both belong to the
+                    // hand they happened in. Retire them on a hand change off the
+                    // authoritative snapshot hand number, so a stale arm can't fold
+                    // the fresh deal and last hand's "Folded" badge doesn't linger
+                    // — the HandStarted event and the new-hand snapshot ride
+                    // unordered flows, so the event-driven clear can lose the race
+                    // (MP especially; GAME-33).
+                    val prevHand = (current.table as? TableUiState.Active)?.handNumber
+                    val newHand = action.state.handNumber
+                    val handChanged = prevHand != null && newHand != prevHand
+                    if (handChanged) lastActionBySeat.clear()
                     val table = sessionFactory.tableFor(
                         state = action.state,
                         lastWinners = lastWinners,
@@ -808,14 +857,6 @@ class PlayPokerViewModel @Inject constructor(
                         curve = levelCurve,
                     )
                     projected = table
-                    // A pre-fold belongs to the hand it was armed in. Retire it
-                    // on a hand change off the authoritative snapshot hand number,
-                    // so a stale arm can't fold the fresh deal — the HandStarted
-                    // event and the new-hand snapshot ride unordered flows, so an
-                    // event-driven clear can lose the race (MP especially).
-                    val prevHand = (current.table as? TableUiState.Active)?.handNumber
-                    val newHand = (table as? TableUiState.Active)?.handNumber
-                    val handChanged = prevHand != null && newHand != null && newHand != prevHand
                     val withTable = current.copy(
                         table = table,
                         preFoldArmed = if (handChanged) false else current.preFoldArmed,
@@ -1038,10 +1079,11 @@ class PlayPokerViewModel @Inject constructor(
                 it.copy(sessionHandsWon = action.won, sessionHandsLost = action.lost)
             }
             is PlayPokerAction.LeaveTable -> {
-                if (sessionFactory.xpMode == XpMode.BOTS) {
-                    Catching {
-                        reviewPromptCoordinator.requestPrompt(ReviewTrigger.SessionEnd)
-                    }.onFailure { logger.w(it) { "SessionEnd review prompt request failed" } }
+                // Only ask at a genuine peak: a bot session the player ended up
+                // on (more hands won than lost). A losing grind that quits out is
+                // not a positive moment, so it never triggers the prompt.
+                if (sessionFactory.xpMode == XpMode.BOTS && sessionHandsWon > sessionHandsLost) {
+                    requestReviewPrompt(ReviewTrigger.SessionEnd)
                 }
                 logGameEnded("left")
                 // On appScope, not viewModelScope: the screen pops this VM the
@@ -1055,14 +1097,22 @@ class PlayPokerViewModel @Inject constructor(
                 // screen routes away.
                 appScope.launch { leaveAndReconcileWallet() }
             }
-            is PlayPokerAction.MatchOverResolved -> action.updateState {
+            is PlayPokerAction.MatchOverResolved -> {
+                // Winning a real-chip multiplayer match is the strongest positive
+                // moment we have — ask for a review here (bots-mode SessionEnd
+                // never covered MP wins).
+                if (action.localPlayerWon && state.isRealMultiplayer) {
+                    requestReviewPrompt(ReviewTrigger.MultiplayerWin)
+                }
                 // The match ended — surface the result and drop the now-stale
                 // countdown. The screen routes off (firing LeaveGameFromBust) when
                 // the player dismisses the result overlay.
-                it.copy(
-                    matchOverResult = MatchOverResult(localPlayerWon = action.localPlayerWon),
-                    matchOverCountdown = null,
-                )
+                action.updateState {
+                    it.copy(
+                        matchOverResult = MatchOverResult(localPlayerWon = action.localPlayerWon),
+                        matchOverCountdown = null,
+                    )
+                }
             }
             is PlayPokerAction.OpenQuickBuy -> action.updateState { it.copy(quickBuyOpen = true) }
             is PlayPokerAction.DismissQuickBuy -> action.updateState { it.copy(quickBuyOpen = false) }

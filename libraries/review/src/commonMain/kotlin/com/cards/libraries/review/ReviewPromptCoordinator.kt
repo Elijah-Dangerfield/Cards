@@ -42,6 +42,9 @@ enum class ReviewTrigger {
     /** The user just levelled up. Mid-strength positive signal. */
     LevelUp,
 
+    /** The user won a real-chip multiplayer match — the strongest positive signal. */
+    MultiplayerWin,
+
     /** The user finished a clean play session (no rage-quit). Weak positive signal. */
     SessionEnd,
 }

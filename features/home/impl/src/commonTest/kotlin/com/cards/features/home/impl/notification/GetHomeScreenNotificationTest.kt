@@ -128,6 +128,47 @@ class GetHomeScreenNotificationTest {
     }
 
     @Test
+    fun `pending MP achievements surface as a blocking celebration`() {
+        val snapshot = base().copy(pendingAchievementIds = listOf("HANDS_10", "POT_5000"))
+
+        assertEquals(
+            HomeNotification.AchievementsEarned(listOf("HANDS_10", "POT_5000")),
+            GetHomeScreenNotification(snapshot),
+        )
+    }
+
+    @Test
+    fun `no achievement notification when the queue is empty`() {
+        assertNull(base().copy(pendingAchievementIds = emptyList()).achievementsEarnedOrNull())
+    }
+
+    @Test
+    fun `achievements outrank a pending level-up`() {
+        val snapshot = base().copy(
+            currentLevel = 4,
+            lastCelebratedLevel = 3,
+            pendingAchievementIds = listOf("HANDS_10"),
+        )
+
+        assertTrue(GetHomeScreenNotification(snapshot) is HomeNotification.AchievementsEarned)
+    }
+
+    @Test
+    fun `welcome outranks pending achievements`() {
+        val snapshot = base().copy(
+            accountJustCreated = true,
+            welcomeIdentity = identity(),
+            chipBalance = 10_000,
+            pendingAchievementIds = listOf("HANDS_10"),
+        )
+
+        assertTrue(GetHomeScreenNotification(snapshot) is HomeNotification.Welcome)
+    }
+
+    private fun HomeNotificationSnapshot.achievementsEarnedOrNull(): HomeNotification.AchievementsEarned? =
+        GetHomeScreenNotification(this) as? HomeNotification.AchievementsEarned
+
+    @Test
     fun `play-style unlock fires once the sample crosses the threshold`() {
         val snapshot = base().copy(
             playStyleSampleSize = 20,
@@ -268,6 +309,7 @@ class GetHomeScreenNotificationTest {
         lastShownChipBalance = null,
         outOfChipsSeen = false,
         casualBuyIn = 1_000,
+        pendingAchievementIds = emptyList(),
     )
 
     private fun identity() = HomeNotificationSnapshot.WelcomeIdentity(

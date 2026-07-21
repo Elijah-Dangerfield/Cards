@@ -1163,3 +1163,9 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 **Fixes to consider:** gate lineage membership on server-recorded same-install upgrades rather than the client header, and/or cap accounts per `install_id`; route a lineage-matched *mismatched* token through the same rate-limited, distinctly-logged path as grant-on-replay instead of a clean `Valid`; add a per-caller cap on grant-on-replay toward *distinct* receipt owners (one human's reinstall lineage is one owner; many owners is the anomaly). Also minor: `RelaxedGrantRateLimiter` never evicts empty per-user deques (slow memory creep), and Google refunds that leave `purchaseState=PURCHASED` aren't caught (backstop is the deferred voided-purchases webhook).
 
 **Status:** Backlog. Pull before scaling paid users or if abuse shows in `billing_events` (spike in distinct receipt owners per caller, or grant-on-replay rate).
+
+## Auto-remove idle players after repeated auto checks/folds (owner note, 2026-07-21)
+
+**Idea (owner, CARDS-B3):** When a player misses their turn repeatedly and the server keeps auto-checking / auto-folding them, we currently leave them at the table indefinitely. Consider detecting N consecutive auto-actions and removing the idle player from the game with a dialog ("we removed you for inactivity"), possibly a one-warning-before-removal step first. Needs a product call on N, whether to warn first, and how removal interacts with mid-hand state and rebuy/leave-with-winnings. Deferred as a design decision, not a mechanical fix.
+
+**Status:** Backlog. Pull when hardening MP table health / AFK handling.

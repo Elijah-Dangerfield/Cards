@@ -8,7 +8,7 @@ import java.util.Properties
 private const val DEFAULT_APPLICATION_ID = "com.dangerfield.cards"
 private const val DEFAULT_VERSION_NAME = "0.0.1"
 private const val DEFAULT_VERSION_CODE = 1
-private const val DEFAULT_RELEASE_CHANNEL = "dev"
+private const val DEFAULT_RELEASE_CHANNEL = "local"
 private const val DEFAULT_BUILD_NUMBER = 1
 
 data class VersionMetadata(

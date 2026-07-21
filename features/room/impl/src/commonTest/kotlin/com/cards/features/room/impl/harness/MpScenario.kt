@@ -2,6 +2,8 @@ package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.features.room.impl.session.RemotePokerSessionFactory
 
+import com.dangerfield.cards.libraries.cards.AppData
+import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
@@ -53,6 +55,18 @@ class MpScenarioBuilder(
     private val friendRepository = FakeFriendRepository()
     private val chipsRepository = FakeChipsRepository()
     private val leaveCashOutNotifier = FakeLeaveCashOutNotifier()
+    private val achievementRepository = FakeAchievementRepository()
+    private val appCache = FakeAppCache()
+
+    /** Seed the unlocks the achievement engine "earns" on the next finished hand. */
+    fun withEarnedAchievements(earned: List<EarnedAchievement>): MpScenarioBuilder = apply {
+        achievementRepository.nextEarned = earned
+    }
+
+    /** Seed the persisted app cache the VM reads/writes (e.g. silence pop-ups). */
+    fun withAppData(data: AppData): MpScenarioBuilder = apply {
+        appCache.emit(data)
+    }
 
     // The balance the server's synchronous leave cash-out returns (MP-29). Null
     // (default) models a leave that settled nothing → the VM falls back to a sync.
@@ -118,8 +132,8 @@ class MpScenarioBuilder(
             playStyleRepository = FakePlayStyleRepository(),
             playerStatsRepository = FakePlayerStatsRepository(),
             progressionConfig = FakeProgressionConfig(),
-            achievementRepository = FakeAchievementRepository(),
-            appCache = FakeAppCache(),
+            achievementRepository = achievementRepository,
+            appCache = appCache,
             equipmentRepository = FakeEquipmentRepository(),
             inventoryRepository = FakeInventoryRepository(),
             productsRepository = FakeProductsRepository(),
@@ -139,6 +153,7 @@ class MpScenarioBuilder(
         scope.advanceUntilIdle()
         return RunningMpScenario(
             vm, handle, server, recorder, scope, friendRepository, chipsRepository, leaveCashOutNotifier,
+            appCache,
         )
     }
 }
@@ -158,6 +173,7 @@ class RunningMpScenario internal constructor(
     val friendRepository: FakeFriendRepository,
     val chipsRepository: FakeChipsRepository,
     val leaveCashOutNotifier: FakeLeaveCashOutNotifier,
+    val appCache: FakeAppCache,
 ) {
     private var seq: Long = 0L
 

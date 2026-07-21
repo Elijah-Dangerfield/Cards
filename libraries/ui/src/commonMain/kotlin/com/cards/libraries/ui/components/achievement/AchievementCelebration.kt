@@ -1,4 +1,4 @@
-package com.dangerfield.cards.features.room.impl.ui
+package com.dangerfield.cards.libraries.ui.components.achievement
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -30,7 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import cards.libraries.resources.generated.resources.room_celebration_tap_to_reveal
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_achievement_cosmetic_label
 import cards.libraries.resources.generated.resources.room_achievement_reward_xp
@@ -39,6 +38,7 @@ import cards.libraries.resources.generated.resources.room_celebration_continue_b
 import cards.libraries.resources.generated.resources.room_celebration_cosmetic_attribution
 import cards.libraries.resources.generated.resources.room_celebration_settings_hint
 import cards.libraries.resources.generated.resources.room_celebration_subtitle_multi
+import cards.libraries.resources.generated.resources.room_celebration_tap_to_reveal
 import cards.libraries.resources.generated.resources.room_celebration_title_multi
 import cards.libraries.resources.generated.resources.room_celebration_title_single
 import com.dangerfield.cards.libraries.cards.AchievementRarity
@@ -48,8 +48,6 @@ import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ConfettiBurst
 import com.dangerfield.cards.libraries.ui.components.PagerIndicator
-import com.dangerfield.cards.libraries.ui.components.achievement.AchievementUnlockReveal
-import com.dangerfield.cards.libraries.ui.components.achievement.toCelebrationTint
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
@@ -58,7 +56,6 @@ import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSh
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -70,20 +67,23 @@ import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Bot-mode achievement-unlock celebration. Sequenced *after* the hand-end
- * dialog dismisses so the unlock gets a focused moment instead of being
- * crammed into a row inside the showdown summary. Each earned achievement
- * gets a big icon, name, description, reward summary, and a cosmetic
- * preview when the unlock also grants an inventory item.
+ * Achievement-unlock celebration sheet — a slide-up bottom sheet giving each
+ * earned achievement a focused reveal (big medallion, name, description, reward
+ * summary, cosmetic gift preview) instead of cramming it into a hand-end dialog
+ * row. Two surfaces share it, so it lives in the DS rather than one feature:
  *
- * When a single hand earns multiple achievements (common on a new user's
- * first game), they ride one sheet as a horizontally-swiped pager with a dot
- * indicator (PROG-9) rather than queuing as a sequence of N modals. MP-mode
- * unlocks keep the legacy inline row inside [HandResultDialogs] — see the
- * `xpMode` branch on the call sites in [PlayPokerScreen].
+ * - The bot-mode play screen sequences it *after* the showdown / bust dialog
+ *   dismisses.
+ * - Home replays it for achievements earned during a real-chip multiplayer game,
+ *   which finished on the felt with no at-table reveal (PROG-13).
+ *
+ * When one batch earns multiple achievements they ride one sheet as a
+ * horizontally-swiped pager with a dot indicator (PROG-9) rather than queuing as
+ * a sequence of N modals. The first page auto-reveals; later pages keep the
+ * tap-to-reveal mystery so the player still paces the celebration.
  */
 @Composable
-internal fun AchievementCelebrationSheet(
+fun AchievementCelebrationSheet(
     earned: List<EarnedAchievement>,
     onContinue: () -> Unit,
     showSettingsHint: Boolean = false,
@@ -389,7 +389,7 @@ private fun AchievementCelebrationSheetPreview_Single() {
     PreviewContent {
         AchievementCelebrationSheet(
             earned = listOf(
-                PreviewSamples.earnedAchievement(
+                previewEarned(
                     name = "Pocket rockets",
                     description = "Win a hand with pocket aces.",
                     icon = "🚀",
@@ -409,7 +409,7 @@ private fun AchievementCelebrationSheetPreview_WithCosmetic() {
     PreviewContent {
         AchievementCelebrationSheet(
             earned = listOf(
-                PreviewSamples.earnedAchievement(
+                previewEarned(
                     id = com.dangerfield.cards.libraries.cards.AchievementId.DONT_CALL_IT_COMEBACK,
                     name = "Don't call it a comeback",
                     description = "Dip to 10 BB, climb back to a full 100 BB stack.",
@@ -429,7 +429,7 @@ private fun AchievementCelebrationSheetPreview_PagedMultiple() {
     PreviewContent {
         AchievementCelebrationSheet(
             earned = listOf(
-                PreviewSamples.earnedAchievement(
+                previewEarned(
                     id = com.dangerfield.cards.libraries.cards.AchievementId.FIRST_HAND,
                     name = "First hand",
                     description = "Play your first hand of poker.",
@@ -437,7 +437,7 @@ private fun AchievementCelebrationSheetPreview_PagedMultiple() {
                     rarity = AchievementRarity.COMMON,
                     xpReward = 50,
                 ),
-                PreviewSamples.earnedAchievement(
+                previewEarned(
                     id = com.dangerfield.cards.libraries.cards.AchievementId.FIRST_WIN_BY_FOLD,
                     name = "First fold-out win",
                     description = "Win a hand by getting everyone else to fold.",
@@ -445,7 +445,7 @@ private fun AchievementCelebrationSheetPreview_PagedMultiple() {
                     rarity = AchievementRarity.COMMON,
                     xpReward = 50,
                 ),
-                PreviewSamples.earnedAchievement(
+                previewEarned(
                     id = com.dangerfield.cards.libraries.cards.AchievementId.POT_5000,
                     name = "Pot magnet",
                     description = "Win a 5,000-chip pot.",
@@ -459,3 +459,26 @@ private fun AchievementCelebrationSheetPreview_PagedMultiple() {
         )
     }
 }
+
+private fun previewEarned(
+    id: com.dangerfield.cards.libraries.cards.AchievementId =
+        com.dangerfield.cards.libraries.cards.AchievementId.HANDS_10,
+    name: String = "Getting started",
+    description: String = "Play 10 hands.",
+    icon: String = "🎯",
+    rarity: AchievementRarity = AchievementRarity.COMMON,
+    xpReward: Int = 50,
+    chipReward: Long = 0L,
+): EarnedAchievement = EarnedAchievement(
+    achievement = com.dangerfield.cards.libraries.cards.Achievement(
+        id = id,
+        name = name,
+        description = description,
+        icon = icon,
+        rarity = rarity,
+        criterion = com.dangerfield.cards.libraries.cards.Criterion.HandsPlayed(10),
+        xpReward = xpReward,
+        chipReward = chipReward,
+    ),
+    earnedAtEpochMs = 0L,
+)
