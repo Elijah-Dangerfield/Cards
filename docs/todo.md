@@ -35,3 +35,41 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P2]` **Review-prompt triggers fire at weak or mis-timed moments.** The three `requestPrompt` call sites in `PlayPokerViewModel` ask at soft spots: `SessionEnd` fires on any non-bust bot-mode leave without checking the session was net-positive, so a losing grind still gets asked; multiplayer wins — the strongest positive moment — never trigger a prompt (SessionEnd is bots-only); and the achievement / level-up asks fire immediately on top of the celebration sheet, so the OS prompt can step on the reveal.
   **Acceptance:** we ask at genuine peaks — gate `SessionEnd` on a net-positive / leave-with-winnings outcome, add a real-chip MP win trigger, and defer the achievement / level-up ask until the celebration sheet is dismissed. The gating gate (3-day install age + 30-day cooldown, money-safety ordering) stays exactly as-is.
   **Hints:** call sites `PlayPokerViewModel.kt:681` (achievement), `:691` (level-up), `:1043` (SessionEnd); coordinator `RealReviewPromptCoordinator`; the `ReviewTrigger` enum already notes per-trigger throttling as a future option.
+
+- `[P1]` **Clear the per-seat action label when a new hand starts.** A player's last-action badge (e.g. "fold") from the previous hand stays on their seat after the next hand is dealt, so the table shows a stale, misleading label every hand after the first.
+  **Acceptance:** applying a new-hand `game_state` resets every seat's action label to none; a red-first play-screen reducer test asserts `lastAction == null` at hand start.
+  **Hints:** play-screen reducer mapping `game_state` → per-seat UI (a `hand_number` change is the reset trigger); case `docs/agent/feedback-cases/98a6f5d5e21c42d88651290159c98696.md`; Sentry CARDS-B1.
+
+- `[P2]` **Give mid-hand joiners a real spectator view, not a blank table.** A player who joins a room mid-hand lands in a bare spectating state with no player area rendered and no explanation, so it reads as broken.
+  **Acceptance:** a mid-hand joiner sees the seated players and table rendered with a clear "you'll be dealt in on the next hand" affordance until they're dealt in.
+  **Hints:** play-screen spectator/seated rendering and the mid-hand join path; Sentry CARDS-B7 (owner request).
+
+## Progression (PROG)
+
+- `[P2]` **Surface achievements earned during an MP game when the player returns home.** Achievements unlocked mid-multiplayer-game show no celebration (the in-game reveal is suppressed for MP), so the player never learns they earned them.
+  **Acceptance:** achievements earned during an MP session are detected and shown as a dismissable celebration on return home; already-seen achievements don't re-fire.
+  **Hints:** achievement unlock + celebration surface (progression layer, see `docs/wiki` progression map); Sentry CARDS-B5 (owner request).
+
+## Auth + onboarding (AUTH)
+
+- `[P2]` **A returning guest is re-run through new-user onboarding and shown a stale level-up.** An install with an existing level-2 guest identity was classified as new (`onboarding.auth_selected returning=false`), dropped back to pick-identity, and on "continue as guest" immediately shown a level-up congrats for progression it already had.
+  **Acceptance:** a returning guest skips new-user onboarding and never replays a level-up for a level already reached; new-vs-returning is driven by the server new-account signal, not defaulted to new.
+  **Hints:** new-vs-returning classification on the guest path (`AuthOutcomeClassifier`, AUTH-22); level-up reveal trigger; case `docs/agent/feedback-cases/9711bcd910fa4890a148036fb6c03abc.md`; Sentry CARDS-AS.
+
+## Rooms UI (ROOM)
+
+- `[P2]` **Add an in-game share button for the room code.** Once a private game has started the room code is hard to find to invite someone new (only reachable by tapping the center cards), so mid-game invites are undiscoverable.
+  **Acceptance:** the in-game top row has a visible share affordance that opens the share sheet with the room's invite link/code, reusing the existing share plumbing.
+  **Hints:** surface `Router.shareText` / `RoomInvite.linkForCode` / `ShareLauncher` (decisions.md) in the play-screen top bar; Sentry CARDS-B3 (owner request).
+
+## Multiplayer (MP)
+
+- `[P1]` **Matchmaking pairs two humans but the game never starts.** Two players who find a table together get stuck — one on the searching screen, the other on "dealing you in any moment now" — and the hand never begins; the search-screen title also stays "finding you a table" after a table is found.
+  **Acceptance:** once matchmaking seats enough humans the first hand auto-starts for both clients and the searching UI advances to the table; a server/service test covers matched-pair → started game.
+  **Hints:** matchmaking join + `GameSession` auto-start path (server logged `/v1/matchmaking/find` + repeated `/candidates` 200 with no room-start/seat for the pair); MP-34 shipped find-or-create; case `docs/agent/feedback-cases/82f7e6a8fefd4ac0bb96f859b0576366.md`; Sentry CARDS-B0 (also CARDS-AW, CARDS-AX).
+
+## Engineering (ENG)
+
+- `[P2]` **Give Android an explicit way to open feedback on the play screen.** On Android the right-edge swipe that opens feedback collides with the system back gesture, so there's no reliable way in; iOS keeps the swipe.
+  **Acceptance:** the play screen renders a visible feedback/bug affordance on Android (or a shake / global option), while iOS keeps swipe-from-right.
+  **Hints:** feedback entry on the play screen; `ShakeHandler` already exists for a shake path; Sentry CARDS-B9 (also CARDS-AQ) — owner request.
