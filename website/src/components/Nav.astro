@@ -9,22 +9,44 @@ const links = [
 ];
 ---
 
-<div style="position:sticky;top:0;z-index:100;backdrop-filter:blur(14px);background:color-mix(in srgb,var(--bg) 82%,transparent);border-bottom:1px solid var(--line)">
-  <div class="nav-inner" style="max-width:1200px;margin:0 auto;padding:18px 32px;display:flex;align-items:center;justify-content:space-between;gap:24px">
+<div class="nav-bar" style="position:sticky;top:0;z-index:100;backdrop-filter:blur(14px);background:color-mix(in srgb,var(--bg) 82%,transparent);border-bottom:1px solid var(--line)">
+  <div class="nav-inner" style="max-width:1200px;margin:0 auto;padding:18px 32px;display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap">
     <a href="/" style="display:flex;align-items:center;gap:8px">
       <img src="/uploads/app-icon.png" alt="Downcard" style="width:48px;height:48px;object-fit:contain;margin:-6px 0" />
       <span style="font:800 24px Poppins;letter-spacing:-1px">Downcard</span>
     </a>
-    <div class="nav-links" style="display:flex;align-items:center;gap:8px">
+    <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="nav-menu" style="display:none;align-items:center;justify-content:center;width:44px;height:44px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);cursor:pointer;padding:0">
+      <svg class="nav-icon-open" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+      <svg class="nav-icon-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="display:none"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+    </button>
+    <div class="nav-links" id="nav-menu" style="display:flex;align-items:center;gap:8px">
       {links.map(({ href, label }) => {
         const active = path === href;
         return (
           <a href={href} style={`position:relative;padding:8px 16px;font:600 16px Poppins;color:${active ? 'var(--ink)' : 'var(--muted)'}`}>
             {label}
-            {active && <div style="position:absolute;left:16px;right:16px;bottom:0;height:3px;border-radius:3px;background:#1f9e88"></div>}
+            {active && <div class="nav-underline" style="position:absolute;left:16px;right:16px;bottom:0;height:3px;border-radius:3px;background:#1f9e88"></div>}
           </a>
         );
       })}
     </div>
   </div>
 </div>
+
+<script>
+  const bar = document.querySelector('.nav-bar');
+  const btn = bar?.querySelector('.nav-toggle');
+  const iconOpen = bar?.querySelector('.nav-icon-open') as HTMLElement | null;
+  const iconClose = bar?.querySelector('.nav-icon-close') as HTMLElement | null;
+
+  function setOpen(open: boolean) {
+    bar?.classList.toggle('nav-open', open);
+    btn?.setAttribute('aria-expanded', String(open));
+    if (iconOpen) iconOpen.style.display = open ? 'none' : 'block';
+    if (iconClose) iconClose.style.display = open ? 'block' : 'none';
+  }
+
+  btn?.addEventListener('click', () => setOpen(!bar?.classList.contains('nav-open')));
+  // Tapping a link collapses the menu before navigating.
+  bar?.querySelectorAll('.nav-links a').forEach((a) => a.addEventListener('click', () => setOpen(false)));
+</script>
