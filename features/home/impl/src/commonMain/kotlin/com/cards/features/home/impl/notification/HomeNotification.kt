@@ -46,6 +46,17 @@ sealed interface HomeNotification {
     ) : Blocking
 
     /**
+     * Achievements earned during a real-chip multiplayer game that had no
+     * at-table reveal (the hand finished on the felt, not in a dialog), banked at
+     * hand-end and replayed here so the player still learns what they earned
+     * (PROG-13). Carries the [AchievementId] names to reconstruct the celebration
+     * from the registry. Drained (the persisted queue cleared) once presented.
+     */
+    data class AchievementsEarned(
+        val achievementIds: List<String>,
+    ) : Blocking
+
+    /**
      * One-time "your play style is unlocked" milestone, fired the first time the
      * user crosses the play-style sample threshold.
      */

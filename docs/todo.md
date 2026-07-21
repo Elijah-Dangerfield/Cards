@@ -34,12 +34,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** a mid-hand joiner sees the seated players and table rendered with a clear "you'll be dealt in on the next hand" affordance until they're dealt in.
   **Hints:** play-screen spectator/seated rendering and the mid-hand join path; Sentry CARDS-B7 (owner request).
 
-## Progression (PROG)
-
-- `[P2]` **Surface achievements earned during an MP game when the player returns home.** Achievements unlocked mid-multiplayer-game show no celebration (the in-game reveal is suppressed for MP), so the player never learns they earned them.
-  **Acceptance:** achievements earned during an MP session are detected and shown as a dismissable celebration on return home; already-seen achievements don't re-fire.
-  **Hints:** achievement unlock + celebration surface (progression layer, see `docs/wiki` progression map); Sentry CARDS-B5 (owner request).
-
 ## Auth + onboarding (AUTH)
 
 - `[P2]` **A returning guest is re-run through new-user onboarding and shown a stale level-up.** An install with an existing level-2 guest identity was classified as new (`onboarding.auth_selected returning=false`), dropped back to pick-identity, and on "continue as guest" immediately shown a level-up congrats for progression it already had.

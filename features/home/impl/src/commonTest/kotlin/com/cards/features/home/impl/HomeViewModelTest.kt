@@ -2,6 +2,7 @@ package com.dangerfield.cards.features.home.impl
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AchievementHandContext
+import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AppCache
@@ -471,6 +472,54 @@ class HomeViewModelTest : CoroutineTest() {
             expectNoEvents()
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun mpAchievements_pendingQueue_presentsOnSettle_thenDrainsOnDismiss() = runUnitTest {
+        // PROG-13: unlocks earned in a real-chip MP game queue in AppData; Home
+        // presents them once settled and drains the queue on dismiss so they
+        // never replay.
+        val appCache = FakeAppCache(AppData(pendingHomeAchievementIds = listOf("HANDS_10")))
+        val vm = buildVm(appCache = appCache)
+        vm.takeAction(HomeAction.ScreenResumed)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.achievementCelebration.isEmpty()) last = awaitItem()
+            assertEquals(
+                listOf(AchievementId.HANDS_10),
+                last.achievementCelebration.map { it.achievement.id },
+                "the queued unlock is reconstructed and presented",
+            )
+
+            vm.takeAction(HomeAction.MarkAchievementCelebrationShown)
+            while (last.achievementCelebration.isNotEmpty()) last = awaitItem()
+            assertTrue(
+                appCache.get().pendingHomeAchievementIds.isEmpty(),
+                "dismissing drains the persisted queue so it can't replay",
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun mpAchievements_notPresentedUntilHomeSettles() = runUnitTest {
+        // Same settled-Home discipline as the level-up celebration (PROG-5): a
+        // queue present on a not-yet-settled Home must wait for the resume.
+        val appCache = FakeAppCache(AppData(pendingHomeAchievementIds = listOf("HANDS_10")))
+        val vm = buildVm(appCache = appCache)
+        advanceUntilIdle()
+        assertTrue(
+            vm.stateFlow.value.achievementCelebration.isEmpty(),
+            "nothing presents before Home is settled",
+        )
+
+        vm.takeAction(HomeAction.ScreenResumed)
+        advanceUntilIdle()
+        assertEquals(
+            listOf(AchievementId.HANDS_10),
+            vm.stateFlow.value.achievementCelebration.map { it.achievement.id },
+            "the pending celebration fires on settle",
+        )
     }
 
     @Test

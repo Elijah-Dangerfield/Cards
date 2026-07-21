@@ -1,5 +1,9 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.libraries.cards.AchievementId
+import com.dangerfield.cards.libraries.cards.AllAchievementsById
+import com.dangerfield.cards.libraries.cards.AppData
+import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEvent
@@ -775,6 +779,130 @@ class PokerScenarioMpTest : PokerScenarioTest() {
         )
         assertEquals(2, s.table.seats.single { it.isHuman }.index)
     }
+
+    /**
+     * PROG-13: a real-chip MP hand that finishes without the local player
+     * busting shows its result on the felt (leave-with-winnings countdown), not
+     * in a dialog — so an achievement earned there has no at-table reveal. It
+     * must be banked for a Home celebration instead of silently vanishing.
+     */
+    @Test
+    fun mpAchievementEarnedWithoutBust_queuesForHomeCelebration() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER)
+            .withEarnedAchievements(listOf(earnedAchievement(AchievementId.HANDS_10)))
+            .start()
+        val board = cards("Ah Kd 7c 2s 9h")
+
+        // A finished heads-up hand the local player won — real chips, both seats
+        // still have a stack, so no bust dialog and no showdown popup.
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 1_400, holeCards = cards("As Ad")),
+                    mpSeat(1, playerId = "peer", stack = 600, holeCards = cards("Kh Kc")),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+                community = board,
+            ),
+        )
+        s.serverEvent(
+            GameEvent.HandEnded(
+                sequence = 5,
+                winners = listOf(HandWinner(seatIndex = 0, amount = 800, handRank = null, byFold = false)),
+                board = board,
+                revealedHoleCards = mapOf(0 to cards("As Ad"), 1 to cards("Kh Kc")),
+            ),
+        )
+
+        assertTrue(s.vm.state.realChipsAtStake, "two humans → a real-chip table with no at-table reveal")
+        assertEquals(
+            listOf(AchievementId.HANDS_10.name),
+            s.appCache.get().pendingHomeAchievementIds,
+            "an unsurfaced real-chip MP unlock must queue for a Home celebration",
+        )
+    }
+
+    /**
+     * PROG-13 no-double-fire: a bust is the one real-chip case with an inline
+     * surface — [MultiplayerBustDialog] shows the unlocks — so they must NOT also
+     * queue for Home, or the player sees the same celebration twice.
+     */
+    @Test
+    fun mpAchievementEarnedOnBust_shownInline_notQueuedForHome() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER)
+            .withEarnedAchievements(listOf(earnedAchievement(AchievementId.HANDS_10)))
+            .start()
+        val board = cards("Ah Kd 7c 2s 9h")
+
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 0, holeCards = cards("Qs Qd")),
+                    mpSeat(1, playerId = "peer", stack = 2_000, holeCards = cards("As Ad")),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+                community = board,
+            ),
+        )
+        s.serverEvent(
+            GameEvent.HandEnded(
+                sequence = 7,
+                winners = listOf(HandWinner(seatIndex = 1, amount = 2_000, handRank = null, byFold = false)),
+                board = board,
+                revealedHoleCards = mapOf(0 to cards("Qs Qd"), 1 to cards("As Ad")),
+            ),
+        )
+
+        assertEquals(
+            listOf(AchievementId.HANDS_10),
+            s.vm.state.recentlyEarned.map { it.achievement.id },
+            "the bust dialog surfaces the unlock inline",
+        )
+        assertTrue(
+            s.appCache.get().pendingHomeAchievementIds.isEmpty(),
+            "a bust already shows the unlock inline, so it must not also queue for Home",
+        )
+    }
+
+    /** Silenced pop-ups suppress the at-table reveal AND the queued Home celebration. */
+    @Test
+    fun mpAchievementEarned_withPopupsSilenced_queuesNothing() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER)
+            .withAppData(AppData(showAchievementPopups = false))
+            .withEarnedAchievements(listOf(earnedAchievement(AchievementId.HANDS_10)))
+            .start()
+        val board = cards("Ah Kd 7c 2s 9h")
+
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 1_400, holeCards = cards("As Ad")),
+                    mpSeat(1, playerId = "peer", stack = 600, holeCards = cards("Kh Kc")),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+                community = board,
+            ),
+        )
+        s.serverEvent(
+            GameEvent.HandEnded(
+                sequence = 5,
+                winners = listOf(HandWinner(seatIndex = 0, amount = 800, handRank = null, byFold = false)),
+                board = board,
+                revealedHoleCards = mapOf(0 to cards("As Ad"), 1 to cards("Kh Kc")),
+            ),
+        )
+
+        assertTrue(
+            s.appCache.get().pendingHomeAchievementIds.isEmpty(),
+            "a silenced session enqueues nothing, matching the muted at-table behaviour",
+        )
+    }
+
+    private fun earnedAchievement(id: AchievementId): EarnedAchievement =
+        EarnedAchievement(achievement = AllAchievementsById.getValue(id), earnedAtEpochMs = 0L)
 
     private fun member(userId: String, isBot: Boolean = false): RoomMember = RoomMember(
         userId = userId,

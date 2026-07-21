@@ -638,10 +638,42 @@ class PlayPokerViewModel @Inject constructor(
             }
             val surfaced = if (showPopups) earned else emptyList()
             takeAction(PlayPokerAction.AchievementsEarned(surfaced))
+            enqueueUnsurfacedMpUnlocks(surfaced, context)
 
             // The review prompt keys off the *real* unlocks, not what we showed —
             // a silenced celebration shouldn't also suppress a review ask.
             maybeRequestReviewPrompt(priorLevel = priorLevel, earned = earned)
+        }
+    }
+
+    /**
+     * Bank achievements earned in a real-chip multiplayer hand that had no
+     * in-game surface to reveal them, so Home can celebrate them on return
+     * (PROG-13). A finished real-chip hand shows its result on the felt (with the
+     * leave-with-winnings countdown), not in a dialog, so the at-table reveal
+     * that solo/practice get never fires. A bust is the one real-chip case with
+     * an inline surface — the [MultiplayerBustDialog] already shows the unlocks —
+     * so those are skipped here to avoid a double celebration. [surfaced] already
+     * honours the "silence pop-ups" setting, so a silenced session enqueues
+     * nothing, matching the muted at-table behaviour.
+     */
+    private suspend fun enqueueUnsurfacedMpUnlocks(
+        surfaced: List<EarnedAchievement>,
+        context: AchievementHandContext,
+    ) {
+        if (surfaced.isEmpty()) return
+        if (!stateFlow.value.realChipsAtStake) return
+        val humanBusted = context.humanEndingStack <= 0L
+        if (humanBusted) return
+        val ids = surfaced.map { it.achievement.id.name }
+        logger.logEvent(
+            "achievement.home_celebration_enqueued",
+            "count" to ids.size,
+        )
+        appCache.update { data ->
+            data.copy(
+                pendingHomeAchievementIds = (data.pendingHomeAchievementIds + ids).distinct(),
+            )
         }
     }
 

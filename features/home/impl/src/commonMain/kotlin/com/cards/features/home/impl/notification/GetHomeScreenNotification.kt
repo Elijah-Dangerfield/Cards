@@ -60,6 +60,15 @@ data class HomeNotificationSnapshot(
     val outOfChipsSeen: Boolean,
     /** The cheapest standard buy-in (`StakeTier.Casual.buyIn`) — the out-of-chips line. */
     val casualBuyIn: Long,
+
+    /**
+     * [AchievementId] names earned in a real-chip MP game with no at-table reveal,
+     * queued at hand-end (`AppData.pendingHomeAchievementIds`) for a Home
+     * celebration (PROG-13). Empty when nothing is pending. Unlike the watermark
+     * fields this is a drain queue, not a monotonic marker: presenting it clears
+     * the queue rather than advancing a high-water mark.
+     */
+    val pendingAchievementIds: List<String>,
 ) {
 
     /** The resolved welcome-dialog identity, present only when all its preconditions align. */
@@ -102,14 +111,23 @@ fun HomeNotificationSnapshot.seedsNeeded(): HomeNotificationSeeds {
  * same result out.
  *
  * Priority: [HomeNotification.Welcome] (first-run, once) →
- * [HomeNotification.LevelUp] → [HomeNotification.PlayStyleUnlocked] →
- * [HomeNotification.OutOfChips]. An unset level watermark yields no level-up
- * (it seeds instead — see [seedsNeeded]). Out-of-chips is deliberately last:
- * a level-up may grant chips that resolve the shortfall before we point at
- * the shop.
+ * [HomeNotification.AchievementsEarned] → [HomeNotification.LevelUp] →
+ * [HomeNotification.PlayStyleUnlocked] → [HomeNotification.OutOfChips]. An unset
+ * level watermark yields no level-up (it seeds instead — see [seedsNeeded]).
+ * Out-of-chips is deliberately last: a level-up may grant chips that resolve the
+ * shortfall before we point at the shop.
+ *
+ * Achievements sit above the level-up: they're the concrete thing the player
+ * just earned with no other surface, whereas the level-up is derived state that
+ * survives on its watermark and simply fires on the next settle after the
+ * achievement queue drains.
  */
 fun GetHomeScreenNotification(snapshot: HomeNotificationSnapshot): HomeNotification.Blocking? =
-    snapshot.welcome() ?: snapshot.levelUp() ?: snapshot.playStyleUnlocked() ?: snapshot.outOfChips()
+    snapshot.welcome()
+        ?: snapshot.achievementsEarned()
+        ?: snapshot.levelUp()
+        ?: snapshot.playStyleUnlocked()
+        ?: snapshot.outOfChips()
 
 /**
  * True when the persisted [HomeNotificationSnapshot.outOfChipsSeen] episode
@@ -147,6 +165,11 @@ private fun HomeNotificationSnapshot.welcome(): HomeNotification.Welcome? {
         avatarBackgroundColorHex = identity.avatarBackgroundColorHex,
         chips = chips,
     )
+}
+
+private fun HomeNotificationSnapshot.achievementsEarned(): HomeNotification.AchievementsEarned? {
+    if (pendingAchievementIds.isEmpty()) return null
+    return HomeNotification.AchievementsEarned(achievementIds = pendingAchievementIds)
 }
 
 private fun HomeNotificationSnapshot.levelUp(): HomeNotification.LevelUp? {

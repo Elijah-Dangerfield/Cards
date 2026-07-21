@@ -1,9 +1,11 @@
 package com.dangerfield.cards.features.home.impl
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
+import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
@@ -281,6 +283,7 @@ class HomeViewModel(
                 lastShownChipBalance = appData.lastShownChipBalance,
                 outOfChipsSeen = appData.outOfChipsSeen,
                 casualBuyIn = StakeTier.Casual.buyIn,
+                pendingAchievementIds = appData.pendingHomeAchievementIds,
             )
         }
 
@@ -395,8 +398,21 @@ class HomeViewModel(
                     appCache.update { it.copy(lastCelebratedLevel = reached) }
                 }
             }
+            is HomeAction.MarkAchievementCelebrationShown -> {
+                // The player dismissed the celebration — drain the queue (persisted
+                // + state) so it never replays and the arbiter can present the next
+                // pending blocking notification (e.g. a level-up from the same game).
+                action.updateState { it.copy(achievementCelebration = emptyList()) }
+                appCache.update { it.copy(pendingHomeAchievementIds = emptyList()) }
+            }
         }
     }
+
+    private fun List<String>.toEarnedAchievements(): List<EarnedAchievement> =
+        mapNotNull { name ->
+            val id = achievementIdsByName[name] ?: return@mapNotNull null
+            AllAchievementsById[id]?.let { EarnedAchievement(achievement = it, earnedAtEpochMs = 0L) }
+        }
 
     /**
      * Run the arbiter over the latest snapshot and present its single blocking
@@ -444,6 +460,18 @@ class HomeViewModel(
                         ),
                     ),
                 )
+            }
+            is HomeNotification.AchievementsEarned -> {
+                // Already showing this batch — a re-entrant snapshot (a different
+                // flow emitting before the drain write lands) can't re-present it.
+                // The drain (MarkAchievementCelebrationShown) clears both the state
+                // and the persisted queue, so the arbiter goes quiet afterwards and
+                // a genuinely new batch from a later game presents again.
+                if (stateFlow.value.achievementCelebration.isNotEmpty()) return
+                val earned = notification.achievementIds.toEarnedAchievements()
+                if (earned.isEmpty()) return
+                homeLogger.i { "home notification: MP achievement celebration (${earned.size})" }
+                updateState { it.copy(achievementCelebration = earned) }
             }
             is HomeNotification.PlayStyleUnlocked -> {
                 if (playStyleUnlockPresented) return
@@ -657,6 +685,13 @@ data class HomeState(
      *  Mirrors the `social.enabled` app-config flag, default off (SOC-2) —
      *  when false the Home social surfaces don't render at all. */
     val socialEnabled: Boolean = false,
+    /** Non-empty when the achievement-celebration sheet should show for unlocks
+     *  earned in a real-chip MP game that had no at-table reveal (PROG-13). The
+     *  entry point observes this, presents the shared [AchievementCelebrationSheet],
+     *  and fires [HomeAction.MarkAchievementCelebrationShown] on dismiss to drain
+     *  the queue. Reconstructed from the persisted id queue, so it's plain UI
+     *  state, not persisted itself. */
+    val achievementCelebration: List<EarnedAchievement> = emptyList(),
 )
 
 /**
@@ -689,6 +724,9 @@ private fun RecentOpponentProfile.toRecentOpponent(requestSent: Boolean): Recent
         avatarBackgroundColorHex = avatarBackgroundColorHex,
         requestSent = requestSent,
     )
+
+private val achievementIdsByName: Map<String, AchievementId> =
+    AchievementId.entries.associateBy { it.name }
 
 data class ActiveRoomSummary(
     val code: String,
@@ -739,4 +777,7 @@ sealed interface HomeAction {
      *  is settled, present the single highest-priority blocking notification. */
     data class EvaluateNotifications(val snapshot: HomeNotificationSnapshot) : HomeAction
     data object MarkLevelUpShown : HomeAction
+
+    /** The MP achievement celebration was dismissed — drain the queue. */
+    data object MarkAchievementCelebrationShown : HomeAction
 }

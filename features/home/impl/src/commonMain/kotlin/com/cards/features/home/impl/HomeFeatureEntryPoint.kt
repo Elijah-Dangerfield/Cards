@@ -9,6 +9,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.backhandler.BackHandler
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import cards.libraries.resources.generated.resources.Res
@@ -43,6 +44,7 @@ import com.dangerfield.cards.libraries.flowroutines.ObserveWithLifecycle
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.ui.components.LevelUpCelebration
 import com.dangerfield.cards.libraries.ui.components.LevelUpReward
+import com.dangerfield.cards.libraries.ui.components.achievement.AchievementCelebrationSheet
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import com.dangerfield.cards.libraries.navigation.OnTabReselected
@@ -260,6 +262,19 @@ class HomeFeatureEntryPoint(
                         botSetupOpen = true
                     },
                     onDismiss = { outOfChipsBuyIn = null },
+                )
+            }
+
+            // Achievements earned in a real-chip MP game with no at-table reveal
+            // replay here (PROG-13). VM-derived from the persisted queue via the
+            // notification arbiter, so it survives the table→home trip and presents
+            // on the next settled Home; dismissing drains the queue. Reuses the same
+            // DS celebration the bot table shows at hand-end.
+            val homeState by viewModel.stateFlow.collectAsStateWithLifecycle()
+            if (homeState.achievementCelebration.isNotEmpty()) {
+                AchievementCelebrationSheet(
+                    earned = homeState.achievementCelebration,
+                    onContinue = { viewModel.takeAction(HomeAction.MarkAchievementCelebrationShown) },
                 )
             }
         }
