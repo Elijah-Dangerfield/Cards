@@ -1217,6 +1217,7 @@
     <string name="room_board_rankings_a11y">View hand rankings</string>
     <string name="room_loading_dealing_in">Dealing in…</string>
     <string name="room_waiting_to_be_dealt_in">You'll be dealt in next hand</string>
+    <string name="room_spectating_seat_placeholder">You're spectating this hand</string>
     <string name="room_practice_tier_bots_present">Practice tier · bots present</string>
     <string name="room_practice_tier_explainer_title">Practice tier</string>
     <string name="room_practice_tier_explainer_a11y">What practice tier means</string>

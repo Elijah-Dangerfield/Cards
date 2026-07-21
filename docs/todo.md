@@ -26,10 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## Gameplay (GAME)
 
-- `[P2]` **Give mid-hand joiners a real spectator view, not a blank table.** A player who joins a room mid-hand lands in a bare spectating state with no player area rendered and no explanation, so it reads as broken.
-  **Acceptance:** a mid-hand joiner sees the seated players and table rendered with a clear "you'll be dealt in on the next hand" affordance until they're dealt in.
-  **Hints:** play-screen spectator/seated rendering and the mid-hand join path; Sentry CARDS-B7 (owner request).
-
 ## Auth + onboarding (AUTH)
 
 - `[P2]` **A returning guest is re-run through new-user onboarding and shown a stale level-up.** An install with an existing level-2 guest identity was classified as new (`onboarding.auth_selected returning=false`), dropped back to pick-identity, and on "continue as guest" immediately shown a level-up congrats for progression it already had.
