@@ -54,7 +54,19 @@ img { max-width: 100%; }
    grids collapsing to one column, and the nav reflowing on phones. */
 @media (max-width: 900px) {
   .hero-grid { grid-template-columns: 1fr !important; }
-  .hero-art { display: none !important; }
+  /* Phone drops below the copy and reflows from the absolute desktop
+     overflow into a normal centered image that fits the viewport. */
+  .hero-art { height: auto !important; margin-top: 16px; }
+  .hero-phone {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: auto !important;
+    max-width: min(360px, 80vw) !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    display: block;
+  }
   .features-grid { grid-template-columns: 1fr !important; }
   .contact-grid { grid-template-columns: 1fr !important; }
   .form-row { grid-template-columns: 1fr !important; }
