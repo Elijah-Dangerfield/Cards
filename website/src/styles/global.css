@@ -46,19 +46,27 @@ a:hover { color: #1f9e88; }
   50% { transform: translateY(-14px); }
 }
 
-/* Hero scales down on narrow screens */
+/* Never let media overflow its container on small screens */
+img { max-width: 100%; }
+
+/* Font sizes and section padding scale fluidly via clamp() in the page
+   markup; these breakpoints only handle layout that clamp can't: multi-column
+   grids collapsing to one column, and the nav reflowing on phones. */
 @media (max-width: 900px) {
   .hero-grid { grid-template-columns: 1fr !important; }
   .hero-art { display: none !important; }
-  .hero-title { font-size: 72px !important; letter-spacing: -2px !important; }
   .features-grid { grid-template-columns: 1fr !important; }
   .contact-grid { grid-template-columns: 1fr !important; }
   .form-row { grid-template-columns: 1fr !important; }
-  .ethos-title { font-size: 34px !important; }
-  .section-title { font-size: 34px !important; }
 }
 @media (max-width: 560px) {
-  .nav-inner { padding: 14px 20px !important; }
-  .nav-links a { padding: 8px 10px !important; font-size: 15px !important; }
+  .nav-inner {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 14px 20px !important;
+  }
+  .nav-links { flex-wrap: wrap !important; justify-content: center !important; row-gap: 2px !important; }
+  .nav-links a { padding: 8px 12px !important; font-size: 15px !important; }
   .pad-x { padding-left: 20px !important; padding-right: 20px !important; }
 }
