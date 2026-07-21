@@ -42,12 +42,12 @@ const faqs = [
 ---
 
 <Layout title="Support — Downcard" description="Downcard support: answers to common questions and how to reach us.">
-  <div class="pad-x" style="max-width:820px;margin:0 auto;padding:72px 32px 110px">
-    <div style="font:800 52px Poppins;letter-spacing:-2px;margin-bottom:8px">Support</div>
+  <div class="pad-x" style="max-width:820px;margin:0 auto;padding:clamp(48px,10vw,72px) 32px clamp(72px,12vw,110px)">
+    <div style="font:800 clamp(34px,8vw,52px) Poppins;letter-spacing:-0.03em;margin-bottom:8px">Support</div>
     <div style="font:500 16px Poppins;color:var(--muted);margin-bottom:32px">Answers to common questions, and how to reach a human.</div>
     <p class="lead" style="margin:0 0 44px">Stuck on something, missing chips, or just have a question? Start with the answers below. If none of them fit, <a href="/contact" style="color:#1f9e88;font-weight:600">email us</a> and we'll help.</p>
 
-    <div style="font:700 28px Poppins;margin-bottom:24px">Frequently asked questions</div>
+    <div style="font:700 clamp(22px,5vw,28px) Poppins;margin-bottom:24px">Frequently asked questions</div>
     <div class="legal" style="gap:28px">
       {faqs.map((f) => (
         <section>
@@ -57,7 +57,7 @@ const faqs = [
       ))}
     </div>
 
-    <div style="font:700 28px Poppins;margin:56px 0 16px">Contact us</div>
+    <div style="font:700 clamp(22px,5vw,28px) Poppins;margin:56px 0 16px">Contact us</div>
     <p class="lead" style="margin:0">Reach us at <a href="mailto:contact@downcard.app" style="color:#1f9e88;font-weight:600">contact@downcard.app</a>. Tell us what happened and, if it helps, when it happened, and we'll get back to you.</p>
   </div>
 </Layout>
