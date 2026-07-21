@@ -24,8 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## Gameplay (GAME)
-
 ## Auth + onboarding (AUTH)
 
 - `[P2]` **A returning guest is re-run through new-user onboarding and shown a stale level-up.** An install with an existing level-2 guest identity was classified as new (`onboarding.auth_selected returning=false`), dropped back to pick-identity, and on "continue as guest" immediately shown a level-up congrats for progression it already had.
