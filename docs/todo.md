@@ -45,9 +45,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P1]` **Matchmaking pairs two humans but the game never starts.** Two players who find a table together get stuck — one on the searching screen, the other on "dealing you in any moment now" — and the hand never begins; the search-screen title also stays "finding you a table" after a table is found.
   **Acceptance:** once matchmaking seats enough humans the first hand auto-starts for both clients and the searching UI advances to the table; a server/service test covers matched-pair → started game.
   **Hints:** matchmaking join + `GameSession` auto-start path (server logged `/v1/matchmaking/find` + repeated `/candidates` 200 with no room-start/seat for the pair); MP-34 shipped find-or-create; case `docs/agent/feedback-cases/82f7e6a8fefd4ac0bb96f859b0576366.md`; Sentry CARDS-B0 (also CARDS-AW, CARDS-AX).
-
-## Engineering (ENG)
-
-- `[P2]` **Give Android an explicit way to open feedback on the play screen.** On Android the right-edge swipe that opens feedback collides with the system back gesture, so there's no reliable way in; iOS keeps the swipe.
-  **Acceptance:** the play screen renders a visible feedback/bug affordance on Android (or a shake / global option), while iOS keeps swipe-from-right.
-  **Hints:** feedback entry on the play screen; `ShakeHandler` already exists for a shake path; Sentry CARDS-B9 (also CARDS-AQ) — owner request.
