@@ -54,19 +54,39 @@ img { max-width: 100%; }
    grids collapsing to one column, and the nav reflowing on phones. */
 @media (max-width: 900px) {
   .hero-grid { grid-template-columns: 1fr !important; }
-  .hero-art { display: none !important; }
+  /* Phone drops below the copy and reflows from the absolute desktop
+     overflow into a normal centered image that fits the viewport. */
+  .hero-art { height: auto !important; margin-top: 16px; }
+  .hero-phone {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: auto !important;
+    max-width: min(360px, 80vw) !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    display: block;
+  }
   .features-grid { grid-template-columns: 1fr !important; }
   .contact-grid { grid-template-columns: 1fr !important; }
   .form-row { grid-template-columns: 1fr !important; }
 }
-@media (max-width: 560px) {
-  .nav-inner {
+/* Below this width the horizontal links collapse into a hamburger menu. */
+@media (max-width: 760px) {
+  .nav-toggle { display: flex !important; }
+  .nav-links {
+    display: none !important;
+    width: 100%;
     flex-direction: column !important;
-    align-items: center !important;
-    gap: 12px !important;
-    padding: 14px 20px !important;
+    align-items: stretch !important;
+    gap: 2px !important;
+    padding-top: 10px;
   }
-  .nav-links { flex-wrap: wrap !important; justify-content: center !important; row-gap: 2px !important; }
-  .nav-links a { padding: 8px 12px !important; font-size: 15px !important; }
+  .nav-open .nav-links { display: flex !important; }
+  .nav-links a { padding: 12px 10px !important; font-size: 17px !important; border-radius: 10px; }
+  .nav-underline { display: none !important; }
+}
+@media (max-width: 560px) {
+  .nav-inner { padding: 14px 20px !important; }
   .pad-x { padding-left: 20px !important; padding-right: 20px !important; }
 }
