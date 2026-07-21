@@ -161,7 +161,19 @@ fun Route.matchmakingRoutes(
                     )
                     val current = (filled as? com.dangerfield.cards.server.domain.AddBotResult.Success)?.room ?: room
 
-                    startServerDealtTableIfReady(code, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
+                    // Same visibility as the socket auto-deal path: capture the deal
+                    // outcome and log/span a non-benign rejection (e.g. the lone
+                    // human hit their bot-subsidy cap so nobody could fund) instead
+                    // of discarding it and leaving the fallback table stuck.
+                    withSpan(
+                        name = "matchmaking_auto_deal",
+                        configure = { setAttribute(SpanAttrs.RoomCode, code) },
+                    ) {
+                        val dealResult = startServerDealtTableIfReady(
+                            code, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository,
+                        )
+                        logAutoDealRejection(code, dealResult, rooms.find(code))
+                    }
 
                     val dealt = rooms.find(code) ?: current
                     Span.current().apply {

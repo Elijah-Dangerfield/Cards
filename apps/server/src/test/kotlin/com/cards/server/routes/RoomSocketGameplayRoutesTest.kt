@@ -921,6 +921,45 @@ class RoomSocketGameplayRoutesTest {
     }
 
     @Test
+    fun aConnectedMemberDroppedForTheEntryBar_getsSeatUnaffordable_notAnInfiniteSpinner() = runTest {
+        // The Phase 2 terminal signal. Three searchers form a public 1k table, but
+        // Carol's balance drops below the 4× bar (a 1k table needs 4,000) after she
+        // matched. The server-dealt hand seats Host + Alice and leaves Carol out —
+        // without the signal her client waits on "dealing you in" forever (the room
+        // reads Playing but she holds no seat). She must instead receive a terminal
+        // SeatUnaffordable carrying the chips she'd need.
+        val rooms = newRoomService()
+        val registry = newRegistry()
+        val wallets = InMemoryTestWalletRepository()
+
+        val created = assertIs<com.dangerfield.cards.server.domain.MatchmakingResult.Created>(
+            rooms.findOrJoinPublic(host, "Host", 1_000, 1_000, emptySet(), callerBalance = Wallet.STARTER_GRANT),
+        ).room
+        rooms.findOrJoinPublic(alice, "Alice", 1_000, 1_000, emptySet(), callerBalance = Wallet.STARTER_GRANT)
+        rooms.findOrJoinPublic(carol, "Carol", 1_000, 1_000, emptySet(), callerBalance = Wallet.STARTER_GRANT)
+        wallets.setBalance(carol, 1_000)
+
+        withRoomSocketTestApp(rooms, registry, wallets = wallets) { client ->
+            val hostSocket = client.connect(created.code, host)
+            val aliceSocket = client.connect(created.code, alice)
+            val carolSocket = client.connect(created.code, carol)
+            try {
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
+                carolSocket.drainSnapshot()
+                // Host + Alice are funded and dealt; Carol is left out for the bar.
+                hostSocket.receiveUntilGameState()
+                val signal = carolSocket.receiveUntil(RoomSocketEventDto.SeatUnaffordable::class)
+                assertEquals(4_000, signal.minBalanceToSit, "told she needs 4× the 1k buy-in to sit")
+            } finally {
+                hostSocket.closeQuietly()
+                aliceSocket.closeQuietly()
+                carolSocket.closeQuietly()
+            }
+        }
+    }
+
+    @Test
     fun startServerDealtTableIfReady_onAnUnfundableTable_returnsRejected_soTheFailureIsObservable() = runTest {
         // Phase 1 makes the fresh-player case impossible, so the only way a *ready*
         // public table still can't fund is a balance drop between find and deal.
