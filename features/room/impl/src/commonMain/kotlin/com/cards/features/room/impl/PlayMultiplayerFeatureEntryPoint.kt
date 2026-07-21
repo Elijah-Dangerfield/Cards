@@ -20,6 +20,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
+import com.dangerfield.cards.features.lobby.RoomInvite
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.progression.StatsRoute
@@ -39,6 +40,7 @@ import com.dangerfield.cards.libraries.ui.components.CircularProgressIndicator
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.lobby_in_room_share_message
 import cards.libraries.resources.generated.resources.room_incompatible_version
 import cards.libraries.resources.generated.resources.room_intent_rejected
 import cards.libraries.resources.generated.resources.room_intent_timed_out
@@ -52,6 +54,7 @@ import cards.libraries.resources.generated.resources.room_quick_buy_failed
 import cards.libraries.resources.generated.resources.room_quick_buy_store_unavailable
 import cards.libraries.resources.generated.resources.room_quick_buy_success
 import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -197,6 +200,11 @@ class PlayMultiplayerFeatureEntryPoint(
                     }
                 }
             }
+            val shareMessage = stringResource(
+                Res.string.lobby_in_room_share_message,
+                route.roomCode,
+                RoomInvite.linkForCode(route.roomCode),
+            )
             PlayPokerScreen(
                 state = state,
                 onAction = viewModel::takeAction,
@@ -244,6 +252,11 @@ class PlayMultiplayerFeatureEntryPoint(
                 } else {
                     null
                 },
+                // A visible in-game invite: the room code is otherwise only
+                // reachable by tapping the center cards, so mid-game invites were
+                // undiscoverable (ROOM-19). Reuses the lobby share plumbing —
+                // same deep link, same copy — so the URL can't drift.
+                onShareRoom = { router.shareText(shareMessage) },
             )
         }
     }

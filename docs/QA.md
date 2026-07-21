@@ -337,6 +337,8 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** The shared text reads naturally and contains the room code plus a `cards://join/CODE` link. Tapping it on Device B opens the app straight into that room's lobby (code pre-filled, auto-joins), no manual code entry. Both devices then show both members seated. The "Copy code" button still copies the bare code for paste-anywhere use.
 
+- In-game share (ROOM-19): once the game has started, the play-screen top bar shows a share icon between the back arrow area and the help (?) button. Tapping it opens the same platform share sheet with the same `cards://join/CODE` invite text, so a mid-game invite doesn't require hunting for the code. Solo bot games show no share icon.
+
 ---
 
 ### `MP-2` ⚠️ 📱 Find a public game via matchmaking

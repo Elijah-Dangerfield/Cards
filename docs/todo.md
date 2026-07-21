@@ -46,12 +46,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** a returning guest skips new-user onboarding and never replays a level-up for a level already reached; new-vs-returning is driven by the server new-account signal, not defaulted to new.
   **Hints:** new-vs-returning classification on the guest path (`AuthOutcomeClassifier`, AUTH-22); level-up reveal trigger; case `docs/agent/feedback-cases/9711bcd910fa4890a148036fb6c03abc.md`; Sentry CARDS-AS.
 
-## Rooms UI (ROOM)
-
-- `[P2]` **Add an in-game share button for the room code.** Once a private game has started the room code is hard to find to invite someone new (only reachable by tapping the center cards), so mid-game invites are undiscoverable.
-  **Acceptance:** the in-game top row has a visible share affordance that opens the share sheet with the room's invite link/code, reusing the existing share plumbing.
-  **Hints:** surface `Router.shareText` / `RoomInvite.linkForCode` / `ShareLauncher` (decisions.md) in the play-screen top bar; Sentry CARDS-B3 (owner request).
-
 ## Multiplayer (MP)
 
 - `[P1]` **Matchmaking pairs two humans but the game never starts.** Two players who find a table together get stuck — one on the searching screen, the other on "dealing you in any moment now" — and the hand never begins; the search-screen title also stays "finding you a table" after a table is found.

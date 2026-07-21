@@ -56,6 +56,7 @@ import cards.libraries.resources.generated.resources.room_showdown_continue_butt
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_hand_info_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_report_bug_a11y
+import cards.libraries.resources.generated.resources.room_top_bar_share_a11y
 import cards.libraries.resources.generated.resources.room_waiting_to_be_dealt_in
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
@@ -111,6 +112,11 @@ fun PlayPokerScreen(
      *  point wires this only on debug / TestFlight builds (null hides the button)
      *  so testers can file mid-game feedback without leaving the table. */
     onReportBug: (() -> Unit)? = null,
+    /** Opens the platform share sheet with this room's invite link from a
+     *  share-icon button in the top bar. The MP entry point wires this so a
+     *  mid-game invite doesn't require digging into the board-tap cheat sheet
+     *  for the code (ROOM-19); null (solo bots, no shareable code) hides it. */
+    onShareRoom: (() -> Unit)? = null,
     /** Hides the centered Level pill in the top bar. The tutorial sets
      *  this false so its own step-counter pill can occupy the centered
      *  slot without colliding. */
@@ -330,6 +336,7 @@ fun PlayPokerScreen(
                         null
                     },
                     onReportBug = onReportBug,
+                    onShareRoom = onShareRoom,
                     showXpPill = showXpPill,
                     centerSlot = topBarCenterSlot,
                 )
@@ -1007,6 +1014,7 @@ private fun TopBar(
     onTapXp: () -> Unit = {},
     onHelp: (() -> Unit)? = null,
     onReportBug: (() -> Unit)? = null,
+    onShareRoom: (() -> Unit)? = null,
     showXpPill: Boolean = true,
     centerSlot: (@Composable () -> Unit)? = null,
 ) {
@@ -1039,6 +1047,12 @@ private fun TopBar(
                 IconButton(
                     icon = Icons.Bug(stringResource(Res.string.room_top_bar_report_bug_a11y)),
                     onClick = onReportBug,
+                )
+            }
+            if (onShareRoom != null) {
+                IconButton(
+                    icon = Icons.Share(stringResource(Res.string.room_top_bar_share_a11y)),
+                    onClick = onShareRoom,
                 )
             }
             if (onHelp != null) {
@@ -1338,6 +1352,21 @@ private fun PlayPokerScreenPreview_YourTurnPreflop() {
             state = PlayPokerState(table = previewActive()),
             onAction = {},
             onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_MpWithShare() {
+    // MP table: the top bar carries the share-room affordance (ROOM-19) so a
+    // mid-game invite is one tap, next to the help button.
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(table = previewActive()),
+            onAction = {},
+            onBack = {},
+            onShareRoom = {},
         )
     }
 }
