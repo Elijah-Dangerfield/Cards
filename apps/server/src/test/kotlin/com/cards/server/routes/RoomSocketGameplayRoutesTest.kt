@@ -877,6 +877,89 @@ class RoomSocketGameplayRoutesTest {
     }
 
     @Test
+    fun twoFreshGrantSearchers_atTheDefaultBand_areFundedAndTheHandDeals() = runTest {
+        // The reported stuck-in-Lobby repro. Pre-fix the matchmaker snapped this
+        // range to the 5,000 tier (its 4× entry bar needs 20,000), but a fresh
+        // 10,000 grant can't fund it — so BOTH players failed BelowEntryBar, the
+        // deal collapsed to a returned Rejected, and the table sat in Lobby forever.
+        // Affordable matchmaking now snaps to a table a fresh grant can fund, so the
+        // hand actually deals and the room leaves Lobby.
+        val rooms = newRoomService()
+        val registry = newRegistry()
+        val wallets = InMemoryTestWalletRepository() // default balance = STARTER_GRANT (10,000)
+
+        val created = assertIs<com.dangerfield.cards.server.domain.MatchmakingResult.Created>(
+            rooms.findOrJoinPublic(host, "Host", 1_000, 5_000, emptySet(), callerBalance = Wallet.STARTER_GRANT),
+        ).room
+        assertTrue(
+            com.dangerfield.cards.server.domain.EntryBar.canSit(Wallet.STARTER_GRANT, created.buyIn),
+            "the created table is fundable by a fresh grant (buyIn=${created.buyIn})",
+        )
+        rooms.findOrJoinPublic(alice, "Alice", 1_000, 5_000, emptySet(), callerBalance = Wallet.STARTER_GRANT)
+
+        withRoomSocketTestApp(rooms, registry, wallets = wallets) { client ->
+            val hostSocket = client.connect(created.code, host)
+            val aliceSocket = client.connect(created.code, alice)
+            try {
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
+                // Both funded → the server auto-deals → both see the dealt hand.
+                hostSocket.receiveUntilGameState()
+                aliceSocket.receiveUntilGameState()
+                assertEquals(
+                    com.dangerfield.cards.server.domain.RoomStatus.Playing,
+                    rooms.find(created.code)!!.status,
+                    "the table left Lobby — the hand dealt",
+                )
+                // Both buy-ins actually moved to the table (nobody was silently dropped).
+                assertEquals(2, wallets.applyCalls.count { it.reason == "mp_buyin" }, "both humans funded")
+            } finally {
+                hostSocket.closeQuietly()
+                aliceSocket.closeQuietly()
+            }
+        }
+    }
+
+    @Test
+    fun startServerDealtTableIfReady_onAnUnfundableTable_returnsRejected_soTheFailureIsObservable() = runTest {
+        // Phase 1 makes the fresh-player case impossible, so the only way a *ready*
+        // public table still can't fund is a balance drop between find and deal.
+        // When it happens the deal must collapse to a RETURNED Rejected (not a
+        // silent Unit) carrying the funding reason, so the caller logs/spans it in
+        // Loki/Tempo instead of stranding the players on "dealing you in" forever.
+        val rooms = newRoomService()
+        val registry = newRegistry()
+        val wallets = InMemoryTestWalletRepository()
+        val tableSessions = InMemoryTestTableSessionService(wallets)
+
+        val created = assertIs<com.dangerfield.cards.server.domain.MatchmakingResult.Created>(
+            rooms.findOrJoinPublic(host, "Host", 1_000, 1_000, emptySet(), callerBalance = Wallet.STARTER_GRANT),
+        ).room
+        rooms.findOrJoinPublic(alice, "Alice", 1_000, 1_000, emptySet(), callerBalance = Wallet.STARTER_GRANT)
+        // Both present (the readiness gate), but their balance dropped below the 4×
+        // bar (a 1k table needs 4,000) after they were matched.
+        rooms.markConnected(created.code, host, true)
+        rooms.markConnected(created.code, alice, true)
+        wallets.setBalance(host, 1_000)
+        wallets.setBalance(alice, 1_000)
+
+        val result = startServerDealtTableIfReady(
+            created.code, rooms, registry, tableSessions, EmptyEquipmentRepository, EmptyProgressionRepository,
+        )
+
+        val rejected = assertIs<com.dangerfield.cards.server.game.IntentResult.Rejected>(result)
+        assertTrue(
+            rejected.reason.contains("funded"),
+            "the rejection names the funding failure (was '${rejected.reason}')",
+        )
+        assertEquals(
+            com.dangerfield.cards.server.domain.RoomStatus.Lobby,
+            rooms.find(created.code)!!.status,
+            "an unfundable table never flips to Playing",
+        )
+    }
+
+    @Test
     fun leavingMidGame_cashesOutTheCurrentStack_toTheWallet() = runTest {
         val rooms = newRoomService()
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)

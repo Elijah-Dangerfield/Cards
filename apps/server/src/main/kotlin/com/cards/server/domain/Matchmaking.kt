@@ -1,6 +1,5 @@
 package com.dangerfield.cards.server.domain
 
-import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import java.util.UUID
 import kotlin.math.abs
 
@@ -25,6 +24,29 @@ sealed interface MatchmakingResult {
 }
 
 /**
+ * Single source of truth for the anti-bankroll-dump entry bar: a public table's
+ * buy-in must be ≤ 25% of the wallet, i.e. the wallet covers at least four
+ * buy-ins. Both the real [com.dangerfield.cards.server.data.DefaultTableSessionService]
+ * (sit-down + rebuy) and affordable matchmaking ([RoomService.findOrJoinPublic])
+ * read it, so the seat gate and the tables the matchmaker offers can never drift
+ * apart — the exact drift that stranded fresh players in Lobby forever when the
+ * matchmaker snapped them to a 5,000 table their 10,000 grant couldn't fund.
+ */
+object EntryBar {
+    /** Wallet must cover ≥ this many buy-ins to enter (or rebuy at) a tier — the 25% rule. */
+    const val MIN_BALANCE_BUYIN_MULTIPLE = 4L
+
+    /** Whether [balance] clears the entry bar for a table at [buyIn]. */
+    fun canSit(balance: Long, buyIn: Long): Boolean = balance >= buyIn * MIN_BALANCE_BUYIN_MULTIPLE
+
+    /** The smallest balance that clears the entry bar for a table at [buyIn]. */
+    fun minBalanceToSit(buyIn: Long): Long = buyIn * MIN_BALANCE_BUYIN_MULTIPLE
+
+    /** The largest buy-in [balance] can clear the entry bar for. */
+    fun maxAffordableBuyIn(balance: Long): Long = balance / MIN_BALANCE_BUYIN_MULTIPLE
+}
+
+/**
  * Canonical buy-in tiers. New public tables snap their buy-in to one of these so
  * searchers with overlapping ranges converge on the *same* room instead of each
  * minting a slightly-different-stakes table that no one else ever matches. Join
@@ -36,9 +58,21 @@ object BuyInTier {
     val Canonical: List<Long> = listOf(1_000L, 5_000L, 25_000L, 100_000L)
 
     /**
+     * The tier overlapping ranges cluster on. Deliberately the lowest canonical
+     * stake, NOT [RoomSettings.DEFAULT_BUY_IN] (5,000): with the 10,000-chip
+     * starter grant and the 4× entry bar ([EntryBar]), the only canonical tier a
+     * fresh player can actually sit at is 1,000 (needs 4,000). Anchoring the snap
+     * here keeps a fresh searcher's default band landing on a table they can fund
+     * — the whole point of the affordability fix. Kept separate from
+     * `DEFAULT_BUY_IN` (the wire/host create fallback) so moving one never shifts
+     * the other's blast radius.
+     */
+    const val ANCHOR = 1_000L
+
+    /**
      * The buy-in a freshly-created public table should use for a searcher's
      * `[min, max]` range. Prefers the canonical tier inside the range closest to
-     * the default stake (so overlapping ranges cluster on the popular tier).
+     * [ANCHOR] (so overlapping ranges cluster on the affordable tier).
      *
      * The result is always inside `[min, max]`. When the range straddles a
      * canonical tier we return that tier; when it straddles none we take the
@@ -53,7 +87,7 @@ object BuyInTier {
     fun within(min: Long, max: Long): Long {
         val inRange = Canonical.filter { it in min..max }
         if (inRange.isNotEmpty()) {
-            return inRange.minByOrNull { abs(it - RoomSettings.DEFAULT_BUY_IN) }!!
+            return inRange.minByOrNull { abs(it - ANCHOR) }!!
         }
         val nearest = Canonical.minByOrNull { minOf(abs(it - min), abs(it - max)) }!!
         return nearest.coerceIn(min, max)

@@ -157,6 +157,7 @@ internal object OrphanSweepFakes {
             minBuyIn: Long,
             maxBuyIn: Long,
             blockedUserIds: Set<UserId>,
+            callerBalance: Long,
             avatarEmoji: String,
             avatarBackgroundColor: String?,
         ): com.dangerfield.cards.server.domain.MatchmakingResult = error("unused")

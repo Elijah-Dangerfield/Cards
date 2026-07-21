@@ -3,6 +3,7 @@ package com.dangerfield.cards.server.routes
 import com.dangerfield.cards.libraries.bots.toBotDifficulty
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.StakeTier
+import com.dangerfield.cards.server.domain.EntryBar
 import com.dangerfield.cards.server.domain.EquipmentRepository
 import com.dangerfield.cards.server.domain.FriendRepository
 import com.dangerfield.cards.server.domain.MatchmakingResult
@@ -191,18 +192,21 @@ fun Route.matchmakingRoutes(
                         ),
                     )
                 }
-                // You can't search for a table you couldn't afford to sit at: the
-                // top of the range is what you're willing to buy in for, so reject
-                // it if it's more than your wallet holds. The client slider already
-                // fences this — this is the authoritative backstop for a tampered or
-                // stale request (e.g. balance dropped between screens).
+                // You can't search for a table you couldn't afford to *sit* at.
+                // The bar is the entry bar on the SMALLEST table in the range
+                // ([EntryBar], 4× buy-in): if you can't fund that, no table in the
+                // range is joinable, so reject up front instead of matching you to
+                // one the sit-down escrow would then bounce (the silent stuck-in-
+                // Lobby failure). The client slider fences this too; this is the
+                // authoritative backstop for a tampered or stale request.
                 val balance = wallets.findOrCreate(userId).balance
-                if (body.maxBuyIn > balance) {
+                if (!EntryBar.canSit(balance, body.minBuyIn)) {
                     return@post call.respond(
                         HttpStatusCode.BadRequest,
                         matchmakingProblem(
                             "insufficient_balance",
-                            "That buy-in is more than your balance of $balance chips.",
+                            "You need ${EntryBar.minBalanceToSit(body.minBuyIn)} chips to sit at " +
+                                "the smallest table in that range; you have $balance.",
                         ),
                     )
                 }
@@ -225,6 +229,7 @@ fun Route.matchmakingRoutes(
                         minBuyIn = body.minBuyIn,
                         maxBuyIn = body.maxBuyIn,
                         blockedUserIds = blocked,
+                        callerBalance = balance,
                         avatarEmoji = profile.avatarEmoji,
                         avatarBackgroundColor = profile.avatarBackgroundColor,
                     )
@@ -267,19 +272,12 @@ fun Route.matchmakingRoutes(
                         ),
                     )
                 }
-                // Same affordability fence as find: you can't browse for a table
-                // you couldn't sit at. The authoritative debit is still the
+                // No affordability rejection here (unlike find): the chooser lists
+                // every in-range table and flags per-table affordability so the
+                // client can show the ones you can't yet afford, disabled, with a
+                // "need X chips" label. The authoritative debit is still the
                 // sit-down escrow when the user picks one from the chooser.
                 val balance = wallets.findOrCreate(userId).balance
-                if (maxBuyIn > balance) {
-                    return@get call.respond(
-                        HttpStatusCode.BadRequest,
-                        matchmakingProblem(
-                            "insufficient_balance",
-                            "That buy-in is more than your balance of $balance chips.",
-                        ),
-                    )
-                }
 
                 // One indexed read, before the rooms mutex — never query the
                 // friend graph under the lock.
@@ -292,7 +290,15 @@ fun Route.matchmakingRoutes(
                 )
                 call.respond(
                     HttpStatusCode.OK,
-                    MatchmakingCandidatesResponse(rooms = candidates.map { it.toDto() }),
+                    MatchmakingCandidatesResponse(
+                        rooms = candidates.map { room ->
+                            MatchmakingCandidateDto(
+                                room = room.toDto(),
+                                affordable = EntryBar.canSit(balance, room.buyIn),
+                                minBalanceToSit = EntryBar.minBalanceToSit(room.buyIn),
+                            )
+                        },
+                    ),
                 )
             }
 
