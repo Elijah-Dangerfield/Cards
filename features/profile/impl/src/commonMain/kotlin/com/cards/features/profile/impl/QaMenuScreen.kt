@@ -52,6 +52,7 @@ import com.dangerfield.cards.libraries.ui.components.Switch
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
+import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
@@ -67,10 +68,15 @@ fun QaMenuScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     userId: String? = null,
+    appVersion: String = "",
+    backendEnv: String = "",
     totalXp: Long = 0L,
     onSetTotalXp: (Long) -> Unit = {},
     onActivateXpBoost: () -> Unit = {},
-    onOpenColorCatalog: () -> Unit = {},
+    onSubmitFeedback: (String) -> Unit = {},
+    // Debug-only: opens the on-device network inspector (Wiretap). Null in
+    // release, where the button doesn't render.
+    onOpenNetworkInspector: (() -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val configMap by configStream.collectAsState(initial = initialConfig)
@@ -103,13 +109,19 @@ fun QaMenuScreen(
                 .screenContentPadding(paddingValues = padding),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
+            QaInfoBlock(
+                appVersion = appVersion,
+                backendEnv = backendEnv,
+                userId = userId,
+            )
+
+            QaFeedbackBlock(onSubmit = onSubmitFeedback)
+
             Text(
                 text = "Override any server-driven config value for this session. Cleared on uninstall.",
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.contentSecondary,
             )
-
-            UserIdBlock(userId = userId)
 
             ProgressionDebugBlock(
                 totalXp = totalXp,
@@ -117,18 +129,20 @@ fun QaMenuScreen(
                 onActivateXpBoost = onActivateXpBoost,
             )
 
-            Box(
-                modifier = Modifier
-                    .clip(Radii.R400.shape)
-                    .background(AppTheme.colors.surfaceRaised.color)
-                    .clickable(onClick = onOpenColorCatalog)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-            ) {
-                Text(
-                    text = "Design system · Colors",
-                    typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.content,
-                )
+            if (onOpenNetworkInspector != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(Radii.R400.shape)
+                        .background(AppTheme.colors.surfaceRaised.color)
+                        .clickable(onClick = onOpenNetworkInspector)
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                ) {
+                    Text(
+                        text = "Network inspector",
+                        typography = AppTheme.typography.Body.B500,
+                        color = AppTheme.colors.content,
+                    )
+                }
             }
 
             Box(
@@ -169,9 +183,19 @@ fun QaMenuScreen(
     }
 }
 
+/**
+ * Top-of-screen "who/what/where am I" card: the same version string shown at
+ * the bottom of Settings, the backend environment this build talks to, and the
+ * signed-in user id (long-press to copy — the number a tester reads back when
+ * reporting an issue).
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun UserIdBlock(userId: String?) {
+private fun QaInfoBlock(
+    appVersion: String,
+    backendEnv: String,
+    userId: String?,
+) {
     @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
@@ -181,7 +205,7 @@ private fun UserIdBlock(userId: String?) {
             copied = false
         }
     }
-    val clickable = if (userId != null) {
+    val userIdClickable = if (userId != null) {
         Modifier.combinedClickable(
             onClick = {},
             onLongClick = {
@@ -197,30 +221,124 @@ private fun UserIdBlock(userId: String?) {
             .fillMaxWidth()
             .clip(Radii.R400.shape)
             .background(AppTheme.colors.surface.color)
-            .then(clickable)
             .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        InfoRow(label = "Version", value = appVersion.ifBlank { "—" })
+        InfoRow(label = "Backend", value = backendEnv.ifBlank { "—" })
+
+        // User id can be a full UUID, so stack it label-over-value instead of a
+        // single row — a side-by-side layout would overflow or truncate it.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(userIdClickable),
+        ) {
+            Text(
+                text = "User ID",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.contentSecondary,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = userId ?: "— not signed in —",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.content,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = when {
+                    userId == null -> "Profile not resolved yet — check ProfileRepository."
+                    copied -> "Copied"
+                    else -> "Long-press to copy"
+                },
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.contentSecondary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "User ID",
+            text = label,
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.contentSecondary,
+            modifier = Modifier.weight(1f),
         )
-        Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = userId ?: "— not signed in —",
+            text = value,
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.content,
         )
-        Spacer(modifier = Modifier.height(4.dp))
+    }
+}
+
+/**
+ * Quick feedback box. Routes through the same [FeedbackRepository] the Settings
+ * feedback form uses, so a note here lands in Sentry exactly like in-app
+ * feedback — just without the email/screenshot fields.
+ */
+@Composable
+private fun QaFeedbackBlock(onSubmit: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    val canSend = text.isNotBlank()
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = when {
-                userId == null -> "Profile not resolved yet — check ProfileRepository."
-                copied -> "Copied"
-                else -> "Long-press to copy"
-            },
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.contentSecondary,
+            text = "Feedback",
+            typography = AppTheme.typography.Heading.H500,
+            color = AppTheme.colors.content,
         )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(Radii.R700.shape)
+                .background(AppTheme.colors.surface.color)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "Goes straight to Sentry, same as in-app feedback.",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.contentSecondary,
+            )
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp),
+                placeholder = { Text("What's up?") },
+                singleLine = false,
+                minLines = 3,
+                maxLines = 6,
+            )
+            Box(
+                modifier = Modifier
+                    .clip(Radii.R400.shape)
+                    .background(
+                        if (canSend) AppTheme.colors.accentPrimary.color
+                        else AppTheme.colors.surfaceRaised.color,
+                    )
+                    .clickable(enabled = canSend) {
+                        onSubmit(text.trim())
+                        text = ""
+                    }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    text = "Send",
+                    typography = AppTheme.typography.Body.B500,
+                    color = if (canSend) AppTheme.colors.onAccentPrimary
+                    else AppTheme.colors.contentSecondary,
+                )
+            }
+        }
     }
 }
 
@@ -632,6 +750,8 @@ private fun QaMenuScreenPreview_SignedIn() {
             overrideRepository = PreviewConfigOverrideRepository(),
             onBack = {},
             userId = "00000000-0000-4000-8000-000000000000",
+            appVersion = "0.1.0 (247) · beta",
+            backendEnv = "prod",
         )
     }
 }
@@ -648,6 +768,9 @@ private fun QaMenuScreenPreview_UnresolvedIdentity() {
             overrideRepository = PreviewConfigOverrideRepository(),
             onBack = {},
             userId = null,
+            appVersion = "0.1.0 (247) · debug",
+            backendEnv = "dev",
+            onOpenNetworkInspector = {},
         )
     }
 }
@@ -672,6 +795,8 @@ private fun QaMenuScreenPreview_OverridesActive() {
             overrideRepository = PreviewConfigOverrideRepository(),
             onBack = {},
             userId = "00000000-0000-4000-8000-000000000000",
+            appVersion = "0.1.0 (247) · beta",
+            backendEnv = "prod",
         )
     }
 }

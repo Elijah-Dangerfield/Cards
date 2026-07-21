@@ -1,7 +1,10 @@
 package com.dangerfield.cards
 
+import com.dangerfield.cards.features.profile.QaMenuRoute
+import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.ShakeDetector
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
+import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.ShakeDialogRoute
 import kotlinx.coroutines.CoroutineScope
@@ -25,9 +28,20 @@ class ShakeHandler(
         shakeDetector.start()
         scope.launch {
             shakeDetector.shakeEvents.collect {
-                if (isShowingDialog) return@collect
-                isShowingDialog = true
-                router.navigate(ShakeDialogRoute())
+                if (BuildInfo.isDebug || BuildInfo.isTestFlight) {
+                    // Non-production (debug + TestFlight): shake jumps straight
+                    // to the QA menu. launchSingleTop so a second shake while
+                    // it's open doesn't stack another copy — no isShowingDialog
+                    // gate needed here (that gate is reset by the shake dialog's
+                    // onDispose, which the QA screen never triggers).
+                    router.navigate(QaMenuRoute(), NavigationOptions(launchSingleTop = true))
+                } else {
+                    // Production (App Store): the classic feedback dialog it has
+                    // always shown. Gated so a re-shake can't stack a second one.
+                    if (isShowingDialog) return@collect
+                    isShowingDialog = true
+                    router.navigate(ShakeDialogRoute())
+                }
             }
         }
     }
