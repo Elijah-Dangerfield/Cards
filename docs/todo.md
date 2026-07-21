@@ -30,10 +30,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** we ask at genuine peaks — gate `SessionEnd` on a net-positive / leave-with-winnings outcome, add a real-chip MP win trigger, and defer the achievement / level-up ask until the celebration sheet is dismissed. The gating gate (3-day install age + 30-day cooldown, money-safety ordering) stays exactly as-is.
   **Hints:** call sites `PlayPokerViewModel.kt:681` (achievement), `:691` (level-up), `:1043` (SessionEnd); coordinator `RealReviewPromptCoordinator`.
 
-- `[P1]` **Clear the per-seat action label when a new hand starts.** A player's last-action badge (e.g. "fold") from the previous hand stays on their seat after the next hand is dealt, so the table shows a stale, misleading label every hand after the first.
-  **Acceptance:** applying a new-hand `game_state` resets every seat's action label to none; a red-first play-screen reducer test asserts `lastAction == null` at hand start.
-  **Hints:** play-screen reducer mapping `game_state` → per-seat UI (a `hand_number` change is the reset trigger); case `docs/agent/feedback-cases/98a6f5d5e21c42d88651290159c98696.md`; Sentry CARDS-B1.
-
 - `[P2]` **Give mid-hand joiners a real spectator view, not a blank table.** A player who joins a room mid-hand lands in a bare spectating state with no player area rendered and no explanation, so it reads as broken.
   **Acceptance:** a mid-hand joiner sees the seated players and table rendered with a clear "you'll be dealt in on the next hand" affordance until they're dealt in.
   **Hints:** play-screen spectator/seated rendering and the mid-hand join path; Sentry CARDS-B7 (owner request).

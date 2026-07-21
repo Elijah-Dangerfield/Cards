@@ -66,6 +66,13 @@ class TableAssertionScope(val table: TableUiState.Active) {
         assertEquals(expected, pill, "seat $seat action pill")
     }
 
+    /** Assert [seat] shows no action pill (its `lastAction` is cleared). */
+    fun noSeatPill(seat: Int) {
+        val view = table.seats.firstOrNull { it.index == seat }
+            ?: throw AssertionError("no seat $seat in table")
+        assertEquals(null, view.lastAction, "seat $seat action pill should be cleared")
+    }
+
     fun seatBusted(seat: Int, expected: Boolean = true) {
         val view = table.seats.firstOrNull { it.index == seat }
             ?: throw AssertionError("no seat $seat in table")

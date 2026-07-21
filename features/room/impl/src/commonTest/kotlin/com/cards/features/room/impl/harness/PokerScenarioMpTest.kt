@@ -537,6 +537,39 @@ class PokerScenarioMpTest : PokerScenarioTest() {
     }
 
     @Test
+    fun newHandSnapshot_clearsStaleActionPill_whenHandStartedLosesTheRace() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        val seats = listOf(mpSeat(0, playerId = MP_LOCAL_USER), mpSeat(1, playerId = "peer"))
+
+        s.serverSnapshot(mpTable(seats = seats, actingSeatIndex = 1, handNumber = 1))
+        s.opponentActs(
+            action = GameEvent.ActionTaken(
+                sequence = 1,
+                seatIndex = 1,
+                action = PlayerAction.Fold,
+                resultingStreetContribution = 0,
+            ),
+            resultingState = mpTable(
+                seats = seats,
+                actingSeatIndex = 0,
+                handNumber = 1,
+                lastSequence = 1,
+            ),
+        )
+        assertTable(s.table) { seatPill(1, "Folded") }
+
+        // The next hand's snapshot can land before its HandStarted event clears
+        // the pills (the two ride unordered flows). The stale "Folded" badge must
+        // not survive into hand 2 (GAME-33).
+        s.serverSnapshot(mpTable(seats = seats, actingSeatIndex = 0, handNumber = 2, lastSequence = 5))
+
+        assertTable(s.table) {
+            handNumber(2)
+            noSeatPill(1)
+        }
+    }
+
+    @Test
     fun addFriend_sendsRequest_andFlipsSeatToSent() = runUnitTest {
         val s = mpScenario().start()
         s.serverSnapshot(

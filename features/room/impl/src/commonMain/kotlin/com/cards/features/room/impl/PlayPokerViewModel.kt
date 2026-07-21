@@ -799,6 +799,17 @@ class PlayPokerViewModel @Inject constructor(
                 var projected: TableUiState? = null
                 var preActionToFire: PlayerIntent? = null
                 action.updateState { current ->
+                    // A pre-fold and the per-seat action pills both belong to the
+                    // hand they happened in. Retire them on a hand change off the
+                    // authoritative snapshot hand number, so a stale arm can't fold
+                    // the fresh deal and last hand's "Folded" badge doesn't linger
+                    // — the HandStarted event and the new-hand snapshot ride
+                    // unordered flows, so the event-driven clear can lose the race
+                    // (MP especially; GAME-33).
+                    val prevHand = (current.table as? TableUiState.Active)?.handNumber
+                    val newHand = action.state.handNumber
+                    val handChanged = prevHand != null && newHand != prevHand
+                    if (handChanged) lastActionBySeat.clear()
                     val table = sessionFactory.tableFor(
                         state = action.state,
                         lastWinners = lastWinners,
@@ -808,14 +819,6 @@ class PlayPokerViewModel @Inject constructor(
                         curve = levelCurve,
                     )
                     projected = table
-                    // A pre-fold belongs to the hand it was armed in. Retire it
-                    // on a hand change off the authoritative snapshot hand number,
-                    // so a stale arm can't fold the fresh deal — the HandStarted
-                    // event and the new-hand snapshot ride unordered flows, so an
-                    // event-driven clear can lose the race (MP especially).
-                    val prevHand = (current.table as? TableUiState.Active)?.handNumber
-                    val newHand = (table as? TableUiState.Active)?.handNumber
-                    val handChanged = prevHand != null && newHand != null && newHand != prevHand
                     val withTable = current.copy(
                         table = table,
                         preFoldArmed = if (handChanged) false else current.preFoldArmed,
