@@ -1,0 +1,63 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const faqs = [
+  {
+    q: 'Is Downcard real-money gambling?',
+    a: `No. The chips are play money. You can buy chip packs to keep playing, but there's no cash-out and no way to win real money. It's poker for the fun and the bragging rights.`,
+  },
+  {
+    q: 'Do I need an account to play?',
+    a: `No. When you set up your profile during onboarding, the app creates an anonymous account for you, with no email or password; opening the app on its own doesn't create one. To keep your chips and progress if you reinstall or switch phones, claim the account by linking an email or signing in with Apple or Google from your Profile.`,
+  },
+  {
+    q: 'Can I play when my friends are offline?',
+    a: `Yes. When no one's around you can practice against bots. Multiplayer needs an internet connection; bot games work offline.`,
+  },
+  {
+    q: "I bought chips and don't see them.",
+    a: `Purchases usually land in a few seconds. If your chips still aren't showing after a minute, fully close and reopen the app so it re-syncs. Still missing? Email us with the rough date and time of the purchase and we'll track it down.`,
+  },
+  {
+    q: 'How do I move my progress to a new phone?',
+    a: `Claim your account first (Profile, then link an email or sign in with Apple or Google), then sign in with that same method on the new device. An unclaimed account lives only on the phone it started on, so uninstalling loses it.`,
+  },
+  {
+    q: 'How do I delete my account?',
+    a: `Go to Profile, then Account, then Delete account. That removes your profile, wallet, items, and progression from our server. There's no grace period; once it's gone, it's gone.`,
+  },
+  {
+    q: 'I hit a bug, or the game did something wrong.',
+    a: `Send a bug report right from the app (Profile, then Report a bug) so we get that session's log and can retrace what happened. You can also email us. The more detail, the faster we can fix it.`,
+  },
+  {
+    q: `My account was suspended, and I think it's a mistake.`,
+    a: `Email us and we'll review it. Accounts can be suspended for things like cheating, abusive display names, or harassing other players, but if you think it happened in error, tell us what's going on and we'll take a look.`,
+  },
+  {
+    q: 'Anything else?',
+    a: `Email us at the address below. It's a small team, but we read every message.`,
+  },
+];
+---
+
+<Layout title="Support — Downcard" description="Downcard support: answers to common questions and how to reach us.">
+  <div class="pad-x" style="max-width:820px;margin:0 auto;padding:72px 32px 110px">
+    <div style="font:800 52px Poppins;letter-spacing:-2px;margin-bottom:8px">Support</div>
+    <div style="font:500 16px Poppins;color:var(--muted);margin-bottom:32px">Answers to common questions, and how to reach a human.</div>
+    <p class="lead" style="margin:0 0 44px">Stuck on something, missing chips, or just have a question? Start with the answers below. If none of them fit, <a href="/contact" style="color:#1f9e88;font-weight:600">email us</a> and we'll help.</p>
+
+    <div style="font:700 28px Poppins;margin-bottom:24px">Frequently asked questions</div>
+    <div class="legal" style="gap:28px">
+      {faqs.map((f) => (
+        <section>
+          <h2 style="font:700 20px Poppins">{f.q}</h2>
+          <div class="body"><p>{f.a}</p></div>
+        </section>
+      ))}
+    </div>
+
+    <div style="font:700 28px Poppins;margin:56px 0 16px">Contact us</div>
+    <p class="lead" style="margin:0">Reach us at <a href="mailto:contact@downcard.app" style="color:#1f9e88;font-weight:600">contact@downcard.app</a>. Tell us what happened and, if it helps, when it happened, and we'll get back to you.</p>
+  </div>
+</Layout>

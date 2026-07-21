@@ -1,0 +1,64 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: Poppins, system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+}
+a { color: inherit; text-decoration: none; }
+a:hover { color: #1f9e88; }
+::selection { background: #E9C255; color: #1c1a18; }
+
+[data-theme="light"] {
+  --bg: #F7F4EC;
+  --panel: #ffffff;
+  --ink: #1c1a18;
+  --muted: rgba(28, 26, 24, .62);
+  --line: rgba(28, 26, 24, .1);
+  --soft: rgba(28, 26, 24, .03);
+}
+[data-theme="dark"] {
+  --bg: #0d0c0b;
+  --panel: #16150f;
+  --ink: #F5F0E6;
+  --muted: rgba(245, 240, 230, .62);
+  --line: rgba(245, 240, 230, .12);
+  --soft: rgba(245, 240, 230, .04);
+}
+
+:root { --gold: #E9C255; --dark: #0d0c0b; }
+
+/* Legal / content pages: terms, privacy, support */
+.legal { display: flex; flex-direction: column; gap: 34px; }
+.legal .lead { font: 500 18px/1.7 Poppins; color: var(--muted); }
+.legal section h2 { font: 700 24px Poppins; margin: 0 0 12px; color: var(--ink); }
+.legal .body { font: 500 17px/1.7 Poppins; color: var(--muted); }
+.legal .body p { margin: 0 0 14px; }
+.legal .body p:last-child { margin-bottom: 0; }
+.legal .body ul { margin: 0 0 14px; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
+.legal .body li:last-child { margin-bottom: 0; }
+.legal .body strong { color: var(--ink); font-weight: 600; }
+.legal .body a { color: #1f9e88; font-weight: 600; }
+
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+
+/* Hero scales down on narrow screens */
+@media (max-width: 900px) {
+  .hero-grid { grid-template-columns: 1fr !important; }
+  .hero-art { display: none !important; }
+  .hero-title { font-size: 72px !important; letter-spacing: -2px !important; }
+  .features-grid { grid-template-columns: 1fr !important; }
+  .contact-grid { grid-template-columns: 1fr !important; }
+  .form-row { grid-template-columns: 1fr !important; }
+  .ethos-title { font-size: 34px !important; }
+  .section-title { font-size: 34px !important; }
+}
+@media (max-width: 560px) {
+  .nav-inner { padding: 14px 20px !important; }
+  .nav-links a { padding: 8px 10px !important; font-size: 15px !important; }
+  .pad-x { padding-left: 20px !important; padding-right: 20px !important; }
+}
