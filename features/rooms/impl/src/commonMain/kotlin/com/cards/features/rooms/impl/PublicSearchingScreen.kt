@@ -110,10 +110,19 @@ fun PublicSearchingScreen(
     state: PublicSearchingState,
     onAction: (PublicSearchingAction) -> Unit,
 ) {
+    // The header follows where the user actually is: browsing tables, seated in the
+    // pre-deal lobby, or still hunting. An error drops back to the hunting title
+    // since that's the flow it interrupts (CARDS-AX / CARDS-AV).
+    val title = when {
+        state.error != null -> Res.string.public_searching_title
+        state.phase == SearchPhase.Choosing -> Res.string.public_searching_choose_title
+        state.phase == SearchPhase.Joined -> Res.string.public_searching_joined_title
+        else -> Res.string.public_searching_title
+    }
     Screen(
         topBar = {
             RoomHeader(
-                title = stringResource(Res.string.public_searching_title),
+                title = stringResource(title),
                 onNavigateBack = { onAction(PublicSearchingAction.Cancel) },
             )
         },
