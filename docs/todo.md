@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-07-18 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-07-21 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -24,17 +24,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## Billing (BILL)
-
-- `[P1]` **A StoreKit purchase made before a fresh-install identity rollover is not recovered.** On a fresh install the anon userId and install_id both rotate, so a replayed receipt's `appAccountToken` (a prior identity) matches neither the caller nor `findInstallLineage` (which keys on install_id) → `apple_account_mismatch` → the paid entitlement is discarded, not credited.
-  **Acceptance:** a genuine paid purchase whose `appAccountToken` is a prior, unlinkable anon identity is reconciled to the account that now owns the device and the chips are granted — without reopening the "one user redeems another's receipt" hole. Needs a device-stable purchaser link that survives reinstall (AUTH-19 identity-churn work).
-  **Hints:** server `AppStoreReceiptValidator` binding + `PostgresProfileRepository.findInstallLineage`; client `DefaultPurchaseChipPackUseCase.redeemOutstanding`; ties to AUTH-19. Case `docs/agent/feedback-cases/e452cfd17fe94266bd2bd5fcc730a34e.md`; Sentry CARDS-AA.
-
 ## Gameplay (GAME)
 
 - `[P2]` **Review-prompt triggers fire at weak or mis-timed moments.** The three `requestPrompt` call sites in `PlayPokerViewModel` ask at soft spots: `SessionEnd` fires on any non-bust bot-mode leave without checking the session was net-positive, so a losing grind still gets asked; multiplayer wins — the strongest positive moment — never trigger a prompt (SessionEnd is bots-only); and the achievement / level-up asks fire immediately on top of the celebration sheet, so the OS prompt can step on the reveal.
   **Acceptance:** we ask at genuine peaks — gate `SessionEnd` on a net-positive / leave-with-winnings outcome, add a real-chip MP win trigger, and defer the achievement / level-up ask until the celebration sheet is dismissed. The gating gate (3-day install age + 30-day cooldown, money-safety ordering) stays exactly as-is.
-  **Hints:** call sites `PlayPokerViewModel.kt:681` (achievement), `:691` (level-up), `:1043` (SessionEnd); coordinator `RealReviewPromptCoordinator`; the `ReviewTrigger` enum already notes per-trigger throttling as a future option.
+  **Hints:** call sites `PlayPokerViewModel.kt:681` (achievement), `:691` (level-up), `:1043` (SessionEnd); coordinator `RealReviewPromptCoordinator`.
 
 - `[P1]` **Clear the per-seat action label when a new hand starts.** A player's last-action badge (e.g. "fold") from the previous hand stays on their seat after the next hand is dealt, so the table shows a stale, misleading label every hand after the first.
   **Acceptance:** applying a new-hand `game_state` resets every seat's action label to none; a red-first play-screen reducer test asserts `lastAction == null` at hand start.
