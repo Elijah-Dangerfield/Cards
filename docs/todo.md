@@ -24,12 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## Auth + onboarding (AUTH)
-
-- `[P2]` **A returning guest is re-run through new-user onboarding and shown a stale level-up.** An install with an existing level-2 guest identity was classified as new (`onboarding.auth_selected returning=false`), dropped back to pick-identity, and on "continue as guest" immediately shown a level-up congrats for progression it already had.
-  **Acceptance:** a returning guest skips new-user onboarding and never replays a level-up for a level already reached; new-vs-returning is driven by the server new-account signal, not defaulted to new.
-  **Hints:** new-vs-returning classification on the guest path (`AuthOutcomeClassifier`, AUTH-22); level-up reveal trigger; case `docs/agent/feedback-cases/9711bcd910fa4890a148036fb6c03abc.md`; Sentry CARDS-AS.
-
 ## Multiplayer (MP)
 
 - `[P1]` **Matchmaking pairs two humans but the game never starts.** Two players who find a table together get stuck — one on the searching screen, the other on "dealing you in any moment now" — and the hand never begins; the search-screen title also stays "finding you a table" after a table is found.

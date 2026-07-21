@@ -259,6 +259,16 @@ Two variants, both must pass:
 
 ---
 
+### `ONB-20` ⚠️ 📱 Returning guest routed to onboarding bounces to Home, no stale level-up (AUTH-28)
+
+**State:** a device with an existing anonymous guest that already has progression (e.g. reached level 2 by playing), online. Force the app onto the onboarding route while that guest session is still live (the "somehow I ended up back on the landing page" case).
+
+1. Land on the onboarding entry with the live guest session.
+
+**Expected:** The app bounces straight to Home with the existing account — the welcome / PickIdentity / starter-grant screens never appear, and **no** level-up congrats fires for a level already reached. Chip balance and level reflect the prior guest, not a fresh 10K grant.
+
+---
+
 ## Offline gating
 
 Every network-required surface follows one rule off a cached / fallback identity (no confirmed server session): **reads render cached content**, **server-mutating surfaces soft-gate** (visible, affordances stay tappable but failures surface as a connection error rather than success), and **money + multiplayer hard-gate**. The matrix below walks each surface once so a single offline pass confirms the whole app honors it (AUTH-5).

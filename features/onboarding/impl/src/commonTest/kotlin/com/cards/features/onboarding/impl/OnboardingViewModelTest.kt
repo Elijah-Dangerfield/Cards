@@ -85,6 +85,25 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun init_returningAnonymousGuest_skipsOnboarding_navigatesHome() = runUnitTest {
+        // AUTH-28: an install with a pre-existing anonymous guest session that
+        // reaches onboarding-not-onboarded is a RETURNING guest whose flag was
+        // lost — not a new user. It must skip new-user onboarding (which re-minted
+        // the identity and replayed a stale level-up) and go straight Home,
+        // adopting the onboarded flag so it can't bounce back here.
+        val cache = FakeAppCache(initial = AppData(hasUserOnboarded = false))
+        val auth = FakeAuthRepository(initialAuthState = sampleAnonymousGuest)
+        val vm = newVm(cache = cache, auth = auth)
+        val received = mutableListOf<OnboardingEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+        runCurrent()
+
+        assertEquals(OnboardingEvent.NavigateToHome, received.firstOrNull())
+        assertTrue(cache.get().hasUserOnboarded)
+        assertEquals(OnboardingStep.Welcome, vm.state.step, "must not drop into new-user identity setup")
+    }
+
+    @Test
     fun starterPack_pinsCanonicalEmojis_inSyncWithServerStarter() {
         val expectedEmojis = listOf("🦊", "🐱", "🐼", "🐯", "🐸", "🦁", "🃏", "🎲")
         assertEquals(expectedEmojis, OnboardingViewModel.STARTER_PACK.map { it.emoji })
