@@ -347,7 +347,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** The shared text reads naturally and contains the room code plus a `cards://join/CODE` link. Tapping it on Device B opens the app straight into that room's lobby (code pre-filled, auto-joins), no manual code entry. Both devices then show both members seated. The "Copy code" button still copies the bare code for paste-anywhere use.
 
-- In-game share (ROOM-19): once the game has started, the play-screen top bar shows a share icon between the back arrow area and the help (?) button. Tapping it opens the same platform share sheet with the same `cards://join/CODE` invite text, so a mid-game invite doesn't require hunting for the code. Solo bot games show no share icon.
+- In-game share (ROOM-19): once a **private** game has started, the play-screen top bar shows a share icon between the back arrow area and the help (?) button. Tapping it opens the same platform share sheet with the same `cards://join/CODE` invite text, so a mid-game invite doesn't require hunting for the code. Solo bot games and matchmade public tables show no share icon (public codes aren't shareable — inviting a friend to a stranger table is the collusion setup, see docs/wiki/multiplayer.md).
 
 ---
 
@@ -749,7 +749,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. With the sheet still up, shake the device to bring up the "sun" feedback dialog (and, from it, tap through to the feedback form).
 
 **Expected:** The shake dialog — and the feedback form it opens — render fully on top of the bottom sheet and its scrim, never behind it. Tapping the dialog scrim / back dismisses the dialog and returns to the sheet. (Covers todo GAME-11.)
-- **Mid-game bug button (debug/TestFlight only):** the play-poker top bar shows a small bug icon next to the "?" help icon. Tapping it opens the feedback form without leaving the table. It never appears on an App Store build.
+- **Mid-game bug button (🤖 Android debug only):** the play-poker top bar shows a small bug icon next to the "?" help icon. Tapping it opens the feedback form without leaving the table. It never appears on iOS (testers there right-edge-swipe to the QA menu) or on a store build.
 
 ### `ENG-8` ℹ️ 📱 Wiretap captures the gameplay WebSocket
 
