@@ -141,9 +141,14 @@ private suspend fun <T> NetworkClient.shortCircuitOrNull(
 }
 
 private fun <T> Catching<T>.logFailure(description: String): Catching<T> = onFailure { throwable ->
-    when (throwable) {
-        is AuthUnready ->
+    when {
+        throwable is AuthUnready ->
             networkCallLogger.i { "$description failed: auth unready (${throwable.reason})" }
+        // Expected while the device has no route — info like AuthUnready, and no
+        // backend_unreachable event: AppState already records the offline edge
+        // once via net.offline_banner, so per-call events would only add noise.
+        throwable.isOfflineError() ->
+            networkCallLogger.i { "$description failed: device offline (${throwable.classifyForLog()})" }
         else -> {
             networkCallLogger.w(throwable) { "$description failed (${throwable.classifyForLog()})" }
             // A ResponseException means the backend answered (an HTTP status IS

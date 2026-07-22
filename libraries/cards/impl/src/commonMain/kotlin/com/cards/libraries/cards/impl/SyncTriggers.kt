@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emitAll
@@ -48,7 +49,7 @@ data class ActiveAccount(val userId: String, val isAnonymous: Boolean)
 class SyncTriggers(
     authRepositoryProvider: () -> AuthRepository,
     appEventsProvider: () -> AppEvents,
-    appState: AppState,
+    private val appState: AppState,
 ) {
 
     // Deferred: SyncTriggers is constructed by AppEventListeners inside the
@@ -73,6 +74,13 @@ class SyncTriggers(
                 .map { },
         )
     }
+
+    /**
+     * Level twin of [cameOnline] — read before starting network work that
+     * should defer while the device has no route (ENG-34). A cycle that parks
+     * on this level is re-armed by the [cameOnline] edge, so deferring is safe.
+     */
+    val isOffline: StateFlow<Boolean> get() = appState.isOffline
 
     @OptIn(FlowPreview::class)
     val cameOnline: Flow<Unit> = appState.isOffline
