@@ -28,6 +28,7 @@ import com.dangerfield.cards.features.profile.impl.bugreport.BugReportViewModel
 import com.dangerfield.cards.features.profile.impl.edit.EditProfileEvent
 import com.dangerfield.cards.features.profile.impl.edit.EditProfileScreen
 import com.dangerfield.cards.features.profile.impl.edit.EditProfileViewModel
+import com.dangerfield.cards.features.profile.impl.feedback.FeedbackRepository
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackScreen
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackViewModel
 import com.dangerfield.cards.features.profile.impl.items.MyItemsAction
@@ -39,7 +40,6 @@ import com.dangerfield.cards.features.profile.DeleteAccountRoute
 import com.dangerfield.cards.features.profile.EditProfileRoute
 import com.dangerfield.cards.features.profile.NotificationsRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
-import com.dangerfield.cards.features.profile.DesignSystemColorsRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
 import com.dangerfield.cards.features.profile.SettingsRoute
 import com.dangerfield.cards.features.profile.impl.settings.SettingsScreen
@@ -72,7 +72,9 @@ import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrN
 import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
 import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
+import com.dangerfield.cards.libraries.core.AppEnvironment
 import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.ServerInfo
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.core.versionDisplay
@@ -85,6 +87,9 @@ import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.dialog
 import com.dangerfield.cards.libraries.navigation.screen
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
+import com.dangerfield.cards.libraries.networking.NetworkInspector
+import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
+import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -109,6 +114,7 @@ class ProfileFeatureEntryPoint(
     private val xpBoostRepository: XpBoostRepository,
     private val achievementRepository: AchievementRepository,
     private val feedbackViewModelFactory: () -> FeedbackViewModel,
+    private val feedbackRepository: FeedbackRepository,
     private val bugReportViewModelFactory: (logId: String?, errorCode: Int?, contextMessage: String?) -> BugReportViewModel,
     private val accountActionsViewModelFactory: () -> AccountActionsViewModel,
     private val deleteAccountViewModelFactory: () -> DeleteAccountViewModel,
@@ -122,6 +128,7 @@ class ProfileFeatureEntryPoint(
     private val friendRepository: FriendRepository,
     private val socialEnabled: SocialEnabled,
     private val shopDeepLinkBus: ShopDeepLinkBus,
+    private val networkInspector: NetworkInspector,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -349,6 +356,16 @@ class ProfileFeatureEntryPoint(
                 overrideRepository = configOverrideRepository,
                 onBack = { router.goBack() },
                 userId = userId,
+                appVersion = BuildInfo.versionDisplay(),
+                // The dev/prod bundle this build talks to, plus a "local" tag
+                // when the server.useLocal escape hatch is pointing the client
+                // at the developer's own machine (Supabase still resolves to
+                // the dev/prod project named here).
+                backendEnv = if (ServerInfo.useLocal) {
+                    "local · ${AppEnvironment.current.displayName}"
+                } else {
+                    AppEnvironment.current.displayName
+                },
                 totalXp = progression.totalXp,
                 onSetTotalXp = { xp ->
                     scope.launch { progressionRepository.debugSetTotalXp(xp) }
@@ -361,12 +378,30 @@ class ProfileFeatureEntryPoint(
                         xpBoostRepository.activate()
                     }
                 },
-                onOpenColorCatalog = { router.navigate(DesignSystemColorsRoute()) },
+                // Debug-only entry to the Wiretap network inspector — it used to
+                // hang off the shake dialog, which shake now bypasses in favor of
+                // this menu. Null in release, where the inspector is the noop.
+                onOpenNetworkInspector = if (BuildInfo.isDebug) {
+                    { networkInspector.open() }
+                } else {
+                    null
+                },
+                onSubmitFeedback = { message ->
+                    // Same sink as the Settings feedback form — straight to
+                    // Sentry via FeedbackRepository. No email/screenshots here,
+                    // just the note. Ack (or failure) surfaces as a snackbar.
+                    scope.launch {
+                        feedbackRepository.submitFeedback(message = message, isBugReport = false)
+                            .onSuccess { showSnackBar(message = "Thanks — sent to the team.") }
+                            .onFailure {
+                                showSnackBar(
+                                    message = "Couldn't send that. Try again?",
+                                    level = SnackbarLevel.Error,
+                                )
+                            }
+                    }
+                },
             )
-        }
-
-        screen<DesignSystemColorsRoute> {
-            DesignSystemColorsScreen(onBack = { router.goBack() })
         }
 
         screen<EditProfileRoute> {

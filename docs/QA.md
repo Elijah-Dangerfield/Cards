@@ -259,6 +259,16 @@ Two variants, both must pass:
 
 ---
 
+### `ONB-20` ⚠️ 📱 Returning guest routed to onboarding bounces to Home, no stale level-up (AUTH-28)
+
+**State:** a device with an existing anonymous guest that already has progression (e.g. reached level 2 by playing), online. Force the app onto the onboarding route while that guest session is still live (the "somehow I ended up back on the landing page" case).
+
+1. Land on the onboarding entry with the live guest session.
+
+**Expected:** The app bounces straight to Home with the existing account — the welcome / PickIdentity / starter-grant screens never appear, and **no** level-up congrats fires for a level already reached. Chip balance and level reflect the prior guest, not a fresh 10K grant.
+
+---
+
 ## Offline gating
 
 Every network-required surface follows one rule off a cached / fallback identity (no confirmed server session): **reads render cached content**, **server-mutating surfaces soft-gate** (visible, affordances stay tappable but failures surface as a connection error rather than success), and **money + multiplayer hard-gate**. The matrix below walks each surface once so a single offline pass confirms the whole app honors it (AUTH-5).
@@ -356,6 +366,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - Two devices, buy-in ranges one tier apart (e.g. Device A picks 1k, Device B picks 5k), both waiting alone: Device B is rescued onto A's table and they play at A's stake (1k) rather than each sitting alone — two nearby lonely searchers pair up. Set the ranges more than one tier apart (e.g. 1k vs 25k) and they correctly stay on separate tables (MP-34).
 - Staggered start (ROOM-12): Device A searches and falls through to its own waiting table (no candidates yet). A few seconds later Device B starts a search in the same range. A must still discover B's table while waiting and the two end up at one table — neither sits alone forever. (The older of the two tables wins, so exactly one device migrates.)
 - Joined-table lobby (ROOM-11): when the chooser lists candidates and you tap Join on one, you land on a distinct joined-table screen ("You're in") showing the seat grid with the seated players and a "waiting for more players" / "dealing you in" line — NOT the spinning radar. Once a hand deals you go straight to the live table. (Falling through to the genuine wait, with no candidate picked, still shows the radar.)
+- Mid-hand join spectating (GAME-2): join a table whose hand is already in progress (Device B joins while Device A's hand is live). Device B sees the seated players and the board rendered, a "You'll be dealt in next hand" status under the top bar, and the player-hand area filled with a "You're spectating this hand" notice — never a blank bottom half that reads as a stuck table. When the next hand starts, B is dealt in and the notice is replaced by their own hand + action bar.
 - Sole member wields host powers (ROOM-16): get placed alone in a matchmaking table, kill + relaunch, rejoin via the active-room prompt. As the room's only member, tapping an empty seat's "Add a bot" seats a bot — no silent failure. Force a failure (airplane mode mid-tap) and an error snackbar appears; the failure is never invisible.
   - Add-a-bot feedback (ROOM-18): tapping an empty seat's "Add a bot" immediately flips that tile to a spinner reading "Adding…" and stops taking taps, so spam-tapping the same seat can't stack duplicate bots. On success the seat fills with the bot; on failure (airplane mode mid-tap) the spinner clears back to "Add a bot" and the error snackbar appears, so the host can retry. Other empty seats stay tappable while one is loading.
 

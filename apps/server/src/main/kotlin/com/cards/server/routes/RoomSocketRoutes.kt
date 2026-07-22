@@ -4,6 +4,7 @@ import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import com.dangerfield.cards.server.domain.EntryBar
 import com.dangerfield.cards.server.domain.Room
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
@@ -166,9 +167,24 @@ fun Route.roomSocketRoutes(
             // deals once enough players are present. Idempotent — only the first
             // connect that tips the table to playable actually starts a hand;
             // every later connect no-ops. A bot-filled fallback table is started
-            // by the consent endpoint instead, not here.
+            // by the consent endpoint instead, not here. Wrapped in a span so the
+            // deal's outcome is queryable, and a non-benign rejection (the table
+            // was ready but couldn't fund) is logged instead of vanishing — the
+            // silent failure that stranded tables in Lobby.
             Catching {
-                startServerDealtTableIfReady(code, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
+                withSpan(
+                    name = "matchmaking_auto_deal",
+                    configure = {
+                        setAttribute(SpanAttrs.RoomCode, code)
+                        setAttribute(SpanAttrs.UserId, userId.value.toString())
+                    },
+                ) {
+                    val dealResult = startServerDealtTableIfReady(
+                        code, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository,
+                    )
+                    logAutoDealRejection(code, dealResult, rooms.find(code))
+                    dealResult
+                }
             }.onFailure {
                 LoggerFactory.getLogger("RoomSocket")
                     .warn("Auto-start check failed for public room=$code", it)
@@ -463,6 +479,40 @@ fun Route.roomSocketRoutes(
                 }
             }
 
+            // Terminal "can't be seated" signal. A connected member whom the
+            // server-dealt hand left out solely for the entry bar (a balance drop
+            // between find and deal — Phase 1 makes the fresh-player case
+            // impossible) would otherwise wait on "dealing you in" forever: the
+            // room reads Playing but they hold no seat in the live hand. Watching
+            // the session state per-member reaches the RIGHT socket no matter which
+            // connect triggered the deal; the affordability re-check gates out the
+            // affordable-but-not-yet-seated mid-hand joiner (they're queued) and the
+            // subsidised lone-human table (not real-stakes). Spectators hold no seat
+            // and are never dealt in, so they don't get it.
+            val unfundedNotifier = if (isSpectator) null else launch {
+                try {
+                    gameSessions.observeSession(code)
+                        .flatMapLatest { session -> session?.state?.filterNotNull() ?: emptyFlow() }
+                        .map { state -> state.seats.none { it.playerId == userIdString } }
+                        .distinctUntilChanged()
+                        .collect { notSeated ->
+                            if (!notSeated) return@collect
+                            val room = rooms.find(code) ?: return@collect
+                            if (room.memberFor(userId) == null) return@collect
+                            if (room.visibility == RoomVisibility.Private || !isRealStakesTable(room)) return@collect
+                            val balance = wallets.findOrCreate(userId).balance
+                            if (!EntryBar.canSit(balance, room.buyIn)) {
+                                sendJson(RoomSocketEventDto.SeatUnaffordable(EntryBar.minBalanceToSit(room.buyIn)))
+                            }
+                        }
+                } catch (_: CancellationException) {
+                    // Expected on close.
+                } catch (e: Throwable) {
+                    LoggerFactory.getLogger("RoomSocket")
+                        .warn("Unfunded-seat notifier for room=$code user=$userId died", e)
+                }
+            }
+
             try {
                 // Drain incoming. We now decode client-bound game
                 // frames (StartHand / SubmitIntent / RequestNextHand)
@@ -519,6 +569,7 @@ fun Route.roomSocketRoutes(
                 gamePublisher.cancel()
                 settlementSettler.cancel()
                 botTrimmer.cancel()
+                unfundedNotifier?.cancel()
                 // A spectator holds no seat — there's nothing to mark
                 // disconnected and nothing to reap, so their socket simply
                 // closes with no presence/grace bookkeeping.
@@ -886,9 +937,23 @@ private suspend fun fundAndBuildOccupants(
                 }
             // Can't afford the buy-in, or hit today's bot-subsidy cap → not dealt
             // in (the client surfaces the right upsell / "come back tomorrow").
-            is com.dangerfield.cards.server.domain.SitDownResult.BelowEntryBar,
-            is com.dangerfield.cards.server.domain.SitDownResult.SubsidyCapReached,
-            is com.dangerfield.cards.server.domain.SitDownResult.InsufficientChips -> Unit
+            // Log the drop so a connected player silently left out of the hand is
+            // visible in Loki, not a mystery "why am I still waiting?" report.
+            is com.dangerfield.cards.server.domain.SitDownResult.BelowEntryBar ->
+                LoggerFactory.getLogger("RoomSocket").warn(
+                    "Dropped from deal: user={} room={} buyIn={} below entry bar (balance={} needs={})",
+                    member.userId, room.code, room.buyIn, sit.balance, sit.minBalance,
+                )
+            is com.dangerfield.cards.server.domain.SitDownResult.InsufficientChips ->
+                LoggerFactory.getLogger("RoomSocket").warn(
+                    "Dropped from deal: user={} room={} buyIn={} insufficient chips (balance={})",
+                    member.userId, room.code, room.buyIn, sit.balance,
+                )
+            is com.dangerfield.cards.server.domain.SitDownResult.SubsidyCapReached ->
+                LoggerFactory.getLogger("RoomSocket").warn(
+                    "Dropped from deal: user={} room={} buyIn={} bot-subsidy cap reached (granted={} cap={})",
+                    member.userId, room.code, room.buyIn, sit.grantedToday, sit.cap,
+                )
         }
     }
     return FundedStart(occupants, newlyFunded)
@@ -970,6 +1035,43 @@ internal suspend fun startServerDealtTableIfReady(
     val present = room.members.count { it.isBot || it.isConnected }
     if (present < 2) return IntentResult.Rejected("not enough present players")
     return dealFundedHand(room, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
+}
+
+/**
+ * Auto-deal rejections that are the readiness gate doing its job (still forming,
+ * host-dealt table, or a raced GC) — expected and frequent, so they must not warn
+ * or the log floods on every early connect. Anything else is the pathological
+ * "table was ready but the hand couldn't fund" case that used to strand players
+ * in Lobby with nothing logged.
+ */
+private val BENIGN_AUTO_DEAL_REJECTIONS: Set<String> = setOf(
+    "room not found",
+    "private table is host-dealt",
+    "not enough present players",
+)
+
+/**
+ * Surface a non-benign [startServerDealtTableIfReady] rejection: stamp the active
+ * span with the reason + buy-in + seated humans, and log a warn carrying the same
+ * plus the present count, so a stuck-in-Lobby table is visible in Loki/Tempo
+ * (searchable by room code) instead of failing silently. Call inside the
+ * `matchmaking_auto_deal` span so [Span.current] is that span. No-op on Accepted
+ * or a benign readiness rejection.
+ */
+internal fun logAutoDealRejection(code: String, result: IntentResult, room: Room?) {
+    if (result !is IntentResult.Rejected) return
+    if (result.reason in BENIGN_AUTO_DEAL_REJECTIONS) return
+    val humans = room?.members?.count { !it.isBot } ?: 0
+    val present = room?.members?.count { it.isBot || it.isConnected } ?: 0
+    Span.current().apply {
+        setAttribute(SpanAttrs.RejectionReason, result.reason)
+        room?.let { setAttribute(SpanAttrs.MatchmakingBuyIn, it.buyIn) }
+        setAttribute(SpanAttrs.MatchmakingHumans, humans.toLong())
+    }
+    LoggerFactory.getLogger("RoomSocket").warn(
+        "Auto-deal rejected: room={} reason='{}' buyIn={} humans={} present={} — table stayed in Lobby",
+        code, result.reason, room?.buyIn, humans, present,
+    )
 }
 
 /**

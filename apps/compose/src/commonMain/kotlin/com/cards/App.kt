@@ -60,7 +60,7 @@ import com.dangerfield.cards.libraries.navigation.toExitTransition
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
 import com.dangerfield.cards.features.onboarding.OnboardingRoute
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
-import com.dangerfield.cards.features.profile.FeedbackRoute
+import com.dangerfield.cards.features.profile.QaMenuRoute
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -257,19 +257,19 @@ fun App(appComponent: AppComponent) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    // Tester shortcut: swipe in from the right edge to jump
-                    // straight to the feedback form. Debug + TestFlight only —
-                    // App Store users go through Settings instead. Never on
-                    // Android: the right edge is that platform's system
-                    // back-gesture zone, so this shortcut swallowed the back
-                    // swipe there (ENG-31). Android testers use shake-to-debug
-                    // instead; iOS's back gesture is the left edge, so the right
-                    // edge is free there.
+                    // Tester shortcut: swipe in from the right edge to open the
+                    // QA menu. Debug + TestFlight only — App Store users get
+                    // nothing here (they reach feedback through the shake dialog
+                    // and Settings). Never on Android: the right edge is that
+                    // platform's system back-gesture zone, so this shortcut
+                    // swallowed the back swipe there (ENG-31). Android testers
+                    // use shake-to-QA instead; iOS's back gesture is the left
+                    // edge, so the right edge is free there.
                     .rightEdgeSwipe(
                         enabled = (BuildInfo.isDebug || BuildInfo.isTestFlight) &&
                             BuildInfo.platform != Platform.Android,
                     ) {
-                        router.navigate(FeedbackRoute())
+                        router.navigate(QaMenuRoute())
                     },
             ) {
                 AppGuardGate(

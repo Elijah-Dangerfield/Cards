@@ -8,6 +8,7 @@ import com.dangerfield.cards.server.db.toJavaInstant
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.CashOutResult
+import com.dangerfield.cards.server.domain.EntryBar
 import com.dangerfield.cards.server.domain.RebuyResult
 import com.dangerfield.cards.server.domain.SitDownResult
 import com.dangerfield.cards.server.domain.TableSessionRepository
@@ -112,9 +113,8 @@ class DefaultTableSessionService(
         // Private friend games + subsidised bot tables skip it — the daily cap is
         // the bot-table guard, and a new player should be able to afford the bots.
         val balance = wallets.findOrCreate(userId).balance
-        val minBalance = buyIn * MIN_BALANCE_BUYIN_MULTIPLE
-        if (enforceEntryBar && balance < minBalance) {
-            return SitDownResult.BelowEntryBar(balance = balance, minBalance = minBalance)
+        if (enforceEntryBar && !EntryBar.canSit(balance, buyIn)) {
+            return SitDownResult.BelowEntryBar(balance = balance, minBalance = EntryBar.minBalanceToSit(buyIn))
         }
 
         val sessionId = UUID.randomUUID()
@@ -173,9 +173,8 @@ class DefaultTableSessionService(
         // Re-apply the entry bar (public tables only) so a rebuy can't dump the
         // bankroll into one table — same 25% rule as sit-down.
         val balance = wallets.findOrCreate(userId).balance
-        val minBalance = buyIn * MIN_BALANCE_BUYIN_MULTIPLE
-        if (enforceEntryBar && balance < minBalance) {
-            return RebuyResult.BelowEntryBar(balance = balance, minBalance = minBalance)
+        if (enforceEntryBar && !EntryBar.canSit(balance, buyIn)) {
+            return RebuyResult.BelowEntryBar(balance = balance, minBalance = EntryBar.minBalanceToSit(buyIn))
         }
 
         // The game session's mutex serializes rebuys per table, so the
@@ -282,9 +281,6 @@ class DefaultTableSessionService(
     private class InsufficientSignal(val balance: Long) : RuntimeException()
 
     companion object {
-        /** Wallet must cover ≥ this many buy-ins to enter (or rebuy at) a tier — the 25% rule. */
-        const val MIN_BALANCE_BUYIN_MULTIPLE = 4L
-
         /** Default house-funded bot-subsidy budget per player per window (launch knob). */
         const val DEFAULT_SUBSIDY_DAILY_CAP = 25_000L
 

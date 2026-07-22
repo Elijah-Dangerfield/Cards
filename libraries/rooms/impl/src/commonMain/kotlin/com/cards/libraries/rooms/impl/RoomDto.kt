@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
+import com.dangerfield.cards.libraries.rooms.MatchmakingCandidate
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.rooms.RoomStatus
@@ -152,11 +153,26 @@ data class MatchmakingFindResponseDto(
     val created: Boolean = false,
 )
 
+/**
+ * One table in the matchmaking chooser. Mirrors the server's
+ * `MatchmakingCandidateDto`. [affordable] is the server-authoritative entry-bar
+ * verdict for this caller, so the client never hardcodes the 4× rule — an
+ * unaffordable table is shown disabled with a "need [minBalanceToSit] chips"
+ * label. [minBalanceToSit] is the smallest balance that clears the bar for this
+ * table's buy-in.
+ */
+@Serializable
+data class MatchmakingCandidateDto(
+    val room: RoomDto,
+    val affordable: Boolean = true,
+    val minBalanceToSit: Long = 0,
+)
+
 /** GET /v1/matchmaking/candidates response — the qualifying tables, most-humans-first. */
 @Serializable
 data class MatchmakingCandidatesResponseDto(
     val schemaVersion: Int = 1,
-    val rooms: List<RoomDto> = emptyList(),
+    val rooms: List<MatchmakingCandidateDto> = emptyList(),
 )
 
 /** GET /v1/matchmaking/subsidy-budget response — the caller's subsidy draw-down. */
@@ -181,6 +197,12 @@ internal fun RoomDto.toDomain(): Room = Room(
     visibility = visibility.toDomain(),
     feltProductId = feltProductId,
     cardBackProductId = cardBackProductId,
+)
+
+internal fun MatchmakingCandidateDto.toDomain(): MatchmakingCandidate = MatchmakingCandidate(
+    room = room.toDomain(),
+    affordable = affordable,
+    minBalanceToSit = minBalanceToSit,
 )
 
 internal fun RoomMemberDto.toDomain(): RoomMember = RoomMember(

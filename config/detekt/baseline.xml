@@ -24,12 +24,16 @@
     <ID>VerifyStrings:NativeButton.jvm.kt:"Native Button"</ID>
     <ID>VerifyStrings:QaMenuScreen.kt:"Apply"</ID>
     <ID>VerifyStrings:QaMenuScreen.kt:"Clear all overrides"</ID>
-    <ID>VerifyStrings:QaMenuScreen.kt:"Design system · Colors"</ID>
+    <ID>VerifyStrings:QaMenuScreen.kt:"Feedback"</ID>
+    <ID>VerifyStrings:QaMenuScreen.kt:"Goes straight to Sentry, same as in-app feedback."</ID>
     <ID>VerifyStrings:QaMenuScreen.kt:"Grant + activate XP Boost (30m)"</ID>
+    <ID>VerifyStrings:QaMenuScreen.kt:"Network inspector"</ID>
     <ID>VerifyStrings:QaMenuScreen.kt:"Override any server-driven config value for this session. Cleared on uninstall."</ID>
     <ID>VerifyStrings:QaMenuScreen.kt:"Progression"</ID>
+    <ID>VerifyStrings:QaMenuScreen.kt:"Send"</ID>
     <ID>VerifyStrings:QaMenuScreen.kt:"Sets XP directly — bypasses the ledger. Level snaps to that level's start XP."</ID>
     <ID>VerifyStrings:QaMenuScreen.kt:"User ID"</ID>
+    <ID>VerifyStrings:QaMenuScreen.kt:"What's up?"</ID>
     <ID>VerifyStrings:RankDetailSheet.kt:"Claim your account"</ID>
     <ID>VerifyStrings:RankDetailSheet.kt:"Play with real opponents"</ID>
     <ID>VerifyStrings:RankDetailSheet.kt:"Sign in with Apple or Google to unlock multiplayer, earn a real rank, and save your chips across devices. Your XP and progress carry over."</ID>

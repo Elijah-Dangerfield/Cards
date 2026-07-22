@@ -121,6 +121,7 @@ class OnboardingViewModel(
 
     private suspend fun OnboardingAction.handleResolveEntry() {
         Catching {
+            val authed = authRepository.current() as? AuthState.Authenticated
             when {
                 appCache.get().hasUserOnboarded -> {
                     exitedToHome = true
@@ -132,27 +133,28 @@ class OnboardingViewModel(
                 // avatar + starter grant) like the OAuth-new path, skipping the
                 // guest/OAuth landing they don't need. identityClaimed suppresses
                 // the back-to-Welcome control.
-                isVerifiedNewAccount() -> {
+                authed != null && !authed.isAnonymous -> {
                     logStepViewed(OnboardingStep.PickIdentity)
                     updateState {
                         it.copy(step = OnboardingStep.PickIdentity, identityClaimed = true)
                     }
                 }
+                // An anonymous guest session already exists at launch. Guest
+                // creation is deferred (a new user is Unauthenticated here), so a
+                // live anonymous session can only be a PRIOR guest whose
+                // hasUserOnboarded flag was lost — not a new user. Re-running
+                // new-user onboarding for them re-minted the identity and replayed
+                // a stale level-up for progression they already had (AUTH-28).
+                // Treat them as returning: adopt the onboarded flag and go Home.
+                authed != null -> {
+                    logger.logEvent("onboarding.auth_selected", "method" to "guest", "returning" to true)
+                    appCache.update { it.copy(hasUserOnboarded = true) }
+                    exitedToHome = true
+                    sendEvent(OnboardingEvent.NavigateToHome)
+                }
                 else -> logger.logEvent("onboarding.step_viewed", "step" to "welcome")
             }
         }.logOnFailure { "Onboarding entry resolution failed" }
-    }
-
-    /**
-     * True when the session is a real (non-anonymous) account — the only way to
-     * reach onboarding authenticated-but-not-onboarded is a just-confirmed email
-     * signup routed back from [VerifyEmailViewModel]. Guests are Unauthenticated
-     * on launch (creation is deferred), and the OAuth-new path is handled inline
-     * within this same VM, so neither trips this.
-     */
-    private suspend fun isVerifiedNewAccount(): Boolean {
-        val authed = authRepository.current() as? AuthState.Authenticated ?: return false
-        return !authed.isAnonymous
     }
 
     override suspend fun handleAction(action: OnboardingAction) {

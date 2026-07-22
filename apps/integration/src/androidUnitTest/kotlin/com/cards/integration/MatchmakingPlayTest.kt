@@ -69,11 +69,11 @@ class MatchmakingPlayTest : IntegrationTest() {
         // only member after the browse).
         val chooser = client()
         val candidates = assertIs<CandidatesOutcome.Success>(chooser.matchmaking.findCandidates(1_000, 1_000))
-        val candidate = candidates.rooms.firstOrNull { it.code == code }
+        val candidate = candidates.rooms.firstOrNull { it.room.code == code }
         assertTrue(candidate != null, "the opener's table is a candidate")
         assertEquals(
             1,
-            candidate.members.count { !it.isBot },
+            candidate.room.members.count { !it.isBot },
             "browsing seats nobody — the candidate still has just the opener",
         )
 

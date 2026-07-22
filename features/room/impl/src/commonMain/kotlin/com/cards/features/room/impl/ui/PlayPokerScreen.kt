@@ -53,6 +53,7 @@ import cards.libraries.resources.generated.resources.room_next_hand_leave_button
 import cards.libraries.resources.generated.resources.room_practice_tier_bots_present
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_a11y
 import cards.libraries.resources.generated.resources.room_showdown_continue_button
+import cards.libraries.resources.generated.resources.room_spectating_seat_placeholder
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_hand_info_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_report_bug_a11y
@@ -94,6 +95,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.feltAccentSurface
 import com.dangerfield.cards.libraries.ui.components.poker.feltSurfaceColor
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.HorizontalSpacerD100
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD500
@@ -754,6 +756,7 @@ fun PlayPokerScreen(
                 showSettingsHint = state.showAchievementSettingsHint,
                 onContinue = {
                     celebrationActive = false
+                    onAction(PlayPokerAction.CelebrationDismissed)
                     onAction(PlayPokerAction.RequestNextHand)
                 },
             )
@@ -857,6 +860,29 @@ private fun WaitingToBeDealtInLabel() {
                 .clip(Radii.Callout.shape)
                 .background(AppTheme.colors.surface.color)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+    }
+}
+
+/**
+ * Fills the player-hand + action-bar slot for a seatless mid-hand joiner. Without
+ * it the bottom half of the felt is blank (no hand, no actions), which reads as a
+ * stuck table; this states plainly that they're watching until the next deal
+ * (GAME-2). Pairs with [WaitingToBeDealtInLabel]'s "next hand" status up top.
+ */
+@Composable
+private fun SpectatingSeatPlaceholder() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D1000),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(Res.string.room_spectating_seat_placeholder),
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -1165,37 +1191,45 @@ private fun ActiveTable(
         // and the player row slides DOWN to occupy the freed space —
         // instead of sitting in place above an empty reserved slot.
         Column(modifier = Modifier.fillMaxWidth()) {
-            PlayerArea(
-                table = table,
-                humanStackOverride = humanStackOverride,
-                humanWinOdds = humanWinOdds,
-                silentSwipeFold = silentSwipeFold,
-                winOddsFlipHintSeen = winOddsFlipHintSeen,
-                onWinOddsFlipped = onWinOddsFlipped,
-                onBlindClick = onBlindClick,
-                onBetPillClick = onBetPillClick,
-                onStackClick = onStackClick,
-                onHandLabelClick = onHandLabelClick,
-                onSwipeFold = onSwipeFold,
-                onSelfTap = onSelfTap,
-                availableEmojis = availableEmojis,
-                emojiCooldownEndsAtMs = emojiCooldownEndsAtMs,
-                onBlastEmoji = onBlastEmoji,
-            )
-            // Between hands on a real-chip table the bet bar is replaced by the
-            // auto-advance countdown + a leave-with-winnings affordance, so the
-            // player always knows how long they have to cash out (north star).
-            // Otherwise the normal action bar (collapsed when it isn't the human's
-            // turn). The two never coexist — a hand is either live or finished.
-            if (nextHandCountdown != null) {
-                NextHandCountdownBar(countdown = nextHandCountdown, onLeave = onLeaveWithWinnings)
+            if (table.waitingToBeDealtIn) {
+                // A mid-hand joiner holds no seat, no hand, and no legal actions, so
+                // PlayerArea + the action bar would all render empty and leave the
+                // bottom half of the felt blank — reading as a broken table (GAME-2).
+                // Fill that slot with an explicit spectating notice instead.
+                SpectatingSeatPlaceholder()
             } else {
-                // The two share the slot but never both show: QuickActionBar is
-                // visible only on the human's turn, PreFoldBar only while
-                // waiting. Each collapses its own slot so the player row above
-                // slides down to fill the gap.
-                QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
-                PreFoldBar(table = table, armed = preFoldArmed, onArmChange = onArmPreFold)
+                PlayerArea(
+                    table = table,
+                    humanStackOverride = humanStackOverride,
+                    humanWinOdds = humanWinOdds,
+                    silentSwipeFold = silentSwipeFold,
+                    winOddsFlipHintSeen = winOddsFlipHintSeen,
+                    onWinOddsFlipped = onWinOddsFlipped,
+                    onBlindClick = onBlindClick,
+                    onBetPillClick = onBetPillClick,
+                    onStackClick = onStackClick,
+                    onHandLabelClick = onHandLabelClick,
+                    onSwipeFold = onSwipeFold,
+                    onSelfTap = onSelfTap,
+                    availableEmojis = availableEmojis,
+                    emojiCooldownEndsAtMs = emojiCooldownEndsAtMs,
+                    onBlastEmoji = onBlastEmoji,
+                )
+                // Between hands on a real-chip table the bet bar is replaced by the
+                // auto-advance countdown + a leave-with-winnings affordance, so the
+                // player always knows how long they have to cash out (north star).
+                // Otherwise the normal action bar (collapsed when it isn't the human's
+                // turn). The two never coexist — a hand is either live or finished.
+                if (nextHandCountdown != null) {
+                    NextHandCountdownBar(countdown = nextHandCountdown, onLeave = onLeaveWithWinnings)
+                } else {
+                    // The two share the slot but never both show: QuickActionBar is
+                    // visible only on the human's turn, PreFoldBar only while
+                    // waiting. Each collapses its own slot so the player row above
+                    // slides down to fill the gap.
+                    QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
+                    PreFoldBar(table = table, armed = preFoldArmed, onArmChange = onArmPreFold)
+                }
             }
         }
     }
@@ -1405,9 +1439,10 @@ private fun PlayPokerScreenPreview_PracticeTier() {
 @Preview
 @Composable
 private fun PlayPokerScreenPreview_WaitingToBeDealtIn() {
-    // Mid-game joiner spectating a live MP table with no seat yet — the
-    // "you'll be dealt in next hand" notice renders under the top bar so the
-    // seatless wait reads as intentional, not a stuck table (CARDS-22).
+    // Mid-game joiner spectating a live MP table with no seat yet — the seated
+    // players + board render, the "you'll be dealt in next hand" status sits under
+    // the top bar, and the empty player slot is filled with a spectating notice so
+    // the wait reads as intentional, not a stuck table (CARDS-22, GAME-2).
     PreviewContent {
         PlayPokerScreen(
             state = PlayPokerState(

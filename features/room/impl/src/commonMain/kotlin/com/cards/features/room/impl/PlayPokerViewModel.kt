@@ -159,6 +159,11 @@ class PlayPokerViewModel @Inject constructor(
     private var sessionHandsWon: Int = 0
     private var sessionHandsLost: Int = 0
 
+    // A rare-achievement / level-up review ask stashed at hand-end because a
+    // celebration sheet is about to reveal, so the OS prompt doesn't step on it.
+    // Flushed when the sheet is dismissed (CelebrationDismissed).
+    private var pendingReviewTrigger: ReviewTrigger? = null
+
     // game.started → game.ended bracketing for the app-event funnel. Multiple
     // end paths can race (leave + room close); the latch keeps it one per session.
     private val sessionStartedAt = TimeSource.Monotonic.markNow()
@@ -641,8 +646,16 @@ class PlayPokerViewModel @Inject constructor(
             enqueueUnsurfacedMpUnlocks(surfaced, context)
 
             // The review prompt keys off the *real* unlocks, not what we showed —
-            // a silenced celebration shouldn't also suppress a review ask.
-            maybeRequestReviewPrompt(priorLevel = priorLevel, earned = earned)
+            // a silenced celebration shouldn't also suppress a review ask. When a
+            // celebration sheet is about to reveal (bots + surfaced unlocks) the
+            // ask is stashed and fired on dismissal so it doesn't step on it.
+            val celebrationWillShow =
+                sessionFactory.xpMode == XpMode.BOTS && surfaced.isNotEmpty()
+            maybeRequestReviewPrompt(
+                priorLevel = priorLevel,
+                earned = earned,
+                celebrationWillShow = celebrationWillShow,
+            )
         }
     }
 
@@ -710,26 +723,37 @@ class PlayPokerViewModel @Inject constructor(
     private suspend fun maybeRequestReviewPrompt(
         priorLevel: Int?,
         earned: List<EarnedAchievement>,
+        celebrationWillShow: Boolean,
     ) {
         Catching {
-            val unlockedRareOrBetter = earned.any {
-                it.achievement.rarity.ordinal >= AchievementRarity.RARE.ordinal
-            }
-            if (unlockedRareOrBetter) {
-                requestReviewPrompt(ReviewTrigger.AchievementUnlocked)
-                return@Catching
-            }
-            if (priorLevel != null) {
-                val newLevel = levelProgressFor(
-                    progressionRepository.getProgression().totalXp,
-                    levelCurve,
-                ).level
-                if (newLevel > priorLevel) {
-                    sendEvent(PlayPokerEvent.PlayHaptic(HapticKind.LevelUp))
-                    requestReviewPrompt(ReviewTrigger.LevelUp)
-                }
+            val trigger = resolveReviewTrigger(priorLevel, earned) ?: return@Catching
+            if (celebrationWillShow) {
+                pendingReviewTrigger = trigger
+            } else {
+                requestReviewPrompt(trigger)
             }
         }.onFailure { logger.w(it) { "Review prompt request failed" } }
+    }
+
+    private suspend fun resolveReviewTrigger(
+        priorLevel: Int?,
+        earned: List<EarnedAchievement>,
+    ): ReviewTrigger? {
+        val unlockedRareOrBetter = earned.any {
+            it.achievement.rarity.ordinal >= AchievementRarity.RARE.ordinal
+        }
+        if (unlockedRareOrBetter) return ReviewTrigger.AchievementUnlocked
+        if (priorLevel != null) {
+            val newLevel = levelProgressFor(
+                progressionRepository.getProgression().totalXp,
+                levelCurve,
+            ).level
+            if (newLevel > priorLevel) {
+                sendEvent(PlayPokerEvent.PlayHaptic(HapticKind.LevelUp))
+                return ReviewTrigger.LevelUp
+            }
+        }
+        return null
     }
 
     /**
@@ -988,6 +1012,12 @@ class PlayPokerViewModel @Inject constructor(
             }
             is PlayPokerAction.DismissEarnedToast -> action.updateState {
                 it.copy(recentlyEarned = emptyList())
+            }
+            is PlayPokerAction.CelebrationDismissed -> {
+                pendingReviewTrigger?.let { trigger ->
+                    pendingReviewTrigger = null
+                    requestReviewPrompt(trigger)
+                }
             }
 
             is PlayPokerAction.XpChanged -> action.updateState { state ->

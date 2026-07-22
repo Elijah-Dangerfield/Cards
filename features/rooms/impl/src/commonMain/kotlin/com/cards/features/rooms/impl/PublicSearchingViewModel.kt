@@ -12,6 +12,7 @@ import com.dangerfield.cards.libraries.rooms.CandidatesOutcome
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.FindTableOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
+import com.dangerfield.cards.libraries.rooms.MatchmakingCandidate
 import com.dangerfield.cards.libraries.rooms.MatchmakingRepository
 import com.dangerfield.cards.libraries.rooms.PlayBotsOutcome
 import com.dangerfield.cards.libraries.rooms.Room
@@ -132,17 +133,31 @@ class PublicSearchingViewModel(
                 when (val outcome = action.outcome) {
                     is CandidatesOutcome.Success -> {
                         logger.logEvent("matchmaking.candidates_shown", "candidate_count" to outcome.rooms.size)
-                        if (outcome.rooms.isEmpty()) {
-                            // Nothing to choose — converge on the genuine waiting
-                            // search so the honest bot fallback is reached identically.
-                            updateState { it.copy(phase = SearchPhase.Searching, error = null, candidates = emptyList()) }
-                            fallThroughToSearch()
-                        } else {
-                            candidatesPollJob?.cancel()
-                            updateState {
-                                it.copy(phase = SearchPhase.Choosing, candidates = outcome.rooms.map(::toCandidate))
+                        val candidates = outcome.rooms
+                        val onlyOne = candidates.singleOrNull()
+                        when {
+                            candidates.isEmpty() -> {
+                                // Nothing to choose — converge on the genuine waiting
+                                // search so the honest bot fallback is reached identically.
+                                updateState { it.copy(phase = SearchPhase.Searching, error = null, candidates = emptyList()) }
+                                fallThroughToSearch()
                             }
-                            armCandidatesPoll()
+                            // Convergence (MP-35): one obvious affordable table is no
+                            // choice at all — join it directly instead of a one-row
+                            // chooser, so two searchers who each land on the same lone
+                            // table actually meet. An unaffordable lone table still
+                            // shows the disabled chooser; the user can't be seated there.
+                            onlyOne != null && onlyOne.affordable -> {
+                                candidatesPollJob?.cancel()
+                                joinAndWatch(onlyOne.room.code, intoJoinedLobby = true)
+                            }
+                            else -> {
+                                candidatesPollJob?.cancel()
+                                updateState {
+                                    it.copy(phase = SearchPhase.Choosing, candidates = candidates.map(::toCandidate))
+                                }
+                                armCandidatesPoll()
+                            }
                         }
                     }
                     is CandidatesOutcome.InvalidRange ->
@@ -166,15 +181,15 @@ class PublicSearchingViewModel(
                 // A background re-poll only updates the visible list; a transient
                 // failure leaves the existing list in place rather than yanking the
                 // chooser out from under the user.
-                val rooms = (action.outcome as? CandidatesOutcome.Success)?.rooms ?: return@run
+                val candidates = (action.outcome as? CandidatesOutcome.Success)?.rooms ?: return@run
                 if (state.phase != SearchPhase.Choosing) return@run
-                if (rooms.isEmpty()) {
+                if (candidates.isEmpty()) {
                     // Every table emptied out while deciding — fall through to the
                     // genuine wait + bot fallback rather than show a dead chooser.
                     updateState { it.copy(phase = SearchPhase.Searching, error = null, candidates = emptyList()) }
                     fallThroughToSearch()
                 } else {
-                    updateState { it.copy(candidates = rooms.map(::toCandidate)) }
+                    updateState { it.copy(candidates = candidates.map(::toCandidate)) }
                 }
             }
 
@@ -183,8 +198,10 @@ class PublicSearchingViewModel(
                 // here (or we left the wait phase) the table is dealing and moving
                 // would be wrong; a transient poll failure just keeps us waiting.
                 if (state.phase != SearchPhase.Searching || state.realPlayersFound > 0) return@run
-                val rooms = (action.outcome as? CandidatesOutcome.Success)?.rooms ?: return@run
-                val target = migrationTarget(rooms) ?: return@run
+                val candidates = (action.outcome as? CandidatesOutcome.Success)?.rooms ?: return@run
+                // Only consolidate into a table we could actually be seated at — an
+                // unaffordable one would just bounce us back off the entry bar.
+                val target = migrationTarget(candidates.filter { it.affordable }.map { it.room }) ?: return@run
                 updateState { it.copy(error = null) }
                 migrateTo(target)
             }
@@ -255,7 +272,7 @@ class PublicSearchingViewModel(
                         }
                     }
                     is RoomConnection.Reconnecting -> Unit // transient blip — keep searching
-                    is RoomConnection.Closed -> when (conn.reason) {
+                    is RoomConnection.Closed -> when (val reason = conn.reason) {
                         // Table vanished under us (GC / server restart). The code is
                         // dead, so re-find a fresh table rather than chase a ghost —
                         // capped + backed off so a flapping server can't spin a tight
@@ -277,6 +294,14 @@ class PublicSearchingViewModel(
                         ClosedReason.ReconnectFailed,
                         ClosedReason.IncompatibleVersion,
                             -> updateState { it.copy(error = SearchError.Connection) }
+                        // The server dealt without us because our balance fell under
+                        // the entry bar between find and deal — terminal. Show a real
+                        // "you need X chips" state with a route back, never an infinite
+                        // "dealing you in".
+                        is ClosedReason.SeatUnaffordable ->
+                            updateState {
+                                it.copy(error = SearchError.CannotBeSeated(reason.minBalanceToSit))
+                            }
                         ClosedReason.Cancelled -> Unit // we tore it down ourselves
                     }
                 }
@@ -596,12 +621,13 @@ class PublicSearchingViewModel(
         SearchPhase.JoiningBots -> "joining_bots"
     }
 
-    private fun toCandidate(room: Room): TableCandidate = TableCandidate(
-        code = room.code,
-        buyIn = room.buyIn,
-        seatsTaken = room.seatCount,
-        maxSeats = room.maxSeats,
-        humans = room.members.count { !it.isBot },
+    private fun toCandidate(candidate: MatchmakingCandidate): TableCandidate = TableCandidate(
+        code = candidate.room.code,
+        buyIn = candidate.room.buyIn,
+        maxSeats = candidate.room.maxSeats,
+        humans = candidate.room.members.count { !it.isBot },
+        affordable = candidate.affordable,
+        minBalanceToSit = candidate.minBalanceToSit,
     )
 
     private companion object {
@@ -662,10 +688,17 @@ data class SubsidyNotice(
 data class TableCandidate(
     val code: String,
     val buyIn: Long,
-    val seatsTaken: Int,
     val maxSeats: Int,
     /** Real humans seated (excludes disclosed bots) — drives the most-humans ordering. */
     val humans: Int,
+    /**
+     * The server's entry-bar verdict for this caller. An unaffordable table renders
+     * disabled with a "need [minBalanceToSit] chips" affordance — the 4× rule stays
+     * server-authoritative, never recomputed on the client.
+     */
+    val affordable: Boolean = true,
+    /** Smallest balance that clears the entry bar for this table's buy-in. */
+    val minBalanceToSit: Long = 0,
 )
 
 sealed interface SearchPhase {
@@ -694,6 +727,13 @@ sealed interface SearchError {
 
     /** The buy-in ceiling exceeded the wallet — surfaced as a "lower your range" prompt. */
     data object InsufficientBalance : SearchError
+
+    /**
+     * The server dealt without seating us because our balance fell under the entry
+     * bar between find and deal (the `seat_unaffordable` frame). Terminal — [neededChips]
+     * is the balance required to sit at that table, shown so the user knows the gap.
+     */
+    data class CannotBeSeated(val neededChips: Long) : SearchError
     data object NotSignedIn : SearchError
     data object RateLimited : SearchError
     data object Network : SearchError

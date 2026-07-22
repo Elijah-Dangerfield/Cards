@@ -13,8 +13,8 @@ import kotlin.test.assertTrue
  * canonical step apart pair up rather than each stranding on their own table
  * (MP-34), and a searcher matched into a table that's already mid-hand lands as a
  * member-spectator (to be dealt in at the next boundary) — the matchmaking ↔
- * mid-hand-join seam. (Both tiers here stay within the lenient 1× find-gate on
- * the 10k starter grant.)
+ * mid-hand-join seam. (The 5k searcher is funded above that tier's entry bar,
+ * which requires a wallet covering four buy-ins.)
  */
 class MatchmakingGapsTest : IntegrationTest() {
 
@@ -22,6 +22,9 @@ class MatchmakingGapsTest : IntegrationTest() {
     fun searchersAtAdjacentTiers_pairUpAcrossTheGap() = integration {
         val a = client()
         val b = client()
+        // Searching the 5k tier requires clearing its entry bar (four buy-ins =
+        // 20k), so fund the 5k searcher above the starter grant.
+        server.creditChips(b.userId, 15_000)
 
         val first = assertIs<FindTableOutcome.Success>(a.matchmaking.findTable(1_000, 1_000))
         val second = assertIs<FindTableOutcome.Success>(b.matchmaking.findTable(5_000, 5_000))

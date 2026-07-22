@@ -4,10 +4,11 @@ import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.di.ServerScope
+import com.dangerfield.cards.libraries.gameplay.BuyInTier
 import com.dangerfield.cards.server.domain.AddBotResult
 import com.dangerfield.cards.server.domain.BotSeat
-import com.dangerfield.cards.server.domain.BuyInTier
 import com.dangerfield.cards.server.domain.CreateResult
+import com.dangerfield.cards.server.domain.EntryBar
 import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.LeaveResult
 import com.dangerfield.cards.server.domain.MatchmakingResult
@@ -217,6 +218,7 @@ class InMemoryRoomService(
         minBuyIn: Long,
         maxBuyIn: Long,
         blockedUserIds: Set<UserId>,
+        callerBalance: Long,
         avatarEmoji: String,
         avatarBackgroundColor: String?,
     ): MatchmakingResult = mutex.withLock {
@@ -242,7 +244,7 @@ class InMemoryRoomService(
         // bots) IS still matchmaking inventory — we want a later searcher to land
         // there and rescue them into a real human game. Real-pairing always wins;
         // the bots yield to the arriving human (server-side bot trimming).
-        val candidate = matchmakingCandidates(minBuyIn, maxBuyIn, blockedUserIds).firstOrNull()
+        val candidate = matchmakingCandidates(minBuyIn, maxBuyIn, blockedUserIds, callerBalance).firstOrNull()
 
         val now = clock.now()
         if (candidate != null) {
@@ -255,7 +257,7 @@ class InMemoryRoomService(
         // may be waiting alone one canonical step away. Seat the two together
         // rather than opening a second table neither will find. Bounded to a stake
         // the searcher can still afford — they're never pulled above their ceiling.
-        val rescue = lonelyRescueCandidate(userId, minBuyIn, maxBuyIn, blockedUserIds)
+        val rescue = lonelyRescueCandidate(userId, minBuyIn, maxBuyIn, blockedUserIds, callerBalance)
         if (rescue != null) {
             return@withLock MatchmakingResult.Joined(
                 seatSearcher(rescue, userId, name, avatarEmoji, avatarBackgroundColor, now),
@@ -265,7 +267,12 @@ class InMemoryRoomService(
         // No eligible room — open a fresh Public table seated with just this
         // player. No bots: the disclosed fallback only fires later, on consent.
         // Synthetic system host (no per-host cap, no host-migration), buy-in
-        // snapped to a canonical tier so overlapping ranges converge.
+        // snapped to a canonical tier so overlapping ranges converge. The snap
+        // ceiling is clamped to what the caller can fund ([EntryBar]) so we never
+        // open a table the founder can't sit at — the affordable-matchmaking half
+        // of the stuck-in-Lobby fix. The route already fenced callers who can't
+        // afford the smallest table in range, so this floor is always ≥ minBuyIn.
+        val affordableMax = minOf(maxBuyIn, EntryBar.maxAffordableBuyIn(callerBalance))
         val code = generateUniqueCode()
         val founder = RoomMember(
             userId = userId,
@@ -284,7 +291,7 @@ class InMemoryRoomService(
             maxSeats = RoomService.MAX_SEATS,
             status = RoomStatus.Lobby,
             members = listOf(founder),
-            buyIn = BuyInTier.within(minBuyIn, maxBuyIn),
+            buyIn = BuyInTier.within(minBuyIn, affordableMax),
             visibility = RoomVisibility.Public,
         )
         rooms[code] = RoomState(room = room)
@@ -299,20 +306,29 @@ class InMemoryRoomService(
         maxBuyIn: Long,
         blockedUserIds: Set<UserId>,
     ): List<Room> = mutex.withLock {
-        matchmakingCandidates(minBuyIn, maxBuyIn, blockedUserIds)
+        // The chooser deliberately returns the FULL in-range set — including tables
+        // the caller can't yet afford — so the client can show them disabled with a
+        // "need X chips" label (aspirational; the ecosystem looks worth buying
+        // into). Per-table affordability is flagged by the route from the same
+        // balance, never filtered here. Unbounded balance = no affordability cut.
+        matchmakingCandidates(minBuyIn, maxBuyIn, blockedUserIds, callerBalance = Long.MAX_VALUE)
     }
 
     /**
      * The ordered set of eligible Open/Public tables a searcher could land on for
-     * `[minBuyIn, maxBuyIn]`: not Finished, not full, in range, no blocked member.
-     * Ordered most-real-humans-first (ties → oldest room) so the auto-pick takes
-     * the head and the chooser presents the same priority. Must be called under
-     * [mutex] — reads the live rooms map.
+     * `[minBuyIn, maxBuyIn]`: not Finished, not full, in range, no blocked member,
+     * and — when [callerBalance] is bounded — affordable under [EntryBar]. Ordered
+     * most-real-humans-first (ties → oldest room) so the auto-pick takes the head
+     * and the chooser presents the same priority. The auto-pick path passes the
+     * real balance so a searcher is never seated on a table they can't fund; the
+     * chooser passes an unbounded balance so it can still surface (disabled) the
+     * ones they can't. Must be called under [mutex] — reads the live rooms map.
      */
     private fun matchmakingCandidates(
         minBuyIn: Long,
         maxBuyIn: Long,
         blockedUserIds: Set<UserId>,
+        callerBalance: Long,
     ): List<Room> = rooms.values
         .map { it.room }
         .filter { room ->
@@ -320,6 +336,7 @@ class InMemoryRoomService(
                 room.status != RoomStatus.Finished &&
                 !room.isFull &&
                 room.buyIn in minBuyIn..maxBuyIn &&
+                EntryBar.canSit(callerBalance, room.buyIn) &&
                 room.members.none { it.userId in blockedUserIds }
         }
         .sortedWith(
@@ -342,6 +359,7 @@ class InMemoryRoomService(
         minBuyIn: Long,
         maxBuyIn: Long,
         blockedUserIds: Set<UserId>,
+        callerBalance: Long,
     ): Room? {
         val target = BuyInTier.within(minBuyIn, maxBuyIn)
         return rooms.values
@@ -351,6 +369,7 @@ class InMemoryRoomService(
                     room.status == RoomStatus.Lobby &&
                     !room.isFull &&
                     room.buyIn <= maxBuyIn &&
+                    EntryBar.canSit(callerBalance, room.buyIn) &&
                     room.members.size == 1 &&
                     room.members.none { it.isBot } &&
                     room.members.none { it.userId == userId } &&

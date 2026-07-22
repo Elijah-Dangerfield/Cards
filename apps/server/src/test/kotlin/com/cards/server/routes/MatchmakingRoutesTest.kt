@@ -74,6 +74,20 @@ class MatchmakingRoutesTest {
     }
 
     @Test
+    fun find_atTheDefaultBand_withAStarterGrant_seatsAtTheThousandChipTier() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        // A fresh 10,000 grant searching a band that straddles the 1k and 5k tiers.
+        // Pre-fix this snapped to 5,000 (needs 20k to sit) and stranded the player;
+        // affordable matchmaking snaps to the 1,000 tier they can actually fund.
+        withApp(rooms, walletBalance = 10_000) { client ->
+            val body = client.find(jwt(UUID.randomUUID()), min = 1_000, max = 5_000)
+                .body<MatchmakingFindResponse>()
+            assertTrue(body.created, "first searcher opens a fresh table")
+            assertEquals(1_000, body.room.buyIn, "snaps to the affordable anchor tier, not 5,000")
+        }
+    }
+
+    @Test
     fun secondSearcher_returns200_joined_sameRoom() = runTest {
         val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
         withApp(rooms) { client ->
@@ -110,12 +124,13 @@ class MatchmakingRoutesTest {
     }
 
     @Test
-    fun find_withBuyInAboveBalance_returns400_insufficientBalance() = runTest {
+    fun find_belowEntryBarForSmallestTable_returns400_insufficientBalance() = runTest {
         val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
-        // Wallet holds 5k; asking to search a range topping out at 100k is more
-        // than they could sit down for, so the server fences it.
-        withApp(rooms, walletBalance = 5_000) { client ->
-            val resp = client.find(jwt(UUID.randomUUID()), min = 1_000, max = 100_000)
+        // Wallet holds 3k; the smallest table in range (1k) needs 4× = 4,000 to
+        // clear the entry bar, so no table in the range is sit-able — the server
+        // fences it rather than matching to a table the sit-down escrow bounces.
+        withApp(rooms, walletBalance = 3_000) { client ->
+            val resp = client.find(jwt(UUID.randomUUID()), min = 1_000, max = 5_000)
             assertEquals(HttpStatusCode.BadRequest, resp.status)
             assertTrue(
                 resp.bodyAsText().contains("insufficient_balance"),
@@ -125,10 +140,11 @@ class MatchmakingRoutesTest {
     }
 
     @Test
-    fun find_withTopOfRangeEqualToBalance_returns200() = runTest {
+    fun find_whenBalanceClearsTheSmallestTablesEntryBar_returns200() = runTest {
         val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
-        // Spending your whole wallet is allowed — only *more* than the balance is fenced.
-        withApp(rooms, walletBalance = 5_000) { client ->
+        // 4,000 clears the 4× bar for the 1k floor exactly — the smallest table is
+        // sit-able, so the search is allowed even though the top of the range isn't.
+        withApp(rooms, walletBalance = 4_000) { client ->
             val resp = client.find(jwt(UUID.randomUUID()), min = 1_000, max = 5_000)
             assertEquals(HttpStatusCode.OK, resp.status)
         }
@@ -288,9 +304,37 @@ class MatchmakingRoutesTest {
             val resp = client.candidates(jwt(UUID.randomUUID()), 5_000, 5_000)
             assertEquals(HttpStatusCode.OK, resp.status)
             val body = resp.body<MatchmakingCandidatesResponse>()
-            assertEquals(listOf(opened.room.code), body.rooms.map { it.code })
+            assertEquals(listOf(opened.room.code), body.rooms.map { it.room.code })
             // Read-only: nobody new was seated into the table.
-            assertEquals(1, body.rooms.single().members.size, "browsing doesn't seat the browser")
+            assertEquals(1, body.rooms.single().room.members.size, "browsing doesn't seat the browser")
+        }
+    }
+
+    @Test
+    fun candidates_flagsAffordabilityPerTable_showingUnaffordableOnesDisabled() = runTest {
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        // A 1k table (affordable at a 5k balance) and a 25k table (needs 100k).
+        // Minted directly as Open tables so a wealthy searcher isn't needed to
+        // create the high-stakes one. Both are in the browse range and must be
+        // returned — the unaffordable one is shown disabled with its "need X chips"
+        // number, never silently dropped.
+        rooms.create(
+            hostUserId = UserId(UUID.randomUUID()), hostName = "Small", buyIn = 1_000,
+            visibility = com.dangerfield.cards.server.domain.RoomVisibility.Open,
+        )
+        rooms.create(
+            hostUserId = UserId(UUID.randomUUID()), hostName = "Big", buyIn = 25_000,
+            visibility = com.dangerfield.cards.server.domain.RoomVisibility.Open,
+        )
+        withApp(rooms, walletBalance = 5_000) { client ->
+            val body = client.candidates(jwt(UUID.randomUUID()), 1_000, 25_000)
+                .body<MatchmakingCandidatesResponse>()
+            assertEquals(2, body.rooms.size, "both in-range tables are listed")
+            val affordable = body.rooms.single { it.room.buyIn == 1_000L }
+            val unaffordable = body.rooms.single { it.room.buyIn == 25_000L }
+            assertTrue(affordable.affordable, "5k clears the 4× bar for a 1k table")
+            assertFalse(unaffordable.affordable, "5k can't clear the 4× bar for a 25k table")
+            assertEquals(100_000, unaffordable.minBalanceToSit, "25k needs 4× = 100,000 to sit")
         }
     }
 
@@ -323,12 +367,13 @@ class MatchmakingRoutesTest {
     }
 
     @Test
-    fun candidates_aboveBalance_returns400_insufficientBalance() = runTest {
+    fun candidates_aboveBalance_returns200_notFenced_soUnaffordableTablesStillShow() = runTest {
         val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        // Unlike find, the chooser never fences on balance — it lists in-range
+        // tables (flagged) so the client can show the unaffordable ones disabled.
         withApp(rooms, walletBalance = 5_000) { client ->
             val resp = client.candidates(jwt(UUID.randomUUID()), 1_000, 100_000)
-            assertEquals(HttpStatusCode.BadRequest, resp.status)
-            assertTrue(resp.bodyAsText().contains("insufficient_balance"))
+            assertEquals(HttpStatusCode.OK, resp.status)
         }
     }
 

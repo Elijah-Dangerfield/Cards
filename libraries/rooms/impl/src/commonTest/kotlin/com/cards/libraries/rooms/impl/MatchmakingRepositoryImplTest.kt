@@ -165,10 +165,14 @@ class MatchmakingRepositoryImplTest {
     // ---------- candidates ----------
 
     @Test
-    fun candidates_200_returnsRooms_inOrder() = runTest {
+    fun candidates_200_returnsRooms_inOrder_withAffordabilityFlags() = runTest {
         val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, CANDIDATES_RESPONSE) })
         val success = assertIs<CandidatesOutcome.Success>(repo.findCandidates(1_000, 5_000))
-        assertEquals(listOf("AAA111", "BBB222"), success.rooms.map { it.code }, "server order preserved")
+        assertEquals(listOf("AAA111", "BBB222"), success.rooms.map { it.room.code }, "server order preserved")
+        // The first is affordable, the second unaffordable with its needed balance —
+        // the client renders "need X chips" straight from the server, no 4× math.
+        assertEquals(listOf(true, false), success.rooms.map { it.affordable })
+        assertEquals(100_000, success.rooms[1].minBalanceToSit)
     }
 
     @Test
@@ -288,8 +292,13 @@ class MatchmakingRepositoryImplTest {
         private val FIND_RESPONSE_JOINED = """{"schemaVersion":1,"created":false,"room":$ROOM_JSON}"""
         private val FIND_RESPONSE_CREATED = """{"schemaVersion":1,"created":true,"room":$ROOM_JSON}"""
         private fun roomJson(code: String) = ROOM_JSON.replace("\"ABC123\"", "\"$code\"")
+        private fun candidateJson(code: String, affordable: Boolean, minBalanceToSit: Long) =
+            """{"room":${roomJson(code)},"affordable":$affordable,"minBalanceToSit":$minBalanceToSit}"""
         private val CANDIDATES_RESPONSE =
-            """{"schemaVersion":1,"rooms":[${roomJson("AAA111")},${roomJson("BBB222")}]}"""
+            """{"schemaVersion":1,"rooms":[""" +
+                "${candidateJson("AAA111", affordable = true, minBalanceToSit = 4_000)}," +
+                candidateJson("BBB222", affordable = false, minBalanceToSit = 100_000) +
+                "]}"
         private val SUBSIDY_BUDGET_PARTIAL =
             """{"schemaVersion":1,"grantedToday":8500,"cap":10000,"remaining":1500}"""
     }

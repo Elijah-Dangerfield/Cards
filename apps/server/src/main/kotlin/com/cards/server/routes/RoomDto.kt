@@ -186,16 +186,33 @@ data class MatchmakingFindResponse(
 )
 
 /**
+ * One table in the matchmaking chooser. [affordable] is the server-authoritative
+ * entry-bar verdict for this caller ([com.dangerfield.cards.server.domain.EntryBar]),
+ * so the client never hardcodes the 4× rule: an unaffordable table is still
+ * listed (aspirational) but rendered disabled with a "need [minBalanceToSit]
+ * chips" label. [minBalanceToSit] is the smallest balance that clears the bar for
+ * this table's buy-in.
+ */
+@Serializable
+data class MatchmakingCandidateDto(
+    val room: RoomDto,
+    val affordable: Boolean,
+    val minBalanceToSit: Long,
+)
+
+/**
  * GET /v1/matchmaking/candidates response — the qualifying tables a searcher
  * could join for their buy-in range, ordered most-real-humans-first. Powers the
  * chooser flow: the client lists these and the user taps one to join (via the
  * room's socket), instead of being silently auto-seated into the first match.
- * Empty list = nothing found → the client falls back to the bot-fallback offer.
+ * Unlike `find`, unaffordable tables are included (flagged, not filtered) so the
+ * chooser can show them disabled. Empty list = nothing in range → the client
+ * falls back to the bot-fallback offer.
  */
 @Serializable
 data class MatchmakingCandidatesResponse(
     val schemaVersion: Int = 1,
-    val rooms: List<RoomDto>,
+    val rooms: List<MatchmakingCandidateDto>,
 )
 
 /**

@@ -132,4 +132,22 @@ sealed interface RoomSocketEventDto {
     data class MatchOverResolved(
         val winnerUserId: String,
     ) : RoomSocketEventDto
+
+    /**
+     * Terminal "you can't be seated here" signal for a *connected* member the
+     * server-dealt hand left out solely because their balance fell under the
+     * entry bar ([com.dangerfield.cards.server.domain.EntryBar]) between finding
+     * the table and the deal. Without it the client sits on "dealing you in"
+     * forever — the member is a real member (the room shows Playing) but holds no
+     * seat in the live hand. [minBalanceToSit] is the chips they'd need to sit at
+     * this table's buy-in, so the client can show a real "need X chips" state and
+     * offer top-up / leave instead of an infinite spinner. Affordable-matchmaking
+     * (Phase 1) makes the fresh-player case impossible, so this only fires on a
+     * mid-flight balance drop.
+     */
+    @Serializable
+    @SerialName("seat_unaffordable")
+    data class SeatUnaffordable(
+        val minBalanceToSit: Long,
+    ) : RoomSocketEventDto
 }

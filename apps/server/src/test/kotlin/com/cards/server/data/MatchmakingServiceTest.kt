@@ -2,8 +2,9 @@ package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
-import com.dangerfield.cards.server.domain.BuyInTier
+import com.dangerfield.cards.libraries.gameplay.BuyInTier
 import com.dangerfield.cards.server.domain.CreateResult
+import com.dangerfield.cards.server.domain.EntryBar
 import com.dangerfield.cards.server.domain.MatchmakingResult
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomVisibility
@@ -257,6 +258,60 @@ class MatchmakingServiceTest {
     }
 
     @Test
+    fun find_atTheDefaultBand_withAStarterGrant_opensAnAffordableAnchorTable() = runTest {
+        val svc = service()
+        // The client's default search band (500..2,000) with a fresh 10k grant must
+        // open a table the 4× entry bar clears — the affordable-matchmaking fix.
+        val result = svc.findOrJoinPublic(user(), "Fresh", 500, 2_000, noBlocks, callerBalance = 10_000)
+
+        val created = assertIs<MatchmakingResult.Created>(result)
+        assertEquals(1_000L, created.room.buyIn, "snaps to the affordable anchor, not the 5k wire default")
+        assertTrue(EntryBar.canSit(10_000, created.room.buyIn), "the founder can fund the table they opened")
+    }
+
+    @Test
+    fun find_skipsAnUnaffordableInRangeTable_andOpensAnAffordableOne() = runTest {
+        val svc = service()
+        // A 5,000 table exists (opened by a wealthy player).
+        val rich = assertIs<MatchmakingResult.Created>(
+            svc.findOrJoinPublic(user(), "Rich", 5_000, 5_000, noBlocks, callerBalance = 100_000),
+        ).room
+        // A fresh-grant searcher browses a wide range that includes 5k, but can't
+        // clear the 4× bar for it (needs 20k). They must NOT be auto-seated there;
+        // an affordable anchor table opens instead.
+        val result = svc.findOrJoinPublic(user(), "Fresh", 1_000, 100_000, noBlocks, callerBalance = 10_000)
+
+        val created = assertIs<MatchmakingResult.Created>(result)
+        assertTrue(created.room.code != rich.code, "never auto-seated on a table above the entry bar")
+        assertTrue(
+            created.room.buyIn <= EntryBar.maxAffordableBuyIn(10_000),
+            "created buy-in never exceeds what the caller can fund",
+        )
+        assertEquals(1_000L, created.room.buyIn)
+    }
+
+    @Test
+    fun rescue_neverPullsASearcherOntoAnUnaffordableTable() = runTest {
+        val svc = service()
+        // A lonely 5,000 table. It sits one canonical step above the 1k anchor and
+        // is under the searcher's browse ceiling (25k), so the ceiling + one-step
+        // rules alone would rescue onto it. But a 4,000-chip searcher can't clear
+        // the 4× bar for 5k (needs 20k), so the affordability filter must exclude it.
+        val lonely = assertIs<MatchmakingResult.Created>(
+            svc.findOrJoinPublic(user(), "Waiter", 5_000, 5_000, noBlocks, callerBalance = 100_000),
+        ).room
+        val result = svc.findOrJoinPublic(user(), "Fresh", 1_000, 25_000, noBlocks, callerBalance = 4_000)
+
+        val created = assertIs<MatchmakingResult.Created>(result)
+        assertTrue(created.room.code != lonely.code, "rescue never seats above the entry bar")
+        assertTrue(
+            EntryBar.canSit(4_000, created.room.buyIn),
+            "the searcher can fund whatever table they land on",
+        )
+        assertEquals(1_000L, created.room.buyIn)
+    }
+
+    @Test
     fun buyInTiers_alignWithRoomSettings_bounds_andDefaultIsCanonical() {
         // Plan §2.3: tiers must line up with RoomSettings. Every canonical tier is a
         // legal buy-in, and the default stake (the convergence anchor) is one of them.
@@ -291,9 +346,10 @@ class MatchmakingServiceTest {
 
     @Test
     fun buyInTier_within_snapsToACanonicalTierInRange_elseClampsTheNearestIntoRange() {
-        // Range covering the default tier (5,000) picks it.
-        assertEquals(5_000, BuyInTier.within(1_000, 100_000))
-        // Range above the default picks the lowest in-range canonical.
+        // Range covering the anchor tier (1,000) picks it — the affordable-default
+        // snap, so a fresh 10k grant lands on a table the 4× entry bar clears.
+        assertEquals(1_000, BuyInTier.within(1_000, 100_000))
+        // Range above the anchor picks the lowest in-range canonical.
         assertEquals(25_000, BuyInTier.within(25_000, 100_000))
         // Range straddling no canonical tier clamps the nearest INTO the range,
         // never outside it — a table created below all tiers must still sit at a

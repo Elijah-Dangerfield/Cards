@@ -1,8 +1,6 @@
 package com.dangerfield.cards.server.domain
 
-import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import java.util.UUID
-import kotlin.math.abs
 
 /**
  * Public-matchmaking domain types. The matchmaker is find-or-create, not a
@@ -25,55 +23,26 @@ sealed interface MatchmakingResult {
 }
 
 /**
- * Canonical buy-in tiers. New public tables snap their buy-in to one of these so
- * searchers with overlapping ranges converge on the *same* room instead of each
- * minting a slightly-different-stakes table that no one else ever matches. Join
- * still accepts any existing room whose buy-in falls in the searcher's range —
- * tiers only constrain creation.
+ * Single source of truth for the anti-bankroll-dump entry bar: a public table's
+ * buy-in must be ≤ 25% of the wallet, i.e. the wallet covers at least four
+ * buy-ins. Both the real [com.dangerfield.cards.server.data.DefaultTableSessionService]
+ * (sit-down + rebuy) and affordable matchmaking ([RoomService.findOrJoinPublic])
+ * read it, so the seat gate and the tables the matchmaker offers can never drift
+ * apart — the exact drift that stranded fresh players in Lobby forever when the
+ * matchmaker snapped them to a 5,000 table their 10,000 grant couldn't fund.
  */
-object BuyInTier {
-    /** Ascending canonical stakes. Kept small + round so the lobby doesn't fragment. */
-    val Canonical: List<Long> = listOf(1_000L, 5_000L, 25_000L, 100_000L)
+object EntryBar {
+    /** Wallet must cover ≥ this many buy-ins to enter (or rebuy at) a tier — the 25% rule. */
+    const val MIN_BALANCE_BUYIN_MULTIPLE = 4L
 
-    /**
-     * The buy-in a freshly-created public table should use for a searcher's
-     * `[min, max]` range. Prefers the canonical tier inside the range closest to
-     * the default stake (so overlapping ranges cluster on the popular tier).
-     *
-     * The result is always inside `[min, max]`. When the range straddles a
-     * canonical tier we return that tier; when it straddles none we take the
-     * nearest canonical and clamp it into the range. Staying in-range is the
-     * load-bearing property for convergence: the candidate filter matches an
-     * existing room by `room.buyIn in min..max`, so a created table whose buy-in
-     * fell *outside* the searcher's own range could never be re-joined by the
-     * next searcher with that same range — both would keep minting fresh tables
-     * (MP-15). A clamped buy-in is always a legal stake because the range itself
-     * is validated to `RoomSettings.MIN_BUY_IN..MAX_BUY_IN` before we get here.
-     */
-    fun within(min: Long, max: Long): Long {
-        val inRange = Canonical.filter { it in min..max }
-        if (inRange.isNotEmpty()) {
-            return inRange.minByOrNull { abs(it - RoomSettings.DEFAULT_BUY_IN) }!!
-        }
-        val nearest = Canonical.minByOrNull { minOf(abs(it - min), abs(it - max)) }!!
-        return nearest.coerceIn(min, max)
-    }
+    /** Whether [balance] clears the entry bar for a table at [buyIn]. */
+    fun canSit(balance: Long, buyIn: Long): Boolean = balance >= buyIn * MIN_BALANCE_BUYIN_MULTIPLE
 
-    /** One canonical step is a 5x jump (1k→5k→25k→100k). */
-    const val STEP_RATIO = 5L
+    /** The smallest balance that clears the entry bar for a table at [buyIn]. */
+    fun minBalanceToSit(buyIn: Long): Long = buyIn * MIN_BALANCE_BUYIN_MULTIPLE
 
-    /**
-     * Whether two stakes are close enough to seat two lonely searchers together
-     * (MP-34): the larger is within one canonical step of the smaller. Beyond one
-     * step the stakes are too far apart to merge — a 1k player doesn't belong at a
-     * 25k table. Used only to *rescue* a waiting singleton across a small gap; the
-     * strict `buyIn in min..max` join still governs the normal path.
-     */
-    fun withinOneStep(a: Long, b: Long): Boolean {
-        val lo = minOf(a, b)
-        val hi = maxOf(a, b)
-        return lo > 0 && hi <= lo * STEP_RATIO
-    }
+    /** The largest buy-in [balance] can clear the entry bar for. */
+    fun maxAffordableBuyIn(balance: Long): Long = balance / MIN_BALANCE_BUYIN_MULTIPLE
 }
 
 /**

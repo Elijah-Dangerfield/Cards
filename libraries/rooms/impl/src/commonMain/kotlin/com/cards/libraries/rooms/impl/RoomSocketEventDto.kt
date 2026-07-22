@@ -102,6 +102,20 @@ internal sealed interface RoomSocketEventDto {
     @Serializable
     @SerialName("next_hand_cleared")
     data object NextHandCleared : RoomSocketEventDto
+
+    /**
+     * Terminal "you can't be seated here" signal: the server-dealt hand left this
+     * connected member out solely because their balance fell under the entry bar
+     * between finding the table and the deal. Mirrors the server's
+     * `SeatUnaffordable`. Without it the search sits on "dealing you in" forever —
+     * the member is a real member (the room shows Playing) but holds no seat.
+     * [minBalanceToSit] is the chips they'd need to sit at this table's buy-in.
+     */
+    @Serializable
+    @SerialName("seat_unaffordable")
+    data class SeatUnaffordable(
+        val minBalanceToSit: Long,
+    ) : RoomSocketEventDto
 }
 
 /**
@@ -134,6 +148,7 @@ internal fun RoomSocketEventDto.summary(): String = when (this) {
     is RoomSocketEventDto.MatchOverResolved -> "recv match_over_resolved winner=$winnerUserId"
     is RoomSocketEventDto.NextHandPending -> "recv next_hand_pending deadline=$deadlineEpochMs"
     RoomSocketEventDto.NextHandCleared -> "recv next_hand_cleared"
+    is RoomSocketEventDto.SeatUnaffordable -> "recv seat_unaffordable minBalance=$minBalanceToSit"
 }
 
 private fun GameEvent.summary(): String = when (this) {

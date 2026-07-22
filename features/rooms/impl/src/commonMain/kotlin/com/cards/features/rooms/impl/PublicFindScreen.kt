@@ -23,17 +23,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.public_find_balance_cap
-import cards.libraries.resources.generated.resources.public_find_blinds_label
-import cards.libraries.resources.generated.resources.public_find_blinds_value
 import cards.libraries.resources.generated.resources.public_find_cta
 import cards.libraries.resources.generated.resources.public_find_cta_hint
 import cards.libraries.resources.generated.resources.public_find_insufficient_hint
 import cards.libraries.resources.generated.resources.public_find_explainer_body
 import cards.libraries.resources.generated.resources.public_find_explainer_title
+import cards.libraries.resources.generated.resources.public_find_preview_label
+import cards.libraries.resources.generated.resources.public_find_preview_value
 import cards.libraries.resources.generated.resources.public_find_range_label
 import cards.libraries.resources.generated.resources.public_find_range_per_table
 import cards.libraries.resources.generated.resources.public_find_title
 import com.dangerfield.cards.libraries.cards.formatThousands
+import com.dangerfield.cards.libraries.gameplay.BuyInTier
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.Screen
@@ -61,8 +63,6 @@ fun PublicFindScreen(
     onFind: (minBuyIn: Long, maxBuyIn: Long) -> Unit,
     chipBalance: Long?,
 ) {
-    var range by remember { mutableStateOf(0.18f..0.6f) }
-
     // You can't search for a table you couldn't sit at: cap the top of the range
     // at your wallet (or the table ceiling, whichever's lower). Floored to a clean
     // step so the highest selectable buy-in is always ≤ your balance. The server
@@ -74,6 +74,26 @@ fun PublicFindScreen(
         .toInt()
     // The wallet — not the table ceiling — is what's binding the top of the range.
     val cappedByBalance = chipBalance != null && effectiveMax < TABLE_MAX
+
+    // Default to a fixed 500–2,000 chip band (not a fraction of balance): with the
+    // 10,000 grant and the 4× entry bar this snaps to the affordable 1,000 tier. The
+    // slider *scale* still stretches to the wallet ceiling, so the thumbs land on the
+    // real chip figures via the buy-in inverse regardless of balance. Re-derived when
+    // the balance loads (null → value shifts the scale).
+    var range by remember(effectiveMax) {
+        mutableStateOf(
+            fractionForBuyIn(DEFAULT_BAND_MIN, effectiveMax)..fractionForBuyIn(DEFAULT_BAND_MAX, effectiveMax),
+        )
+    }
+
+    // Live "what you'll get": the table the current range maps to, using the same
+    // canonical-tier snap the matchmaker applies server-side, so the preview is the
+    // exact stake the search will seat you at.
+    val previewBuyIn = BuyInTier.within(
+        buyInFor(range.start, effectiveMax).toLong(),
+        buyInFor(range.endInclusive, effectiveMax).toLong(),
+    )
+    val previewBlinds = RoomSettings.forBuyIn(previewBuyIn, PREVIEW_MAX_SEATS)
     Screen(
         topBar = {
             RoomHeader(
@@ -159,9 +179,14 @@ fun PublicFindScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column {
-                    Eyebrow(stringResource(Res.string.public_find_blinds_label))
+                    Eyebrow(stringResource(Res.string.public_find_preview_label))
                     Text(
-                        text = stringResource(Res.string.public_find_blinds_value),
+                        text = stringResource(
+                            Res.string.public_find_preview_value,
+                            formatThousands(previewBuyIn),
+                            formatThousands(previewBlinds.smallBlind),
+                            formatThousands(previewBlinds.bigBlind),
+                        ),
                         typography = AppTheme.typography.Label.L500,
                         color = AppTheme.colors.content,
                     )
@@ -224,12 +249,30 @@ private const val TABLE_MAX = 100_000
 /** Buy-ins snap to this so blinds stay clean and the cap lands on a round figure. */
 private const val BUY_IN_STEP = 100
 
+/** Default search band in chips (not a fraction of balance): 500–2,000 snaps to the
+ *  affordable 1,000 tier under the 10,000 grant + 4× entry bar. */
+internal const val DEFAULT_BAND_MIN = 500
+
+/** Top of the default search band in chips. */
+internal const val DEFAULT_BAND_MAX = 2_000
+
+/** Seat count used only to derive the preview blinds; blinds don't depend on it. */
+private const val PREVIEW_MAX_SEATS = 6
+
 /** Map a 0..1 slider position to a buy-in figure on a [MIN_BUY_IN]..[maxBuyIn] scale,
  *  snapped to [BUY_IN_STEP] and never above [maxBuyIn] (so a wallet-capped top can't
  *  round past your balance). Starts low so small-stakes tables are reachable. */
-private fun buyInFor(fraction: Float, maxBuyIn: Int): Int {
+internal fun buyInFor(fraction: Float, maxBuyIn: Int): Int {
     val raw = MIN_BUY_IN + fraction * (maxBuyIn - MIN_BUY_IN)
     return ((raw / BUY_IN_STEP).roundToInt() * BUY_IN_STEP).coerceIn(MIN_BUY_IN, maxBuyIn)
+}
+
+/** Inverse of [buyInFor]: the slider fraction that lands the thumb on [buyIn] chips
+ *  for the current [maxBuyIn] scale, so a fixed-chip default band resolves to the
+ *  right thumb positions whatever the wallet ceiling is. Clamped to 0..1. */
+internal fun fractionForBuyIn(buyIn: Int, maxBuyIn: Int): Float {
+    if (maxBuyIn <= MIN_BUY_IN) return 0f
+    return ((buyIn - MIN_BUY_IN).toFloat() / (maxBuyIn - MIN_BUY_IN)).coerceIn(0f, 1f)
 }
 
 /** Compact label for the scale ticks under the slider (e.g. 33_300 -> "33k"). */

@@ -351,8 +351,11 @@ internal class InMemoryTestTableSessionService(
             return com.dangerfield.cards.server.domain.SitDownResult.AlreadyAtTable(it.roomCode)
         }
         val balance = wallets.findOrCreate(userId).balance
-        if (enforceEntryBar && balance < buyIn * 4) {
-            return com.dangerfield.cards.server.domain.SitDownResult.BelowEntryBar(balance, buyIn * 4)
+        if (enforceEntryBar && !com.dangerfield.cards.server.domain.EntryBar.canSit(balance, buyIn)) {
+            return com.dangerfield.cards.server.domain.SitDownResult.BelowEntryBar(
+                balance,
+                com.dangerfield.cards.server.domain.EntryBar.minBalanceToSit(buyIn),
+            )
         }
         val id = java.util.UUID.randomUUID()
         return when (val o = wallets.apply(userId, "table:$id:buyin", -buyIn, "mp_buyin")) {
@@ -372,8 +375,11 @@ internal class InMemoryTestTableSessionService(
         val s = synchronized(lock) { active[userId] }
             ?: return com.dangerfield.cards.server.domain.RebuyResult.NoActiveSession
         val balance = wallets.findOrCreate(userId).balance
-        if (enforceEntryBar && balance < s.buyIn * 4) {
-            return com.dangerfield.cards.server.domain.RebuyResult.BelowEntryBar(balance, s.buyIn * 4)
+        if (enforceEntryBar && !com.dangerfield.cards.server.domain.EntryBar.canSit(balance, s.buyIn)) {
+            return com.dangerfield.cards.server.domain.RebuyResult.BelowEntryBar(
+                balance,
+                com.dangerfield.cards.server.domain.EntryBar.minBalanceToSit(s.buyIn),
+            )
         }
         val n = synchronized(lock) { ++s.rebuys }
         return when (val o = wallets.apply(userId, "table:${s.id}:rebuy:$n", -s.buyIn, "mp_rebuy")) {
@@ -582,7 +588,7 @@ internal class RoomSocketTestClient(val session: ClientWebSocketSession) {
 
 /** No-op equipment source — room-socket tests don't exercise badge resolution. */
 @OptIn(kotlin.time.ExperimentalTime::class)
-private object EmptyEquipmentRepository : com.dangerfield.cards.server.domain.EquipmentRepository {
+internal object EmptyEquipmentRepository : com.dangerfield.cards.server.domain.EquipmentRepository {
     override suspend fun listEquipped(
         userId: com.dangerfield.cards.server.domain.UserId,
     ): List<com.dangerfield.cards.server.domain.EquippedItem> = emptyList()
@@ -645,4 +651,4 @@ internal class FakeProgressionRepository(
 }
 
 /** No-op progression source — opponents' levels stay unresolved (null xp). */
-private val EmptyProgressionRepository = FakeProgressionRepository()
+internal val EmptyProgressionRepository = FakeProgressionRepository()

@@ -231,6 +231,13 @@ interface RoomService {
      * caller *before* this call — never query the friend graph while the room
      * mutex is held; rooms containing a blocked member are skipped. Idempotent:
      * a searcher already seated in an eligible room gets that room back.
+     *
+     * [callerBalance] is the searcher's wallet balance, read by the caller before
+     * the mutex (same pattern as [blockedUserIds]). The matchmaker never seats or
+     * opens a table the caller can't fund: auto-pick + rescue only offer rooms
+     * that clear [EntryBar.canSit], and a freshly-created table's buy-in is clamped
+     * to [EntryBar.maxAffordableBuyIn]. Defaulted to unbounded so direct callers /
+     * tests that don't model a wallet get the pre-affordability behaviour.
      */
     suspend fun findOrJoinPublic(
         userId: UserId,
@@ -238,6 +245,7 @@ interface RoomService {
         minBuyIn: Long,
         maxBuyIn: Long,
         blockedUserIds: Set<UserId>,
+        callerBalance: Long = Long.MAX_VALUE,
         avatarEmoji: String = "",
         avatarBackgroundColor: String? = null,
     ): MatchmakingResult

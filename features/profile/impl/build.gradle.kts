@@ -26,6 +26,9 @@ kotlin {
             implementation(projects.libraries.resources)
             implementation(projects.libraries.ui)
             implementation(projects.libraries.navigation)
+            // Interface-only module (not :impl) — lets the QA menu offer an
+            // "open network inspector" action without depending on Wiretap.
+            implementation(projects.libraries.networking)
 
             implementation(compose.runtime)
             implementation(compose.foundation)
