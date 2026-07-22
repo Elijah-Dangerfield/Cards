@@ -1,11 +1,13 @@
 package com.dangerfield.cards.admin
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.browser.document
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.web.attributes.placeholder
 import org.jetbrains.compose.web.dom.Button
@@ -27,6 +29,7 @@ private enum class Tab(val label: String) { Flags("Flags"), Versions("Versions")
 @Composable
 private fun App() {
     var selectedEnv by remember { mutableStateOf(AdminEnv.Dev) }
+    var connectedEnv by remember { mutableStateOf<AdminEnv?>(null) }
     var actor by remember { mutableStateOf("admin") }
     var api by remember { mutableStateOf<AdminApi?>(null) }
     var status by remember { mutableStateOf<Status?>(null) }
@@ -114,6 +117,7 @@ private fun App() {
                 setStatus(Status(false, "No token configured for ${env.displayName}."))
             } else {
                 api = AdminApi(env.baseUrl, env.token, actor.trim().ifBlank { "admin" })
+                connectedEnv = env
                 reloadAll()
             }
         },
@@ -146,13 +150,14 @@ private fun App() {
     }
 
     val activeApi = api ?: return
+    val env = connectedEnv ?: return
 
-    val ctx = remember(activeApi, selectedEnv) {
+    val ctx = remember(activeApi, env) {
         AdminCtx(
             api = activeApi,
             scope = scope,
-            envName = selectedEnv.displayName,
-            isProd = selectedEnv == AdminEnv.Prod,
+            envName = env.displayName,
+            isProd = env == AdminEnv.Prod,
             setStatus = ::setStatus,
             reload = ::reloadAll,
             requestConfirm = { pendingConfirm = it },
@@ -160,7 +165,21 @@ private fun App() {
         )
     }
 
+    // Make prod unmistakable: a page border (body class) + a sticky banner.
+    DisposableEffect(env) {
+        if (env == AdminEnv.Prod) document.body?.classList?.add("body-prod")
+        onDispose { document.body?.classList?.remove("body-prod") }
+    }
+    if (env == AdminEnv.Prod) {
+        Div(attrs = { classes("env-banner-prod") }) {
+            Text("PRODUCTION — changes affect live users")
+        }
+    }
+
     ConfirmModal(pendingConfirm) { pendingConfirm = null }
+
+    val rows = buildFlagRows(flags, resolvedByPath, manifest?.entries.orEmpty().associateBy { it.path })
+    KillSwitchPanel(rows, manifest, ctx)
 
     Div(attrs = { classes("tabs") }) {
         Tab.entries.forEach { t ->
@@ -180,8 +199,7 @@ private fun App() {
         Tab.Flags -> {
             TargetBar(target = target, versions = manifestVersions, onResolve = { resolveNow() })
             FlagsView(
-                flags = flags,
-                resolvedByPath = resolvedByPath,
+                rows = rows,
                 manifest = manifest,
                 target = target,
                 ctx = ctx,

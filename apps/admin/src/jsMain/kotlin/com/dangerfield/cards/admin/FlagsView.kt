@@ -75,13 +75,11 @@ internal fun bakedVersionLabel(manifest: ManifestResponse?): String? {
 
 @Composable
 internal fun FlagsView(
-    flags: List<ConfigFlagDto>,
-    resolvedByPath: Map<String, ResolvedFlagDto>,
+    rows: List<FlagRow>,
     manifest: ManifestResponse?,
     target: TargetState,
     ctx: AdminCtx,
 ) {
-    val rows = buildFlagRows(flags, resolvedByPath, manifest?.entries.orEmpty().associateBy { it.path })
     H2 { Text("Flags · resolved for the target above") }
     if (rows.isEmpty()) {
         P(attrs = { classes("muted") }) { Text("No flags yet. Add one below, or upload a version manifest.") }

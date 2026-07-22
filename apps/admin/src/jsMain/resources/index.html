@@ -107,6 +107,30 @@
         .error-log { border-color: var(--danger); }
         .error-entry { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 6px; }
         .err { color: var(--danger); }
+
+        /* production is unmistakable: page border + sticky banner */
+        body.body-prod { border: 4px solid var(--danger); min-height: 100vh; }
+        .env-banner-prod {
+            position: sticky; top: 0; z-index: 90;
+            background: var(--danger); color: #fff; font-weight: 700;
+            text-align: center; letter-spacing: .06em;
+            padding: 6px 10px; margin: 0 -20px 12px; border-radius: 0 0 8px 8px;
+        }
+        .env-chip { font-size: 11px; border-radius: 4px; padding: 1px 8px; font-weight: 700; letter-spacing: .05em; }
+        .env-chip-prod { background: var(--danger); color: #fff; }
+        .env-chip-dev { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
+
+        /* kill-switch panel */
+        .kill-panel { border-width: 2px; }
+        .kill-panel.kill-clear { border-color: var(--ok); }
+        .kill-panel.kill-banner { border-color: var(--accent); }
+        .kill-panel.kill-blocking { border-color: var(--danger); }
+        .kill-state { font-weight: 700; letter-spacing: .04em; margin-bottom: 8px; }
+        .kill-clear .kill-state { color: var(--ok); }
+        .kill-banner .kill-state { color: var(--accent); }
+        .kill-blocking .kill-state { color: var(--danger); }
+        .kill-row { border-top: 1px solid var(--line); padding: 6px 0; }
+        .kill-label { min-width: 150px; }
     </style>
 </head>
 <body>
