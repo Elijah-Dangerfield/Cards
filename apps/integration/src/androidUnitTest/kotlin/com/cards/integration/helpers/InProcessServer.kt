@@ -226,6 +226,20 @@ class InProcessServer(
     }
 
     /**
+     * Credit [amount] chips to [userId] so a test can fund a searcher above a
+     * stake's entry bar — public matchmaking requires the wallet to cover four
+     * buy-ins, so the starter grant alone can't reach the higher tiers.
+     */
+    fun creditChips(userId: String, amount: Long): Unit = runBlocking {
+        wallets.apply(
+            userId = UserId(UUID.fromString(userId)),
+            idempotencyKey = "test_credit:${UUID.randomUUID()}",
+            delta = amount,
+            reason = "test_credit",
+        )
+    }
+
+    /**
      * Read-only probe: does a room with [code] still exist server-side? Use to
      * assert a room was GC'd (reaper / last-leave) without a mutating join, which
      * would itself re-create membership and keep the room alive.
