@@ -64,29 +64,41 @@ internal fun buildFlagRows(
     }
 }
 
+/**
+ * "Baked into v0.1.0 (build 1)" — names the app version whose compiled-in
+ * defaults we're showing. Null when no manifest is loaded (older server, or
+ * none uploaded yet); callers fall back to a generic label.
+ */
+internal fun bakedVersionLabel(manifest: ManifestResponse?): String? {
+    val code = manifest?.versionCode ?: return null
+    val version = manifest.appVersion
+    return if (version.isNullOrBlank()) "build $code" else "v$version (build $code)"
+}
+
 @Composable
 internal fun FlagsView(
     flags: List<ConfigFlagDto>,
     resolvedByPath: Map<String, ResolvedFlagDto>,
-    manifestByPath: Map<String, ManifestEntryDto>,
+    manifest: ManifestResponse?,
     target: TargetState,
     api: AdminApi,
     scope: CoroutineScope,
     setStatus: (Status) -> Unit,
     reload: () -> Unit,
 ) {
-    val rows = buildFlagRows(flags, resolvedByPath, manifestByPath)
+    val rows = buildFlagRows(flags, resolvedByPath, manifest?.entries.orEmpty().associateBy { it.path })
     H2 { Text("Flags · resolved for the target above") }
     if (rows.isEmpty()) {
         P(attrs = { classes("muted") }) { Text("No flags yet. Add one below, or upload a version manifest.") }
     }
-    rows.forEach { row -> FlagCard(row, target, api, scope, setStatus, reload) }
+    rows.forEach { row -> FlagCard(row, manifest, target, api, scope, setStatus, reload) }
     NewFlagForm(api, scope, setStatus, reload)
 }
 
 @Composable
 private fun FlagCard(
     row: FlagRow,
+    manifest: ManifestResponse?,
     target: TargetState,
     api: AdminApi,
     scope: CoroutineScope,
@@ -102,19 +114,20 @@ private fun FlagCard(
             row.type?.let { Span(attrs = { classes("tag") }) { Text(it) } }
             Span(attrs = { classes("muted") }) { Text(if (open) "▾" else "▸") }
             Div(attrs = { classes("spacer") }) {}
-            Span(attrs = { classes("muted") }) { Text("resolves to") }
+            Span(attrs = { classes("muted") }) { Text("this client gets") }
             Span(attrs = { classes(if (drift) "val-drift" else "val") }) { Text(row.resolved.inline()) }
             row.matchedRule?.let {
                 Span(attrs = { classes("chip") }) { Text("rule #${it.priority}") }
             }
         }
-        if (open) FlagDetail(row, target, api, scope, setStatus, reload)
+        if (open) FlagDetail(row, manifest, target, api, scope, setStatus, reload)
     }
 }
 
 @Composable
 private fun FlagDetail(
     row: FlagRow,
+    manifest: ManifestResponse?,
     target: TargetState,
     api: AdminApi,
     scope: CoroutineScope,
@@ -125,20 +138,27 @@ private fun FlagDetail(
         P(attrs = { classes("muted"); style { property("margin", "4px 0 8px") } }) { Text(it) }
     }
 
-    // The resolve story: shipped default (read-only) → global override (optional)
-    // → resolved-for-target. The app *ships* the default; the site mainly targets.
+    // The three layers of every flag, spelled out: what the client build ships
+    // with, what (if anything) we've set on the server, and what a client
+    // matching the target lens actually receives.
     Div(attrs = { classes("layers") }) {
-        Layer("shipped default", row.default.inline(), "what the app ships with (read-only)")
-        if (row.inDb) {
-            Layer("global override", row.base.inline(), "served to all targets when no rule matches")
+        val bakedLabel = bakedVersionLabel(manifest)?.let { "baked into $it" } ?: "baked into app"
+        when {
+            row.default != null -> Layer(bakedLabel, row.default.inline(), "compiled into the app — read-only here")
+            manifest == null -> Layer(bakedLabel, "unknown", "no manifest on this server")
+            else -> Layer(bakedLabel, "—", "not in this version's manifest")
         }
-        Layer("resolved", row.resolved.inline(), "for the current target")
+        if (row.inDb) {
+            Layer("set on server", row.base.inline(), "replaces the baked value for everyone, unless a rule matches")
+        } else {
+            Layer("set on server", "not set", "no server value — clients use the baked value", notSet = true)
+        }
+        Layer("this client gets", row.resolved.inline(), "resolved for the target above")
     }
 
-    // Global override editor — optional. Without one the app's shipped default is
-    // served; setting one overrides the default for *every* target that no rule
-    // matches. The shipped default above stays read-only; this is the explicit,
-    // opt-in remote retune layer.
+    // Server-value editor. Without one the baked value is served; setting one
+    // overrides it for every client that no rule matches — the remote retune
+    // layer, no release needed. The baked value above stays read-only.
     var baseDraft by remember(row.path, row.base) {
         mutableStateOf((row.base ?: row.default).inline().takeUnless { it == "—" } ?: "null")
     }
@@ -146,31 +166,31 @@ private fun FlagDetail(
         Span(attrs = { classes("muted") }) {
             Text(
                 if (row.inDb) {
-                    "Global override (all targets) — edit or remove to fall back to the shipped default"
+                    "Set on server — edit, or remove so clients fall back to the baked value"
                 } else {
-                    "No global override — every target gets the shipped default. Add one to retune remotely without a release."
+                    "Nothing set on server — clients use the baked value. Set one to change it remotely without a release."
                 },
             )
         }
         Div(attrs = { classes("row"); style { property("margin-top", "6px") } }) {
-            Label { Text("override value") }
+            Label { Text("server value") }
             TextInput(baseDraft) { onInput { baseDraft = it.value } }
             Button(attrs = {
                 classes("primary")
                 onClick {
                     val element = parseJsonOrNull(baseDraft)
-                    if (element == null) { setStatus(Status(false, "Override value must be valid JSON")); return@onClick }
+                    if (element == null) { setStatus(Status(false, "Server value must be valid JSON")); return@onClick }
                     dangerousWarning(row.path, baseDraft)?.let { if (!confirmDialog(it)) return@onClick }
-                    scope.launchOp(setStatus, reload, "Saved global override for ${row.path}") {
+                    scope.launchOp(setStatus, reload, "Saved server value for ${row.path}") {
                         api.upsertFlag(row.path, element)
                     }
                 }
-            }) { Text(if (row.inDb) "Save override" else "Add global override") }
+            }) { Text(if (row.inDb) "Save server value" else "Set on server") }
             if (row.inDb) {
                 Button(attrs = {
                     classes("danger")
-                    onClick { scope.launchOp(setStatus, reload, "Removed override for ${row.path}") { api.deleteFlag(row.path) } }
-                }) { Text("Remove override") }
+                    onClick { scope.launchOp(setStatus, reload, "Removed server value for ${row.path}") { api.deleteFlag(row.path) } }
+                }) { Text("Remove server value") }
             }
         }
     }
@@ -179,7 +199,7 @@ private fun FlagDetail(
     Div(attrs = { style { property("margin-top", "12px") } }) {
         Span(attrs = { classes("muted") }) { Text("Targeting rules — first match wins, in priority order") }
         if (row.rules.isEmpty()) {
-            P(attrs = { classes("muted") }) { Text("No rules. Every target gets the global override, or the shipped default if none is set.") }
+            P(attrs = { classes("muted") }) { Text("No rules. Every client gets the server value, or the baked value if nothing is set.") }
         }
         row.rules.forEach { rule -> RuleRow(rule, api, scope, setStatus, reload) }
     }
@@ -188,10 +208,10 @@ private fun FlagDetail(
 }
 
 @Composable
-private fun Layer(label: String, value: String, hint: String) {
+private fun Layer(label: String, value: String, hint: String, notSet: Boolean = false) {
     Div(attrs = { classes("layer") }) {
         Span(attrs = { classes("muted") }) { Text(label) }
-        Span(attrs = { classes("val") }) { Text(value) }
+        Span(attrs = { classes(if (notSet) "val-not-set" else "val") }) { Text(value) }
         Span(attrs = { classes("muted", "hint") }) { Text(hint) }
     }
 }

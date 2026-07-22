@@ -34,7 +34,9 @@ private fun App() {
 
     var flags by remember { mutableStateOf<List<ConfigFlagDto>>(emptyList()) }
     var resolvedByPath by remember { mutableStateOf<Map<String, ResolvedFlagDto>>(emptyMap()) }
-    var manifestByPath by remember { mutableStateOf<Map<String, ManifestEntryDto>>(emptyMap()) }
+    // The whole manifest response, not just its entries — the views label the
+    // baked-default layer with the version it came from ("Baked into v0.1.0").
+    var manifest by remember { mutableStateOf<ManifestResponse?>(null) }
     var manifestVersions by remember { mutableStateOf<List<ManifestVersionDto>>(emptyList()) }
     val target = remember { TargetState() }
 
@@ -52,7 +54,7 @@ private fun App() {
             Catching {
                 val req = target.toRequest()
                 resolvedByPath = a.resolve(req).associateBy { it.path }
-                manifestByPath = a.getManifest(req.buildNumber).entries.associateBy { it.path }
+                manifest = a.getManifest(req.buildNumber)
             }.onFailure { setStatus(Status(false, "Resolve unavailable: ${it.message}")) }
         }
     }
@@ -79,7 +81,7 @@ private fun App() {
                 }
                 val req = target.toRequest()
                 resolvedByPath = a.resolve(req).associateBy { it.path }
-                manifestByPath = a.getManifest(req.buildNumber).entries.associateBy { it.path }
+                manifest = a.getManifest(req.buildNumber)
             }.isSuccess
             setStatus(
                 Status(true, "Loaded ${flags.size} flag(s)" + if (enriched) "" else " — resolve/manifest unavailable on this server"),
@@ -141,7 +143,7 @@ private fun App() {
             FlagsView(
                 flags = flags,
                 resolvedByPath = resolvedByPath,
-                manifestByPath = manifestByPath,
+                manifest = manifest,
                 target = target,
                 api = activeApi,
                 scope = scope,

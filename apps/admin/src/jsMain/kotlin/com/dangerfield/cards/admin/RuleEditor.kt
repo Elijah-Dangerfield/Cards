@@ -57,7 +57,7 @@ private fun draftForTarget(row: FlagRow, target: TargetState): RuleDraft = RuleD
     if (target.userId.isNotBlank()) userAllow = target.userId
     // A version lens defaults to "this version and up".
     if (target.appVersion.isNotBlank()) minAppVersion = target.appVersion
-    // Default the value to the opposite of the in-code default, the common intent.
+    // Default the value to the opposite of the baked default, the common intent.
     value = when (row.default.inline()) {
         "false" -> "true"
         "true" -> "false"
