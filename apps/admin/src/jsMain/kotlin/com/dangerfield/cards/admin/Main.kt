@@ -278,7 +278,7 @@ private fun App() {
                     onSelect = { selectVersion(it) },
                 )
 
-                Tab.Audit -> AuditView(api = activeApi, setStatus = ::setStatus)
+                Tab.Audit -> AuditView(ctx = ctx)
             }
         }
     }
