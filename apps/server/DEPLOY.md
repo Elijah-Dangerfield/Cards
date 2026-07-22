@@ -18,7 +18,20 @@ one are invisible to the other.
 The client picks an environment by build type: **debug → dev, release → prod**
 (`Environment.current`). Override locally with `cards.targetEnv=dev|prod` in
 `local.properties` (CI-guarded). Each env has its **own** `ADMIN_API_TOKEN`, so
-the config admin tool manages whichever one you point it at.
+the config admin console manages whichever one you point it at.
+
+Each server also **hosts the config admin console at `/admin`**
+(e.g. `https://cards-server-dev.fly.dev/admin/`). The deploy workflows build
+the `apps/admin` bundle on the runner and stage it in `apps/server/admin-web/`
+for the Dockerfile's runtime `COPY` — deliberately outside the in-container
+serverOnly Gradle build, which must not grow a JS toolchain. Deploying by hand
+with `fly deploy` therefore ships whatever is in `apps/server/admin-web/`
+(possibly nothing — then `/admin` 404s; build the bundle first with
+`./gradlew :apps:admin:jsBrowserDistribution` and copy
+`apps/admin/build/dist/js/productionExecutable/.` in). Tokens are pasted into
+the console at runtime (validated, stored in the browser); rotate a leaked one
+with `fly secrets set ADMIN_API_TOKEN=... -a <app>` and update the GH
+`CARDS_ADMIN_API_TOKEN_{DEV,PROD}` secret to match.
 
 Prod deploys are deliberate but low-toil: dev ships on every merge; the same
 merge **auto-queues** a prod deploy that pauses on the `production` GitHub

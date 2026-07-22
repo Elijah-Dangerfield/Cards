@@ -44,3 +44,9 @@ apps/admin/admin-tokens.local.properties
 *.jks
 *.keystore
 *.p12
+
+# Hosted admin console: the deploy workflows copy the built apps/admin bundle
+# here for the server Docker image to COPY. Never committed — only the
+# .gitkeep so the COPY always has a directory to take.
+apps/server/admin-web/*
+!apps/server/admin-web/.gitkeep

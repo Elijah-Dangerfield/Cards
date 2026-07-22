@@ -213,12 +213,20 @@ data class AdminConfig(
      * (process-stranded) room lingers in Postgres before cleanup.
      */
     val staleRoomTtlHours: Int,
+    /**
+     * Directory holding the prebuilt admin console bundle served at `/admin`.
+     * The default matches the repo layout for local `:apps:server:run`
+     * (workingDir = rootDir); the Docker image overrides it. Missing dir →
+     * `/admin` simply isn't served.
+     */
+    val webDir: String = "apps/server/admin-web",
 ) {
     companion object {
         fun fromEnv(env: Env): AdminConfig = AdminConfig(
             apiToken = env["ADMIN_API_TOKEN"],
             orphanAnonTtlDays = env.int("ORPHAN_ANON_TTL_DAYS", default = 30),
             staleRoomTtlHours = env.int("STALE_ROOM_TTL_HOURS", default = 6),
+            webDir = env["ADMIN_WEB_DIR"] ?: "apps/server/admin-web",
         )
     }
 }
