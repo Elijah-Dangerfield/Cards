@@ -77,10 +77,10 @@ import cards.libraries.resources.generated.resources.profile_stats_banner_title
 import cards.libraries.resources.generated.resources.profile_achievements_count_see_all
 import cards.libraries.resources.generated.resources.profile_achievements_title
 import cards.libraries.resources.generated.resources.ui_achievement_medallion_locked_label
-import com.dangerfield.cards.features.profile.impl.items.BuyableCosmetic
+import com.dangerfield.cards.libraries.ui.components.poker.BuyableCosmetic
 import com.dangerfield.cards.features.profile.impl.items.CosmeticDetailSheet
 import com.dangerfield.cards.features.profile.impl.items.KnownEarnedItems
-import com.dangerfield.cards.features.profile.impl.items.LockedCosmeticSheet
+import com.dangerfield.cards.libraries.ui.components.poker.LockedCosmeticSheet
 import com.dangerfield.cards.features.profile.impl.items.OwnedItem
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AcquisitionSource

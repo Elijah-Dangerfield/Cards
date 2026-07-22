@@ -5,10 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -28,9 +25,6 @@ import cards.libraries.resources.generated.resources.profile_item_sheet_avatar_e
 import cards.libraries.resources.generated.resources.profile_item_sheet_bought_free
 import cards.libraries.resources.generated.resources.profile_item_sheet_how_earned
 import cards.libraries.resources.generated.resources.profile_item_sheet_earned
-import cards.libraries.resources.generated.resources.profile_item_sheet_in_pack
-import cards.libraries.resources.generated.resources.profile_item_sheet_locked_not_owned
-import cards.libraries.resources.generated.resources.profile_item_sheet_open_in_shop
 import cards.libraries.resources.generated.resources.profile_item_sheet_try_emote
 import cards.libraries.resources.generated.resources.profile_items_equipped
 import cards.libraries.resources.generated.resources.profile_my_items_button_equip
@@ -48,13 +42,8 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.RotatingDial
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
-import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPackThumbnail
-import com.dangerfield.cards.libraries.ui.components.poker.FlippableCard
-import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardBack
-import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
-import com.dangerfield.cards.libraries.ui.components.poker.cardBackForProductId
-import com.dangerfield.cards.libraries.ui.components.poker.feltForProductId
-import com.dangerfield.cards.libraries.ui.components.poker.feltSurfaceColor
+import com.dangerfield.cards.libraries.ui.components.poker.CosmeticHero
+import com.dangerfield.cards.libraries.ui.components.poker.PackContents
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.system.AppTheme
@@ -265,70 +254,6 @@ private fun FoundingMemberSheet(onDismiss: () -> Unit) {
 }
 
 /**
- * The "you don't own this yet" sheet for a dimmed buyable tile on a shoppable
- * shelf. Shows the same hero preview as [CosmeticDetailSheet] so the item reads
- * as a real thing, a "not yours yet" line, the pack contents if it's a pack,
- * and a single CTA into the shop's purchase flow for this product.
- */
-@Composable
-fun LockedCosmeticSheet(
-    item: BuyableCosmetic,
-    onOpenInShop: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    BottomSheet(
-        onDismissRequest = onDismiss,
-        showCloseButton = true,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Dimension.D500, vertical = Dimension.D400),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            CosmeticHero(
-                productId = item.productId,
-                emoji = item.iconEmoji,
-                packEmojis = item.packEmojis,
-            )
-            VerticalSpacerD500()
-
-            Text(
-                text = item.title,
-                typography = AppTheme.typography.Heading.H800,
-                color = AppTheme.colors.content,
-                textAlign = TextAlign.Center,
-            )
-            VerticalSpacerD200()
-            Text(
-                text = stringResource(Res.string.profile_item_sheet_locked_not_owned),
-                typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.contentSecondary,
-                textAlign = TextAlign.Center,
-            )
-
-            if (item.packEmojis.isNotEmpty()) {
-                VerticalSpacerD500()
-                PackContents(emojis = item.packEmojis)
-            }
-
-            VerticalSpacerD800()
-            Button(
-                onClick = {
-                    onOpenInShop(item.productId)
-                    onDismiss()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                size = ButtonSize.Medium,
-                style = ButtonStyle.Filled,
-            ) {
-                Text(stringResource(Res.string.profile_item_sheet_open_in_shop))
-            }
-        }
-    }
-}
-
-/**
  * The equip CTA. Card backs and felts are *swap-only* — there's always one
  * equipped and you change it by equipping a different one, so an equipped
  * one shows a disabled "Equipped" state rather than an "Unequip" button that
@@ -368,83 +293,6 @@ private fun EquipButton(item: OwnedItem, onToggleEquip: (String) -> Unit) {
 }
 
 /**
- * The "In this pack" grid — every emoji the pack bundles, on its own raised
- * tile, so the user sees the full contents rather than a single hero glyph.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun PackContents(emojis: List<String>) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(Res.string.profile_item_sheet_in_pack),
-            typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.contentTertiary,
-        )
-        VerticalSpacerD200()
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Dimension.D300, Alignment.CenterHorizontally),
-            verticalArrangement = Arrangement.spacedBy(Dimension.D300),
-        ) {
-            emojis.forEach { emoji ->
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(AppTheme.colors.surfaceRaised.color),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(text = emoji, typography = AppTheme.typography.Heading.H600)
-                }
-            }
-        }
-    }
-}
-
-/**
- * The hero preview. Card backs get the real flip-card (auto-flip on open +
- * draggable); felts get a felt-table vignette; everything else falls back to
- * its glyph on a raised tile.
- */
-@Composable
-private fun CosmeticHero(
-    productId: String,
-    emoji: String,
-    packEmojis: List<String>,
-    emojiOverride: String? = null,
-) {
-    when (cosmeticSlotFor(productId)) {
-        CosmeticSlot.CardBack -> FlippableCard(
-            style = cardBackForProductId(productId),
-            size = PlayingCardSize.Hole,
-            flipOnInit = true,
-            interactive = true,
-        )
-        CosmeticSlot.Felt -> FeltVignette(productId)
-        // Packs (avatars / emotes) read as a stack of their contents.
-        else -> if (emojiOverride == null && packEmojis.size >= 2) {
-            CosmeticPackThumbnail(emojis = packEmojis, size = 132.dp)
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(132.dp)
-                    .clip(Radii.R700.shape)
-                    .background(AppTheme.colors.surfaceRaised.color),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = emojiOverride ?: emoji,
-                    typography = AppTheme.typography.Display.D900,
-                )
-            }
-        }
-    }
-}
-
-/**
  * The ceremonial "how you earned it" block for prestige grants — a small
  * heading, the earn story, and an optional thank-you line so an earned item
  * reads as a moment rather than a bare glyph.
@@ -475,32 +323,6 @@ private fun EarnedStory(info: EarnedItemInfo) {
                 color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
-        }
-    }
-}
-
-/**
- * A felt swatch staged as a tiny table — the felt color filling a rounded
- * surface with a pair of face-down cards laid on it, so a player sees how the
- * felt reads in play rather than as a bare color chip.
- */
-@Composable
-private fun FeltVignette(productId: String) {
-    val color = feltSurfaceColor(feltForProductId(productId))
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(180.dp)
-            .clip(Radii.Card.shape)
-            .background(color)
-            .border(1.dp, AppTheme.colors.border.color, Radii.Card.shape),
-        contentAlignment = Alignment.Center,
-    ) {
-        androidx.compose.foundation.layout.Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            PlayingCardBack(size = PlayingCardSize.Deck)
-            PlayingCardBack(size = PlayingCardSize.Deck)
         }
     }
 }
@@ -654,23 +476,6 @@ private fun CosmeticDetailSheetPreview_FoundingMember() {
                 acquisitionSource = AcquisitionSource.Earned,
             ),
             onToggleEquip = {},
-            onDismiss = {},
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun LockedCosmeticSheetPreview_Pack() {
-    PreviewContent {
-        LockedCosmeticSheet(
-            item = BuyableCosmetic(
-                productId = "emotes_convincer",
-                title = "Convincer Pack",
-                iconEmoji = "🎭",
-                packEmojis = listOf("🎭", "🤔", "😏", "🙃"),
-            ),
-            onOpenInShop = {},
             onDismiss = {},
         )
     }

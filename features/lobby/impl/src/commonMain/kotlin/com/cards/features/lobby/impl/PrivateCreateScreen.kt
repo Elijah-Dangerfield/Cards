@@ -30,7 +30,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.alpha
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.profile_item_sheet_locked_a11y
 import cards.libraries.resources.generated.resources.private_create_card_back_label
 import cards.libraries.resources.generated.resources.private_create_cta
 import cards.libraries.resources.generated.resources.private_create_default_room_name
@@ -54,8 +57,14 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Slider
 import com.dangerfield.cards.libraries.ui.components.Switch
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.icon.Icon
+import com.dangerfield.cards.libraries.ui.components.icon.IconSize
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
+import com.dangerfield.cards.libraries.ui.components.poker.BuyableCosmetic
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
+import com.dangerfield.cards.libraries.ui.components.poker.LockedCosmeticSheet
 import com.dangerfield.cards.libraries.ui.components.room.RoomHeader
+import com.dangerfield.cards.libraries.ui.cutout
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
@@ -69,9 +78,10 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 /**
  * A single selectable cosmetic in the create-room felt / card-back picker.
  * Owned-only by construction (the entry point builds these lists from
- * inventory), so the host can never pick something they don't own. [emoji]
- * is the fallback glyph when [CosmeticPreview] has no richer rendering for
- * the product id.
+ * inventory), so the host can never pick something they don't own — the
+ * not-yet-owned catalog items render separately as locked tiles (ROOM-20).
+ * [emoji] is the fallback glyph when [CosmeticPreview] has no richer
+ * rendering for the product id.
  */
 data class CosmeticChoice(
     val productId: String,
@@ -104,9 +114,15 @@ fun PrivateCreateScreen(
     cardBacks: List<CosmeticChoice> = emptyList(),
     initialFeltProductId: String? = null,
     initialCardBackProductId: String? = null,
+    lockedFelts: List<BuyableCosmetic> = emptyList(),
+    lockedCardBacks: List<BuyableCosmetic> = emptyList(),
+    onOpenLockedInShop: (String) -> Unit = {},
 ) {
     var maxPlayers by remember { mutableStateOf(6) }
     var openToAnyone by remember { mutableStateOf(false) }
+    // A tapped locked tile opens the same not-yours-yet sheet the profile
+    // bookshelf uses (ROOM-20); its CTA deep-links into the shop.
+    var lockedSelected by remember { mutableStateOf<BuyableCosmetic?>(null) }
     // Seed the picker from the host's equipped look (SHOP-3), then let them
     // change it. Falls back to the first owned option so a shelf is never
     // "nothing selected" if the equipped id isn't in the list.
@@ -207,22 +223,26 @@ fun PrivateCreateScreen(
                         checked = openToAnyone,
                         onCheckedChange = { openToAnyone = it },
                     )
-                    if (felts.isNotEmpty()) {
+                    if (felts.isNotEmpty() || lockedFelts.isNotEmpty()) {
                         RuleDivider()
                         CosmeticPickerRow(
                             label = stringResource(Res.string.private_create_felt_label),
                             choices = felts,
                             selectedProductId = selectedFelt,
                             onSelect = { selectedFelt = it },
+                            locked = lockedFelts,
+                            onLockedSelect = { lockedSelected = it },
                         )
                     }
-                    if (cardBacks.isNotEmpty()) {
+                    if (cardBacks.isNotEmpty() || lockedCardBacks.isNotEmpty()) {
                         RuleDivider()
                         CosmeticPickerRow(
                             label = stringResource(Res.string.private_create_card_back_label),
                             choices = cardBacks,
                             selectedProductId = selectedCardBack,
                             onSelect = { selectedCardBack = it },
+                            locked = lockedCardBacks,
+                            onLockedSelect = { lockedSelected = it },
                         )
                     }
                 }
@@ -247,6 +267,14 @@ fun PrivateCreateScreen(
             }
             Spacer(Modifier.height(Dimension.D800))
         }
+    }
+
+    lockedSelected?.let { item ->
+        LockedCosmeticSheet(
+            item = item,
+            onOpenInShop = onOpenLockedInShop,
+            onDismiss = { lockedSelected = null },
+        )
     }
 }
 
@@ -338,9 +366,11 @@ private fun OpenToAnyoneRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit
 }
 
 /**
- * A labelled horizontally-scrolling shelf of owned cosmetics (felts or card
- * backs). Each tile is a live [CosmeticPreview]; the selected one carries an
- * accent ring. Owned-only by construction — [choices] is the host's inventory.
+ * A labelled horizontally-scrolling shelf of cosmetics (felts or card backs):
+ * the host's owned options first — each a live [CosmeticPreview], the selected
+ * one carrying an accent ring — then the not-yet-owned catalog items as dimmed
+ * locked tiles (ROOM-20). A locked tile isn't selectable; tapping it surfaces
+ * the shared not-yours-yet sheet via [onLockedSelect].
  */
 @Composable
 private fun CosmeticPickerRow(
@@ -348,6 +378,8 @@ private fun CosmeticPickerRow(
     choices: List<CosmeticChoice>,
     selectedProductId: String?,
     onSelect: (String) -> Unit,
+    locked: List<BuyableCosmetic> = emptyList(),
+    onLockedSelect: (BuyableCosmetic) -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -375,6 +407,12 @@ private fun CosmeticPickerRow(
                     choice = choice,
                     selected = choice.productId == selectedProductId,
                     onClick = { onSelect(choice.productId) },
+                )
+            }
+            items(items = locked, key = { it.productId }) { item ->
+                LockedCosmeticPickerTile(
+                    item = item,
+                    onClick = { onLockedSelect(item) },
                 )
             }
         }
@@ -419,6 +457,60 @@ private fun CosmeticPickerTile(
         }
     }
 }
+
+/**
+ * A not-yet-owned cosmetic on the picker shelf: same footprint as
+ * [CosmeticPickerTile] so the row scans as one shelf, but never selectable —
+ * the preview dims while the corner lock badge stays full-opacity (mirroring
+ * the profile bookshelf's buyable tiles) so "not yours yet" reads clearly.
+ */
+@Composable
+private fun LockedCosmeticPickerTile(
+    item: BuyableCosmetic,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(Radii.Button.shape)
+            .border(2.dp, AppTheme.colors.border.color, Radii.Button.shape)
+            .clickable(onClick = onClick)
+            .padding(Dimension.D400),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(PickerPreviewSize)
+                .alpha(LockedTileAlpha),
+            contentAlignment = Alignment.Center,
+        ) {
+            CosmeticPreview(
+                productId = item.productId,
+                emoji = item.iconEmoji,
+                size = PickerPreviewSize,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .size(20.dp)
+                .cutout(
+                    ringColor = AppTheme.colors.surface.color,
+                    fillColor = AppTheme.colors.surfaceHigh.color,
+                    shape = CircleShape,
+                    ringWidth = 2.dp,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                icon = Icons.Lock(stringResource(Res.string.profile_item_sheet_locked_a11y)),
+                size = IconSize.Smallest,
+                color = AppTheme.colors.contentSecondary,
+            )
+        }
+    }
+}
+
+private const val LockedTileAlpha = 0.45f
 
 @Composable
 private fun MaxPlayersRow(value: Int, onDecrement: () -> Unit, onIncrement: () -> Unit) {
@@ -502,6 +594,12 @@ private fun PrivateCreateScreenPreview() {
             ),
             initialFeltProductId = "felt_royal_red",
             initialCardBackProductId = "cardback_default",
+            lockedFelts = listOf(
+                BuyableCosmetic(productId = "felt_sunset", title = "Sunset", iconEmoji = "🟧"),
+            ),
+            lockedCardBacks = listOf(
+                BuyableCosmetic(productId = "cardback_galaxy", title = "Galaxy", iconEmoji = "✨"),
+            ),
         )
     }
 }
