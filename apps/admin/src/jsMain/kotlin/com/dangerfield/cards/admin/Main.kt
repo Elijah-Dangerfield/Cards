@@ -112,144 +112,175 @@ private fun App() {
         }
     }
 
-    H1 { Text("Cards · Remote Config Admin") }
-    P(attrs = { classes("sub") }) { Text("Pick an environment, set a target lens, then view and edit flags.") }
+    val activeApi = api
+    val env = connectedEnv
 
-    ConnectionPanel(
-        selectedEnv = selectedEnv,
-        hosted = hosted,
-        onSelectEnv = { selectedEnv = it },
-        actor = actor,
-        onActor = { actor = it },
-        tokenDraft = tokenDraft,
-        onTokenDraft = { tokenDraft = it },
-        onForgetToken = {
-            TokenStore.forgetToken(selectedEnv)
-            if (connectedEnv == selectedEnv) {
-                api = null
-                connectedEnv = null
+    // ── top app bar: who am I, where am I pointed, is it live ──
+    Div(attrs = { classes("appbar") }) {
+        Div(attrs = { classes("appbar-inner") }) {
+            Span(attrs = { classes("wordmark") }) {
+                Text("Downcard ")
+                Span(attrs = { classes("dim") }) { Text("Config") }
             }
-            setStatus(Status(true, "Forgot the ${selectedEnv.displayName} token."))
-        },
-        onConnect = {
-            val env = selectedEnv
-            val actorName = actor.trim().ifBlank { "admin" }
-            val token = tokenDraft.trim().ifBlank { TokenStore.token(env).orEmpty() }
-            if (token.isBlank()) {
-                setStatus(Status(false, "Paste the ${env.displayName} admin token to connect."))
-            } else {
-                // Validate the token with a real call before storing it, so a
-                // typo'd token never sticks.
-                val candidate = AdminApi(env.baseUrl, token, actorName)
-                scope.launch {
-                    Catching { candidate.listFlags() }
-                        .onSuccess {
-                            TokenStore.saveToken(env, token)
-                            TokenStore.actor = actorName
-                            tokenDraft = ""
-                            api = candidate
-                            connectedEnv = env
-                            reloadAll()
-                        }
-                        .onFailure {
-                            setStatus(Status(false, "Could not connect to ${env.displayName}: ${it.message}"))
-                        }
+            env?.let {
+                Span(attrs = { classes("env-chip", if (it == AdminEnv.Prod) "env-chip-prod" else "env-chip-dev") }) {
+                    Text(it.displayName.uppercase())
                 }
             }
-        },
-    )
-
-    status?.let { s ->
-        Div(attrs = { classes("status", if (s.ok) "ok" else "err") }) { Text(s.message) }
-    }
-
-    // Failed writes stay visible until dismissed — the one-line status above
-    // gets overwritten by the next action; these don't.
-    if (errorLog.isNotEmpty()) {
-        Div(attrs = { classes("panel", "error-log") }) {
-            Div(attrs = { classes("row") }) {
-                Span(attrs = { classes("err") }) { Text("Failed writes") }
-                Div(attrs = { classes("spacer") }) {}
-                Button(attrs = { onClick { errorLog = emptyList() } }) { Text("Dismiss all") }
+            Span(attrs = {
+                classes("conn-dot")
+                if (env != null) classes("on")
+            }) {}
+            Span(attrs = { classes("muted") }) { Text(env?.baseUrl ?: "not connected") }
+            Div(attrs = { classes("spacer") }) {}
+            if (env != null) {
+                Span(attrs = { classes("muted") }) { Text("as ${actor.trim().ifBlank { "admin" }}") }
+                Button(attrs = { onClick { reloadAll() } }) { Text("Reload") }
+                Button(attrs = {
+                    onClick {
+                        api = null
+                        connectedEnv = null
+                    }
+                }) { Text("Disconnect") }
             }
-            errorLog.forEach { entry ->
-                Div(attrs = { classes("row", "error-entry") }) {
-                    Span(attrs = { classes("muted") }) { Text(entry.time) }
-                    Span { Text(entry.operation) }
-                    entry.attempted?.let { Span(attrs = { classes("muted") }) { Text("attempted: $it") } }
-                    Span(attrs = { classes("err") }) { Text(entry.message) }
-                    Div(attrs = { classes("spacer") }) {}
-                    Button(attrs = { onClick { errorLog = errorLog - entry } }) { Text("✕") }
-                }
+        }
+        if (env == AdminEnv.Prod) {
+            Div(attrs = { classes("env-banner-prod") }) {
+                Text("PRODUCTION — changes affect live users")
             }
         }
     }
 
-    val activeApi = api ?: return
-    val env = connectedEnv ?: return
-
-    val ctx = remember(activeApi, env) {
-        AdminCtx(
-            api = activeApi,
-            scope = scope,
-            envName = env.displayName,
-            isProd = env == AdminEnv.Prod,
-            setStatus = ::setStatus,
-            reload = ::reloadAll,
-            requestConfirm = { pendingConfirm = it },
-            reportError = { errorLog = errorLog + it },
-        )
-    }
-
-    // Make prod unmistakable: a page border (body class) + a sticky banner.
+    // Make prod unmistakable beyond the banner: a page border via body class.
     DisposableEffect(env) {
         if (env == AdminEnv.Prod) document.body?.classList?.add("body-prod")
         onDispose { document.body?.classList?.remove("body-prod") }
     }
-    if (env == AdminEnv.Prod) {
-        Div(attrs = { classes("env-banner-prod") }) {
-            Text("PRODUCTION — changes affect live users")
+
+    Div(attrs = { classes("page") }) {
+        status?.let { s ->
+            Div(attrs = { classes("status", if (s.ok) "ok" else "err") }) { Text(s.message) }
         }
-    }
 
-    ConfirmModal(pendingConfirm) { pendingConfirm = null }
-
-    val rows = buildFlagRows(flags, resolvedByPath, manifest?.entries.orEmpty().associateBy { it.path })
-    KillSwitchPanel(rows, manifest, ctx)
-
-    Div(attrs = { classes("tabs") }) {
-        Tab.entries.forEach { t ->
-            Button(attrs = {
-                if (t == tab) classes("active")
-                onClick {
-                    tab = t
-                    if (t == Tab.Versions && versionsSelected == null) {
-                        manifestVersions.firstOrNull()?.let { selectVersion(it.versionCode) }
+        // Failed writes stay visible until dismissed — the one-line status above
+        // gets overwritten by the next action; these don't.
+        if (errorLog.isNotEmpty()) {
+            Div(attrs = { classes("panel", "error-log") }) {
+                Div(attrs = { classes("row") }) {
+                    Span(attrs = { classes("err") }) { Text("Failed writes") }
+                    Div(attrs = { classes("spacer") }) {}
+                    Button(attrs = { onClick { errorLog = emptyList() } }) { Text("Dismiss all") }
+                }
+                errorLog.forEach { entry ->
+                    Div(attrs = { classes("row", "error-entry") }) {
+                        Span(attrs = { classes("muted") }) { Text(entry.time) }
+                        Span { Text(entry.operation) }
+                        entry.attempted?.let { Span(attrs = { classes("muted") }) { Text("attempted: $it") } }
+                        Span(attrs = { classes("err") }) { Text(entry.message) }
+                        Div(attrs = { classes("spacer") }) {}
+                        Button(attrs = { onClick { errorLog = errorLog - entry } }) { Text("✕") }
                     }
                 }
-            }) { Text(t.label) }
+            }
         }
-    }
 
-    when (tab) {
-        Tab.Flags -> {
-            TargetBar(target = target, versions = manifestVersions, onResolve = { resolveNow() })
-            FlagsView(
-                rows = rows,
-                manifest = manifest,
-                target = target,
-                ctx = ctx,
+        if (activeApi == null || env == null) {
+            P(attrs = { classes("sub") }) {
+                Text("Connect to an environment to view and edit its config.")
+            }
+            ConnectionPanel(
+                selectedEnv = selectedEnv,
+                hosted = hosted,
+                onSelectEnv = { selectedEnv = it },
+                actor = actor,
+                onActor = { actor = it },
+                tokenDraft = tokenDraft,
+                onTokenDraft = { tokenDraft = it },
+                onForgetToken = {
+                    TokenStore.forgetToken(selectedEnv)
+                    setStatus(Status(true, "Forgot the ${selectedEnv.displayName} token."))
+                },
+                onConnect = {
+                    val envToConnect = selectedEnv
+                    val actorName = actor.trim().ifBlank { "admin" }
+                    val token = tokenDraft.trim().ifBlank { TokenStore.token(envToConnect).orEmpty() }
+                    if (token.isBlank()) {
+                        setStatus(Status(false, "Paste the ${envToConnect.displayName} admin token to connect."))
+                    } else {
+                        // Validate the token with a real call before storing it,
+                        // so a typo'd token never sticks.
+                        val candidate = AdminApi(envToConnect.baseUrl, token, actorName)
+                        scope.launch {
+                            Catching { candidate.listFlags() }
+                                .onSuccess {
+                                    TokenStore.saveToken(envToConnect, token)
+                                    TokenStore.actor = actorName
+                                    tokenDraft = ""
+                                    api = candidate
+                                    connectedEnv = envToConnect
+                                    reloadAll()
+                                }
+                                .onFailure {
+                                    setStatus(Status(false, "Could not connect to ${envToConnect.displayName}: ${it.message}"))
+                                }
+                        }
+                    }
+                },
             )
+        } else {
+            val ctx = remember(activeApi, env) {
+                AdminCtx(
+                    api = activeApi,
+                    scope = scope,
+                    envName = env.displayName,
+                    isProd = env == AdminEnv.Prod,
+                    setStatus = ::setStatus,
+                    reload = ::reloadAll,
+                    requestConfirm = { pendingConfirm = it },
+                    reportError = { errorLog = errorLog + it },
+                )
+            }
+
+            ConfirmModal(pendingConfirm) { pendingConfirm = null }
+
+            val rows = buildFlagRows(flags, resolvedByPath, manifest?.entries.orEmpty().associateBy { it.path })
+            KillSwitchPanel(rows, manifest, ctx)
+
+            Div(attrs = { classes("tabs") }) {
+                Tab.entries.forEach { t ->
+                    Button(attrs = {
+                        if (t == tab) classes("active")
+                        onClick {
+                            tab = t
+                            if (t == Tab.Versions && versionsSelected == null) {
+                                manifestVersions.firstOrNull()?.let { selectVersion(it.versionCode) }
+                            }
+                        }
+                    }) { Text(t.label) }
+                }
+            }
+
+            when (tab) {
+                Tab.Flags -> {
+                    TargetBar(target = target, versions = manifestVersions, onResolve = { resolveNow() })
+                    FlagsView(
+                        rows = rows,
+                        manifest = manifest,
+                        target = target,
+                        ctx = ctx,
+                    )
+                }
+
+                Tab.Versions -> VersionsView(
+                    versions = manifestVersions,
+                    selectedVersion = versionsSelected,
+                    entries = versionsEntries,
+                    onSelect = { selectVersion(it) },
+                )
+
+                Tab.Audit -> AuditView(api = activeApi, setStatus = ::setStatus)
+            }
         }
-
-        Tab.Versions -> VersionsView(
-            versions = manifestVersions,
-            selectedVersion = versionsSelected,
-            entries = versionsEntries,
-            onSelect = { selectVersion(it) },
-        )
-
-        Tab.Audit -> AuditView(api = activeApi, setStatus = ::setStatus)
     }
 }
 

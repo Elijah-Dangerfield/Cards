@@ -8,16 +8,24 @@ import androidx.compose.runtime.setValue
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import org.jetbrains.compose.web.attributes.placeholder
 import org.jetbrains.compose.web.dom.Button
+import org.jetbrains.compose.web.dom.CheckboxInput
 import org.jetbrains.compose.web.dom.Code
 import org.jetbrains.compose.web.dom.Div
 import org.jetbrains.compose.web.dom.H2
 import org.jetbrains.compose.web.dom.Label
 import org.jetbrains.compose.web.dom.P
 import org.jetbrains.compose.web.dom.Span
+import org.jetbrains.compose.web.dom.Table
+import org.jetbrains.compose.web.dom.Tbody
+import org.jetbrains.compose.web.dom.Td
 import org.jetbrains.compose.web.dom.Text
 import org.jetbrains.compose.web.dom.TextInput
+import org.jetbrains.compose.web.dom.Th
+import org.jetbrains.compose.web.dom.Thead
+import org.jetbrains.compose.web.dom.Tr
 
 /** One flag merged from the live DB rows, the resolve preview, and the manifest. */
 internal data class FlagRow(
@@ -80,16 +88,32 @@ internal fun FlagsView(
     target: TargetState,
     ctx: AdminCtx,
 ) {
-    H2 { Text("Flags · resolved for the target above") }
+    H2 { Text("Flags") }
     if (rows.isEmpty()) {
         P(attrs = { classes("muted") }) { Text("No flags yet. Add one below, or upload a version manifest.") }
+    } else {
+        Table(attrs = { classes("flags") }) {
+            Thead {
+                Tr {
+                    Th { Text("Flag") }
+                    Th { Text("Type") }
+                    Th { Text(bakedVersionLabel(manifest)?.let { "Baked · $it" } ?: "Baked in app") }
+                    Th { Text("Set on server") }
+                    Th { Text("This client gets") }
+                    Th { Text("Rules") }
+                }
+            }
+            Tbody {
+                rows.forEach { row -> FlagTableRows(row, manifest, target, ctx) }
+            }
+        }
     }
-    rows.forEach { row -> FlagCard(row, manifest, target, ctx) }
     NewFlagForm(ctx)
 }
 
+/** One flag: its scannable table line, plus the expanded detail row. */
 @Composable
-private fun FlagCard(
+private fun FlagTableRows(
     row: FlagRow,
     manifest: ManifestResponse?,
     target: TargetState,
@@ -98,19 +122,79 @@ private fun FlagCard(
     var open by remember(row.path) { mutableStateOf(false) }
     val drift = row.resolved.inline() != row.default.inline()
 
-    Div(attrs = { classes("panel", "flag") }) {
-        Div(attrs = { classes("flag-head"); onClick { open = !open } }) {
-            Span(attrs = { classes("flag-path") }) { Text(row.path) }
-            row.type?.let { Span(attrs = { classes("tag") }) { Text(it) } }
-            Span(attrs = { classes("muted") }) { Text(if (open) "▾" else "▸") }
-            Div(attrs = { classes("spacer") }) {}
-            Span(attrs = { classes("muted") }) { Text("this client gets") }
+    Tr(attrs = { classes("flag-line"); onClick { open = !open } }) {
+        Td {
+            Div { Span(attrs = { classes("flag-path") }) { Text(row.path) } }
+            row.description?.takeIf { it.isNotBlank() }?.let {
+                Div(attrs = { classes("flag-desc") }) { Text(it) }
+            }
+        }
+        Td { row.type?.let { Span(attrs = { classes("tag") }) { Text(it) } } }
+        Td {
+            Span(attrs = { classes(if (row.default != null) "val" else "val-not-set") }) {
+                Text(row.default?.inline() ?: "—")
+            }
+        }
+        Td {
+            val effective = (parseJsonOrNull((row.base ?: row.default).inline()) as? JsonPrimitive)?.booleanOrNull
+            if (row.type == "boolean" && effective != null) {
+                // LaunchDarkly-style quick toggle: flips what the server serves
+                // (creating the server value if only the baked one exists) —
+                // still through the confirm sheet.
+                Div(attrs = { classes("row") }) {
+                    Switch(checked = effective) {
+                        val flipped = JsonPrimitive(!effective)
+                        ctx.confirmWrite(
+                            title = "Set server value",
+                            flagPath = row.path,
+                            before = if (row.inDb) row.base.inline() else "not set (baked ${row.default.inline()})",
+                            after = flipped.inline(),
+                            success = "Set ${row.path} to ${flipped.inline()}",
+                            warning = dangerousWarning(row.path, flipped.inline()),
+                        ) { ctx.api.upsertFlag(row.path, flipped) }
+                    }
+                    if (!row.inDb) Span(attrs = { classes("val-not-set") }) { Text("not set") }
+                }
+            } else if (row.inDb) {
+                Span(attrs = { classes("val") }) { Text(row.base.inline()) }
+            } else {
+                Span(attrs = { classes("val-not-set") }) { Text("not set") }
+            }
+        }
+        Td {
             Span(attrs = { classes(if (drift) "val-drift" else "val") }) { Text(row.resolved.inline()) }
             row.matchedRule?.let {
+                Text(" ")
                 Span(attrs = { classes("chip") }) { Text("rule #${it.priority}") }
             }
         }
-        if (open) FlagDetail(row, manifest, target, ctx)
+        Td {
+            val enabled = row.rules.count { it.enabled }
+            if (row.rules.isEmpty()) {
+                Span(attrs = { classes("val-not-set") }) { Text("—") }
+            } else {
+                Span(attrs = { classes("val") }) { Text("$enabled/${row.rules.size}") }
+            }
+        }
+    }
+    if (open) {
+        Tr {
+            Td(attrs = { attr("colspan", "6"); classes("detail-cell") }) {
+                FlagDetail(row, manifest, target, ctx)
+            }
+        }
+    }
+}
+
+/** A CSS toggle switch. Stops propagation so the table row doesn't expand. */
+@Composable
+private fun Switch(checked: Boolean, onToggle: () -> Unit) {
+    Label(attrs = { classes("switch"); onClick { it.stopPropagation() } }) {
+        CheckboxInput(checked) {
+            onClick { it.stopPropagation() }
+            onInput { onToggle() }
+        }
+        Span(attrs = { classes("slider") }) {}
     }
 }
 
