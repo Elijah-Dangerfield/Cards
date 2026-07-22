@@ -1,102 +1,141 @@
 ---
 import Layout from '../layouts/Layout.astro';
 
-const lead = `Downcard is operated by Nightjar Labs LLC, based in New York, USA, which is the controller of the personal data described here. Downcard collects the minimum it needs to run multiplayer poker between friends, sync your progress across devices, and fix bugs. No ads, no ad tracking, and nothing is sold or shared for marketing. This page lays out exactly what we store, where it lives, and what we don't touch.`;
+const lead = `This Privacy Policy (this "Policy") describes how Nightjar Labs LLC ("Nightjar Labs," "we," "us," or "our"), based in New York, USA, collects, uses, stores, and shares your personal information when you use the Downcard mobile application and any related services (collectively, the "Services"). Nightjar Labs LLC is the controller of the personal information described in this Policy. We collect the minimum information necessary to operate multiplayer poker, synchronize your progress across devices, and diagnose and correct defects. The Services contain no advertising and no advertising trackers, and we do not sell personal information or share it for marketing purposes. If you do not agree with this Policy, please discontinue use of the Services.`;
 
 const sections = [
   {
-    h: 'What we store on our server',
-    html: `<p>When you set up your profile during onboarding, an anonymous account is created for you in the background, with no email or password required. Opening the app on its own doesn't create an account. It lives on this device. It won't move to a new phone on its own, and uninstalling the app loses it for good. To keep your chips, items, and progress across a reinstall or a new device, claim the account by linking an email or signing in with Apple or Google. That's the only way to carry it over.</p>
-<p>Tied to that account, our server stores:</p>
+    id: 'collect',
+    h: '1. What Information Do We Collect?',
+    html: `<p><strong>Information you provide to us.</strong> When you set up a profile during onboarding, an anonymous account is created for you; no email address or password is required, and simply opening the App does not create an account. We store the display name and avatar you select. If you choose to claim your account by linking an email address or signing in with Apple or Google, we also store the identifier the authentication provider issues to us: an email address or a stable provider identifier. We do not store passwords; those are held by the authentication provider. If you submit a bug report from within the App, we collect the contents of that report, including any screenshots you attach and your email address if you provide one.</p>
+<p><strong>Information collected automatically.</strong> In connection with your account, our server stores:</p>
 <ul>
-  <li><strong>Profile:</strong> the display name and avatar emoji you pick.</li>
-  <li><strong>Install identifier:</strong> a random id for your app install, stored on your profile so we can tie your anonymous account to this device and clean up ones that were clearly abandoned.</li>
+  <li><strong>Install identifier:</strong> a randomly generated identifier for your App installation, associated with your profile so that we can tie an anonymous account to its device and identify accounts that have been abandoned.</li>
   <li><strong>Wallet:</strong> your virtual chip balance and a ledger of chip movements.</li>
-  <li><strong>Inventory and equipment:</strong> which cosmetics you own (felts, card backs, emote packs, titles) and which you have equipped.</li>
-  <li><strong>Progression and play stats:</strong> XP, level, unlocked achievements, and lifetime table stats like hands played and hands won.</li>
-  <li><strong>Multiplayer rooms:</strong> while you're in a multiplayer game, the server tracks your seat at the table so the other players can see your moves. When the room ends, the live game state is dropped. If you play a real-chip table, we keep a settlement record (the room code, buy-in, and timing) with your wallet ledger for as long as your account exists, so your chip history stays accurate.</li>
+  <li><strong>Inventory and equipment:</strong> the virtual cosmetic items you own (felts, card backs, emote packs, titles) and those you have equipped.</li>
+  <li><strong>Progression and play statistics:</strong> experience points, level, unlocked achievements, and lifetime table statistics such as hands played and hands won.</li>
+  <li><strong>Multiplayer room data:</strong> while you participate in a multiplayer game, the server tracks your seat and in-game actions so that they can be displayed to the other players in the room. When a room ends, its live game state is discarded. For real-chip tables, we retain a settlement record (the room code, buy-in, and timing) with your wallet ledger for as long as your account exists, in order to maintain an accurate chip history.</li>
 </ul>
-<p>If you choose to claim your account (link an email or sign in with Apple / Google), we also store the identifier the auth provider gives us: an email address or a stable provider id. We don't store your password; that lives with the auth provider.</p>`,
-  },
-  {
-    h: "What's stored on your device",
-    html: `<p>Downcard keeps a local copy of the data above so the app feels instant. Your chip balance, items, and recent rooms render off the local store, then reconcile against the server in the background. If you delete the app, the local copy goes with it.</p>`,
-  },
-  {
-    h: 'Crash reports and diagnostics',
-    html: `<p>This is the one place we collect more than gameplay data, so here's the full picture.</p>
+<p>The App also maintains a local copy of the data described above on your device so that content renders immediately and reconciles against the server in the background. Deleting the App deletes this local copy.</p>
+<p><strong>Crash reports and diagnostics.</strong> This is the one area in which we collect information beyond gameplay data:</p>
 <ul>
-  <li><strong>Crash and error reports</strong> go to <a href="https://sentry.io/privacy/">Sentry</a>. A report includes a stack trace, your device model, OS version, app version, and, once you're signed in, your account id and display name (plus email on a claimed account). It also carries diagnostic tags like the screen you were on, random session and install ids, and, in a multiplayer game, the room code and the account ids of the other players at your table, so we can reconstruct the shared game state around a bug. We attach your identity on purpose: when you tell us "the app ate my chips," it's how we find your session and fix it.</li>
-  <li><strong>Bug reports you send from the app</strong> include a log of that session's activity and, if you're in a multiplayer game, a snapshot of the current table state (which includes the other players at your table), plus any screenshots you attach and your email if you enter one, so we can retrace what happened.</li>
-  <li><strong>Usage and reliability telemetry</strong> goes to Grafana Cloud: events like "app opened," "room joined," or "purchase completed," plus warning-level logs when something misbehaves. These are tagged with random session and install identifiers so we can follow one broken session end to end.</li>
+  <li><strong>Crash and error reports</strong> are transmitted to <a href="https://sentry.io/privacy/">Sentry</a>. A report includes a stack trace; your device model, operating system version, and App version; and, once you are signed in, your account identifier and display name (plus your email address on a claimed account). Reports also carry diagnostic context such as the screen you were on, randomly generated session and install identifiers, and, in a multiplayer game, the room code and the account identifiers of the other players seated at your table, which allows us to reconstruct the shared game state surrounding a defect. We associate reports with your account identity deliberately: it is how we locate your session and remediate account-specific issues.</li>
+  <li><strong>Bug reports you submit from the App</strong> include a log of that session's activity and, if you are in a multiplayer game, a snapshot of the current table state (which includes the other players at your table).</li>
+  <li><strong>Usage and reliability telemetry</strong> is transmitted to Grafana Cloud: discrete events such as "app opened," "room joined," or "purchase completed," together with warning-level logs when the App misbehaves, tagged with randomly generated session and install identifiers so that a single defective session can be traced end to end.</li>
 </ul>
-<p>All of this exists to keep the app working. None of it is used for advertising, sold, or shared with anyone for their own purposes.</p>`,
-  },
-  {
-    h: 'Where your data lives',
-    html: `<p>We don't run our own data centers. Your account data is stored and authenticated through <a href="https://supabase.com/privacy">Supabase</a>, our game server runs on <a href="https://fly.io/legal/privacy-policy/">Fly.io</a>, and diagnostics live with <a href="https://sentry.io/privacy/">Sentry</a> and <a href="https://grafana.com/legal/privacy-policy/">Grafana Cloud</a>. Your account data (Supabase) and our game server (Fly.io) run in the United States; the diagnostics providers handle their data on their own infrastructure. These providers process data on our behalf under their own security and privacy commitments; we don't hand them your data for their own purposes. If you're in the EU or UK, using Downcard means your data is transferred to and processed in the United States. For those transfers we rely on the standard safeguards our providers offer, such as the EU Standard Contractual Clauses, which Supabase, Fly.io, Sentry, and Grafana Cloud each publish.</p>`,
-  },
-  {
-    h: 'In-app purchases',
-    html: `<p>Chip packs are sold via the Apple App Store or Google Play. The transaction itself happens between you and Apple / Google. Downcard receives a receipt confirming the purchase succeeded, then grants the chips to your account. We don't see or store your payment method.</p>`,
-  },
-  {
-    h: "What we don't collect",
-    html: `<p>Downcard does <strong>not</strong>:</p>
+<p>All diagnostic information is collected for the sole purpose of keeping the Services functioning. None of it is used for advertising, sold, or shared with any party for that party's own purposes.</p>
+<p><strong>Application permissions.</strong> The App requests the following device permissions:</p>
 <ul>
-  <li>Show ads, or integrate any advertising SDK.</li>
-  <li>Use marketing or ad-tech analytics (no Google Analytics, no Mixpanel, no Amplitude, no Facebook SDK).</li>
-  <li>Track your location.</li>
-  <li>Read your contacts or photos.</li>
-  <li>Sell, rent, or share your data with third parties for marketing.</li>
+  <li><strong>Notifications</strong> (opt-in): used solely for gameplay-related events. We do not send marketing or re-engagement notifications.</li>
+  <li><strong>Internet access:</strong> required for multiplayer play, wallet and inventory synchronization, and catalog downloads. Single-player play against bots functions offline; multiplayer does not.</li>
 </ul>`,
   },
   {
-    h: 'Permissions the app asks for',
-    html: `<ul>
-  <li><strong>Notifications</strong> (opt-in, if you grant it): used only for game moments worth knowing about. Never time-of-day pings, never "come back" prompts.</li>
-  <li><strong>Internet access:</strong> required for multiplayer, syncing your wallet and items, and downloading the catalog. The app works offline against bots; multiplayer doesn't.</li>
+    id: 'process',
+    h: '2. How Do We Process Your Information?',
+    html: `<p>We process your information to:</p>
+<ul>
+  <li>Provide, operate, and maintain the Services, including facilitating multiplayer games between users;</li>
+  <li>Synchronize your account, wallet, inventory, and progression across devices;</li>
+  <li>Deliver the chips and virtual items you purchase;</li>
+  <li>Maintain the security and integrity of the Services, including preventing cheating, fraud, and abuse;</li>
+  <li>Diagnose, reproduce, and correct crashes and defects; and</li>
+  <li>Comply with applicable legal obligations, including maintaining records of purchases.</li>
+</ul>
+<p>We do not process your information for advertising or marketing purposes.</p>`,
+  },
+  {
+    id: 'legal-bases',
+    h: '3. What Legal Bases Do We Rely On to Process Your Information? (EU and UK)',
+    html: `<p>If you are located in the European Union or the United Kingdom, applicable data-protection law requires us to identify a legal basis for processing your personal information. We rely on the following bases: (1) <strong>performance of a contract</strong>, to deliver the Services and the chips and virtual items you purchase; (2) <strong>legitimate interests</strong>, namely operating the game, keeping it functioning, and preventing abuse; and (3) <strong>legal obligations</strong>, such as maintaining records of purchases. We do not conduct advertising or tracking that would require separate consent.</p>`,
+  },
+  {
+    id: 'sharing',
+    h: '4. When and With Whom Do We Share Your Personal Information?',
+    html: `<p><strong>Service providers.</strong> We share personal information with service providers that process it on our behalf: account data storage and authentication provided by <a href="https://supabase.com/privacy">Supabase</a>; game-server hosting provided by <a href="https://fly.io/legal/privacy-policy/">Fly.io</a>; crash and error reporting provided by <a href="https://sentry.io/privacy/">Sentry</a>; and diagnostics provided by <a href="https://grafana.com/legal/privacy-policy/">Grafana Cloud</a>. In-app purchases are processed by Apple and Google. These providers process personal information on our behalf pursuant to their own security and privacy commitments and are not permitted to use it for their own purposes.</p>
+<p><strong>Other players.</strong> When you participate in a multiplayer game, your display name, avatar, and in-game actions are visible to the other players seated in your room.</p>
+<p><strong>Business transfers.</strong> We may share or transfer your information in connection with, or during negotiations of, any merger, acquisition, or sale of all or a portion of our assets.</p>
+<p><strong>Legal obligations.</strong> We may disclose your information where required to do so by law or legal process, or to protect the rights, property, or safety of our users or others.</p>
+<p>We have never sold or shared personal information for marketing purposes, and we do not do so.</p>`,
+  },
+  {
+    id: 'not-collected',
+    h: '5. What Information Do We Not Collect?',
+    html: `<p>The Services do <strong>not</strong>:</p>
+<ul>
+  <li>Display advertising or integrate any advertising SDK;</li>
+  <li>Use marketing or advertising-technology analytics (no Google Analytics, Mixpanel, Amplitude, or Facebook SDK);</li>
+  <li>Collect your location;</li>
+  <li>Access your contacts or photos (other than screenshots you voluntarily attach to a bug report); or</li>
+  <li>Sell, rent, or share your personal information with third parties for marketing purposes.</li>
 </ul>`,
   },
   {
-    h: 'How long we keep it',
-    html: `<p>We keep your account data for as long as your account exists. An anonymous account that's clearly been abandoned (never claimed, no purchases, and no real progress) may be cleaned up automatically. The live state of a multiplayer room is dropped when it ends. For real-chip tables, a chip-settlement record stays with your wallet ledger for as long as your account exists. Crash reports and telemetry age out on the providers' retention schedules, typically weeks to a few months. When you delete your account, the data tied to it is removed (see below).</p>`,
+    id: 'payments',
+    h: '6. How Are Payments Handled?',
+    html: `<p>Chip packs are sold through the Apple App Store or Google Play. The payment transaction occurs between you and Apple or Google, respectively, under that platform's terms and privacy policy. We receive a receipt confirming that a purchase succeeded, which we use to credit chips to your account. We do not receive, see, or store your payment method information.</p>`,
   },
   {
-    h: 'How we protect your data',
-    html: `<p>Traffic between the app and our server is encrypted in transit (HTTPS/TLS), and data at rest sits with reputable infrastructure providers. No system is perfectly secure, but we collect little enough that there isn't much to lose: no payment details, no location, no contacts.</p>`,
+    id: 'international',
+    h: '7. Is Your Information Transferred Internationally?',
+    html: `<p>We do not operate our own data centers. Your account data (Supabase) and our game server (Fly.io) are hosted in the United States; Sentry and Grafana Cloud process diagnostic data on their own infrastructure. If you are located in the European Union or the United Kingdom, your use of the Services entails the transfer of your personal information to, and its processing in, the United States. For those transfers we rely on the safeguards our providers make available, including the European Commission's Standard Contractual Clauses, which Supabase, Fly.io, Sentry, and Grafana Cloud each publish.</p>`,
   },
   {
-    h: 'Your privacy rights',
-    html: `<p>Wherever you live, you can ask us to:</p>
+    id: 'retention',
+    h: '8. How Long Do We Keep Your Information?',
+    html: `<p>We retain your account data for as long as your account exists. An anonymous account that has clearly been abandoned (never claimed, with no purchases and no material progress) may be deleted automatically. The live state of a multiplayer room is discarded when the room ends; for real-chip tables, a settlement record is retained with your wallet ledger for as long as your account exists. Crash reports and telemetry expire on our providers' retention schedules, typically several weeks to a few months. When you delete your account, the data associated with it is removed as described in Section 14 (How Can You Review, Update, or Delete the Data We Collect?).</p>`,
+  },
+  {
+    id: 'security',
+    h: '9. How Do We Keep Your Information Safe?',
+    html: `<p>We have implemented appropriate technical and organizational measures designed to protect your personal information. Traffic between the App and our servers is encrypted in transit using HTTPS/TLS, and data at rest is held by established infrastructure providers under their own security commitments. However, no electronic transmission over the internet or information storage technology can be guaranteed to be 100% secure. We mitigate this risk through data minimization: we do not hold payment details, location data, or contacts.</p>`,
+  },
+  {
+    id: 'minors',
+    h: '10. Do We Collect Information From Minors?',
+    html: `<p>The Services are intended for adults. They are not directed at anyone under 18 years of age, and we do not knowingly collect personal information from anyone under 18. If we learn that personal information from a user under 18 has been collected, we will deactivate the account and delete the associated data. If you become aware that anyone under 18 has created an account, please contact us at <a href="mailto:contact@downcard.app">contact@downcard.app</a>.</p>`,
+  },
+  {
+    id: 'rights',
+    h: '11. What Are Your Privacy Rights?',
+    html: `<p>Depending on where you live, you may have the right to:</p>
 <ul>
-  <li><strong>See</strong> what we hold about you.</li>
-  <li><strong>Correct</strong> it, though most of it (display name, avatar) you can edit yourself in the app.</li>
-  <li><strong>Delete</strong> it, either yourself from Profile → Account → Delete account, or by emailing us.</li>
-  <li><strong>Export</strong> a copy.</li>
-  <li><strong>Object to</strong> how we process it.</li>
+  <li><strong>Access</strong> the personal information we hold about you;</li>
+  <li><strong>Correct</strong> it (your display name and avatar can be edited directly in the App);</li>
+  <li><strong>Delete</strong> it, either yourself from within the App (Profile → Account → Delete account) or by contacting us;</li>
+  <li><strong>Export</strong> a copy of it in a portable format;</li>
+  <li><strong>Restrict or object to</strong> our processing of it; and</li>
+  <li><strong>Withdraw consent</strong>, where processing is based on consent, without affecting the lawfulness of processing before withdrawal.</li>
 </ul>
-<p>Email <a href="mailto:contact@downcard.app">contact@downcard.app</a> to exercise any of these. We have never sold or shared your personal information for anyone else's purposes, and we never will. If you're in the EU or UK, you can also complain to your local data-protection authority. If you're in a US state with its own privacy law, you can raise concerns with your state Attorney General, and where your state's law allows it, appeal a request we've denied.</p>`,
+<p>To exercise any of these rights, contact us at <a href="mailto:contact@downcard.app">contact@downcard.app</a>. We will respond in accordance with applicable law. If you are located in the European Union or the United Kingdom and believe we are unlawfully processing your personal information, you also have the right to lodge a complaint with your local data-protection supervisory authority.</p>`,
   },
   {
-    h: 'Our legal basis (EU and UK)',
-    html: `<p>If you're in the EU or UK, data-protection law asks us to name a legal basis for using your data. Ours are: our legitimate interest in running the game, keeping it working, and stopping abuse; performing our contract with you, which is how we deliver the chips and cosmetics you buy; and meeting legal obligations like keeping records of purchases. We don't run advertising or tracking that would need separate consent.</p>`,
+    id: 'dnt',
+    h: '12. Controls for Do-Not-Track Features',
+    html: `<p>Most web browsers and some mobile operating systems include a Do-Not-Track ("DNT") feature or setting. No uniform technology standard for recognizing and implementing DNT signals has been finalized, and we do not currently respond to DNT signals. If a standard for online tracking is adopted that we must follow in the future, we will inform you about that practice in a revised version of this Policy.</p>`,
   },
   {
-    h: 'Deleting your data',
-    html: `<p>You can delete your account from the app: Profile → Account → Delete account. That removes your profile, wallet, inventory, and progression from our server. There's no soft-delete grace period; once it's gone, it's gone. Crash reports and telemetry already sent age out on their own retention schedules.</p>`,
+    id: 'us-residents',
+    h: '13. Do United States Residents Have Specific Privacy Rights?',
+    html: `<p>If you reside in a US state with a comprehensive privacy law (such as California, Colorado, Connecticut, Texas, Utah, or Virginia), you may have additional rights with respect to your personal information. In the preceding twelve (12) months, we have collected the following categories of personal information: <strong>identifiers</strong> (account identifier, display name, email address on claimed accounts, and install and session identifiers); <strong>commercial information</strong> (records of chip-pack purchases and virtual-item transactions); and <strong>internet or other similar network activity</strong> (in-app interaction events and diagnostic logs). We do not collect protected classifications, biometric information, precise geolocation, audio or visual information, professional or employment information, education information, inferences, or sensitive personal information.</p>
+<p>We have not sold or shared any personal information to or with third parties for a business or commercial purpose, including for cross-context behavioral advertising, and we do not use or disclose sensitive personal information.</p>
+<p>Depending on your state, you may have the right to know what personal information we hold about you, to correct or delete it, to obtain a portable copy, and not to be discriminated against for exercising these rights. To exercise them, contact us at <a href="mailto:contact@downcard.app">contact@downcard.app</a> or use the in-App deletion path described in Section 14. Where your state's law provides for it, you may appeal a decision we make on your request by replying to our response, and you may also raise concerns with your state Attorney General.</p>`,
   },
   {
-    h: 'Children',
-    html: `<p>Downcard is intended for adults. It is not directed at anyone under 18, and we don't knowingly collect data from anyone under 18. If you think someone under 18 has created an account, email us and we'll delete it.</p>`,
+    id: 'review-delete',
+    h: '14. How Can You Review, Update, or Delete the Data We Collect?',
+    html: `<p>You may delete your account directly from within the App: Profile → Account → Delete account. Doing so removes your profile, wallet, inventory, and progression from our servers. There is no soft-delete grace period; deletion is immediate and permanent. Crash reports and telemetry already transmitted expire on our providers' retention schedules as described in Section 8. To request review, correction, export, or deletion of your personal information by other means, contact us at <a href="mailto:contact@downcard.app">contact@downcard.app</a>.</p>`,
   },
   {
-    h: 'Changes to this policy',
-    html: `<p>If this policy ever changes, the new version will be posted here and the "Last updated" date at the top will be revised. Material changes will also be flagged in the app the next time you open it.</p>`,
+    id: 'updates',
+    h: '15. Do We Make Updates to This Policy?',
+    html: `<p>We may update this Policy from time to time. The updated version will be posted on this page and indicated by a revised "Last updated" date above. Material changes will also be surfaced within the App upon your next launch. We encourage you to review this Policy periodically to stay informed about how we protect your information.</p>`,
   },
   {
-    h: 'Contact',
-    html: `<p>Questions? Reach out at <a href="mailto:contact@downcard.app">contact@downcard.app</a>.</p>`,
+    id: 'contact',
+    h: '16. How Can You Contact Us About This Policy?',
+    html: `<p>If you have questions or comments about this Policy, or wish to exercise any of the rights described in it, you may contact us at:</p>
+<p><strong>Nightjar Labs LLC</strong><br />New York, NY, USA<br /><a href="mailto:contact@downcard.app">contact@downcard.app</a></p>`,
   },
 ];
 ---
@@ -104,11 +143,21 @@ const sections = [
 <Layout title="Privacy Policy — Downcard" description="Downcard Privacy Policy.">
   <div class="pad-x" style="max-width:820px;margin:0 auto;padding:clamp(48px,10vw,72px) 32px clamp(72px,12vw,110px)">
     <div style="font:800 clamp(34px,8vw,52px) Poppins;letter-spacing:-0.03em;margin-bottom:8px">Privacy Policy</div>
-    <div style="font:500 16px Poppins;color:var(--muted);margin-bottom:32px">Last updated: July 18, 2026</div>
+    <div style="font:500 16px Poppins;color:var(--muted);margin-bottom:32px">Last updated: July 22, 2026</div>
     <p class="lead" style="margin:0 0 44px">{lead}</p>
     <div class="legal">
+      <section>
+        <h2>Table of Contents</h2>
+        <div class="body">
+          <ul>
+            {sections.map((s) => (
+              <li><a href={`#${s.id}`}>{s.h}</a></li>
+            ))}
+          </ul>
+        </div>
+      </section>
       {sections.map((s) => (
-        <section>
+        <section id={s.id}>
           <h2>{s.h}</h2>
           <div class="body" set:html={s.html}></div>
         </section>
