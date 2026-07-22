@@ -107,5 +107,10 @@ kotlin {
                 implementation(libs.kotlinx.coroutines.core)
             }
         }
+        val jsTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+            }
+        }
     }
 }
