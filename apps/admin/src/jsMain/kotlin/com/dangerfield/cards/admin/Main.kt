@@ -8,13 +8,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import kotlinx.browser.document
+import kotlinx.browser.window
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.web.attributes.placeholder
+import org.jetbrains.compose.web.dom.A
 import org.jetbrains.compose.web.dom.Button
 import org.jetbrains.compose.web.dom.Div
 import org.jetbrains.compose.web.dom.H1
 import org.jetbrains.compose.web.dom.Label
 import org.jetbrains.compose.web.dom.P
+import org.jetbrains.compose.web.dom.PasswordInput
 import org.jetbrains.compose.web.dom.Span
 import org.jetbrains.compose.web.dom.Text
 import org.jetbrains.compose.web.dom.TextInput
@@ -26,11 +29,17 @@ fun main() {
 
 private enum class Tab(val label: String) { Flags("Flags"), Versions("Versions"), Audit("Audit") }
 
+/** The env whose server is serving this console, when hosted at `/admin`. */
+private fun hostedEnv(): AdminEnv? =
+    AdminEnv.entries.firstOrNull { it.baseUrl == window.location.origin }
+
 @Composable
 private fun App() {
-    var selectedEnv by remember { mutableStateOf(AdminEnv.Dev) }
+    val hosted = remember { hostedEnv() }
+    var selectedEnv by remember { mutableStateOf(hosted ?: AdminEnv.Dev) }
     var connectedEnv by remember { mutableStateOf<AdminEnv?>(null) }
-    var actor by remember { mutableStateOf("admin") }
+    var actor by remember { mutableStateOf(TokenStore.actor ?: "admin") }
+    var tokenDraft by remember { mutableStateOf("") }
     var api by remember { mutableStateOf<AdminApi?>(null) }
     var status by remember { mutableStateOf<Status?>(null) }
     var tab by remember { mutableStateOf(Tab.Flags) }
@@ -108,17 +117,44 @@ private fun App() {
 
     ConnectionPanel(
         selectedEnv = selectedEnv,
+        hosted = hosted,
         onSelectEnv = { selectedEnv = it },
         actor = actor,
         onActor = { actor = it },
+        tokenDraft = tokenDraft,
+        onTokenDraft = { tokenDraft = it },
+        onForgetToken = {
+            TokenStore.forgetToken(selectedEnv)
+            if (connectedEnv == selectedEnv) {
+                api = null
+                connectedEnv = null
+            }
+            setStatus(Status(true, "Forgot the ${selectedEnv.displayName} token."))
+        },
         onConnect = {
             val env = selectedEnv
-            if (env.token.isBlank()) {
-                setStatus(Status(false, "No token configured for ${env.displayName}."))
+            val actorName = actor.trim().ifBlank { "admin" }
+            val token = tokenDraft.trim().ifBlank { TokenStore.token(env).orEmpty() }
+            if (token.isBlank()) {
+                setStatus(Status(false, "Paste the ${env.displayName} admin token to connect."))
             } else {
-                api = AdminApi(env.baseUrl, env.token, actor.trim().ifBlank { "admin" })
-                connectedEnv = env
-                reloadAll()
+                // Validate the token with a real call before storing it, so a
+                // typo'd token never sticks.
+                val candidate = AdminApi(env.baseUrl, token, actorName)
+                scope.launch {
+                    Catching { candidate.listFlags() }
+                        .onSuccess {
+                            TokenStore.saveToken(env, token)
+                            TokenStore.actor = actorName
+                            tokenDraft = ""
+                            api = candidate
+                            connectedEnv = env
+                            reloadAll()
+                        }
+                        .onFailure {
+                            setStatus(Status(false, "Could not connect to ${env.displayName}: ${it.message}"))
+                        }
+                }
             }
         },
     )
@@ -220,28 +256,54 @@ private fun App() {
 @Composable
 private fun ConnectionPanel(
     selectedEnv: AdminEnv,
+    hosted: AdminEnv?,
     onSelectEnv: (AdminEnv) -> Unit,
     actor: String,
     onActor: (String) -> Unit,
+    tokenDraft: String,
+    onTokenDraft: (String) -> Unit,
+    onForgetToken: () -> Unit,
     onConnect: () -> Unit,
 ) {
+    val savedToken = TokenStore.token(selectedEnv) != null
+
     Div(attrs = { classes("panel") }) {
         Div(attrs = { classes("row") }) {
             Label { Text("Environment") }
-            AdminEnv.entries.forEach { env ->
-                Button(attrs = {
-                    if (env == selectedEnv) classes("primary")
-                    onClick { onSelectEnv(env) }
-                }) { Text(env.displayName.uppercase()) }
-            }
-            Span(attrs = { classes("muted") }) { Text(selectedEnv.baseUrl) }
-        }
-        if (selectedEnv.token.isBlank()) {
-            Div(attrs = { classes("status", "err") }) {
-                Text("No token set for ${selectedEnv.displayName}. Add it to admin-tokens.local.properties and rebuild.")
+            if (hosted != null) {
+                // Hosted mode: this console manages the server that serves it.
+                // The sibling envs are links to their own consoles — each env's
+                // tokens stay in that origin's storage.
+                Span(attrs = { classes("env-chip", if (hosted == AdminEnv.Prod) "env-chip-prod" else "env-chip-dev") }) {
+                    Text(hosted.displayName.uppercase())
+                }
+                Span(attrs = { classes("muted") }) { Text("served by this console") }
+                AdminEnv.entries.filter { it != hosted && it != AdminEnv.Local }.forEach { other ->
+                    A(href = "${other.baseUrl}/admin/") { Text("open ${other.displayName} console →") }
+                }
+            } else {
+                AdminEnv.entries.forEach { env ->
+                    Button(attrs = {
+                        if (env == selectedEnv) classes("primary")
+                        onClick { onSelectEnv(env) }
+                    }) { Text(env.displayName.uppercase()) }
+                }
+                Span(attrs = { classes("muted") }) { Text(selectedEnv.baseUrl) }
             }
         }
         Div(attrs = { classes("grid"); style { property("margin-top", "8px") } }) {
+            Label { Text("Token") }
+            Div(attrs = { classes("row") }) {
+                PasswordInput(tokenDraft) {
+                    onInput { onTokenDraft(it.value) }
+                    placeholder(
+                        if (savedToken) "saved for ${selectedEnv.displayName} — paste to replace" else "paste the admin token",
+                    )
+                }
+                if (savedToken) {
+                    Button(attrs = { onClick { onForgetToken() } }) { Text("Forget token") }
+                }
+            }
             Label { Text("Actor") }
             TextInput(actor) { onInput { onActor(it.value) }; placeholder("your name (audited)") }
         }
