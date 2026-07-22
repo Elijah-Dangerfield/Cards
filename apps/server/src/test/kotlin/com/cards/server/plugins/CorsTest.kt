@@ -19,14 +19,18 @@ import kotlin.test.assertNotEquals
  */
 class CorsTest {
 
-    private fun preflight(requestHeaders: String, block: suspend (HttpStatusCode) -> Unit) = testApplication {
+    private fun preflight(
+        requestHeaders: String,
+        method: String = "GET",
+        block: suspend (HttpStatusCode) -> Unit,
+    ) = testApplication {
         application {
             installCors()
             routing { get("/v1/admin/config") { call.respondText("ok") } }
         }
         val response = client.options("/v1/admin/config") {
             header(HttpHeaders.Origin, "http://localhost:8080")
-            header(HttpHeaders.AccessControlRequestMethod, "GET")
+            header(HttpHeaders.AccessControlRequestMethod, method)
             header(HttpHeaders.AccessControlRequestHeaders, requestHeaders)
         }
         block(response.status)
@@ -35,6 +39,16 @@ class CorsTest {
     @Test
     fun preflight_allowsAdminTokenHeader() = preflight("X-Admin-Token, X-Admin-Actor") { status ->
         assertNotEquals(HttpStatusCode.Forbidden, status, "CORS rejected the admin headers — the GUI would get 403")
+    }
+
+    @Test
+    fun preflight_allowsPut() = preflight("X-Admin-Token, X-Admin-Actor, Content-Type", method = "PUT") { status ->
+        assertNotEquals(HttpStatusCode.Forbidden, status, "CORS rejected PUT — the GUI could never save a flag")
+    }
+
+    @Test
+    fun preflight_allowsDelete() = preflight("X-Admin-Token, X-Admin-Actor", method = "DELETE") { status ->
+        assertNotEquals(HttpStatusCode.Forbidden, status, "CORS rejected DELETE — the GUI could never remove a flag or rule")
     }
 
     @Test

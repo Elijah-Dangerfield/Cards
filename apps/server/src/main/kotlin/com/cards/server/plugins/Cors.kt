@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.plugins
 
+import io.ktor.http.HttpMethod
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.plugins.cors.routing.CORS
@@ -17,5 +18,10 @@ fun Application.installCors() {
         // the admin token is — so allowing the header names is safe.
         allowHeader("X-Admin-Token")
         allowHeader("X-Admin-Actor")
+        // Same story for methods: Ktor's CORS plugin only permits GET/POST/HEAD
+        // by default, so the admin GUI's flag upserts (PUT) and deletes were
+        // rejected at preflight with 403 while GETs sailed through.
+        allowMethod(HttpMethod.Put)
+        allowMethod(HttpMethod.Delete)
     }
 }
