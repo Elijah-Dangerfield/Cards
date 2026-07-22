@@ -31,6 +31,8 @@ private fun App() {
     var api by remember { mutableStateOf<AdminApi?>(null) }
     var status by remember { mutableStateOf<Status?>(null) }
     var tab by remember { mutableStateOf(Tab.Flags) }
+    var pendingConfirm by remember { mutableStateOf<PendingWrite?>(null) }
+    var errorLog by remember { mutableStateOf<List<ErrorEntry>>(emptyList()) }
 
     var flags by remember { mutableStateOf<List<ConfigFlagDto>>(emptyList()) }
     var resolvedByPath by remember { mutableStateOf<Map<String, ResolvedFlagDto>>(emptyMap()) }
@@ -121,7 +123,44 @@ private fun App() {
         Div(attrs = { classes("status", if (s.ok) "ok" else "err") }) { Text(s.message) }
     }
 
+    // Failed writes stay visible until dismissed — the one-line status above
+    // gets overwritten by the next action; these don't.
+    if (errorLog.isNotEmpty()) {
+        Div(attrs = { classes("panel", "error-log") }) {
+            Div(attrs = { classes("row") }) {
+                Span(attrs = { classes("err") }) { Text("Failed writes") }
+                Div(attrs = { classes("spacer") }) {}
+                Button(attrs = { onClick { errorLog = emptyList() } }) { Text("Dismiss all") }
+            }
+            errorLog.forEach { entry ->
+                Div(attrs = { classes("row", "error-entry") }) {
+                    Span(attrs = { classes("muted") }) { Text(entry.time) }
+                    Span { Text(entry.operation) }
+                    entry.attempted?.let { Span(attrs = { classes("muted") }) { Text("attempted: $it") } }
+                    Span(attrs = { classes("err") }) { Text(entry.message) }
+                    Div(attrs = { classes("spacer") }) {}
+                    Button(attrs = { onClick { errorLog = errorLog - entry } }) { Text("✕") }
+                }
+            }
+        }
+    }
+
     val activeApi = api ?: return
+
+    val ctx = remember(activeApi, selectedEnv) {
+        AdminCtx(
+            api = activeApi,
+            scope = scope,
+            envName = selectedEnv.displayName,
+            isProd = selectedEnv == AdminEnv.Prod,
+            setStatus = ::setStatus,
+            reload = ::reloadAll,
+            requestConfirm = { pendingConfirm = it },
+            reportError = { errorLog = errorLog + it },
+        )
+    }
+
+    ConfirmModal(pendingConfirm) { pendingConfirm = null }
 
     Div(attrs = { classes("tabs") }) {
         Tab.entries.forEach { t ->
@@ -145,10 +184,7 @@ private fun App() {
                 resolvedByPath = resolvedByPath,
                 manifest = manifest,
                 target = target,
-                api = activeApi,
-                scope = scope,
-                setStatus = ::setStatus,
-                reload = ::reloadAll,
+                ctx = ctx,
             )
         }
 

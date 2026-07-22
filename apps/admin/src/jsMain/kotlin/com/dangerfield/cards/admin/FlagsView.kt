@@ -5,13 +5,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import org.jetbrains.compose.web.attributes.placeholder
 import org.jetbrains.compose.web.dom.Button
-import org.jetbrains.compose.web.dom.CheckboxInput
 import org.jetbrains.compose.web.dom.Code
 import org.jetbrains.compose.web.dom.Div
 import org.jetbrains.compose.web.dom.H2
@@ -81,18 +79,15 @@ internal fun FlagsView(
     resolvedByPath: Map<String, ResolvedFlagDto>,
     manifest: ManifestResponse?,
     target: TargetState,
-    api: AdminApi,
-    scope: CoroutineScope,
-    setStatus: (Status) -> Unit,
-    reload: () -> Unit,
+    ctx: AdminCtx,
 ) {
     val rows = buildFlagRows(flags, resolvedByPath, manifest?.entries.orEmpty().associateBy { it.path })
     H2 { Text("Flags · resolved for the target above") }
     if (rows.isEmpty()) {
         P(attrs = { classes("muted") }) { Text("No flags yet. Add one below, or upload a version manifest.") }
     }
-    rows.forEach { row -> FlagCard(row, manifest, target, api, scope, setStatus, reload) }
-    NewFlagForm(api, scope, setStatus, reload)
+    rows.forEach { row -> FlagCard(row, manifest, target, ctx) }
+    NewFlagForm(ctx)
 }
 
 @Composable
@@ -100,10 +95,7 @@ private fun FlagCard(
     row: FlagRow,
     manifest: ManifestResponse?,
     target: TargetState,
-    api: AdminApi,
-    scope: CoroutineScope,
-    setStatus: (Status) -> Unit,
-    reload: () -> Unit,
+    ctx: AdminCtx,
 ) {
     var open by remember(row.path) { mutableStateOf(false) }
     val drift = row.resolved.inline() != row.default.inline()
@@ -120,7 +112,7 @@ private fun FlagCard(
                 Span(attrs = { classes("chip") }) { Text("rule #${it.priority}") }
             }
         }
-        if (open) FlagDetail(row, manifest, target, api, scope, setStatus, reload)
+        if (open) FlagDetail(row, manifest, target, ctx)
     }
 }
 
@@ -129,10 +121,7 @@ private fun FlagDetail(
     row: FlagRow,
     manifest: ManifestResponse?,
     target: TargetState,
-    api: AdminApi,
-    scope: CoroutineScope,
-    setStatus: (Status) -> Unit,
-    reload: () -> Unit,
+    ctx: AdminCtx,
 ) {
     row.description?.takeIf { it.isNotBlank() }?.let {
         P(attrs = { classes("muted"); style { property("margin", "4px 0 8px") } }) { Text(it) }
@@ -174,22 +163,38 @@ private fun FlagDetail(
         }
         Div(attrs = { classes("row"); style { property("margin-top", "6px") } }) {
             Label { Text("server value") }
-            TextInput(baseDraft) { onInput { baseDraft = it.value } }
+            TypedValueEditor(row.type, row.allowedValues, baseDraft) { baseDraft = it }
             Button(attrs = {
                 classes("primary")
                 onClick {
-                    val element = parseJsonOrNull(baseDraft)
-                    if (element == null) { setStatus(Status(false, "Server value must be valid JSON")); return@onClick }
-                    dangerousWarning(row.path, baseDraft)?.let { if (!confirmDialog(it)) return@onClick }
-                    scope.launchOp(setStatus, reload, "Saved server value for ${row.path}") {
-                        api.upsertFlag(row.path, element)
+                    val parsed = parseTypedValue(row.type, baseDraft)
+                    val element = parsed.element
+                    if (element == null) {
+                        ctx.setStatus(Status(false, parsed.problem ?: "Server value must be valid JSON"))
+                        return@onClick
                     }
+                    ctx.confirmWrite(
+                        title = if (row.inDb) "Change server value" else "Set server value",
+                        flagPath = row.path,
+                        before = row.base.inline().takeUnless { !row.inDb } ?: "not set",
+                        after = element.inline(),
+                        success = "Saved server value for ${row.path}",
+                        warning = dangerousWarning(row.path, baseDraft),
+                    ) { ctx.api.upsertFlag(row.path, element) }
                 }
             }) { Text(if (row.inDb) "Save server value" else "Set on server") }
             if (row.inDb) {
                 Button(attrs = {
                     classes("danger")
-                    onClick { scope.launchOp(setStatus, reload, "Removed server value for ${row.path}") { api.deleteFlag(row.path) } }
+                    onClick {
+                        ctx.confirmWrite(
+                            title = "Remove server value",
+                            flagPath = row.path,
+                            before = row.base.inline(),
+                            after = "not set",
+                            success = "Removed server value for ${row.path} — clients fall back to the baked value",
+                        ) { ctx.api.deleteFlag(row.path) }
+                    }
                 }) { Text("Remove server value") }
             }
         }
@@ -201,10 +206,10 @@ private fun FlagDetail(
         if (row.rules.isEmpty()) {
             P(attrs = { classes("muted") }) { Text("No rules. Every client gets the server value, or the baked value if nothing is set.") }
         }
-        row.rules.forEach { rule -> RuleRow(rule, api, scope, setStatus, reload) }
+        row.rules.forEach { rule -> RuleRow(rule, ctx) }
     }
 
-    RuleEditor(row, target, api, scope, setStatus, reload)
+    RuleEditor(row, target, ctx)
 }
 
 @Composable
@@ -217,13 +222,8 @@ private fun Layer(label: String, value: String, hint: String, notSet: Boolean = 
 }
 
 @Composable
-private fun RuleRow(
-    rule: ConfigRuleDto,
-    api: AdminApi,
-    scope: CoroutineScope,
-    setStatus: (Status) -> Unit,
-    reload: () -> Unit,
-) {
+private fun RuleRow(rule: ConfigRuleDto, ctx: AdminCtx) {
+    val sentence = "When ${conditionsSentence(rule.conditions)} → ${rule.value.inline()}"
     Div(attrs = { classes("rule", if (rule.enabled) "on" else "off") }) {
         Div(attrs = { classes("row") }) {
             Span(attrs = { classes("muted") }) { Text("#${rule.priority}") }
@@ -231,22 +231,36 @@ private fun RuleRow(
             Div(attrs = { classes("spacer") }) {}
             Button(attrs = {
                 onClick {
+                    val enabling = !rule.enabled
                     val request = UpsertRuleRequest(
                         flagPath = rule.flagPath,
                         priority = rule.priority,
                         value = rule.value,
                         conditions = rule.conditions,
-                        enabled = !rule.enabled,
+                        enabled = enabling,
                         description = rule.description,
                     )
-                    scope.launchOp(setStatus, reload, if (rule.enabled) "Disabled rule" else "Enabled rule") {
-                        api.upsertRule(rule.id, request)
-                    }
+                    ctx.confirmWrite(
+                        title = if (enabling) "Enable rule #${rule.priority}" else "Disable rule #${rule.priority}",
+                        flagPath = rule.flagPath,
+                        before = "$sentence (${if (rule.enabled) "enabled" else "disabled"})",
+                        after = "$sentence (${if (enabling) "enabled" else "disabled"})",
+                        success = if (enabling) "Enabled rule on ${rule.flagPath}" else "Disabled rule on ${rule.flagPath}",
+                        warning = if (enabling) dangerousWarning(rule.flagPath, rule.value.inline()) else null,
+                    ) { ctx.api.upsertRule(rule.id, request) }
                 }
             }) { Text(if (rule.enabled) "Disable" else "Enable") }
             Button(attrs = {
                 classes("danger")
-                onClick { scope.launchOp(setStatus, reload, "Deleted rule") { api.deleteRule(rule.id) } }
+                onClick {
+                    ctx.confirmWrite(
+                        title = "Delete rule #${rule.priority}",
+                        flagPath = rule.flagPath,
+                        before = sentence,
+                        after = "rule deleted",
+                        success = "Deleted rule on ${rule.flagPath}",
+                    ) { ctx.api.deleteRule(rule.id) }
+                }
             }) { Text("Delete") }
         }
         rule.description?.takeIf { it.isNotBlank() }?.let {
@@ -256,12 +270,7 @@ private fun RuleRow(
 }
 
 @Composable
-private fun NewFlagForm(
-    api: AdminApi,
-    scope: CoroutineScope,
-    setStatus: (Status) -> Unit,
-    reload: () -> Unit,
-) {
+private fun NewFlagForm(ctx: AdminCtx) {
     var path by remember { mutableStateOf("") }
     var value by remember { mutableStateOf("false") }
 
@@ -275,10 +284,17 @@ private fun NewFlagForm(
                 onClick {
                     val element = parseJsonOrNull(value)
                     if (path.isBlank() || element == null) {
-                        setStatus(Status(false, "Path required and value must be valid JSON")); return@onClick
+                        ctx.setStatus(Status(false, "Path required and value must be valid JSON")); return@onClick
                     }
                     val newPath = path.trim()
-                    scope.launchOp(setStatus, reload, "Saved $newPath") { api.upsertFlag(newPath, element) }
+                    ctx.confirmWrite(
+                        title = "Create flag",
+                        flagPath = newPath,
+                        before = "not set",
+                        after = element.inline(),
+                        success = "Saved $newPath",
+                        warning = dangerousWarning(newPath, value),
+                    ) { ctx.api.upsertFlag(newPath, element) }
                     path = ""
                 }
             }) { Text("Add") }

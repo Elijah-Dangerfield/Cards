@@ -8,25 +8,73 @@ import kotlinx.serialization.json.JsonElement
 internal data class Status(val ok: Boolean, val message: String)
 
 /**
- * Run a suspend mutation, then reload + report. Centralizes the try/status
- * dance every write goes through (refusal messages surface from [AdminApiException]).
+ * A failed write, kept until the operator dismisses it. The transient status
+ * line gets overwritten by the next action; this list doesn't — so a rejected
+ * write can never silently "snap back" (the reload refreshes server truth, but
+ * the attempted value survives here).
+ */
+internal data class ErrorEntry(
+    val time: String,
+    val operation: String,
+    val attempted: String?,
+    val message: String,
+)
+
+internal fun nowTimeLabel(): String = js("new Date().toLocaleTimeString()") as String
+
+/**
+ * Everything a view needs to make a write: the api, which environment it hits,
+ * and the shared safety plumbing. [confirmWrite] is the only mutation path in
+ * the console — it puts a before→after confirm sheet in front of the operator,
+ * and on failure records a persistent [ErrorEntry].
  *
  * Reloads on both success and failure: a rejected write can still have changed
- * state (or the operator's view of it can be stale), so we always re-fetch so the
- * flag/rule list reflects what the server actually holds. Without this, a 400/409
- * left the list looking like the write silently did nothing.
+ * state (or the operator's view of it can be stale), so we always re-fetch so
+ * the flag/rule list reflects what the server actually holds.
  */
-internal fun CoroutineScope.launchOp(
-    setStatus: (Status) -> Unit,
-    reload: () -> Unit,
-    success: String,
-    block: suspend () -> Unit,
+internal class AdminCtx(
+    val api: AdminApi,
+    val scope: CoroutineScope,
+    val envName: String,
+    val isProd: Boolean,
+    val setStatus: (Status) -> Unit,
+    val reload: () -> Unit,
+    private val requestConfirm: (PendingWrite) -> Unit,
+    private val reportError: (ErrorEntry) -> Unit,
 ) {
-    launch {
-        Catching { block() }
-            .onSuccess { setStatus(Status(true, success)) }
-            .onFailure { setStatus(Status(false, it.message ?: "Request failed")) }
-        reload()
+    fun confirmWrite(
+        title: String,
+        flagPath: String?,
+        before: String,
+        after: String,
+        success: String,
+        warning: String? = null,
+        block: suspend () -> Unit,
+    ) {
+        requestConfirm(
+            PendingWrite(
+                title = title,
+                envName = envName,
+                isProd = isProd,
+                flagPath = flagPath,
+                before = before,
+                after = after,
+                warning = warning,
+                requireEnvTyping = isProd && warning != null,
+                onConfirm = {
+                    scope.launch {
+                        Catching { block() }
+                            .onSuccess { setStatus(Status(true, success)) }
+                            .onFailure { error ->
+                                val message = error.message ?: "Request failed"
+                                reportError(ErrorEntry(nowTimeLabel(), title, after, message))
+                                setStatus(Status(false, message))
+                            }
+                        reload()
+                    }
+                },
+            ),
+        )
     }
 }
 
@@ -57,9 +105,6 @@ internal fun dangerousWarning(path: String, value: String): String? {
         else -> null
     }
 }
-
-/** Browser confirm dialog. Returns true when the operator confirms. */
-internal fun confirmDialog(message: String): Boolean = js("window.confirm(message)") as Boolean
 
 /** Compact, human-readable rendering of a JSON value for tables (no pretty-print). */
 internal fun JsonElement?.inline(): String = this?.toString() ?: "—"
