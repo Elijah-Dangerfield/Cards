@@ -51,13 +51,28 @@ class MatchOverGraceDriver(
     }
 
     private suspend fun evaluate(state: GameState) {
-        val terminal = terminalBust(state)
-        if (terminal == null) {
+        val survivor = soleChipHolder(state)
+        if (survivor == null) {
             // Table can continue (or a hand is live) — clear any countdown we'd announced.
             if (graceArmed) {
                 graceArmed = false
                 session.emitMatchOverEvent(MatchOverEvent.GraceCancelled)
             }
+            return
+        }
+
+        val terminal = terminalBust(state)
+        if (terminal == null) {
+            // One chip-holder left but nobody who could rebuy: every busted seat
+            // is a bot (never offered a rebuy window). Unless a mid-hand joiner is
+            // queued to refill the table (the bot driver deals them in, CARDS-24),
+            // there is nothing to wait for — resolve outright. Without this the
+            // table sat in a dead zone: no rebuy countdown, no next hand, the
+            // survivor wedged (MP-37).
+            if (session.pendingJoinerIds.isNotEmpty()) return
+            graceArmed = false
+            session.emitMatchOverEvent(MatchOverEvent.Resolved(winnerUserId = survivor.playerId!!))
+            log.info("match over for session {} — sole chip-holder {} (bot bust)", session.id, survivor.playerId)
             return
         }
 
@@ -82,17 +97,25 @@ class MatchOverGraceDriver(
     }
 
     /**
-     * The terminal heads-up condition: a finished hand, exactly one seated player
-     * with chips left, and at least one busted seat belonging to a human who could
-     * rebuy. Null when the table can still continue (two or more with chips), a
-     * hand is in progress, or the only busted seats are bots (a busted bot is just
-     * removed, never offered a rebuy window).
+     * The seat left standing when the table can't continue: a finished hand with
+     * exactly one seated player holding chips. Null while a hand is live or two
+     * or more seats still have chips (the table deals on).
+     */
+    private fun soleChipHolder(state: GameState) =
+        if (state.street != BettingRound.Complete) {
+            null
+        } else {
+            state.seats.filter { it.playerId != null && it.stack > 0 }.singleOrNull()
+        }
+
+    /**
+     * The graceful terminal condition: a [soleChipHolder] plus at least one busted
+     * seat belonging to a human who could rebuy — that human gets the rebuy-grace
+     * window. Null when the only busted seats are bots: a busted bot never rebuys,
+     * so [evaluate] resolves that shape outright instead of counting down.
      */
     private fun terminalBust(state: GameState): Terminal? {
-        if (state.street != BettingRound.Complete) return null
-        val withChips = state.seats.filter { it.playerId != null && it.stack > 0 }
-        if (withChips.size != 1) return null
-        val winner = withChips.single()
+        val winner = soleChipHolder(state) ?: return null
         val bustedHuman = state.seats
             .firstOrNull { it.playerId != null && !it.isBot && it.stack <= 0 }
             ?: return null

@@ -55,6 +55,47 @@ class MatchOverGraceDriverTest {
     }
 
     @Test
+    fun bustedBot_withOneChipHolder_resolvesWithoutRebuyGrace() = runTest {
+        val session = GameSession()
+        val events = collectMatchOverEvents(session)
+
+        startDriver(session)
+        // The busted seat is a bot — it will never rebuy, so there is nothing to
+        // grace-wait for (MP-37: this used to be a dead zone — no countdown, no
+        // resolution, the survivor stranded on a wedged table).
+        session.hydrate(headsUpBust(bustedIsBot = true))
+        runCurrent()
+
+        assertTrue(
+            events.none { it is MatchOverEvent.GraceStarted },
+            "a busted bot never opens a rebuy countdown",
+        )
+        val resolved = events.filterIsInstance<MatchOverEvent.Resolved>().singleOrNull()
+        assertEquals("bob", resolved?.winnerUserId, "the sole chip-holder wins outright")
+    }
+
+    @Test
+    fun bustedBot_withAPendingJoiner_doesNotResolve() = runTest {
+        val session = GameSession()
+        val events = collectMatchOverEvents(session)
+
+        startDriver(session)
+        // A mid-hand joiner is queued to refill the table — the bot driver deals
+        // them in at the next-hand beat (CARDS-24), so the match must NOT resolve.
+        session.queueJoiner(
+            SeatOccupant(seatIndex = 2, userId = "carol", displayName = "Carol", isBot = false),
+        )
+        session.hydrate(headsUpBust(bustedIsBot = true))
+        advanceTimeBy(GRACE_MS + 1)
+        runCurrent()
+
+        assertTrue(
+            events.none { it is MatchOverEvent.Resolved },
+            "a queued joiner keeps the table alive instead of resolving the match",
+        )
+    }
+
+    @Test
     fun rebuyDuringGrace_cancelsTheMatchOver() = runTest {
         val session = GameSession()
         val events = collectMatchOverEvents(session)
@@ -96,18 +137,19 @@ class MatchOverGraceDriverTest {
     }
 
     /** A hand-Complete heads-up state where seat 0 is busted to [bustedStack] and seat 1 (bob) holds chips. */
-    private fun headsUpBust(bustedStack: Long = 0): GameState = GameState(
+    private fun headsUpBust(bustedStack: Long = 0, bustedIsBot: Boolean = false): GameState = GameState(
         settings = settings,
         handNumber = 3,
         buttonSeatIndex = 0,
         seats = listOf(
             Seat(
                 index = 0,
-                playerId = "alice",
-                displayName = "Alice",
+                playerId = if (bustedIsBot) "bot-0" else "alice",
+                displayName = if (bustedIsBot) "Bot" else "Alice",
                 stack = bustedStack,
                 seatStatus = SeatStatus.Active,
                 handParticipation = HandParticipation.Folded,
+                isBot = bustedIsBot,
             ),
             Seat(
                 index = 1,

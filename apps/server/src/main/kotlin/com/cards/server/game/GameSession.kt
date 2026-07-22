@@ -721,6 +721,15 @@ class GameSession internal constructor(
             )
         }
 
+        // The engine enforces this same precondition with an
+        // IllegalArgumentException — reject here instead so a caller that deals
+        // over a drained table (leavers + a busted bot leaving one funded seat,
+        // MP-37) gets an IntentResult like every other bad mutation, not an
+        // exception that kills its socket loop.
+        if (seats.count { it.stack > 0 } < 2) {
+            return IntentResult.Rejected("need at least 2 seats with chips")
+        }
+
         // Button rotation. First hand starts at the lowest seat index;
         // subsequent hands rotate to the next-higher seat (wrapping).
         val sortedIndexes = seats.map { it.index }.sorted()

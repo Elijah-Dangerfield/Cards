@@ -1,9 +1,12 @@
 package com.dangerfield.cards.server.game
 
 import com.dangerfield.cards.libraries.gameplay.BettingRound
+import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import com.dangerfield.cards.libraries.gameplay.Seat
+import com.dangerfield.cards.libraries.gameplay.SeatStatus
 import com.dangerfield.cards.server.domain.HandOutcome
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
@@ -606,6 +609,52 @@ class GameSessionTest {
         val session = newSession()
 
         val result = session.emitEmoji(actorUserId = "alice", emoji = "🎉")
+
+        assertIs<IntentResult.Rejected>(result)
+    }
+
+    @Test
+    fun startHand_withOnlyOneSeatHoldingChips_isRejectedNotThrown() = runTest {
+        val session = newSession()
+        val bot = SeatOccupant(seatIndex = 1, userId = "bot-1", displayName = "Bot", isBot = true)
+        // Prior session state: hand complete, alice holds chips, the bot busted to
+        // zero. A fresh deal over this state (e.g. the reconnect auto-deal on an
+        // Open table) used to reach GameEngine.startHand with one funded seat and
+        // throw, killing the caller's socket loop (MP-37).
+        session.hydrate(
+            GameState(
+                settings = settings,
+                handNumber = 4,
+                buttonSeatIndex = 0,
+                seats = listOf(
+                    Seat(
+                        index = 0,
+                        playerId = "alice",
+                        displayName = "Alice",
+                        stack = 2_000,
+                        seatStatus = SeatStatus.Active,
+                        handParticipation = HandParticipation.InHand,
+                    ),
+                    Seat(
+                        index = 1,
+                        playerId = "bot-1",
+                        displayName = "Bot",
+                        stack = 0,
+                        seatStatus = SeatStatus.Active,
+                        handParticipation = HandParticipation.Folded,
+                        isBot = true,
+                    ),
+                ),
+                community = emptyList(),
+                street = BettingRound.Complete,
+                currentBetThisStreet = 0,
+                lastFullRaiseSize = 0,
+                actingSeatIndex = null,
+                deckRemaining = emptyList(),
+            ),
+        )
+
+        val result = session.startHand(listOf(alice, bot), settings)
 
         assertIs<IntentResult.Rejected>(result)
     }
