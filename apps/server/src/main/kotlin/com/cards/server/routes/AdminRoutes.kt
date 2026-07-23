@@ -3,7 +3,10 @@ package com.dangerfield.cards.server.routes
 import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
+import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.RoomService
+import com.dangerfield.cards.server.domain.SupabaseAdminClient
+import com.dangerfield.cards.server.domain.UpdateDisplayNameResult
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessage
 import com.dangerfield.cards.server.domain.UserMessageKind
@@ -44,6 +47,8 @@ fun Route.adminRoutes(
     rooms: RoomService,
     wallets: WalletRepository,
     messages: UserMessageRepository,
+    profiles: ProfileRepository,
+    supabaseAdmin: SupabaseAdminClient,
     clock: Clock,
 ) {
     route("/v1/admin") {
@@ -134,6 +139,39 @@ fun Route.adminRoutes(
                     roomsSeen = result.roomsSeen,
                     orphanedRoomsReaped = result.orphanedRoomsReaped,
                 ),
+            )
+        }
+
+        /**
+         * One-shot backfill mirroring every profile's display name into
+         * Supabase `auth.users.user_metadata.display_name`, so the Studio
+         * Users table shows who each auth row is. New accounts and renames
+         * mirror inline from `/v1/me`; this catches everyone from before
+         * that shipped (and any inline miss). Idempotent — safe to re-run.
+         */
+        post("/sync-display-names") {
+            if (!call.authenticatedAsAdmin(config)) {
+                return@post call.respond(
+                    HttpStatusCode.Unauthorized,
+                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                )
+            }
+            var synced = 0
+            var failed = 0
+            var notConfigured = false
+            for ((userId, displayName) in profiles.listAllDisplayNames()) {
+                when (supabaseAdmin.updateUserDisplayName(userId, displayName)) {
+                    UpdateDisplayNameResult.Success -> synced++
+                    is UpdateDisplayNameResult.Failure -> failed++
+                    UpdateDisplayNameResult.NotConfigured -> {
+                        notConfigured = true
+                        break
+                    }
+                }
+            }
+            call.respond(
+                if (notConfigured) HttpStatusCode.ServiceUnavailable else HttpStatusCode.OK,
+                SyncDisplayNamesResponse(synced = synced, failed = failed, notConfigured = notConfigured),
             )
         }
 
@@ -413,6 +451,13 @@ private fun UserMessage.toAdminDto(): AdminMessageDto = AdminMessageDto(
     deepLink = deepLink,
     createdAtEpochMs = createdAt.toEpochMilliseconds(),
     expiresAtEpochMs = expiresAt?.toEpochMilliseconds(),
+)
+
+@Serializable
+private data class SyncDisplayNamesResponse(
+    val synced: Int,
+    val failed: Int,
+    val notConfigured: Boolean,
 )
 
 @Serializable

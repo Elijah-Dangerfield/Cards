@@ -123,7 +123,19 @@ interface ProfileRepository {
      * strict "token must equal the caller" binding.
      */
     suspend fun findInstallLineage(userId: UserId): Set<UserId> = setOf(userId)
+
+    /**
+     * Every profile's (userId, displayName), for the admin backfill that
+     * mirrors names into Supabase auth metadata (`POST
+     * /v1/admin/sync-display-names`). Default for fakes; the Postgres impl
+     * overrides with a two-column projection. V1-scale: the whole set fits
+     * in memory comfortably (same call as the anon-sweep's full listing).
+     */
+    suspend fun listAllDisplayNames(): List<ProfileDisplayName> = emptyList()
 }
+
+/** One row of [ProfileRepository.listAllDisplayNames]. */
+data class ProfileDisplayName(val userId: UserId, val displayName: String)
 
 /** Result of [ProfileRepository.findOrCreateResult]: the profile plus whether
  *  THIS call created it (brand-new account). Parity with the wallet's

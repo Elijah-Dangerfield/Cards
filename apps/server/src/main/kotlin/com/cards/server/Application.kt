@@ -238,6 +238,8 @@ fun Application.installApp(
             rooms = component.roomService,
             wallets = component.walletRepository,
             messages = component.userMessageRepository,
+            profiles = component.profileRepository,
+            supabaseAdmin = component.supabaseAdminClient,
             clock = component.provideClock(),
         )
         configAdminRoutes(

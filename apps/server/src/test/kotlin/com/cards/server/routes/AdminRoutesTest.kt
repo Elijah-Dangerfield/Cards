@@ -7,6 +7,13 @@ import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.CreateMessageOutcome
 import com.dangerfield.cards.server.domain.MessageSweepResult
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
+import com.dangerfield.cards.server.domain.DeleteUserResult
+import com.dangerfield.cards.server.domain.Profile
+import com.dangerfield.cards.server.domain.ProfileDisplayName
+import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.SupabaseAdminClient
+import com.dangerfield.cards.server.domain.UpdateDisplayNameResult
+import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.SweepResult
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessage
@@ -70,6 +77,58 @@ class AdminRoutesTest {
     private val host = UserId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
     private val alice = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
     private val json = Json { ignoreUnknownKeys = true }
+
+    // ---------- POST /v1/admin/sync-display-names ----------
+
+    @Test
+    fun syncDisplayNames_returnsUnauthorized_withoutToken() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val admin = RecordingSupabaseAdmin()
+        withApp(rooms, supabaseAdmin = admin) { client ->
+            val resp = client.post("/v1/admin/sync-display-names")
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+            assertTrue(admin.mirrored.isEmpty())
+        }
+    }
+
+    @Test
+    fun syncDisplayNames_mirrorsEveryProfile_andCountsFailures() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val profiles = StubProfiles(
+            names = listOf(
+                ProfileDisplayName(host, "brave-fox-101"),
+                ProfileDisplayName(alice, "quiet-owl-202"),
+            ),
+        )
+        val admin = RecordingSupabaseAdmin(
+            result = { id -> if (id == alice) UpdateDisplayNameResult.Failure(500, null) else UpdateDisplayNameResult.Success },
+        )
+        withApp(rooms, profiles = profiles, supabaseAdmin = admin) { client ->
+            val resp = client.post("/v1/admin/sync-display-names") { header("X-Admin-Token", token) }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            assertEquals(1, body.getValue("synced").jsonPrimitive.content.toInt())
+            assertEquals(1, body.getValue("failed").jsonPrimitive.content.toInt())
+            assertEquals(
+                listOf(host to "brave-fox-101", alice to "quiet-owl-202"),
+                admin.mirrored,
+            )
+        }
+    }
+
+    @Test
+    fun syncDisplayNames_reports503_whenServiceRoleKeyMissing() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val profiles = StubProfiles(names = listOf(ProfileDisplayName(host, "brave-fox-101")))
+        val admin = RecordingSupabaseAdmin(result = { UpdateDisplayNameResult.NotConfigured })
+        withApp(rooms, profiles = profiles, supabaseAdmin = admin) { client ->
+            val resp = client.post("/v1/admin/sync-display-names") { header("X-Admin-Token", token) }
+            assertEquals(HttpStatusCode.ServiceUnavailable, resp.status)
+        }
+    }
 
     // ---------- GET /v1/admin/rooms ----------
 
@@ -688,6 +747,8 @@ class AdminRoutesTest {
         configuredToken: String? = token,
         wallets: WalletRepository = FakeWalletRepository(),
         messages: UserMessageRepository = FakeMessageRepository(),
+        profiles: ProfileRepository = EmptyProfiles,
+        supabaseAdmin: SupabaseAdminClient = NoopSupabaseAdmin,
         block: suspend (io.ktor.client.HttpClient) -> Unit,
     ) {
         testApplication {
@@ -705,6 +766,8 @@ class AdminRoutesTest {
                         rooms = rooms,
                         wallets = wallets,
                         messages = messages,
+                        profiles = profiles,
+                        supabaseAdmin = supabaseAdmin,
                         clock = object : Clock {
                             override fun now(): Instant = Instant.fromEpochMilliseconds(1_700_000_000_000L)
                         },
@@ -721,6 +784,46 @@ class AdminRoutesTest {
     private object NoopSweep : OrphanAnonymousSweep {
         override suspend fun run(maxInactiveAge: Duration): SweepResult =
             SweepResult(candidatesFound = 0, deleted = 0, failedToDelete = 0, notConfigured = false)
+    }
+
+    /** Profiles surface for the display-name backfill; only [listAllDisplayNames] matters here. */
+    private open class StubProfiles(
+        private val names: List<ProfileDisplayName> = emptyList(),
+    ) : ProfileRepository {
+        override suspend fun listAllDisplayNames(): List<ProfileDisplayName> = names
+        override suspend fun findOrCreate(userId: UserId): Profile = error("unused")
+        override suspend fun findById(userId: UserId): Profile? = null
+        override suspend fun update(
+            userId: UserId,
+            displayName: String?,
+            avatarEmoji: String?,
+            avatarBackgroundColor: String?,
+            clearAvatarBackgroundColor: Boolean,
+        ): UpdateProfileOutcome = error("unused")
+        override suspend fun delete(userId: UserId) = error("unused")
+        override suspend fun touchInstallId(userId: UserId, installId: UUID): UUID? = null
+        override suspend fun findInstallSiblings(installId: UUID, currentUserId: UserId): List<UserId> = emptyList()
+    }
+
+    private object EmptyProfiles : StubProfiles()
+
+    private class RecordingSupabaseAdmin(
+        private val result: (UserId) -> UpdateDisplayNameResult = { UpdateDisplayNameResult.Success },
+    ) : SupabaseAdminClient {
+        val mirrored: MutableList<Pair<UserId, String>> = mutableListOf()
+        override suspend fun deleteUser(userId: UserId): DeleteUserResult = DeleteUserResult.Success
+        override suspend fun listAnonymousUsersOlderThan(olderThan: Instant): List<UserId> = emptyList()
+        override suspend fun updateUserDisplayName(userId: UserId, displayName: String): UpdateDisplayNameResult {
+            mirrored += userId to displayName
+            return result(userId)
+        }
+    }
+
+    private object NoopSupabaseAdmin : SupabaseAdminClient {
+        override suspend fun deleteUser(userId: UserId): DeleteUserResult = DeleteUserResult.Success
+        override suspend fun listAnonymousUsersOlderThan(olderThan: Instant): List<UserId> = emptyList()
+        override suspend fun updateUserDisplayName(userId: UserId, displayName: String): UpdateDisplayNameResult =
+            UpdateDisplayNameResult.Success
     }
 
     private data class AppliedCall(

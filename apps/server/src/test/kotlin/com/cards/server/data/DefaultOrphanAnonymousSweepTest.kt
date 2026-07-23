@@ -207,6 +207,12 @@ class DefaultOrphanAnonymousSweepTest {
         private val failureFor: Map<UserId, DeleteUserResult> = emptyMap(),
         private val probeResult: DeleteUserResult = DeleteUserResult.Success,
     ) : SupabaseAdminClient {
+        override suspend fun updateUserDisplayName(
+            userId: UserId,
+            displayName: String,
+        ): com.dangerfield.cards.server.domain.UpdateDisplayNameResult =
+            com.dangerfield.cards.server.domain.UpdateDisplayNameResult.Success
+
         val deletedAdminUsers = mutableListOf<UserId>()
         override suspend fun listAnonymousUsersOlderThan(olderThan: Instant): List<UserId> = candidates
         override suspend fun deleteUser(userId: UserId): DeleteUserResult {

@@ -27,6 +27,23 @@ interface SupabaseAdminClient {
      * that, stream via a Flow and run the delete loop on each emission.
      */
     suspend fun listAnonymousUsersOlderThan(olderThan: kotlin.time.Instant): List<UserId>
+
+    /**
+     * Mirror the app's display name into `auth.users.user_metadata.display_name`
+     * so the Supabase Studio Users table shows who each auth row is at a glance.
+     * Vanity metadata only — the `profiles` table stays the source of truth,
+     * and callers must never fail their own request on a failed mirror.
+     */
+    suspend fun updateUserDisplayName(userId: UserId, displayName: String): UpdateDisplayNameResult
+}
+
+sealed interface UpdateDisplayNameResult {
+    /** Supabase accepted the metadata update. */
+    data object Success : UpdateDisplayNameResult
+    /** `SUPABASE_SERVICE_ROLE_KEY` not set on this server — mirroring is off. */
+    data object NotConfigured : UpdateDisplayNameResult
+    /** Upstream returned a non-success status, or the call failed transport-side. */
+    data class Failure(val statusCode: Int?, val cause: Throwable?) : UpdateDisplayNameResult
 }
 
 sealed interface DeleteUserResult {

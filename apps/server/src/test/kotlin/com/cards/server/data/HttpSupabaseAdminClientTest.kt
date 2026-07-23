@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.server.config.SupabaseConfig
 import com.dangerfield.cards.server.domain.DeleteUserResult
+import com.dangerfield.cards.server.domain.UpdateDisplayNameResult
 import com.dangerfield.cards.server.domain.UserId
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -66,6 +67,56 @@ class HttpSupabaseAdminClientTest {
         val result = client.deleteUser(userId)
         val failure = assertIs<DeleteUserResult.Failure>(result)
         assertEquals(500, failure.statusCode)
+    }
+
+    @Test
+    fun updateUserDisplayName_putsMetadata_on200() = runTest {
+        val engine = MockEngine { req ->
+            assertEquals(HttpMethod.Put, req.method)
+            assertEquals("/auth/v1/admin/users/${userId.value}", req.url.encodedPath)
+            assertEquals("Bearer $serviceRoleKey", req.headers[HttpHeaders.Authorization])
+            assertEquals(serviceRoleKey, req.headers["apikey"])
+            val body = (req.body as TextContent).text
+            assertTrue(
+                body.contains("\"user_metadata\"") && body.contains("\"display_name\":\"brave-fox-101\""),
+                "PUT must carry user_metadata.display_name; was: $body",
+            )
+            respond(content = "{}", status = HttpStatusCode.OK, headers = headersOf())
+        }
+        val client = HttpSupabaseAdminClient(
+            config = SupabaseConfig(projectUrl, serviceRoleKey),
+            engine = engine,
+        )
+        assertEquals(
+            UpdateDisplayNameResult.Success,
+            client.updateUserDisplayName(userId, "brave-fox-101"),
+        )
+    }
+
+    @Test
+    fun updateUserDisplayName_returnsFailure_on500() = runTest {
+        val engine = MockEngine { respondError(HttpStatusCode.InternalServerError) }
+        val client = HttpSupabaseAdminClient(
+            config = SupabaseConfig(projectUrl, serviceRoleKey),
+            engine = engine,
+        )
+        val failure = assertIs<UpdateDisplayNameResult.Failure>(
+            client.updateUserDisplayName(userId, "brave-fox-101"),
+        )
+        assertEquals(500, failure.statusCode)
+    }
+
+    @Test
+    fun updateUserDisplayName_shortCircuitsNotConfigured_whenServiceRoleKeyAbsent() = runTest {
+        val engine = MockEngine { error("must not be called when service role key is missing") }
+        val client = HttpSupabaseAdminClient(
+            config = SupabaseConfig(projectUrl, serviceRoleKey = null),
+            engine = engine,
+        )
+        assertEquals(
+            UpdateDisplayNameResult.NotConfigured,
+            client.updateUserDisplayName(userId, "brave-fox-101"),
+        )
     }
 
     @Test

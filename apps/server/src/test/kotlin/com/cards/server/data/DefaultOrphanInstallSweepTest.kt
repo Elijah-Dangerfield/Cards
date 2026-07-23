@@ -200,6 +200,12 @@ class DefaultOrphanInstallSweepTest {
         private val failureFor: Map<UserId, DeleteUserResult> = emptyMap(),
         private val defaultResult: DeleteUserResult = DeleteUserResult.Success,
     ) : SupabaseAdminClient {
+        override suspend fun updateUserDisplayName(
+            userId: UserId,
+            displayName: String,
+        ): com.dangerfield.cards.server.domain.UpdateDisplayNameResult =
+            com.dangerfield.cards.server.domain.UpdateDisplayNameResult.Success
+
         val deletedAdminUsers: MutableList<UserId> = mutableListOf()
 
         override suspend fun deleteUser(userId: UserId): DeleteUserResult {
