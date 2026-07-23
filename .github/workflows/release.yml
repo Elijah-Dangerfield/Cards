@@ -36,7 +36,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (e.g. v1.2.3). Required if not triggered by a tag push.'
+        description: 'Tag to release (e.g. v1.2.3). Required if not triggered by a tag push. Builds the commit the tag points at, NOT main — to ship current main under an existing version, use the Retag release workflow instead.'
         required: false
         type: string
       skip_app_store:
