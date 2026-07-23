@@ -69,9 +69,14 @@ Two interchangeable triggers, same result (build → sign → TestFlight interna
 - UI: Actions → **Beta (internal)** → Run workflow from `main` (tick `skip_android` until the Play internal track exists), or
 - terminal: `gh workflow run beta.yml --ref main -f skip_android=true`
 
-Free on the public repo, but slow: the Kotlin/Native release link needs more
-memory than the standard runner has and spills into swap (~45–60 min per
-build, cold caches every time). Fine for fire-and-forget.
+Free on the public repo, but slower than local. The Kotlin/Native release
+link used to be the wall (~45–60 min per build, heap spilling into swap on
+the 7GB runner). Two changes on 2026-07-23 attacked it directly: Kotlin
+2.4.0 (halves link-release memory, KT-80367) and
+`kotlin.native.binary.smallBinary=true` in gradle.properties (-Oz for the
+LLVM phase, which dominated link time — see KT-78518). A full local release
+link now takes ~9–10 min; expect the runner to land somewhere above that.
+Fine for fire-and-forget.
 
 **Local (your Mac):**
 
