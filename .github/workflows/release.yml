@@ -49,6 +49,11 @@ on:
         required: false
         default: false
         type: boolean
+      skip_ios:
+        description: 'Skip the iOS job entirely — re-run Android alone after a partial failure without the ~90m iOS build'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: release-${{ github.ref }}
@@ -79,11 +84,13 @@ jobs:
 
   android:
     name: Android AAB + Play submit
-    # Gate on iOS passing so a "Google shipped, Apple didn't" split can't
-    # happen again — we either release both platforms for a given tag or
-    # neither. If iOS fails, use workflow_dispatch with skip_app_store:true
-    # to retry iOS alone, or land a fix and let the next release carry it.
+    # Gate on iOS so a "Google shipped, Apple didn't" split can't happen by
+    # accident: Android runs only when iOS SUCCEEDED or was intentionally
+    # skipped (skip_ios). If iOS fails, Android is skipped too. To re-run
+    # Android alone after a partial failure, dispatch with skip_ios:true
+    # (skips the ~90m iOS build); to retry iOS alone, use skip_play_store:true.
     needs: [resolve-tag, ios]
+    if: ${{ always() && needs.resolve-tag.result == 'success' && (needs.ios.result == 'success' || needs.ios.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
@@ -227,6 +234,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve R8 mapping (upload only if minify produced one)
+        # Release builds ship with minify off (see ApplicationConventionPlugin),
+        # so no mapping.txt exists and there is nothing to de-obfuscate. Pass the
+        # path only when the file is actually there; otherwise leave it empty so
+        # the Play upload skips the mapping instead of failing with ENOENT. When
+        # R8 is enabled later this starts uploading the mapping automatically.
+        id: mapping
+        run: |
+          MF=apps/compose/build/outputs/mapping/release/mapping.txt
+          if [ -f "$MF" ]; then
+            echo "path=$MF" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No R8 mapping.txt (minify is off) — skipping mapping upload."
+            echo "path=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Submit to Play Console
         # Track + status are resolved above: `internal` + `completed` on the
         # very first release (Play won't accept an automated production upload
@@ -244,7 +267,7 @@ jobs:
           status: ${{ steps.play_track.outputs.status || 'completed' }}
           userFraction: ${{ steps.play_track.outputs.track == 'production' && '0.10' || '' }}
           whatsNewDirectory: apps/compose/build/play-release-notes
-          mappingFile: apps/compose/build/outputs/mapping/release/mapping.txt
+          mappingFile: ${{ steps.mapping.outputs.path }}
           # debugSymbols omitted — no native (.so) libraries are shipped.
 
       - name: Warn on missing Play credentials
@@ -289,6 +312,7 @@ jobs:
   ios:
     name: iOS TestFlight external + App Store submit
     needs: resolve-tag
+    if: ${{ !inputs.skip_ios }}
     # Standard runner (7GB) with a 10g daemon heap: the K/N release-LTO link
     # spills into macOS swap instead of OOMing. See beta.yml's ios job for the
     # 2026-07-08 sizing saga; macos-26-xlarge (14GB) works but bills per minute
