@@ -79,14 +79,13 @@ All in `PublicSearchingViewModel` unless noted; `wait_ms` counts from the search
 | Event | Attributes | Fires |
 |---|---|---|
 | `matchmaking.search_started` | `entry` (public/private_code) | Find-a-table start/retry; join-by-code submit (`PrivateJoinViewModel`) |
-| `matchmaking.candidates_shown` | `candidate_count` (0 = straight to waiting) | Initial candidates browse resolves |
-| `matchmaking.candidate_joined` | `wait_ms` | User picked a chooser table and the join seated them |
-| `matchmaking.wait_started` | — | Fell through to a fresh table to genuinely wait |
+| `matchmaking.matched` | `wait_ms` | Find seated the searcher onto a table with players already there (MP-35 auto-seat; replaced `matchmaking.candidates_shown` + `matchmaking.candidate_joined` when the manual chooser was removed) |
+| `matchmaking.wait_started` | — | Find opened a fresh table to genuinely wait in |
 | `matchmaking.real_player_arrived` | `during` (wait/bot_offer), `wait_ms` | First other connected human, once per episode |
 | `matchmaking.bot_offer_shown` | `wait_ms` | The 60s window elapsed alone |
 | `matchmaking.bot_offer_accepted` | `wait_ms` | "Play bots" tapped |
 | `matchmaking.bot_offer_declined` | `next` (keep_waiting/leave) | Either decline affordance |
-| `matchmaking.abandoned` | `phase` (choosing/searching/joined/bot_offer/joining_bots), `wait_ms` | User backed out (cancel / try-again-later) |
+| `matchmaking.abandoned` | `phase` (searching/joined/bot_offer/joining_bots), `wait_ms` | User backed out (cancel / try-again-later) |
 | `room.joined` / `room.left` | — | `RoomRepositoryImpl` join/leave success |
 | `room.join_failed` | `reason` | `RoomRepositoryImpl` join failure |
 
