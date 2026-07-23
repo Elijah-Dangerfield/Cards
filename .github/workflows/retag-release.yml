@@ -50,6 +50,11 @@ on:
         required: false
         default: false
         type: boolean
+      skip_ios:
+        description: 'Skip the iOS job entirely on the redispatched run — Android-only reship without the ~90m iOS build.'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: retag-${{ inputs.version }}
@@ -153,7 +158,8 @@ jobs:
             --ref "$TAG" \
             --field tag="$TAG" \
             --field skip_play_store=${{ inputs.skip_play_store }} \
-            --field skip_app_store=${{ inputs.skip_app_store }}
-          echo "Dispatched release.yml for $TAG (skip_play_store=${{ inputs.skip_play_store }}, skip_app_store=${{ inputs.skip_app_store }})"
+            --field skip_app_store=${{ inputs.skip_app_store }} \
+            --field skip_ios=${{ inputs.skip_ios }}
+          echo "Dispatched release.yml for $TAG (skip_play_store=${{ inputs.skip_play_store }}, skip_app_store=${{ inputs.skip_app_store }}, skip_ios=${{ inputs.skip_ios }})"
           echo ""
           echo "Watch: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/release.yml"

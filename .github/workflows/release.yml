@@ -36,7 +36,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (e.g. v1.2.3). Required if not triggered by a tag push.'
+        description: 'Tag to release (e.g. v1.2.3). Required if not triggered by a tag push. Builds the commit the tag points at, NOT main — to ship current main under an existing version, use the Retag release workflow instead.'
         required: false
         type: string
       skip_app_store:
@@ -298,7 +298,12 @@ jobs:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
 
       - name: Create Sentry release + upload mapping/debug files
+        # Post-upload metadata only (Sentry release + mappings/dSYMs). By the
+        # time this runs the AAB is already committed to Play, so a Sentry
+        # hiccup (bad org/project, API blip) must NOT mark a shipped release as
+        # failed. continue-on-error surfaces it as a warning instead.
         if: env.SENTRY_AUTH_TOKEN != ''
+        continue-on-error: true
         run: |
           set -e
           RELEASE="cards@${{ needs.resolve-tag.outputs.version }}+${{ needs.build-number.outputs.value }}"
