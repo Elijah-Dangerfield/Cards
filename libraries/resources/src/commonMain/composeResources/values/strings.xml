@@ -315,19 +315,6 @@
     <string name="public_searching_rotate_4">Got friends who play? Tables fill faster together.</string>
     <string name="public_searching_rotate_5">Still searching. Thanks for your patience.</string>
     <string name="public_searching_rotate_6">Every seat here is a real person, no bots in the mix.</string>
-    <!-- Chooser - the qualifying tables the user can pick from (SPEC §2). -->
-    <string name="public_searching_choose_title">Tables you can join</string>
-    <string name="public_searching_choose_subtitle">Pick a table to take a seat. Joining buys you in at that table's stakes.</string>
-    <!-- Candidate card: buy-in (%1$s) leads, then blinds (%1$s/%2$s), then real-player count. -->
-    <string name="public_searching_choose_buyin">Buy-in %1$s</string>
-    <string name="public_searching_choose_blinds">Blinds %1$s/%2$s</string>
-    <!-- Shown on a table the caller can't afford, with the chips (%1$s) it takes to sit. -->
-    <string name="public_searching_choose_need_chips">Need %1$s chips to sit</string>
-    <string name="public_searching_choose_humans_one">1 real player</string>
-    <string name="public_searching_choose_humans">%1$d real players</string>
-    <string name="public_searching_choose_join">Join</string>
-    <string name="public_searching_choose_none">None of these? Start a fresh table and we will wait for players.</string>
-    <string name="public_searching_choose_start_fresh">Start a fresh table</string>
     <!-- Honest disclosed-bot fallback after a fruitless search. -->
     <string name="public_searching_offer_title">We couldn't find anyone right now</string>
     <string name="public_searching_offer_body">Play bots for real chips while you wait. You keep what you win, up to a daily limit, and they step aside the moment a real player joins.</string>
