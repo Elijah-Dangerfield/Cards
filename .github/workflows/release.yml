@@ -227,6 +227,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve R8 mapping (upload only if minify produced one)
+        # Release builds ship with minify off (see ApplicationConventionPlugin),
+        # so no mapping.txt exists and there is nothing to de-obfuscate. Pass the
+        # path only when the file is actually there; otherwise leave it empty so
+        # the Play upload skips the mapping instead of failing with ENOENT. When
+        # R8 is enabled later this starts uploading the mapping automatically.
+        id: mapping
+        run: |
+          MF=apps/compose/build/outputs/mapping/release/mapping.txt
+          if [ -f "$MF" ]; then
+            echo "path=$MF" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No R8 mapping.txt (minify is off) — skipping mapping upload."
+            echo "path=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Submit to Play Console
         # Track + status are resolved above: `internal` + `completed` on the
         # very first release (Play won't accept an automated production upload
@@ -244,7 +260,7 @@ jobs:
           status: ${{ steps.play_track.outputs.status || 'completed' }}
           userFraction: ${{ steps.play_track.outputs.track == 'production' && '0.10' || '' }}
           whatsNewDirectory: apps/compose/build/play-release-notes
-          mappingFile: apps/compose/build/outputs/mapping/release/mapping.txt
+          mappingFile: ${{ steps.mapping.outputs.path }}
           # debugSymbols omitted — no native (.so) libraries are shipped.
 
       - name: Warn on missing Play credentials
