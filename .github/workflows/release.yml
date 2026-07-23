@@ -82,6 +82,27 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+  build-number:
+    name: Resolve build number
+    needs: resolve-tag
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.n.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.tag }}
+          fetch-depth: 0
+      - id: n
+        # Commit count at the release tag — the SAME monotonic value beta.yml
+        # and the iOS Fastfile already use for the in-app BuildInfo.versionCode,
+        # so min-version / force-upgrade config compares like-for-like across
+        # iOS and Android. It also keeps Android's store versionCode above the
+        # beta builds already on the Play internal track (which use this same
+        # count); github.run_number regressed below them and Play rejected the
+        # rollout. Needs fetch-depth: 0 or the count is 1 on a shallow clone.
+        run: echo "value=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
   android:
     name: Android AAB + Play submit
     # Gate on iOS so a "Google shipped, Apple didn't" split can't happen by
@@ -89,8 +110,8 @@ jobs:
     # skipped (skip_ios). If iOS fails, Android is skipped too. To re-run
     # Android alone after a partial failure, dispatch with skip_ios:true
     # (skips the ~90m iOS build); to retry iOS alone, use skip_play_store:true.
-    needs: [resolve-tag, ios]
-    if: ${{ always() && needs.resolve-tag.result == 'success' && (needs.ios.result == 'success' || needs.ios.result == 'skipped') }}
+    needs: [resolve-tag, build-number, ios]
+    if: ${{ always() && needs.resolve-tag.result == 'success' && needs.build-number.result == 'success' && (needs.ios.result == 'success' || needs.ios.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
@@ -105,8 +126,8 @@ jobs:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       SENTRY_ORG: ${{ vars.SENTRY_ORG }}
       SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
-      VERSION_CODE_OVERRIDE: ${{ github.run_number }}
-      BUILD_NUMBER_OVERRIDE: ${{ github.run_number }}
+      VERSION_CODE_OVERRIDE: ${{ needs.build-number.outputs.value }}
+      BUILD_NUMBER_OVERRIDE: ${{ needs.build-number.outputs.value }}
       RELEASE_CHANNEL_OVERRIDE: store
       GRAFANA_OTLP_BASE_URL: ${{ secrets.GRAFANA_OTLP_BASE_URL }}
       GRAFANA_OTLP_INSTANCE_ID: ${{ secrets.GRAFANA_OTLP_INSTANCE_ID }}
@@ -280,7 +301,7 @@ jobs:
         if: env.SENTRY_AUTH_TOKEN != ''
         run: |
           set -e
-          RELEASE="cards@${{ needs.resolve-tag.outputs.version }}+${{ github.run_number }}"
+          RELEASE="cards@${{ needs.resolve-tag.outputs.version }}+${{ needs.build-number.outputs.value }}"
           npx --yes @sentry/cli releases new "$RELEASE"
           npx --yes @sentry/cli releases set-commits "$RELEASE" --auto || true
           if [ -f apps/compose/build/outputs/mapping/release/mapping.txt ]; then
@@ -311,7 +332,7 @@ jobs:
 
   ios:
     name: iOS TestFlight external + App Store submit
-    needs: resolve-tag
+    needs: [resolve-tag, build-number]
     if: ${{ !inputs.skip_ios }}
     # Standard runner (7GB) with a 10g daemon heap: the K/N release-LTO link
     # spills into macOS swap instead of OOMing. See beta.yml's ios job for the
@@ -342,8 +363,8 @@ jobs:
       # fastlane). Without these the KMP framework bakes in versions.properties'
       # buildNumber=1 / channel=dev, so prod iOS would show "(1) · dev" in
       # Settings. Read by loadVersionMetadata during the framework build.
-      VERSION_CODE_OVERRIDE: ${{ github.run_number }}
-      BUILD_NUMBER_OVERRIDE: ${{ github.run_number }}
+      VERSION_CODE_OVERRIDE: ${{ needs.build-number.outputs.value }}
+      BUILD_NUMBER_OVERRIDE: ${{ needs.build-number.outputs.value }}
       RELEASE_CHANNEL_OVERRIDE: store
       GRAFANA_OTLP_BASE_URL: ${{ secrets.GRAFANA_OTLP_BASE_URL }}
       GRAFANA_OTLP_INSTANCE_ID: ${{ secrets.GRAFANA_OTLP_INSTANCE_ID }}
