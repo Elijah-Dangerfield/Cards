@@ -13,13 +13,18 @@ androidx-work = "2.11.2"
 atomicfu = "0.32.1"
 composeMultiplatform = "1.11.0"
 compottie="2.1.0"
-configurationAnnotations = "0.10.12"
+# SKIE's annotations artifact — keep in lockstep with the skie plugin
+# version in apps/compose/build.gradle.kts.
+configurationAnnotations = "0.10.13"
 buildconfig = "6.0.9"
 junit = "4.13.2"
 kermit = "2.1.0"
-kotlin = "2.3.21"
+# 2.4.0 halves linkRelease* memory (KT-80367) and fixes the 2.3.x iOS
+# release-link time regression (KT-84412). Held at .0 (not 2.4.10) because
+# SKIE 0.10.13 only lists 2.4.0 in its supported matrix — bump both together.
+kotlin = "2.4.0"
 kotlinxSerializationJson = "1.11.0"
-ksp = "2.3.0"
+ksp = "2.3.10"
 kotlinInject = "0.9.0"
 kotlinx-serialization = "1.9.0"
 kotlinxCoroutinesCore = "1.11.0"

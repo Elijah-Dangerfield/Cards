@@ -1,6 +1,6 @@
 plugins {
     id("cards.application")
-    id("co.touchlab.skie") version "0.10.12"
+    id("co.touchlab.skie") version "0.10.13"
 
 }
 
