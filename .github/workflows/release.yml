@@ -49,6 +49,11 @@ on:
         required: false
         default: false
         type: boolean
+      skip_ios:
+        description: 'Skip the iOS job entirely — re-run Android alone after a partial failure without the ~90m iOS build'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: release-${{ github.ref }}
@@ -79,11 +84,13 @@ jobs:
 
   android:
     name: Android AAB + Play submit
-    # Gate on iOS passing so a "Google shipped, Apple didn't" split can't
-    # happen again — we either release both platforms for a given tag or
-    # neither. If iOS fails, use workflow_dispatch with skip_app_store:true
-    # to retry iOS alone, or land a fix and let the next release carry it.
+    # Gate on iOS so a "Google shipped, Apple didn't" split can't happen by
+    # accident: Android runs only when iOS SUCCEEDED or was intentionally
+    # skipped (skip_ios). If iOS fails, Android is skipped too. To re-run
+    # Android alone after a partial failure, dispatch with skip_ios:true
+    # (skips the ~90m iOS build); to retry iOS alone, use skip_play_store:true.
     needs: [resolve-tag, ios]
+    if: ${{ always() && needs.resolve-tag.result == 'success' && (needs.ios.result == 'success' || needs.ios.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
@@ -305,6 +312,7 @@ jobs:
   ios:
     name: iOS TestFlight external + App Store submit
     needs: resolve-tag
+    if: ${{ !inputs.skip_ios }}
     # Standard runner (7GB) with a 10g daemon heap: the K/N release-LTO link
     # spills into macOS swap instead of OOMing. See beta.yml's ios job for the
     # 2026-07-08 sizing saga; macos-26-xlarge (14GB) works but bills per minute
