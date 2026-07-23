@@ -1,0 +1,189 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Admin: schedule an in-app dialog for a REAL user on PRODUCTION.
+#
+# The prod twin of admin-send-message.yml. Calls POST /v1/admin/messages on
+# cards-server-prod.fly.dev with CARDS_ADMIN_API_TOKEN_PROD, and requires
+# typing PROD in the `confirm` box first so a stray click can't message a real
+# player.
+#
+# Use this for:
+#   - Maintenance heads-ups ("we're going down for ~15 min Sunday 9pm")
+#   - Season launches / event announcements
+#   - "We fixed the bug that ate your hand" support outreach
+#   - Anything that isn't a chip grant. Chip grants attach a dialog via
+#     the admin-grant-chips (prod) workflow instead — keeps the two events
+#     atomic on the server side.
+#
+# Same audit + token model as admin-grant-chips: token only lives in
+# GH Secrets, every send is a workflow run with the operator's identity
+# in the run history. See apps/server/DEPLOY.md for the operator path.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Admin · Send message (prod)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type PROD to confirm you are acting on REAL users in production.'
+        required: true
+        type: string
+        default: ''
+      userId:
+        description: 'Target user UUID (Supabase auth.users.id)'
+        required: true
+        type: string
+      kind:
+        description: 'Surface — dialog (modal pop on next foreground) or inbox (passive entry + badge)'
+        required: true
+        type: choice
+        default: 'dialog'
+        options:
+          - dialog
+          - inbox
+      emoji:
+        description: 'Optional emoji (dialog bubble or inbox row accent). Leave blank for none.'
+        required: false
+        type: string
+        default: ''
+      title:
+        description: 'Title (max 80 chars)'
+        required: true
+        type: string
+      body:
+        description: 'Body (max 500 chars)'
+        required: true
+        type: string
+      deepLink:
+        description: 'Optional deep link the CTA opens (e.g. cards://shop). Blank = plain dismiss button.'
+        required: false
+        type: string
+        default: ''
+      expiresInDays:
+        description: 'Days until the message stops being delivered. 0 = never expires. Default 30.'
+        required: false
+        type: string
+        default: '30'
+      idempotencyKey:
+        description: 'Optional. Pass the same key to retry safely. Leave blank and the server fills one.'
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  group: admin-send-message-prod-${{ inputs.userId }}-${{ inputs.idempotencyKey }}
+  cancel-in-progress: false
+
+jobs:
+  send:
+    name: Send
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs and call send-message endpoint
+        env:
+          ADMIN_TOKEN: ${{ secrets.CARDS_ADMIN_API_TOKEN_PROD }}
+          CONFIRM: ${{ inputs.confirm }}
+          USER_ID: ${{ inputs.userId }}
+          KIND: ${{ inputs.kind }}
+          EMOJI: ${{ inputs.emoji }}
+          TITLE: ${{ inputs.title }}
+          BODY: ${{ inputs.body }}
+          DEEP_LINK: ${{ inputs.deepLink }}
+          EXPIRES_IN_DAYS: ${{ inputs.expiresInDays }}
+          IDEMPOTENCY_KEY: ${{ inputs.idempotencyKey }}
+        run: |
+          set -euo pipefail
+
+          # Production guard: this messages real players, so require an
+          # explicit typed confirmation before anything else runs.
+          if [ "$CONFIRM" != "PROD" ]; then
+            echo "::error::Type PROD in the confirm box to run against production. Got: '$CONFIRM'"
+            exit 1
+          fi
+
+          if [ -z "$ADMIN_TOKEN" ]; then
+            echo "::error::CARDS_ADMIN_API_TOKEN_PROD secret is not set"
+            exit 1
+          fi
+          if ! [[ "$USER_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            echo "::error::userId must be a UUID, got: $USER_ID"
+            exit 1
+          fi
+          trimmed_title="$(echo -n "$TITLE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          trimmed_body="$(echo -n "$BODY" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          if [ -z "$trimmed_title" ]; then
+            echo "::error::title must be a non-empty string"; exit 1
+          fi
+          if [ -z "$trimmed_body" ]; then
+            echo "::error::body must be a non-empty string"; exit 1
+          fi
+          if [ ${#trimmed_title} -gt 80 ]; then
+            echo "::error::title is too long (max 80 chars)"; exit 1
+          fi
+          if [ ${#trimmed_body} -gt 500 ]; then
+            echo "::error::body is too long (max 500 chars)"; exit 1
+          fi
+          if ! [[ "$EXPIRES_IN_DAYS" =~ ^[0-9]+$ ]]; then
+            echo "::error::expiresInDays must be a non-negative integer (or 0 for never)"; exit 1
+          fi
+
+          # Compute absolute expiry epoch-ms if days > 0. The server
+          # stores absolute timestamps; converting client-side keeps
+          # the API simple and lets the operator see the exact UTC
+          # cutoff in their run log.
+          if [ "$EXPIRES_IN_DAYS" = "0" ]; then
+            expires_ms=""
+          else
+            now_ms=$(date +%s%3N)
+            expires_ms=$((now_ms + EXPIRES_IN_DAYS * 86400000))
+          fi
+
+          message=$(jq -nc \
+            --arg emoji "$EMOJI" \
+            --arg title "$trimmed_title" \
+            --arg body "$trimmed_body" \
+            --arg deepLink "$DEEP_LINK" \
+            --arg expires "$expires_ms" \
+            '{title: $title, body: $body}
+             + (if $emoji == "" then {} else {emoji: $emoji} end)
+             + (if $deepLink == "" then {} else {deepLink: $deepLink} end)
+             + (if $expires == "" then {} else {expiresAtEpochMs: ($expires|tonumber)} end)')
+
+          payload=$(jq -nc \
+            --arg userId "$USER_ID" \
+            --arg kind "$KIND" \
+            --arg key "$IDEMPOTENCY_KEY" \
+            --argjson message "$message" \
+            '{userId: $userId, kind: $kind, message: $message}
+             + (if $key == "" then {} else {idempotencyKey: $key} end)')
+
+          response_file="$(mktemp)"
+          status=$(curl --silent --show-error --max-time 30 \
+            -o "$response_file" -w "%{http_code}" \
+            -X POST \
+            -H "X-Admin-Token: $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            https://cards-server-prod.fly.dev/v1/admin/messages)
+
+          echo "HTTP $status"
+          cat "$response_file"
+          echo
+
+          {
+            echo "### Send message result (PRODUCTION)"
+            echo
+            echo "- **User:** \`$USER_ID\`"
+            echo "- **Title:** $trimmed_title"
+            if [ -n "$EMOJI" ]; then echo "- **Emoji:** $EMOJI"; fi
+            if [ -n "$DEEP_LINK" ]; then echo "- **Deep link:** \`$DEEP_LINK\`"; fi
+            echo "- **HTTP:** $status"
+            echo
+            echo '```json'
+            jq . < "$response_file" 2>/dev/null || cat "$response_file"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$status" = "200" ]; then exit 0; fi
+          echo "::error::Endpoint returned HTTP $status — see response body above"
+          exit 1
