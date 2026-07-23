@@ -21,6 +21,7 @@ import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.products.ProductsRepository
+import com.dangerfield.cards.libraries.ui.components.poker.BuyableCosmetic
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 
@@ -200,19 +201,6 @@ data class OwnedItem(
      * bundles. Empty for single cosmetics. Drives the overlapping-emoji pack
      * thumbnail on the shelf and the "In this pack" grid in the detail sheet.
      */
-    val packEmojis: List<String> = emptyList(),
-)
-
-/**
- * A not-yet-owned cosmetic the user could buy, surfaced as a dimmed tile
- * after the owned items on a shoppable shelf (card backs, felts, avatar /
- * emote packs). Tapping routes to the shop. Price is intentionally omitted —
- * the tile is a "there's more in the shop" nudge, not a purchase surface.
- */
-data class BuyableCosmetic(
-    val productId: String,
-    val title: String,
-    val iconEmoji: String,
     val packEmojis: List<String> = emptyList(),
 )
 

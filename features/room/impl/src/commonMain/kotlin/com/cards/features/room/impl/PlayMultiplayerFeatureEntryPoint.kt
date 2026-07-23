@@ -25,6 +25,7 @@ import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.Platform
 import com.dangerfield.cards.features.room.PlayMultiplayerRoute
 import com.dangerfield.cards.features.room.RoomKind
 import com.dangerfield.cards.features.rooms.PublicFindRoute
@@ -244,10 +245,16 @@ class PlayMultiplayerFeatureEntryPoint(
                     }
                 },
                 onTapXp = { router.navigate(StatsRoute()) },
-                // Debug / TestFlight only: a bug button in the top bar for filing
-                // mid-game feedback without leaving the table (ENG). Null on App
-                // Store builds hides it.
-                onReportBug = if (BuildInfo.isDebug || BuildInfo.isTestFlight) {
+                // Android testers only: a bug button in the top bar for filing
+                // mid-game feedback without leaving the table (ENG). iOS testers
+                // reach the QA menu via the right-edge swipe (see rightEdgeSwipe
+                // in App.kt), which Android can't have — its right edge is the
+                // system back-gesture zone (ENG-31) — so Android gets the button
+                // instead. Null (App Store builds, iOS) hides it.
+                onReportBug = if (
+                    BuildInfo.platform == Platform.Android &&
+                    (BuildInfo.isDebug || BuildInfo.isTestFlight)
+                ) {
                     { router.navigate(FeedbackRoute()) }
                 } else {
                     null
@@ -255,8 +262,16 @@ class PlayMultiplayerFeatureEntryPoint(
                 // A visible in-game invite: the room code is otherwise only
                 // reachable by tapping the center cards, so mid-game invites were
                 // undiscoverable (ROOM-19). Reuses the lobby share plumbing —
-                // same deep link, same copy — so the URL can't drift.
-                onShareRoom = { router.shareText(shareMessage) },
+                // same deep link, same copy — so the URL can't drift. Private
+                // tables only: a matchmade Public table is deliberately not
+                // code-shareable (see docs/wiki/multiplayer.md) — inviting a
+                // friend into a stranger table is the collusion/soft-play setup
+                // the real-stakes guards exist for.
+                onShareRoom = if (route.kind == RoomKind.Private) {
+                    { router.shareText(shareMessage) }
+                } else {
+                    null
+                },
             )
         }
     }

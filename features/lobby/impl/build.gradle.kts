@@ -13,6 +13,9 @@ kotlin {
             // The entry point routes LobbyEvent.NavigateToMultiplayer
             // to PlayMultiplayerRoute defined in :features:room.
             implementation(projects.features.room)
+            // Locked cosmetics on the create-room picker deep-link into the
+            // shop's purchase sheet (ROOM-20).
+            implementation(projects.features.shop)
             implementation(projects.libraries.rooms)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.products)

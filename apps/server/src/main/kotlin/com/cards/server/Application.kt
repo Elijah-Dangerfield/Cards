@@ -11,6 +11,7 @@ import com.dangerfield.cards.server.di.ServerComponent
 import com.dangerfield.cards.server.di.create
 import com.dangerfield.cards.server.plugins.BanGate
 import com.dangerfield.cards.server.plugins.JwtVerification
+import com.dangerfield.cards.server.plugins.installAdminWeb
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.installAuthentication
 import com.dangerfield.cards.server.plugins.installCors
@@ -100,6 +101,10 @@ fun Application.module(config: ServerConfig) {
             scope = component.provideServerCoroutineScope(),
         ),
     )
+
+    // The hosted admin console (static bundle at /admin). Outside installApp so
+    // integration tests don't need a bundle on disk.
+    installAdminWeb(config.admin.webDir)
 
     // Boot recovery: after a restart every in-memory room is gone, so any
     // table session left `open` by the previous process is abandoned and its
@@ -233,6 +238,8 @@ fun Application.installApp(
             rooms = component.roomService,
             wallets = component.walletRepository,
             messages = component.userMessageRepository,
+            profiles = component.profileRepository,
+            supabaseAdmin = component.supabaseAdminClient,
             clock = component.provideClock(),
         )
         configAdminRoutes(

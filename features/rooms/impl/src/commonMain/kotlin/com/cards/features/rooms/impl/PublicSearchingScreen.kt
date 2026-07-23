@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,16 +29,6 @@ import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.public_searching_buyin_label
 import cards.libraries.resources.generated.resources.public_searching_cancel
-import cards.libraries.resources.generated.resources.public_searching_choose_blinds
-import cards.libraries.resources.generated.resources.public_searching_choose_buyin
-import cards.libraries.resources.generated.resources.public_searching_choose_humans
-import cards.libraries.resources.generated.resources.public_searching_choose_humans_one
-import cards.libraries.resources.generated.resources.public_searching_choose_join
-import cards.libraries.resources.generated.resources.public_searching_choose_need_chips
-import cards.libraries.resources.generated.resources.public_searching_choose_none
-import cards.libraries.resources.generated.resources.public_searching_choose_start_fresh
-import cards.libraries.resources.generated.resources.public_searching_choose_subtitle
-import cards.libraries.resources.generated.resources.public_searching_choose_title
 import cards.libraries.resources.generated.resources.public_searching_error_body
 import cards.libraries.resources.generated.resources.public_searching_error_back
 import cards.libraries.resources.generated.resources.public_searching_error_cannot_be_seated
@@ -68,7 +56,6 @@ import cards.libraries.resources.generated.resources.public_searching_rotate_5
 import cards.libraries.resources.generated.resources.public_searching_rotate_6
 import cards.libraries.resources.generated.resources.public_searching_title
 import com.dangerfield.cards.libraries.cards.formatThousands
-import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.rooms.RoomStatus
@@ -98,9 +85,11 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 /**
  * Public Searching / matchmaking screen — the honest, real-humans-first search.
  *
- * Three faces, driven entirely by [PublicSearchingState.phase]:
+ * Faces, driven entirely by [PublicSearchingState.phase]:
  *  - **Searching:** the radar, a found-count, and reassuring copy that rotates
  *    every few seconds so the wait feels alive (we genuinely look for people).
+ *  - **Joined:** the pre-deal lobby — the find matched us onto a table with
+ *    players already there, so show the seat grid until the server deals.
  *  - **BotFallbackOffer:** the honest "we couldn't find anyone — that's on us"
  *    panel. Play disclosed bots for real chips (they step aside the moment a
  *    real player joins), keep waiting, or bow out.
@@ -114,12 +103,11 @@ fun PublicSearchingScreen(
     state: PublicSearchingState,
     onAction: (PublicSearchingAction) -> Unit,
 ) {
-    // The header follows where the user actually is: browsing tables, seated in the
-    // pre-deal lobby, or still hunting. An error drops back to the hunting title
-    // since that's the flow it interrupts (CARDS-AX / CARDS-AV).
+    // The header follows where the user actually is: seated in the pre-deal
+    // lobby or still hunting. An error drops back to the hunting title since
+    // that's the flow it interrupts (CARDS-AX / CARDS-AV).
     val title = when {
         state.error != null -> Res.string.public_searching_title
-        state.phase == SearchPhase.Choosing -> Res.string.public_searching_choose_title
         state.phase == SearchPhase.Joined -> Res.string.public_searching_joined_title
         else -> Res.string.public_searching_title
     }
@@ -139,7 +127,6 @@ fun PublicSearchingScreen(
         ) {
             when {
                 state.error != null -> ErrorContent(state.error, onAction)
-                state.phase == SearchPhase.Choosing -> ChoosingContent(state.candidates, onAction)
                 state.phase == SearchPhase.Joined -> JoinedTableContent(state, onAction)
                 state.phase == SearchPhase.BotFallbackOffer -> BotFallbackContent(state.subsidyNotice, onAction)
                 state.phase == SearchPhase.JoiningBots -> JoiningBotsContent()
@@ -179,130 +166,15 @@ private fun ColumnScope.SearchingContent(
 }
 
 @Composable
-private fun ColumnScope.ChoosingContent(
-    candidates: List<TableCandidate>,
-    onAction: (PublicSearchingAction) -> Unit,
-) {
-    Spacer(Modifier.height(Dimension.D500))
-    Text(
-        text = stringResource(Res.string.public_searching_choose_title),
-        typography = AppTheme.typography.Heading.H800,
-        color = AppTheme.colors.content,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    Spacer(Modifier.height(Dimension.D200))
-    Text(
-        text = stringResource(Res.string.public_searching_choose_subtitle),
-        typography = AppTheme.typography.Body.B500,
-        color = AppTheme.colors.contentSecondary,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    Spacer(Modifier.height(Dimension.D600))
-    LazyColumn(
-        modifier = Modifier.weight(1f).fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(Dimension.D400),
-    ) {
-        items(items = candidates, key = { it.code }) { candidate ->
-            CandidateCard(
-                candidate = candidate,
-                onJoin = { onAction(PublicSearchingAction.JoinCandidate(candidate.code)) },
-            )
-        }
-    }
-    Spacer(Modifier.height(Dimension.D500))
-    Text(
-        text = stringResource(Res.string.public_searching_choose_none),
-        typography = AppTheme.typography.Body.B400,
-        color = AppTheme.colors.contentTertiary,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    Spacer(Modifier.height(Dimension.D400))
-    ButtonSecondary(
-        onClick = { onAction(PublicSearchingAction.StartFreshTable) },
-        style = ButtonStyle.Outlined,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(stringResource(Res.string.public_searching_choose_start_fresh))
-    }
-    Spacer(Modifier.height(Dimension.D800))
-}
-
-@Composable
-private fun CandidateCard(candidate: TableCandidate, onJoin: () -> Unit) {
-    // Blinds come from the same buy-in → stakes derivation the server uses, so the
-    // card shows the exact table the user is about to sit at.
-    val blinds = RoomSettings.forBuyIn(candidate.buyIn, candidate.maxSeats)
-    // An unaffordable table stays listed (aspirational) but reads as out of reach:
-    // dimmed content, a disabled Join, and the exact chips it takes to sit.
-    val buyInColor = if (candidate.affordable) AppTheme.colors.content else AppTheme.colors.contentDisabled
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surface.color)
-            .border(1.dp, AppTheme.colors.border.color, Radii.R700.shape)
-            .padding(horizontal = Dimension.D500, vertical = Dimension.D500),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ChipCoin(size = 16.dp)
-                Spacer(Modifier.size(Dimension.D200))
-                Text(
-                    text = stringResource(Res.string.public_searching_choose_buyin, formatThousands(candidate.buyIn)),
-                    typography = AppTheme.typography.Label.L500,
-                    color = buyInColor,
-                )
-            }
-            Spacer(Modifier.height(Dimension.D100))
-            Text(
-                text = stringResource(
-                    Res.string.public_searching_choose_blinds,
-                    formatThousands(blinds.smallBlind),
-                    formatThousands(blinds.bigBlind),
-                ),
-                typography = AppTheme.typography.Label.L300,
-                color = AppTheme.colors.contentTertiary,
-            )
-            Spacer(Modifier.height(Dimension.D100))
-            if (candidate.affordable) {
-                Text(
-                    text = if (candidate.humans == 1) {
-                        stringResource(Res.string.public_searching_choose_humans_one)
-                    } else {
-                        stringResource(Res.string.public_searching_choose_humans, candidate.humans)
-                    },
-                    typography = AppTheme.typography.Label.L400,
-                    color = AppTheme.colors.accentSecondary,
-                )
-            } else {
-                Text(
-                    text = stringResource(
-                        Res.string.public_searching_choose_need_chips,
-                        formatThousands(candidate.minBalanceToSit),
-                    ),
-                    typography = AppTheme.typography.Label.L400,
-                    color = AppTheme.colors.contentTertiary,
-                )
-            }
-        }
-        Spacer(Modifier.size(Dimension.D400))
-        ButtonPrimary(onClick = onJoin, enabled = candidate.affordable) {
-            Text(stringResource(Res.string.public_searching_choose_join))
-        }
-    }
-}
-
-@Composable
 private fun ColumnScope.JoinedTableContent(
     state: PublicSearchingState,
     onAction: (PublicSearchingAction) -> Unit,
 ) {
-    // ROOM-11: after the user explicitly takes a seat from the chooser, this is
-    // their pre-deal lobby — visibly a *joined table* (seated players + a deal is
-    // imminent), not the still-hunting radar. The deal flips us straight onto the
-    // live multiplayer screen, so nothing here drives the deal; it just waits.
+    // ROOM-11 / MP-35: the find matched the user onto a table with players
+    // already there — this is their pre-deal lobby, visibly a *joined table*
+    // (seated players + a deal is imminent), not the still-hunting radar. The
+    // deal flips us straight onto the live multiplayer screen, so nothing here
+    // drives the deal; it just waits.
     val room = state.joinedRoom ?: return
     val others = state.realPlayersFound
     Spacer(Modifier.height(Dimension.D500))
@@ -580,33 +452,6 @@ private fun PublicSearchingScreenPreview() {
     PreviewContent {
         PublicSearchingScreen(
             state = PublicSearchingState(minBuyIn = 1_000, maxBuyIn = 25_000),
-            onAction = {},
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun PublicSearchingChooserPreview() {
-    PreviewContent {
-        PublicSearchingScreen(
-            state = PublicSearchingState(
-                phase = SearchPhase.Choosing,
-                minBuyIn = 1_000,
-                maxBuyIn = 25_000,
-                candidates = listOf(
-                    TableCandidate(code = "ABC123", buyIn = 1_000, maxSeats = 6, humans = 3),
-                    TableCandidate(code = "DEF456", buyIn = 5_000, maxSeats = 6, humans = 2),
-                    TableCandidate(
-                        code = "GHI789",
-                        buyIn = 25_000,
-                        maxSeats = 6,
-                        humans = 1,
-                        affordable = false,
-                        minBalanceToSit = 100_000,
-                    ),
-                ),
-            ),
             onAction = {},
         )
     }

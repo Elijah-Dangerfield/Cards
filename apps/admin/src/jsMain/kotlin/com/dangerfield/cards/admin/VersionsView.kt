@@ -9,8 +9,8 @@ import org.jetbrains.compose.web.dom.Span
 import org.jetbrains.compose.web.dom.Text
 
 /**
- * "What did version X ship with." Pick a captured version; see its in-code
- * defaults — the baseline a remote override replaces.
+ * "What did version X ship with." Pick a captured version; see its baked
+ * defaults — the baseline a server value replaces.
  */
 @Composable
 internal fun VersionsView(
@@ -40,7 +40,7 @@ internal fun VersionsView(
     }
 
     if (entries.isEmpty()) {
-        P(attrs = { classes("muted") }) { Text("Pick a version to see its in-code defaults.") }
+        P(attrs = { classes("muted") }) { Text("Pick a version to see the defaults baked into that build.") }
         return
     }
 
@@ -49,7 +49,7 @@ internal fun VersionsView(
             Div(attrs = { classes("manifest-row") }) {
                 Span(attrs = { classes("flag-path") }) { Text(entry.path) }
                 Span(attrs = { classes("tag") }) { Text(entry.type) }
-                Span(attrs = { classes("muted") }) { Text("default") }
+                Span(attrs = { classes("muted") }) { Text("baked default") }
                 Code { Text(entry.default.inline()) }
                 entry.description?.takeIf { it.isNotBlank() }?.let {
                     Span(attrs = { classes("muted", "hint") }) { Text(it) }

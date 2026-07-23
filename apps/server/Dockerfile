@@ -78,6 +78,14 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=builder /workspace/apps/server/build/install/server/ /app/
 
+# The hosted admin console. The deploy workflow builds the apps/admin JS
+# bundle on the runner and copies it into apps/server/admin-web/ before
+# `flyctl deploy --local-only`, so this COPY takes it from the build context —
+# the Gradle build above stays JS-toolchain-free on purpose. An empty dir
+# (only .gitkeep) is fine: the server just skips serving /admin.
+COPY apps/server/admin-web/ /app/admin-web/
+ENV ADMIN_WEB_DIR=/app/admin-web
+
 ENV JAVA_OPTS=""
 ENV SERVER_PORT=8080
 EXPOSE 8080

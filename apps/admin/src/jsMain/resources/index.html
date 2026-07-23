@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cards · Remote Config Admin</title>
+    <title>Downcard · Config Console</title>
     <style>
         :root {
             --bg: #14110e;
@@ -15,70 +15,169 @@
             --accent: #c8a15a;
             --danger: #c2554a;
             --ok: #6f9a5a;
+            --mono: ui-monospace, "SF Mono", Menlo, monospace;
         }
         * { box-sizing: border-box; }
         body {
             margin: 0;
             background: var(--bg);
             color: var(--text);
-            font: 14px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+            font: 14px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;
         }
-        #root { max-width: 920px; margin: 0 auto; padding: 24px 20px 80px; }
-        h1 { font-size: 18px; letter-spacing: .04em; margin: 0 0 2px; }
-        h2 { font-size: 14px; color: var(--muted); margin: 28px 0 10px; font-weight: 600; }
+        #root { min-height: 100vh; }
+        .page { max-width: 1100px; margin: 0 auto; padding: 16px 24px 80px; }
+        h1 { font-size: 17px; letter-spacing: .02em; margin: 0; }
+        h2 { font-size: 13px; color: var(--muted); margin: 26px 0 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
         .sub { color: var(--muted); margin: 0 0 20px; }
         .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .spacer { flex: 1 1 auto; }
         .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
-        .flag-path { color: var(--accent); font-weight: 600; }
+        .mono, .flag-path, code, pre, .val, .val-drift { font-family: var(--mono); }
+        .flag-path { color: var(--text); font-weight: 600; font-size: 13px; }
         .rule { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
         .rule.off { opacity: .5; }
         .muted { color: var(--muted); }
         label { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
-        input[type=text], input[type=number], textarea {
+        input[type=text], input[type=number], input[type=password], textarea {
             background: #100d0a; color: var(--text); border: 1px solid var(--line);
             border-radius: 6px; padding: 6px 8px; font: inherit;
         }
         input[type=text] { min-width: 120px; }
         button {
             background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
-            border-radius: 6px; padding: 6px 12px; font: inherit; cursor: pointer;
+            border-radius: 6px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer;
         }
         button:hover { border-color: var(--accent); }
         button.primary { background: var(--accent); color: #1a140a; border-color: var(--accent); font-weight: 600; }
         button.danger { color: var(--danger); }
+        a { color: var(--accent); }
         .status { min-height: 20px; margin: 8px 0; }
         .status.err { color: var(--danger); }
         .status.ok { color: var(--ok); }
         .grid { display: grid; grid-template-columns: 140px 1fr; gap: 6px 10px; align-items: center; }
-        code { background: #100d0a; padding: 1px 5px; border-radius: 4px; }
+        code { background: #100d0a; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
         pre { background: #100d0a; border: 1px solid var(--line); border-radius: 6px; padding: 8px; overflow:auto; margin: 4px 0; }
 
-        /* tabs */
-        .tabs { display: flex; gap: 6px; margin: 18px 0 12px; }
-        .tabs button.active { background: var(--accent); color: #1a140a; border-color: var(--accent); font-weight: 600; }
+        /* ── top app bar ── */
+        .appbar {
+            position: sticky; top: 0; z-index: 80;
+            background: color-mix(in srgb, var(--panel) 92%, transparent);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--line);
+        }
+        .appbar-inner {
+            max-width: 1100px; margin: 0 auto; padding: 10px 24px;
+            display: flex; gap: 12px; align-items: center;
+        }
+        .wordmark { font-weight: 700; letter-spacing: .02em; }
+        .wordmark .dim { color: var(--muted); font-weight: 400; }
+        .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+        .conn-dot.on { background: var(--ok); }
 
-        /* target lens */
-        .target { border-color: var(--accent); }
+        /* ── underline nav tabs ── */
+        .tabs { display: flex; gap: 2px; margin: 16px 0 14px; border-bottom: 1px solid var(--line); }
+        .tabs button {
+            background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0;
+            color: var(--muted); padding: 7px 14px; font-weight: 500;
+        }
+        .tabs button:hover { color: var(--text); }
+        .tabs button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
 
-        /* flag cards */
-        .flag-head { display: flex; gap: 8px; align-items: center; cursor: pointer; }
-        .spacer { flex: 1 1 auto; }
-        .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; text-transform: uppercase; letter-spacing: .04em; }
-        .chip { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 10px; padding: 0 8px; }
-        .val { color: var(--text); }
-        .val-drift { color: var(--accent); font-weight: 600; }
+        /* ── target lens ── */
+        .target { border-color: var(--line); }
+        .target-summary { cursor: pointer; }
+
+        /* ── the flag table ── */
+        table.flags { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+        table.flags th {
+            text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+            color: var(--muted); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--line);
+            background: var(--panel-2);
+        }
+        table.flags td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+        table.flags tr.flag-line { cursor: pointer; }
+        table.flags tr.flag-line:hover td { background: color-mix(in srgb, var(--panel-2) 55%, transparent); }
+        table.flags tr:last-child td { border-bottom: none; }
+        td.detail-cell { background: #17140f; padding: 14px 16px; cursor: default; }
+        .flag-desc { color: var(--muted); font-size: 12px; margin-top: 1px; }
+        .tag { font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; text-transform: uppercase; letter-spacing: .04em; }
+        .chip { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 10px; padding: 0 8px; white-space: nowrap; }
+        .val { color: var(--text); font-size: 13px; }
+        .val-drift { color: var(--accent); font-weight: 600; font-size: 13px; }
+        .val-not-set { color: var(--muted); font-style: italic; }
         .hint { font-size: 11px; }
 
-        /* the default → base → resolved story */
+        /* ── toggle switch (boolean server value) ── */
+        .switch { position: relative; display: inline-block; width: 36px; height: 20px; flex: none; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .switch .slider {
+            position: absolute; inset: 0; border-radius: 20px; cursor: pointer;
+            background: var(--panel-2); border: 1px solid var(--line); transition: background .15s;
+        }
+        .switch .slider:before {
+            content: ""; position: absolute; width: 14px; height: 14px; border-radius: 50%;
+            left: 2px; top: 2px; background: var(--muted); transition: transform .15s, background .15s;
+        }
+        .switch input:checked + .slider { background: var(--ok); border-color: var(--ok); }
+        .switch input:checked + .slider:before { transform: translateX(16px); background: #fff; }
+
+        /* ── the baked → server → client layer strip ── */
         .layers { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
         .layer { background: #100d0a; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 170px; }
 
-        /* rules */
         .rule.editing { border-color: var(--accent); }
         .op { min-width: 36px; font-weight: 600; }
 
-        /* version manifest */
         .manifest-row { display: flex; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+
+        .field-problem { color: var(--danger); font-size: 12px; }
+
+        /* ── before → after confirm sheet ── */
+        body.modal-open { overflow: hidden; }
+        .modal-backdrop {
+            position: fixed; inset: 0; background: rgba(10, 8, 6, .72);
+            display: flex; align-items: center; justify-content: center; z-index: 100;
+        }
+        .modal {
+            background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+            padding: 18px; min-width: 380px; max-width: 640px; max-height: 80vh; overflow: auto;
+        }
+        .modal-danger { border-color: var(--danger); }
+        .modal-title { margin: 0 0 8px; color: var(--text); text-transform: none; letter-spacing: 0; font-size: 15px; }
+        .modal-danger .modal-title { color: var(--danger); }
+        .modal-arrow { align-self: center; font-size: 18px; }
+        .modal-warning { color: var(--danger); font-weight: 600; }
+        .modal-actions { justify-content: flex-end; margin-top: 12px; }
+        button.danger-solid { background: var(--danger); color: #fff; border-color: var(--danger); font-weight: 600; }
+        button[disabled] { opacity: .4; cursor: not-allowed; }
+
+        /* ── persistent failed-write log ── */
+        .error-log { border-color: var(--danger); }
+        .error-entry { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 6px; }
+        .err { color: var(--danger); }
+
+        /* ── production is unmistakable ── */
+        body.body-prod { border: 4px solid var(--danger); min-height: 100vh; }
+        .env-banner-prod {
+            background: var(--danger); color: #fff; font-weight: 700;
+            text-align: center; letter-spacing: .06em; font-size: 12px;
+            padding: 4px 10px;
+        }
+        .env-chip { font-size: 11px; border-radius: 4px; padding: 1px 8px; font-weight: 700; letter-spacing: .05em; }
+        .env-chip-prod { background: var(--danger); color: #fff; }
+        .env-chip-dev { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
+
+        /* ── kill-switch panel ── */
+        .kill-panel { border-width: 2px; }
+        .kill-panel.kill-clear { border-color: var(--ok); }
+        .kill-panel.kill-banner { border-color: var(--accent); }
+        .kill-panel.kill-blocking { border-color: var(--danger); }
+        .kill-state { font-weight: 700; letter-spacing: .04em; margin-bottom: 8px; }
+        .kill-clear .kill-state { color: var(--ok); }
+        .kill-banner .kill-state { color: var(--accent); }
+        .kill-blocking .kill-state { color: var(--danger); }
+        .kill-row { border-top: 1px solid var(--line); padding: 6px 0; }
+        .kill-label { min-width: 150px; }
     </style>
 </head>
 <body>

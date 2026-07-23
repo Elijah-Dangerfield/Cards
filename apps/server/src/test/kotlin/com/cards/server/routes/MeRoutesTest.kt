@@ -19,6 +19,7 @@ import com.dangerfield.cards.server.domain.Room
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomSweepResult
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
+import com.dangerfield.cards.server.domain.UpdateDisplayNameResult
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessage
 import com.dangerfield.cards.server.domain.UserMessageKind
@@ -271,6 +272,61 @@ class MeRoutesTest {
         }
     }
 
+    // ---------- Auth display-name mirror ----------
+
+    @Test
+    fun get_newAccount_mirrorsGeneratedNameIntoAuthMetadata() = runTest {
+        val repo = FakeProfileRepository(existing = null, reportsCreated = true)
+        val admin = RecordingDisplayNameAdmin()
+        callMe(repo, bearer = validJwt(), adminClient = admin) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            admin.awaitFirstMirror()
+            assertEquals(listOf(userId to "GeneratedName"), admin.mirrored)
+        }
+    }
+
+    @Test
+    fun get_returningAccount_doesNotTouchAuthMetadata() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        val admin = RecordingDisplayNameAdmin()
+        callMe(repo, bearer = validJwt(), adminClient = admin) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertTrue(admin.mirrored.isEmpty(), "an existing account's GET must not re-mirror")
+        }
+    }
+
+    @Test
+    fun patch_rename_mirrorsNewNameIntoAuthMetadata() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        val admin = RecordingDisplayNameAdmin()
+        callPatch(repo, bearer = validJwt(), jsonBody = """{"displayName":"NewName"}""", adminClient = admin) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            admin.awaitFirstMirror()
+            assertEquals(listOf(userId to "NewName"), admin.mirrored)
+        }
+    }
+
+    @Test
+    fun patch_withoutName_doesNotTouchAuthMetadata() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        val admin = RecordingDisplayNameAdmin()
+        callPatch(repo, bearer = validJwt(), jsonBody = """{"avatarEmoji":"🦊"}""", adminClient = admin) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertTrue(admin.mirrored.isEmpty(), "an avatar-only patch must not touch auth metadata")
+        }
+    }
+
+    @Test
+    fun patch_mirrorFailure_neverFailsTheRename() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        val admin = RecordingDisplayNameAdmin(
+            result = UpdateDisplayNameResult.Failure(statusCode = 500, cause = null),
+        )
+        callPatch(repo, bearer = validJwt(), jsonBody = """{"displayName":"NewName"}""", adminClient = admin) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status, "the mirror is vanity metadata — never the request's fate")
+        }
+    }
+
     @Test
     fun patch_returns401_whenAuthHeaderMissing() = runTest {
         val repo = FakeProfileRepository(existing = null)
@@ -464,6 +520,7 @@ class MeRoutesTest {
         repo: ProfileRepository,
         bearer: String?,
         jsonBody: String,
+        adminClient: SupabaseAdminClient = AlwaysSuccessAdmin,
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -473,7 +530,7 @@ class MeRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing {
-                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyPlayStyle, EmptyPlayerStats, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends, NoOpRecentOpponentsRepository)
+                    meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyProgression, EmptyPlayStyle, EmptyPlayerStats, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends, NoOpRecentOpponentsRepository)
                 }
             }
             val client = createClient {
@@ -500,7 +557,10 @@ class MeRoutesTest {
         )
     }
 
-    private class FakeProfileRepository(private val existing: Profile?) : ProfileRepository {
+    private class FakeProfileRepository(
+        private val existing: Profile?,
+        private val reportsCreated: Boolean = false,
+    ) : ProfileRepository {
         var findOrCreateCalls: Int = 0
             private set
         var deleteCalls: Int = 0
@@ -523,6 +583,14 @@ class MeRoutesTest {
             )
         }
 
+        override suspend fun findOrCreateResult(
+            userId: UserId,
+        ): com.dangerfield.cards.server.domain.FindOrCreateProfileResult =
+            com.dangerfield.cards.server.domain.FindOrCreateProfileResult(
+                profile = findOrCreate(userId),
+                created = reportsCreated,
+            )
+
         override suspend fun update(
             userId: UserId,
             displayName: String?,
@@ -532,7 +600,9 @@ class MeRoutesTest {
         ): com.dangerfield.cards.server.domain.UpdateProfileOutcome {
             updateCalls++
             val base = existing ?: findOrCreate(userId)
-            return com.dangerfield.cards.server.domain.UpdateProfileOutcome.Success(base)
+            return com.dangerfield.cards.server.domain.UpdateProfileOutcome.Success(
+                if (displayName != null) base.copy(displayName = displayName) else base,
+            )
         }
 
         override suspend fun delete(userId: UserId) {
@@ -553,6 +623,27 @@ class MeRoutesTest {
     private object AlwaysSuccessAdmin : SupabaseAdminClient {
         override suspend fun deleteUser(userId: UserId): DeleteUserResult = DeleteUserResult.Success
         override suspend fun listAnonymousUsersOlderThan(olderThan: kotlin.time.Instant): List<UserId> = emptyList()
+        override suspend fun updateUserDisplayName(userId: UserId, displayName: String): UpdateDisplayNameResult =
+            UpdateDisplayNameResult.Success
+    }
+
+    /**
+     * Records display-name mirrors. The mirror is fired off the request path
+     * (app.launch), so tests await the deferred rather than asserting inline.
+     */
+    private class RecordingDisplayNameAdmin(
+        private val result: UpdateDisplayNameResult = UpdateDisplayNameResult.Success,
+    ) : SupabaseAdminClient {
+        val mirrored: MutableList<Pair<UserId, String>> = mutableListOf()
+        private val completion = kotlinx.coroutines.CompletableDeferred<Unit>()
+        suspend fun awaitFirstMirror() = completion.await()
+        override suspend fun deleteUser(userId: UserId): DeleteUserResult = DeleteUserResult.Success
+        override suspend fun listAnonymousUsersOlderThan(olderThan: kotlin.time.Instant): List<UserId> = emptyList()
+        override suspend fun updateUserDisplayName(userId: UserId, displayName: String): UpdateDisplayNameResult {
+            mirrored += userId to displayName
+            completion.complete(Unit)
+            return result
+        }
     }
 
     private object NoOpInstallSweep : com.dangerfield.cards.server.domain.OrphanInstallSweep {
@@ -586,6 +677,8 @@ class MeRoutesTest {
             return result
         }
         override suspend fun listAnonymousUsersOlderThan(olderThan: kotlin.time.Instant): List<UserId> = emptyList()
+        override suspend fun updateUserDisplayName(userId: UserId, displayName: String): UpdateDisplayNameResult =
+            UpdateDisplayNameResult.Success
     }
 
     @Test

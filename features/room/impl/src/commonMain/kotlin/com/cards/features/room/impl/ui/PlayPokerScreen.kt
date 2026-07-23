@@ -112,13 +112,15 @@ fun PlayPokerScreen(
     modifier: Modifier = Modifier,
     onTapXp: () -> Unit = {},
     /** Opens the feedback form from a bug-icon button in the top bar. The entry
-     *  point wires this only on debug / TestFlight builds (null hides the button)
-     *  so testers can file mid-game feedback without leaving the table. */
+     *  point wires this only on Android debug builds (null hides the button)
+     *  so testers can file mid-game feedback without leaving the table; iOS
+     *  testers use the right-edge swipe to the QA menu instead. */
     onReportBug: (() -> Unit)? = null,
     /** Opens the platform share sheet with this room's invite link from a
-     *  share-icon button in the top bar. The MP entry point wires this so a
-     *  mid-game invite doesn't require digging into the board-tap cheat sheet
-     *  for the code (ROOM-19); null (solo bots, no shareable code) hides it. */
+     *  share-icon button in the top bar. The MP entry point wires this on
+     *  Private tables so a mid-game invite doesn't require digging into the
+     *  board-tap cheat sheet for the code (ROOM-19); null (solo bots, or a
+     *  matchmade Public table whose code shouldn't spread) hides it. */
     onShareRoom: (() -> Unit)? = null,
     /** Hides the centered Level pill in the top bar. The tutorial sets
      *  this false so its own step-counter pill can occupy the centered
@@ -441,7 +443,12 @@ fun PlayPokerScreen(
                 onDismiss = { onAction(PlayPokerAction.ToggleCheatSheet) },
                 holeCards = humanSeat?.holeCards.orEmpty(),
                 boardCards = active?.communityCards.orEmpty(),
-                roomCode = state.roomCode,
+                // The code card is an invite surface, so it follows the same
+                // entry-point decision as the top-bar share button: private
+                // tables only. state.roomCode stays populated regardless — it
+                // also rides along on player reports, which matter most at the
+                // public tables where this card is hidden.
+                roomCode = state.roomCode.takeIf { onShareRoom != null },
             )
         }
 
@@ -1067,9 +1074,9 @@ private fun TopBar(
             modifier = Modifier.align(Alignment.CenterEnd),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Debug / TestFlight only (the entry point gates it): a bug button
+            // Android testers only (the entry point gates it): a bug button
             // that opens the feedback form so testers can report mid-game without
-            // leaving the table.
+            // leaving the table. iOS testers edge-swipe to the QA menu instead.
             if (onReportBug != null) {
                 IconButton(
                     icon = Icons.Bug(stringResource(Res.string.room_top_bar_report_bug_a11y)),

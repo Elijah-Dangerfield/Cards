@@ -166,6 +166,9 @@ jobs:
           # to the `internal` track (Play won't accept an automated production
           # upload without a manually-promoted draft first).
           set -e
+          # Exported so the inline python can read it via os.environ['SA_JSON']
+          # (same KeyError trap as the iOS job's KEY_PATH).
+          export SA_JSON
           SA_JSON="$(mktemp)"
           printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$SA_JSON"
           TOKEN=$(python3 - <<'PY'
@@ -439,6 +442,10 @@ jobs:
             echo "is_first_release=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # Exported (not just a shell var) so the inline python below can read
+          # it via os.environ['KEY_PATH'] — a bare assignment isn't in the
+          # subprocess environment and fails with KeyError.
+          export KEY_PATH
           KEY_PATH=$(mktemp)
           printf '%s' "$ASC_KEY_P8_BASE64" | base64 --decode > "$KEY_PATH"
           TOKEN=$(python3 - <<PY

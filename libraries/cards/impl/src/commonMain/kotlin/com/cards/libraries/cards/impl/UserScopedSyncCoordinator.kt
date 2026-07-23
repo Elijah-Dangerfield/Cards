@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.logOnFailure
+import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.RunWhenRetry
 import com.dangerfield.cards.libraries.flowroutines.runWhen
@@ -41,6 +42,8 @@ class UserScopedSyncCoordinator(
     appScope: AppCoroutineScope,
 ) : AutoInit {
 
+    private val logger = KLog.withTag("UserScopedSync")
+
     init {
         syncers.forEach { syncer ->
             appScope.runWhen(
@@ -48,9 +51,19 @@ class UserScopedSyncCoordinator(
                 refireOn = merge(triggers.warmForeground, triggers.cameOnline),
                 retry = RunWhenRetry.exponential(),
             ) { account ->
-                registry.tracked(account.userId) {
-                    syncer.sync()
-                        .logOnFailure { "${syncer::class.simpleName} sync failed for ${account.userId}" }
+                if (triggers.isOffline.value) {
+                    // An offline device can't reconcile — every attempt would
+                    // burn the whole retry ladder failing the same way (ENG-34:
+                    // one phone in a dead spot logged 59 error events). Park as
+                    // success; the cameOnline refire re-runs the moment a route
+                    // exists again.
+                    logger.i { "${syncer::class.simpleName} sync deferred: device offline" }
+                    Result.success(Unit)
+                } else {
+                    registry.tracked(account.userId) {
+                        syncer.sync()
+                            .logOnFailure { "${syncer::class.simpleName} sync failed for ${account.userId}" }
+                    }
                 }
             }
         }

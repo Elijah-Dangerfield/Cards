@@ -15,6 +15,8 @@ import com.dangerfield.cards.features.lobby.PrivateCreateRoute
 import com.dangerfield.cards.features.lobby.PrivateJoinRoute
 import com.dangerfield.cards.features.lobby.RoomInvite
 import com.dangerfield.cards.features.room.PlayMultiplayerRoute
+import com.dangerfield.cards.features.shop.ShopGraph
+import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.CosmeticSlot
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
@@ -30,6 +32,7 @@ import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.routeDeepLink
 import com.dangerfield.cards.libraries.navigation.screen
+import com.dangerfield.cards.libraries.ui.components.poker.BuyableCosmetic
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarDuration
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
@@ -94,6 +97,19 @@ class LobbyFeatureEntryPoint(
                 cardBacks = cosmetics.cardBacks,
                 initialFeltProductId = cosmetics.equippedFeltProductId,
                 initialCardBackProductId = cosmetics.equippedCardBackProductId,
+                lockedFelts = cosmetics.lockedFelts,
+                lockedCardBacks = cosmetics.lockedCardBacks,
+                onOpenLockedInShop = { productId ->
+                    // Cross-tab deep-link straight to the product's purchase
+                    // sheet rather than dumping the user in the shop grid —
+                    // same batch shape as the profile bookshelf's buyable tap
+                    // (tab-root args get clobbered by restoreState, see
+                    // docs/decisions.md).
+                    router.batch {
+                        switchTab(ShopGraph)
+                        navigate(ShopProductSheetRoute(productId))
+                    }
+                },
             )
         }
         screen<PrivateJoinRoute> { backStackEntry ->
@@ -207,6 +223,12 @@ class LobbyFeatureEntryPoint(
      * their real emoji, not just shop offers. A catalog entry that's missing (a
      * stale catalog after an owned purchase) falls back to a generic glyph
      * rather than dropping the owned option.
+     *
+     * Also carries the *not-yet-owned* shop felts / card backs (chip-offers
+     * minus inventory, mirroring the profile bookshelf's buyable shelf) so the
+     * picker can render them as locked tiles that deep-link to the shop
+     * (ROOM-20). Prestige-bucket items are deliberately excluded — they can't
+     * be bought, so a "get it in the shop" tile would dead-end.
      */
     private fun ownedTableCosmetics(): Flow<OwnedTableCosmetics> = combine(
         inventoryRepository.observeInventory(),
@@ -221,22 +243,37 @@ class LobbyFeatureEntryPoint(
                 emoji = catalog.findById(item.productId)?.iconEmoji ?: defaultCosmeticEmoji(slot),
             )
         }
+        val ownedIds = inventory.mapTo(mutableSetOf()) { it.productId }
+        val locked = catalog.chipOffers.mapNotNull { offer ->
+            if (offer.id in ownedIds) return@mapNotNull null
+            val slot = cosmeticSlotFor(offer.id)
+            if (slot != CosmeticSlot.Felt && slot != CosmeticSlot.CardBack) return@mapNotNull null
+            slot to BuyableCosmetic(
+                productId = offer.id,
+                title = offer.title,
+                iconEmoji = offer.iconEmoji,
+            )
+        }
         val cosmetics = equippedTableCosmetics(equipped)
         OwnedTableCosmetics(
             felts = choices.filter { it.first == CosmeticSlot.Felt }.map { it.second },
             cardBacks = choices.filter { it.first == CosmeticSlot.CardBack }.map { it.second },
             equippedFeltProductId = cosmetics.feltProductId,
             equippedCardBackProductId = cosmetics.cardBackProductId,
+            lockedFelts = locked.filter { it.first == CosmeticSlot.Felt }.map { it.second },
+            lockedCardBacks = locked.filter { it.first == CosmeticSlot.CardBack }.map { it.second },
         )
     }
 }
 
-/** The host's owned felt / card-back options + equipped selection for SHOP-5's picker. */
+/** The host's owned + locked felt / card-back options + equipped selection for the picker. */
 private data class OwnedTableCosmetics(
     val felts: List<CosmeticChoice> = emptyList(),
     val cardBacks: List<CosmeticChoice> = emptyList(),
     val equippedFeltProductId: String? = null,
     val equippedCardBackProductId: String? = null,
+    val lockedFelts: List<BuyableCosmetic> = emptyList(),
+    val lockedCardBacks: List<BuyableCosmetic> = emptyList(),
 )
 
 private fun defaultCosmeticEmoji(slot: CosmeticSlot): String =

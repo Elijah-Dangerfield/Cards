@@ -16,6 +16,7 @@ import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.RecentOpponentsRepository
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
+import com.dangerfield.cards.server.domain.UpdateDisplayNameResult
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessageRepository
@@ -95,6 +96,12 @@ fun Route.meRoutes(
         get("/v1/me") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
             val (profile, isNewAccount) = repository.findOrCreateResult(userId)
+            // Mirror the freshly-generated name onto the auth row so the
+            // Supabase Users table shows who this account is. Best-effort:
+            // renames re-mirror, and the admin backfill catches any miss.
+            if (isNewAccount) {
+                fireDisplayNameMirror(app, adminClient, userId, profile.displayName)
+            }
             // Tag the profile with the caller's install_id (header). The
             // L1 orphan-cleanup task consults this column to find prior
             // anon rows that share the same install_id and reaps the
@@ -186,10 +193,15 @@ fun Route.meRoutes(
                     avatarBackgroundColor = body.avatarBackgroundColor?.lowercase(),
                     clearAvatarBackgroundColor = body.clearAvatarBackgroundColor,
                 )) {
-                    is UpdateProfileOutcome.Success -> call.respond(
-                        HttpStatusCode.OK,
-                        outcome.profile.toMeDto(isAnonymous = isAnonymous)
-                    )
+                    is UpdateProfileOutcome.Success -> {
+                        if (cleanedName != null) {
+                            fireDisplayNameMirror(app, adminClient, userId, outcome.profile.displayName)
+                        }
+                        call.respond(
+                            HttpStatusCode.OK,
+                            outcome.profile.toMeDto(isAnonymous = isAnonymous)
+                        )
+                    }
 
                     is UpdateProfileOutcome.DisplayNameTaken -> call.respond(
                         HttpStatusCode.Conflict,
@@ -299,6 +311,33 @@ internal const val INSTALL_ID_HEADER: String = "X-Install-Id"
  * crashed previous launch missed. CancellationException is swallowed so
  * a request-scoped cancellation doesn't poison the unrelated app scope.
  */
+/**
+ * Best-effort mirror of the profile display name into Supabase auth
+ * metadata (see [SupabaseAdminClient.updateUserDisplayName]). Off the
+ * request path: a slow or failed admin call must never delay or fail
+ * `/v1/me`. Misses are caught by `POST /v1/admin/sync-display-names`.
+ */
+private fun fireDisplayNameMirror(
+    app: Application,
+    adminClient: SupabaseAdminClient,
+    userId: UserId,
+    displayName: String,
+) {
+    app.launch {
+        val result = try {
+            adminClient.updateUserDisplayName(userId, displayName)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            UpdateDisplayNameResult.Failure(statusCode = null, cause = e)
+        }
+        if (result is UpdateDisplayNameResult.Failure) {
+            LoggerFactory.getLogger("MeRoutes")
+                .warn("auth display-name mirror failed for user={} status={}", userId, result.statusCode, result.cause)
+        }
+    }
+}
+
 private fun fireInstallSweep(
     app: Application,
     sweep: OrphanInstallSweep,

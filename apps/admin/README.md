@@ -1,72 +1,56 @@
-# Remote config admin (local web GUI)
+# Remote config admin console
 
-The on-demand admin tool for remote config / feature flags. It's a Compose
-Multiplatform **web** app (Compose HTML / DOM) that you run locally, edit flags
-with, and kill when you're done. Nothing is deployed; the admin tokens live only
-in a gitignored local file, baked into the local-only bundle at build time.
+The admin console for remote config / feature flags. It's a Compose
+Multiplatform **web** app (Compose HTML / DOM), **hosted by each environment's
+server at `/admin`**:
+
+- dev: `https://cards-server-dev.fly.dev/admin/`
+- prod: `https://cards-server-prod.fly.dev/admin/`
 
 It's the only `js` target in the repo and shares no code with the client. It
 talks to the server's token-gated `/v1/admin/config` API over HTTP.
 
 ## How it works (the 60-second mental model)
 
-- **It's a browser app you run on your machine.** `./gradlew :apps:admin:…Run`
-  builds a JS bundle and serves it at a `localhost` URL. There's no hosted admin
-  site — each person runs their own.
-- **It calls a *deployed* server.** The page talks to a Cards **server**
-  (`cards-server-dev` / `cards-server-prod` on Fly, or a local server). It reads
-  and writes the config tables in that server's Postgres. So "which environment"
-  = "which server + database."
-- **Auth is a shared bearer token, not a login.** Every request carries
-  `X-Admin-Token: <ADMIN_API_TOKEN>`. The token is **baked into the bundle at
-  build time** from a gitignored file (the React-`.env` equivalent) — you never
-  paste it in the page. `X-Admin-Actor: <your name>` is also sent, recorded on
-  every change in the audit log.
-- **Cross-origin matters.** The page (on `localhost`) calls the server
-  (on `fly.dev`) cross-origin, so the server's **CORS** config must allow the
-  `X-Admin-Token` / `X-Admin-Actor` headers. If it doesn't, the browser's
-  preflight is rejected with **403** before auth even runs. (This allow-list
-  lives in `apps/server/.../plugins/Cors.kt`.)
+- **Each server serves its own console.** The deploy workflows build the JS
+  bundle and ship it inside the server image (`apps/server/admin-web/` →
+  `/app/admin-web`, served by `installAdminWeb`). The console at a given origin
+  manages that origin's server + database; the sibling environment is a link to
+  its own console.
+- **Tokens are pasted at runtime, never baked in.** This repo is public — the
+  bundle holds no secrets. On first use you paste the env's `ADMIN_API_TOKEN`;
+  the console validates it with a real call, then keeps it in that browser's
+  localStorage (per env, with a "Forget token" button). Every request carries
+  `X-Admin-Token`, plus `X-Admin-Actor: <your name>` for the audit log.
+- **The page is public but inert.** Serving the HTML/JS reveals nothing that
+  isn't already in this public repo; every API call it can make is token-gated.
+- **Cross-origin still matters for local dev.** When you run the console
+  locally against a deployed server, the browser preflights with the admin
+  headers and PUT/DELETE methods — both must be in the server's CORS allow-list
+  (`apps/server/.../plugins/Cors.kt`).
 
 ```
- your browser (localhost)  ──HTTP + X-Admin-Token──▶  Cards server (Fly or local)  ──▶  Postgres
-   apps/admin bundle                                   /v1/admin/config …                app_config_* tables
+ your browser  ──HTTP + X-Admin-Token──▶  Cards server (Fly or local)  ──▶  Postgres
+   /admin bundle                           /v1/admin/config …                app_config_* tables
 ```
 
-## New-member quickstart
+## Quickstart
 
-**1. Create the tokens file.** `apps/admin/admin-tokens.local.properties`
-(gitignored). Each environment is a separate database with its own admin token:
+**Normal use:** open the environment's `/admin/` URL, paste that env's
+`ADMIN_API_TOKEN` (Fly secrets are write-only, so the token's source of truth
+is wherever it was generated — ask, or rotate it), set **Actor** to your name,
+Connect. Done — the token is remembered by this browser until you forget it.
 
-```properties
-local=<any value; must match the local server's ADMIN_API_TOKEN>
-dev=<cards-server-dev ADMIN_API_TOKEN>
-prod=<cards-server-prod ADMIN_API_TOKEN>
-```
-
-Fly secrets are write-only (you can't read a token back), so this local file is
-the source of truth. Ask a teammate for the dev/prod values, or read them from
-where they were generated. See [`apps/server/DEPLOY.md`](../server/DEPLOY.md).
-A blank/missing key just disables that environment's button in the UI.
-
-**2. Run the page.** The **"Admin Web"** run config in the IDE, or:
+**Working on the console itself:** the **"Admin Web"** run config in the IDE, or:
 
 ```bash
 # hot-reloading dev server (recommended — rebuilds on save)
 ./gradlew :apps:admin:jsBrowserDevelopmentRun --continuous
-
-# or a one-shot run
-./gradlew :apps:admin:jsBrowserRun
 ```
 
-Gradle prints the `localhost` URL it's serving on. Open it.
-
-**3. Connect.** Pick **Local / Dev / Prod**, set **Actor** (your name), hit
-**Connect / Reload**. A change only affects the environment you picked — local,
-dev, and prod are separate databases.
-
-> Changing the tokens file requires a **rebuild** (the token is baked in). With
-> `--continuous` running, just save and it rebuilds.
+Gradle prints the `localhost` URL. The local run isn't served by a known env,
+so you get all three env buttons (Local / Dev / Prod) and paste tokens the same
+way.
 
 ## Using the tool
 
@@ -84,9 +68,14 @@ dev, and prod are separate databases.
 - **Versions.** What a captured build shipped with — the in-code defaults per
   app version (see the manifest section below).
 - **Audit.** Every change, newest first, with before/after diffs.
-- **Guardrails.** Writes are type-checked server-side against the registry (you
-  can't set `social.enabled = 6`), and lockout/force-upgrade changes
-  (`maintenanceMode = blocking`, raising the min version) ask you to confirm.
+- **Kill switches.** The pinned panel above the tabs holds the emergency flags
+  (maintenance mode/message, min supported build) with an ALL CLEAR / BANNER /
+  BLOCKING state header.
+- **Guardrails.** Every write shows a before → after confirm sheet naming the
+  environment. Writes are also type-checked server-side against the registry
+  (you can't set `social.enabled = 6`); lockout/force-upgrade changes get
+  scarier wording, and on prod they require typing the env name. Failed writes
+  stay in a dismissible error log with the attempted value.
 
 Edits go live on the client's next config refresh (the server caches the
 resolved tree for ~30 seconds).
@@ -153,8 +142,9 @@ dev, [`server-deploy-prod.yml`](../../.github/workflows/server-deploy-prod.yml)
 for prod) runs `exportConfigManifest` and PUTs the result after each deploy,
 using the `CARDS_ADMIN_API_TOKEN_{DEV,PROD}` secret. It's stamped from
 `versions.properties` and idempotent (re-uploading a version replaces its rows),
-and it skips without failing the deploy if the token secret isn't set (prod
-isn't fully wired yet — create `CARDS_ADMIN_API_TOKEN_PROD` to turn it on).
+and it skips without failing the deploy if the token secret isn't set. Both
+`CARDS_ADMIN_API_TOKEN_DEV` and `CARDS_ADMIN_API_TOKEN_PROD` exist, so dev and
+prod both upload on deploy.
 
 To do it by hand (e.g. to backfill a version, or to seed a local server):
 
@@ -188,6 +178,8 @@ Composite (`JsonConfigValue`) flags are intentionally omitted.
 ## Why this exists / scope
 
 We decided on an in-house tool over a hosted flag service; see
-[`docs/post-launch.md`](../../docs/post-launch.md). It's local-only and uses a
-single shared admin token (no per-user login/roles yet). Hosting it behind SSO is
-a possible future step; for now it's a run-it-yourself dev tool.
+[`docs/post-launch.md`](../../docs/post-launch.md). Auth is a single shared
+admin token per environment (no per-user login/roles yet) — SSO/RBAC is a
+possible future step. localStorage tokens are readable by JS on the console's
+origin; acceptable here because the page loads no third-party scripts and
+Compose HTML escapes all text nodes.

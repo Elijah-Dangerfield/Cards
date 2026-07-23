@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import ContactForm from '../components/ContactForm.astro';
 
 const faqs = [
   {
@@ -58,6 +59,7 @@ const faqs = [
     </div>
 
     <div style="font:700 clamp(22px,5vw,28px) Poppins;margin:56px 0 16px">Contact us</div>
-    <p class="lead" style="margin:0">Reach us at <a href="mailto:contact@downcard.app" style="color:#1f9e88;font-weight:600">contact@downcard.app</a>. Tell us what happened and, if it helps, when it happened, and we'll get back to you.</p>
+    <p class="lead" style="margin:0">Send us a message below, or email <a href="mailto:contact@downcard.app" style="color:#1f9e88;font-weight:600">contact@downcard.app</a>. Tell us what happened and, if it helps, when it happened, and we'll get back to you.</p>
+    <ContactForm />
   </div>
 </Layout>

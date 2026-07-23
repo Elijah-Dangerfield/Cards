@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.core.logging.LogEntry
 import com.dangerfield.cards.libraries.core.logging.LogId
 import com.dangerfield.cards.libraries.core.logging.LogLevel
 import com.dangerfield.cards.libraries.core.logging.LogTree
+import com.dangerfield.cards.libraries.networking.isOfflineError
 import io.sentry.kotlin.multiplatform.Sentry
 import io.sentry.kotlin.multiplatform.SentryLevel
 import io.sentry.kotlin.multiplatform.Scope
@@ -69,15 +70,17 @@ class SentryLogTree(
     }
 
     /**
-     * Error-level and above becomes a Sentry event, except a typed, expected
-     * control-flow throwable (e.g. `AuthUnready` short-circuiting an authed call
-     * before it hits the wire): that's a signal the caller handles, not a
-     * failure, so reporting it as an error only pollutes error counts. It still
-     * breadcrumbs and buffers locally.
+     * Error-level and above becomes a Sentry event, except two expected classes
+     * that still breadcrumb and buffer locally but never inflate error counts:
+     * typed control-flow throwables (e.g. `AuthUnready` short-circuiting an
+     * authed call before it hits the wire), and device-offline connectivity
+     * failures (ENG-34 — a phone in airplane mode failing background calls is
+     * not an app failure, and one such device flooded the error panel).
      */
     internal fun shouldCaptureEvent(entry: LogEntry): Boolean {
         if (entry.level.priority < minEventLevel.priority) return false
-        return entry.throwable?.isExpectedControlFlow != true
+        val throwable = entry.throwable ?: return true
+        return !throwable.isExpectedControlFlow && !throwable.isOfflineError()
     }
 
     /**

@@ -26,6 +26,9 @@ on:
       - main
     paths:
       - 'apps/server/**'
+      # The hosted admin console ships inside the server image, so console
+      # changes redeploy the server too.
+      - 'apps/admin/**'
       - 'build-logic/**'
       - 'gradle/libs.versions.toml'
       - 'settings.gradle.kts'
@@ -78,6 +81,16 @@ jobs:
 
       - name: Run server tests
         run: ./gradlew :apps:server:test
+
+      # Build the admin console bundle on this runner and stage it where the
+      # Dockerfile's runtime COPY picks it up. Deliberately NOT part of the
+      # in-container Gradle build — that build runs serverOnly on a tight
+      # memory budget and must not grow a Node/webpack toolchain.
+      - name: Build admin console bundle
+        run: |
+          ./gradlew :apps:admin:jsBrowserDistribution
+          cp -R apps/admin/build/dist/js/productionExecutable/. apps/server/admin-web/
+          ls apps/server/admin-web/
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 

@@ -34,10 +34,10 @@ interface PokerSessionFactory {
     val xpMode: XpMode
 
     /**
-     * Room code for the session, or `null` when there is no shareable code
-     * (solo bot games). Constant for the session's life — set at construction
-     * by MP, absent for solo. The play screen surfaces it in the cheat sheet
-     * so a host can still share the code after the lobby is gone.
+     * Room code for the session, or `null` for solo bot games. Constant for
+     * the session's life — set at construction by MP, absent for solo. The
+     * play screen surfaces it as an invite (cheat-sheet code card) on private
+     * tables only; on public tables it's kept for player-report context.
      */
     val roomCode: String? get() = null
 

@@ -386,12 +386,17 @@ class ProfileFeatureEntryPoint(
                 } else {
                     null
                 },
-                onSubmitFeedback = { message ->
+                onSubmitFeedback = { message, screenshots ->
                     // Same sink as the Settings feedback form — straight to
-                    // Sentry via FeedbackRepository. No email/screenshots here,
-                    // just the note. Ack (or failure) surfaces as a snackbar.
+                    // Sentry via FeedbackRepository, screenshots riding along
+                    // as image attachments (ENG-33). Ack (or failure) surfaces
+                    // as a snackbar.
                     scope.launch {
-                        feedbackRepository.submitFeedback(message = message, isBugReport = false)
+                        feedbackRepository.submitFeedback(
+                            message = message,
+                            isBugReport = false,
+                            screenshots = screenshots.map { it.bytes },
+                        )
                             .onSuccess { showSnackBar(message = "Thanks — sent to the team.") }
                             .onFailure {
                                 showSnackBar(

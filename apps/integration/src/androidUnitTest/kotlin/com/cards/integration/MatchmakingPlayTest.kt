@@ -57,18 +57,18 @@ class MatchmakingPlayTest : IntegrationTest() {
     }
 
     @Test
-    fun chooser_browsesCandidates_thenJoinsThePickedTable_andPlaysAHand() = integration {
+    fun waitTimePoll_discoversATable_joinsByCode_andPlaysAHand() = integration {
         // One searcher opens a fresh table (nobody to match yet).
         val opener = client()
         val opened = assertIs<FindTableOutcome.Success>(opener.matchmaking.findTable(1_000, 1_000))
         assertTrue(opened.created, "the opener seats themselves in a fresh table")
         val code = opened.room.code
 
-        // A second player browses candidates instead of auto-joining: the read-only
-        // endpoint lists the opener's table and seats no one (the opener is still the
-        // only member after the browse).
-        val chooser = client()
-        val candidates = assertIs<CandidatesOutcome.Success>(chooser.matchmaking.findCandidates(1_000, 1_000))
+        // The ROOM-12 wait-time consolidation path over the real wire: a waiting
+        // searcher's read-only candidates poll lists the opener's table and seats
+        // no one (the opener is still the only member after the browse).
+        val waiter = client()
+        val candidates = assertIs<CandidatesOutcome.Success>(waiter.matchmaking.findCandidates(1_000, 1_000))
         val candidate = candidates.rooms.firstOrNull { it.room.code == code }
         assertTrue(candidate != null, "the opener's table is a candidate")
         assertEquals(
@@ -77,29 +77,29 @@ class MatchmakingPlayTest : IntegrationTest() {
             "browsing seats nobody — the candidate still has just the opener",
         )
 
-        // The chooser picks that table and joins it by code (the explicit accept).
-        val joined = assertIs<JoinRoomOutcome.Success>(chooser.repository.joinRoom(code))
-        assertEquals(code, joined.room.code, "joined the table the chooser picked, not some other match")
+        // The migration joins the discovered table by code.
+        val joined = assertIs<JoinRoomOutcome.Success>(waiter.repository.joinRoom(code))
+        assertEquals(code, joined.room.code, "joined the discovered table, not some other match")
 
         // Both connect — a public table is server-dealt, so a hand deals itself once
         // both humans are present.
         val openerGame = gameplay(opener.connect(code))
-        val chooserGame = gameplay(chooser.connect(code))
+        val waiterGame = gameplay(waiter.connect(code))
         openerGame.awaitConnected()
-        chooserGame.awaitConnected()
+        waiterGame.awaitConnected()
 
-        val table = Table(code, opener, openerGame, chooser, chooserGame)
+        val table = Table(code, opener, openerGame, waiter, waiterGame)
         val completed = table.playPassivelyToCompletion()
-        assertEquals(BettingRound.Complete, completed.street, "the chosen table played a full hand")
-        assertTrue(completed.seats.all { !it.isBot }, "two humans chose and played — no bots")
+        assertEquals(BettingRound.Complete, completed.street, "the consolidated table played a full hand")
+        assertTrue(completed.seats.all { !it.isBot }, "two humans converged and played — no bots")
     }
 
     @Test
-    fun chooser_withNoEligibleTables_getsAnEmptyList() = integration {
-        // Nothing is open at this tier, so the browse returns empty — the client
-        // then converges on the honest bot-fallback path (pinned at the unit tier).
-        val chooser = client()
-        val candidates = assertIs<CandidatesOutcome.Success>(chooser.matchmaking.findCandidates(1_000, 1_000))
+    fun candidatesBrowse_withNoEligibleTables_getsAnEmptyList() = integration {
+        // Nothing is open at this tier, so the wait-time poll returns empty — the
+        // waiting client just keeps waiting toward the honest bot fallback.
+        val searcher = client()
+        val candidates = assertIs<CandidatesOutcome.Success>(searcher.matchmaking.findCandidates(1_000, 1_000))
         assertTrue(candidates.rooms.isEmpty(), "no eligible table → empty list, seating no one")
     }
 

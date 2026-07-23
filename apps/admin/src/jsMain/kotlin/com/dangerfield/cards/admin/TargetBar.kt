@@ -3,6 +3,7 @@ package com.dangerfield.cards.admin
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import org.jetbrains.compose.web.attributes.placeholder
 import org.jetbrains.compose.web.dom.Button
@@ -39,9 +40,21 @@ internal class TargetState {
 
 private val PLATFORMS = listOf("android" to "Android", "ios" to "iOS", "other" to "Other")
 
+/** "android · v0.1.0 (1) · US · en" — the current lens in one glance. */
+private fun TargetState.summary(): String = listOfNotNull(
+    platform.ifBlank { null },
+    appVersion.trim().ifBlank { null }?.let { v ->
+        buildNumber.trim().ifBlank { null }?.let { "v$v ($it)" } ?: "v$v"
+    } ?: buildNumber.trim().ifBlank { null }?.let { "build $it" },
+    country.trim().ifBlank { null },
+    locale.trim().ifBlank { null },
+    userId.trim().ifBlank { null }?.let { "user ${it.take(8)}…" },
+).joinToString(" · ").ifBlank { "any client" }
+
 /**
- * The lens controls. Pick a platform, optionally snap to a captured version,
- * and fill any axis. "Resolve" re-evaluates every flag through this target.
+ * The lens controls, collapsed to a one-line summary by default. Pick a
+ * platform, optionally snap to a captured version, and fill any axis.
+ * "Resolve" re-evaluates every flag through this target.
  */
 @Composable
 internal fun TargetBar(
@@ -49,9 +62,24 @@ internal fun TargetBar(
     versions: List<ManifestVersionDto>,
     onResolve: () -> Unit,
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Div(attrs = { classes("panel", "target") }) {
-        Div(attrs = { classes("row") }) {
-            Label { Text("Viewing as") }
+        Div(attrs = { classes("row", "target-summary"); onClick { expanded = !expanded } }) {
+            Span(attrs = { classes("muted") }) { Text("Previewing as") }
+            Span { Text(target.summary()) }
+            Span(attrs = { classes("muted") }) { Text(if (expanded) "▾" else "▸ edit") }
+            Div(attrs = { classes("spacer") }) {}
+            Button(attrs = {
+                classes("primary")
+                onClick { it.stopPropagation(); onResolve() }
+            }) { Text("Resolve") }
+        }
+
+        if (!expanded) return@Div
+
+        Div(attrs = { classes("row"); style { property("margin-top", "10px") } }) {
+            Label { Text("Platform") }
             PLATFORMS.forEach { (value, label) ->
                 Button(attrs = {
                     if (target.platform == value) classes("primary")
@@ -92,8 +120,7 @@ internal fun TargetBar(
         }
 
         Div(attrs = { classes("row"); style { property("margin-top", "10px") } }) {
-            Button(attrs = { classes("primary"); onClick { onResolve() } }) { Text("Resolve for this target") }
-            Span(attrs = { classes("muted") }) { Text("Shows what a client matching these axes would receive.") }
+            Span(attrs = { classes("muted", "hint") }) { Text("Resolve shows what a client matching these axes receives.") }
         }
     }
 }

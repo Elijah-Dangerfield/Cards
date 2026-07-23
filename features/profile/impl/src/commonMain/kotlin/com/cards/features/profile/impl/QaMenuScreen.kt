@@ -47,7 +47,10 @@ import com.dangerfield.cards.libraries.config.FlagConfigValue
 import com.dangerfield.cards.libraries.config.IntConfigValue
 import com.dangerfield.cards.libraries.config.QaConfigValue
 import com.dangerfield.cards.libraries.config.StringConfigValue
+import com.dangerfield.cards.libraries.ui.MAX_FEEDBACK_SCREENSHOTS
+import com.dangerfield.cards.libraries.ui.PickedImage
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.ScreenshotAttachmentField
 import com.dangerfield.cards.libraries.ui.components.Switch
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.screenContentPadding
@@ -73,7 +76,7 @@ fun QaMenuScreen(
     totalXp: Long = 0L,
     onSetTotalXp: (Long) -> Unit = {},
     onActivateXpBoost: () -> Unit = {},
-    onSubmitFeedback: (String) -> Unit = {},
+    onSubmitFeedback: (message: String, screenshots: List<PickedImage>) -> Unit = { _, _ -> },
     // Debug-only: opens the on-device network inspector (Wiretap). Null in
     // release, where the button doesn't render.
     onOpenNetworkInspector: (() -> Unit)? = null,
@@ -282,11 +285,13 @@ private fun InfoRow(label: String, value: String) {
 /**
  * Quick feedback box. Routes through the same [FeedbackRepository] the Settings
  * feedback form uses, so a note here lands in Sentry exactly like in-app
- * feedback — just without the email/screenshot fields.
+ * feedback — no email field, but screenshots attach the same way (ENG-33):
+ * "the range looked wrong" reports are useless without the picture.
  */
 @Composable
-private fun QaFeedbackBlock(onSubmit: (String) -> Unit) {
+private fun QaFeedbackBlock(onSubmit: (message: String, screenshots: List<PickedImage>) -> Unit) {
     var text by remember { mutableStateOf("") }
+    var screenshots by remember { mutableStateOf<List<PickedImage>>(emptyList()) }
     val canSend = text.isNotBlank()
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -318,6 +323,11 @@ private fun QaFeedbackBlock(onSubmit: (String) -> Unit) {
                 minLines = 3,
                 maxLines = 6,
             )
+            ScreenshotAttachmentField(
+                screenshots = screenshots,
+                onPicked = { screenshots = (screenshots + it).take(MAX_FEEDBACK_SCREENSHOTS) },
+                onRemove = { index -> screenshots = screenshots.filterIndexed { i, _ -> i != index } },
+            )
             Box(
                 modifier = Modifier
                     .clip(Radii.R400.shape)
@@ -326,8 +336,9 @@ private fun QaFeedbackBlock(onSubmit: (String) -> Unit) {
                         else AppTheme.colors.surfaceRaised.color,
                     )
                     .clickable(enabled = canSend) {
-                        onSubmit(text.trim())
+                        onSubmit(text.trim(), screenshots)
                         text = ""
+                        screenshots = emptyList()
                     }
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             ) {

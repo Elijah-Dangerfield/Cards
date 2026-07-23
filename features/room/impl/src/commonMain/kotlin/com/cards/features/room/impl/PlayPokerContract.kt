@@ -150,10 +150,10 @@ data class PlayPokerState(
      */
     val socialEnabled: Boolean = false,
     /**
-     * Room code for shareable MP sessions, surfaced in the cheat sheet so a
-     * host can still invite a friend mid-game (the lobby's code surface is
-     * gone by then). Null in solo / bot-only sessions where there's nothing
-     * to share.
+     * Room code for the MP session, null in solo / bot-only sessions. Set for
+     * public tables too — it rides along on player reports — but the screen
+     * only surfaces it as an invite (cheat-sheet code card) on private tables,
+     * mirroring the top-bar share gating.
      */
     val roomCode: String? = null,
     /** Hands the local player has won this session — shown in the "…" overflow sheet. */

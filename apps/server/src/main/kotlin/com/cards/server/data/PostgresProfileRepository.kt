@@ -11,6 +11,7 @@ import com.dangerfield.cards.server.domain.AvatarGenerator
 import com.dangerfield.cards.server.domain.FindOrCreateProfileResult
 import com.dangerfield.cards.server.domain.FoundingMemberCatalog
 import com.dangerfield.cards.server.domain.Profile
+import com.dangerfield.cards.server.domain.ProfileDisplayName
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.StarterInventory
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
@@ -141,6 +142,12 @@ class PostgresProfileRepository(
             }
         }
         candidates.toList()
+    }
+
+    override suspend fun listAllDisplayNames(): List<ProfileDisplayName> = database.transaction {
+        ProfilesTable
+            .select(ProfilesTable.userId, ProfilesTable.displayName)
+            .map { ProfileDisplayName(UserId(it[ProfilesTable.userId]), it[ProfilesTable.displayName]) }
     }
 
     override suspend fun findInstallLineage(userId: UserId): Set<UserId> =

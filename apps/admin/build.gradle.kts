@@ -1,63 +1,23 @@
 import java.util.Properties
 
 /**
- * The local remote-config admin GUI: a Compose Multiplatform (web) app built on
+ * The remote-config admin console: a Compose Multiplatform (web) app built on
  * Compose HTML / DOM. Deliberately NOT a `cards.*` convention-plugin module —
  * those force the Android + iOS targets, and this tool only ever runs in a
- * browser. Single `js` target, no shared client code, no shipping.
+ * browser. Single `js` target, no shared client code.
  *
- * Run it via the "Admin Web" run config (or
- * `./gradlew :apps:admin:jsBrowserDevelopmentRun --continuous`). In-page you
- * just pick Dev or Prod and hit Connect — the admin tokens are baked into the
- * bundle at build time from the gitignored `admin-tokens.local.properties`
- * (like a React `.env`). See the module README.
+ * Hosted: each environment's server serves this bundle at `/admin` (the deploy
+ * workflows build it and ship it alongside the server — see DEPLOY.md). Admin
+ * tokens are NEVER baked into the bundle (public repo); the operator pastes
+ * one at runtime and it lives in the browser's localStorage. For working on
+ * the console itself use the "Admin Web" run config (or
+ * `./gradlew :apps:admin:jsBrowserDevelopmentRun --continuous`).
  */
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
-}
-
-// ── Bake the dev/prod admin tokens into the bundle at build time ──────────────
-// Read from the gitignored properties file (the React-`.env` equivalent) and
-// generate `AdminEnv` with the URLs + tokens. A missing file or key → blank
-// token, and the UI tells you to add it. The browser never reads a file; the
-// build hands the values to the bundle.
-val adminTokensFile = layout.projectDirectory.file("admin-tokens.local.properties")
-val generatedAdminEnvDir = layout.buildDirectory.dir("generated/adminEnv/kotlin")
-
-val generateAdminEnv = tasks.register("generateAdminEnv") {
-    val propsFile = adminTokensFile.asFile
-    val outDir = generatedAdminEnvDir
-    inputs.file(propsFile).withPropertyName("adminTokensFile").optional(true)
-    outputs.dir(outDir)
-    doLast {
-        val props = Properties()
-        if (propsFile.exists()) propsFile.inputStream().use { props.load(it) }
-        fun token(key: String): String = props.getProperty(key, "").trim()
-            .replace("\\", "\\\\").replace("\"", "\\\"")
-        val out = outDir.get().file("com/dangerfield/cards/admin/AdminEnv.kt").asFile
-        out.parentFile.mkdirs()
-        out.writeText(
-            """
-            package com.dangerfield.cards.admin
-
-            // GENERATED at build time from apps/admin/admin-tokens.local.properties.
-            // Do not edit by hand. Tokens are baked in for this local-only dev tool;
-            // a blank token means the key is missing from that gitignored file.
-            internal enum class AdminEnv(
-                val displayName: String,
-                val baseUrl: String,
-                val token: String,
-            ) {
-                Local("local", "http://localhost:8080", "${token("local")}"),
-                Dev("dev", "https://cards-server-dev.fly.dev", "${token("dev")}"),
-                Prod("prod", "https://cards-server-prod.fly.dev", "${token("prod")}"),
-            }
-            """.trimIndent() + "\n",
-        )
-    }
 }
 
 // ── Export the in-code config registry as a manifest CI uploads at release ────
@@ -135,7 +95,6 @@ kotlin {
 
     sourceSets {
         val jsMain by getting {
-            kotlin.srcDir(files(generatedAdminEnvDir).builtBy(generateAdminEnv))
             dependencies {
                 implementation(compose.runtime)
                 implementation(compose.html.core)
@@ -146,6 +105,11 @@ kotlin {
 
                 implementation(libs.kotlinx.serialization.json)
                 implementation(libs.kotlinx.coroutines.core)
+            }
+        }
+        val jsTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
             }
         }
     }

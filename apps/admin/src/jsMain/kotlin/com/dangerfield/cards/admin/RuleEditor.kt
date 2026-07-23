@@ -5,10 +5,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.CoroutineScope
 import org.jetbrains.compose.web.attributes.placeholder
 import org.jetbrains.compose.web.dom.Button
-import org.jetbrains.compose.web.dom.CheckboxInput
 import org.jetbrains.compose.web.dom.Div
 import org.jetbrains.compose.web.dom.Label
 import org.jetbrains.compose.web.dom.Span
@@ -57,7 +55,7 @@ private fun draftForTarget(row: FlagRow, target: TargetState): RuleDraft = RuleD
     if (target.userId.isNotBlank()) userAllow = target.userId
     // A version lens defaults to "this version and up".
     if (target.appVersion.isNotBlank()) minAppVersion = target.appVersion
-    // Default the value to the opposite of the in-code default, the common intent.
+    // Default the value to the opposite of the baked default, the common intent.
     value = when (row.default.inline()) {
         "false" -> "true"
         "true" -> "false"
@@ -69,10 +67,7 @@ private fun draftForTarget(row: FlagRow, target: TargetState): RuleDraft = RuleD
 internal fun RuleEditor(
     row: FlagRow,
     target: TargetState,
-    api: AdminApi,
-    scope: CoroutineScope,
-    setStatus: (Status) -> Unit,
-    reload: () -> Unit,
+    ctx: AdminCtx,
 ) {
     // null = closed; otherwise the draft being edited.
     var draft by remember(row.path) { mutableStateOf<RuleDraft?>(null) }
@@ -94,7 +89,7 @@ internal fun RuleEditor(
             TextInput(current.priority) { onInput { current.priority = it.value } }
 
             Label { Text("value to set") }
-            ValueField(row, current.value) { current.value = it }
+            TypedValueEditor(row.type, row.allowedValues, current.value) { current.value = it }
 
             Label { Text("platforms") }
             TextInput(current.platforms) { onInput { current.platforms = it.value }; placeholder("android,ios,other") }
@@ -145,30 +140,40 @@ internal fun RuleEditor(
             Span(attrs = { classes("val") }) { Text(current.value.ifBlank { "?" }) }
         }
 
+        // Problems block Save; they mirror the server's validation so a bad
+        // rule is caught here with the field in view, not as a 400 after.
+        val problems = validateRuleDraft(current, row.type)
+        problems.forEach { problem ->
+            Div(attrs = { classes("field-problem") }) { Text(problem) }
+        }
+
         Div(attrs = { classes("row") }) {
             Button(attrs = {
                 classes("primary")
+                if (problems.isNotEmpty()) attr("disabled", "true")
                 onClick {
-                    val element = parseJsonOrNull(current.value)
-                    val priorityInt = current.priority.trim().toIntOrNull()
-                    if (element == null || priorityInt == null) {
-                        setStatus(Status(false, "Priority must be an int and value valid JSON")); return@onClick
-                    }
-                    dangerousWarning(row.path, current.value)?.let { if (!confirmDialog(it)) return@onClick }
+                    val element = parseTypedValue(row.type, current.value).element ?: return@onClick
+                    val priorityInt = current.priority.trim().toIntOrNull() ?: return@onClick
+                    val conditions = current.toConditions()
                     val request = UpsertRuleRequest(
                         flagPath = row.path,
                         priority = priorityInt,
                         value = element,
-                        conditions = current.toConditions(),
+                        conditions = conditions,
                         enabled = true,
                         description = current.description.trim().ifBlank { null },
                     )
                     // The server lazily materializes the flag from its manifest
                     // default when a rule first attaches, so we no longer mint a
                     // base override here as a side effect of adding a rule.
-                    scope.launchOp(setStatus, reload, "Added rule to ${row.path}") {
-                        api.upsertRule(randomUuid(), request)
-                    }
+                    ctx.confirmWrite(
+                        title = "Add rule",
+                        flagPath = row.path,
+                        before = "no rule",
+                        after = "When ${conditionsSentence(conditions)} → ${element.inline()}",
+                        success = "Added rule to ${row.path}",
+                        warning = dangerousWarning(row.path, current.value),
+                    ) { ctx.api.upsertRule(randomUuid(), request) }
                     draft = null
                 }
             }) { Text("Save rule") }
@@ -196,29 +201,3 @@ private fun VersionBound(
     }
 }
 
-/** Type-aware value picker: booleans and enum-like flags get buttons; else JSON text. */
-@Composable
-private fun ValueField(row: FlagRow, value: String, onValue: (String) -> Unit) {
-    when {
-        row.type == "boolean" -> Div(attrs = { classes("row") }) {
-            listOf("true", "false").forEach { v ->
-                Button(attrs = {
-                    if (value.trim() == v) classes("primary")
-                    onClick { onValue(v) }
-                }) { Text(v) }
-            }
-        }
-
-        row.allowedValues != null -> Div(attrs = { classes("row") }) {
-            row.allowedValues.forEach { v ->
-                val json = "\"$v\""
-                Button(attrs = {
-                    if (value.trim() == json) classes("primary")
-                    onClick { onValue(json) }
-                }) { Text(v) }
-            }
-        }
-
-        else -> TextInput(value) { onInput { onValue(it.value) }; placeholder("JSON e.g. 6, \"off\"") }
-    }
-}

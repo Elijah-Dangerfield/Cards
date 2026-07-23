@@ -5,6 +5,7 @@ import com.dangerfield.cards.server.config.SupabaseConfig
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
+import com.dangerfield.cards.server.domain.UpdateDisplayNameResult
 import com.dangerfield.cards.server.domain.UserId
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -15,6 +16,7 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -96,6 +98,31 @@ class HttpSupabaseAdminClient(
         }
     }
 
+    override suspend fun updateUserDisplayName(
+        userId: UserId,
+        displayName: String,
+    ): UpdateDisplayNameResult {
+        val key = config.serviceRoleKey.takeUnless { it.isNullOrBlank() }
+            ?: return UpdateDisplayNameResult.NotConfigured
+
+        return try {
+            val response = client.put("${config.projectUrl}/auth/v1/admin/users/${userId.value}") {
+                header(HttpHeaders.Authorization, "Bearer $key")
+                header("apikey", key)
+                contentType(ContentType.Application.Json)
+                // GoTrue merges user_metadata keys, so this only touches
+                // display_name and leaves anything else (future keys) alone.
+                setBody(UpdateUserMetadataRequest(UserMetadata(displayName = displayName)))
+            }
+            when (response.status.value) {
+                in 200..299 -> UpdateDisplayNameResult.Success
+                else -> UpdateDisplayNameResult.Failure(response.status.value, null)
+            }
+        } catch (e: Throwable) {
+            UpdateDisplayNameResult.Failure(statusCode = null, cause = e)
+        }
+    }
+
     override suspend fun listAnonymousUsersOlderThan(olderThan: Instant): List<UserId> {
         val key = config.serviceRoleKey.takeUnless { it.isNullOrBlank() } ?: return emptyList()
 
@@ -151,6 +178,16 @@ class HttpSupabaseAdminClient(
     @Serializable
     private data class DeleteUserRequest(
         @SerialName("should_soft_delete") val shouldSoftDelete: Boolean,
+    )
+
+    @Serializable
+    private data class UpdateUserMetadataRequest(
+        @SerialName("user_metadata") val userMetadata: UserMetadata,
+    )
+
+    @Serializable
+    private data class UserMetadata(
+        @SerialName("display_name") val displayName: String,
     )
 
     @Serializable

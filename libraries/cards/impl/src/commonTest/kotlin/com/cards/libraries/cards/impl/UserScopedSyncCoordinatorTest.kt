@@ -170,6 +170,27 @@ class UserScopedSyncCoordinatorTest : CoroutineTest() {
     }
 
     @Test
+    fun deviceOffline_defersSync_untilConnectivityReturns() = runUnitTest {
+        // ENG-34 (CARDS-BA): an offline device must not burn the retry ladder
+        // failing the same way every cycle — it parks and lets the cameOnline
+        // refire run the sync when a route exists again.
+        val f = fixture()
+        f.appState.isOffline.value = true
+        f.auth.emit(authenticated("u1"))
+        runCurrent()
+        assertEquals(0, f.a.syncs, "no sync attempt while the device is offline")
+
+        f.bus.dispatch(AppEvent.OnForeground(isColdBoot = false))
+        advanceTimeBy(300.seconds)
+        assertEquals(0, f.a.syncs, "warm foregrounds while offline stay parked too")
+
+        f.appState.isOffline.value = false
+        advanceTimeBy(1.seconds)
+        assertEquals(1, f.a.syncs, "connectivity returning runs the deferred sync")
+        assertEquals(1, f.b.syncs)
+    }
+
+    @Test
     fun oneFailingSyncerRetriesAlone_theOtherRunsOnce() = runUnitTest {
         val f = fixture()
         f.a.result = Result.failure(RuntimeException("wallet 500"))

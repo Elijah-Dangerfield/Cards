@@ -50,6 +50,8 @@ import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.color.ProvideContentColor
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.roundToInt
 
 /**
@@ -75,23 +77,22 @@ fun PublicFindScreen(
     // The wallet — not the table ceiling — is what's binding the top of the range.
     val cappedByBalance = chipBalance != null && effectiveMax < TABLE_MAX
 
-    // Default to a fixed 500–2,000 chip band (not a fraction of balance): with the
-    // 10,000 grant and the 4× entry bar this snaps to the affordable 1,000 tier. The
-    // slider *scale* still stretches to the wallet ceiling, so the thumbs land on the
-    // real chip figures via the buy-in inverse regardless of balance. Re-derived when
-    // the balance loads (null → value shifts the scale).
-    var range by remember(effectiveMax) {
-        mutableStateOf(
-            fractionForBuyIn(DEFAULT_BAND_MIN, effectiveMax)..fractionForBuyIn(DEFAULT_BAND_MAX, effectiveMax),
-        )
-    }
+    // The selection is durable CHIP figures, defaulted to the fixed 500–2,000 band
+    // (with the 10,000 grant and the 4× entry bar it snaps to the affordable 1,000
+    // tier). Chips, not slider fractions: the wallet resolving a beat after the
+    // screen opens changes the slider *scale*, and fraction state keyed on that
+    // scale silently reset a dragged selection back to the default band — the user
+    // then searched a range they never chose (ROOM-21). A chip band survives the
+    // re-scale; only the thumb positions move, clamped to what's now affordable.
+    var band by remember { mutableStateOf(DEFAULT_BAND_MIN..DEFAULT_BAND_MAX) }
+    val shownBand = clampBandToScale(band, effectiveMax)
 
     // Live "what you'll get": the table the current range maps to, using the same
     // canonical-tier snap the matchmaker applies server-side, so the preview is the
     // exact stake the search will seat you at.
     val previewBuyIn = BuyInTier.within(
-        buyInFor(range.start, effectiveMax).toLong(),
-        buyInFor(range.endInclusive, effectiveMax).toLong(),
+        shownBand.first.toLong(),
+        shownBand.last.toLong(),
     )
     val previewBlinds = RoomSettings.forBuyIn(previewBuyIn, PREVIEW_MAX_SEATS)
     Screen(
@@ -133,14 +134,17 @@ fun PublicFindScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                BuyInChip(buyInFor(range.start, effectiveMax))
-                BuyInChip(buyInFor(range.endInclusive, effectiveMax))
+                BuyInChip(shownBand.first)
+                BuyInChip(shownBand.last)
             }
             Spacer(Modifier.height(Dimension.D300))
             ProvideContentColor(AppTheme.colors.accentPrimary) {
                 RangeSlider(
-                    value = range,
-                    onValueChange = { range = it },
+                    value = fractionForBuyIn(shownBand.first, effectiveMax)..
+                        fractionForBuyIn(shownBand.last, effectiveMax),
+                    onValueChange = {
+                        band = buyInFor(it.start, effectiveMax)..buyInFor(it.endInclusive, effectiveMax)
+                    },
                     enabled = affordable,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -197,8 +201,8 @@ fun PublicFindScreen(
             ButtonPrimary(
                 onClick = {
                     onFind(
-                        buyInFor(range.start, effectiveMax).toLong(),
-                        buyInFor(range.endInclusive, effectiveMax).toLong(),
+                        shownBand.first.toLong(),
+                        shownBand.last.toLong(),
                     )
                 },
                 enabled = affordable,
@@ -259,20 +263,38 @@ internal const val DEFAULT_BAND_MAX = 2_000
 /** Seat count used only to derive the preview blinds; blinds don't depend on it. */
 private const val PREVIEW_MAX_SEATS = 6
 
-/** Map a 0..1 slider position to a buy-in figure on a [MIN_BUY_IN]..[maxBuyIn] scale,
- *  snapped to [BUY_IN_STEP] and never above [maxBuyIn] (so a wallet-capped top can't
- *  round past your balance). Starts low so small-stakes tables are reachable. */
+/** Map a 0..1 slider position to a buy-in figure on a **logarithmic**
+ *  [MIN_BUY_IN]..[maxBuyIn] scale, snapped to [BUY_IN_STEP] and never above
+ *  [maxBuyIn] (so a wallet-capped top can't round past your balance). Log, not
+ *  linear: the playable low tiers (500–2,000) sat in the leftmost ~2% of a
+ *  linear 100..100k track and read as "zero to 500" while the search honestly
+ *  ran at 500–2,000 (ROOM-21). On the log track each decade gets equal room. */
 internal fun buyInFor(fraction: Float, maxBuyIn: Int): Int {
-    val raw = MIN_BUY_IN + fraction * (maxBuyIn - MIN_BUY_IN)
+    if (maxBuyIn <= MIN_BUY_IN) return MIN_BUY_IN
+    val span = ln(maxBuyIn / MIN_BUY_IN.toDouble())
+    val raw = MIN_BUY_IN * exp(fraction.toDouble() * span)
     return ((raw / BUY_IN_STEP).roundToInt() * BUY_IN_STEP).coerceIn(MIN_BUY_IN, maxBuyIn)
 }
 
 /** Inverse of [buyInFor]: the slider fraction that lands the thumb on [buyIn] chips
- *  for the current [maxBuyIn] scale, so a fixed-chip default band resolves to the
- *  right thumb positions whatever the wallet ceiling is. Clamped to 0..1. */
+ *  for the current [maxBuyIn] scale, so a chip figure resolves to the right thumb
+ *  position whatever the wallet ceiling is. Clamped to 0..1. */
 internal fun fractionForBuyIn(buyIn: Int, maxBuyIn: Int): Float {
     if (maxBuyIn <= MIN_BUY_IN) return 0f
-    return ((buyIn - MIN_BUY_IN).toFloat() / (maxBuyIn - MIN_BUY_IN)).coerceIn(0f, 1f)
+    val clamped = buyIn.coerceIn(MIN_BUY_IN, maxBuyIn)
+    return (ln(clamped / MIN_BUY_IN.toDouble()) / ln(maxBuyIn / MIN_BUY_IN.toDouble()))
+        .toFloat()
+        .coerceIn(0f, 1f)
+}
+
+/** Fit a chip band onto the current affordable scale: the top clamps to the wallet
+ *  ceiling, the floor to the table minimum, and the band never inverts. Display +
+ *  search both use the clamped band; the raw selection is kept so a balance that
+ *  resolves *after* a drag repositions the thumbs without discarding the choice. */
+internal fun clampBandToScale(band: IntRange, maxBuyIn: Int): IntRange {
+    val floor = band.first.coerceIn(MIN_BUY_IN, maxBuyIn)
+    val top = band.last.coerceIn(floor, maxBuyIn)
+    return floor..top
 }
 
 /** Compact label for the scale ticks under the slider (e.g. 33_300 -> "33k"). */
