@@ -1,0 +1,35 @@
+---
+// FormSubmit delivers submissions to this address. The first submission from a
+// new domain triggers a one-time activation email FormSubmit sends here.
+const FORM_ENDPOINT = 'https://formsubmit.co/contact@downcard.app';
+const inputStyle =
+  'background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:15px 18px;font:500 16px Poppins;color:var(--ink);outline:none';
+---
+
+<form
+  action={FORM_ENDPOINT}
+  method="POST"
+  style="background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:clamp(24px,6vw,40px);margin-top:20px"
+>
+  <div style="font:700 24px Poppins;margin-bottom:24px">Send a message</div>
+
+  <!-- FormSubmit config -->
+  <input type="hidden" name="_subject" value="New message from downcard.app" />
+  <input type="hidden" name="_template" value="table" />
+  <input type="hidden" name="_captcha" value="false" />
+  <input type="hidden" name="_next" value="https://downcard.app/thanks" />
+  <!-- Honeypot: bots fill this, humans don't -->
+  <input type="text" name="_honey" style="display:none" tabindex="-1" autocomplete="off" />
+
+  <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <input name="name" required placeholder="Your name" style={inputStyle} />
+    <input type="email" name="email" required placeholder="Your email" style={inputStyle} />
+  </div>
+  <textarea
+    name="message"
+    required
+    placeholder="What's on your mind?"
+    rows="5"
+    style={`width:100%;${inputStyle};resize:vertical;margin-bottom:16px`}></textarea>
+  <button type="submit" style="background:#0d0c0b;color:#F5F0E6;border:none;border-radius:14px;padding:15px 32px;font:700 17px Poppins;cursor:pointer">Send message</button>
+</form>
