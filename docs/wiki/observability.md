@@ -29,18 +29,49 @@ green, close the tab.**
   stays the stack-trace tool. iOS reports `previous_exit=unknown` until MetricKit lands (ENG-25).
 - **Warn+ client logs** land in Loki behind `telemetry.klogForwardingEnabled` (default on):
   `{service_name="cards-client"} | detected_level=~"warn|error"`.
+- **Platform split:** every client event carries a `platform` structured-metadata value
+  (`android`/`ios`). Pulse's "Growth, money & platform" section splits active users and sessions by
+  it; filter any Loki query with `| platform="ios"`. There's deliberately no crash-free-by-platform
+  panel because iOS crash-free is blind until MetricKit (ENG-25).
+- **Pulse growth section:** revenue-this-month + %-who-pay (mirrored from Revenue, prod-pinned),
+  new-vs-returning players (engaged actives, Postgres `profiles.created_at` + the event ledgers), and
+  the platform split. D1/D7 **retention** lives on **Funnel** (`dc-funnel`), not Pulse — it's a cohort
+  grid over history, not a 30-second glance. Retention/new-vs-returning are *engaged* (took an action),
+  account-based; they won't reconcile with the device-based `app.foregrounded` DAU.
 - Event registry: [`app-events.md`](app-events.md). Ledger reasons: [`wallet.md`](wallet.md).
 - **Billing Health source:** the `billing_events` disposition log (Postgres), one evolving row per store
   transaction. Env is the datasource toggle (`$env`), not a column, since `billing_events` has no
   environment field. Panels stay empty until the server ships the `V88__billing_events.sql` migration;
   the redeem route then upserts a row on every attempt. See [`purchases.md`](purchases.md).
 
-## Alerts (folder Downcard — Engineering → email `owner-email`)
+## Alerts (folder Downcard — Engineering)
 
-A1 ledger drift ≠ 0 (hourly) · A2 Fly prod down (5m) · A3 Supabase down (10m) · A4 ≥3 installs
-reporting `net.backend_unreachable` in 15m · A5 ≥2 `purchase.failed` in 1h · A6 any OOM kill ·
-A7 server silent 60m (**paused — enable at launch**). Root policy repeats at most every 24h.
+Seven rules, labelled `severity: critical|warning`. A1 ledger drift ≠ 0 (hourly, critical) ·
+A2 Fly prod down (5m, critical) · A3 Supabase down (10m, critical) · A4 ≥3 installs reporting
+`net.backend_unreachable` in 15m (critical) · A5 purchase success rate low (critical) · A6 any
+OOM kill (critical) · A7 server silent 60m (warning, **live since launch 2026-07-24**). Root
+policy repeats at most every 24h.
+
+**Routing (target):** critical → phone (Grafana IRM mobile push) + email; warning → email only
+(`owner-email`). Until the IRM contact point is paired, everything still routes to `owner-email`.
 Crash emails: enable Sentry's own new-issue alert (Sentry-side, not Grafana).
+
+**Known false-alarm class:** A2/A3 use `no_data = Alerting`, so a dead metrics scrape (expired
+Supabase key, Fly metrics hiccup) pages you even when prod is fine. Better a false page than a
+missed outage, but check the datasource is actually scraping before assuming prod is down.
+
+## Known-benign client signals (not incidents)
+
+The app working as designed. Don't file these as bugs; treat them as noise on the error panels.
+
+- **Banned 403** (`{"reason":"banned"}`, e.g. `POST /v1/equipment/sync`, Sentry class `CARDS-BG`) —
+  a banned user's blocked request. Being removed at source by the banned circuit breaker (ENG-35):
+  once shipped, a banned client stops firing and stops error-logging these entirely.
+- **User-cancelled purchases** (`purchase.cancelled`) — a tap-then-back-out, not a failure. The
+  purchase tiles and the A5 alert already exclude cancellations.
+- **One-off `net.backend_unreachable`** from a single install — that user's own connectivity. Only
+  meaningful in aggregate; A4 fires at ≥3 installs. Pulse's "Client reliability events" table is
+  dominated by these by design (its description says so).
 
 ## Known gaps (deliberate)
 
