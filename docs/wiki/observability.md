@@ -75,6 +75,17 @@ The app working as designed. Don't file these as bugs; treat them as noise on th
 - **One-off `net.backend_unreachable`** from a single install — that user's own connectivity. Only
   meaningful in aggregate; A4 fires at ≥3 installs. Pulse's "Client reliability events" table is
   dominated by these by design (its description says so).
+- **Emulator / side-load ANR at the PairIP license gate** (Sentry class `CARDS-BR`) — an ANR (or
+  native crash) whose stack is *entirely* Android framework + native graphics (e.g. main thread in
+  `HardwareRenderer.setStopped` → `pthread_cond_wait`, RenderThread stuck in `eglSwapBuffers` →
+  SurfaceFlinger), **with zero first-party frames**, on a **non-retail build image** (`os.build`
+  contains `sdk_phone_arm64` / `test-keys`; the Sentry `simulator` flag can read `false` when the
+  emulator's model/brand are spoofed to a real device) and/or `isSideLoaded=true` with
+  `com.pairip.licensecheck.LicenseActivity` foregrounded. That's Play's licensing wrapper engaging on
+  an unlicensed side-loaded copy, plus a software-GPU `swapBuffers` stall — the app working as
+  intended, not our code. **Gate carefully:** this exemption needs *no app frames* AND the
+  emulator/side-load fingerprint. A real ANR with Downcard frames, or one recurring across many
+  *retail* installs, is a genuine bug — file it.
 
 ## Known gaps (deliberate)
 
