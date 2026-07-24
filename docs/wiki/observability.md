@@ -52,9 +52,12 @@ A2 Fly prod down (5m, critical) · A3 Supabase down (10m, critical) · A4 ≥3 i
 OOM kill (critical) · A7 server silent 60m (warning, **live since launch 2026-07-24**). Root
 policy repeats at most every 24h.
 
-**Routing (target):** critical → phone (Grafana IRM mobile push) + email; warning → email only
-(`owner-email`). Until the IRM contact point is paired, everything still routes to `owner-email`.
-Crash emails: enable Sentry's own new-issue alert (Sentry-side, not Grafana).
+**Routing (live 2026-07-24):** the notification policy routes `severity=critical` → contact point
+`downcard-critical` (email + IRM mobile push); everything else (warnings, e.g. A7) → `owner-email`
+(email only). `downcard-critical`'s `oncall` receiver posts to the IRM `grafana_alerting`
+integration "Downcard Critical" → escalation chain "Notify Elijah" → the owner's phone. So A1–A6
+reach phone + email; A7 emails only. Contact points + policy were written with `X-Disable-Provenance`
+so they stay UI-editable. Crash emails: enable Sentry's own new-issue alert (Sentry-side, not Grafana).
 
 **Known false-alarm class:** A2/A3 use `no_data = Alerting`, so a dead metrics scrape (expired
 Supabase key, Fly metrics hiccup) pages you even when prod is fine. Better a false page than a
