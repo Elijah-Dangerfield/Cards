@@ -57,3 +57,19 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 **Acceptance:** Onboarding no longer runs the balance-race reveal (either no grant step, or a contentless "you're all set" beat); every new account sees the `Welcome` reveal exactly once via the manager, including the offline-then-reconnect path; `GRANT_REVEAL_TIMEOUT` and the balance race are deleted; all the gating edge cases above are covered by unit tests that would have caught the original double-miss.
 
 **Hints:** `OnboardingViewModel.kickOffGrantReveal`; pure arbiter `GetHomeScreenNotification` + `HomeNotificationSnapshot`; `HomeViewModel` snapshot `combine` / `presentPendingBlocking` / `DialogIntroDelay` / watermark latches; `accountJustCreated` latch in the profile repo (`/v1/me` `isNewAccount`). Sequenced after ENG-36.
+
+## ENG-38 [P1] — Emit stable install/device facts as OTel Resource attributes, then filter noise out of the dashboards
+
+**Problem:** Prod client telemetry can't tell a genuine retail install from an emulator or a side-loaded store build, so that noise pollutes crash-free, DAU, and the all-time user count — one emulator ANR (CARDS-BR) dragged crash-free users to 94%. The launch events only carry `install_id` / `platform` / `previous_exit` / `release_channel`; the facts that identify noise aren't emitted.
+
+**Acceptance:** Add stable install/device facts as OTel **Resource** attributes (set once at SDK init so they ride every log/span/metric): at minimum `is_emulator`, `is_sideloaded`, `installer_package`, `is_rooted` (+ `device_class`, `os_version` for segmentation). Verify the Loki OTLP mapping lands them as filterable structured metadata (promote only the low-cardinality genuineness booleans to labels, and only if cheap). Then update the `dc-pulse` crash-free / DAU / all-time-users panels to filter `genuine_install` with a dashboard "show all" toggle var (done via the Grafana MCP once a build carrying the attrs ships). **Tag, don't drop** — keep the noise queryable so we can still see piracy/emulator activity on purpose.
+
+**Hints:** Sentry already computes these (`isSideLoaded`, `device.class`, `os`) on the event — mirror that logic into the Resource. Resource init lives near the telemetry bootstrap (OTel/Sentry setup, cf. `GrafanaAppEvents`). Debug builds already route to the dev env, so the prod gap is specifically store-build-on-emulator. Keep new attrs low-cardinality.
+
+## ENG-39 [P1] — Stamp signup-platform on `profiles` and drive user growth from Postgres, not Loki
+
+**Problem:** The all-time user count and growth-by-platform graph are install-based (Loki), so they cap at ~30d log retention and fold in emulator/side-load noise. Accounts (`profiles`) are created at onboarding completion — they persist forever in Postgres and are noise-light — but carry no `platform`, so they can't drive a by-platform growth curve.
+
+**Acceptance:** Add a `platform` column to `profiles` (new V-migration), stamped at profile creation (= signup-platform; a user can later use both, so label it that way). Client includes `platform` in the profile insert/upsert. Repoint the `dc-pulse` growth graph to Postgres — cumulative `profiles` by `created_at` split by `platform` (persistent, no 30d wall, dedup-free). Keep the Loki install panel as the DAU/reach view. **Decision (chosen): a typed `profiles` column, not `auth.users` metadata** — it's the table the dashboards already query, it's typed/indexable, and it avoids granting Grafana read on the `auth` schema. Reversible if we'd rather use `app_metadata`.
+
+**Hints:** Profile-create path is the client's supabase-kt `findOrCreate` insert. Grafana Postgres datasource `ffrewas5byf40d` (prod) / `dfrex4f7bg7b4b` (dev) already runs SQL for panels 401–403. Pairs with ENG-38, whose `is_emulator` flag can optionally exclude dev/emulator activations from the count.
