@@ -24,4 +24,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-*(Empty — everything shipped. New items arrive via triage.)*
+## AUTH-29 [P1] — Authed user with no `auth.users` row gets a raw 500 and a silent client retry-storm
+
+**Problem:** When a valid JWT names a user id that's no longer in Supabase `auth.users` (account deleted/banned mid-session, or a token minted against the wrong Supabase project), every `/v1/me/*/sync` write fails the FK to `auth.users` and the server returns a raw Postgres 500. The client swallows it and retry-storms (26–30 events in seconds) with nothing shown to the user. Found 2026-07-24 by deleting test users in Supabase while their clients were live — Sentry CARDS-BF/BG/BH/BP + BJ/BK/BM/BN + BQ, all since resolved.
+
+**Acceptance:** Server detects "valid JWT, no `auth.users` row" before the child write and returns a clean typed response (401/409 → re-auth), not a 500 leaking the FK. Client maps it to sign-out + a "your session ended, sign in again" surface and stops the sync retry loop.
+
+**Hints:** FK is `*_user_id_fk[ey]` → `auth.users(id)` ([V11](../apps/server/src/main/kotlin/com/cards/server/db/../resources/db/migration/V11__fk_auth_users.sql)). Write path is the `findOrCreate` repos (progression/wallet/profile/player-stats/play-style) inside `Database.transaction`. Reproduce test-first with a JWT for an id absent from `auth.users`. Pairs with the backlog item "Surface a reason when a server-side no is absorbed silently."
