@@ -39,3 +39,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 **Acceptance:** While banned, non-allowlisted requests are short-circuited client-side (zero wire traffic, no error telemetry); `/v1/me` stays allowlisted and a 200 clears the banned flag and dismisses the screen without relaunch. Expected 4xx (403 banned, 401) and user-cancellations no longer reach Sentry as errors.
 
 **Hints:** Reuse the `ExpectedControlFlow` short-circuit pattern (auth). Full plan, file list, and tests: [`docs/agent/feedback-cases/ENG-35.md`](agent/feedback-cases/ENG-35.md). Insertion point `NetworkClientImpl.applyCommonConfig`; classifier `SentryLogTree.shouldCaptureEvent`.
+
+## ENG-36 [P1] — Diagnose the starter-grant "double-miss" and surface reveal health
+
+**Problem:** A new prod user saw neither the onboarding grant number nor the Home welcome-dialog backup, yet got their 10k chips. The onboarding miss was a null `onboarding.starterGrant` config (now seeded, V89) plus a tight 1.5s balance-sync window; why the Home backup *also* didn't fire is unconfirmed (`accountJustCreated` / `welcomeIdentity` race?). Both paths were silent until now.
+
+**Acceptance:** Using the new `onboarding.grant_revealed` / `grant_reveal_degraded` events, confirm the double-miss cause and close it (e.g. widen `GRANT_REVEAL_TIMEOUT`, or make the Home backup fire whenever a fresh account never got a reveal). Add a `dc-funnel` panel: reveals by surface/source + degraded-with-no-backup.
+
+**Hints:** `OnboardingViewModel.kickOffGrantReveal` (`GRANT_REVEAL_TIMEOUT` = 1.5s); `GetHomeScreenNotification.welcome()` gating (`accountJustCreated`, `didSeeInitialGrantInOnboarding`, `welcomeIdentity`). Events in `docs/wiki/app-events.md`. Panel stays empty until the release carrying these events ships.
