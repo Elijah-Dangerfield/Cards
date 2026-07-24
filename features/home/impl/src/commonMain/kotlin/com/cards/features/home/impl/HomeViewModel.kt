@@ -447,6 +447,15 @@ class HomeViewModel(
                 if (welcomePresented) return
                 welcomePresented = true
                 homeLogger.i { "home notification: starter-grant welcome (chips=${notification.chips})" }
+                // Backup reveal for a fresh account whose onboarding grant step
+                // degraded. Same event as the onboarding reveal so the funnel is
+                // one query: a `grant_reveal_degraded` with no later `home_backup`
+                // means the user never saw their starter chips at all.
+                homeLogger.logEvent(
+                    "onboarding.grant_revealed",
+                    "surface" to "home_backup",
+                    "amount" to notification.chips,
+                )
                 // Monotonic mark first so a re-entrant snapshot can't double-fire.
                 appCache.update { it.copy(didSeeInitialGrantInOnboarding = true) }
                 delay(DialogIntroDelay)

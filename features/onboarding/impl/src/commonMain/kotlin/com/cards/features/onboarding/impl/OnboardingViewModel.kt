@@ -445,8 +445,20 @@ class OnboardingViewModel(
             if (amount != null) {
                 action.updateState { it.copy(revealedChips = amount, grantRevealTimedOut = false) }
                 appCache.update { it.copy(didSeeInitialGrantInOnboarding = true) }
+                logger.logEvent(
+                    "onboarding.grant_revealed",
+                    "surface" to "onboarding_step",
+                    "source" to if (balance != null) "balance" else "config",
+                    "amount" to amount,
+                )
             } else {
                 action.updateState { it.copy(grantRevealTimedOut = true) }
+                // No more silent degrade: neither the live balance (within the
+                // GRANT_REVEAL_TIMEOUT window) nor the server-advertised config
+                // amount resolved, so the user gets the "lands when you reconnect"
+                // fallback instead of a number. The Home welcome is meant to back
+                // this up; this event lets us see the gap when it doesn't.
+                logger.logEvent("onboarding.grant_reveal_degraded")
             }
         }
     }
