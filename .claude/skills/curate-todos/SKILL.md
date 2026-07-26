@@ -1,6 +1,6 @@
 ---
 name: curate-todos
-description: Reconcile docs/todo.md against the repo (drop shipped/stale items, trim bloat) and top it up only if thin. The single curator of the todo list — never a worker, never touches code, only docs/todo.md (+ one-liners to docs/backlog.md). Use to reconcile/tidy docs/todo.md, ad hoc or as the prep phase of the nightly-build flow.
+description: Reconcile docs/todo.md against the repo (drop shipped/stale items, trim bloat) and top it up only if thin. The single curator of the todo list — never a worker, never touches code, only docs/todo.md (+ one-liners to docs/backlog.md). Use to reconcile/tidy docs/todo.md, ad hoc or as the prep phase of the nightly-pipeline flow.
 ---
 
 # Curate todos
@@ -12,7 +12,7 @@ You are **not** a worker. You don't pick features, write code, or refactor. You 
 ## Two modes
 
 - **Standalone** — a human runs you any time to tidy the list on the **current branch**. Skip the `develop`-alignment dance; work against whatever branch is checked out, reconcile against `origin/main` (or the branch's own history if that's the point of reference), top up if thin, commit only docs. If the list is already clean and accurate, **do nothing** and say so.
-- **Orchestrated** — you run **once, nightly, immediately before** the workers in the nightly-build flow, on `develop`. Follow the start-of-run branch discipline below.
+- **Orchestrated** — you run **once, nightly, immediately before** the workers in the nightly-pipeline flow, on `develop`. Follow the start-of-run branch discipline below.
 
 **Don't assume a prior intake phase ran.** In the orchestrated flow an intake/triage phase may have just committed fresh items to `develop` this run — treat those as valid and stack on top of them; never reset them away. But the intake may also not have run at all, or produced nothing. Either way: if the list is already clean, do nothing.
 

@@ -1,6 +1,6 @@
 ---
 name: hotfix
-description: Use when a live prod regression needs an immediate fix or rollback; invoked by health-watch or ad hoc ("hotfix the shop crash"). Assess the signal, confirm it's real and prod-affecting, prefer rolling back to the last-good release, then either fix it end-to-end (safe classes) or prepare the fix and escalate to the owner (money/auth/security/ambiguous). Always log to the incident log and close the Sentry loop.
+description: Use when a live prod regression needs an immediate fix or rollback; invoked on a prod alert or ad hoc ("hotfix the shop crash"). Assess the signal, confirm it's real and prod-affecting, prefer rolling back to the last-good release, then either fix it end-to-end (safe classes) or prepare the fix and escalate to the owner (money/auth/security/ambiguous). Always log to the incident log and close the Sentry loop.
 ---
 
 # Hotfix
@@ -9,7 +9,7 @@ You are the **first responder** to a live production regression. The owner is th
 
 Two ways in, same procedure:
 
-1. **Automated** — the health-watch flow hands you a signal (a firing Grafana alert, a Sentry crash cluster, a canary/crash-free regression) that looks like a fresh prod problem.
+1. **Alert-driven** — a prod alert or monitor hands you a signal (a firing Grafana alert, a Sentry crash cluster, a crash-free regression) that looks like a fresh prod problem.
 2. **Ad hoc** — the owner points at something ("hotfix the shop crash", "prod is throwing 500s on redeem"). Take their pointer as the signal and start at step 1 anyway — confirm it's real before you touch anything.
 
 Keep it tight and decisive. One-line report when done.

@@ -1,11 +1,11 @@
 ---
 name: review-and-pr
-description: Review recent commits like a staff engineer, fix what you'd flag (tests, DS drift, Catching{} not try/catch, DispatcherProvider, inline strings, @Preview, no comments, secrets), then open or update the PR. Reads docs/agent/in-flight.md to scope the review when present but works fine without it. Use to review a branch and open a PR, ad hoc or as the review phase of the nightly-build flow.
+description: Review recent commits like a staff engineer, fix what you'd flag (tests, DS drift, Catching{} not try/catch, DispatcherProvider, inline strings, @Preview, no comments, secrets), then open or update the PR. Reads docs/agent/in-flight.md to scope the review when present but works fine without it. Use to review a branch and open a PR, ad hoc or as the review phase of the nightly-pipeline flow.
 ---
 
 # Review and PR
 
-Review like a thoughtful staff engineer, fix what you'd flag in code review, and open (or update) the PR. Designed to run unattended as the review phase of the nightly-build flow, but works interactively on any branch too.
+Review like a thoughtful staff engineer, fix what you'd flag in code review, and open (or update) the PR. Designed to run unattended as the review phase of the nightly-pipeline flow, but works interactively on any branch too.
 
 ## Two modes
 
@@ -60,7 +60,7 @@ For each in-flight block when present, otherwise for each commit in scope (`$BAS
    - **Inline user-facing strings** — `Text("Hi")`, `placeholder = "Email"`, snackbar / dialog / error copy hardcoded at the callsite. Should be `stringResource(Res.string.foo)` from `:libraries:resources`. (`AGENTS.md` → Coding Guidelines.) Glyph-only typography (✓, —, emoji), preview-only sample data, and server-supplied error strings are fine.
    - Public screen-level composables in `:features:*:impl` missing `@Preview`.
    - Comments that shouldn't exist (project convention: none).
-   - **Pre-launch noise** — defensive backfill logic or "existing users won't get X" caveats in migrations / commit bodies / in-flight notes. The app hasn't launched; there's no production population to migrate carefully. Tighten or strip those callouts and rewrite the migration to do the right thing for a fresh world. Drop this check the moment we ship.
+   - **Migration safety (Android is live)** — Android has a production population now, so migrations and data changes MUST handle existing users; don't strip backfill / compat logic as noise, and flag any migration that assumes a fresh world. iOS has no users yet, so iOS-only data can still be treated as greenfield.
    - Scope creep, dead code, unused imports, leftover `println`/debug logs.
    - Secrets in code, unsafe deserialization, injection smells.
    - Conventional-commit type matches the change (`feat:` only for user-visible new capability).

@@ -102,7 +102,7 @@ PFX=ENG; grep -rhoE "\b${PFX}-[0-9]+" docs/ | grep -oE '[0-9]+' | sort -n | tail
 
 Query the specific prefix you're filing under — a blanket all-prefix grep sorts lexically (`BILL-10` < `BILL-9`) and sweeps in `CARDS-*` Sentry short-ids and `AES-`/`SHA-` crypto constants, which aren't work items. If a maintainer reset left `docs/todo.md` with no section headers, add the section for your prefix before appending.
 
-**(b) No action → resolve.** Pre-launch noise (only reachable from a debug build or dev backend), already fixed on `develop` but not yet resolved in Sentry, a known expected-empty panel, or genuinely benign. Still write the case file for a Sentry issue so a rerun has the reasoning; record the *why* in its "Working theory" section.
+**(b) No action → resolve.** Dev-only noise (only reachable from a debug build or dev backend), already fixed on `develop` but not yet resolved in Sentry, a known expected-empty panel, or genuinely benign. Still write the case file for a Sentry issue so a rerun has the reasoning; record the *why* in its "Working theory" section.
 
 ### 6. Close the loop
 

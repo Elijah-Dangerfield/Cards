@@ -1,6 +1,6 @@
 ---
 name: write-brief
-description: Use to compose the since-last-brief digest of health, feedback, shipped work, money/growth, and decisions needed; invoked by the daily-brief flow or ad hoc.
+description: Use to compose the since-last-brief digest of health, feedback, shipped work, money/growth, and decisions needed; invoked by the brief flow or ad hoc.
 ---
 
 # Write brief
@@ -8,7 +8,7 @@ description: Use to compose the since-last-brief digest of health, feedback, shi
 Compose the owner's periodic digest — what happened since the last brief, in plain product English he
 can read on his phone. This skill **only reads** the telemetry and the agent logs, **composes the
 markdown**, and **appends one line to `docs/agent/brief-log.md`**. It does not send or render anything:
-delivery is the caller's job (the daily-brief flow renders it; the `morning` skill can style it as HTML;
+delivery is the caller's job (the brief flow renders it; the `morning` skill can style it as HTML;
 a Gmail MCP, if connected, can email it).
 
 Frame everything as **"since last brief"**, never "overnight" — so a gap, a weekend, or a skipped run

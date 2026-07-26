@@ -1,6 +1,6 @@
 ---
 name: work-item
-description: Ship one docs/todo.md item end-to-end as an incremental commit — implement per house standards, add tests, get build + tests green, remove the todo bullet in the same commit, log to docs/agent/in-flight.md, and push to develop. Use to pick up and ship a todo item, whether invoked ad hoc by a human on the current branch or as one of N workers driven by the nightly-build flow.
+description: Ship one docs/todo.md item end-to-end as an incremental commit — implement per house standards, add tests, get build + tests green, remove the todo bullet in the same commit, log to docs/agent/in-flight.md, and push to develop. Use to pick up and ship a todo item, whether invoked ad hoc by a human on the current branch or as one of N workers driven by the nightly-pipeline flow.
 ---
 
 # Work item
@@ -12,7 +12,7 @@ Take a single `docs/todo.md` item from "open bullet" to "pushed commit" — the 
 Decide which you're in before you start; the difference is only in branch handling and how you pick.
 
 - **Standalone (a human ran this on the current branch).** Respect the branch you're on — it may not be `develop`, and it may already carry uncommitted or unpushed work. Do **not** checkout/pull/reset to `develop`, and do not force anything. Ship on top of what's here. Pick the todo the user named, or the top actionable item if they didn't name one. `docs/agent/in-flight.md` may not exist — that's fine; create/append it if you want a record, but never fail on its absence. You may talk to the user here (the silence convention below is for orchestrated runs).
-- **Orchestrated (the nightly-build flow spawned you as one of N workers).** Exact worker behavior: you stack on `develop` alongside peer workers, a reviewer later reads your `in-flight.md` blocks and opens/updates the PR. Follow the branch discipline and silence convention below to the letter.
+- **Orchestrated (the nightly-pipeline flow spawned you as one of N workers).** Exact worker behavior: you stack on `develop` alongside peer workers, a reviewer later reads your `in-flight.md` blocks and opens/updates the PR. Follow the branch discipline and silence convention below to the letter.
 
 When it's not stated which mode you're in: if you were handed a specific item and a branch that isn't `develop`, treat it as standalone; if you were spawned with no human in the loop, treat it as orchestrated.
 
@@ -55,9 +55,9 @@ A standalone run ships the one named item and stops. Orchestrated cycles do more
 
 - **Target 3–6 items per cycle, biased toward substance.** Landing one cosmetic tweak and stopping wastes the cycle. Keep going until you've shipped a meaningful chunk or genuinely run out of confident picks.
 - **Reach for at least one meatier item** — a feature, a multi-file refactor, a non-trivial server change. A copy fix or single-line DS swap is a fine warm-up but not enough alone.
-- **Confidence gates ambition; ambition is the default.** The only real skip-reasons: the item contradicts the spec, or depends on a technical prerequisite that genuinely doesn't exist in the codebase yet (not just "tagged for Phase X"). Directional ambiguity, vague scoping, and fuzzy boundaries are all shippable with the safeguards below. "Hard to undo" is **not** a skip-reason pre-launch.
-- **Treat the app as greenfield — unshipped, zero production users.** Reshaping an endpoint, adding a route, changing a schema, restructuring a shared library, or building a new tool to do the job right is in-bounds. If an item needs a `PlayerStats` field that doesn't exist, add it. Don't downscope to "blocked" because the proper fix touches the server or schema — the proper fix is the assignment.
-- **Build the best thing, not the smallest change.** Greenfield removes both "hard to undo" as an excuse to skip and "smallest diff" as the default. Aim for scalable, maintainable, production-ready systems. When the right fix means restructuring or replacing existing code, do that — don't stack a minimal patch to avoid touching what's there. Minimal-first is for a hotfix, not the norm.
+- **Confidence gates ambition; ambition is the default.** The only real skip-reasons: the item contradicts the spec, or depends on a technical prerequisite that genuinely doesn't exist in the codebase yet (not just "tagged for Phase X"). Directional ambiguity, vague scoping, and fuzzy boundaries are all shippable with the safeguards below. "Hard to undo" is a real consideration on Android now that it's live — weigh it, but it's not an automatic skip-reason (iOS has no users yet).
+- **Reshape freely, but Android is live.** Reshaping an endpoint, adding a route, restructuring a shared library, or building a new tool to do the job right is in-bounds. But Android has real users and data now, so schema / persisted-state changes must migrate the existing population safely (iOS has no users yet). If an item needs a `PlayerStats` field that doesn't exist, add it — with a safe migration. Don't downscope to "blocked" because the proper fix touches the server or schema — the proper fix is the assignment.
+- **Build the best thing, not the smallest change.** Don't use "hard to undo" as an excuse to skip or "smallest diff" as the default. Aim for scalable, maintainable, production-ready systems. When the right fix means restructuring or replacing existing code, do that — don't stack a minimal patch to avoid touching what's there. Just keep data / behaviour changes production-safe for live Android users. Minimal-first is for a hotfix, not the norm.
 - **A judgement call is not a blocker — make it, ship it, flag it.** When an item needs deliberation (which library, which UX shape, which API name, which of several designs), draft 2–3 options, pick the one you'd defend in review, ship it, and make the call **loud in the Approach line** of your in-flight block (one sentence on what you chose, one on the alternative you rejected). The reviewer course-corrects; that's the safety net. Money flows and schema migrations still ship — just land them with a test and a loud note, never silently.
 - **Read the linked feedback case before rewriting a bug-derived todo.** Items carry a `case docs/agent/feedback-cases/<id>.md` path in their Hints — that file holds the real root-cause diagnosis from triage. Read it before re-theorizing or rewriting; don't replace a correct diagnosis with a guess.
 - **Phase tags are descriptive, not prescriptive.** "Gated on Phase 4.2" describes when the human expected the work, not an absolute blocker. If you can describe a self-contained slice without invoking the missing phase work, that slice is fair game.
@@ -106,9 +106,9 @@ The `todo-maintainer` runs right before the workers and tops the list up, so you
 
 **No one reads your chat output.** Stay silent — ideally zero text outside tool calls. Anything a human should see goes in `docs/agent/in-flight.md`, which the reviewer reads when writing the PR. (Standalone runs can talk to the user normally.)
 
-## Pre-launch posture
+## Production posture (Android live, iOS not)
 
-The app hasn't launched; there are no production users. When a change touches data (migrations, schema, catalog content, persisted state), don't pad it with defensive backfill logic or "existing users won't get X" caveats — make the migration do the right thing for a fresh world. Skip those footnotes in commit bodies and in-flight notes too; they document a population that doesn't exist. Drop this the moment we ship.
+Android is live — there **is** a production population. When a change touches data (migrations, schema, catalog content, persisted state), it must be safe for existing Android users: migrate them forward, don't assume a fresh world. iOS has no users yet, so iOS-only data can still be treated as greenfield. Don't strip migration-safety logic as noise, and do call out in commit bodies / in-flight notes when a change needs a backfill or a careful migration.
 
 ## Hard rules
 

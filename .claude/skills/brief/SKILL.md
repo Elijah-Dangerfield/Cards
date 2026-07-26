@@ -1,11 +1,11 @@
 ---
-name: daily-brief
-description: The awareness loop for Cards — compose the "since last brief" digest with the write-brief skill and deliver it to the owner (email via a Gmail MCP if connected, otherwise a rendered file / PR comment). Use on a daily schedule, or ad hoc to get caught up.
+name: brief
+description: Compose the Cards "since last brief" digest (health, feedback, shipped work, money/growth, decisions needed) and deliver it to the owner. Runs ON DEMAND — the window is [last time it ran → now] from docs/agent/brief-log.md — so run it whenever you want to catch up, not on a fixed schedule. Email via a Gmail MCP if connected, otherwise a rendered file / PR comment.
 ---
 
-# Daily brief (flow)
+# Brief (flow)
 
-The **awareness loop**. The owner's single inbox: one digest of everything that happened since they last looked, so they stay in the loop without watching dashboards. This flow composes then delivers — it does not investigate (that's the triage/health skills) and it does not act.
+The **awareness loop**, run **on demand** (not on a schedule). One digest of everything that happened since the last run, so the owner catches up without watching dashboards. This flow composes then delivers — it does not investigate (that's the triage/health skills) and it does not act.
 
 ## 1. Compose
 Invoke the **`write-brief`** skill and let it drive. It reads the `[last brief → now]` window from `docs/agent/brief-log.md`, gathers health (A1–A7 alerts + crash-free), feedback (bugs vs product asks, each tagged *added to todos* / *shipped* / *parked in backlog*), what shipped (merged PRs + releases), money & growth (Postgres-backed panels), and a **"needs your call"** section, optionally folding in store/support email if a Gmail MCP is connected. It returns clean markdown and stamps `brief-log.md`.

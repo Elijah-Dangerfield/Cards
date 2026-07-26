@@ -1,11 +1,11 @@
 ---
-name: nightly-build
-description: Orchestrate the Cards nightly build — intake (feedback + observability triage) → curate todos → workers → review → PR. Runs each phase as a subagent invoking its action skill. Use on a nightly schedule, or ad hoc to run a full build cycle. Pass "intake off" to skip triage and work only the existing todo list.
+name: nightly-pipeline
+description: Orchestrate the Cards nightly PIPELINE (autonomous dev work — feedback + observability triage → curate todos → workers → review → open PR). This is NOT a CI app build; it runs each phase as a subagent invoking its action skill. Use on the nightly schedule, or ad hoc for a full cycle. Pass "intake off" to work only the existing todo list.
 ---
 
-# Nightly build (flow)
+# Nightly pipeline (flow)
 
-The iteration loop. You are the **orchestrator**: you don't write code or triage yourself, you run each phase by spawning it as a subagent (Agent/Task tool) that invokes an **action skill**, waiting for each to finish before the next. This flow replaces the old two-orchestrator split (full pipeline vs execute-only) — the difference is now a parameter.
+The iteration loop — the autonomous dev pipeline, **not** a CI app build. You are the **orchestrator**: you don't write code or triage yourself, you run each phase by spawning it as a subagent (Agent/Task tool) that invokes an **action skill**, waiting for each to finish before the next. This flow replaces the old two-orchestrator split (full pipeline vs execute-only) — the difference is now a parameter.
 
 **Everything runs in THIS session, one subagent at a time.** They share the same git checkout, so two at once would stomp each other. Never use the scheduled-task tools from here — you are the whole run.
 
