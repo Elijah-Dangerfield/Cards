@@ -12,7 +12,7 @@ Invoke the **`write-brief`** skill and let it drive. It reads the `[last brief �
 
 ## 2. Deliver
 Send it where the owner will actually see it, in preference order:
-1. **Email** — if a Gmail/email MCP is connected **on `admin@nightjarlabs.llc`** (the business inbox that collects `contact@`/`support@`/`hello@` at `nightjarlabs.llc` + `downcard.app`), deliver the brief there (subject: `Downcard brief — <date>`). **Caveat:** the current Gmail connector can **draft but not send**, so "email" means create a draft addressed to `admin@nightjarlabs.llc` — visible in Gmail (incl. mobile) to read or send. Render it richer first with the `morning` skill (styled HTML) if you like. If the connector is on a different account, treat email as unavailable and fall through.
+1. **Email** — if a Gmail/email MCP is connected, deliver the brief to the owner (subject: `Downcard brief — <date>`) as a draft in the connected inbox. **Caveat:** the current Gmail connector can **draft but not send**, so "email" means a draft you read/send in Gmail (incl. mobile), not an auto-sent message. Render it richer first with the `morning` skill (styled HTML) if you like.
 2. **Rendered file** — always also write the composed brief to `docs/agent/briefs/<YYYY-MM-DD>.md` as a durable record (create the dir; cheap).
 3. **PR comment** — if there's an open `develop → main` PR and no email channel, drop the "needs your call" section as a comment there so it isn't lost.
 
