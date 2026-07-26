@@ -20,19 +20,13 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
-## Player-style — backend-backed so opponents can see it
-
-**Idea (owner feedback 2026-06-22, Sentry [CARDS-J](https://elijah-dangerfield.sentry.io/issues/CARDS-J)):** Make a plan to implement the player-style metric (TIGHT/LOOSE × PASSIVE/AGGRESSIVE), backed to the server so *other* players can see a given player's style — not a client-only computation. Needs a real tightness/aggression metric defined + a server store + exposure on the room/profile snapshot. Pairs with the existing "PlayStyleBlob reuse" and "Player Card — Phase 2/3" backlog items below — the cross-player plumbing is the same wire those need.
-
-**Status:** Backlog. Product + backend design; do alongside the play-style metric data work the Player Card phases already wait on.
-
----
-
 ## Per-seat positioned MP emote blasts
 
 **Idea:** MP emotes ship rendered as a single center-screen `EmojiBlastOverlay` attributed to the emitter's avatar (see [decisions.md](./decisions.md) 2026-06-19). A richer treatment positions each opponent's blast *over their seat* at the table, so a busy table reads who reacted at a glance and two near-simultaneous emotes don't collide on one center slot. Needs per-seat blast state (a `Map<seatIndex, EmojiBlast>` instead of the single `emojiBlast` slot) and the table render loop to anchor each overlay to its seat's layout coordinates — the overlay already takes emitter attribution, so the work is positioning + multi-blast state, not a new component.
 
 **Status:** Backlog. Polish on top of the shipped center-blast emote; the wire path + attribution already land it correctly.
+
+---
 
 ## Bot bet-sizing tells
 
@@ -136,24 +130,6 @@ Blocker on doing it now: `opposite()` currently maps `SlideInFromRight → Slide
 
 ---
 
-## Sweep remaining game-table corner literals → `Radii` tokens
-
-**Idea (raised 2026-05-20):** `Radii.R700` (16.dp) was added during the RankDetail cleanup. `R800` (20.dp), `R900` (24.dp), and `R1000` (28.dp) were added 2026-05-21 alongside the non-game-table follow-up (`FeatureCard`, `AchievementMedallion`, `LobbyScreen`). The non-game-table 16.dp callsites were migrated 2026-05-21 (`MyItemsScreen`, `StatsScreen` ×3, `FeatureCard`, `QaMenuScreen` ×5 including the 10.dp `R400` ones). Remaining literals all live on game-table surfaces, which were tuned by hand for the play screen — worth a deliberate visual sweep rather than blind replace:
-
-- `BoardArea.kt:94/98` — 16.dp (→ `R700`)
-- `HandResultDialogs.kt:272` — 16.dp (→ `R700`)
-- `PlayerArea.kt:102/103` — 20.dp (→ `R800`)
-- `PlayerArea.kt:240/245` — 16.dp (→ `R700`)
-- `HandRankingsCheatSheet.kt:266` — 28.dp (→ `R1000`)
-- `HandRankingsCheatSheet.kt:382/422` — 20.dp (→ `R800`)
-- `RaiseSheet.kt:206` — 28.dp (→ `R1000`)
-- `TableActionBar.kt:138/167` — 28.dp (→ `R1000`)
-
-**Status:** Backlog. Non-blocking DS drift; pull when next opening the play-table surfaces.
-
-
----
-
 ## Anti-farming on the starter chip grant (uninstall-reinstall exploit)
 
 **The exploit (raised 2026-05-23):** Today a user can uninstall + reinstall to mint a new anonymous Supabase user → server `WalletRepository.findOrCreate` grants a fresh 10K starter. Repeat indefinitely. Nothing in the chain checks "is this a device we've already paid out."
@@ -229,21 +205,6 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 
 ---
 
-## Live chip updates inside the welcome dialog after slow-network open
-
-**Idea (raised 2026-05-24):** The welcome dialog now opens regardless of whether `/v1/me/wallet` has hydrated (see `WelcomePayload.chips: Long?` and the `ChipRevealPlaceholder` fallback in [WelcomeDialog.kt](../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/WelcomeDialog.kt)). When chips arrive late, the dialog still shows the em-dash placeholder until dismissal — the route param is static. Home shows the real balance the moment they dismiss, so the user-visible gap is narrow, but a long fresh-install round-trip would leave the placeholder visible the whole time the user reads the dialog.
-
-**Sketch:**
-- Lift `ChipsRepository` into the dialog destination scope (it currently lives in Home's scope) and have the dialog observe the live balance flow.
-- Or: add a small dialog-scoped `WelcomeDialogViewModel` that owns the observer and re-renders the reveal once chips land.
-- Either way, the navigation argument stays static (kept for back-stack restoration) but the dialog reads through the live source.
-
-**Tradeoff:** Adds plumbing for a narrow window most users won't hit. The placeholder is acceptable per the original todo framing. Pull only if device QA shows the placeholder feels long enough to notice on real-world slow networks.
-
-**Status:** Backlog. Confirmed as follow-up, not in the slice that landed 2026-05-24.
-
----
-
 ## Earn-source attribution on My Items "Earned" rows
 
 **Idea (raised 2026-05-24):** Earned cosmetics in [MyItemsScreen.kt](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/items/MyItemsScreen.kt) now render an "Earned" badge, but don't surface *what* earned them ("from Comeback Kid achievement", "from Bronze league"). `InventoryItem` doesn't carry the source id today.
@@ -269,22 +230,6 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 **Tradeoff:** The cheap version (await-online before each retry) is a marginal UX improvement — it just makes the same retry happen at a better moment. The expensive version (deferred queue) is what actually matters for the "user did this offline, expects it to land" case. Pick based on what we're actually trying to solve.
 
 **Status:** Backlog. Today's retry policy is honest about its limitation in the [`RetryPolicy` header](../libraries/networking/src/commonMain/kotlin/com/cards/libraries/networking/retry/RetryPolicy.kt). Pull when an offline-write scenario actually surfaces.
-
----
-
-## Country / segment-scoped `/v1/app-config`
-
-**Idea (raised 2026-05-24):** Today the server returns one global config blob — [`AppConfigSource.read()`](../apps/server/src/main/kotlin/com/cards/server/domain/AppConfigSource.kt) takes no parameters; every client gets the same JSON. The `ClientContext` (platform, app version, CF country header) is parsed on the request but not threaded into the config source.
-
-**Sketch:**
-- Change the source signature: `suspend fun read(): JsonObject` → `suspend fun read(ctx: ClientContext): JsonObject`.
-- `AppConfigRoutes` passes `call.clientContext()` through.
-- Source impls decide what to scope on — country code for price floors / store availability, user id for A/B cohorts, app version for feature flags tied to client capabilities.
-- Client-side merges overrides on top of whatever the server sends; no client changes needed.
-
-**Tradeoff:** Each scope dimension adds complexity at the source. The current global blob is honest about its limitation — no per-region pricing, no A/B testing. Add it when one of those needs lands.
-
-**Status:** Backlog. Surfaced during a `docs/todo.md` cleanup pass — the user asked whether we could give different users different configs, today we can't.
 
 ---
 
@@ -335,12 +280,12 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 
 ## ProfileRepository → InventoryRepository import
 
-**Idea:** When the V18 starter-inventory work lands (see `docs/todo.md` → Catalog gating), `ProfileRepository.findOrCreate` will need to write the default inventory rows inside its profile-insert transaction — either by holding an `InventoryRepository` reference or by hand-writing the inventory SQL. A layer that was previously "just profiles" then reaches into products + inventory. Defensible in the moment ("give a new user their starter kit" is a profile-creation concern), but worth revisiting once the starter kit grows or `ProfileRepository`'s responsibilities feel too broad.
+**Idea:** The V18 starter-inventory work landed — `PostgresProfileRepository.seedStarterInventory` writes the default inventory rows (`StarterInventory.productIds`) inside the profile-insert transaction. It **hand-writes the inventory SQL inline** rather than holding an `InventoryRepository` reference (one of the options below). A layer that was previously "just profiles" now reaches into products + inventory. Defensible in the moment ("give a new user their starter kit" is a profile-creation concern), but worth revisiting once the starter kit grows or `ProfileRepository`'s responsibilities feel too broad.
 
 **Sketch directions when revisiting:**
 - **Postgres trigger.** `AFTER INSERT ON profiles` fires a stored procedure that writes the starter inventory rows. App layer stays clean; schema enforces atomicity. Cost: defaults live in SQL; harder to test; trigger logic harder to evolve as the starter kit grows.
 - **Starter-kit seeder service.** A separate `StarterInventorySeeder` class invoked from the route after `findOrCreate` (using a `wasCreated` flag, or an "is empty" check). `ProfileRepository` goes back to single-concern; the seeder owns the cross-domain knowledge.
-- **Status quo from V18:** `ProfileRepository` imports `InventoryRepository` directly. Greppable, testable in Kotlin, minimal moving parts. Sufficient until the starter kit grows past a handful of items.
+- **Status quo (as built, V18):** `PostgresProfileRepository.seedStarterInventory` hand-writes the inventory-insert SQL inside the profile transaction. Greppable, testable in Kotlin, minimal moving parts. Sufficient until the starter kit grows past a handful of items.
 
 **Tradeoffs:**
 - Triggers move correctness into the schema, where it can't be bypassed by a buggy code path. Price: schema changes are slower, and trigger debugging is harder than reading a Kotlin transaction block.
@@ -387,18 +332,6 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 - If iOS-managed: launch storyboard background color / image alignment is the only lever — confirm `LaunchScreen.storyboard` matches the Compose splash's background so the transition is invisible.
 
 **Status:** Backlog. No known impact beyond the visual; flagged for an investigation pass next time someone touches the iOS launch path. Don't preemptively "fix" — the answer might be "iOS does this and there's nothing to do."
-
----
-
-## Guard `ChipsRepositoryImpl.applyDeltaInternal` against duplicate idempotency keys
-
-**Idea:** [`ChipsRepositoryImpl`](../libraries/cards/impl/src/commonMain/kotlin/com/cards/libraries/cards/impl/ChipsRepositoryImpl.kt) writes to two tables on every local chip mutation: `walletEventDao.insert(...)` (primary key on idempotency key, `OnConflictStrategy.IGNORE`) and `chipsDao.applyDelta(...)` (no key awareness). If the same idempotency key arrives twice, the wallet event is dedup'd to one row but the local balance is double-applied. The next `setBalance` from the server's authoritative sync reconciles, so end-state is correct — but the optimistic window shows a wrong balance to the user.
-
-**Why it's a latent foot-gun, not a real bug today:** callers don't re-issue `addChips` / `subtractChips` with the same key. The retry path is the sync loop, which uses `setBalance` (not delta), so the duplicate-key case is currently unreachable from production code. Pinning the current behaviour in `ChipsRepositoryImplTest.addChips_withDuplicateIdempotencyKey_dropsTheSecondEvent_butStillAppliesDelta` keeps a future change deliberate.
-
-**Sketch:** one-line check in `applyDeltaInternal` — query `walletEventDao` for the idempotency key before applying the delta; if present, no-op the delta (the event was already accounted for). Update the pinned test to assert single-application.
-
-**Status:** Backlog. Defensive, not blocking — there's no observable user-visible bug today. Pick up if `ChipsRepository` ever grows a caller that could re-issue with the same key (offline retry queue, multi-write replay, …).
 
 ---
 
@@ -459,51 +392,34 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 ---
 
-## PlayStyleBlob reuse — Profile's style banner + seat-tap sheet
-
-**Idea:** The new `PlayStyleBlob` in `:libraries:ui` is the canonical TIGHT/LOOSE × PASSIVE/AGGRESSIVE visual. Profile still renders its own `StatsStyleBanner` with a `DecorativeBlob` for the "Sharp & Steady" example; the in-game seat-tap sheet would also benefit from the same quadrant. Once a real tightness/aggression metric exists, fold both surfaces onto `PlayStyleBlob` so the visual reads identically everywhere and the example/placeholder names line up.
-
-**Status:** Backlog. Pick up alongside the data work for a real play-style metric — same diff.
-
----
-
 ## Surface a reason when a multiplayer intent is rejected / the room closes
 
-**Idea:** Two recently-hardened MP paths now fail *safely* but *silently* — they no longer crash or strand the user, but they also don't tell them what happened:
+**Idea:** Two MP paths still fail *safely* but *silently* — they no longer crash or strand the user, but they also don't tell them what happened:
 
-- **Rejected / timed-out intent.** `PlayPokerViewModel`'s `Submit` now wraps `session.submit()` in `Catching {}` and logs on failure, so a server rejection ("not your turn" on a turn-race double-tap) or a 10s ack timeout is a logged no-op instead of an app crash. But the user just sees their action quietly not happen. `RemotePokerSession`'s KDoc already promises "the VM maps this to a UI-level 'not your turn' surface" — that mapping still doesn't exist. Wants a new state field/event + a transient surface (toast / inline pill), not the haptic-only `TurnFeedback` channel.
-- **Room closed out from under us.** `PlayPokerEvent.RoomClosed` now pops the play screen when the server GC's the room or rejects the subscription. The pop is silent; the lobby/home it lands on re-observes and shows the closed-room state itself, but there's no transient "this room was closed" message on exit.
-- **Wallet debit refused on sync.** `ChipsRepositoryImpl.syncLocked()` handles a server `InsufficientChips` outcome by dropping the pending event, logging a warning, and resetting to the authoritative balance — the user's chip total silently jumps with no explanation (`docs/wiki/wallet.md` documents the silence).
+- **Room closed out from under us.** `PlayPokerEvent.RoomClosed` pops the play screen when the server GC's the room or rejects the subscription. Only the `IncompatibleVersion` reason surfaces a snackbar (`PlayMultiplayerFeatureEntryPoint`); the generic GC/subscription-rejection close still pops silently, and the lobby/home it lands on re-observes and shows the closed-room state itself with no transient "this room was closed" message on exit.
+- **Wallet debit refused on sync.** `ChipsRepositoryImpl.syncLocked()` handles a server `InsufficientChips` outcome by dropping the pending event, logging a warning, and resetting to the authoritative balance — the user's chip total silently jumps with no explanation (`docs/wiki/wallet.md` documents the silence). Overlaps the MP wallet-freshness items.
 
-**Why grouped:** all the same shape — a server-side "no" the client currently absorbs without a word. A shared lightweight "transient game-event surface" (toast/snackbar bound to one-shot VM events) would cover both and any future case.
+**Done (MP-20):** the rejected / timed-out intent half shipped — `RemotePokerSession` throws `IntentRejectedException` / `IntentTimeoutException`, `PlayPokerViewModel` maps them to `PlayPokerEvent.IntentFeedback`, and `PlayMultiplayerFeatureEntryPoint` renders them as error snackbars. The KDoc's outstanding "not your turn" promise is fulfilled.
 
-**Status:** Backlog. Pick up when MP playtests show the silence is confusing; the intent-rejection half is the KDoc's outstanding promise.
+**Why grouped:** the two residuals are the same shape — a server-side "no" the client currently absorbs without a word. A shared lightweight "transient game-event surface" (toast/snackbar bound to one-shot VM events) would cover both and any future case.
 
----
-
-## Player Card — Phase 2: opponent cards over the wire
-
-**Idea:** Make a tapped *human opponent's* Player Card show their real identity — equipped badges and title, and level — not just name + avatar. Today none of that flows to other seats: `SeatView` carries name/emoji/handsAtTable, `equippedTitle`/`equippedBadgeEmoji` exist only on the local human seat, and remote-human `seatBadge` (level) is null pre-fetch. Phase 1 (see [decisions.md](./decisions.md) 2026-06-06) ships the owner-facing card + the shared `PlayerCard` component; this is the cross-player half.
-
-**Sketch:**
-- Server: expose each table participant's public card fields (display name, avatar emoji + bg, equipped title + equipped badges, level) to other players in the room/seat snapshot. The equipped badges/titles cosmetics that now drive the owner's Player Card already land on `/v1/me`; plumb the same equipped-cosmetics shape onto the room/seat snapshot for opponents.
-- Client: carry those fields onto `SeatView` (`TableUiState.fromSeat`) and render the shared `PlayerCard` in `PlayerProfileSheet` for opponents, not just the owner.
-- Pairs with the existing `docs/todo.md` "Tap-an-opponent sheet — view full profile" item.
-
-**Status:** Backlog (V1.x). Do this when human-vs-human is common enough to matter — V1 is mostly bots, which already render their own info.
+**Status:** Backlog. Pick up when MP playtests show the remaining silences are confusing.
 
 ---
 
 ## Player Card — Phase 3: "scouting" — opponent stats behind an equipped ability
 
-**Idea:** Let a player see an opponent's *stats* (win rate / hands played, maybe richer reads later) on that opponent's Player Card — but only if the viewer has a "scouting" ability/cosmetic equipped. The original feature ask floated stats "if you have that ability equipped"; this is that gated perk. Deliberately out of the V1 card (see [decisions.md](./decisions.md) 2026-06-06) to keep V1 client-only.
+**Idea:** Let a player see an opponent's *stats* (win rate / hands played, maybe richer reads later) on that opponent's Player Card — but only if the viewer has a "scouting" ability/cosmetic equipped.
+
+**The gating mechanism already shipped.** The "Opponent Style Reader" (`ownsOpponentStyleReader`, entitlement `TOOL_OPPONENT_STYLE_PRODUCT_ID`, gated in `PlayPokerViewModel`) reveals an opponent's play-**style** radar behind an equipped cosmetic, with a locked-state banner when the viewer doesn't own it (`PlayerProfileSheet` `HumanPlayingStyleSection`). So the earned-vs-bought decision and the gate plumbing are done.
+
+**Residual — the stats-only ask:** win rate / hands played per opponent, behind the same gate. The server has `PlayerStatsRepository.handsPlayed` but it isn't surfaced per-opponent in the sheet.
 
 **Sketch:**
-- A new gating item (cosmetic/ability) the viewer equips; mint it as an earnable/buyable.
 - Per-opponent stats on the wire (Phase 2 plumbing extended with a stats block), gated server-side so stats only return to viewers who own the ability — don't trust the client to hide them.
-- `PlayerCard` grows an optional stats section, shown only when the viewer is entitled.
+- `PlayerCard` grows an optional stats section, shown only when the viewer is entitled — reuse the existing Opponent Style Reader entitlement rather than minting a second gate.
 
-**Status:** Backlog. Depends on Phase 2 plumbing + a decision on whether scouting is earned or bought. Revisit once the card itself is live and human play is common.
+**Status:** Backlog. The gate exists; this is the stats payload on top. Revisit once human play is common enough for opponent stats to matter.
 
 ---
 
@@ -517,16 +433,6 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 **Status:** Backlog. Layer onto the V1 level-up screen as the data lands — names first (content-only), percentile + unlocks later (server + feature work). Keep the teal/progression identity.
 
-## XP Boost active-state UI treatment
-
-**Idea:** When a 2× XP boost is running, make the *whole app* feel boosted rather than just showing a small badge. A global treatment — e.g. a warm tint on the bottom bar + a slim countdown bar — signals the temporary special state. Drive it off a cross-cutting "boost active" signal (a `staticCompositionLocalOf`, the documented pattern for subtree-wide state) so any surface can opt in to reacting; the DS owns the treatment, not the bottom bar.
-
-**On the poker table, stay subtle.** Mid-hand is the wrong place for app-chrome tinting — it competes with gameplay. The XP chip already sits up top; bolt the countdown onto it there and leave the felt/bottom-bar alone.
-
-**Watch:** a perpetually-ticking countdown is a 1s recomposition driver — keep it cheap (isolate the ticking node) and self-hiding on expiry (the existing `XpBoostBadge` already self-hides).
-
-**Status:** Backlog. Polish on top of the shipped boost mechanic; not a V1 gate.
-
 ---
 
 ## Level-up reveal — show the cosmetic's real name, not "New item"
@@ -535,31 +441,13 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 **Status:** Backlog. Enrichment on top of the shipped cosmetic-reward capability. Do it when threading a catalog read into the level-up entry point is worth the wiring (or once the celebration screen already reads the catalog for something else).
 
-## Batch the profile-resolution endpoint's lookups
-
-**Idea:** `GET /v1/profiles?ids=…` resolves each id with a separate `ProfileRepository.findById` call in a loop, so a batch of N ids fires N sequential DB round-trips (capped at 100). It's a thin shell over the existing single-id read, fine while the social lists are short, but a player with a large friends list pays one query per tile. Add a `findByIds(ids): List<Profile>` batch read (single `WHERE id IN (…)`) on `ProfileRepository` and have the route use it.
-
-**Status:** Backlog. Correctness-neutral efficiency follow-up; do it when the social lists get long enough to feel the N+1, or when `ProfileRepository` grows a batch read for another caller.
-
-## Shared `Syncable`/`SyncCoordinator` registry (offline-first Phase 7)
-
-**Idea:** Extract `Syncable { suspend fun sync() }` + a `SyncCoordinator` (AutoInit) that owns the trigger wiring once (foreground/connectivity/UserChanged/AccountClaimed/session-rollover, with the `isColdBoot` skip and the Authenticated gate centralized), fanning out with per-syncable error isolation + structured logs. The 5 sync repos (Chips/Progression/Achievement/Equipment/Inventory), the messages/rooms syncs, and the profile outbox become plain `Syncable`s, deleting their duplicated `AppEventListener` boilerplate.
-
-**Status:** Backlog. Pure sustainability refactor; do after Phase 6 so the profile outbox folds into it. Plan at `delegated-crunching-gem.md`.
+---
 
 ## Surface a "couldn't add friend" message when a request is rejected
 
 **Idea:** The recently-played-with shelf flips the "Add" tile to "Sent" optimistically and silently reverts it if the server rejects the request (not-played-with, rate-limited, or a network error). The revert is correct but invisible — the user just sees the tile flick back with no explanation. Once a global snackbar/toast surface exists, show a short reason ("You can only add people you've played with", "Too many requests, try later", "Couldn't reach the server") off the typed `SendFriendRequestResult` cases the repo already returns.
 
 **Status:** Backlog. The repo already distinguishes the rejection cases; this is the user-facing message on top. Do it when the app grows a shared snackbar host.
-
----
-
-## Stats lifetime-grid labels should be string resources
-
-**Idea (raised 2026-06-22):** `StatsScreen.LifetimeStatsGrid` passes inline string literals for every `StatTile` label ("Hands played", "Hands won", "Win rate", "Fold rate", "Folds", "Showdown losses") — the win-rate / fold-rate tiles added this cycle matched the file's existing inline-label convention rather than introducing two lone resource entries. Per the coding guideline every user-facing string belongs in `:libraries:resources`. Convert the whole grid's labels in one pass so it's consistent rather than half-migrated.
-
-**Status:** Backlog. Pre-existing convention drift across the whole grid; do it as one sweep when next touching `StatsScreen`.
 
 ---
 
@@ -576,12 +464,6 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Idea (raised 2026-06-23):** Onboarding now silently records which Terms/Privacy version the user accepted (by proceeding past the Welcome step) plus a timestamp, into `AppData.acceptedLegalVersion` / `legalConsentAcceptedAt`. Two follow-ons sit on top, both deferred until legal asks: (1) surface the acceptance record somewhere (e.g. a read-only line in Settings or an exportable audit field) so it's not write-only; (2) a re-consent gate that compares the persisted `acceptedLegalVersion` against the live `LegalUrls.LEGAL_VERSION` and re-prompts when the hosted docs materially change (bump `LEGAL_VERSION` to trigger).
 
 **Status:** Backlog. The audit record is captured; these consume it. Gate on legal/owner deciding the audit surface + re-accept UX are wanted.
-
-## Matchmaking chooser — richer table cards
-
-**Idea (raised 2026-06-24):** The new pick-a-table chooser (`PublicSearchingScreen.ChoosingContent` / `CandidateCard`) lists each candidate with buy-in, seats taken/max, and a real-human count. Two deferred niceties: (1) show the humans-vs-bots split more richly than a single "N playing" line (e.g. seat dots, or "3 players, 1 bot"); (2) mark a table the caller is already seated in with a "you're here" badge — the server already includes such a table in the candidates list per its KDoc, the client just renders it the same as any other today.
-
-**Status:** Backlog. Cosmetic polish on a shipped, functional chooser. Do when next iterating on matchmaking presentation.
 
 ---
 
@@ -665,9 +547,11 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 - Whether `room.buyIn` is genuinely 0 (room creation default issue?) or the LobbyScreen is rendering a stale `Room` snapshot from the auto-rejoin path that the duplicate-lobby fix now eliminates.
 - Whether the server's `RoomStatus` is failing to drop back to `Lobby` after a one-hand session ends, or whether the client is triggering an automatic bot-add at the wrong moment.
 
-**Action:** repro fresh with the just-shipped inbound-WS-frame logs (the `recv game_state hand=… street=… …` lines now ride in feedback `session-log.txt`). Those will say exactly which `RoomStatus` and `buyIn` the client saw in the snapshot it rendered, which disambiguates the two hypotheses without another guess-and-check.
+**Note (2026-07):** the POST `/bots` rejection half of this repro likely overlaps the shipped MP-37 host-model fix (a sole human tapping add-bots into silent `not_host` 403s). Treat the bots-rejection thread as probably-resolved; the still-open, unproven residual is the **$0 buy-in stale-snapshot** the lobby renders.
 
-**Status:** Backlog. Pull when next a similar report comes in; the new client-state.json attachment + frame logs should make it a one-pass triage.
+**Action:** repro fresh with the inbound-WS-frame logs (the `recv game_state hand=… street=… …` lines ride in feedback `session-log.txt`). Those will say exactly which `RoomStatus` and `buyIn` the client saw in the snapshot it rendered.
+
+**Status:** Backlog. Pull when next a similar report comes in; the client-state.json attachment + frame logs should make it a one-pass triage.
 
 ---
 
@@ -693,18 +577,6 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 ---
 
-## Stale / abandoned Compose UI-test harness in `:apps:compose` (MP-2)
-
-**Symptom:** `:apps:compose:testDebugUnitTest` fails to compile on a dirty build dir with `Unresolved reference 'TestAppComponent' / 'TestProfileRepository' / 'testUserId' / 'OnlineConnectivityObserver'`. The offenders live only in **generated KSP output** (`apps/compose/build/generated/ksp/android/androidUnitTestDebug/.../KotlinInjectTestAppComponent.kt` + `InjectKotlinInjectTestAppComponent.kt`) under package `com.cards.uitest.harness` — there are **no committed source files** for that harness. A `rm -rf apps/compose/build/generated/ksp/android/androidUnitTestDebug` clears it and the module's android unit tests go green.
-
-**Context:** Looks like a prior, incomplete Compose-UI-test scaffolding attempt (the kind MP-2's remaining sub-item calls for — `PlayPokerScreen` UI tests) that was started, partially generated, then deleted/uncommitted, leaving orphan KSP artifacts behind. The standing `apps/compose/androidUnitTest` source set is otherwise just `commonTest`.
-
-**Action:** When picking up MP-2's Compose UI-test sub-item, start from a clean `:apps:compose` build dir, and decide whether that `uitest.harness` shape (a kotlin-inject `TestAppComponent` for UI tests) is the intended foundation to revive or to discard. Either way the orphan generated artifacts shouldn't be relied on.
-
-**Status:** Backlog. Triage against MP-2's remaining Compose-UI-test work.
-
----
-
 ## Extend the PlayPokerScreen Compose UI-test harness
 
 **Context:** The first host-side Compose UI-test harness now exists on `:features:room:impl` (Robolectric + `runComposeUiTest`), with a 12-test suite over `PlayPokerScreen`'s rendered states. By design it asserts only on screen-owned chrome (connection banner, dealing-in placeholder, back affordance), not the deep action-bar internals, to stay robust against DS churn.
@@ -715,19 +587,13 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 ---
 
-## Fold HandRankingsCheatSheet off the `BaseBottomSheet` escape hatch
-
-**Idea (raised 2026-06-25):** `HandRankingsCheatSheet.kt:249` uses `BaseBottomSheet` (the `@LowLevelDSComponent` raw layer) because the opinionated `BottomSheet` wrapper doesn't yet expose the content shape it needs (custom drag handle / full-bleed scrollable body). AGENTS.md flags this as an escape that "should resolve by extending `BottomSheet`, not entrenching" — extend the opinionated layer with the missing slot, then route the cheat sheet back through it.
-
-**Why it's backlog, not a worker one-liner:** the fix is a DS design call (what content/handle override to add to `BottomSheet`), not a mechanical swap. Do it when next touching the bottom-sheet primitive.
-
-**Status:** Backlog. Design judgment on the DS surface; AGENTS.md references it.
-
 ## Hand-rankings cheat sheet v2 — "you have" banner + compact rows
 
 **Idea (owner mock):** Upgrade `HandRankingsCheatSheet` toward the owner-provided target mock: a summary banner at the top showing the user's current hole+board cards with "YOU HAVE / Two Pair", then a tight numbered 1–10 list (Royal Flush → High Card) with compact card glyphs per row, the user's current hand row highlighted. Today's sheet has the ranked list and a "YOU" highlight but not the you-have banner or the compact-glyph treatment. Full transcription of the mock: [`todo-assets/README.md`](./todo-assets/README.md) → `hand-rankings.png`.
 
 **Status:** Backlog. UX polish with layout design calls; pairs naturally with the BaseBottomSheet fold-back above.
+
+---
 
 ## "Recent XP" rows on Stats
 
@@ -735,11 +601,15 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 **Status:** Backlog. Not tracked by any todo; pull when the stats screen gets its next pass.
 
+---
+
 ## Burn down the VerifyStrings baseline (extract hardcoded copy to resources)
 
 **Idea (2026-06-25, ENG-2 follow-up):** Standing up the detekt `VerifyStrings` rule baselined 42 existing inline user-facing string literals (`Text("Claim")`, `Text("BUSTED")`, `Text("Report to developers")`, …) in `config/detekt/baseline.xml`. New code is gated, but the baselined ones are real localization/i18n debt frozen in place. Sweep them into `:libraries:resources` (`stringResource(...)`) and shrink the baseline toward empty — each extraction removes its baseline entry. Mechanical but spans many files; do it as a focused sweep, not piecemeal.
 
 **Status:** Backlog. Engineering hygiene, not V1-blocking (the app is English-only for V1); pull when localization or a UI-copy pass comes up.
+
+---
 
 ## Audit follow-ups (lower priority, 2026-06-25)
 
@@ -749,6 +619,8 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 - **`AccessDeniedScreen` with no appeal URL is a dead end.** `AccessDeniedScreen.kt` blocks back (`BackHandler { }`) and only shows an "Appeal" button when `appealUrl != null`; a banned user with no appeal URL configured has text and no actionable control, and the route is `NavigableWhileBlocked` so it can't be popped until auth state changes. Not MP-specific; an auth/ban-path edge. Ensure an appeal URL is always configured, or give a fallback action.
 
 **Status:** Backlog. Both are real but low-frequency; pull when touching the dialogs or the ban gate.
+
+---
 
 ## Backend-driven achievement definitions (PROG-1 — future consideration)
 
@@ -760,18 +632,7 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 
 **Status:** Backlog. A future product/ops call, not a gap. See `docs/wiki/achievements.md` for the as-built design + rationale.
 
-## Private-room host sets the table's cosmetics (card face, felt, …)
-
-**Idea (raised 2026-06-26):** Let the host of a private room theme the table for everyone seated — card face / card back, felt, and other table cosmetics — drawn only from cosmetics the host personally owns. Today cosmetics are per-viewer (each player sees their own equipped felt/card back); this flips a private room to a host-chosen shared look.
-
-**Sketch directions when revisiting:**
-- Room snapshot carries a host-chosen `tableCosmetics` block (felt id, card-face id, …); clients render the room's cosmetics instead of their own equipped set while seated.
-- Gate the picker to the host's owned inventory only — validate ownership server-side on set, don't trust the client's list.
-- Decide the default (host's own equipped cosmetics) and whether guests can locally override back to their own look or are pinned to the host's choice.
-
-**Tradeoff:** Reuses the existing cosmetic catalog + equip plumbing, but introduces room-scoped cosmetic state and a server-side ownership check on set — more than a one-line change. Pairs with the felt/card-back cosmetic work already in the catalog.
-
-**Status:** Backlog. Owner flagged it as a backlog feature on capture.
+---
 
 ## Pin a room to one machine (room→machine affinity) before scaling the server out
 
@@ -787,6 +648,8 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 
 **Status:** Backlog. Not needed today (single instance); revisit before raising `min_machines_running` / letting Fly run multiple machines concurrently.
 
+---
+
 ## Surface MP winnings on leave (toast or result dialog), not just a silently-updated balance
 
 **Idea (raised 2026-06-26):** A tester (QuickJack56, Sentry CARDS-4F) noted that after a heads-up game auto-ends, the only feedback is the chip balance changing — they suggested we "toast when they leave how much they won or even a dedicated dialog." The MP-21 fix (PR #74) already makes the balance reconcile correctly on the opponent-left / auto-end path, so the *number* is now right; this is the missing **acknowledgement** of the result. Today a player who wins (or loses) on an auto-end is routed Home with no "you won N" moment.
@@ -800,6 +663,8 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 
 **Status:** Backlog. Enhancement, not a defect — the underlying stale-balance bug (MP-21) is already fixed. Captured from feedback case `docs/agent/feedback-cases/8d2185b9834542e9abc2be52afdded2d.md`.
 
+---
+
 ## Full session/game recap on leave (hands played, net won/lost, opponents) + cache to stats
 
 **Idea (raised 2026-06-27):** A tester (SteadyEight23, Sentry CARDS-5M) asked for a recap "every game left with the result — amount won or lost, hands played, people played with, maybe even hands the player had," to remove ambiguity about where their money went. This is the broad version of two narrower items already in flight: ROOM-4 (show net win/loss + chips forfeited in the leave-confirm dialog) and "Surface MP winnings on leave (toast or result dialog)" above. Ship those first; this is the superset.
@@ -812,26 +677,6 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Tradeoff:** Real product/feature work (new surface + a cached game-result record), not a bug. Sits on top of ROOM-4 and the MP-winnings-on-leave toast.
 
 **Status:** Backlog. Feature/owner directive. Captured from feedback case `docs/agent/feedback-cases/bb4c51d9d27844b7a5cdce100dddf2d2.md`, Sentry [CARDS-5K](https://elijah-dangerfield.sentry.io/issues/CARDS-5K).
-
-## Scale chip-stack and pot count-up animations with the Game speed setting
-
-**Idea (raised 2026-06-26):** GAME-6 added a speed preference (Normal / Fast / Instant) that scales the play-screen card-deal and reveal animations via `LocalTableTempo` (`features/room/impl/.../ui/TableTempo.kt`). (Later unified into a single "Game speed" setting that also paces bot think time — the old separate "Bot speed" / "Table speed" pickers were merged, and `GameSpeed` now carries both `animationScale` and `botThinkScale`.) The tester's request named the deal, *chip*, and reveal animations; the deal + reveal are done, but the chip-stack odometer roll (`ChipCoinAmount(animated = true)` → `AnimatedNumberText`) and the pot pill still animate at their fixed pace regardless of the setting.
-
-**Sketch:** The count-up animators live in `:libraries:ui` DS primitives (identity-bearing content the DS deliberately animates), so the scaling has to be threaded into those primitives rather than the play screen — either read an optional speed/tempo from a composition local with a Normal default, or pass a duration-scale param. "Instant" should snap the stack/pot to the final number. Keep the Normal feel byte-identical so non-instant players see no change.
-
-**Tradeoff:** Small polish completing the GAME-6 request; touches a shared DS animator used beyond the table, so it needs a default that leaves every other surface untouched.
-
-**Status:** Backlog. GAME-6's core ask (speed up / instant-skip the deal + reveal) shipped; this is the remaining chip-move sub-part.
-
----
-
-## Cross-version backwards compatibility for game/state objects
-
-**Idea (owner feedback 2026-06-26, Sentry [CARDS-4S](https://elijah-dangerfield.sentry.io/issues/CARDS-4S)):** We should decide how the app handles game/state objects across client versions before launch — e.g. can a user on app version 1 join a game created by someone on version 2? What happens if not, and how do we degrade gracefully? Owner asks for a recommendation + an implemented system while we're still pre-launch and free to set conventions.
-
-**Threads to weigh:** a min-supported-version / schema-version field on rooms and on the wire frames; server-side gating that refuses (with a clear "update your app" message) rather than letting a stale client misread a newer object; forward-compatible (additive-only) serialization conventions so most version skew is tolerated without a hard gate; and where the version line is drawn (room create, room join, or per-frame). Pairs with the existing app-integrity / min-version thinking in `docs/decisions.md`.
-
-**Status:** Decided 2026-06-27 — see [decisions.md](./decisions.md). V1 uses the simple two-tier rule (additive changes degrade; breaking game-object changes bump `upgrade.minSupportedVersionCode`), with a runtime deserialization-failure fallback (ENG-7) as defense-in-depth. The per-room **capability gate** sketched in "Threads to weigh" is the future-consideration path if we ever need to ship a breaking gameplay feature to some tables without forcing every client to update — not built.
 
 ---
 
@@ -869,16 +714,6 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 
 ---
 
-## Drain paid-but-unredeemed receipts on app foreground (BILL)
-
-**Idea (deferred from BILL-5, 2026-06-27):** On the server-authoritative purchase path (`billing.realPurchasesEnabled` on), if `/v1/billing/redeem` is unreachable *after* the user already paid at the store, `DefaultPurchaseChipPackUseCase` returns `Failed("redeem_unavailable")` and the purchase stands at the store but is never credited until the user manually re-taps Buy (which idempotently re-redeems). For real money, a transient network blip at the wrong moment means a paying user is left without their chips with no automatic recovery.
-
-**Sketch if revisited:** on app foreground, enumerate any finished-but-unredeemed store purchases (Play Billing's owned-but-unacknowledged purchases / StoreKit's unfinished transactions) and re-POST each to `/v1/billing/redeem` (idempotent on the store transaction id, so a double-drain is safe), then acknowledge. This is the standard "restore / reconcile pending purchases" loop both stores expect anyway.
-
-**Status:** Backlog. Real money-loss-for-user risk — should land before `realPurchasesEnabled` is ever flipped on in prod, alongside the real store listings (BILL-3/4).
-
----
-
 ## Leave a real-chip table before the next hand's blinds post (ROOM-4 secondary)
 
 **Idea (deferred from ROOM-4, 2026-06-27):** ROOM-4 made the leave-confirm dialog show the net a leave settles plus any chips forfeited in the live hand. The secondary owner ask — letting a player leave *before* the next hand's blinds are posted (so they don't forfeit a blind they never wanted to post) — is a turn-flow change (when the leave actually fires relative to the deal), not a dialog-copy change, so it was left out of the dialog-only slice.
@@ -896,6 +731,8 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 **Sketch if revisited:** create a `:libraries:gameplay:testing` module (mirrors `:libraries:flowroutines:testing`) exporting `cards()` + `stackedDeck()`, depend on it from the three `commonTest`/`androidUnitTest`/server-test sources, and delete the three copies. Small, mechanical; the only friction is wiring a new Gradle module + its `jvm()`/android/ios targets to match each consumer.
 
 **Status:** Backlog. Pure test-infra DRY; no product impact. Kept the inline copy in MP-25's fix to avoid a module refactor riding on a bug fix.
+
+---
 
 ## Achievement award timing — the delayed-drip queue reads as "earned a while ago"
 
@@ -1003,9 +840,9 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 
 ## First-to-all-achievements reward automation
 
-**Idea (owner, 2026-07-10):** When the first player earns every achievement, send them a manual reward. Once ECON-2's admin grant endpoint exists this is a thin GH action: query achievements-per-user (server Postgres), detect completion, fire an `admin_adjustment` grant with a celebratory note. Blocked on ECON-2; also pairs with the achievements panel idea in ENG-19.
+**Idea (owner, 2026-07-10):** When the first player earns every achievement, send them a manual reward. The dependency shipped — ECON-2's `POST /v1/admin/grant-chips` (ledger admin-grant reason + idempotency) now exists — so this is a thin GH action on top: query achievements-per-user (server Postgres), detect completion, fire an `admin_adjustment` grant with a celebratory note. Pairs with the achievements panel idea in ENG-19.
 
-**Status:** Backlog.
+**Status:** Backlog. Unblocked (admin grant endpoint shipped), just not built.
 
 ---
 
@@ -1081,14 +918,6 @@ Adjacent, also deferred (not blocking): **server-validated reward granting** —
 
 ---
 
-## Swipe-up-to-fold + minimal undoable fold indicator (drop the fold button)
-
-**Idea (owner feedback 2026-07-13):** The dedicated "fold when it's my turn" button isn't needed. Fold should just be the **swipe-up gesture** on your cards. Pair it with a **very minimal fold UX/UI indicator** and an **undo** affordance right next to it: when you throw your cards away to fold, an undo button appears **in the spot where you folded**, available as long as the action **hasn't been submitted** to the server yet. Removes a button from the action bar and makes fold feel physical (toss) while staying reversible against misfires. Exact indicator/animation and the "not yet submitted" reversal window are a directional call for whoever picks it up.
-
-**Status:** Backlog. Gameplay-UX polish, post-launch; entry point is the play-screen action controls + card gesture handling in `:features:room`.
-
----
-
 ## Multiple servers + zero-loss games across reboots/deploys
 
 **Idea (owner feedback 2026-07-13):** Two linked pieces of server scaling/resilience work, both blocked today by the single-writer design (live room/hand state is in one process's RAM, gated by the `SingleWriterGuard` Postgres advisory lock in `Application.kt`; `fly.prod.toml` runs one instance, rolling stop-old-before-new). Consequences we accept for now: only one server can run, and a deploy/reboot tears down live tables — the boot-recovery sweep cashes escrowed chips back to wallets (money is safe) but the in-progress hand ends and players get a disconnect blip.
@@ -1102,17 +931,13 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 
 ---
 
-## Player report: reason picker + confirmation step (MOD-1 follow-on)
-
-**Idea (filed with MOD-1, 2026-07-13):** MOD-1 shipped a single-tap "Report" on the player card that files an append-only report with no reason (the `player_reports.reason` column + the client `reportPlayer(reason=...)` param are already wire-ready, sent null in V1). Two enhancements when moderation matures: (1) a lightweight **reason picker** (offensive name/emotes, cheating, harassment, other) so a human moderator gets signal beyond "user X reported in room Y"; (2) an optional **confirmation step** before filing, if the single-tap-plus-disabled affordance proves too easy to misfire in practice. Both are client-only — the server route already accepts an optional reason and is idempotent-friendly.
-
-**Status:** Backlog. Pair with the deferred moderation-review UI + auto-ban rules (see `post-launch.md`); until a human reads reports, the reason adds little.
-
 ## HowToPlaySheet: adopt BottomSheet scrollableContent
 
 **Idea (GAME-32 follow-on, 2026-07-13):** GAME-32 gave the opinionated `BottomSheet` an opt-in `scrollableContent` flag so sheets stop hand-rolling `Column(verticalScroll)`, and migrated `HandRankingsCheatSheet` onto it. The sibling `HowToPlaySheet` (`:features:room:impl`) still hand-rolls its own scroll because it uses the `title`-overload of `BottomSheet`, which doesn't thread `scrollableContent` down to the base. Threading the flag through the two title overloads finishes the story. Not mechanical: the title overload wraps `title + body` together, so the scroll must wrap only `body()` to keep the title pinned — decide the scroll scope deliberately rather than wrapping the whole slot.
 
 **Status:** Backlog. DS plumbing polish; pull when the next sheet wants a scrollable body under a title.
+
+---
 
 ## RoomSeat: lift the seat-tile labels to string resources
 
@@ -1120,11 +945,15 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 
 **Status:** Backlog. Small DS hygiene pass; pull when touching RoomSeat again or when localization work starts.
 
+---
+
 ## Guest email-link "account saved" dialog on cold launch (AUTH-24 follow-on)
 
 **Idea (AUTH-24 follow-on, 2026-07-17):** AUTH-24 shows the "account saved" dialog when an anonymous guest confirms an email link, by threading a `guestLink` flag through `VerifyEmailRoute`. The cold-launch deep link `cards://auth/confirmed` can't carry that flag, so a guest who kills the app between requesting and tapping the link lands on Home with no dialog (the warm `AppResumed` path on the live screen is covered). Close the gap by persisting a "guest email link pending confirmation" marker in `AppData` when the claim flow kicks off `linkEmailIdentity`, then reading + clearing it in `VerifyEmailViewModel.routeAfterConfirmation` so the cold-launch confirm also shows the dialog.
 
 **Status:** Backlog. The flag defaulting false only ever omits the dialog, never shows the wrong one, so this is a completeness polish, not a correctness bug. Pull when touching the verify-email flow or AppData onboarding flags.
+
+---
 
 ## Cold-launch email confirmation: same-frame routing into onboarding (AUTH-26 residual)
 
@@ -1132,11 +961,15 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 
 **Status:** Backlog. Low-severity edge (the app-backgrounded-not-killed path already routes immediately); pull when the auth deep-link paths get device QA.
 
+---
+
 ## Animated screen-entrance transitions (staggered content reveal)
 
 **Idea (owner feedback 2026-07-18):** When a screen finishes loading, its content currently pops in all at once — e.g. the shop grid snaps onto the screen once the catalog resolves. Add a deliberate entrance animation so loaded content reveals with a short, subtle staggered fade/slide instead of jumping. Most visible on the list/grid screens (shop, My Items, achievements). Build it as a reusable enter-transition primitive in `:libraries:ui` (`AnimatedVisibility` + a staggered fade+slide, or lazy-list item enter / `animateItemPlacement`) rather than per-screen one-offs, so the motion reads as one system and stays DS-owned. Keep it fast and understated (the goal is polish, not a splashy reveal); honor reduced-motion if/when that setting is surfaced.
 
 **Status:** Backlog. Pure UX polish; pull during a motion pass or when the shop/list screens get design attention.
+
+---
 
 ## Refund / chargeback webhooks (claw back granted chips)
 
@@ -1144,17 +977,23 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 
 **Status:** Backlog. Payment-integrity hardening; pull when refund abuse shows up in the ledger or before scaling paid users.
 
+---
+
 ## Unified single-entry-point auth facade (AUTH-22 follow-on)
 
 **Idea (AUTH-22 follow-on, 2026-07-18):** AUTH-22 replaced the duplicated new-vs-returning booleans with a typed `AuthOutcome` (`SignedUp` / `SignedIn` / `Linked`) resolved by an `AuthOutcomeClassifier` that sits above the repos and reads the server's one-shot `/v1/me` new-account signal. The classifier is a deliberate stop short of the item's stated end state: sign-in and account-link still have several entry points across `AuthRepository` (OAuth, Apple, email, guest-link), each returning its own result type, with callers stitching the outcome together. The fuller move is one `AccountClaimer` facade that unifies every sign-in/link method behind a single call returning one typed `AuthResult`, so onboarding / verify / claim never touch `AuthRepository` shapes directly. Deferred as too big for the AUTH-22 slice; folding classification onto `AuthRepository` itself was rejected because `ProfileRepository` (which owns the new-account latch) already depends on `AuthRepository`, so the facade has to live above both. See decisions.md (2026-07-18).
 
 **Status:** Backlog. Architectural cleanup with no user-visible change; pull when the auth entry points next get substantial work, or if a third consumer of the outcome appears.
 
+---
+
 ## Gate real-money purchases during announced maintenance (BILL follow-on)
 
 **Idea (2026-07-19):** When the server announces *non-blocking* maintenance (the banner variant of `AppGuard`, not the full-block), the shop is still reachable and a real-money purchase can settle at Apple/Google while our redeem is degraded. Today that degrades gracefully (the "Your chips are on the way" dialog + the launch-drain retry + the optimistic Pending row in purchase history), but it still charges the user into a known-degraded window. Nice-to-have: disable the buy buttons (or show "purchases paused for maintenance") when `AppGuard` reports maintenance, so we don't take money we can't immediately honor. Blocking maintenance already gates the whole app, so this is only the banner case. Product call: weigh a lost sale vs. a smoother recovery — deferred, not clearly worth blocking a sale.
 
 **Status:** Backlog. Pull if support sees "paid during maintenance, no chips" reports, or before a planned maintenance window with live paying users.
+
+---
 
 ## Grant-on-replay / install-lineage security follow-ups (BILL-11, from the 2026-07-19 review)
 
@@ -1164,11 +1003,15 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 
 **Status:** Backlog. Pull before scaling paid users or if abuse shows in `billing_events` (spike in distinct receipt owners per caller, or grant-on-replay rate).
 
+---
+
 ## Auto-remove idle players after repeated auto checks/folds (owner note, 2026-07-21)
 
 **Idea (owner, CARDS-B3):** When a player misses their turn repeatedly and the server keeps auto-checking / auto-folding them, we currently leave them at the table indefinitely. Consider detecting N consecutive auto-actions and removing the idle player from the game with a dialog ("we removed you for inactivity"), possibly a one-warning-before-removal step first. Needs a product call on N, whether to warn first, and how removal interacts with mid-hand state and rebuy/leave-with-winnings. Deferred as a design decision, not a mechanical fix.
 
 **Status:** Backlog. Pull when hardening MP table health / AFK handling.
+
+---
 
 ## Pepper bots into public games so a fresh table is never empty (owner note, 2026-07-21)
 
@@ -1178,17 +1021,23 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 
 **Status:** Backlog. Pull when public-table liveliness at low liquidity becomes a real problem; start with the seed-one-bot slice if a cheap win is wanted sooner.
 
+---
+
 ## Server-side matchmaking queue (long-term convergence answer)
 
 **Idea (2026-07-21):** Matchmaking is client-driven find-or-create today: each searcher browses candidates then either joins one or creates and waits, which races when two people search at nearly the same time (the first creates and waits, the second lands in the manual chooser, and they can fail to converge). The affordability fix (MP-36) plus the "auto-join the single obvious affordable table" client tweak cover the common thin-liquidity case, but the robust answer is to move pairing onto the server: `find` puts you in a queue keyed by buy-in, the server pairs waiting searchers and seats them together atomically (creating a table only when it has enough people, falling back to disclosed bots on timeout), and the client just shows "finding" then gets handed a room. Removes the client race entirely and scales to real traffic. The chooser survives as an explicit "browse open tables" option for people who want to pick, not as the default convergence mechanism.
 
 **Status:** Backlog. Pull when concurrent public search volume makes the client-side race a real source of failed matches; it supersedes the client convergence tweaks rather than stacking on them.
 
+---
+
 ## Enable R8 minification for the Android release (size + obfuscation)
 
 **Idea (2026-07-23):** The Android app ships with `isMinifyEnabled = false` (`build-logic/.../ApplicationConventionPlugin.kt`) and no `proguard-rules.pro`, so release builds are neither shrunk nor obfuscated and produce no `mapping.txt`. Turning R8 on (`isMinifyEnabled = true`, likely `isShrinkResources = true`) would shrink the AAB, obfuscate the bytecode, and emit the mapping used to de-obfuscate Play/Sentry crash traces. The catch is keep rules: this KMP stack (kotlinx.serialization `@Serializable` models, kotlin-inject/anvil generated DI, Compose, Ktor, supabase-kt) needs correct `-keep` rules or R8 causes release-only crashes that only surface once real users hit them. Requires writing + validating keep rules and a full on-device release smoke test before trusting it. iOS is unaffected (separate Kotlin/Native pipeline; its de-obfuscation artifact is the dSYM, which already works). The codebase already anticipates obfuscation in spots (stable string log tags instead of `::class.simpleName`).
 
-**Status:** Backlog. Post-launch optimization, not a launch blocker. Minify-off is the safe first-launch default: traces stay readable and there's no keep-rule crash risk. Pull when app size or reverse-engineering becomes a real concern. Note: `release.yml`'s Play-upload step currently hard-requires `mapping.txt` and fails without it (this broke the first Android release, 2026-07-23) — so shipping with minify **off** needs that mapping upload made optional, and enabling minify later would satisfy it the other way.
+**Status:** Backlog. Post-launch optimization, not a launch blocker. Minify-off is the safe first-launch default: traces stay readable and there's no keep-rule crash risk. Pull when app size or reverse-engineering becomes a real concern. (The earlier `release.yml` snag — the Play-upload step hard-requiring `mapping.txt` — is fixed: the workflow now resolves the mapping and uploads it only if minify produced one, so minify-off ships cleanly.)
+
+---
 
 ## Loki recording rules → Prometheus for retention-proof count/rate trends
 
