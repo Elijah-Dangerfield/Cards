@@ -84,7 +84,7 @@ Synthesize the evidence into a concrete root cause. For any **Sentry issue** you
 
 Then pick a disposition:
 
-**(a) Actionable → file a todo.** Append to `docs/todo.md` in the house format (`docs/agent/todo-maintainer.md` — one bold title + ≤3 lines, a priority tag, no status archaeology). Put the case-file path in `Hints:`:
+**(a) Actionable → file a todo.** Append to `docs/todo.md` in the house format (the `curate-todos` skill — one bold title + ≤3 lines, a priority tag, no status archaeology). Put the case-file path in `Hints:`:
 
 ```
 - `[P0]` **Short imperative title of the fix.** One sentence: what's wrong (from the signal + telemetry).
@@ -112,7 +112,7 @@ For **every** signal handled, append to `docs/agent/observability-log.md`:
 - <date> · <short-id | signal-slug> · <"todo: <title>" | "no-action: <reason>" | "backlog"> · <Sentry URL | dashboard/alert link> · case docs/agent/feedback-cases/<id>.md
 ```
 
-Then close the loop in Sentry (Grafana is read-only — see guardrails). **Do not resolve an issue you filed a todo for** — it isn't fixed yet; leave it unresolved and only comment that it's triaged, and the worker that ships the fix resolves it then (`worker-prompt.md`). Only **no-action** dispositions resolve here. Record the Sentry issue id in the todo's Hints so the worker can find it. Resolve the token from env, falling back to the macOS Keychain so unattended runs work without a plaintext token on disk:
+Then close the loop in Sentry (Grafana is read-only — see guardrails). **Do not resolve an issue you filed a todo for** — it isn't fixed yet; leave it unresolved and only comment that it's triaged, and the worker that ships the fix resolves it then (the `work-item` skill). Only **no-action** dispositions resolve here. Record the Sentry issue id in the todo's Hints so the worker can find it. Resolve the token from env, falling back to the macOS Keychain so unattended runs work without a plaintext token on disk:
 
 ```
 TOKEN="${SENTRY_AUTH_TOKEN:-$(security find-generic-password -s cards-sentry-auth-token -w 2>/dev/null)}"

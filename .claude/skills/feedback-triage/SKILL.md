@@ -66,6 +66,18 @@ If `session_id` is absent (older client build before the correlation work shippe
 - **End-user feedback / bug report** — someone describing a problem or experience. These get the full investigation (steps 3–4) before you decide.
 - **Owner change-request / self-note** — the project owner uses the in-app feedback box to jot things he wants changed ("change the X", "add Y", "I want Z", a design/feature tweak). These are *directives*, not problems to reproduce. Tell-tales: first-person imperative or "I want…" phrasing, a feature/design ask rather than a symptom. When a report reads this way, **skip the telemetry dig** (steps 3–4) — there's no session to reconstruct — and turn it straight into a todo (step 5a) or, if larger/fuzzier, a backlog one-liner. Never resolve a directive as "no-action / not reproducible"; it's a wanted change. When unsure which kind it is, treat it as end-user feedback and investigate.
 
+**Channel decides directive vs signal (post-launch).** Read the report's `environment` / `release_channel` tags:
+
+- **dev / beta** (`release_channel` ≠ `store`, or an environment like `dev-*` / `beta-*`) — you or a trusted tester dogfooding. Treat it as a **directive**, same as an owner change-request: file the todo, no severity debate.
+- **prod / store** (`release_channel="store"`, prod environment) — a **real user**. A bug is a report to weigh by severity + frequency (steps 3–4 as normal); a feature ask or opinion is **product input**, not an automatic bug.
+
+**Product asks from prod — judge them, don't just defer to the human.** For a prod feature request / opinion (not a bug):
+
+- If it's **genuinely good and actionable** — clear, small-to-medium, obviously aligned with the app — **file it as a todo like any other work; don't wait for the owner.** If it's small enough that a worker will just build it, that's the win.
+- If it's **big, vague, or a real product judgment call** — one-liner in `docs/backlog.md` and leave it for the owner's decision.
+
+Either way, record which bucket it landed in so the daily brief can report it (*added to todos* / *already shipped* / *parked in backlog for your call*). **Never silently drop a prod product ask as "no-action".**
+
 ### 3. Reconstruct the session — frontend (Sentry + client events in Loki)
 
 - The feedback event's **breadcrumbs** are the frontend trail (route changes, logged events) leading up to the report.
@@ -134,7 +146,7 @@ Keep case files terse; they are bug-investigation notes, not narratives. The poi
 
 Then pick a disposition:
 
-**(a) Actionable → file a todo.** Append to `docs/todo.md` in the house format (see `docs/agent/todo-maintainer.md` — one bold title + ≤3 lines, a priority tag, no status archaeology). Include the case-file path in `Hints:` so a worker reads it before touching code:
+**(a) Actionable → file a todo.** Append to `docs/todo.md` in the house format (see the `curate-todos` skill — one bold title + ≤3 lines, a priority tag, no status archaeology). Include the case-file path in `Hints:` so a worker reads it before touching code:
 
 ```
 - `[P1]` **Short imperative title of the fix.** One sentence: what's wrong (from the report + telemetry).
@@ -167,7 +179,7 @@ For **every** feedback handled, append to `docs/agent/feedback-log.md`. Include 
 Then close the loop in Sentry. **Do not resolve an issue you filed a todo for** —
 it isn't fixed yet, and resolving-at-triage is exactly what let a dropped todo
 disappear with no trace. Leave a todo-filed issue **unresolved** and only comment
-that it's triaged; the worker that ships the fix resolves it then (`worker-prompt.md`).
+that it's triaged; the worker that ships the fix resolves it then (the `work-item` skill).
 Only **no-action** dispositions (duplicate, praise, not-a-defect, user error) get
 resolved here — there's no fix coming, so resolving is correct. Either way, record
 the Sentry issue id in the todo's Hints / the case file so the worker can find it.
