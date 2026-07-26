@@ -39,6 +39,7 @@ duplicate) if a resolved signal gets materially worse.
 | `alerts:A1-A7-2026-07-13-nightly` | Firing-alert sweep (rules A1–A7) + Loki server error re-sweep (nightly) | no-action: none firing/pending, no OnCall groups, zero cards-server error/fatal logs in 24h |
 | `alerts:A1-A7-2026-07-15-nightly` | Firing-alert sweep (A1–A7) + OnCall + Loki server error/warn sweep + Pulse skim | no-action: none firing/pending, no OnCall groups; billing rejections present but only at WARN (covered by BILL-11/12 via CARDS-9V) |
 | `alerts:A1-A7-2026-07-17-nightly` | Firing-alert sweep (A1–A7) + OnCall + Loki server warn/error/fatal sweep | no-action: none firing/pending, no OnCall groups; 4 WARN lines all apple_account_mismatch redeem rejections (covered by BILL-11/12/13) |
+| `alert:A5-false-page-2026-07-26` | A5 (billing critical) paged ~03:00Z; owner found nothing in Sentry/logs | no-action: FALSE ALARM — Loki datasource blip (connection refused) + `exec_err_state=Alerting` fired it; billing healthy (0 failed / 1 completed / 3 initiated in 48h). Fixed: A5 `exec_err_state=OK` + `runbook_url` → dc-billing-health; added a live Purchase-funnel section to that dashboard |
 
 ---
 
@@ -245,6 +246,14 @@ FOR A HUMAN: CARDS-AM is an untriaged "User feedback" carrier (feedback_event 1d
 
 Grafana: alerting_manage_rules(states=firing,pending) → null. Loki cards-server prod warn|error|fatal 24h → 0 lines. Nothing else filed. -->
 - 2026-07-22 · CARDS-BA · todo: ENG-34 [P2] stop reporting expected-offline network failures as Sentry errors (59 events, one offline owner device) · https://elijah-dangerfield.sentry.io/issues/CARDS-BA · case docs/agent/feedback-cases/CARDS-BA.md
+
+<!-- 2026-07-26 interactive (owner: "billing alert went off last night, can't find why in Sentry/logs"). Root-caused a FALSE PAGE, no billing defect.
+
+- A5 · Purchase success rate low (uid bfrtc7fm94qgwb, area=billing severity=critical) went active ~2026-07-26T03:00:20Z. The firing alert instance's annotation carried Error: "failed to execute query [A]: ... dial tcp 10.20.30.100:3100: connect: connection refused" — the Grafana→Loki datasource had a transient blip, query A couldn't run, and the rule's `exec_err_state=Alerting` turned that execution error into a critical billing page. NOT a real purchase failure: Loki shows 0 purchase.failed / 1 purchase.completed / 3 purchase.initiated in the last 48h (prod), success rate 100%, no cards-server warn/error/fatal in 24h. Owner found nothing because there was nothing — the page was about the alert's own query failing, not money.
+- FIX (this session): A5 `exec_err_state` Alerting→OK (a datasource/query blip no longer pages; the real rate-breach condition D still pages immediately at for=0s). Added `runbook_url` → dc-billing-health so a real page links to the drill-down. Client telemetry was already adequate: DefaultPurchaseChipPackUseCase logs purchase.failed with product_id + `error`=reason at Error level (→ Sentry); no extra logging needed there.
+- DIAGNOSABILITY (this session): added a "Purchase funnel (live · from client events)" section to dc-billing-health (was all-empty pre-V88): success-rate stat (the A5 metric, red<80%), Purchases/day funnel (initiated/completed/failed/cancelled), Failures-by-reason table (the `error` attr × product × platform), Recent-failed-purchases logs panel. Sourced from Loki, prod-pinned. So a real A5 is one click from the why, no Explore.
+- STILL OPEN (offered, not done): audit A1–A7 for the same exec_err_state / no_data = Alerting footgun (memory already flags A2/A3 no_data=Alerting paging on a dead scrape). -->
+- 2026-07-26 · alert:A5-false-page-2026-07-26 · no-action: false alarm (Loki datasource blip + exec_err_state=Alerting); fixed A5 exec_err_state=OK + runbook + live billing funnel section · https://cards.grafana.net/d/dc-billing-health/downcard-c2b7-billing-health
 
 <!-- 2026-07-24 interactive observability triage (owner-requested: investigate a single new ANR, CARDS-BR). Reviewed 1 Sentry issue. Filed 0 todos; 1 no-action; added a new benign class to the wiki.
 
