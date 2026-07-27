@@ -28,6 +28,7 @@ duplicate) if a resolved signal gets materially worse.
 | [CARDS-A2](https://elijah-dangerfield.sentry.io/issues/CARDS-A2) | `Server rejected replayed receipt for order …555` (iOS) | no-action: dup of BILL-13 (replayed-receipt cluster) |
 | [CARDS-AB](https://elijah-dangerfield.sentry.io/issues/CARDS-AB) | `Terminally rejected replayed receipt for order …555 — finishing it` (client) | no-action: dup of BILL-13; client's terminal-finish path logged at error → Sentry noise |
 | [CARDS-BR](https://elijah-dangerfield.sentry.io/issues/CARDS-BR) | `ApplicationNotResponding: ANR` (Android, syscall) | no-action: environmental — emulator/side-load ANR at PairIP license gate, no app frames (new benign class in wiki) |
+| [CARDS-BS](https://elijah-dangerfield.sentry.io/issues/CARDS-BS) | `ProxyBillingActivity` NPE `getIntentSender()` (Android billing) | no-action: upstream Play Billing crash on old build 1009 (billing 7.1.1); current repo ships billing-ktx 9.1.0; 1 event on a likely review-emulator |
 
 ## Grafana signals
 
@@ -40,6 +41,7 @@ duplicate) if a resolved signal gets materially worse.
 | `alerts:A1-A7-2026-07-15-nightly` | Firing-alert sweep (A1–A7) + OnCall + Loki server error/warn sweep + Pulse skim | no-action: none firing/pending, no OnCall groups; billing rejections present but only at WARN (covered by BILL-11/12 via CARDS-9V) |
 | `alerts:A1-A7-2026-07-17-nightly` | Firing-alert sweep (A1–A7) + OnCall + Loki server warn/error/fatal sweep | no-action: none firing/pending, no OnCall groups; 4 WARN lines all apple_account_mismatch redeem rejections (covered by BILL-11/12/13) |
 | `alert:A5-false-page-2026-07-26` | A5 (billing critical) paged ~03:00Z; owner found nothing in Sentry/logs | no-action: FALSE ALARM — Loki datasource blip (connection refused) + `exec_err_state=Alerting` fired it; billing healthy (0 failed / 1 completed / 3 initiated in 48h). Fixed: A5 `exec_err_state=OK` + `runbook_url` → dc-billing-health; added a live Purchase-funnel section to that dashboard |
+| `sweep:2026-07-27-interactive` | Owner-requested "look for issues across Sentry + Grafana" | no-action: 1 Sentry issue (CARDS-BS → no-action); no alerts firing/pending; 0 cards-server warn/error/fatal in 24h; 4 one-off client warnings (noise) |
 
 ---
 
@@ -254,6 +256,14 @@ Grafana: alerting_manage_rules(states=firing,pending) → null. Loki cards-serve
 - DIAGNOSABILITY (this session): added a "Purchase funnel (live · from client events)" section to dc-billing-health (was all-empty pre-V88): success-rate stat (the A5 metric, red<80%), Purchases/day funnel (initiated/completed/failed/cancelled), Failures-by-reason table (the `error` attr × product × platform), Recent-failed-purchases logs panel. Sourced from Loki, prod-pinned. So a real A5 is one click from the why, no Explore.
 - FLEET FIX (owner: "remove all on-execution-error→fire, don't wanna be woken up like that"): set `exec_err_state=OK` on ALL A1–A7. Was Alerting on A1/A2/A3/A4/A6 (A5/A7 already OK). Discovered A4 (Clients-can't-reach-backend, also Loki-based) carried the SAME "connection refused" error at 02:50:10Z — so last night's Loki blip false-paged TWICE (A4 then A5). `no_data=Alerting` deliberately KEPT on A2 (Fly down) + A3 (Postgres down) as the deadman; all others no_data=OK. -->
 - 2026-07-26 · alert:A5-false-page-2026-07-26 · no-action: false alarm (Loki datasource blip + exec_err_state=Alerting) that also tripped A4; fixed ALL A1–A7 exec_err_state=OK + A5 runbook + live billing funnel section · https://cards.grafana.net/d/dc-billing-health/downcard-c2b7-billing-health
+
+<!-- 2026-07-27 interactive observability triage (owner: "look for issues across Sentry and the Grafana dashboards"). Reviewed 1 unresolved Sentry issue + Grafana alert/log sweep. Filed 0 todos; 1 no-action. App broadly healthy.
+
+- CARDS-BS (RuntimeException: Unable to start ProxyBillingActivity → NullPointerException on PendingIntent.getIntentSender(), fatal, 1 event/1 user, 2026-07-25). Crash is entirely in com.android.billingclient.api.ProxyBillingActivity.onCreate (billing 7.1.1) + Android framework — ZERO first-party frames, and it's a separate activity's onCreate so no app-side catch is possible. Well-known upstream Play Billing crash (null PendingIntent from launchBillingFlow — broken/absent Play Store or an emulator billing backend). Environment store-android-release / installerStore=com.android.vending / isSideLoaded=false BUT build cards@0.1.0+**1009** (current is 1026) and device fingerprint is an emulator/automated-review device (archs x86_64-first, 288x448 @ 0.66 density, 2 cores, device.class low, locale en_TT), not a retail OnePlus 8 Pro. Standard mitigation already shipped: repo ships com.android.billingclient:billing-ktx **9.1.0** (libs.versions.toml), two majors past the 7.1.1 in build 1009. → no-action, resolved in Sentry with reasoning. Re-open if it recurs on a 9.1.0 build (≥1026) on a real device. Case docs/agent/feedback-cases/CARDS-BS.md.
+
+Grafana: alerting_manage_rules(states=firing,pending) → null (none firing). Loki {service_name="cards-server",deployment_environment=prod} | warn|error|fatal over 24h → 0 lines (16 scanned, stream live). Client {service_name="cards-client"} | warn|error|fatal over 24h → 4 one-off warnings (AppConfigRepository / AppRecompose / AuthTokenProvider / NetworkCall, 1 each = noise, no cluster). No alerts, no server errors, nothing filed from Grafana. -->
+- 2026-07-27 · CARDS-BS · no-action: upstream Play Billing ProxyBillingActivity NPE on superseded build 1009 (billing 7.1.1); current repo ships billing-ktx 9.1.0; single event on a likely automated-review emulator · https://elijah-dangerfield.sentry.io/issues/CARDS-BS · case docs/agent/feedback-cases/CARDS-BS.md
+- 2026-07-27 · sweep:2026-07-27-interactive · no-action: no alerts firing/pending, 0 cards-server warn/error/fatal in 24h, 4 one-off client warnings (noise) · Sentry + Grafana
 
 <!-- 2026-07-24 interactive observability triage (owner-requested: investigate a single new ANR, CARDS-BR). Reviewed 1 Sentry issue. Filed 0 todos; 1 no-action; added a new benign class to the wiki.
 
