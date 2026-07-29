@@ -27,6 +27,7 @@ import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.home.LevelUpRoute
 import com.dangerfield.cards.features.home.PlayStyleUnlockedRoute
 import com.dangerfield.cards.features.home.WelcomeDialogRoute
+import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.lobby.PrivateCreateRoute
 import com.dangerfield.cards.features.lobby.PrivateJoinRoute
@@ -49,6 +50,7 @@ import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import com.dangerfield.cards.libraries.navigation.OnTabReselected
 import com.dangerfield.cards.libraries.navigation.Router
+import com.dangerfield.cards.libraries.review.ReviewLauncher
 import com.dangerfield.cards.libraries.navigation.dialog
 import com.dangerfield.cards.libraries.navigation.screen
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
@@ -65,6 +67,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class HomeFeatureEntryPoint(
     private val homeViewModelFactory: () -> HomeViewModel,
+    private val reviewLauncher: ReviewLauncher,
 ) : FeatureEntryPoint {
 
     @OptIn(ExperimentalComposeUiApi::class)
@@ -94,7 +97,9 @@ class HomeFeatureEntryPoint(
                                 displayName = payload.displayName,
                                 avatarEmoji = payload.avatarEmoji,
                                 avatarBackgroundColorHex = payload.avatarBackgroundColorHex,
-                                chips = payload.chips,
+                                grantChips = payload.grantChips,
+                                grantPending = payload.grantPending,
+                                isFounding = payload.isFounding,
                             )
                         )
                     }
@@ -285,12 +290,27 @@ class HomeFeatureEntryPoint(
         // its own animation/dismissal lifecycle from there.
         dialog<WelcomeDialogRoute> { backStackEntry, dialogState ->
             val route = backStackEntry.toRouteOrNull<WelcomeDialogRoute>() ?: return@dialog
+            val scope = rememberCoroutineScope()
             WelcomeDialog(
                 state = dialogState,
                 displayName = route.displayName,
                 avatarEmoji = route.avatarEmoji,
                 avatarBackgroundColorHex = route.avatarBackgroundColorHex,
-                chips = route.chips,
+                grantChips = route.grantChips,
+                grantPending = route.grantPending,
+                isFounding = route.isFounding,
+                // Fire-and-forget the platform in-app review flow. The OS decides
+                // whether to actually surface it; the dialog stays put so the user
+                // lands back here after (or if nothing shows).
+                onGiveReview = { scope.launch { reviewLauncher.requestReview() } },
+                // Pop the welcome before opening feedback so returning from it
+                // doesn't drop the user back onto the (already-seen) welcome.
+                onGiveFeedback = {
+                    router.batch {
+                        goBack()
+                        navigate(FeedbackRoute())
+                    }
+                },
                 onDismiss = { router.goBack() },
             )
         }

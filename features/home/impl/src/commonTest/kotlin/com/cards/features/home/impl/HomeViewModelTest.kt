@@ -25,7 +25,11 @@ import com.dangerfield.cards.libraries.cards.xpAtStartOfLevel
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.config.AppConfigMap
+import com.dangerfield.cards.libraries.core.fixed
 import com.dangerfield.cards.libraries.identity.OnboardingStarterGrant
+import com.dangerfield.cards.libraries.identity.WelcomeFoundingMemberUntil
+import kotlin.time.Clock
+import kotlin.time.Instant
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
@@ -57,6 +61,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -672,13 +677,13 @@ class HomeViewModelTest : CoroutineTest() {
             chips.balance.value = 10_500L
             val event = awaitItem()
             assertTrue(event is HomeEvent.OpenWelcomeDialog)
-            assertEquals(10_500L, event.payload.chips)
+            assertEquals(10_500L, event.payload.grantChips)
             assertEquals("FreshInstall", event.payload.displayName)
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(
-            true, appCache.get().didSeeInitialGrantInOnboarding,
-            "gate must mark the grant seen at emit time so it doesn't re-fire",
+            true, appCache.get().welcomeSeen,
+            "gate must mark the dialog seen at emit time so it doesn't re-fire",
         )
     }
 
@@ -742,6 +747,39 @@ class HomeViewModelTest : CoroutineTest() {
             assertEquals("Eventually", event.payload.displayName)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun welcomeGate_foundingWindowOpen_firesForExistingPlayer_withNoRevealAndMarksSeen() = runUnitTest {
+        // Not a fresh account, but the founding window is open (config close-time
+        // 10_000 > the fixed clock's now=0) → thank the existing early player once,
+        // founding copy only, no starter-grant reveal.
+        val profile = FakeProfileRepository(
+            initial = authenticatedProfile(displayName = "EarlyBird", isAnonymous = false),
+        )
+        val chips = FakeChipsRepository(initial = 132_250L)
+        val appCache = FakeAppCache()
+        val vm = buildVm(
+            profile = profile,
+            chips = chips,
+            appCache = appCache,
+            foundingMemberUntil = WelcomeFoundingMemberUntil.forTest(untilEpochMs = 10_000L),
+        )
+        vm.takeAction(HomeAction.ScreenResumed)
+
+        vm.eventFlow.test {
+            val event = awaitItem()
+            assertTrue(event is HomeEvent.OpenWelcomeDialog)
+            assertTrue(event.payload.isFounding)
+            assertNull(event.payload.grantChips)
+            assertFalse(event.payload.grantPending)
+            assertEquals("EarlyBird", event.payload.displayName)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(
+            true, appCache.get().welcomeSeen,
+            "founding welcome must mark seen so an early player is thanked once",
+        )
     }
 
     @Test
@@ -979,6 +1017,12 @@ class HomeViewModelTest : CoroutineTest() {
         onboardingStarterGrant: OnboardingStarterGrant = OnboardingStarterGrant(
             object : AppConfigMap() { override val map = emptyMap<String, Any>() },
         ),
+        // Default: no founding window (config sentinel 0), so the welcome wears its
+        // plain new-account copy unless a test opts into the window.
+        foundingMemberUntil: WelcomeFoundingMemberUntil = WelcomeFoundingMemberUntil(
+            object : AppConfigMap() { override val map = emptyMap<String, Any>() },
+        ),
+        clock: Clock = Clock.fixed(Instant.fromEpochMilliseconds(0)),
         socialEnabled: Boolean = true,
     ): HomeViewModel = HomeViewModel(
         progressionRepository = progression,
@@ -991,6 +1035,8 @@ class HomeViewModelTest : CoroutineTest() {
         playStyleRepository = playStyle,
         progressionConfig = progressionConfig,
         onboardingStarterGrant = onboardingStarterGrant,
+        foundingMemberUntil = foundingMemberUntil,
+        clock = clock,
         appCache = appCache,
         appScope = AppCoroutineScope(dispatchers),
         socialEnabledConfig = SocialEnabled.forTest(socialEnabled),

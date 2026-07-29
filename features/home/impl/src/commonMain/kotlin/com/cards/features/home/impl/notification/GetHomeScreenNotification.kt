@@ -31,8 +31,15 @@ data class HomeNotificationSnapshot(
      * pre-existing account signing in could look "new" and get the welcome.
      */
     val accountJustCreated: Boolean,
-    /** Monotonic: the starter grant was already revealed. */
+    /** Monotonic: the starter grant was already revealed in onboarding — gates the
+     *  dialog's *reveal section*, not whether the dialog shows. */
     val didSeeInitialGrantInOnboarding: Boolean,
+    /** Whether the one-time welcome dialog has already been presented to this
+     *  account. The dialog's true once-per-user gate (see `AppData.welcomeSeen`). */
+    val welcomeSeen: Boolean,
+    /** Whether the founding-member window is open right now. Resolved by the
+     *  ViewModel against the device clock so the arbiter stays pure + clock-free. */
+    val inFoundingWindow: Boolean,
     /** Welcome-dialog identity, resolved once the profile + wallet hydrate. Null until then. */
     val welcomeIdentity: WelcomeIdentity?,
     /**
@@ -110,7 +117,7 @@ fun HomeNotificationSnapshot.seedsNeeded(): HomeNotificationSeeds {
  * snapshot, or null if nothing blocking is pending. Pure: same snapshot in →
  * same result out.
  *
- * Priority: [HomeNotification.Welcome] (first-run, once) →
+ * Priority: [HomeNotification.Welcome] (once per account) →
  * [HomeNotification.AchievementsEarned] → [HomeNotification.LevelUp] →
  * [HomeNotification.PlayStyleUnlocked] → [HomeNotification.OutOfChips]. An unset
  * level watermark yields no level-up (it seeds instead — see [seedsNeeded]).
@@ -153,17 +160,41 @@ fun HomeNotificationSnapshot.chipDelta(): HomeNotification.ChipDelta? {
 }
 
 private fun HomeNotificationSnapshot.welcome(): HomeNotification.Welcome? {
-    if (!accountJustCreated || didSeeInitialGrantInOnboarding) return null
+    // Once per account, full stop — this is what lets the founding copy reach an
+    // existing early player exactly once rather than never (they'd fail the
+    // "just created" test the old gate leaned on).
+    if (welcomeSeen) return null
     val identity = welcomeIdentity ?: return null
-    // Reveal the EXPLICIT starter grant, not the wallet balance. Fall back to the
-    // balance only when the grant config is offline — for a genuinely brand-new
-    // account (the only case that reaches here now) the balance equals the grant.
-    val chips = starterGrant ?: chipBalance ?: return null
+
+    // The dialog earns a showing only when it has something to say: a brand-new
+    // account still owed its starter-grant reveal (the backup reveal, when
+    // onboarding's reveal degraded), or an open founding-member window.
+    val owesBackupReveal = accountJustCreated && !didSeeInitialGrantInOnboarding
+    if (!owesBackupReveal && !inFoundingWindow) return null
+
+    val grantReveal = if (owesBackupReveal) {
+        when {
+            // Prefer the explicit server grant.
+            starterGrant != null -> HomeNotification.Welcome.GrantReveal.Exact(starterGrant)
+            // Still hydrating — wait for the real number rather than flash "landing
+            // soon" and never correct it (the dialog shows exactly once).
+            chipBalance == null -> return null
+            // A fresh account's balance equals its grant before they've played.
+            chipBalance > 0 -> HomeNotification.Welcome.GrantReveal.Exact(chipBalance)
+            // Hydrated to zero with no grant config — offline / the grant hasn't
+            // posted. Promise the chips instead of revealing a wrong or zero number.
+            else -> HomeNotification.Welcome.GrantReveal.Pending
+        }
+    } else {
+        null
+    }
+
     return HomeNotification.Welcome(
         displayName = identity.displayName,
         avatarEmoji = identity.avatarEmoji,
         avatarBackgroundColorHex = identity.avatarBackgroundColorHex,
-        chips = chips,
+        grantReveal = grantReveal,
+        isFounding = inFoundingWindow,
     )
 }
 
