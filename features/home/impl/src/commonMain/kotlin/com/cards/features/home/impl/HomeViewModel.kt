@@ -28,6 +28,7 @@ import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.OnboardingStarterGrant
+import com.dangerfield.cards.libraries.identity.WelcomeFoundingMemberUntil
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
@@ -48,6 +49,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
 import me.tatarka.inject.annotations.Inject
 
 @Inject
@@ -62,6 +64,8 @@ class HomeViewModel(
     private val playStyleRepository: PlayStyleRepository,
     private val progressionConfig: ProgressionConfig,
     private val onboardingStarterGrant: OnboardingStarterGrant,
+    private val foundingMemberUntil: WelcomeFoundingMemberUntil,
+    private val clock: Clock,
     private val appCache: AppCache,
     private val appScope: AppCoroutineScope,
     socialEnabledConfig: SocialEnabled,
@@ -268,6 +272,11 @@ class HomeViewModel(
                 ),
                 accountJustCreated = accountJustCreated,
                 didSeeInitialGrantInOnboarding = appData.didSeeInitialGrantInOnboarding,
+                welcomeSeen = appData.welcomeSeen,
+                // Resolved here, against the device clock, so the arbiter stays a
+                // pure clock-free function. Only selects the dialog's copy, so a
+                // spun-back wall clock just prolongs a thank-you (see the config).
+                inFoundingWindow = foundingMemberUntil.isActiveAt(clock.now().toEpochMilliseconds()),
                 starterGrant = onboardingStarterGrant.amountOrNull(),
                 welcomeIdentity = auth?.let {
                     HomeNotificationSnapshot.WelcomeIdentity(
@@ -446,29 +455,27 @@ class HomeViewModel(
             is HomeNotification.Welcome -> {
                 if (welcomePresented) return
                 welcomePresented = true
-                homeLogger.i { "home notification: starter-grant welcome (chips=${notification.chips})" }
-                // Backup reveal for a fresh account whose onboarding grant step
-                // degraded. Same event as the onboarding reveal so the funnel is
-                // one query: a `grant_reveal_degraded` with no later `home_backup`
-                // means the user never saw their starter chips at all.
-                homeLogger.logEvent(
-                    "onboarding.grant_revealed",
-                    "surface" to "home_backup",
-                    "amount" to notification.chips,
-                )
-                // Monotonic mark first so a re-entrant snapshot can't double-fire.
-                appCache.update { it.copy(didSeeInitialGrantInOnboarding = true) }
+                homeLogger.i {
+                    "home notification: welcome dialog " +
+                        "(founding=${notification.isFounding}, reveal=${notification.grantReveal != null})"
+                }
+                // Fire the backup-reveal event only when we're actually revealing a
+                // real number here — i.e. onboarding's reveal degraded and this is
+                // the one place the user learns their starter chips. Keeps the
+                // funnel one query: a `grant_reveal_degraded` with no later
+                // `home_backup` means they never saw their starter chips at all.
+                (notification.grantReveal as? HomeNotification.Welcome.GrantReveal.Exact)?.let { reveal ->
+                    homeLogger.logEvent(
+                        "onboarding.grant_revealed",
+                        "surface" to "home_backup",
+                        "amount" to reveal.chips,
+                    )
+                }
+                // Mark seen first so a re-entrant snapshot can't double-fire while
+                // the write lands.
+                appCache.update { it.copy(welcomeSeen = true) }
                 delay(DialogIntroDelay)
-                sendEvent(
-                    HomeEvent.OpenWelcomeDialog(
-                        WelcomePayload(
-                            displayName = notification.displayName,
-                            avatarEmoji = notification.avatarEmoji,
-                            avatarBackgroundColorHex = notification.avatarBackgroundColorHex,
-                            chips = notification.chips,
-                        ),
-                    ),
-                )
+                sendEvent(HomeEvent.OpenWelcomeDialog(notification.toPayload()))
             }
             is HomeNotification.AchievementsEarned -> {
                 // Already showing this batch — a re-entrant snapshot (a different
@@ -616,15 +623,28 @@ class HomeViewModel(
 }
 
 /**
- * Eager payload for the welcome route. All fields — including the
- * authoritative chip balance — have resolved by present time, so the
- * dialog paints the real number on first frame.
+ * Eager payload for the welcome route, flattened to primitives so it survives
+ * the trip through [WelcomeDialogRoute]'s serializable nav args. [grantChips] is
+ * the exact figure to reveal (null = none); [grantPending] asks for the "chips
+ * landing soon" treatment instead; [isFounding] layers on the founding-member
+ * copy and its review / feedback actions.
  */
 data class WelcomePayload(
     val displayName: String,
     val avatarEmoji: String,
     val avatarBackgroundColorHex: String?,
-    val chips: Long,
+    val grantChips: Long?,
+    val grantPending: Boolean,
+    val isFounding: Boolean,
+)
+
+private fun HomeNotification.Welcome.toPayload(): WelcomePayload = WelcomePayload(
+    displayName = displayName,
+    avatarEmoji = avatarEmoji,
+    avatarBackgroundColorHex = avatarBackgroundColorHex,
+    grantChips = (grantReveal as? HomeNotification.Welcome.GrantReveal.Exact)?.chips,
+    grantPending = grantReveal is HomeNotification.Welcome.GrantReveal.Pending,
+    isFounding = isFounding,
 )
 
 data class HomeState(
