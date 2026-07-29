@@ -25,7 +25,6 @@ kotlin {
             implementation(projects.libraries.ui)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.identity)
-            implementation(projects.libraries.review)
             implementation(projects.libraries.social)
             implementation(projects.libraries.rooms)
             implementation(projects.libraries.resources)

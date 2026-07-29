@@ -50,7 +50,6 @@ import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import com.dangerfield.cards.libraries.navigation.OnTabReselected
 import com.dangerfield.cards.libraries.navigation.Router
-import com.dangerfield.cards.libraries.review.ReviewLauncher
 import com.dangerfield.cards.libraries.navigation.dialog
 import com.dangerfield.cards.libraries.navigation.screen
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
@@ -67,7 +66,6 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class HomeFeatureEntryPoint(
     private val homeViewModelFactory: () -> HomeViewModel,
-    private val reviewLauncher: ReviewLauncher,
 ) : FeatureEntryPoint {
 
     @OptIn(ExperimentalComposeUiApi::class)
@@ -290,7 +288,6 @@ class HomeFeatureEntryPoint(
         // its own animation/dismissal lifecycle from there.
         dialog<WelcomeDialogRoute> { backStackEntry, dialogState ->
             val route = backStackEntry.toRouteOrNull<WelcomeDialogRoute>() ?: return@dialog
-            val scope = rememberCoroutineScope()
             WelcomeDialog(
                 state = dialogState,
                 displayName = route.displayName,
@@ -299,10 +296,11 @@ class HomeFeatureEntryPoint(
                 grantChips = route.grantChips,
                 grantPending = route.grantPending,
                 isFounding = route.isFounding,
-                // Fire-and-forget the platform in-app review flow. The OS decides
-                // whether to actually surface it; the dialog stays put so the user
-                // lands back here after (or if nothing shows).
-                onGiveReview = { scope.launch { reviewLauncher.requestReview() } },
+                // Open the store listing directly. The in-app review prompt is
+                // throttled by the OS and often shows nothing, which is wrong for
+                // a button the user explicitly tapped. The dialog stays put so
+                // they land back here after the store.
+                onGiveReview = { router.openWebLink(storeReviewUrl()) },
                 // Pop the welcome before opening feedback so returning from it
                 // doesn't drop the user back onto the (already-seen) welcome.
                 onGiveFeedback = {
