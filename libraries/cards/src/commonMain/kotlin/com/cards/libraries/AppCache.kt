@@ -100,18 +100,32 @@ data class AppData(
     /**
      * Whether we've already shown this user their starter-grant number during
      * onboarding (the StarterGrant page). A **monotonic** fact — set true once,
-     * never cleared — used to suppress the Home welcome dialog so the grant
-     * isn't revealed twice.
+     * never cleared within an account.
      *
-     * Paired with the authoritative "this account was just created this session"
-     * signal (`ProfileRepository.observeAccountJustCreated`, server `/v1/me`
-     * `isNewAccount`): the Home dialog fires only when the account was just
-     * created AND we did *not* already show the number in onboarding. Because the
-     * "just created" half is server-sourced and live (false for any pre-existing
-     * account), this can't leak across an account switch the way the old
-     * persisted "owe a reveal" flag did.
+     * Now scoped to one job: gating the Home welcome dialog's *chip-reveal
+     * section*. When onboarding already revealed the number this stays true and
+     * the Home dialog skips re-revealing it (falling to thanks / founding copy);
+     * when the onboarding reveal degraded (offline / timed out) this is false and
+     * the Home dialog performs the backup reveal. It no longer gates whether the
+     * dialog shows at all — [welcomeSeen] owns that.
      */
     val didSeeInitialGrantInOnboarding: Boolean = false,
+
+    /**
+     * Whether the one-time Home welcome dialog has been presented to this
+     * account. False on a fresh install; flips true the moment the dialog is
+     * shown on a settled Home, after which it never shows again for this
+     * identity. This — not [didSeeInitialGrantInOnboarding] — is the dialog's
+     * once-per-user gate, so the founding-member copy reaches existing early
+     * players (whose grant was long ago revealed) exactly once too.
+     *
+     * Account-scoped (see [resetAccountScoped]): a fresh continue-as-guest or an
+     * account switch earns its own welcome rather than inheriting the previous
+     * user's "already seen". Reinstall / sign-out clears it, so the dialog can
+     * re-show once for the same person — an accepted cost of keeping the seen
+     * state on-device rather than server-tracked.
+     */
+    val welcomeSeen: Boolean = false,
 
     /**
      * Whether the user has dismissed the Home-screen "new here?" tutorial
@@ -339,6 +353,10 @@ fun AppData.resetAccountScoped(): AppData = copy(
     // Leaving this true across sign-out would suppress the starter-grant reveal
     // for the *next* account the user signs up for.
     didSeeInitialGrantInOnboarding = false,
+    // The welcome dialog is a first-run moment — a fresh account (incl. a
+    // continue-as-guest after a delete) earns its own, rather than inheriting the
+    // previous user's "already seen" and never being welcomed.
+    welcomeSeen = false,
     // Back to the unset sentinel so the next account silently re-seeds the
     // celebration watermark to *its* level rather than inheriting the previous
     // user's — otherwise a switch into a higher-level account would either

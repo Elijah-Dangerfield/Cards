@@ -15,6 +15,7 @@ import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
 import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
 import com.dangerfield.cards.libraries.identity.OnboardingStarterGrant
 import com.dangerfield.cards.libraries.identity.OnboardingSuggestedName
+import com.dangerfield.cards.libraries.identity.WelcomeFoundingMemberUntil
 import com.dangerfield.cards.libraries.social.SocialEnabled
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -53,6 +54,7 @@ class ConfigManifestDriftTest {
         MaintenanceMessage(stubConfig),
         OnboardingStarterGrant(stubConfig),
         OnboardingSuggestedName(stubConfig),
+        WelcomeFoundingMemberUntil(stubConfig),
         RealPurchasesEnabled(stubConfig),
     )
 
