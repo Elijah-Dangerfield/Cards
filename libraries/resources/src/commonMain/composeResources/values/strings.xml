@@ -396,10 +396,15 @@
     <string name="home_out_of_chips_earn_title">Win them back from the bots</string>
     <string name="home_out_of_chips_earn_subtitle">Bot tables are free to enter. Level-ups and achievements pay real chips.</string>
 
-    <!-- Home - Welcome dialog (one-shot starter-grant intro on first launch). -->
+    <!-- Home - Welcome dialog (one-shot; starter-grant reveal + founding-member thanks). -->
     <string name="home_welcome_dialog_greeting">Welcome,</string>
-    <string name="home_welcome_dialog_gift_line">Here's a little gift from us to start with.</string>
-    <string name="home_welcome_dialog_chip_use_line">Use these to play against other players and buy upgrades.</string>
+    <string name="home_welcome_dialog_gift_line">Here's a little gift to get you started.</string>
+    <string name="home_welcome_dialog_grant_pending_line">Your free starter chips are on the way and will land in your account shortly.</string>
+    <string name="home_welcome_dialog_chip_use_line">Use them to play other people and pick up upgrades.</string>
+    <string name="home_welcome_dialog_founding_body">Thanks for being here this early. There aren't many players yet, so a store review or a word to a friend genuinely helps us make it. That makes you a founding member.</string>
+    <string name="home_welcome_dialog_founding_feedback_line">Have a thought? Feedback goes straight to our inbox and steers what we build next.</string>
+    <string name="home_welcome_dialog_review_cta">Leave a store review</string>
+    <string name="home_welcome_dialog_feedback_cta">Send feedback</string>
     <string name="home_welcome_dialog_primary_cta">Let's play</string>
 
     <!-- Home - Play-style unlocked celebration (one-shot, after ~20 hands). -->

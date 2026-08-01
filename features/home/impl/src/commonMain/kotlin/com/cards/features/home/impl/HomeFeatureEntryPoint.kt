@@ -27,6 +27,7 @@ import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.home.LevelUpRoute
 import com.dangerfield.cards.features.home.PlayStyleUnlockedRoute
 import com.dangerfield.cards.features.home.WelcomeDialogRoute
+import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.lobby.PrivateCreateRoute
 import com.dangerfield.cards.features.lobby.PrivateJoinRoute
@@ -94,7 +95,9 @@ class HomeFeatureEntryPoint(
                                 displayName = payload.displayName,
                                 avatarEmoji = payload.avatarEmoji,
                                 avatarBackgroundColorHex = payload.avatarBackgroundColorHex,
-                                chips = payload.chips,
+                                grantChips = payload.grantChips,
+                                grantPending = payload.grantPending,
+                                isFounding = payload.isFounding,
                             )
                         )
                     }
@@ -290,7 +293,22 @@ class HomeFeatureEntryPoint(
                 displayName = route.displayName,
                 avatarEmoji = route.avatarEmoji,
                 avatarBackgroundColorHex = route.avatarBackgroundColorHex,
-                chips = route.chips,
+                grantChips = route.grantChips,
+                grantPending = route.grantPending,
+                isFounding = route.isFounding,
+                // Open the store listing directly. The in-app review prompt is
+                // throttled by the OS and often shows nothing, which is wrong for
+                // a button the user explicitly tapped. The dialog stays put so
+                // they land back here after the store.
+                onGiveReview = { router.openWebLink(storeReviewUrl()) },
+                // Pop the welcome before opening feedback so returning from it
+                // doesn't drop the user back onto the (already-seen) welcome.
+                onGiveFeedback = {
+                    router.batch {
+                        goBack()
+                        navigate(FeedbackRoute())
+                    }
+                },
                 onDismiss = { router.goBack() },
             )
         }

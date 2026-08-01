@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.db
 
+import com.dangerfield.cards.server.domain.Wallet
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import kotlin.test.Test
@@ -50,9 +51,17 @@ class DatabaseSchemaTest : DatabaseTest() {
             assertEquals(0, UserPlayerStatsTable.selectAll().count())
             assertEquals(0, PlayerStatEventsTable.selectAll().count())
             // V75 seeds the parity set the old in-memory source returned
-            // (upgrade.* ×3 + social.enabled). Non-empty proves the seed ran
-            // AND the Exposed projection lines up with the JSONB schema.
-            assertEquals(4, AppConfigValuesTable.selectAll().count())
+            // (upgrade.* ×3 + social.enabled); V89 adds onboarding.starterGrant.
+            // Non-empty proves the seed ran AND the Exposed projection lines up
+            // with the JSONB schema.
+            assertEquals(5, AppConfigValuesTable.selectAll().count())
+            // Drift guard: the onboarding reveal value the client reads over the
+            // unauthed config tree must match the actual grant it's previewing.
+            // If STARTER_GRANT changes but V89 doesn't, this fails loudly.
+            val seededStarterGrant = TransactionManager.current().exec(
+                "SELECT value_jsonb::text FROM app_config_values WHERE path = 'onboarding.starterGrant'",
+            ) { rs -> if (rs.next()) rs.getString(1) else null }
+            assertEquals(Wallet.STARTER_GRANT.toString(), seededStarterGrant)
             // V76 targeting tables ship empty.
             assertEquals(0, AppConfigRulesTable.selectAll().count())
             assertEquals(0, AppConfigAuditTable.selectAll().count())

@@ -43,7 +43,7 @@ V1 ships with `install_id`-only cleanup. No `recovery_id`, no platform-keychain 
 
 **Why this is acceptable:**
 
-- Pre-launch, zero users. Revival isn't load-bearing for any current cohort.
+- Android is live (real users); iOS not yet. Revival may now be load-bearing for the Android cohort — don't assume zero users.
 - Loss-disclosure UX tells anon users "sign in to keep this" at the moments it matters (shop pre-purchase, stats banner, settings account section).
 - Two upgrade paths are pre-designed in `../backlog.md` ("Anti-farming on the starter chip grant"):
   - **Option B** (~3 days): `install_id + identifierForVendor` / `ANDROID_ID`. Adds same-device-reinstall revival + casual anti-farm gate. No KMP keychain work.

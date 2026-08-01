@@ -325,7 +325,7 @@ private fun WelcomeStep(
 
             Text(
                 text = stringResource(Res.string.onboarding_welcome_title),
-                typography = AppTheme.typography.Display.D1300,
+                typography = AppTheme.typography.Display.D1500,
                 color = AppTheme.colors.content,
             )
             Spacer(modifier = Modifier.height(Dimension.D500))

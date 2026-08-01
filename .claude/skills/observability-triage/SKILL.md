@@ -17,7 +17,7 @@ Stable for this repo — don't rediscover them every run, but reconfirm if a cal
 - **Grafana datasources:** Prometheus `grafanacloud-prom`, Tempo `grafanacloud-traces`, Loki `grafanacloud-logs`, Fly metrics `dfrewa7ebtkhsc`, Sentry-in-Grafana `dfrt33501quwwe`, Postgres prod `ffrewas5byf40d` / dev `dfrex4f7bg7b4b`.
 - **Correlation key:** `session_id` (a per-session UUID) ties a session across Sentry, the server Loki stream (`{service_name="cards-server"}`), and the client stream (`{service_name="cards-client"}`). Also `install_id`, `user.id`. Same mechanics `feedback-triage` uses in its steps 3–4 — lean on that skill's queries rather than re-deriving them.
 - **Alerts** (folder `downcard-engineering`): A1 ledger drift `ffrtc58ufemf4f` · A2 Fly prod down `dfrtc5hgmsoaod` · A3 Supabase down `afrtc618qul1ce` · A4 clients can't reach backend `ffrtc70x74xz4c` · A5 purchase failures `bfrtc7fm94qgwb` · A6 server OOM `afrtc69uy8mwwe` · A7 server silent `ffrtc7l6fzs3ke` (**paused until launch**).
-- **Dashboards:** `dc-pulse` (org home), `dc-infra`, `cards-economy`, `dc-gameplay`, `dc-funnel`, `cards-gameplay`, `dc-revenue`. **The question→dashboard map is `docs/wiki/observability.md` — read it before sweeping; it also lists the alerts and the known-empty panels.**
+- **Dashboards:** `dc-pulse` (org home), `dc-infra`, `cards-economy`, `dc-gameplay`, `dc-funnel`, `cards-gameplay`, `dc-revenue`. **The question→dashboard map is `docs/wiki/observability.md` — read it before sweeping; it also lists the alerts, the known-empty panels, and the "Known-benign client signals" (banned-403 `CARDS-BG`, user-cancellations, one-off `net.backend_unreachable`) that must NOT be filed as bugs.**
 - **Todo destination:** `docs/todo.md` (worker-pickable; strict format — see step 5). Larger/blurrier work → one-liner in `docs/backlog.md`.
 - **Processed ledger:** `docs/agent/observability-log.md` — append-only record of every signal already handled (Sentry issues keyed by short-id, Grafana signals by a stable slug), so reruns skip it. Create it if missing.
 - **Case files:** `docs/agent/feedback-cases/<sentry-short-id>.md` — same directory and template `feedback-triage` uses, so a worker reads one bundle regardless of which triage filed the item. Write one for any Sentry issue you turn into a todo.
@@ -71,7 +71,7 @@ Read `docs/wiki/observability.md` first, then start at **Pulse** (`dc-pulse`) �
 - **`dc-gameplay` / `cards-gameplay`** — turn-processing latency or a rejection-rate jump.
 - **`dc-funnel`** — an onboarding step whose drop-off suddenly worsened.
 
-A signal earns a todo when it's a **plausible regression or defect**, not merely noteworthy — "crash-free % fell below 99% after last night's build" is a bug; "DAU dipped" is not.
+A signal earns a todo when it's a **plausible regression or defect**, not merely noteworthy — "crash-free % fell below 99% after last night's build" is a bug; "DAU dipped" is not. And a **known-benign signal is never a todo**: a banned-403 (`CARDS-BG`), a user-cancelled purchase, or a single install's `net.backend_unreachable` is the app working as designed (wiki → "Known-benign client signals"). A banned-403 in particular is owned by ENG-35 — don't re-file it.
 
 **Also scan the server logs directly** — a failing path can be live before any dashboard panel or alert reflects it. Over the last 24h:
 `query_loki_logs(datasourceUid='grafanacloud-logs', logql='{service_name="cards-server", deployment_environment="prod"} | detected_level=~"warn|error|fatal"', ...)`. **Include `warn`** — money-touching failures like `receipt_rejected` / redeem-400s are logged at WARN, so an `error|fatal`-only filter misses them entirely. Recurring warnings/errors not already owned by a Sentry issue or todo are their own signal. And **`totalLinesScanned: 0` on a filtered query does not mean the server is silent** — the filter just matched nothing; confirm the base stream is live (`query_loki_stats`, or an unfiltered `{service_name="cards-server"}` count) before concluding there are no server logs.
@@ -84,7 +84,7 @@ Synthesize the evidence into a concrete root cause. For any **Sentry issue** you
 
 Then pick a disposition:
 
-**(a) Actionable → file a todo.** Append to `docs/todo.md` in the house format (`docs/agent/todo-maintainer.md` — one bold title + ≤3 lines, a priority tag, no status archaeology). Put the case-file path in `Hints:`:
+**(a) Actionable → file a todo.** Append to `docs/todo.md` in the house format (the `curate-todos` skill — one bold title + ≤3 lines, a priority tag, no status archaeology). Put the case-file path in `Hints:`:
 
 ```
 - `[P0]` **Short imperative title of the fix.** One sentence: what's wrong (from the signal + telemetry).
@@ -102,7 +102,7 @@ PFX=ENG; grep -rhoE "\b${PFX}-[0-9]+" docs/ | grep -oE '[0-9]+' | sort -n | tail
 
 Query the specific prefix you're filing under — a blanket all-prefix grep sorts lexically (`BILL-10` < `BILL-9`) and sweeps in `CARDS-*` Sentry short-ids and `AES-`/`SHA-` crypto constants, which aren't work items. If a maintainer reset left `docs/todo.md` with no section headers, add the section for your prefix before appending.
 
-**(b) No action → resolve.** Pre-launch noise (only reachable from a debug build or dev backend), already fixed on `develop` but not yet resolved in Sentry, a known expected-empty panel, or genuinely benign. Still write the case file for a Sentry issue so a rerun has the reasoning; record the *why* in its "Working theory" section.
+**(b) No action → resolve.** Dev-only noise (only reachable from a debug build or dev backend), already fixed on `develop` but not yet resolved in Sentry, a known expected-empty panel, or genuinely benign. Still write the case file for a Sentry issue so a rerun has the reasoning; record the *why* in its "Working theory" section.
 
 ### 6. Close the loop
 
@@ -112,7 +112,7 @@ For **every** signal handled, append to `docs/agent/observability-log.md`:
 - <date> · <short-id | signal-slug> · <"todo: <title>" | "no-action: <reason>" | "backlog"> · <Sentry URL | dashboard/alert link> · case docs/agent/feedback-cases/<id>.md
 ```
 
-Then close the loop in Sentry (Grafana is read-only — see guardrails). **Do not resolve an issue you filed a todo for** — it isn't fixed yet; leave it unresolved and only comment that it's triaged, and the worker that ships the fix resolves it then (`worker-prompt.md`). Only **no-action** dispositions resolve here. Record the Sentry issue id in the todo's Hints so the worker can find it. Resolve the token from env, falling back to the macOS Keychain so unattended runs work without a plaintext token on disk:
+Then close the loop in Sentry (Grafana is read-only — see guardrails). **Do not resolve an issue you filed a todo for** — it isn't fixed yet; leave it unresolved and only comment that it's triaged, and the worker that ships the fix resolves it then (the `work-item` skill). Only **no-action** dispositions resolve here. Record the Sentry issue id in the todo's Hints so the worker can find it. Resolve the token from env, falling back to the macOS Keychain so unattended runs work without a plaintext token on disk:
 
 ```
 TOKEN="${SENTRY_AUTH_TOKEN:-$(security find-generic-password -s cards-sentry-auth-token -w 2>/dev/null)}"

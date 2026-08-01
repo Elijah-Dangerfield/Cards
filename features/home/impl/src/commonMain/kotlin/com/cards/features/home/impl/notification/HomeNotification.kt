@@ -25,15 +25,35 @@ sealed interface HomeNotification {
     sealed interface Ambient : HomeNotification
 
     /**
-     * First-run starter-grant reveal. Fires once for a brand-new wallet we
-     * didn't already reveal in onboarding.
+     * The one-time Home welcome dialog. Shows once per account ([welcomeSeen]
+     * gate) whenever it has something to say: a brand-new account still owed its
+     * starter-grant reveal, or an open founding-member window — so existing early
+     * players get thanked once too, not just fresh sign-ups.
+     *
+     * [grantReveal] carries the starter-grant reveal (or null when there's
+     * nothing to reveal), and [isFounding] layers the founding-member copy on top.
      */
     data class Welcome(
         val displayName: String,
         val avatarEmoji: String,
         val avatarBackgroundColorHex: String?,
-        val chips: Long,
-    ) : Blocking
+        val grantReveal: GrantReveal?,
+        val isFounding: Boolean,
+    ) : Blocking {
+
+        /** The starter-grant reveal the welcome dialog makes, when it makes one. */
+        sealed interface GrantReveal {
+            /** A trustworthy figure to animate — "starting you with 10,000 chips". */
+            data class Exact(val chips: Long) : GrantReveal
+
+            /**
+             * We couldn't pin a number (offline / pre-config, grant not yet
+             * landed) — promise the chips are on their way rather than animate a
+             * wrong or zero figure.
+             */
+            data object Pending : GrantReveal
+        }
+    }
 
     /**
      * Full-screen level-up celebration for the net [level] reached since the

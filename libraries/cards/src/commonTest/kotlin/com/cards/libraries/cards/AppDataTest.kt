@@ -21,6 +21,7 @@ class AppDataTest {
         swipeFoldGestureAck = true,
         winOddsFlipHintSeen = true,
         didSeeInitialGrantInOnboarding = true,
+        welcomeSeen = true,
         tutorialBannerDismissed = true,
         accountSetupExplainerSeen = true,
         lastSessionEndedAt = 333,
@@ -54,6 +55,7 @@ class AppDataTest {
         val reset = fullyPopulated.resetAccountScoped()
 
         assertFalse(reset.didSeeInitialGrantInOnboarding)
+        assertFalse(reset.welcomeSeen)
         assertEquals(0, reset.lastCelebratedLevel)
         assertNull(reset.xpBoostExpiresAtEpochMs)
         assertEquals(0, reset.xpBoostOwnedCount)

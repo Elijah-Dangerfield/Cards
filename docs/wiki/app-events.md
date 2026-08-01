@@ -99,6 +99,8 @@ All in `OnboardingViewModel`.
 | `onboarding.auth_selected` | `method` (guest/google/apple), `returning` | Guest continue; OAuth/Apple sign-in success |
 | `onboarding.completed` | `duration_sec`, `account_ready` (false = degraded will-retry) | "Take a seat" |
 | `onboarding.abandoned` | `step` | Best-effort on VM clear without reaching Home; a process kill won't emit it — count step_viewed-without-completed sessions for the full picture |
+| `onboarding.grant_revealed` | `surface` (onboarding_step/home_backup), `source` (balance/config, onboarding_step only), `amount` | The starter-grant number was actually shown — on the onboarding grant step, or via the Home welcome-dialog backup. `source=config` means the live-balance sync missed the reveal window and the server-advertised value carried it |
+| `onboarding.grant_reveal_degraded` | — | The onboarding grant step could NOT show a number (no live balance within the 1.5s window and no `onboarding.starterGrant` config). User saw "lands when you reconnect". A degraded event with no later `surface=home_backup` reveal = the user never saw their starter chips |
 
 ## Monetization funnel
 

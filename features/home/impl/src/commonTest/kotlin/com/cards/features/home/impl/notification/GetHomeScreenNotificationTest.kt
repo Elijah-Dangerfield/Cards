@@ -69,24 +69,53 @@ class GetHomeScreenNotificationTest {
     }
 
     @Test
-    fun `welcome requires a hydrated balance and a resolved identity`() {
-        val noBalance = base().copy(
-            accountJustCreated = true,
-            welcomeIdentity = identity(),
-            chipBalance = null,
-        )
+    fun `welcome requires a resolved identity`() {
         val noIdentity = base().copy(
             accountJustCreated = true,
             welcomeIdentity = null,
             chipBalance = 10_000,
         )
 
-        assertNull(GetHomeScreenNotification(noBalance))
         assertNull(GetHomeScreenNotification(noIdentity))
     }
 
     @Test
-    fun `welcome never fires once grant was seen in onboarding`() {
+    fun `welcome waits for a number rather than presenting a premature pending reveal`() {
+        // No grant config and the wallet hasn't hydrated (null) — hold, so an
+        // online account gets its real number instead of a flash of "landing soon"
+        // that the once-only dialog can never correct.
+        val stillHydrating = base().copy(
+            accountJustCreated = true,
+            welcomeIdentity = identity(),
+            starterGrant = null,
+            chipBalance = null,
+        )
+
+        assertNull(GetHomeScreenNotification(stillHydrating))
+    }
+
+    @Test
+    fun `welcome falls back to a pending reveal when hydrated to zero with no grant config`() {
+        // Wallet resolved to zero and no grant config (offline / grant not posted)
+        // — fire, promising the chips rather than revealing a wrong number.
+        val snapshot = base().copy(
+            accountJustCreated = true,
+            welcomeIdentity = identity(),
+            starterGrant = null,
+            chipBalance = 0,
+        )
+
+        val result = GetHomeScreenNotification(snapshot)
+
+        assertTrue(result is HomeNotification.Welcome)
+        assertEquals(
+            HomeNotification.Welcome.GrantReveal.Pending,
+            (result as HomeNotification.Welcome).grantReveal,
+        )
+    }
+
+    @Test
+    fun `welcome does not re-reveal a grant already seen in onboarding (outside the founding window)`() {
         val snapshot = base().copy(
             accountJustCreated = true,
             didSeeInitialGrantInOnboarding = true,
@@ -110,18 +139,69 @@ class GetHomeScreenNotificationTest {
         val result = GetHomeScreenNotification(snapshot)
 
         assertTrue(result is HomeNotification.Welcome)
-        assertEquals(10_000L, (result as HomeNotification.Welcome).chips)
+        assertEquals(
+            HomeNotification.Welcome.GrantReveal.Exact(10_000),
+            (result as HomeNotification.Welcome).grantReveal,
+        )
     }
 
     @Test
-    fun `welcome never fires for a pre-existing account`() {
-        // Bug (AUTH-23): an established account signing in must not see the
-        // starter-grant welcome. accountJustCreated is the authoritative gate.
+    fun `welcome never fires for a pre-existing account outside the founding window`() {
+        // Bug (AUTH-23): an established account signing in must not see the plain
+        // starter-grant welcome. accountJustCreated gates the reveal; the founding
+        // window is the only other way in.
         val snapshot = base().copy(
             accountJustCreated = false,
             welcomeIdentity = identity(),
             starterGrant = 10_000,
             chipBalance = 132_250,
+        )
+
+        assertNull(GetHomeScreenNotification(snapshot))
+    }
+
+    @Test
+    fun `founding window shows the welcome to an existing player with no reveal`() {
+        val snapshot = base().copy(
+            accountJustCreated = false,
+            inFoundingWindow = true,
+            welcomeIdentity = identity(),
+            chipBalance = 132_250,
+        )
+
+        val result = GetHomeScreenNotification(snapshot)
+
+        assertTrue(result is HomeNotification.Welcome)
+        result as HomeNotification.Welcome
+        assertTrue(result.isFounding)
+        assertNull(result.grantReveal)
+    }
+
+    @Test
+    fun `founding new account gets both the reveal and the founding copy`() {
+        val snapshot = base().copy(
+            accountJustCreated = true,
+            inFoundingWindow = true,
+            welcomeIdentity = identity(),
+            starterGrant = 10_000,
+        )
+
+        val result = GetHomeScreenNotification(snapshot)
+
+        assertTrue(result is HomeNotification.Welcome)
+        result as HomeNotification.Welcome
+        assertTrue(result.isFounding)
+        assertEquals(HomeNotification.Welcome.GrantReveal.Exact(10_000), result.grantReveal)
+    }
+
+    @Test
+    fun `welcomeSeen suppresses the dialog even inside the founding window`() {
+        val snapshot = base().copy(
+            welcomeSeen = true,
+            accountJustCreated = true,
+            inFoundingWindow = true,
+            welcomeIdentity = identity(),
+            starterGrant = 10_000,
         )
 
         assertNull(GetHomeScreenNotification(snapshot))
@@ -300,6 +380,8 @@ class GetHomeScreenNotificationTest {
         crossedLevelRewards = emptyList(),
         accountJustCreated = false,
         didSeeInitialGrantInOnboarding = false,
+        welcomeSeen = false,
+        inFoundingWindow = false,
         welcomeIdentity = null,
         starterGrant = null,
         playStyleSampleSize = null,

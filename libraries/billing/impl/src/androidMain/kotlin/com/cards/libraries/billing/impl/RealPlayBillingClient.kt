@@ -37,7 +37,7 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 
 /**
- * Real Play Billing Library (v7) implementation of [BillingClient].
+ * Real Play Billing Library (v9) implementation of [BillingClient].
  *
  * Chip packs are **consumables**: the purchase round-trip ends in [consume]
  * (Play `consumeAsync`), which both satisfies the 3-day acknowledge window
