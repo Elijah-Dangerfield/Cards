@@ -130,6 +130,22 @@ class GuestSessionHealer(
                 // Deliberate sign-out — do not resurrect as a fresh guest.
                 log(source, HealAction.SKIP_SIGNED_OUT)
             }
+            unauth.reason == AuthState.Unauthenticated.Reason.Unreachable -> {
+                // Backend unreachable — the session couldn't be verified and may
+                // still be alive. Keep the cached identity; the connectivity-
+                // regained / foreground edge re-resolves. Never mint, never tear
+                // down (AUTH-30). Reason-based, so it holds even if the isOffline
+                // flag hasn't resolved yet on a fast boot.
+                log(source, HealAction.SKIP_UNREACHABLE)
+            }
+            appState.isOffline.value -> {
+                // Offline gate BEFORE the stranded check: being offline is a
+                // reason not to *destroy* an account, not just a reason not to
+                // *create* one (AUTH-30). Mirrors the AuthReResolver /
+                // StrandedIdentityDetector siblings, and backstops a resolve that
+                // came back Reason.None while the device was in fact offline.
+                log(source, HealAction.SKIP_OFFLINE)
+            }
             else -> {
                 val stranded = cachedServerProfile()
                 when {
@@ -144,10 +160,6 @@ class GuestSessionHealer(
                         // yet, so there's no identity owed. Onboarding's own
                         // start() mints.
                         log(source, HealAction.SKIP_NOT_ONBOARDED)
-                    }
-                    appState.isOffline.value -> {
-                        // Can't mint offline; the connectivity-regained edge will retry.
-                        log(source, HealAction.SKIP_OFFLINE)
                     }
                     else -> mint(source)
                 }
@@ -208,6 +220,7 @@ class GuestSessionHealer(
         SKIP_HAS_SESSION,
         SKIP_SESSION_EXPIRED,
         SKIP_SIGNED_OUT,
+        SKIP_UNREACHABLE,
         SKIP_NOT_ONBOARDED,
         SKIP_OFFLINE,
         RETRY_RECOVERED,

@@ -277,7 +277,18 @@ sealed interface AuthState {
          *   NOT resurrect a user who just chose to sign out as a fresh anonymous
          *   guest. (After a relaunch this collapses back to [None]; the
          *   `hasUserOnboarded` guard — cleared on sign-out — covers that case.)
+         * - [Unreachable] — the session couldn't be **verified** because the
+         *   backend was unreachable (captive-portal / dead-but-connected WiFi): the
+         *   resolve exhausted its attempts stuck on supabase's *transient* refresh
+         *   states, which — unlike a server `NotAuthenticated` — is NOT a
+         *   confirmed-dead session. The session may well still be alive. Identity
+         *   self-heal must NOT tear it down or mint over it (AUTH-30); it keeps the
+         *   cached identity, the app shows the honest offline surface, and the next
+         *   connectivity/foreground edge re-resolves. Deliberately **not sticky**
+         *   (unlike [SessionExpired]): a later definitive `NotAuthenticated` must
+         *   still be able to settle [None] so a genuinely-rejected session can tear
+         *   down on a subsequent edge.
          */
-        enum class Reason { None, SessionExpired, SignedOut }
+        enum class Reason { None, SessionExpired, SignedOut, Unreachable }
     }
 }

@@ -199,28 +199,48 @@ class SupabaseAuthRepositoryImpl(
                 is AuthGatewayStatus.RefreshFailure -> Unit
             }
         }
-        logger.w { "Resolve exhausted $MaxResolveAttempts attempts without settling" }
-        return settleUnauthenticatedLocked()
+        // Only reachable when every attempt saw a *transient* status
+        // (Initializing / RefreshFailure) — a server NotAuthenticated returns
+        // above. So exhaustion is definitionally "backend unreachable, session
+        // unverified", not a confirmed-dead session (AUTH-30).
+        logger.w { "Resolve exhausted $MaxResolveAttempts attempts without settling — backend unreachable" }
+        return settleUnauthenticatedLocked(transient = true)
     }
 
     /**
-     * Settle a resolve that found no session. [AuthState.Unauthenticated.Reason.SessionExpired]
-     * is sticky within the run: a re-resolve (connectivity flip, healer retry,
-     * SessionExpired-screen retry) that still finds nothing keeps the reason —
-     * and its [AuthState.Unauthenticated.wasAnonymous] — instead of decaying to
-     * `None`, which would make identity self-heal read the dead session as an
-     * ordinary stranding and mint a fresh guest over it (AUTH-19).
+     * Settle a resolve that found no session.
+     *
+     * [AuthState.Unauthenticated.Reason.SessionExpired] is sticky within the run:
+     * a re-resolve (connectivity flip, healer retry, SessionExpired-screen retry)
+     * that still finds nothing keeps the reason — and its [wasAnonymous] — instead
+     * of decaying to `None`, which would make identity self-heal read the dead
+     * session as an ordinary stranding and mint a fresh guest over it (AUTH-19).
+     *
+     * [transient] `true` means the resolve exhausted stuck on supabase's transient
+     * refresh states (backend unreachable) rather than getting a definitive
+     * `NotAuthenticated`. It settles [Reason.Unreachable] — NOT `None` — so
+     * self-heal keeps the cached identity instead of tearing it down on what is
+     * really just an offline boot (AUTH-30). Unlike `SessionExpired`, `Unreachable`
+     * is **not** sticky: a later definitive `NotAuthenticated` must still be able
+     * to settle `None` so a genuinely-rejected session can tear down.
      */
-    private suspend fun settleUnauthenticatedLocked(): AuthState.Unauthenticated {
+    private suspend fun settleUnauthenticatedLocked(
+        transient: Boolean = false,
+    ): AuthState.Unauthenticated {
         val last = lastEmittedOrNull() as? AuthState.Unauthenticated
-        return if (last?.reason == AuthState.Unauthenticated.Reason.SessionExpired) {
-            emitUnauthenticatedLocked(
-                cause = null,
-                reason = AuthState.Unauthenticated.Reason.SessionExpired,
-                wasAnonymous = last.wasAnonymous,
-            )
-        } else {
-            emitUnauthenticatedLocked(cause = null)
+        return when {
+            last?.reason == AuthState.Unauthenticated.Reason.SessionExpired ->
+                emitUnauthenticatedLocked(
+                    cause = null,
+                    reason = AuthState.Unauthenticated.Reason.SessionExpired,
+                    wasAnonymous = last.wasAnonymous,
+                )
+            transient ->
+                emitUnauthenticatedLocked(
+                    cause = null,
+                    reason = AuthState.Unauthenticated.Reason.Unreachable,
+                )
+            else -> emitUnauthenticatedLocked(cause = null)
         }
     }
 

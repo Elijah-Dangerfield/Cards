@@ -244,6 +244,81 @@ class GuestSessionHealerTest : CoroutineTest() {
         )
     }
 
+    @Test
+    fun offline_withCachedAuthenticatedProfile_neverTearsDown() = runUnitTest {
+        // AUTH-30: unreachable-backend cold boot. Offline AND a cached anonymous
+        // guest profile survives. Being offline we CANNOT know the session is dead
+        // — the backend is just unreachable — so the healer must not declare it
+        // unrecoverable (which tears down + permanently deletes the guest). It
+        // waits for the connectivity-regained edge instead.
+        val creator = FakeGuestAccountCreator()
+        val auth = FakeAuth(
+            current = AuthState.Unauthenticated(),
+            retryResult = AuthState.Unauthenticated(), // reason None
+        )
+        val healer = build(
+            auth = auth,
+            creator = creator,
+            onboarded = true,
+            offline = true,
+            profile = cachedGuest(),
+        )
+
+        healer.onColdBoot(AppEvent.ColdBoot)
+        advanceUntilIdle()
+
+        assertEquals(0, creator.ensureCalls, "offline: must not mint")
+        assertEquals(
+            emptyList<Boolean>(),
+            auth.markedUnrecoverable,
+            "offline must never declare the cached guest session unrecoverable",
+        )
+    }
+
+    @Test
+    fun unreachableReason_withCachedAuthenticatedProfile_neverTearsDown_evenWhenFlagOptimisticallyOnline() =
+        runUnitTest {
+            // The durable half of AUTH-30: the resolve settled Reason.Unreachable
+            // (exhausted on transient refresh). The healer must skip on the reason
+            // alone, WITHOUT depending on appState.isOffline having flipped — the
+            // flag starts optimistically false and may not have resolved on a fast
+            // boot, so the reorder-the-offline-gate fix is not sufficient on its own.
+            val creator = FakeGuestAccountCreator()
+            val auth = FakeAuth(
+                current = AuthState.Unauthenticated(),
+                retryResult = AuthState.Unauthenticated(
+                    reason = AuthState.Unauthenticated.Reason.Unreachable,
+                ),
+            )
+            val healer = build(
+                auth = auth,
+                creator = creator,
+                onboarded = true,
+                offline = false, // flag still optimistically online
+                profile = cachedGuest(),
+            )
+
+            healer.onColdBoot(AppEvent.ColdBoot)
+            advanceUntilIdle()
+
+            assertEquals(0, creator.ensureCalls, "unreachable: must not mint")
+            assertEquals(
+                emptyList<Boolean>(),
+                auth.markedUnrecoverable,
+                "an unreachable backend must never declare the cached guest session unrecoverable",
+            )
+        }
+
+    private fun cachedGuest() = Profile.Authenticated(
+        id = "u1",
+        displayName = "Foxy",
+        avatarEmoji = "🦊",
+        avatarBackgroundColor = "#ff6b35",
+        email = null,
+        isAnonymous = true,
+        createdAt = Instant.fromEpochMilliseconds(0),
+    )
+
     private fun build(
         auth: AuthRepository,
         creator: GuestAccountCreator,

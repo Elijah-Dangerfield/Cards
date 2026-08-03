@@ -239,21 +239,42 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun resolve_alwaysTransient_exhaustsAttempts_andEmitsUnauthenticatedNoCause() = runUnitTest {
-        // Pathological path: gateway never settles. After MaxResolveAttempts
-        // (5) iterations we emit Unauthenticated(cause=null) — distinguishable
-        // from a real error because cause is null.
+    fun resolve_alwaysTransient_exhaustsAttempts_settlesUnreachable_notDead() = runUnitTest {
+        // AUTH-30: the resolve only ever reaches post-loop exhaustion when every
+        // attempt saw a *transient* status (Initializing / RefreshFailure) — a
+        // server NotAuthenticated returns immediately. So exhaustion is
+        // definitionally "backend unreachable, session unverified", NOT a
+        // confirmed-dead session: settle Reason.Unreachable, never Reason.None
+        // (which is byte-identical to a fresh install and lets self-heal tear the
+        // account down).
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.Initializing,
             session = null,
-            // Every poll reports Initializing forever.
             statusSequence = List(10) { AuthGatewayStatus.Initializing },
         )
         val repo = build(gateway = gateway)
         advanceUntilIdle()
 
         val state = assertIs<AuthState.Unauthenticated>(repo.current())
+        assertEquals(AuthState.Unauthenticated.Reason.Unreachable, state.reason)
         assertNull(state.cause, "exhausted resolve has no exception attached")
+    }
+
+    @Test
+    fun resolve_exhaustsOnRefreshFailure_settlesUnreachable() = runUnitTest {
+        // The production AUTH-30 shape: a stored session whose refresh keeps
+        // failing because the backend is unreachable (captive portal). Same
+        // outcome as any transient exhaustion — Unreachable, not a dead session.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.RefreshFailure(cause = null),
+            session = null,
+            statusSequence = List(10) { AuthGatewayStatus.RefreshFailure(cause = null) },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val state = assertIs<AuthState.Unauthenticated>(repo.current())
+        assertEquals(AuthState.Unauthenticated.Reason.Unreachable, state.reason)
     }
 
     @Test
