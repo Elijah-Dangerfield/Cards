@@ -79,3 +79,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 **Problem:** The welcome dialog's "Leave a store review" button opens the App Store write-review sheet on iOS, but the numeric App Store id doesn't exist yet, so the link uses a placeholder and won't resolve until the iOS listing is live.
 
 **Acceptance:** Replace `APP_STORE_ID_PLACEHOLDER` in `features/home/impl/.../StoreReviewLink.kt` with the real App Store id (from App Store Connect once the listing exists), and confirm the deep link opens the review sheet on a device. Android already points at the live Play listing.
+
+## ENG-41 [P2] — Make a failed `/v1/admin` token attempt visible (log it, rate-limit it)
+
+**Problem:** An unauthenticated scanner probed `POST /v1/admin/grant-chips` and `/v1/admin/messages` on prod (2026-08-08 server log). The routes are correctly token-gated and nothing moved, but the 401 branch logs nothing and `/v1/admin` opts into no rate-limit bucket — only the global 600 req/IP/min. A brute force against the chip-minting route would be invisible on every dashboard.
+
+**Acceptance:** A failed `X-Admin-Token` check emits one WARN line with path + client IP (never the presented token), so it's queryable in Loki; `/v1/admin` sits behind a tight dedicated bucket (e.g. 20/hour/IP) with a test proving a burst gets 429'd.
+
+**Hints:** Gate is `authenticatedAsAdmin` (`routes/AdminAuth.kt`); the seven 401 branches are in `routes/AdminRoutes.kt` + `routes/ConfigAdminRoutes.kt`. Add the bucket in `plugins/RateLimits.kt` alongside `DELETE_ACCOUNT_LIMIT` and reuse `clientIp()`. Case `docs/agent/feedback-cases/admin-probe-2026-08-11.md`.
