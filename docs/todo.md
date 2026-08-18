@@ -1,10 +1,10 @@
 # TODO
 
-**Last reviewed:** 2026-08-11 (curate-todos) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-08-18 (curate-todos) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
-**Build the best thing, not the smallest change.** Android is live (real users, real data); iOS isn't shipped yet. The goal is scalable, maintainable, production-ready systems: restructure or rebuild rather than stacking minimal patches. But Android now has a production population, so changes to schema, persisted state, or live behaviour must be safe for existing Android users (iOS has no users yet). When you pick an item up, take a step back and ask what's genuinely best for the project and the user, then build that. Full rule: AGENTS.md → Coding Guidelines and the `work-item` skill (`.claude/skills/work-item/`) → Picking work.
+**Build the best thing, not the smallest change.** **Both platforms are live with real users.** Android on Play, and iOS on the App Store since 2026-07-23 (`cards@0.1.0+3`, tag `v0.1.0`, release channel `store-ios-release`). The goal is scalable, maintainable, production-ready systems: restructure or rebuild rather than stacking minimal patches. But there is no longer a greenfield platform — changes to schema, persisted state, or live behaviour must migrate **and** be safe for the existing population on *both* Android and iOS. Treat any doc or skill that still says "iOS isn't shipped / iOS has no users yet" as stale. When you pick an item up, take a step back and ask what's genuinely best for the project and the user, then build that. Full rule: AGENTS.md → Coding Guidelines and the `work-item` skill (`.claude/skills/work-item/`) → Picking work.
 
 **Fixing a bug? Reproduce it with a failing test first.** Red (the test fails *because of the bug*), then green (the fix makes it pass). It proves you found the real cause, not a guess, and leaves a permanent regression guard. Can't reproduce it in a test? The harness is missing something — build that first. See AGENTS.md → Coding Guidelines.
 
@@ -72,11 +72,13 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Decided: a typed `profiles` column, not `auth.users` metadata (the dashboards already query that table, and it needs no `auth`-schema grant). Profile-create path is the client's supabase-kt `findOrCreate` insert. Grafana Postgres datasource `ffrewas5byf40d` (prod) / `dfrex4f7bg7b4b` (dev) already runs the SQL for panels 401–403.
 
-## ENG-40 [P2] — Wire the real iOS App Store id into the store-review deep link
+## ENG-40 [P1] — iOS "Leave a store review" dead-ends on a placeholder App Store id
 
-**Problem:** The welcome dialog's "Leave a store review" button opens the App Store write-review sheet on iOS, but the numeric App Store id doesn't exist yet, so the link uses a placeholder and won't resolve until the iOS listing is live.
+**Problem:** On the live iOS build, `storeReviewUrl()` returns `apps.apple.com/app/id0000000000?action=write-review`, so the welcome dialog's review button opens nothing for real users. The listing is live, so the real numeric id now exists.
 
-**Acceptance:** Replace `APP_STORE_ID_PLACEHOLDER` in `features/home/impl/.../StoreReviewLink.kt` with the real App Store id (from App Store Connect once the listing exists), and confirm the deep link opens the review sheet on a device. Android already points at the live Play listing.
+**Acceptance:** The real App Store id replaces `APP_STORE_ID_PLACEHOLDER` in `features/home/impl/.../StoreReviewLink.kt`, the stale "the iOS App Store listing doesn't exist yet" TODO comment goes with it, and a test asserts the iOS URL carries a non-placeholder id.
+
+**Hints:** The id is resolvable without App Store Connect access: `https://itunes.apple.com/lookup?bundleId=com.dangerfield.cards.Cards` → `results[0].trackId`. Android already points at the live Play listing.
 
 ## ENG-41 [P2] — Make a failed `/v1/admin` token attempt visible (log it, rate-limit it)
 
