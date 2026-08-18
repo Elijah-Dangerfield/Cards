@@ -60,7 +60,7 @@ For each in-flight block when present, otherwise for each commit in scope (`$BAS
    - **Inline user-facing strings** — `Text("Hi")`, `placeholder = "Email"`, snackbar / dialog / error copy hardcoded at the callsite. Should be `stringResource(Res.string.foo)` from `:libraries:resources`. (`AGENTS.md` → Coding Guidelines.) Glyph-only typography (✓, —, emoji), preview-only sample data, and server-supplied error strings are fine.
    - Public screen-level composables in `:features:*:impl` missing `@Preview`.
    - Comments that shouldn't exist (project convention: none).
-   - **Migration safety (Android is live)** — Android has a production population now, so migrations and data changes MUST handle existing users; don't strip backfill / compat logic as noise, and flag any migration that assumes a fresh world. iOS has no users yet, so iOS-only data can still be treated as greenfield.
+   - **Migration safety (both platforms are live)** — Android (Play) and iOS (App Store since 2026-07-23) both have a production population, so migrations and data changes MUST handle existing users on either platform; don't strip backfill / compat logic as noise, and flag any migration that assumes a fresh world. Nothing is greenfield anymore.
    - Scope creep, dead code, unused imports, leftover `println`/debug logs.
    - Secrets in code, unsafe deserialization, injection smells.
    - Conventional-commit type matches the change (`feat:` only for user-visible new capability).
