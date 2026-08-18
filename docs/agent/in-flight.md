@@ -22,3 +22,13 @@ Also emitted `app.exit_metrics` from the existing MetricKit subscriber. It alrea
 **Deferred:**
 - The dashboard panel that charts this. Left on the ENG-42 bullet — a panel over an event no shipped build emits reads as broken, same call the ENG-38 bullet already makes.
 - Reproducing and fixing the actual welcome-step hang. That's step 2 of the case file's fix direction and it needs this signal's data first; left on the bullet.
+
+## fix(ui): stop counting the initial composition as a recomposition (ENG-42)
+
+**Problem:** `App recomposed (this should be rare)` fired at WARN on every single cold launch, on both platforms — flagged in the ENG-42 hints as worth a look while in there. `SideEffect` runs after the initial composition too, so `RecompositionTracker` scored a composable that had merely appeared as recomposition #1.
+
+**Approach:** The tracker now skips its first invocation, so the count means recompositions and the existing message is true when it fires. Red first: all three new tests failed against the old tracker (`countStartsAtOneOnTheFirstActualRecomposition` expected `[1, 2]`, got `[1, 2, 3]`), green after. Made `RecompositionTracker` internal rather than private so the logic is testable without driving a composition.
+
+**Reviewer notes:** This also shifts the rapid-recomposition window by one — the initial composition no longer occupies a slot toward `rapidRecompositionThreshold`. That's the same bug and the right behaviour, but it does mean the rapid threshold is now marginally harder to trip. `App.kt` is untouched: with the count fixed, its wording is accurate as written. If the WARN still fires often in prod after this ships, that's now a real signal about the app root rather than noise.
+
+**Deferred:** None.

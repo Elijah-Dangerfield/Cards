@@ -12,6 +12,10 @@ import kotlin.time.Duration.Companion.seconds
  * Lightweight utility to keep an eye on how often a composable recomposes.
  * Emits periodic debug logs and raises an error log when recompositions
  * pile up inside a short window ("rapid recompositions").
+ *
+ * Counts recompositions only. The initial composition also runs the
+ * `SideEffect` and used to be counted as recomposition #1, which made the app
+ * root warn about a rare event on literally every cold launch (ENG-42).
  */
 @Composable
 fun RecompositionCounter(
@@ -50,7 +54,7 @@ fun RecompositionCounter(
     }
 }
 
-private class RecompositionTracker(
+internal class RecompositionTracker(
     tag: String,
     private val logEvery: Int,
     private val rapidThreshold: Int,
@@ -58,6 +62,7 @@ private class RecompositionTracker(
     private val rapidCooldownMillis: Long,
 ) {
     private val logger = KLog.withTag("Recompose/$tag")
+    private var composed = false
     private var totalCount: Long = 0
     private val timestamps = ArrayDeque<Long>()
     private var lastRapidLoggedAt: Long = 0
@@ -66,6 +71,10 @@ private class RecompositionTracker(
         onRecompose: (Long) -> Unit,
         onRapidRecomposition: (RapidRecompositionInfo) -> Unit,
     ) {
+        if (!composed) {
+            composed = true
+            return
+        }
         totalCount += 1
         onRecompose(totalCount)
         if (totalCount % logEvery == 0L) {

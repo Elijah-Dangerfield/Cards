@@ -88,13 +88,13 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Gate is `authenticatedAsAdmin` (`routes/AdminAuth.kt`); the seven 401 branches are in `routes/AdminRoutes.kt` + `routes/ConfigAdminRoutes.kt`. Add the bucket in `plugins/RateLimits.kt` alongside `DELETE_ACCOUNT_LIMIT` and reuse `clientIp()`. Case `docs/agent/feedback-cases/admin-probe-2026-08-11.md`.
 
-## ENG-42 [P0] — The OS is killing the live iOS build on the onboarding welcome screen, and we can't tell a real kill from a force-quit
+## ENG-42 [P0] — Chart the iOS foreground-termination rate, then rule the welcome-screen kills real or not
 
-**Problem:** A retail iPad (iPad15,3 / iOS 26.5.2) on the App Store build `cards@0.1.0+3` hit two `WatchdogTermination` fatals in a row while foregrounded on the `welcome` step, ~86s of no breadcrumbs each, then abandoned — one of only two live iOS installs. Sentry's watchdog detection is a next-launch heuristic, so it can't separate a real hang from a swipe-away, and ENG-25 made iOS `previous_exit` a once-daily MetricKit sample that's `unknown` on every one of these launches.
+**Problem:** A retail iPad on the App Store build `cards@0.1.0+3` hit two `WatchdogTermination` fatals while foregrounded on the onboarding `welcome` step, then abandoned. The per-run signal to judge it now exists (`app.previous_run` splits `foreground_termination` from `background_exit`; `app.exit_metrics` carries the raw MetricKit watchdog counts), but nothing charts it, so it's still an anecdote instead of a rate.
 
-**Acceptance:** A per-run iOS foreground-termination signal exists and is charted (own clean-exit marker and/or MetricKit `MXAppExitMetric` foreground watchdog counts), so we can state a rate rather than an anecdote — then either reproduce and fix the welcome-step hang, or demonstrate these were force-quits and reclassify to P1.
+**Acceptance:** A panel charts `foreground_termination` net of Sentry-reported crashes, split by platform, once a build carrying the events ships. Then either reproduce and fix the welcome-step hang, or show these were force-quits and drop this to P1.
 
-**Hints:** Candidate set = sessions with no `app.backgrounded` and no crash. `App recomposed (this should be rare)` [WARN] fires on every iOS cold launch — check it while in there. `IosPreviousExitProvider` / `MetricKitExitReport` in `:libraries:telemetry:impl`; decision `decisions.md` 2026-07-11 (ENG-25) deferred this "until iOS exit rates become load-bearing". Case `docs/agent/feedback-cases/CARDS-3.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-3.
+**Hints:** Read `docs/wiki/app-events.md` → "Reading `app.previous_run` honestly" first — `foreground_termination` is a candidate set, not a verdict, and Android is the calibration (it carries the same marker plus `ApplicationExitInfo` ground truth in `previous_exit`). Instrumentation is `RunOutcome*` in `:libraries:telemetry:impl`. Case `docs/agent/feedback-cases/CARDS-3.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-3.
 
 ## ENG-43 [P1] — Shop silently hides every chip pack when the store drops the SKUs, and nothing alerts on it
 
