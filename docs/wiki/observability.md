@@ -69,6 +69,20 @@ so they stay UI-editable. Crash emails: enable Sentry's own new-issue alert (Sen
 Supabase key, Fly metrics hiccup) pages you even when prod is fine. Better a false page than a
 missed outage, but check the datasource is actually scraping before assuming prod is down.
 
+## Admin-surface probes (ENG-41)
+
+`/v1/admin` can mint chips, so it's the one route where guessing the secret pays for itself. Every
+rejected `X-Admin-Token` now emits one WARN from the `AdminAuth` logger carrying the method, path,
+client IP, and *why* (no token presented / token mismatch / no token configured server-side). The
+presented value is never logged — a near-miss guess in the log store is a secret in a softer place
+than the secret store. Query it in Loki with the server stream filtered to that logger.
+
+The route also sits in a dedicated bucket where **only failed attempts count**: 20 wrong tokens per
+IP per hour, correct ones free. A flat cap would have throttled the hosted config console, which
+fires several authenticated reads per page load, and throttling a caller who already holds the
+secret protects nothing. A scanner probed `POST /v1/admin/grant-chips` on prod in 2026-08 and left
+no trace on any dashboard; that's the gap this closes.
+
 ## Known-benign client signals (not incidents)
 
 The app working as designed. Don't file these as bugs; treat them as noise on the error panels.

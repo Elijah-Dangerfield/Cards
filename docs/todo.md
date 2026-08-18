@@ -80,14 +80,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** The id is resolvable without App Store Connect access: `https://itunes.apple.com/lookup?bundleId=com.dangerfield.cards.Cards` → `results[0].trackId`. Android already points at the live Play listing.
 
-## ENG-41 [P2] — Make a failed `/v1/admin` token attempt visible (log it, rate-limit it)
-
-**Problem:** An unauthenticated scanner probed `POST /v1/admin/grant-chips` and `/v1/admin/messages` on prod (2026-08-08 server log). The routes are correctly token-gated and nothing moved, but the 401 branch logs nothing and `/v1/admin` opts into no rate-limit bucket — only the global 600 req/IP/min. A brute force against the chip-minting route would be invisible on every dashboard.
-
-**Acceptance:** A failed `X-Admin-Token` check emits one WARN line with path + client IP (never the presented token), so it's queryable in Loki; `/v1/admin` sits behind a tight dedicated bucket (e.g. 20/hour/IP) with a test proving a burst gets 429'd.
-
-**Hints:** Gate is `authenticatedAsAdmin` (`routes/AdminAuth.kt`); the seven 401 branches are in `routes/AdminRoutes.kt` + `routes/ConfigAdminRoutes.kt`. Add the bucket in `plugins/RateLimits.kt` alongside `DELETE_ACCOUNT_LIMIT` and reuse `clientIp()`. Case `docs/agent/feedback-cases/admin-probe-2026-08-11.md`.
-
 ## ENG-42 [P0] — Chart the iOS foreground-termination rate, then rule the welcome-screen kills real or not
 
 **Problem:** A retail iPad on the App Store build `cards@0.1.0+3` hit two `WatchdogTermination` fatals while foregrounded on the onboarding `welcome` step, then abandoned. The per-run signal to judge it now exists (`app.previous_run` splits `foreground_termination` from `background_exit`; `app.exit_metrics` carries the raw MetricKit watchdog counts), but nothing charts it, so it's still an anecdote instead of a rate.

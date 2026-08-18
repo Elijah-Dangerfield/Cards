@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.plugins
 
+import com.dangerfield.cards.server.config.AdminConfig
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.plugins.ratelimit.RateLimit
@@ -35,8 +36,9 @@ const val ACHIEVEMENT_GRANT_LIMIT = "achievement-grant"
 const val FRIEND_REQUEST_LIMIT = "friend-request"
 const val PLAYER_REPORT_LIMIT = "player-report"
 const val MATCHMAKING_FIND_LIMIT = "matchmaking-find"
+const val ADMIN_TOKEN_LIMIT = "admin-token"
 
-fun Application.installRateLimits() {
+fun Application.installRateLimits(adminConfig: AdminConfig) {
     install(RateLimit) {
         global {
             // 600 req / IP / minute is generous — a normal client never
@@ -54,6 +56,25 @@ fun Application.installRateLimits() {
             // user multiple retries while making scripted abuse impractical.
             rateLimiter(limit = 5, refillPeriod = 1.hours)
             requestKey { call -> call.clientIp() }
+        }
+
+        register(RateLimitName(ADMIN_TOKEN_LIMIT)) {
+            // /v1/admin can mint chips, so it's the one surface where a brute
+            // force pays for itself, and before this only the global
+            // 600/IP/min stood in the way — roughly 864k guesses a day, free
+            // (ENG-41; a scanner probed grant-chips on prod in 2026-08).
+            //
+            // Only FAILED attempts consume the bucket. A flat cap would have
+            // locked the owner out of the hosted config console, which fires
+            // several authenticated reads per page load, while a caller who
+            // already holds the secret gains nothing from being throttled.
+            // So this is a guessing budget, not a request budget: 20 wrong
+            // tokens an hour per IP, and correct ones ride free.
+            rateLimiter(limit = 20, refillPeriod = 1.hours)
+            requestKey { call -> call.clientIp() }
+            requestWeight { call, _ ->
+                if (adminConfig.matchesApiToken(call.request.header("X-Admin-Token"))) 0 else 1
+            }
         }
 
         register(RateLimitName(PROFILE_WRITE_LIMIT)) {

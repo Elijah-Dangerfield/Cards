@@ -140,7 +140,7 @@ fun Application.installApp(
 ) {
     installSerialization()
     installCors()
-    installRateLimits()
+    installRateLimits(adminConfig)
     installWebSockets()
     installStatusPages()
     installAuthentication(

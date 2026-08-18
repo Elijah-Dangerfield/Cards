@@ -12,9 +12,12 @@ import com.dangerfield.cards.server.domain.UserMessage
 import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.WalletRepository
+import com.dangerfield.cards.server.plugins.ADMIN_TOKEN_LIMIT
 import kotlin.time.Instant
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
@@ -51,353 +54,355 @@ fun Route.adminRoutes(
     supabaseAdmin: SupabaseAdminClient,
     clock: Clock,
 ) {
-    route("/v1/admin") {
-        post("/sweep-anonymous-users") {
-            if (!call.authenticatedAsAdmin(config)) {
-                return@post call.respond(
-                    HttpStatusCode.Unauthorized,
-                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
+    rateLimit(RateLimitName(ADMIN_TOKEN_LIMIT)) {
+        route("/v1/admin") {
+            post("/sweep-anonymous-users") {
+                if (!call.authenticatedAsAdmin(config)) {
+                    return@post call.respond(
+                        HttpStatusCode.Unauthorized,
+                        problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                    )
+                }
+                val result = sweep.run(maxInactiveAge = config.orphanAnonTtlDays.days)
+                call.respond(
+                    if (result.notConfigured) HttpStatusCode.ServiceUnavailable else HttpStatusCode.OK,
+                    SweepResponse(
+                        candidatesFound = result.candidatesFound,
+                        deleted = result.deleted,
+                        skipped = result.skipped,
+                        failedToDelete = result.failedToDelete,
+                        notConfigured = result.notConfigured,
+                    ),
                 )
             }
-            val result = sweep.run(maxInactiveAge = config.orphanAnonTtlDays.days)
-            call.respond(
-                if (result.notConfigured) HttpStatusCode.ServiceUnavailable else HttpStatusCode.OK,
-                SweepResponse(
-                    candidatesFound = result.candidatesFound,
-                    deleted = result.deleted,
-                    skipped = result.skipped,
-                    failedToDelete = result.failedToDelete,
-                    notConfigured = result.notConfigured,
-                ),
-            )
-        }
 
-        /**
-         * Operational dashboard for live rooms. Returns one entry per
-         * room — code, host, seat occupancy, presence counts — so an
-         * operator can spot abandoned rooms before the sweep ticks,
-         * answer "how busy is MP right now," and verify that the sweep
-         * is doing its job between cron runs.
-         *
-         * No PII beyond what's already public over the lobby socket
-         * (display names + presence). Member-level detail is
-         * intentionally summary-only — full member lists go up
-         * quadratically with concurrent rooms and aren't needed for
-         * ops triage.
-         */
-        get("/rooms") {
-            if (!call.authenticatedAsAdmin(config)) {
-                return@get call.respond(
-                    HttpStatusCode.Unauthorized,
-                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
+            /**
+             * Operational dashboard for live rooms. Returns one entry per
+             * room — code, host, seat occupancy, presence counts — so an
+             * operator can spot abandoned rooms before the sweep ticks,
+             * answer "how busy is MP right now," and verify that the sweep
+             * is doing its job between cron runs.
+             *
+             * No PII beyond what's already public over the lobby socket
+             * (display names + presence). Member-level detail is
+             * intentionally summary-only — full member lists go up
+             * quadratically with concurrent rooms and aren't needed for
+             * ops triage.
+             */
+            get("/rooms") {
+                if (!call.authenticatedAsAdmin(config)) {
+                    return@get call.respond(
+                        HttpStatusCode.Unauthorized,
+                        problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                    )
+                }
+                val snapshot = rooms.snapshot()
+                call.respond(
+                    HttpStatusCode.OK,
+                    AdminRoomListResponse(
+                        rooms = snapshot.map { room ->
+                            AdminRoomSummary(
+                                code = room.code,
+                                hostUserId = room.hostUserId.value.toString(),
+                                createdAtEpochMs = room.createdAt.toEpochMilliseconds(),
+                                status = room.status.name,
+                                maxSeats = room.maxSeats,
+                                memberCount = room.members.size,
+                                connectedCount = room.members.count { it.isConnected },
+                                disconnectedCount = room.members.count { !it.isConnected },
+                            )
+                        },
+                    ),
                 )
             }
-            val snapshot = rooms.snapshot()
-            call.respond(
-                HttpStatusCode.OK,
-                AdminRoomListResponse(
-                    rooms = snapshot.map { room ->
-                        AdminRoomSummary(
-                            code = room.code,
-                            hostUserId = room.hostUserId.value.toString(),
-                            createdAtEpochMs = room.createdAt.toEpochMilliseconds(),
-                            status = room.status.name,
-                            maxSeats = room.maxSeats,
-                            memberCount = room.members.size,
-                            connectedCount = room.members.count { it.isConnected },
-                            disconnectedCount = room.members.count { !it.isConnected },
-                        )
-                    },
-                ),
-            )
-        }
 
-        /**
-         * Seat + room reaper backstop. Frees seats whose socket has been gone
-         * longer than `STALE_ROOM_TTL_HOURS` and deletes persisted rooms with no
-         * in-memory owner past the same threshold (the abandoned-after-restart
-         * leak). The per-disconnect in-process reaper handles the common case in
-         * seconds; this cron catches what outlived the process that scheduled it.
-         *
-         * Intended cadence: hourly. Live rooms are excluded by the in-memory
-         * check, so the threshold only governs how long a stranded room lingers
-         * in Postgres — safe to run as often as you like.
-         */
-        post("/sweep-rooms") {
-            if (!call.authenticatedAsAdmin(config)) {
-                return@post call.respond(
-                    HttpStatusCode.Unauthorized,
-                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
+            /**
+             * Seat + room reaper backstop. Frees seats whose socket has been gone
+             * longer than `STALE_ROOM_TTL_HOURS` and deletes persisted rooms with no
+             * in-memory owner past the same threshold (the abandoned-after-restart
+             * leak). The per-disconnect in-process reaper handles the common case in
+             * seconds; this cron catches what outlived the process that scheduled it.
+             *
+             * Intended cadence: hourly. Live rooms are excluded by the in-memory
+             * check, so the threshold only governs how long a stranded room lingers
+             * in Postgres — safe to run as often as you like.
+             */
+            post("/sweep-rooms") {
+                if (!call.authenticatedAsAdmin(config)) {
+                    return@post call.respond(
+                        HttpStatusCode.Unauthorized,
+                        problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                    )
+                }
+                val result = rooms.sweepDisconnected(maxIdle = config.staleRoomTtlHours.hours)
+                call.respond(
+                    HttpStatusCode.OK,
+                    RoomSweepResponse(
+                        membersReaped = result.membersReaped,
+                        roomsReaped = result.roomsReaped,
+                        roomsSeen = result.roomsSeen,
+                        orphanedRoomsReaped = result.orphanedRoomsReaped,
+                    ),
                 )
             }
-            val result = rooms.sweepDisconnected(maxIdle = config.staleRoomTtlHours.hours)
-            call.respond(
-                HttpStatusCode.OK,
-                RoomSweepResponse(
-                    membersReaped = result.membersReaped,
-                    roomsReaped = result.roomsReaped,
-                    roomsSeen = result.roomsSeen,
-                    orphanedRoomsReaped = result.orphanedRoomsReaped,
-                ),
-            )
-        }
 
-        /**
-         * One-shot backfill mirroring every profile's display name into
-         * Supabase `auth.users.user_metadata.display_name`, so the Studio
-         * Users table shows who each auth row is. New accounts and renames
-         * mirror inline from `/v1/me`; this catches everyone from before
-         * that shipped (and any inline miss). Idempotent — safe to re-run.
-         */
-        post("/sync-display-names") {
-            if (!call.authenticatedAsAdmin(config)) {
-                return@post call.respond(
-                    HttpStatusCode.Unauthorized,
-                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
-                )
-            }
-            var synced = 0
-            var failed = 0
-            var notConfigured = false
-            for ((userId, displayName) in profiles.listAllDisplayNames()) {
-                when (supabaseAdmin.updateUserDisplayName(userId, displayName)) {
-                    UpdateDisplayNameResult.Success -> synced++
-                    is UpdateDisplayNameResult.Failure -> failed++
-                    UpdateDisplayNameResult.NotConfigured -> {
-                        notConfigured = true
-                        break
+            /**
+             * One-shot backfill mirroring every profile's display name into
+             * Supabase `auth.users.user_metadata.display_name`, so the Studio
+             * Users table shows who each auth row is. New accounts and renames
+             * mirror inline from `/v1/me`; this catches everyone from before
+             * that shipped (and any inline miss). Idempotent — safe to re-run.
+             */
+            post("/sync-display-names") {
+                if (!call.authenticatedAsAdmin(config)) {
+                    return@post call.respond(
+                        HttpStatusCode.Unauthorized,
+                        problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                    )
+                }
+                var synced = 0
+                var failed = 0
+                var notConfigured = false
+                for ((userId, displayName) in profiles.listAllDisplayNames()) {
+                    when (supabaseAdmin.updateUserDisplayName(userId, displayName)) {
+                        UpdateDisplayNameResult.Success -> synced++
+                        is UpdateDisplayNameResult.Failure -> failed++
+                        UpdateDisplayNameResult.NotConfigured -> {
+                            notConfigured = true
+                            break
+                        }
                     }
                 }
+                call.respond(
+                    if (notConfigured) HttpStatusCode.ServiceUnavailable else HttpStatusCode.OK,
+                    SyncDisplayNamesResponse(synced = synced, failed = failed, notConfigured = notConfigured),
+                )
             }
-            call.respond(
-                if (notConfigured) HttpStatusCode.ServiceUnavailable else HttpStatusCode.OK,
-                SyncDisplayNamesResponse(synced = synced, failed = failed, notConfigured = notConfigured),
-            )
-        }
 
-        /**
-         * Storage hygiene for `user_messages`. Removes:
-         *   - Every acked row (regardless of age) — once the user has
-         *     seen + acked a message, the row is dead weight.
-         *   - Unacked rows whose `expires_at` has passed — the unread-
-         *     fetch filter already hides these, so deletion is cleanup,
-         *     not a behavior change.
-         *
-         * Intended to run on a slow cron (nightly is plenty). Two
-         * counts come back so the caller can log them; a spike in
-         * `expiredUnackedPurged` is worth a look — it means users
-         * weren't seeing their notices in time.
-         */
-        post("/sweep-expired-messages") {
-            if (!call.authenticatedAsAdmin(config)) {
-                return@post call.respond(
-                    HttpStatusCode.Unauthorized,
-                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
+            /**
+             * Storage hygiene for `user_messages`. Removes:
+             *   - Every acked row (regardless of age) — once the user has
+             *     seen + acked a message, the row is dead weight.
+             *   - Unacked rows whose `expires_at` has passed — the unread-
+             *     fetch filter already hides these, so deletion is cleanup,
+             *     not a behavior change.
+             *
+             * Intended to run on a slow cron (nightly is plenty). Two
+             * counts come back so the caller can log them; a spike in
+             * `expiredUnackedPurged` is worth a look — it means users
+             * weren't seeing their notices in time.
+             */
+            post("/sweep-expired-messages") {
+                if (!call.authenticatedAsAdmin(config)) {
+                    return@post call.respond(
+                        HttpStatusCode.Unauthorized,
+                        problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                    )
+                }
+                val result = messages.sweepExpiredAndAcked(clock.now())
+                call.respond(
+                    HttpStatusCode.OK,
+                    MessageSweepResponse(
+                        ackedPurged = result.ackedPurged,
+                        expiredUnackedPurged = result.expiredUnackedPurged,
+                        total = result.total,
+                    ),
                 )
             }
-            val result = messages.sweepExpiredAndAcked(clock.now())
-            call.respond(
-                HttpStatusCode.OK,
-                MessageSweepResponse(
-                    ackedPurged = result.ackedPurged,
-                    expiredUnackedPurged = result.expiredUnackedPurged,
-                    total = result.total,
-                ),
-            )
-        }
 
-        /**
-         * Credits (or debits) chips on a specific user's wallet. The
-         * primary use is "support needs to make a player whole after
-         * something went wrong in prod."
-         *
-         * Body: [GrantChipsRequest]. `userId` must be a UUID. `delta` is
-         * signed — negative values debit. `reason` is a free-form short
-         * string that gets stored on the ledger row prefixed with
-         * `admin_grant:` so the audit trail groups cleanly when querying
-         * `wallet_events.reason LIKE 'admin_grant:%'`.
-         *
-         * Idempotency: if the caller omits [GrantChipsRequest.idempotencyKey],
-         * the server generates one. Passing a stable key lets a retry
-         * (e.g. the operator's network blipped) be a safe no-op.
-         *
-         * Outcomes mirror the wallet sync route — Applied (first time or
-         * replay) or InsufficientChips (negative delta would dip below
-         * zero; ledger row is NOT written, balance unchanged).
-         */
-        post("/grant-chips") {
-            if (!call.authenticatedAsAdmin(config)) {
-                return@post call.respond(
-                    HttpStatusCode.Unauthorized,
-                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
+            /**
+             * Credits (or debits) chips on a specific user's wallet. The
+             * primary use is "support needs to make a player whole after
+             * something went wrong in prod."
+             *
+             * Body: [GrantChipsRequest]. `userId` must be a UUID. `delta` is
+             * signed — negative values debit. `reason` is a free-form short
+             * string that gets stored on the ledger row prefixed with
+             * `admin_grant:` so the audit trail groups cleanly when querying
+             * `wallet_events.reason LIKE 'admin_grant:%'`.
+             *
+             * Idempotency: if the caller omits [GrantChipsRequest.idempotencyKey],
+             * the server generates one. Passing a stable key lets a retry
+             * (e.g. the operator's network blipped) be a safe no-op.
+             *
+             * Outcomes mirror the wallet sync route — Applied (first time or
+             * replay) or InsufficientChips (negative delta would dip below
+             * zero; ledger row is NOT written, balance unchanged).
+             */
+            post("/grant-chips") {
+                if (!call.authenticatedAsAdmin(config)) {
+                    return@post call.respond(
+                        HttpStatusCode.Unauthorized,
+                        problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                    )
+                }
+                val body = try {
+                    call.receive<GrantChipsRequest>()
+                } catch (_: BadRequestException) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        problemEnvelope("invalid_body", "Malformed JSON body."),
+                    )
+                }
+                val parsedUserId = try {
+                    UserId(UUID.fromString(body.userId))
+                } catch (_: IllegalArgumentException) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        problemEnvelope("invalid_user_id", "userId must be a UUID."),
+                    )
+                }
+                val trimmedReason = body.reason.trim()
+                if (trimmedReason.isEmpty()) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        problemEnvelope("invalid_reason", "reason must be a non-empty string."),
+                    )
+                }
+                if (body.delta == 0L) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        problemEnvelope("invalid_delta", "delta must be non-zero."),
+                    )
+                }
+                val attachedMessage = body.message
+                if (attachedMessage != null) {
+                    val validation = validateMessagePayload(attachedMessage)
+                    if (validation != null) return@post call.respond(validation.first, validation.second)
+                }
+                val key = body.idempotencyKey?.takeIf { it.isNotBlank() }
+                    ?: UUID.randomUUID().toString()
+                val outcome = wallets.apply(
+                    userId = parsedUserId,
+                    idempotencyKey = key,
+                    delta = body.delta,
+                    reason = "admin_grant:$trimmedReason",
                 )
+                val messageDto: AdminMessageDto? = if (
+                    attachedMessage != null &&
+                    outcome is ApplyOutcome.Applied &&
+                    !outcome.wasAlreadyApplied
+                ) {
+                    // Only attach a message when the grant actually moved chips.
+                    // Replays don't re-attach (the original call already did);
+                    // InsufficientChips means the chips never landed so a
+                    // "we credited you" dialog would be a lie.
+                    val result = messages.create(
+                        id = UUID.randomUUID(),
+                        userId = parsedUserId,
+                        idempotencyKey = "grant-chips:$key",
+                        // Chip grants attach as Dialog only — a fresh chip
+                        // arrival is a moment, not a log entry. If the
+                        // operator wants an inbox follow-up, they should
+                        // send a separate /v1/admin/messages call.
+                        kind = UserMessageKind.Dialog,
+                        emoji = attachedMessage.emoji,
+                        title = attachedMessage.title.trim(),
+                        body = attachedMessage.body.trim(),
+                        deepLink = attachedMessage.deepLink?.takeUnless { it.isBlank() },
+                        expiresAt = attachedMessage.expiresAtEpochMs?.let { Instant.fromEpochMilliseconds(it) },
+                    )
+                    result.message.toAdminDto()
+                } else {
+                    null
+                }
+                val (status, response) = when (outcome) {
+                    is ApplyOutcome.Applied -> HttpStatusCode.OK to GrantChipsResponse(
+                        balance = outcome.balance,
+                        outcome = if (outcome.wasAlreadyApplied) {
+                            GrantChipsOutcomeDto.AlreadyApplied
+                        } else {
+                            GrantChipsOutcomeDto.Applied
+                        },
+                        idempotencyKey = key,
+                        message = messageDto,
+                    )
+                    is ApplyOutcome.InsufficientChips -> HttpStatusCode.Conflict to GrantChipsResponse(
+                        balance = outcome.balance,
+                        outcome = GrantChipsOutcomeDto.InsufficientChips,
+                        idempotencyKey = key,
+                        message = null,
+                    )
+                }
+                call.respond(status, response)
             }
-            val body = try {
-                call.receive<GrantChipsRequest>()
-            } catch (_: BadRequestException) {
-                return@post call.respond(
-                    HttpStatusCode.BadRequest,
-                    problemEnvelope("invalid_body", "Malformed JSON body."),
-                )
-            }
-            val parsedUserId = try {
-                UserId(UUID.fromString(body.userId))
-            } catch (_: IllegalArgumentException) {
-                return@post call.respond(
-                    HttpStatusCode.BadRequest,
-                    problemEnvelope("invalid_user_id", "userId must be a UUID."),
-                )
-            }
-            val trimmedReason = body.reason.trim()
-            if (trimmedReason.isEmpty()) {
-                return@post call.respond(
-                    HttpStatusCode.BadRequest,
-                    problemEnvelope("invalid_reason", "reason must be a non-empty string."),
-                )
-            }
-            if (body.delta == 0L) {
-                return@post call.respond(
-                    HttpStatusCode.BadRequest,
-                    problemEnvelope("invalid_delta", "delta must be non-zero."),
-                )
-            }
-            val attachedMessage = body.message
-            if (attachedMessage != null) {
-                val validation = validateMessagePayload(attachedMessage)
+
+            /**
+             * Schedules an in-app dialog for [SendMessageRequest.userId]. The
+             * dialog appears on the user's next foreground / cold-boot, with
+             * the emoji bubble, title, body, and CTA the operator filled in.
+             *
+             * Body validation mirrors the chip-attach path so the two
+             * endpoints agree on what a "valid message" looks like. Returns
+             * the created (or replayed) message id so the operator can
+             * cross-reference the run with the recipient's ack later.
+             *
+             * Use cases: maintenance heads-up, season launch, "we fixed the
+             * bug that ate your hand" support outreach. For broadcasts,
+             * call N times — V1 deliberately doesn't have a fan-out endpoint
+             * (avoids accidentally messaging the entire user base from a
+             * single typo).
+             */
+            post("/messages") {
+                if (!call.authenticatedAsAdmin(config)) {
+                    return@post call.respond(
+                        HttpStatusCode.Unauthorized,
+                        problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                    )
+                }
+                val body = try {
+                    call.receive<SendMessageRequest>()
+                } catch (_: BadRequestException) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        problemEnvelope("invalid_body", "Malformed JSON body."),
+                    )
+                }
+                val parsedUserId = try {
+                    UserId(UUID.fromString(body.userId))
+                } catch (_: IllegalArgumentException) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        problemEnvelope("invalid_user_id", "userId must be a UUID."),
+                    )
+                }
+                val validation = validateMessagePayload(body.message)
                 if (validation != null) return@post call.respond(validation.first, validation.second)
-            }
-            val key = body.idempotencyKey?.takeIf { it.isNotBlank() }
-                ?: UUID.randomUUID().toString()
-            val outcome = wallets.apply(
-                userId = parsedUserId,
-                idempotencyKey = key,
-                delta = body.delta,
-                reason = "admin_grant:$trimmedReason",
-            )
-            val messageDto: AdminMessageDto? = if (
-                attachedMessage != null &&
-                outcome is ApplyOutcome.Applied &&
-                !outcome.wasAlreadyApplied
-            ) {
-                // Only attach a message when the grant actually moved chips.
-                // Replays don't re-attach (the original call already did);
-                // InsufficientChips means the chips never landed so a
-                // "we credited you" dialog would be a lie.
+                val kind = try {
+                    body.kind?.let { UserMessageKind.parse(it) } ?: UserMessageKind.Dialog
+                } catch (_: IllegalStateException) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        problemEnvelope("invalid_kind", "kind must be 'dialog' or 'inbox'."),
+                    )
+                }
+
+                val idempotencyKey = body.idempotencyKey?.takeIf { it.isNotBlank() }
+                    ?: UUID.randomUUID().toString()
                 val result = messages.create(
                     id = UUID.randomUUID(),
                     userId = parsedUserId,
-                    idempotencyKey = "grant-chips:$key",
-                    // Chip grants attach as Dialog only — a fresh chip
-                    // arrival is a moment, not a log entry. If the
-                    // operator wants an inbox follow-up, they should
-                    // send a separate /v1/admin/messages call.
-                    kind = UserMessageKind.Dialog,
-                    emoji = attachedMessage.emoji,
-                    title = attachedMessage.title.trim(),
-                    body = attachedMessage.body.trim(),
-                    deepLink = attachedMessage.deepLink?.takeUnless { it.isBlank() },
-                    expiresAt = attachedMessage.expiresAtEpochMs?.let { Instant.fromEpochMilliseconds(it) },
-                )
-                result.message.toAdminDto()
-            } else {
-                null
-            }
-            val (status, response) = when (outcome) {
-                is ApplyOutcome.Applied -> HttpStatusCode.OK to GrantChipsResponse(
-                    balance = outcome.balance,
-                    outcome = if (outcome.wasAlreadyApplied) {
-                        GrantChipsOutcomeDto.AlreadyApplied
-                    } else {
-                        GrantChipsOutcomeDto.Applied
-                    },
-                    idempotencyKey = key,
-                    message = messageDto,
-                )
-                is ApplyOutcome.InsufficientChips -> HttpStatusCode.Conflict to GrantChipsResponse(
-                    balance = outcome.balance,
-                    outcome = GrantChipsOutcomeDto.InsufficientChips,
-                    idempotencyKey = key,
-                    message = null,
-                )
-            }
-            call.respond(status, response)
-        }
-
-        /**
-         * Schedules an in-app dialog for [SendMessageRequest.userId]. The
-         * dialog appears on the user's next foreground / cold-boot, with
-         * the emoji bubble, title, body, and CTA the operator filled in.
-         *
-         * Body validation mirrors the chip-attach path so the two
-         * endpoints agree on what a "valid message" looks like. Returns
-         * the created (or replayed) message id so the operator can
-         * cross-reference the run with the recipient's ack later.
-         *
-         * Use cases: maintenance heads-up, season launch, "we fixed the
-         * bug that ate your hand" support outreach. For broadcasts,
-         * call N times — V1 deliberately doesn't have a fan-out endpoint
-         * (avoids accidentally messaging the entire user base from a
-         * single typo).
-         */
-        post("/messages") {
-            if (!call.authenticatedAsAdmin(config)) {
-                return@post call.respond(
-                    HttpStatusCode.Unauthorized,
-                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
-                )
-            }
-            val body = try {
-                call.receive<SendMessageRequest>()
-            } catch (_: BadRequestException) {
-                return@post call.respond(
-                    HttpStatusCode.BadRequest,
-                    problemEnvelope("invalid_body", "Malformed JSON body."),
-                )
-            }
-            val parsedUserId = try {
-                UserId(UUID.fromString(body.userId))
-            } catch (_: IllegalArgumentException) {
-                return@post call.respond(
-                    HttpStatusCode.BadRequest,
-                    problemEnvelope("invalid_user_id", "userId must be a UUID."),
-                )
-            }
-            val validation = validateMessagePayload(body.message)
-            if (validation != null) return@post call.respond(validation.first, validation.second)
-            val kind = try {
-                body.kind?.let { UserMessageKind.parse(it) } ?: UserMessageKind.Dialog
-            } catch (_: IllegalStateException) {
-                return@post call.respond(
-                    HttpStatusCode.BadRequest,
-                    problemEnvelope("invalid_kind", "kind must be 'dialog' or 'inbox'."),
-                )
-            }
-
-            val idempotencyKey = body.idempotencyKey?.takeIf { it.isNotBlank() }
-                ?: UUID.randomUUID().toString()
-            val result = messages.create(
-                id = UUID.randomUUID(),
-                userId = parsedUserId,
-                idempotencyKey = idempotencyKey,
-                kind = kind,
-                emoji = body.message.emoji,
-                title = body.message.title.trim(),
-                body = body.message.body.trim(),
-                deepLink = body.message.deepLink?.takeUnless { it.isBlank() },
-                expiresAt = body.message.expiresAtEpochMs?.let { Instant.fromEpochMilliseconds(it) },
-            )
-            call.respond(
-                HttpStatusCode.OK,
-                SendMessageResponse(
-                    message = result.message.toAdminDto(),
-                    outcome = if (result.wasAlreadyCreated) {
-                        SendMessageOutcomeDto.AlreadyScheduled
-                    } else {
-                        SendMessageOutcomeDto.Scheduled
-                    },
                     idempotencyKey = idempotencyKey,
-                ),
-            )
+                    kind = kind,
+                    emoji = body.message.emoji,
+                    title = body.message.title.trim(),
+                    body = body.message.body.trim(),
+                    deepLink = body.message.deepLink?.takeUnless { it.isBlank() },
+                    expiresAt = body.message.expiresAtEpochMs?.let { Instant.fromEpochMilliseconds(it) },
+                )
+                call.respond(
+                    HttpStatusCode.OK,
+                    SendMessageResponse(
+                        message = result.message.toAdminDto(),
+                        outcome = if (result.wasAlreadyCreated) {
+                            SendMessageOutcomeDto.AlreadyScheduled
+                        } else {
+                            SendMessageOutcomeDto.Scheduled
+                        },
+                        idempotencyKey = idempotencyKey,
+                    ),
+                )
+            }
         }
     }
 }

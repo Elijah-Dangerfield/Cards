@@ -51,3 +51,22 @@ Judgement calls: **(1)** A8 is `severity: warning`, not critical, so it emails r
 **Deferred:**
 - The App Store Connect half (create/approve the three IAPs, attach to the live version, confirm Paid Apps + tax/banking). Human-only, already on `developer-todo.md` — nothing in the repo can fix it.
 - A `dc-revenue` panel breaking the event out by platform and SKU. The alert covers "tell me when", a panel would cover "show me the history"; left unbuilt because it reads as broken until a build ships the event. Not filed anywhere.
+
+## fix(server): log and throttle failed admin-token attempts (ENG-41)
+
+**Problem:** An unauthenticated scanner probed `POST /v1/admin/grant-chips` and `/v1/admin/messages` on prod in 2026-08. Nothing moved, but the 401 branch logged nothing and `/v1/admin` opted into no bucket, so it sat behind only the global 600/IP/min. A brute force against the chip-minting route would have been invisible on every dashboard and cheap to run: roughly 864k guesses a day.
+
+**Approach:** The WARN went into `authenticatedAsAdmin` itself rather than the eight 401 branches the todo pointed at. One gate means no future admin route can forget to log, and the branches stay readable. It carries method, path, client IP, and which of the three failure modes it was; the presented token is never logged, because a near-miss guess sitting in the log store puts the secret somewhere much softer than the secret store.
+
+**The judgement call worth reviewing: the bucket counts only *failed* attempts.** The todo suggested a flat 20/hour on `/v1/admin`. I built that first and then realized it would throttle the owner out of the hosted config console, which fires several authenticated reads per page load — and throttling a caller who already holds the secret protects nothing anyway. So `requestWeight` is 0 for a valid token and 1 otherwise: a guessing budget rather than a request budget, 20 wrong tokens per IP per hour, correct ones free. It's a stronger guarantee than the todo asked for (an attacker gets 20/hour instead of 864k/day) and it can't lock out a legitimate operator. If you'd rather have the blunt version, it's a one-line revert of the `requestWeight` block.
+
+**Reviewer notes:**
+- The constant-time compare moved to `AdminConfig.matchesApiToken` because the gate and the limiter both need it, and two copies of a constant-time compare is how one of them quietly stops being constant-time. Same algorithm, same length short-circuit, just one home.
+- **Anyone registering `adminRoutes` / `configAdminRoutes` must now install the RateLimit plugin**, or Ktor throws at route setup. That's what broke every admin test on the first run. `installRateLimits` therefore takes `AdminConfig`, which touched ten test call sites — all mechanical, all passing `apiToken = null`.
+- `withApp` in `AdminRoutesTest` now installs the limiter, so the pre-existing auth tests run through the same path prod does. They still pass, which is the useful part: the limiter doesn't change any 401 behaviour.
+- Log assertions use a logback `ListAppender` on the `AdminAuth` logger. First use of that pattern in the server tests. The alternative was asserting nothing about the log, which would have left the "never log the token" property untested — and that's the property most worth a regression guard.
+- Full `:apps:server:test` suite re-run clean, not just the admin files.
+
+**Deferred:**
+- Per-IP is still the keying strategy, with the shared-NAT caveat the `RateLimits.kt` header already documents. Not worth solving for a route whose only honest callers are machines.
+- No alert on the new WARN. A rate rule over "someone guessed wrong" would be noise at current volume; the line being queryable is the ask, and A4's shape is there if it ever needs one. Not filed anywhere.
