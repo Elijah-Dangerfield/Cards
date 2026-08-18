@@ -70,3 +70,11 @@ Judgement calls: **(1)** A8 is `severity: warning`, not critical, so it emails r
 **Deferred:**
 - Per-IP is still the keying strategy, with the shared-NAT caveat the `RateLimits.kt` header already documents. Not worth solving for a route whose only honest callers are machines.
 - No alert on the new WARN. A rate rule over "someone guessed wrong" would be noise at current volume; the line being queryable is the ask, and A4's shape is there if it ever needs one. Not filed anywhere.
+
+## Cycle note: ENG-40 is blocked on something the repo can't reach
+
+Not a commit — a dead end worth recording so the next worker doesn't spend the same time on it.
+
+ENG-40 wants the real App Store id to replace `APP_STORE_ID_PLACEHOLDER`, and its Hints say the id is resolvable without App Store Connect access via `itunes.apple.com/lookup?bundleId=com.dangerfield.cards.Cards`. **That method does not work.** The lookup returns `resultCount: 0` for that bundle id in every storefront tried (us, sg, gb, ca, au, de), a search for the product name ("Downcard", per `apps/ios/Configuration/Config.xcconfig`) returns ten unrelated apps, and the Sentry event for the live release carries no `app_identifier` to cross-check against. The checked-in bundle id is also `com.dangerfield.cards.Cards$(TEAM_ID)` with `TEAM_ID` empty in the repo, so the shipped identifier may carry a team suffix that isn't in source at all.
+
+Either the human reads the id off App Store Connect, or someone with the signed build reads it from there. Left the item untouched; the stale Hints line is the thing to fix when that lands.
