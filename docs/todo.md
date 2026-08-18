@@ -85,3 +85,19 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 **Acceptance:** A failed `X-Admin-Token` check emits one WARN line with path + client IP (never the presented token), so it's queryable in Loki; `/v1/admin` sits behind a tight dedicated bucket (e.g. 20/hour/IP) with a test proving a burst gets 429'd.
 
 **Hints:** Gate is `authenticatedAsAdmin` (`routes/AdminAuth.kt`); the seven 401 branches are in `routes/AdminRoutes.kt` + `routes/ConfigAdminRoutes.kt`. Add the bucket in `plugins/RateLimits.kt` alongside `DELETE_ACCOUNT_LIMIT` and reuse `clientIp()`. Case `docs/agent/feedback-cases/admin-probe-2026-08-11.md`.
+
+## ENG-42 [P0] — The OS is killing the live iOS build on the onboarding welcome screen, and we can't tell a real kill from a force-quit
+
+**Problem:** A retail iPad (iPad15,3 / iOS 26.5.2) on the App Store build `cards@0.1.0+3` hit two `WatchdogTermination` fatals in a row while foregrounded on the `welcome` step, ~86s of no breadcrumbs each, then abandoned — one of only two live iOS installs. Sentry's watchdog detection is a next-launch heuristic, so it can't separate a real hang from a swipe-away, and ENG-25 made iOS `previous_exit` a once-daily MetricKit sample that's `unknown` on every one of these launches.
+
+**Acceptance:** A per-run iOS foreground-termination signal exists and is charted (own clean-exit marker and/or MetricKit `MXAppExitMetric` foreground watchdog counts), so we can state a rate rather than an anecdote — then either reproduce and fix the welcome-step hang, or demonstrate these were force-quits and reclassify to P1.
+
+**Hints:** Candidate set = sessions with no `app.backgrounded` and no crash. `App recomposed (this should be rare)` [WARN] fires on every iOS cold launch — check it while in there. `IosPreviousExitProvider` / `MetricKitExitReport` in `:libraries:telemetry:impl`; decision `decisions.md` 2026-07-11 (ENG-25) deferred this "until iOS exit rates become load-bearing". Case `docs/agent/feedback-cases/CARDS-3.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-3.
+
+## ENG-43 [P1] — Shop silently hides every chip pack when the store drops the SKUs, and nothing alerts on it
+
+**Problem:** On the live App Store build, StoreKit returns none of `com.cards.iap.chips.{small,medium,large}`, so `reconcileAgainst` drops all 3 packs and the iOS shop renders an empty section with no explanation. It has logged at ERROR since 2026-07-23 and nothing escalated: no alert rule, no panel, no structured event — and A5 stays green because zero visible packs means zero purchase attempts. (The App Store Connect config half is human-only and lives in `developer-todo.md`.)
+
+**Acceptance:** The drop emits a structured event (`event_name`, `dropped`/`total`/`platform`) instead of a bare log string, an alert or dashboard panel fires when a store drops packs in prod, and a shop with zero purchasable packs shows an honest state rather than an empty section.
+
+**Hints:** `ProductsRepositoryImpl.doRefresh` (`libraries/products/impl/src/commonMain/.../ProductsRepositoryImpl.kt:179-205`) — the `storeQuery.authoritative` branch already computes `droppedSkus`. Same blind spot as the standing 2026-07-15 A5 note. Case `docs/agent/feedback-cases/CARDS-8V.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-8V.
