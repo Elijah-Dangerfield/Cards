@@ -67,16 +67,16 @@ private class ExitMetricSubscriber(
                 .maxByOrNull { it.timeStampEnd.timeIntervalSince1970 }
                 ?.applicationExitMetrics?.foregroundExitData
                 ?: return@Catching
-            report.record(
-                ForegroundExitCounts(
-                    normal = latest.cumulativeNormalAppExitCount.toLong(),
-                    abnormal = latest.cumulativeAbnormalExitCount.toLong(),
-                    watchdog = latest.cumulativeAppWatchdogExitCount.toLong(),
-                    memoryLimit = latest.cumulativeMemoryResourceLimitExitCount.toLong(),
-                    badAccess = latest.cumulativeBadAccessExitCount.toLong(),
-                    illegalInstruction = latest.cumulativeIllegalInstructionExitCount.toLong(),
-                ),
+            val counts = ForegroundExitCounts(
+                normal = latest.cumulativeNormalAppExitCount.toLong(),
+                abnormal = latest.cumulativeAbnormalExitCount.toLong(),
+                watchdog = latest.cumulativeAppWatchdogExitCount.toLong(),
+                memoryLimit = latest.cumulativeMemoryResourceLimitExitCount.toLong(),
+                badAccess = latest.cumulativeBadAccessExitCount.toLong(),
+                illegalInstruction = latest.cumulativeIllegalInstructionExitCount.toLong(),
             )
+            report.record(counts)
+            logForegroundExitMetrics(counts)
         }
     }
 }
