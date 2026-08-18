@@ -46,11 +46,17 @@ green, close the tab.**
 
 ## Alerts (folder Downcard — Engineering)
 
-Seven rules, labelled `severity: critical|warning`. A1 ledger drift ≠ 0 (hourly, critical) ·
+Eight rules, labelled `severity: critical|warning`. A1 ledger drift ≠ 0 (hourly, critical) ·
 A2 Fly prod down (5m, critical) · A3 Supabase down (10m, critical) · A4 ≥3 installs reporting
 `net.backend_unreachable` in 15m (critical) · A5 purchase success rate low (critical) · A6 any
-OOM kill (critical) · A7 server silent 60m (warning, **live since launch 2026-07-24**). Root
-policy repeats at most every 24h.
+OOM kill (critical) · A7 server silent 60m (warning, **live since launch 2026-07-24**) ·
+A8 store dropped chip-pack SKUs in prod (hourly, warning). Root policy repeats at most every 24h.
+
+**A8 covers the blind spot A5 structurally cannot see (ENG-43, CARDS-8V).** A5 divides purchase
+completions by attempts, so a store that recognizes none of our SKUs produces zero visible packs,
+zero attempts, and a permanently green A5 while the shop sells nothing. A8 fires on the
+`shop.catalog_skus_dropped` event instead. It is a warning rather than critical on purpose: the fix
+lives in App Store Connect / Play Console during business hours, so paging overnight buys nothing.
 
 **Routing (live 2026-07-24):** the notification policy routes `severity=critical` → contact point
 `downcard-critical` (email + IRM mobile push); everything else (warnings, e.g. A7) → `owner-email`

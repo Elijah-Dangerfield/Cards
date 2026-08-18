@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.products.CatalogTimeAnchor
 import com.dangerfield.cards.libraries.products.Product
@@ -105,6 +106,7 @@ class ProductsRepositoryImpl(
     private val timeAnchor = MutableStateFlow<CatalogTimeAnchor?>(null)
     private val isRefreshing = MutableStateFlow(false)
     private val refreshFailed = MutableStateFlow(false)
+    private val chipPacksUnavailable = MutableStateFlow(false)
     private val refreshMutex = Mutex()
 
     /**
@@ -150,6 +152,35 @@ class ProductsRepositoryImpl(
 
     override fun observeRefreshFailed(): Flow<Boolean> = refreshFailed.asStateFlow()
 
+    override fun observeChipPacksUnavailable(): Flow<Boolean> = chipPacksUnavailable.asStateFlow()
+
+    /**
+     * The condition sat at ERROR in Sentry for three weeks on the live iOS
+     * build without anything escalating it (ENG-43, CARDS-8V), because a
+     * prose log line is neither alertable nor queryable and the purchase-rate
+     * alert reads healthy when nothing is ever shown to buy. The structured
+     * event is what a rule can fire on; the error log stays because it is
+     * what puts the condition in front of a human in Sentry, and those are
+     * different audiences. `platform` is already a resource attribute on
+     * every record, so it isn't repeated here.
+     */
+    private fun reportDroppedSkus(droppedSkus: Set<String>, totalPacks: Int) {
+        chipPacksUnavailable.value = totalPacks > 0 && droppedSkus.size == totalPacks
+        if (droppedSkus.isEmpty()) return
+
+        logger.logEvent(
+            "shop.catalog_skus_dropped",
+            "dropped" to droppedSkus.size,
+            "total" to totalPacks,
+            "skus" to droppedSkus.sorted().joinToString(","),
+        )
+        logger.e {
+            "Store did not recognize ${droppedSkus.size}/$totalPacks " +
+                "chip-pack SKU(s); hiding from shop: $droppedSkus. " +
+                "Check the store listing (missing / not approved / region-blocked)."
+        }
+    }
+
     override suspend fun refresh(force: Boolean): Result<ProductCatalog> = refreshMutex.withLock {
         // Single-flight: two callers racing share the in-flight call's
         // result. When the call lands, the StateFlow update fans out to
@@ -187,21 +218,14 @@ class ProductsRepositoryImpl(
             // A pack the store doesn't recognize silently vanishes from the
             // shop (reconcileAgainst drops it), which is exactly the failure
             // mode of an ASC/Play listing typo, an unapproved product, or a
-            // region gap. Error level on purpose: SentryLogTree promotes it to
-            // a Sentry event so the mismatch is visible before users report
-            // "the shop is empty". Only when the store answered
-            // authoritatively — a cached/offline snapshot dropping packs is
-            // connectivity, not misconfiguration.
+            // region gap. Only when the store answered authoritatively — a
+            // cached/offline snapshot dropping packs is connectivity, not
+            // misconfiguration.
             if (storeQuery.authoritative) {
-                val droppedSkus =
-                    rawCatalog.chipPacks.map { it.store.sku }.toSet() - storeQuery.products.keys
-                if (droppedSkus.isNotEmpty()) {
-                    logger.e {
-                        "Store did not recognize ${droppedSkus.size}/${rawCatalog.chipPacks.size} " +
-                            "chip-pack SKU(s); hiding from shop: $droppedSkus. " +
-                            "Check the store listing (missing / not approved / region-blocked)."
-                    }
-                }
+                reportDroppedSkus(
+                    droppedSkus = rawCatalog.chipPacks.map { it.store.sku }.toSet() - storeQuery.products.keys,
+                    totalPacks = rawCatalog.chipPacks.size,
+                )
             }
 
             // Anchor first so any synchronous UI subscriber sees both

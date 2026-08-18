@@ -737,6 +737,16 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Each purchase shows its pack, chip amount, and status (Added / Pending / Refunded), newest first. A delisted pack still renders with a generic label, not a blank row. "Check for missing purchases" re-runs the outstanding-purchase drain and the list reloads; a purchase that resolves flips from Pending to Added. With no purchases the screen shows a calm "No purchases yet", and a failed load with nothing to show offers a retry, not a misleading empty state.
 
+### `SHOP-12` 🍎🤖 Shop explains itself when the store sells no chip packs
+
+**State:** a build whose platform store recognizes none of the chip-pack SKUs. On iOS that's the live App Store condition CARDS-8V describes; otherwise reproduce by pointing the build at a store account with no IAP products provisioned. Must be online, so the store answers rather than timing out. (Covers todo ENG-43.)
+
+1. Open the Shop and look at the top of the screen.
+2. Scroll the rest of the shop.
+3. Turn airplane mode on, force-quit, relaunch, and open the Shop again.
+
+**Expected:** The "Get chips" heading is still there, with an info banner under it saying chip packs are unavailable and that it's a problem on our end, not the user's account. The shelf does not silently disappear. Cosmetic shelves below it still render and chip-funded redeems still work. Offline, where the store never gave a real answer, the shop falls back to its normal cached behaviour and does **not** show the unavailable banner — an unreachable store must never read as a misconfigured one.
+
 ---
 
 ## Tooling & debug

@@ -2,6 +2,8 @@ package com.dangerfield.cards.features.shop.impl
 
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.shop_also_earnable_hint
+import cards.libraries.resources.generated.resources.shop_chip_packs_unavailable_body
+import cards.libraries.resources.generated.resources.shop_chip_packs_unavailable_title
 import cards.libraries.resources.generated.resources.shop_empty_subtitle
 import cards.libraries.resources.generated.resources.shop_empty_title
 import cards.libraries.resources.generated.resources.shop_error_retry
@@ -91,6 +93,8 @@ import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.border
+import com.dangerfield.cards.libraries.ui.components.Banner
+import com.dangerfield.cards.libraries.ui.components.BannerType
 import com.dangerfield.cards.libraries.ui.components.BadgePlacement
 import com.dangerfield.cards.libraries.ui.components.BadgedBox
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
@@ -332,6 +336,7 @@ private fun CatalogContent(
 
         GetChipsSection(
             packs = state.catalog.chipPacks,
+            packsUnavailable = state.chipPacksUnavailable,
             onProductTap = onProductTap,
         )
         VerticalSpacerD800()
@@ -495,11 +500,21 @@ private fun <T> ProductGrid(
 @Composable
 private fun GetChipsSection(
     packs: List<Product.ChipPack>,
+    packsUnavailable: Boolean,
     onProductTap: (productId: String) -> Unit,
 ) {
-    if (packs.isEmpty()) return
+    if (packs.isEmpty() && !packsUnavailable) return
     SectionHeader(title = stringResource(Res.string.shop_get_chips_title))
     VerticalSpacerD500()
+
+    if (packs.isEmpty()) {
+        Banner(
+            type = BannerType.Info,
+            title = stringResource(Res.string.shop_chip_packs_unavailable_title),
+            body = stringResource(Res.string.shop_chip_packs_unavailable_body),
+        )
+        return
+    }
 
     // Hero banner slot — intentionally empty for now. Drop a promo/best-value
     // banner here when one exists; it sits above the main three options.
@@ -1197,6 +1212,24 @@ private fun ShopScreenPreview_FullCatalog() {
                 hasLoaded = true,
                 chipBalance = 12_450,
                 catalog = previewFullCatalog(),
+            ),
+            onAction = {},
+            onProductTap = {},
+            onIdeaTap = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ShopScreenPreview_ChipPacksUnavailable() {
+    PreviewContent(bottomBar = PreviewBottomBar.Shop) {
+        ShopScreen(
+            state = ShopState(
+                hasLoaded = true,
+                chipBalance = 12_450,
+                chipPacksUnavailable = true,
+                catalog = previewFullCatalog().copy(chipPacks = emptyList()),
             ),
             onAction = {},
             onProductTap = {},

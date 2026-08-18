@@ -83,6 +83,14 @@ class ShopViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            // Store-listing misconfiguration hid every pack. Without this the
+            // section just disappears and the user is told nothing, which is
+            // how the live iOS shop sold nothing for three weeks (ENG-43).
+            productsRepository.observeChipPacksUnavailable().collect { unavailable ->
+                takeAction(ShopAction.ChipPacksUnavailableChanged(unavailable))
+            }
+        }
+        viewModelScope.launch {
             chipsRepository.observeBalance().collect { balance ->
                 takeAction(ShopAction.ChipsChanged(balance))
             }
@@ -154,6 +162,9 @@ class ShopViewModel @Inject constructor(
             }
             is ShopAction.RefreshFailedChanged -> action.updateState {
                 it.copy(hasRefreshError = action.value)
+            }
+            is ShopAction.ChipPacksUnavailableChanged -> action.updateState {
+                it.copy(chipPacksUnavailable = action.value)
             }
             is ShopAction.CatalogChanged -> action.updateState {
                 // Disk-hydrated catalog or a successful refresh both
@@ -362,6 +373,12 @@ data class ShopState(
      *  The banner copy is screen-owned (resolved from resources) rather than
      *  carried as free text from the VM. */
     val hasRefreshError: Boolean = false,
+    /**
+     * Set when the store recognized none of the catalog's chip packs, so the
+     * Get Chips shelf has nothing purchasable on it. The shelf explains itself
+     * instead of vanishing (ENG-43); an ordinary empty catalog still hides it.
+     */
+    val chipPacksUnavailable: Boolean = false,
     val inventory: List<InventoryItem> = emptyList(),
     /** Quick-lookup set of product ids the user owns. Updated alongside
      *  [inventory] so screen code doesn't re-derive it on every recompose. */
@@ -567,6 +584,8 @@ sealed interface ShopAction {
      * surfaces the same error state a failed pull-to-refresh does.
      */
     data class RefreshFailedChanged(val value: Boolean) : ShopAction
+
+    data class ChipPacksUnavailableChanged(val value: Boolean) : ShopAction
     data class CatalogChanged(val catalog: ProductCatalog) : ShopAction
     data class ChipsChanged(val balance: Long?) : ShopAction
     data class ChipsReconcilingChanged(val reconciling: Boolean) : ShopAction

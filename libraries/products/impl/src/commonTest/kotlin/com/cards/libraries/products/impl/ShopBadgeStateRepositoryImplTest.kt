@@ -151,6 +151,8 @@ class ShopBadgeStateRepositoryImplTest : CoroutineTest() {
         override fun observeIsRefreshing(): Flow<Boolean> = MutableStateFlow(false)
         override fun observeRefreshFailed(): Flow<Boolean> = MutableStateFlow(false)
 
+        override fun observeChipPacksUnavailable(): Flow<Boolean> = MutableStateFlow(false)
+
         fun emit(value: ProductCatalog) { state.value = value }
     }
 

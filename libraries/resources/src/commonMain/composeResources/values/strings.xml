@@ -92,6 +92,8 @@
     <string name="shop_header_subtitle">Spend chips. Stock up. Flex.</string>
     <string name="shop_get_chips_title">Get chips</string>
     <string name="shop_get_chips_footnote">Or earn them free at the table, every day.</string>
+    <string name="shop_chip_packs_unavailable_title">Chip packs are unavailable</string>
+    <string name="shop_chip_packs_unavailable_body">This is a problem on our end, not with your account. You can still earn chips free at the table every day.</string>
     <string name="shop_idea_footer_button">Got an idea? Tell us</string>
     <string name="shop_personal_cosmetic_hint">Only you see this</string>
     <string name="shop_also_earnable_hint">Also earnable</string>

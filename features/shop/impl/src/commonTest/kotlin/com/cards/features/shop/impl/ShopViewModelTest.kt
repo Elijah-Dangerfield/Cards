@@ -115,6 +115,21 @@ class ShopViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun storeRecognizingNoPacks_reachesStateSoTheShelfCanExplainItself() = runUnitTest {
+        // ENG-43: on the live iOS build the Get Chips shelf just vanished and
+        // the user was told nothing for three weeks. An empty catalog alone
+        // can't carry that meaning, so the repo's flag has to reach state.
+        val repo = FakeProductsRepository(ProductCatalog.Empty)
+        val vm = buildVm(productsRepository = repo)
+        assertFalse(vm.state.chipPacksUnavailable)
+
+        repo.chipPacksUnavailable.value = true
+
+        assertTrue(vm.state.chipPacksUnavailable)
+        assertFalse(vm.state.hasRefreshError, "a store misconfiguration is not a refresh failure")
+    }
+
+    @Test
     fun dismissError_clearsErrorMessage() = runUnitTest {
         // The VM no longer triggers a refresh from init (the repo
         // self-triggers on session boundary). To surface an error
@@ -647,6 +662,7 @@ class ShopViewModelTest : CoroutineTest() {
         private val timeAnchor = MutableStateFlow<com.dangerfield.cards.libraries.products.CatalogTimeAnchor?>(null)
         private val isRefreshing = MutableStateFlow(false)
         private val refreshFailed = MutableStateFlow(false)
+        val chipPacksUnavailable = MutableStateFlow(false)
         var nextRefreshResult: Result<ProductCatalog>? = null
         var refreshCalls: Int = 0
             private set
@@ -659,6 +675,8 @@ class ShopViewModelTest : CoroutineTest() {
         override fun observeIsRefreshing(): Flow<Boolean> = isRefreshing.asStateFlow()
 
         override fun observeRefreshFailed(): Flow<Boolean> = refreshFailed.asStateFlow()
+
+        override fun observeChipPacksUnavailable(): Flow<Boolean> = chipPacksUnavailable.asStateFlow()
 
         /** A cold-boot / session-rollover refresh the repo fires on its own —
          *  no VM action involved, only the observable flows move. */

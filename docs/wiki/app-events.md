@@ -129,6 +129,7 @@ Backend ledger owns the money truth; these cover the funnel around it.
 | `purchase.completed` / `.failed` / `.cancelled` | `product_id`, `error?` | IAP round-trip outcome |
 | `shop.item_redeemed` | `product_id`, `chip_cost` | Chip-funded cosmetic redeem + XP-boost purchase |
 | `game.rebuy` | `mode`, `via_quick_buy` | Rebuy accepted by the table |
+| `shop.catalog_skus_dropped` | `dropped`, `total`, `skus` | The platform store answered authoritatively and didn't recognize some or all chip-pack SKUs, so `reconcileAgainst` hid them (`ProductsRepositoryImpl`). Alerted on by **A8** — this is the gap A5 structurally can't see, because zero visible packs means zero purchase attempts and a permanently healthy success rate. `dropped == total` also raises the shop's honest empty state instead of silently vanishing the shelf. Segment by the `platform` resource attribute to tell an App Store Connect problem from a Play one (ENG-43, CARDS-8V) |
 
 ## Reliability from the client's chair
 

@@ -259,6 +259,8 @@ class MyItemsViewModelTest : CoroutineTest() {
         override fun observeTimeAnchor(): Flow<CatalogTimeAnchor?> = anchor.asStateFlow()
         override fun observeIsRefreshing(): Flow<Boolean> = refreshing.asStateFlow()
         override fun observeRefreshFailed(): Flow<Boolean> = MutableStateFlow(false).asStateFlow()
+
+        override fun observeChipPacksUnavailable(): Flow<Boolean> = MutableStateFlow(false).asStateFlow()
         override suspend fun refresh(force: Boolean): Result<ProductCatalog> = Result.success(catalog.value)
     }
 

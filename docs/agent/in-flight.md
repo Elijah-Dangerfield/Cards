@@ -32,3 +32,22 @@ Also emitted `app.exit_metrics` from the existing MetricKit subscriber. It alrea
 **Reviewer notes:** This also shifts the rapid-recomposition window by one — the initial composition no longer occupies a slot toward `rapidRecompositionThreshold`. That's the same bug and the right behaviour, but it does mean the rapid threshold is now marginally harder to trip. `App.kt` is untouched: with the count fixed, its wording is accurate as written. If the WARN still fires often in prod after this ships, that's now a real signal about the app root rather than noise.
 
 **Deferred:** None.
+
+## feat(shop): make a store that sells nothing impossible to miss (ENG-43)
+
+**Problem:** On the live App Store build StoreKit recognizes none of the three chip-pack SKUs, so `reconcileAgainst` drops all of them and the Get Chips shelf just disappears. It logged at ERROR from 2026-07-23 and nothing escalated for three weeks, because a prose log line is neither queryable nor alertable and the A5 purchase-success alert structurally cannot see this: zero visible packs means zero purchase attempts, so the success rate stays a healthy 100%.
+
+**Approach:** All three halves of the acceptance. The drop now emits `shop.catalog_skus_dropped` (`dropped`, `total`, `skus`); a new Grafana rule **A8 · Store dropped chip-pack SKUs** (`ffvj3s6ax0h6oe`, folder `downcard-engineering`, group `downcard-hourly`) fires on it in prod; and the repository exposes `observeChipPacksUnavailable()`, which the shop turns into an info banner under the Get Chips heading instead of vanishing the shelf.
+
+Judgement calls: **(1)** A8 is `severity: warning`, not critical, so it emails rather than paging the phone. The fix for this condition lives in App Store Connect during business hours, so a 3am page buys nothing but a woken owner. The counter-argument is real (iOS revenue is zero while it's true), and if the owner disagrees it's a one-field change. **(2)** I kept the existing ERROR log alongside the new event rather than replacing it as the acceptance's "instead of a bare log string" wording suggests. The ERROR is what puts this in front of a human in Sentry; the event is what a rule can fire on. Deleting the ERROR would have traded one audience for the other. **(3)** Only an *authoritative* store answer moves the flag. An unreachable store leaves it untouched in both directions, so a connectivity blip can never accuse the store of being misconfigured, and can't clear the accusation while the packs are still hidden either.
+
+**Reviewer notes:**
+- **I did not resolve Sentry CARDS-8V, deliberately, even though ENG-43 is fully shipped.** The house rule says a fully-shipped triage item closes its issue, but that assumes shipping the fix ends the condition. It doesn't here: the SKUs are still missing in App Store Connect, iOS revenue is still zero, and the issue will re-fire the next time a user opens the shop. Resolving it would hide a live revenue-zero condition behind a visibility change. It closes when the human ASC item in `developer-todo.md` lands.
+- `platform` is already an OTel resource attribute on every record, so the event doesn't repeat it. The acceptance named it as an attribute; the query works either way, and duplicating an existing dimension seemed worse than relying on it.
+- A8 has never evaluated against real data, because no shipped build emits the event yet. The LogQL mirrors A5's verified stream selector and `no_data`/`exec_err` are both `OK`, so the failure mode is silence rather than a false page. Worth a look once a build carrying the event ships.
+- The banner only appears when the store gave an authoritative "none". A fresh install that has never reached the store still hides the shelf silently, which is intended: we genuinely don't know, and apologizing for a maybe is worse than saying nothing.
+- Added `observeChipPacksUnavailable()` to the `ProductsRepository` interface, which meant touching five test fakes across room / profile / billing / products. All mechanical.
+
+**Deferred:**
+- The App Store Connect half (create/approve the three IAPs, attach to the live version, confirm Paid Apps + tax/banking). Human-only, already on `developer-todo.md` — nothing in the repo can fix it.
+- A `dc-revenue` panel breaking the event out by platform and SKU. The alert covers "tell me when", a panel would cover "show me the history"; left unbuilt because it reads as broken until a build ships the event. Not filed anywhere.

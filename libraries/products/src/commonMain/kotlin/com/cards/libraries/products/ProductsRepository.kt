@@ -67,4 +67,22 @@ interface ProductsRepository {
      * empty" apart from "the first fetch failed" (SHOP-10).
      */
     fun observeRefreshFailed(): Flow<Boolean>
+
+    /**
+     * `true` when the platform store answered authoritatively and recognized
+     * **none** of the catalog's chip packs, so there is nothing purchasable
+     * left to show. Distinct from an empty catalog (the server has no packs)
+     * and from a failed refresh (we don't know): this is specifically a
+     * store-listing misconfiguration, and it's the one case where the shop
+     * owes the user an explanation instead of silently hiding the section
+     * (ENG-43).
+     *
+     * Only an authoritative store answer moves this. An inconclusive one —
+     * offline, not connected, a failed query — leaves it exactly as it was,
+     * because we don't know anything new: a blip must never raise it, and a
+     * blip must not clear it either while the packs are still hidden. Initial
+     * value `false`, which is also what a fresh install that has never
+     * reached the store reports.
+     */
+    fun observeChipPacksUnavailable(): Flow<Boolean>
 }

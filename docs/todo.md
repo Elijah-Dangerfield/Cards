@@ -95,11 +95,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 **Acceptance:** A panel charts `foreground_termination` net of Sentry-reported crashes, split by platform, once a build carrying the events ships. Then either reproduce and fix the welcome-step hang, or show these were force-quits and drop this to P1.
 
 **Hints:** Read `docs/wiki/app-events.md` → "Reading `app.previous_run` honestly" first — `foreground_termination` is a candidate set, not a verdict, and Android is the calibration (it carries the same marker plus `ApplicationExitInfo` ground truth in `previous_exit`). Instrumentation is `RunOutcome*` in `:libraries:telemetry:impl`. Case `docs/agent/feedback-cases/CARDS-3.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-3.
-
-## ENG-43 [P1] — Shop silently hides every chip pack when the store drops the SKUs, and nothing alerts on it
-
-**Problem:** On the live App Store build, StoreKit returns none of `com.cards.iap.chips.{small,medium,large}`, so `reconcileAgainst` drops all 3 packs and the iOS shop renders an empty section with no explanation. It has logged at ERROR since 2026-07-23 and nothing escalated: no alert rule, no panel, no structured event — and A5 stays green because zero visible packs means zero purchase attempts. (The App Store Connect config half is human-only and lives in `developer-todo.md`.)
-
-**Acceptance:** The drop emits a structured event (`event_name`, `dropped`/`total`/`platform`) instead of a bare log string, an alert or dashboard panel fires when a store drops packs in prod, and a shop with zero purchasable packs shows an honest state rather than an empty section.
-
-**Hints:** `ProductsRepositoryImpl.doRefresh` (`libraries/products/impl/src/commonMain/.../ProductsRepositoryImpl.kt:179-205`) — the `storeQuery.authoritative` branch already computes `droppedSkus`. Same blind spot as the standing 2026-07-15 A5 note. Case `docs/agent/feedback-cases/CARDS-8V.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-8V.
