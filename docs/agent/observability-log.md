@@ -362,3 +362,46 @@ FOR A HUMAN, three things:
 - 2026-08-18 · CARDS-3 · todo: ENG-42 [P0] iOS OS-watchdog kills on the onboarding welcome screen (live App Store build, retail iPad); can't yet distinguish a real hang from a force-quit · https://elijah-dangerfield.sentry.io/issues/CARDS-3 · case docs/agent/feedback-cases/CARDS-3.md
 - 2026-08-18 · CARDS-8V · todo: ENG-43 [P1] store drops all 3 chip packs → iOS shop silently empty, nothing alerts (+ developer-todo line for the App Store Connect fix); supersedes the 2026-07-10 "dev noise" disposition — it's `store-ios-release` now · https://elijah-dangerfield.sentry.io/issues/CARDS-8V · case docs/agent/feedback-cases/CARDS-8V.md
 - 2026-08-18 · sweep:2026-08-18-nightly · no-action: A1–A7 none firing/pending; 0 cards-server prod warn/error/fatal over 7d (357 scanned, stream live); iOS store-release client traffic now live in Loki (205 entries/8d) · dc-pulse / grafanacloud-logs
+
+<!-- 2026-08-19 nightly triage (phase 1b). Sentry MCP was NOT connected this run; step 1 ran against
+the Sentry REST API with the keychain token instead. Note the project-issues endpoint only accepts
+statsPeriod '', '24h', '14d' — use the ORG issues endpoint with explicit start/end for a 30d/90d
+window, and always pass project=4511478399565824, because project=-1 sweeps the whole org and drags
+in unrelated projects (phony-games, should-we-break-up) whose issues are not ours.
+
+Sentry, verified rather than taken on faith from phase 1a: over both 30d and 90d the cards project
+has exactly two unresolved issues, CARDS-8V and CARDS-3, and both last-seen timestamps are unchanged
+from yesterday's run (08-12T02:37:38Z and 08-14T01:40:53Z), so neither is materially worse and
+neither re-opens. Both stay unresolved with their todos pending (ENG-43 + the App Store Connect
+developer-todo item; ENG-42). No Sentry writes made.
+
+Grafana: alerting_manage_rules(states=[firing,pending]) → null, nothing firing or pending. Note the
+skill's fixed-coordinate list is stale here: docs/wiki/observability.md documents EIGHT rules now,
+including A8 (store dropped chip-pack SKUs, hourly warning) added by the ENG-43 work, and A7 is live
+since launch rather than paused. A8 not firing is correct — it is event-driven and no iOS user has
+opened the shop since 08-12.
+
+Server logs 08-17→08-19: 0 warn/error/fatal, 23 scanned, base stream confirmed live. Client prod
+stream fully characterized over 14d (222 lines) rather than sampled — that is what turned up the one
+real finding below.
+
+One genuinely new signal, and it is about our own instruments rather than the product. See the case
+file: ExpectedControlFlow throwables are filtered out of Sentry and shipped to Loki anyway, so 11 of
+the 13 client ERROR lines in prod over 14d are AuthUnready. The session that surfaced it
+(install dec4b4be, store Android build 1026) is healthy — the auth gate blocked a profile write for
+a still-being-created guest, the healer fixed it in 13s, onboarding completed with account_ready=true.
+No user harm; the harm is to the error panel this triage reads. → todo ENG-44 [P2].
+
+FOR A HUMAN, two things:
+1. **The "512MB ceiling" in the skill and the infra notes is stale.** The prod Fly machine now
+   reports fly_instance_memory_mem_total ≈ 962 MiB, and mem_available sat flat at ≈488 MiB across
+   all 24h with no drift. There is no memory pressure and no creep. Not filed as a bug — it is a
+   docs correction, and Grafana is read-only to me.
+2. **Prod traffic is too small for dashboard anomaly detection to mean anything.** 31 app.foregrounded
+   in 14 days (28 android, 3 ios). Panels being flat is a sample-size fact, not a health verdict.
+   Worth remembering before reading any trend on dc-pulse as signal.
+-->
+- 2026-08-19 · CARDS-8V · no-action: re-verified, unchanged since 08-18 (last seen 08-12T02:37:38Z); already owned by ENG-43 + the App Store Connect developer-todo item, left unresolved · https://elijah-dangerfield.sentry.io/issues/CARDS-8V · case docs/agent/feedback-cases/CARDS-8V.md
+- 2026-08-19 · CARDS-3 · no-action: re-verified, unchanged since 08-18 (last seen 08-14T01:40:53Z); already owned by ENG-42, left unresolved · https://elijah-dangerfield.sentry.io/issues/CARDS-3 · case docs/agent/feedback-cases/CARDS-3.md
+- 2026-08-19 · loki:expected-controlflow-at-error · todo: ENG-44 [P2] expected control-flow throwables (AuthUnready) bypass GrafanaLogTree's filter and land in Loki at ERROR, making 85% of the client error tier noise · grafanacloud-logs `{service_name="cards-client", deployment_environment="prod"} | detected_level=~"warn|error|fatal"` · case docs/agent/feedback-cases/2026-08-19-expected-controlflow-loki.md
+- 2026-08-19 · sweep:2026-08-19-nightly · no-action: A1–A8 none firing/pending; 0 cards-server prod warn/error/fatal over 48h (23 scanned, stream live); prod Fly memory flat (~488 MiB available of ~962 MiB, 24h); 31 app.foregrounded/14d · dc-pulse / dc-infra / grafanacloud-logs
