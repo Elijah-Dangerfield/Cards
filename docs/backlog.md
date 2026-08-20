@@ -1068,3 +1068,21 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 **Idea (2026-08-20):** On the live iOS build `storeReviewUrl()` returns `apps.apple.com/app/id0000000000?action=write-review`, so the welcome dialog's review button opens nothing for real users. The fix is mechanical once the id exists: replace `APP_STORE_ID_PLACEHOLDER` in `features/home/impl/.../StoreReviewLink.kt:26`, delete the stale "the iOS App Store listing doesn't exist yet" TODO above it, and assert the iOS URL carries a non-placeholder id.
 
 **Status:** Backlog, parked on a human. The numeric id has to be read out of App Store Connect — the iTunes lookup route was checked and is a dead end (`resultCount: 0` for the bundle id in every storefront tried; the checked-in id is `com.dangerfield.cards.Cards$(TEAM_ID)` with `TEAM_ID` empty in source, recorded in 87376f68). Pulled out of `docs/todo.md`, whose contract is that every item is worker-pickable. Move it back the moment the id lands.
+
+## `device_class=high` is unreachable on iPhone
+
+**Idea (2026-08-20):** ENG-38's `deviceClassFor` requires `processorCount >= 8` for `High`, but every A-series iPhone SoC since the A11 reports 6 active cores (2 performance + 4 efficiency), current Pro models included. So the whole iPhone fleet caps at `Medium` while an 8-core midrange Android promotes to `High` — backwards from the dimension's stated purpose (split cheap phone from flagship when reading a latency or ANR distribution). Either tier per-platform, or drop the core-count conjunction on iOS and lean on memory alone. Found in review of `932ad547`.
+
+**Status:** Backlog. The dimension is new and nothing reads it yet, so there's no live misreading to correct — but fix it before any panel groups by `device_class`, or the first conclusion drawn from it will be wrong.
+
+## A blocked client says "Still blocked" even when its check never left the device
+
+**Idea (2026-08-20):** ENG-35's "Check again" button on the access-denied screen fires `HttpAccessStatusProbe`, which deliberately swallows every failure — its own KDoc says not reaching the server is not evidence either way. But `AccessDeniedViewModel` then reads the latch unconditionally and renders "Still blocked. If you have appealed, it can take a few days." So a user who is offline, or whose call short-circuits at the auth gate, is told the appeal was reviewed and refused when nothing left the phone. The probe needs to report reached / not-reached / still-denied — three states, not two — and the screen needs a "couldn't check, try again" branch. Found in review of `e16139f6`.
+
+**Status:** Backlog. Narrow blast radius (one screen, only while banned) but it states something untrue to the user. Pull with any other pass on the access-denied screen.
+
+## A `401` anywhere now bypasses Sentry, including `account_not_found`
+
+**Idea (2026-08-20):** ENG-44's `isExpectedClientError()` matches `401`/`403` by status alone, with no endpoint or code carve-out, and every telemetry sink consults it. That is right for the banned-client refusals it was built for, but it also means AUTH-29's `401 account_not_found` — landed the same night — never reaches Sentry. A stranded session is a real defect class, and the reason we found it at all was that it was loud. Grafana still ships these at DEBUG so they're recoverable by query, but the error panel no longer shows them. Worth a carve-out keyed on the problem code rather than the status. Found in review of `44f62fa3` + `2cfef3cf`.
+
+**Status:** Backlog. Deliberate trade, not an oversight — flagging because the two commits were written hours apart and nobody weighed them together.
