@@ -95,6 +95,38 @@ class UnknownAuthUserResponseTest {
     }
 
     @Test
+    fun aViolationOnARouteWithNoAuthenticatedUserStillReadsAs500() = runTest {
+        // `/v1/admin/grant-chips` takes a target user id from the operator and
+        // writes wallets + user_messages for it. A typo'd or since-deleted id
+        // violates the same constraint a stranded session does, but the caller
+        // is an admin token with no JWT principal and their access is fine.
+        // Answering 401 "this account no longer exists, sign in again" would
+        // send the operator chasing their admin token instead of the id.
+        callUnauthenticatedFailing(wrappedFkViolation(constraint = "wallets_user_id_fk")) { resp ->
+            assertEquals(HttpStatusCode.InternalServerError, resp.status)
+        }
+    }
+
+    @Test
+    fun aViolationNamingSomeoneElsesIdIsNotReadAsTheCallerBeingStranded() = runTest {
+        // reports.reported_user_id references auth.users with a default-named
+        // constraint. Reporting an account that just vanished is not the
+        // reporter's session going bad, and `_user_id_fkey` contains
+        // `_user_id_fk` as a substring, so only a suffix match gets this right.
+        callFailing(wrappedFkViolation(constraint = "reports_reported_user_id_fkey")) { resp ->
+            assertEquals(HttpStatusCode.InternalServerError, resp.status)
+        }
+        val bare = PSQLException(
+            "ERROR: insert or update on table violates foreign key constraint " +
+                "reports_reported_user_id_fkey",
+            PSQLState.FOREIGN_KEY_VIOLATION,
+        )
+        callFailing(RuntimeException("exposed wrapper", bare)) { resp ->
+            assertEquals(HttpStatusCode.InternalServerError, resp.status)
+        }
+    }
+
+    @Test
     fun anOrdinaryFailureIsUntouched() = runTest {
         callFailing(IllegalStateException("something else broke")) { resp ->
             assertEquals(HttpStatusCode.InternalServerError, resp.status)
@@ -142,6 +174,23 @@ class UnknownAuthUserResponseTest {
                     header(HttpHeaders.Authorization, "Bearer ${validJwt()}")
                 },
             )
+        }
+    }
+
+    private suspend fun callUnauthenticatedFailing(
+        failure: Throwable,
+        assert: suspend (HttpResponse) -> Unit,
+    ) {
+        testApplication {
+            application {
+                installSerialization()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing {
+                    get(PROBE_PATH) { throw failure }
+                }
+            }
+            assert(client.get(PROBE_PATH))
         }
     }
 

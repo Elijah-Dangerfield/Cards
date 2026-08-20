@@ -49,8 +49,9 @@ fun Application.installStatusPages() {
             call.respondAccountNotFound(cause.userId.toString(), detectedBy = "pre-flight")
         }
         exception<Throwable> { call, cause ->
-            if (cause.violatesUserIdForeignKey()) {
-                call.respondAccountNotFound(call.userId()?.toString(), detectedBy = "fk-violation")
+            val callerId = call.userId()
+            if (callerId != null && cause.violatesUserIdForeignKey()) {
+                call.respondAccountNotFound(callerId.toString(), detectedBy = "fk-violation")
                 return@exception
             }
             logger.error("Unhandled error", cause)
@@ -73,11 +74,17 @@ fun Application.installStatusPages() {
  * Logged at warn, not captured to Sentry: this is a client-state problem the
  * response already resolves, and the old `500` path was filing one Sentry issue
  * per doomed request.
+ *
+ * Only ever the answer when the *caller* is the missing user. A route that
+ * writes some other user's row — `/v1/admin/grant-chips` takes its target id
+ * from the operator — violates the same constraint without the caller's access
+ * being in question, so the foreign-key net requires an authenticated user id
+ * before it concludes anything about the session.
  */
-private suspend fun ApplicationCall.respondAccountNotFound(userId: String?, detectedBy: String) {
+private suspend fun ApplicationCall.respondAccountNotFound(userId: String, detectedBy: String) {
     logger.warn(
         "Authenticated caller {} has no auth.users row ({}) on {} {} — answering 401 {}",
-        userId ?: "unknown",
+        userId,
         detectedBy,
         request.httpMethod.value,
         request.path(),
