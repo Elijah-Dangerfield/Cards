@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-08-19 (curate-todos) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-08-20 (curate-todos) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -79,14 +79,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 **Acceptance:** Add a `platform` column to `profiles` (new V-migration), **stamped once at creation and never updated** — it's signup-platform, an immutable cohort dimension; refreshing it per request would let a dual-OS user retroactively rewrite past growth bars. Client sends `platform` on the profile insert only. Repoint the `dc-pulse` growth graph to cumulative `profiles` by `created_at` split by `platform`; keep the Loki install panel as the DAU/reach view.
 
 **Hints:** Decided: a typed `profiles` column, not `auth.users` metadata (the dashboards already query that table, and it needs no `auth`-schema grant). Profile-create path is the client's supabase-kt `findOrCreate` insert. Grafana Postgres datasource `ffrewas5byf40d` (prod) / `dfrex4f7bg7b4b` (dev) already runs the SQL for panels 401–403.
-
-## ENG-40 [P1] — iOS "Leave a store review" dead-ends on a placeholder App Store id
-
-**Problem:** On the live iOS build, `storeReviewUrl()` returns `apps.apple.com/app/id0000000000?action=write-review`, so the welcome dialog's review button opens nothing for real users. The listing is live, so the real numeric id now exists.
-
-**Acceptance:** The real App Store id replaces `APP_STORE_ID_PLACEHOLDER` in `features/home/impl/.../StoreReviewLink.kt`, the stale "the iOS App Store listing doesn't exist yet" TODO comment goes with it, and a test asserts the iOS URL carries a non-placeholder id.
-
-**Hints:** **The id has to come from a human reading App Store Connect** — the iTunes lookup route is a dead end (`resultCount: 0` for that bundle id in every storefront tried; checked-in id is `com.dangerfield.cards.Cards$(TEAM_ID)` with `TEAM_ID` empty in source). Everything else on this item is worker-pickable once the id lands.
 
 ## ENG-42 [P0] — Chart the iOS foreground-termination rate, then rule the welcome-screen kills real or not
 
