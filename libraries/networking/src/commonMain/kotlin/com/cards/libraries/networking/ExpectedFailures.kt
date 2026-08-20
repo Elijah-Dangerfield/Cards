@@ -31,3 +31,20 @@ import com.dangerfield.cards.libraries.core.isExpectedControlFlow
  */
 fun Throwable.isExpectedFailure(): Boolean =
     isExpectedControlFlow || isOfflineError() || isExpectedClientError()
+
+/**
+ * Whether a failure carrying no HTTP response is evidence the backend couldn't
+ * be reached.
+ *
+ * "No response" is normally exactly that evidence — a timeout, a refused
+ * connection, DNS, a captive portal. A typed short-circuit is the exception: the
+ * client *chose* not to send, so the request's absence says nothing about the
+ * server. [com.dangerfield.cards.libraries.networking.impl.BannedShortCircuit]
+ * is the case that made this explicit — counting it flipped a banned user to
+ * "offline" after two blocked calls, and since the breaker suppresses every
+ * non-allowlisted call, nothing was left to report reachable and clear the run.
+ *
+ * Callers should already have handled the has-a-response case; this only decides
+ * what an empty-handed failure means.
+ */
+fun Throwable.indicatesBackendUnreachable(): Boolean = !isExpectedControlFlow

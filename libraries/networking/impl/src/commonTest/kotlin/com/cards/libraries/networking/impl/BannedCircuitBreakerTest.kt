@@ -1,8 +1,9 @@
 package com.dangerfield.cards.libraries.networking.impl
 
-import com.dangerfield.cards.libraries.core.isExpectedControlFlow
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.networking.AccessDeniedBus
+import com.dangerfield.cards.libraries.networking.indicatesBackendUnreachable
+import com.dangerfield.cards.libraries.networking.isExpectedFailure
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -58,7 +59,10 @@ class BannedCircuitBreakerTest : CoroutineTest() {
             client.post("https://example.test/v1/wallet/sync")
         }
 
-        assertTrue(thrown.isExpectedControlFlow, "a working breaker must not read as an app failure")
+        // Asserting `isExpectedControlFlow` here would only restate the class
+        // declaration. What the name claims is that the sinks drop it, and the
+        // sinks read `isExpectedFailure()`.
+        assertTrue(thrown.isExpectedFailure(), "a working breaker must not read as an app failure")
     }
 
     @Test
@@ -149,6 +153,40 @@ class BannedCircuitBreakerTest : CoroutineTest() {
         assertEquals("https://appeal.test", state.denial.value?.appealUrl)
     }
 
+    @Test
+    fun aBlockedRequestIsNotEvidenceTheBackendIsDown() = runTest {
+        // The breaker throws before anything hits the wire, so the failure has
+        // no response attached and looks exactly like a timeout to the
+        // reachability validator. Counting it would flip a banned user to
+        // "offline" after two blocked calls — and because every non-allowlisted
+        // call is now short-circuited, nothing would ever report reachable
+        // again to reset the run. The offline banner would stick for the
+        // session on top of the blocking screen.
+        val state = BannedStateImpl().apply { setBanned(banned) }
+        val reachability = RecordingReachability()
+        val client = clientWith(engineReturning(HttpStatusCode.OK, "{}"), state, reachability)
+
+        assertFailsWith<BannedShortCircuit> { client.post("https://example.test/v1/equipment/sync") }
+        assertFailsWith<BannedShortCircuit> { client.post("https://example.test/v1/wallet/sync") }
+
+        assertEquals(
+            0,
+            reachability.unreachableReports,
+            "a request we refused to send says nothing about whether the server is up",
+        )
+        assertTrue(
+            IllegalStateException("connect timed out").indicatesBackendUnreachable(),
+            "a genuine empty-handed failure must still count, or the banner never fires",
+        )
+    }
+
+    private class RecordingReachability {
+        var unreachableReports = 0
+            private set
+
+        fun reportUnreachable() { unreachableReports++ }
+    }
+
     private fun engineReturning(status: HttpStatusCode, body: String) = MockEngine { _ ->
         respond(
             content = ByteReadChannel(body),
@@ -157,14 +195,24 @@ class BannedCircuitBreakerTest : CoroutineTest() {
         )
     }
 
-    private fun clientWith(engine: MockEngine, state: BannedStateImpl): HttpClient =
+    private fun clientWith(
+        engine: MockEngine,
+        state: BannedStateImpl,
+        reachability: RecordingReachability = RecordingReachability(),
+    ): HttpClient =
         HttpClient(engine) {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
             install(bannedCircuitBreaker(state))
             HttpResponseValidator {
                 validateResponse { response -> clearBanIfStatusProbeSucceeded(response, state) }
                 handleResponseExceptionWithRequest { cause, _ ->
-                    if (cause !is ResponseException) return@handleResponseExceptionWithRequest
+                    // Mirrors the production validator in NetworkClientImpl. The
+                    // shape matters: it is the "no response ⇒ unreachable"
+                    // branch that misread a refusal to send as an outage.
+                    if (cause !is ResponseException) {
+                        if (cause.indicatesBackendUnreachable()) reachability.reportUnreachable()
+                        return@handleResponseExceptionWithRequest
+                    }
                     if (cause.response.status == HttpStatusCode.Forbidden) {
                         signalAccessDeniedIfEnveloped(cause.response, NoopAccessDeniedBus, state)
                     }

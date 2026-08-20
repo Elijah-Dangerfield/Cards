@@ -155,7 +155,7 @@ private fun <T> Catching<T>.logFailure(description: String): Catching<T> = onFai
             // reachability); anything else — timeout, DNS, refused connection —
             // is the "client couldn't reach us at all" class the app-event
             // taxonomy exists to catch (docs/plans/client-app-events-otel.md §5).
-            if (throwable !is ResponseException) {
+            if (throwable !is ResponseException && throwable.indicatesBackendUnreachable()) {
                 networkCallLogger.logEvent(
                     "net.backend_unreachable",
                     "operation" to description,

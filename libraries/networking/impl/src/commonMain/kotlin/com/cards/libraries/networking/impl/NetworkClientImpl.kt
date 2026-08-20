@@ -15,6 +15,7 @@ import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.NetworkConfig
 import com.dangerfield.cards.libraries.networking.NetworkJson
+import com.dangerfield.cards.libraries.networking.indicatesBackendUnreachable
 import com.dangerfield.cards.libraries.networking.NetworkReachability
 import com.dangerfield.cards.libraries.networking.platformHttpEngineFactory
 import io.ktor.client.HttpClient
@@ -166,9 +167,10 @@ private fun HttpClientConfig<*>.applyCommonConfig(
         }
         handleResponseExceptionWithRequest { cause, _ ->
             // A ResponseException means the server answered (a 4xx/5xx) — the
-            // network is fine. Anything else never reached the server.
+            // network is fine. Anything else never reached the server, unless we
+            // are the reason it didn't leave.
             if (cause !is ResponseException) {
-                reachability.reportUnreachable()
+                if (cause.indicatesBackendUnreachable()) reachability.reportUnreachable()
                 return@handleResponseExceptionWithRequest
             }
             when (cause.response.status) {
