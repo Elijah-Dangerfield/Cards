@@ -39,13 +39,21 @@ class IosInstallFactsProvider : InstallFactsProvider {
      * iOS records no installing package, so the receipt Apple stapled to the
      * bundle is the distribution channel: `receipt` for the App Store,
      * `sandboxReceipt` for TestFlight. A debug binary also carries a sandbox
-     * receipt, which is why [BuildInfo.isTestFlight] gates on `!isDebug` — a
-     * build with neither is developer-signed, and that is a sideload.
+     * receipt, which is why [BuildInfo.isTestFlight] gates on `!isDebug`.
+     *
+     * Anything else reports [InstallSource.Unknown] rather than
+     * [InstallSource.None]. A developer-signed sideload lands there, but so
+     * does a genuine App Store install whose `appStoreReceiptURL` we couldn't
+     * read — Apple deprecated that API in favour of StoreKit 2, and it can
+     * come back nil on a perfectly ordinary retail install. `None` is a
+     * sideload verdict and `Unknown` is not, so the difference decides whether
+     * the dashboards drop those users. Android maps its failed lookup the same
+     * way: under-report noise rather than delete real users.
      */
     private fun installSource(): InstallSource = when {
         BuildInfo.isTestFlight -> InstallSource.TestFlight
         NSBundle.mainBundle.appStoreReceiptURL?.lastPathComponent == APP_STORE_RECEIPT -> InstallSource.AppStore
-        else -> InstallSource.None
+        else -> InstallSource.Unknown
     }
 
     /**

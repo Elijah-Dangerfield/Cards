@@ -55,13 +55,21 @@ class AndroidInstallFactsProvider(
         ActivityManager.MemoryInfo().also(activityManager::getMemoryInfo).totalMem
     }.getOrDefault(0L)
 
+    /**
+     * Presence of an `su` binary only. `Build.TAGS == "test-keys"` is the other
+     * signal usually paired with this one, and it is deliberately not used:
+     * it means the image wasn't signed with official release keys, which is
+     * true of AOSP-derived ROMs *and* of a real slice of budget retail
+     * handsets. Since [InstallFacts.isGenuineInstall] decides who the
+     * dashboards count, a false positive here deletes real users — the exact
+     * failure the "under-report noise rather than delete real users" rule
+     * exists to prevent.
+     */
     private fun isRooted(): Boolean = Catching {
-        Build.TAGS?.contains(DEV_KEYS_TAG) == true || SU_PATHS.any { File(it).exists() }
+        SU_PATHS.any { File(it).exists() }
     }.getOrDefault(false)
 
     private companion object {
-        const val DEV_KEYS_TAG = "test-keys"
-
         val SU_PATHS = listOf(
             "/sbin/su",
             "/system/bin/su",
