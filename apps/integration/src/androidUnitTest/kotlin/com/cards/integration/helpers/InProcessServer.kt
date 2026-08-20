@@ -19,6 +19,7 @@ import com.dangerfield.cards.server.plugins.installWebSockets
 import com.dangerfield.cards.server.routes.matchmakingRoutes
 import com.dangerfield.cards.server.routes.roomRoutes
 import com.dangerfield.cards.server.routes.roomSocketRoutes
+import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.routes.DEFAULT_REAPER_GRACE
 import io.ktor.server.engine.EmbeddedServer
@@ -163,7 +164,9 @@ class InProcessServer(
         return embeddedServer(Netty, port = port) {
             installSerialization()
             installStatusPages()
-            installRateLimits()
+            installRateLimits(
+                AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6),
+            )
             installWebSockets()
             installAuthentication(IntegrationAuth.verification)
             routing {
