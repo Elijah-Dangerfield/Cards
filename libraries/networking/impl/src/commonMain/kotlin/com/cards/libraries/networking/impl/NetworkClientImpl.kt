@@ -55,13 +55,13 @@ class NetworkClientImpl(
 
     override val client: HttpClient by lazy {
         HttpClient(platformHttpEngineFactory) {
-            applyCommonConfig(config, headersProvider, reachability, accessDeniedBus)
+            applyCommonConfig(config, headersProvider, reachability, accessDeniedBus, ::onAccountMissing)
         }
     }
 
     override val authenticatedClient: HttpClient by lazy {
         HttpClient(platformHttpEngineFactory) {
-            applyCommonConfig(config, headersProvider, reachability, accessDeniedBus)
+            applyCommonConfig(config, headersProvider, reachability, accessDeniedBus, ::onAccountMissing)
             install(Auth) {
                 bearer {
                     // By the time loadTokens runs, authedCall has already
@@ -109,6 +109,18 @@ class NetworkClientImpl(
 
     override val sessionRejectionEpoch: Long
         get() = sessionRejectionBus.rejectionEpoch
+
+    /**
+     * Our server answered a verified token with "that account doesn't exist"
+     * (AUTH-29). Supabase still honours the token — it's our `auth.users` row
+     * that's gone — so the bearer plugin's refresh path will never notice, and
+     * without this every sync would keep firing doomed writes forever. Route it
+     * into the same rejection bus a server-rejected refresh uses so the session
+     * tears down once and the auth gate short-circuits the rest.
+     */
+    private suspend fun onAccountMissing() {
+        sessionRejectionBus.signalRejected(wasAnonymous = tokenProvider.isAnonymousSession())
+    }
 }
 
 private fun HttpClientConfig<*>.applyCommonConfig(
@@ -116,6 +128,7 @@ private fun HttpClientConfig<*>.applyCommonConfig(
     headersProvider: ClientHeadersProvider,
     reachability: NetworkReachability,
     accessDeniedBus: AccessDeniedBus,
+    onAccountMissing: suspend () -> Unit,
 ) {
     install(ContentNegotiation) {
         json(NetworkJson)
@@ -133,8 +146,10 @@ private fun HttpClientConfig<*>.applyCommonConfig(
                 reachability.reportUnreachable()
                 return@handleResponseExceptionWithRequest
             }
-            if (cause.response.status == HttpStatusCode.Forbidden) {
-                signalAccessDeniedIfEnveloped(cause.response, accessDeniedBus)
+            when (cause.response.status) {
+                HttpStatusCode.Forbidden -> signalAccessDeniedIfEnveloped(cause.response, accessDeniedBus)
+                HttpStatusCode.Unauthorized -> signalAccountMissingIfEnveloped(cause.response, onAccountMissing)
+                else -> Unit
             }
         }
     }
@@ -216,3 +231,30 @@ internal suspend fun signalAccessDeniedIfEnveloped(
             )
         }
 }
+
+/**
+ * Server's error envelope. Only [ProblemWire.error]'s `code` is read — the
+ * message is server-authored English we never show.
+ */
+@Serializable
+internal data class ProblemWire(val error: Problem) {
+    @Serializable
+    internal data class Problem(val code: String)
+}
+
+/**
+ * `account_not_found` is our server saying the token verified but its
+ * `auth.users` row is gone (AUTH-29): the session can't be saved, only replaced.
+ * Every other 401 stays untouched, including the ordinary expired-token one the
+ * bearer plugin refreshes through — misreading one of those as account death
+ * would sign people out over a hiccup.
+ */
+internal suspend fun signalAccountMissingIfEnveloped(
+    response: HttpResponse,
+    onAccountMissing: suspend () -> Unit,
+) {
+    val code = Catching { response.body<ProblemWire>().error.code }.getOrNull()
+    if (code == ACCOUNT_NOT_FOUND_CODE) onAccountMissing()
+}
+
+private const val ACCOUNT_NOT_FOUND_CODE = "account_not_found"

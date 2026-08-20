@@ -245,6 +245,8 @@ Two variants, both must pass:
 
 **Expected:** Lands on Home with the same account — balance, XP, and level unchanged (session survives the upgrade; anonymous sessions carry a file-backed mirror that restores the Keychain copy if the OS store lost it). It must **never** silently reset to 10,000 chips / level 0 — that means a fresh guest was minted over the real account. If the session genuinely can't be recovered, the full-screen "session expired" recovery screen appears instead of Home, offering retry and an explicit sign-in / start-fresh choice; the session log shows `GuestSessionHealer` `STOP_FOR_RECOVERY`, not `MINT`.
 
+- Deleted-from-under-you variant (AUTH-29): with the app signed in and open, delete the account's row from Supabase `auth.users` in the dashboard, then trigger a sync (pull to refresh on Home, or play a hand). The same "session expired" recovery screen appears. The session log shows one `account_not_found` 401 and then nothing — no repeating failures, and no error entries in Sentry for the doomed calls.
+
 ---
 
 ### `ONB-19` ⚠️ 📱 Delete account → continue as guest shows true new-user state (AUTH-27)

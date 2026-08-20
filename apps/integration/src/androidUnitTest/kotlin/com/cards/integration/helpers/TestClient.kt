@@ -144,6 +144,7 @@ class TestClient(
         override suspend fun awaitReady() = Unit
         override suspend fun accessToken(): String = IntegrationAuth.mintJwt(userId)
         override suspend fun refreshAccessToken(): String = IntegrationAuth.mintJwt(userId)
+        override suspend fun isAnonymousSession(): Boolean = false
     }
 
     private object FixedHeaders : ClientHeadersProvider {

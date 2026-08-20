@@ -1,9 +1,14 @@
 package com.dangerfield.cards.server.plugins
 
+import com.dangerfield.cards.server.db.violatesUserIdForeignKey
+import com.dangerfield.cards.server.domain.UnknownAuthUserException
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.install
 import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.request.httpMethod
+import io.ktor.server.request.path
 import io.ktor.server.response.respond
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
@@ -40,7 +45,14 @@ fun Application.installStatusPages() {
                 ProblemResponse(ProblemResponse.Problem("bad_request", cause.message ?: "Bad request")),
             )
         }
+        exception<UnknownAuthUserException> { call, cause ->
+            call.respondAccountNotFound(cause.userId.toString(), detectedBy = "pre-flight")
+        }
         exception<Throwable> { call, cause ->
+            if (cause.violatesUserIdForeignKey()) {
+                call.respondAccountNotFound(call.userId()?.toString(), detectedBy = "fk-violation")
+                return@exception
+            }
             logger.error("Unhandled error", cause)
             captureToSentry(cause, context = "status-pages")
             call.respond(
@@ -49,4 +61,35 @@ fun Application.installStatusPages() {
             )
         }
     }
+}
+
+/**
+ * Answer a caller whose JWT verified but whose `auth.users` row is gone. `401`
+ * rather than `409` so a client that doesn't recognise
+ * [UnknownAuthUserException.WIRE_CODE] still does something sane — it
+ * re-authenticates — instead of treating an unfamiliar status as a transient
+ * failure and retrying forever.
+ *
+ * Logged at warn, not captured to Sentry: this is a client-state problem the
+ * response already resolves, and the old `500` path was filing one Sentry issue
+ * per doomed request.
+ */
+private suspend fun ApplicationCall.respondAccountNotFound(userId: String?, detectedBy: String) {
+    logger.warn(
+        "Authenticated caller {} has no auth.users row ({}) on {} {} — answering 401 {}",
+        userId ?: "unknown",
+        detectedBy,
+        request.httpMethod.value,
+        request.path(),
+        UnknownAuthUserException.WIRE_CODE,
+    )
+    respond(
+        HttpStatusCode.Unauthorized,
+        ProblemResponse(
+            ProblemResponse.Problem(
+                code = UnknownAuthUserException.WIRE_CODE,
+                message = "This account no longer exists. Sign in again.",
+            ),
+        ),
+    )
 }

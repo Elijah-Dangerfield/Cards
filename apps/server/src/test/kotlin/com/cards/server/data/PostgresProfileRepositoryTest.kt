@@ -11,6 +11,7 @@ import com.dangerfield.cards.server.domain.AvatarGenerator
 import com.dangerfield.cards.server.domain.AvatarPalette
 import com.dangerfield.cards.server.domain.FoundingMemberCatalog
 import com.dangerfield.cards.server.domain.StarterInventory
+import com.dangerfield.cards.server.domain.UnknownAuthUserException
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UsernameGenerator
@@ -24,6 +25,7 @@ import org.junit.After
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
@@ -446,6 +448,36 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
         val lineage = repo.findInstallLineage(unknown)
 
         assertEquals(setOf(unknown), lineage, "Unknown caller falls back to itself, never an empty accepted set")
+    }
+
+    @Test
+    fun findOrCreate_raisesUnknownAuthUser_whenTheCallerHasNoAuthUsersRow() = runTest {
+        // AUTH-29: the account was deleted mid-session (or the token was minted
+        // against another Supabase project). Before the pre-flight this hit the
+        // profiles_user_id_fk constraint and surfaced as a raw 500.
+        val repo = newRepository()
+        val stranded = UserId(UUID.randomUUID())
+
+        assertFailsWith<UnknownAuthUserException> { repo.findOrCreate(stranded) }
+    }
+
+    @Test
+    fun findOrCreate_writesNothing_whenTheCallerHasNoAuthUsersRow() = runTest {
+        val repo = newRepository()
+        val stranded = UserId(UUID.randomUUID())
+
+        assertFailsWith<UnknownAuthUserException> { repo.findOrCreate(stranded) }
+
+        assertEquals(0, countProfiles(stranded), "a doomed create must not leave a partial row behind")
+        assertEquals(0, countInventory(stranded))
+    }
+
+    private fun countProfiles(userId: UserId): Int = database.blockingTransaction {
+        ProfilesTable.selectAll().where { ProfilesTable.userId eq userId.value }.count().toInt()
+    }
+
+    private fun countInventory(userId: UserId): Int = database.blockingTransaction {
+        InventoryTable.selectAll().where { InventoryTable.userId eq userId.value }.count().toInt()
     }
 
     private fun seedIapPurchase(userId: UserId, idempotencyKey: String, reason: String) {

@@ -14,6 +14,7 @@ import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileDisplayName
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.StarterInventory
+import com.dangerfield.cards.server.domain.UnknownAuthUserException
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessageKind
@@ -228,6 +229,13 @@ class PostgresProfileRepository(
             return@transaction FindOrCreateProfileResult(existing.toProfile(), created = false)
         }
 
+        // A profile row is proof of an auth.users row (V11's FK, plus its
+        // ON DELETE CASCADE), so only the create branch can be about to write
+        // against a user that no longer exists. Ask before writing: an FK
+        // violation here would abort the transaction and surface as a 500
+        // naming the constraint (AUTH-29).
+        if (!authUserExists(userId)) throw UnknownAuthUserException(userId)
+
         // Insert with retry on display_name collisions. The userId-key
         // collision (concurrent first-contact for the same user) is also
         // handled — if some other request just inserted the profile, our
@@ -251,6 +259,21 @@ class PostgresProfileRepository(
                 throw e
             }
         }
+    }
+
+    /**
+     * Raw SQL for the same reason [findInstallSiblings] uses it — the `auth`
+     * schema is Supabase's and we don't model it in Exposed. `SELECT 1` on the
+     * primary key, and only on the create branch, so it costs one index probe
+     * per account lifetime.
+     */
+    private fun authUserExists(userId: UserId): Boolean {
+        var exists = false
+        TransactionManager.current().exec(
+            stmt = "SELECT 1 FROM auth.users WHERE id = ?",
+            args = listOf(org.jetbrains.exposed.sql.UUIDColumnType() to userId.value),
+        ) { rs -> exists = rs.next() }
+        return exists
     }
 
     private suspend fun insertWithUniqueName(userId: UserId): Profile {

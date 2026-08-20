@@ -24,11 +24,12 @@ value class UserId(val value: UUID) {
 /**
  * Per-user profile row owned by our server.
  *
- * Joins to Supabase's `auth.users(id)` by `userId`. We do **not** enforce
- * the FK at the schema level — Supabase manages `auth.users` and we don't
- * want a hard FK to a table whose lifecycle we don't control (and that
- * doesn't exist in Testcontainers). The application layer enforces
- * "no profile without a valid JWT," which is stronger anyway.
+ * `userId` is a hard FK to Supabase's `auth.users(id)` with `ON DELETE
+ * CASCADE`, added in `V11__fk_auth_users.sql` (Testcontainers gets a minimal
+ * `auth.users` stub from `init-auth.sql`). Deleting the auth user takes the
+ * profile — and every other per-user row — with it. A request whose JWT names
+ * an id that isn't there can't create a profile; the repository detects that
+ * before writing and raises [UnknownAuthUserException].
  *
  * `displayName` is globally unique — we generate it via collision-checked
  * random combination and reference players by it in room/leaderboard UI.

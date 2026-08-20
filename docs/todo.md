@@ -24,14 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## AUTH-29 [P1] — Authed user with no `auth.users` row gets a raw 500 and a silent client retry-storm
-
-**Problem:** When a valid JWT names a user id that's no longer in Supabase `auth.users` (deleted mid-session, or a token minted against the wrong Supabase project), every `/v1/me/*/sync` write fails the FK and the server returns a raw Postgres 500. The client swallows it and retry-storms with nothing shown to the user.
-
-**Acceptance:** Server detects "valid JWT, no `auth.users` row" before the child write and returns a typed 401/409 (→ re-auth), not a 500 leaking the FK. Client maps it to sign-out + a "your session ended, sign in again" surface and stops the sync retry loop.
-
-**Hints:** FK is `*_user_id_fk` → `auth.users(id)`, added in `V11__fk_auth_users.sql`. Write path is the `findOrCreate` repos inside `Database.transaction`. Reproduce test-first with a JWT for an id absent from `auth.users`. Ignore the `Profile.kt` KDoc claiming we don't enforce the FK at the schema level — it predates V11 and is wrong; fix it while you're in there.
-
 ## AUTH-31 [P2] — `onboarding.abandoned` fires on a back-out, so the funnel counts finishers as quitters
 
 **Problem:** The event is emitted from `OnboardingViewModel.onCleared()`, and system-back on the Welcome step exits the app, so backgrounding-then-returning logs an abandonment. 4 of the 6 prod installs that "abandoned" in 14d went on to complete onboarding, and 12 events came from those 6 installs. All 12 read `step=welcome`, which is an artifact of where back exits the app, not a welcome-screen problem.

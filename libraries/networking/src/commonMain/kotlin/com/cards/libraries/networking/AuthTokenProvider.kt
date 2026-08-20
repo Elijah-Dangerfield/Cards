@@ -45,4 +45,14 @@ interface AuthTokenProvider {
      * should treat the request as unauthed.
      */
     suspend fun refreshAccessToken(): String?
+
+    /**
+     * Whether the session behind [accessToken] is a guest one — the
+     * `is_anonymous` claim, read off the same peek as the token. Needed when the
+     * network layer discovers a dead session on its own (a server telling us the
+     * account is gone) and has to say which kind died: the recovery screen offers
+     * a guest a fresh start and a claimed account a sign-in. False when there's
+     * no session at all, which can't reach a rejection path anyway.
+     */
+    suspend fun isAnonymousSession(): Boolean
 }
