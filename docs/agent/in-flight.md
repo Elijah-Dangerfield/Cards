@@ -139,3 +139,24 @@ The telemetry half is narrow on purpose: `401` and `403` stop being captured, `4
 **Deferred:**
 - `/v1/reports` was on the case file's "also consider" list for the allowlist. Left off: the appeal path is a web link, and a blocked account filing reports is not something to make easy. Say so if you disagree — it's one line.
 - No panel or alert on how often the breaker trips. At current volume (one account) it would be noise. Not filed.
+
+## fix(telemetry): one classifier decides what counts as an error (ENG-44)
+
+**Problem:** `ExpectedControlFlow`'s KDoc promised telemetry sinks drop marked throwables before they become error events, and exactly one sink honoured it. `GrafanaLogTree` gated on log level alone, so 85% of prod client ERROR lines were `AuthUnready` — in the panel the nightly triage reads to find real bugs.
+
+**Approach:** `Throwable.isExpectedFailure()` folds the three predicates the codebase had decided separately (the marker, offline errors, and the `401`/`403` refusals ENG-35 added an hour earlier in this same cycle). Both trees consult it and nothing else.
+
+**Taken out of priority order on purpose.** It's a P2 and MP-38 is a P1, but ENG-44 edits `SentryLogTree.shouldCaptureEvent`, which ENG-35 had just rewritten in this cycle. A peer worker picking it up would have been editing the same lines. MP-38 touches `PlayPokerViewModel` and `GameSession` and is cleanly disjoint from everything I did tonight, so it's the safer thing to leave.
+
+**Two departures from the item's wording:**
+- **The classifier is in `:libraries:networking`, not `:libraries:core`.** Two of the three predicates need Ktor's `ResponseException` and the platform socket types, and core sits underneath both — putting it there would mean pulling Ktor into core or splitting the predicate across modules, which is the defect being fixed. Both trees' modules already depend on networking, so no new edges.
+- **`Catching.logOnFailure` is untouched, and that was a real decision.** Downgrading at the source is tempting — it fixes the ERROR tier everywhere in one line. But `GrafanaLogTree` only forwards Warn+, so a source-level downgrade would delete the Loki record entirely, and the item explicitly wants these lines kept at DEBUG for session reconstruction. Fixing it at the sink is what preserves both properties.
+
+**Reviewer notes:**
+- Red-then-green held: `klogForwardingOn_expectedControlFlow_shipsAtDebugInsteadOfError` fails against the pre-fix tree (verified by stashing `GrafanaLogTree.kt`).
+- **The Loki queries the triage skills use will need re-reading after this ships.** `detected_level=~"warn|error|fatal"` will stop matching these lines, which is the point — but anyone comparing before/after counts should know the denominator changed rather than the app improving. I did not touch the skill files; flagging it rather than editing triage prompts under an unrelated item.
+- **The double-log hint resolves itself.** The case file flagged the same `AuthUnready` logged twice 1ms apart (ERROR untagged, WARN tagged `ProfileRepository`). I traced the WARN to `ProfileRepositoryImpl.fetchServerProfileLocked`'s "`/v1/me` failed; falling back to cache", but couldn't pin the untagged ERROR to a specific `logOnFailure` without live data, since the obvious candidate recovers rather than rethrows. It stopped mattering: after this change both lines land at DEBUG in Loki and both were already dropped by Sentry, so the duplicate costs nothing anywhere. Left it rather than guess-fixing a call site I couldn't identify.
+- No Sentry issue; ENG-44 was filed from a Loki sweep.
+
+**Deferred:**
+- Verifying the ratio actually moved. Needs a shipped build carrying the change, same soft block as ENG-36 / ENG-38 / ENG-42. The next observability triage run after a release is the natural place to check.
