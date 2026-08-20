@@ -114,3 +114,28 @@ Client side adds no new machinery: the typed code feeds the existing `SessionRej
 **Deferred:**
 - The other `findOrCreate` repositories (wallet, player-stats, progression, play-style) still have no pre-flight and rely on the FK net. That's the intended split, not an oversight — but if one of them ever needs the positive assertion, `authUserExists` should move out of `PostgresProfileRepository` and become something shared. Noted here only; nothing filed.
 - Nothing charts `account_not_found` yet. It's a warn-level log line, queryable in Loki, and at current (essentially zero) volume a panel or alert over it would be noise. Not filed.
+
+## feat(networking): stop a blocked client from talking to the server (ENG-35)
+
+**Problem:** A banned account's client kept sending ordinary requests, each a round-trip to be told `403 {"reason":"banned"}` again and each a Sentry error (CARDS-BG), while the user sat on the blocking screen the whole time. The `403` was fire-and-forget with nothing holding it, so nothing could observe the ban lifting either: recovery meant relaunching.
+
+**Approach:** Followed the case file's plan (`docs/agent/feedback-cases/ENG-35.md`) closely — latched `BannedState`, a Ktor plugin installed ahead of `Auth`, `/v1/me` clearing the latch, and the `SentryLogTree` classifier. Two deliberate departures:
+
+**(1) Persistence, which the plan left open, is out — in memory only.** A relaunch fires one doomed request before the first `403` re-latches, which is one request rather than a stream. A persisted ban would need its own invalidation story, and it gets the side that matters wrong: a ban the server has lifted would keep a paying-attention user blocked until something thought to re-check.
+
+**(2) Recovery is a "Check again" button, not a poll.** The plan flagged this as a product decision, since nothing calls `/v1/me` on its own while the screen is up. A poll spends battery watching a state that changes maybe once, and someone who just appealed knows better than a timer when to look. The button fires a narrow `AccessStatusProbe` — contract next to `BannedState` in `:libraries:networking`, implementation in `:libraries:identity:impl`, which owns the `/v1/me` call. The screen's VM also *observes* the latch rather than only reading the probe's return, so any other allowlisted `/v1/me` that comes back clean also brings the screen down.
+
+The telemetry half is narrow on purpose: `401` and `403` stop being captured, `400` / `409` / every 5xx still are. Dropping all 4xx would have hidden real client bugs behind a moderation fix.
+
+**Reviewer notes:**
+- **Red-then-green held for the telemetry half** (both new `SentryLogTreeTest` refusal cases fail against the pre-fix classifier, verified by stashing it). The breaker and the recovery VM are new behaviour, so their "red" is only a compile failure.
+- `BannedCircuitBreakerTest` measures "never reached the wire" off `MockEngine.requestHistory` rather than trusting the plugin's own view, which is the property that actually matters.
+- **The allowlist match on `/v1/me` is exact, and that is load-bearing.** A prefix match would let every `/v1/me/*/sync` write straight through, which is most of the traffic the breaker exists to stop. There's a test pinning it.
+- `AuthTokenProvider` and now `NetworkClientImpl`'s constructor have both grown this cycle. `applyCommonConfig` is up to six parameters and is starting to read like a bag. If it takes one more, it should become a member extension on `NetworkClientImpl` so it reads the fields directly. Left alone rather than refactoring under two unrelated items in one night.
+- The `403` path now sets the latch *and* fires the bus. Both are needed — the bus is what navigates to the screen, the latch is what the breaker and the screen read — but it is two things where there used to be one. Worth a glance for whether the bus should just be derived from the latch.
+- `SentryLogTree` is where I confirmed the plan's cancellation question: `Catching` re-throws `CancellationException` rather than folding it into a failure, so `logOnFailure` never runs on one and nothing needed adding. Noted in the KDoc so the next person doesn't re-derive it.
+- No Sentry issue resolved. CARDS-BG is a live account still banned; this changes what the client does about it, not whether the condition holds. It should stop producing new events once a build ships, which is the thing to check before closing it.
+
+**Deferred:**
+- `/v1/reports` was on the case file's "also consider" list for the allowlist. Left off: the appeal path is a web link, and a blocked account filing reports is not something to make easy. Say so if you disagree — it's one line.
+- No panel or alert on how often the breaker trips. At current volume (one account) it would be noise. Not filed.
