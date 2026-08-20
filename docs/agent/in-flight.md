@@ -78,3 +78,39 @@ Not a commit — a dead end worth recording so the next worker doesn't spend the
 ENG-40 wants the real App Store id to replace `APP_STORE_ID_PLACEHOLDER`, and its Hints say the id is resolvable without App Store Connect access via `itunes.apple.com/lookup?bundleId=com.dangerfield.cards.Cards`. **That method does not work.** The lookup returns `resultCount: 0` for that bundle id in every storefront tried (us, sg, gb, ca, au, de), a search for the product name ("Downcard", per `apps/ios/Configuration/Config.xcconfig`) returns ten unrelated apps, and the Sentry event for the live release carries no `app_identifier` to cross-check against. The checked-in bundle id is also `com.dangerfield.cards.Cards$(TEAM_ID)` with `TEAM_ID` empty in the repo, so the shipped identifier may carry a team suffix that isn't in source at all.
 
 Either the human reads the id off App Store Connect, or someone with the signed build reads it from there. Left the item untouched; the stale Hints line is the thing to fix when that lands.
+
+---
+
+# 2026-08-20 cycle — worker 1
+
+## fix(test): pass AdminConfig to installRateLimits in the MP harness
+
+**Problem:** Not from the todo list. `:apps:integration:testDebugUnitTest` has not compiled on develop since ENG-41 (ec0755f8) gave `installRateLimits` a required `AdminConfig` parameter and updated the in-module server tests but not `apps/integration`'s `InProcessServer`.
+
+**Approach:** Passed the same null-token config the server route tests use. Split into its own commit because it isn't AUTH-29's work — but I couldn't verify my own change to that module without it, and leaving develop red there is worse than a one-line drive-by.
+
+**Reviewer notes:** Whatever runs `:apps:integration` in CI evidently isn't gating develop, or ENG-41 wouldn't have landed. Worth a look — the MP scenario harness is the only thing testing the room socket end to end. Full `:apps:integration:testDebugUnitTest` passes now.
+
+**Deferred:** None.
+
+## fix(auth): answer a stranded session with a typed 401, not a raw 500 (AUTH-29)
+
+**Problem:** A verified JWT naming a user id with no `auth.users` row failed V11's `*_user_id_fk` on every per-user write. That reached the generic StatusPages handler, so the client got a 500 quoting the constraint, each attempt filed a Sentry issue, and nothing told the client to stop — so it kept syncing.
+
+**Approach:** One wire answer (`401 account_not_found`), two detectors: an explicit `SELECT 1 FROM auth.users` pre-flight on the profile-create branch, plus a StatusPages net that recognises a 23503 violation of any `*_user_id_fk`. **The judgement call worth reviewing: the todo asked only for the pre-flight ("detect before the child write"), and I built the net as well.** The pre-flight alone is incomplete — every repo that writes a per-user row would have to remember it — and a net alone would put driver-error-message parsing on the hot path. Together, the net covers every table for free and the request that defines the whole session (`GET /v1/me`) gets a positive assertion. The pre-flight is nearly free because a `profiles` row is itself proof of an `auth.users` row: V11's FK plus `ON DELETE CASCADE` means they exist or vanish together, so only the create branch can be about to write against a ghost.
+
+**Second call: 401 over 409.** 409 is the more literal status — the token verifies, so nothing is unauthenticated. But a client that doesn't recognise the code has to do *something*, and re-authenticating is the only useful something; 409 would read as an unhandled error and keep the retry loop alive, which is the bug being fixed. Ktor's bearer plugin doesn't spend a refresh round-trip on it because the response carries no `WWW-Authenticate`. One-field change if you disagree.
+
+Client side adds no new machinery: the typed code feeds the existing `SessionRejectionBus`, the same seam a server-rejected refresh uses, so the teardown, the `SessionExpired` state, and the recovery screen are all already built and tested. Full rationale in `docs/decisions.md`.
+
+**Reviewer notes:**
+- **Red-then-green held on the server, not on the client.** Three of the seven cases in `UnknownAuthUserResponseTest` fail against the pre-fix `Errors.kt` (verified by stashing it). The client test exercises a function that didn't exist before, so its "red" is only a compile failure — weaker, and worth knowing.
+- **The two new `PostgresProfileRepositoryTest` cases did not run locally.** Docker isn't available on this machine, so `DatabaseTest` skipped via its `Assume`. They're the only coverage of the pre-flight against a real `auth.users`, and CI is the first place they'll actually execute. If they fail there, the suspect is the raw `SELECT 1 FROM auth.users` in `PostgresProfileRepository.authUserExists` — everything else in this change is Docker-free and green.
+- `AuthTokenProvider` gained `isAnonymousSession()`. Two implementations, both updated; no default value on purpose, since a silently-wrong `false` would offer a guest the wrong recovery screen.
+- A knock-on I like but didn't set out to build: the rejection signal bumps `SessionRejectionBus.rejectionEpoch` synchronously, before the exception propagates, so `authedCall` remaps the failing call to `AuthUnready(SessionExpired)`. That's logged at info, which means the storm stops *and* stops filing error telemetry on its way out.
+- `theResponseLeaksNoSchemaDetail` passes against the old code too. It's guarding the new response shape rather than reproducing the old leak — the old leak came from Exposed's own message, which the synthetic exception doesn't carry.
+- No Sentry issue to resolve; AUTH-29 was filed from a log pattern, not a captured event.
+
+**Deferred:**
+- The other `findOrCreate` repositories (wallet, player-stats, progression, play-style) still have no pre-flight and rely on the FK net. That's the intended split, not an oversight — but if one of them ever needs the positive assertion, `authUserExists` should move out of `PostgresProfileRepository` and become something shared. Noted here only; nothing filed.
+- Nothing charts `account_not_found` yet. It's a warn-level log line, queryable in Loki, and at current (essentially zero) volume a panel or alert over it would be noise. Not filed.
