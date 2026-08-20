@@ -24,14 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## AUTH-31 [P2] — `onboarding.abandoned` fires on a back-out, so the funnel counts finishers as quitters
-
-**Problem:** The event is emitted from `OnboardingViewModel.onCleared()`, and system-back on the Welcome step exits the app, so backgrounding-then-returning logs an abandonment. 4 of the 6 prod installs that "abandoned" in 14d went on to complete onboarding, and 12 events came from those 6 installs. All 12 read `step=welcome`, which is an artifact of where back exits the app, not a welcome-screen problem.
-
-**Acceptance:** One `onboarding.abandoned` per genuine abandonment per install — resolve it at re-entry (durable in-progress marker in `appCache`, settled on the next launch that reaches Home or after a staleness window) rather than at VM clear, which also fixes the process-kill under-count the wiki already documents. Event carries a `resumed`/`reason` attribute; a VM test that backgrounds on Welcome, restores and completes asserts zero abandonment events.
-
-**Hints:** `OnboardingViewModel.kt:527` (`onCleared`) and the `exitedToHome` latch; `docs/wiki/app-events.md:116` warns about the opposite failure mode and needs correcting. **Fix before trusting welcome-step drop-off in ENG-36 or ENG-42.** Case `docs/agent/feedback-cases/2026-08-20-onboarding-abandoned-false-positive.md`. No Sentry issue (that's the bug).
-
 ## ENG-36 [P1] — Diagnose the starter-grant "double-miss" and surface reveal health
 
 **Problem:** A new prod user saw neither the onboarding grant number nor the Home welcome-dialog backup, yet got their 10k chips. Why the Home backup didn't fire is unconfirmed (`accountJustCreated` / `welcomeIdentity` race?).

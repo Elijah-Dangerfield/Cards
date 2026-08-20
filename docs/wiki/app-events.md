@@ -113,9 +113,17 @@ All in `OnboardingViewModel`.
 | `onboarding.step_viewed` | `step` (welcome/pick_identity/how_it_works/starter_grant) | Each step entered (including back-navigation) |
 | `onboarding.auth_selected` | `method` (guest/google/apple), `returning` | Guest continue; OAuth/Apple sign-in success |
 | `onboarding.completed` | `duration_sec`, `account_ready` (false = degraded will-retry) | "Take a seat" |
-| `onboarding.abandoned` | `step` | Best-effort on VM clear without reaching Home; a process kill won't emit it — count step_viewed-without-completed sessions for the full picture |
+| `onboarding.abandoned` | `step`, `reason` (stale), `age_sec` | Settled at **re-entry**, not at VM clear: an unfinished run is recorded in `AppData.onboardingAttempt`, and the next launch that finds one older than 24h emits once and clears it. `step` is where the user stopped, not where they are now. Someone who backs out and comes back the same day to finish emits nothing, which is the point — see the caveat below |
 | `onboarding.grant_revealed` | `surface` (onboarding_step/home_backup), `source` (balance/config, onboarding_step only), `amount` | The starter-grant number was actually shown — on the onboarding grant step, or via the Home welcome-dialog backup. `source=config` means the live-balance sync missed the reveal window and the server-advertised value carried it |
 | `onboarding.grant_reveal_degraded` | — | The onboarding grant step could NOT show a number (no live balance within the 1.5s window and no `onboarding.starterGrant` config). User saw "lands when you reconnect". A degraded event with no later `surface=home_backup` reveal = the user never saw their starter chips |
+
+### Reading `onboarding.abandoned` honestly
+
+**It under-counts, on purpose.** Someone who walks away and never opens the app again emits nothing, because the event is settled by the *next launch* and there isn't one. Cross-check with step_viewed-without-completed sessions for the full denominator.
+
+That is the deliberate trade for killing a much worse failure. Until AUTH-31 the event fired from `OnboardingViewModel.onCleared()`, and on Android system back on the Welcome step exits the app — so backgrounding and returning logged an abandonment. In the first fortnight after launch that ran at roughly a two-thirds false-positive rate: 12 events from 6 installs, 4 of which went on to complete onboarding, and **100% of them read `step=welcome`** purely because Welcome is the only step where back leaves the app rather than stepping backwards. Any historical read of this event before AUTH-31 shipped carries that artifact, and the welcome-step concentration in particular means nothing.
+
+Over-counting was the more dangerous direction because it manufactured a problem that wasn't there — a welcome-screen drop-off that two other open items were about to reason from.
 
 ## Monetization funnel
 

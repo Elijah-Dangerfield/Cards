@@ -37,10 +37,38 @@ enum class TurnFeedback(val label: String) {
     Vibrate(label = "Vibrate"),
 }
 
+/**
+ * One in-flight run through onboarding: the step the user last reached and
+ * when the run started.
+ *
+ * [startedAtEpochMs] is wall-clock rather than a monotonic mark because the
+ * whole point is to survive the process ending.
+ */
+@Serializable
+data class OnboardingAttempt(
+    val step: String,
+    val startedAtEpochMs: Long,
+)
+
 @Serializable
 data class AppData(
     // Onboarding
     val hasUserOnboarded: Boolean = false,
+
+    /**
+     * The onboarding run currently in flight, or null when onboarding isn't
+     * running (never started, or finished).
+     *
+     * Exists so abandonment is settled at **re-entry** instead of at ViewModel
+     * clear. System back on the Welcome step exits the app, which clears the
+     * ViewModel — indistinguishable from quitting for good, so emitting there
+     * counted users who came straight back and finished. That ran at roughly a
+     * two-thirds false-positive rate in prod, and every event landed on
+     * `welcome` purely because it's the only step where back leaves the app
+     * (AUTH-31). Surviving in the cache lets the next launch decide, and it
+     * closes the process-kill blind spot in the same move.
+     */
+    val onboardingAttempt: OnboardingAttempt? = null,
 
     // User actions
     val feedbacksGiven: Int = 0,
