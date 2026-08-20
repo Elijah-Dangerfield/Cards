@@ -9,6 +9,7 @@ import com.dangerfield.cards.libraries.core.logging.LogId
 import com.dangerfield.cards.libraries.core.logging.LogLevel
 import com.dangerfield.cards.libraries.core.logging.LogTree
 import com.dangerfield.cards.libraries.core.versionString
+import com.dangerfield.cards.libraries.networking.isExpectedFailure
 import io.opentelemetry.kotlin.OpenTelemetry
 import io.opentelemetry.kotlin.createOpenTelemetry
 import io.opentelemetry.kotlin.export.TelemetryCloseable
@@ -102,6 +103,24 @@ class GrafanaLogTree(
         return null
     }
 
+    /**
+     * The severity this record ships at, which is not always the level it was
+     * logged at. A throwable [isExpectedFailure] recognises is something the
+     * codebase has already decided is not a failure, and shipping it at ERROR
+     * made the client error panel 85% `AuthUnready` — in the exact surface the
+     * nightly triage reads to find real bugs (ENG-44).
+     *
+     * Downgraded, not dropped: reconstructing a session after the fact needs
+     * these lines, and the gate above still decides *whether* a record ships, so
+     * this only changes where it lands once it does.
+     */
+    private fun severityFor(entry: LogEntry): SeverityNumber =
+        if (entry.throwable?.isExpectedFailure() == true) {
+            SeverityNumber.DEBUG
+        } else {
+            entry.level.toSeverityNumber()
+        }
+
     private fun forward(eventName: String?, entry: LogEntry) {
         if (!exportEnabled()) return
         val sessionId = currentSessionId()
@@ -110,7 +129,7 @@ class GrafanaLogTree(
         eventLogger.emit(
             body = entry.message ?: entry.throwable?.toString(),
             eventName = eventName,
-            severityNumber = entry.level.toSeverityNumber(),
+            severityNumber = severityFor(entry),
             attributes = {
                 sessionId?.let { setStringAttribute(SESSION_ID_KEY, it) }
                 currentInstallId()?.let { setStringAttribute(INSTALL_ID_KEY, it) }

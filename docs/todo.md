@@ -72,14 +72,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Read `docs/wiki/app-events.md` → "Reading `app.previous_run` honestly" first — `foreground_termination` is a candidate set, not a verdict, and Android is the calibration (it carries the same marker plus `ApplicationExitInfo` ground truth in `previous_exit`). Instrumentation is `RunOutcome*` in `:libraries:telemetry:impl`. Case `docs/agent/feedback-cases/CARDS-3.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-3.
 
-## ENG-44 [P2] — Expected control-flow throwables reach Loki at ERROR, so the client error panel is 85% noise
-
-**Problem:** `SentryLogTree.shouldCaptureEvent` drops expected control-flow (`AuthUnready`) and offline errors, but `GrafanaLogTree` gates on log level alone, so the same throwables ship to Loki at full severity. 11 of the 13 client ERROR lines in prod over 14d are `AuthUnready`, which `ExpectedControlFlow`'s own KDoc promises telemetry sinks drop.
-
-**Acceptance:** One shared classifier next to `isExpectedControlFlow` in `:libraries:core` decides what counts as an error, and both trees consult it; `AuthUnready` and offline errors no longer appear at warn+ in Loki. Downgrade rather than delete (they're useful at DEBUG for session reconstruction). Cover it with a `GrafanaLogTreeTest` case mirroring the existing `SentryLogTreeTest` assertions.
-
-**Hints:** `GrafanaLogTree.log` forwardAsPlainLog gate (`:libraries:telemetry:impl`) vs `SentryLogTree.kt:80-84`; `isExpectedControlFlow` currently has exactly one non-test reference. Same throwable also double-logs at ERROR and WARN 1ms apart — worth a look. Case `docs/agent/feedback-cases/2026-08-19-expected-controlflow-loki.md`. No Sentry issue (that's the bug).
-
 ## MP-38 [P1] — One Rebuy tap fans out into ~13 rebuy intents; the CTA never disables
 
 **Problem:** Nothing dedupes `PlayPokerAction.Rebuy` (unlike `Submit`, which has `submittedTurnToken`), and the bust dialog's CTA stays enabled with no in-flight state, so a player taps again while the first round-trip is still out. Prod over 14d: 10 successful rebuys, 131 `intent rejected: seat is not busted` warns — 57% of the entire client warn+ stream. The route also checks the busted seat off an unlocked `peek` before debiting the buy-in, so concurrent rebuys can double-debit and land in the compensating-refund path.
