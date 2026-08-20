@@ -9,9 +9,39 @@ Grafana Cloud Loki. The dashboards these feed are mapped in
 Dashboard queries treat this page as the source of truth for names and attributes. Names are
 dot-namespaced snake_case; every record automatically carries `session_id` + `install_id` +
 `is_offline` (per-record) plus resource attributes (`service.name="cards-client"`, deployment
-environment, version, platform). `is_offline` is `AppState.isOffline` captured **at emit time** —
+environment, version, platform, and the install/device facts below). `is_offline` is
+`AppState.isOffline` captured **at emit time** —
 records that ship later from the disk buffer still say what connectivity looked like when the
 event happened, so reliability funnels can segment "emitted offline" without span archaeology.
+
+### Install and device facts
+
+Every record also carries a block of resource attributes describing the install itself, resolved
+once per process by `InstallFactsProvider` and stamped on the Resource at SDK init (ENG-38). They
+exist because prod telemetry previously could not tell a retail install from an emulator or a
+re-signed build, so our own noise landed in crash-free and DAU — one emulator ANR pulled crash-free
+users to 94%.
+
+| Attribute | Values | Notes |
+| --- | --- | --- |
+| `genuine_install` | `true` / `false` | The one the dashboards filter on. `!is_emulator && !is_sideloaded && !is_rooted` |
+| `is_emulator` | `true` / `false` | Android: `Build` fingerprint/hardware/product heuristics. iOS: the `SIMULATOR_DEVICE_NAME` env var |
+| `is_sideloaded` | `true` / `false` | Derived from `installer_package` — true for anything outside the known store set |
+| `is_rooted` | `true` / `false` | Android: `test-keys` tag or an `su` binary. iOS: jailbreak paths, **skipped on the simulator** (the host is macOS, so every path exists) |
+| `installer_package` | `play_store`, `amazon_appstore`, `galaxy_store`, `app_store`, `testflight`, `other`, `none`, `unknown` | A closed token set, **not** the raw installer package name — this rides on every record and a raw name is an unbounded cardinality leak. iOS has no installer package, so the value is the receipt-derived distribution channel |
+| `device_class` | `low` / `medium` / `high` / `unknown` | Blunt hardware tier from RAM + core count (`deviceClassFor`). Both inputs must clear a threshold to promote. Mirrors the shape of Sentry's `device.class` |
+| `os_version` | e.g. `15`, `18.5.1` | Android `Build.VERSION.RELEASE`; iOS `NSProcessInfo.operatingSystemVersion` |
+
+Two rules these follow, and dashboards should assume:
+
+- **Tag, don't drop.** Nothing here suppresses a record. Emulator and sideload traffic still ships
+  and stays queryable; each panel decides whether to filter.
+- **A failed lookup never manufactures noise.** When a platform lookup throws, `installer_package`
+  is `unknown` and `genuine_install` stays `true`. Guessing the other way would silently delete
+  real users from the numbers these feed, which is a worse failure than under-counting noise.
+
+`testflight` is deliberately *not* a sideload — it is a real device running a real signed build.
+Segment it out with `release_channel` when you want retail only.
 
 **Query shape (verified against live Loki 2026-07-11):** stream is
 `{service_name="cards-client", deployment_environment="dev"|"prod"}`; `event_name`, `session_id`,

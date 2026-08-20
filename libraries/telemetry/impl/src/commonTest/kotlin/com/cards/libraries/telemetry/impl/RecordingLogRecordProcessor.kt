@@ -17,6 +17,7 @@ internal class RecordingLogRecordProcessor : LogRecordProcessor {
         val body: Any?,
         val severityNumber: SeverityNumber?,
         val attributes: Map<String, Any>,
+        val resourceAttributes: Map<String, Any>,
     )
 
     val records = mutableListOf<Recorded>()
@@ -27,6 +28,7 @@ internal class RecordingLogRecordProcessor : LogRecordProcessor {
             body = log.body,
             severityNumber = log.severityNumber,
             attributes = log.attributes.toMap(),
+            resourceAttributes = log.resource.attributes.toMap(),
         )
     }
 

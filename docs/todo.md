@@ -40,13 +40,13 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** `OnboardingViewModel.kickOffGrantReveal`; arbiter `GetHomeScreenNotification` + `HomeNotificationSnapshot`; `accountJustCreated` latch from `/v1/me` `isNewAccount` (prime suspect — check it survives the onboarding→Home handoff).
 
-## ENG-38 [P1] — Emit stable install/device facts as OTel Resource attributes, then filter noise out of the dashboards
+## ENG-38 [P1] — Filter emulator/sideload noise out of the `dc-pulse` health panels
 
-**Problem:** Prod client telemetry can't tell a genuine retail install from an emulator or a side-loaded store build, so that noise pollutes crash-free, DAU, and the all-time user count (one emulator ANR dragged crash-free users to 94%). Launch events only carry `install_id` / `platform` / `previous_exit` / `release_channel`.
+**Problem:** The client now stamps `genuine_install` (+ `is_emulator`, `is_sideloaded`, `is_rooted`, `installer_package`, `device_class`, `os_version`) onto every record as a Loki structured-metadata field, but nothing reads it — the crash-free and DAU panels still count emulators as users.
 
-**Acceptance:** Emit `is_emulator`, `is_sideloaded`, `installer_package`, `is_rooted` (+ `device_class`, `os_version`) as OTel **Resource** attributes set once at SDK init, and confirm the Loki OTLP mapping lands them as filterable structured metadata. Then filter the `dc-pulse` crash-free / DAU / all-time-users panels on `genuine_install` behind a "show all" toggle var (Grafana MCP, once a build carrying the attrs ships). **Tag, don't drop** — the noise stays queryable.
+**Acceptance:** Filter the `dc-pulse` crash-free sessions/users/trend, DAU-by-device, and Installs-30d panels on `genuine_install="true"` behind a "show all" toggle var. Blocked until a store build carrying the attrs reaches prod: no record has the field yet, so filtering today zeroes row 1. Verify against live data first (`{service_name="cards-client"} | genuine_install="true"` returns rows), and calibrate — if `genuine_install="false"` is a rounding error, close this instead of filtering.
 
-**Hints:** Sentry already computes these (`isSideLoaded`, `device.class`, `os`) on the event — mirror that into the Resource, near the telemetry bootstrap (cf. `GrafanaAppEvents`). Debug builds already route to dev, so the prod gap is specifically store-build-on-emulator. Keep new attrs low-cardinality.
+**Hints:** Values are strings, so match `="true"` not a bool. **"Accounts (all-time)" can't be filtered this way** — it's a Postgres count over `profiles`, which has no telemetry attrs; either drop it from scope or join on something server-side. Attribute semantics: `docs/wiki/app-events.md` → "Install and device facts".
 
 ## ENG-42 [P0] — Chart the iOS foreground-termination rate, then rule the welcome-screen kills real or not
 

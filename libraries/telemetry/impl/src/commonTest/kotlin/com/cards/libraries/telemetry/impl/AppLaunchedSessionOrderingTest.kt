@@ -34,6 +34,7 @@ class AppLaunchedSessionOrderingTest {
                 currentSessionId = { currentSession },
                 currentInstallId = { "install-uuid-1" },
                 isOffline = { false },
+                installFacts = { RetailInstallFacts },
                 processorFactory = { processor },
             ),
         )

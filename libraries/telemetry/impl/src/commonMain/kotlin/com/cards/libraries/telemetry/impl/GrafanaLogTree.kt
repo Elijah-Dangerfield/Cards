@@ -38,6 +38,12 @@ import io.opentelemetry.kotlin.logging.export.LogRecordProcessor
  * background, and connectivity flips freely). `is_offline` is captured at
  * emit time, so records that ship later from the disk buffer still say what
  * connectivity looked like when the event happened.
+ *
+ * [InstallFacts] go the other way — onto the Resource, resolved once at SDK
+ * init — because they cannot change for the life of the install (ENG-38).
+ * That is also what makes them cheap to filter on: resource attributes reach
+ * Loki as structured metadata on every record without being restated per
+ * event.
  * All OTel types stay confined to this class: if 0.5.0 misbehaves, the tree
  * gets re-backed without touching call sites.
  */
@@ -48,6 +54,7 @@ class GrafanaLogTree(
     private val currentSessionId: () -> String?,
     private val currentInstallId: () -> String?,
     private val isOffline: () -> Boolean,
+    private val installFacts: () -> InstallFacts,
     private val processorFactory: LogExportConfigDsl.() -> LogRecordProcessor,
 ) : LogTree() {
 
@@ -68,6 +75,15 @@ class GrafanaLogTree(
                     setLongAttribute("build_number", BuildInfo.buildNumber.toLong())
                     setStringAttribute("commit_sha", BuildInfo.commitSha)
                     setStringAttribute("release_channel", BuildInfo.releaseChannel)
+                    installFacts().let { facts ->
+                        setBooleanAttribute(GENUINE_INSTALL_KEY, facts.isGenuineInstall)
+                        setBooleanAttribute(IS_EMULATOR_KEY, facts.isEmulator)
+                        setBooleanAttribute(IS_SIDELOADED_KEY, facts.isSideloaded)
+                        setBooleanAttribute(IS_ROOTED_KEY, facts.isRooted)
+                        setStringAttribute(INSTALLER_PACKAGE_KEY, facts.source.value)
+                        setStringAttribute(DEVICE_CLASS_KEY, facts.deviceClass.value)
+                        setStringAttribute(OS_VERSION_KEY, facts.osVersion)
+                    }
                 }
                 export { processorFactory() }
             }
@@ -190,5 +206,12 @@ class GrafanaLogTree(
         private const val TAG_KEY = "tag"
         private const val EXCEPTION_TYPE_KEY = "exception_type"
         private const val EXCEPTION_MESSAGE_KEY = "exception_message"
+        internal const val GENUINE_INSTALL_KEY = "genuine_install"
+        internal const val IS_EMULATOR_KEY = "is_emulator"
+        internal const val IS_SIDELOADED_KEY = "is_sideloaded"
+        internal const val IS_ROOTED_KEY = "is_rooted"
+        internal const val INSTALLER_PACKAGE_KEY = "installer_package"
+        internal const val DEVICE_CLASS_KEY = "device_class"
+        internal const val OS_VERSION_KEY = "os_version"
     }
 }
