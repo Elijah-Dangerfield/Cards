@@ -26,6 +26,7 @@ import com.dangerfield.cards.server.domain.FindOrCreateResult
 import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletEvent
 import com.dangerfield.cards.server.domain.WalletRepository
+import com.dangerfield.cards.server.http.ClientContext
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
@@ -893,7 +894,7 @@ class AdminRoutesTest {
         private val names: List<ProfileDisplayName> = emptyList(),
     ) : ProfileRepository {
         override suspend fun listAllDisplayNames(): List<ProfileDisplayName> = names
-        override suspend fun findOrCreate(userId: UserId): Profile = error("unused")
+        override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = error("unused")
         override suspend fun findById(userId: UserId): Profile? = null
         override suspend fun update(
             userId: UserId,

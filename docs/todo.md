@@ -56,14 +56,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Sentry already computes these (`isSideLoaded`, `device.class`, `os`) on the event — mirror that into the Resource, near the telemetry bootstrap (cf. `GrafanaAppEvents`). Debug builds already route to dev, so the prod gap is specifically store-build-on-emulator. Keep new attrs low-cardinality.
 
-## ENG-39 [P1] — Stamp signup-platform on `profiles` and drive user growth from Postgres, not Loki
-
-**Problem:** The all-time user count and growth-by-platform graph are install-based (Loki), so they cap at ~30d log retention and fold in emulator/side-load noise. `profiles` rows persist forever in Postgres and are noise-light, but carry no `platform`.
-
-**Acceptance:** Add a `platform` column to `profiles` (new V-migration), **stamped once at creation and never updated** — it's signup-platform, an immutable cohort dimension; refreshing it per request would let a dual-OS user retroactively rewrite past growth bars. Client sends `platform` on the profile insert only. Repoint the `dc-pulse` growth graph to cumulative `profiles` by `created_at` split by `platform`; keep the Loki install panel as the DAU/reach view.
-
-**Hints:** Decided: a typed `profiles` column, not `auth.users` metadata (the dashboards already query that table, and it needs no `auth`-schema grant). Profile-create path is the client's supabase-kt `findOrCreate` insert. Grafana Postgres datasource `ffrewas5byf40d` (prod) / `dfrex4f7bg7b4b` (dev) already runs the SQL for panels 401–403.
-
 ## ENG-42 [P0] — Chart the iOS foreground-termination rate, then rule the welcome-screen kills real or not
 
 **Problem:** A retail iPad on the App Store build `cards@0.1.0+3` hit two `WatchdogTermination` fatals while foregrounded on the onboarding `welcome` step, then abandoned. The per-run signal to judge it now exists (`app.previous_run` splits `foreground_termination` from `background_exit`; `app.exit_metrics` carries the raw MetricKit watchdog counts), but nothing charts it, so it's still an anecdote instead of a rate.

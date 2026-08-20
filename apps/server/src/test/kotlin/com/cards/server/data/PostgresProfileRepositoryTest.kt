@@ -15,6 +15,7 @@ import com.dangerfield.cards.server.domain.UnknownAuthUserException
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UsernameGenerator
+import com.dangerfield.cards.server.http.ClientContext
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteAll
@@ -88,6 +89,63 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
         val result = repo.findOrCreateResult(userId)
 
         assertFalse(result.created, "returning account must not report a new-account flag")
+    }
+
+    @Test
+    fun findOrCreate_stampsSignupPlatform() = runTest {
+        val repo = newRepository()
+        val userId = seedAuthUser()
+
+        repo.findOrCreate(userId, ClientContext.Platform.iOS)
+
+        assertEquals("ios", storedPlatform(userId))
+    }
+
+    @Test
+    fun findOrCreate_recordsOtherPlatform_whenCallerDidNotKnow() = runTest {
+        val repo = newRepository()
+        val userId = seedAuthUser()
+
+        repo.findOrCreate(userId)
+
+        assertEquals(
+            "other",
+            storedPlatform(userId),
+            "an unknown platform is 'other', never NULL — NULL is reserved for pre-V90 rows",
+        )
+    }
+
+    @Test
+    fun findOrCreate_neverRewritesSignupPlatform_whenTheUserReturnsOnAnotherOs() = runTest {
+        // The whole point of the column: it is a signup cohort, not a
+        // last-seen-on. A dual-OS user must not be able to move their own
+        // historical bar on the growth graph.
+        val repo = newRepository()
+        val userId = seedAuthUser()
+        repo.findOrCreate(userId, ClientContext.Platform.Android)
+
+        repo.findOrCreate(userId, ClientContext.Platform.iOS)
+        repo.findOrCreateResult(userId, ClientContext.Platform.iOS)
+
+        assertEquals("android", storedPlatform(userId))
+    }
+
+    @Test
+    fun update_leavesSignupPlatformAlone() = runTest {
+        val repo = newRepository()
+        val userId = seedAuthUser()
+        repo.findOrCreate(userId, ClientContext.Platform.Android)
+
+        repo.update(userId, displayName = "RenamedPlayer", avatarEmoji = null)
+
+        assertEquals("android", storedPlatform(userId))
+    }
+
+    private fun storedPlatform(userId: UserId): String? = database.blockingTransaction {
+        ProfilesTable
+            .selectAll()
+            .where { ProfilesTable.userId eq userId.value }
+            .single()[ProfilesTable.platform]
     }
 
     @Test

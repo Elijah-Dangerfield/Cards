@@ -12,6 +12,7 @@ import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SendRequestResult
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.http.ClientContext
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
@@ -529,7 +530,7 @@ class MatchmakingRoutesTest {
 
     private object StubProfiles : ProfileRepository {
         override suspend fun findById(userId: UserId): Profile? = null
-        override suspend fun findOrCreate(userId: UserId): Profile = Profile(
+        override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = Profile(
             userId = userId,
             displayName = "P-${userId.value.toString().take(4)}",
             avatarEmoji = "🃏",

@@ -21,6 +21,7 @@ import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.WalletRepository
+import com.dangerfield.cards.server.http.clientContext
 import com.dangerfield.cards.server.plugins.DELETE_ACCOUNT_LIMIT
 import com.dangerfield.cards.server.plugins.PROFILE_WRITE_LIMIT
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
@@ -95,7 +96,8 @@ fun Route.meRoutes(
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
-            val (profile, isNewAccount) = repository.findOrCreateResult(userId)
+            val (profile, isNewAccount) =
+                repository.findOrCreateResult(userId, call.clientContext().platform)
             // Mirror the freshly-generated name onto the auth row so the
             // Supabase Users table shows who this account is. Best-effort:
             // renames re-mirror, and the admin backfill catches any miss.
@@ -153,7 +155,7 @@ fun Route.meRoutes(
                 // inventory, so the avatar-emoji ownership check below passes on
                 // first contact. Idempotent on userId; a returning user's
                 // existing row is returned untouched.
-                repository.findOrCreate(userId)
+                repository.findOrCreate(userId, call.clientContext().platform)
 
                 val cleanedName = body.displayName?.trim()
                 if (cleanedName != null && (cleanedName.length !in NAME_LENGTH || cleanedName.containsEmoji())) {

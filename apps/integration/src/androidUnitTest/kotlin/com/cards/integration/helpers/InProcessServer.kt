@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.http.ClientContext
 import com.dangerfield.cards.libraries.gameplay.Deck
 import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
 import com.dangerfield.cards.server.game.GameSessionRegistry
@@ -311,7 +312,7 @@ private class InMemorySessionSnapshotStore : SessionSnapshotStore {
 /** Server-side profile source — a deterministic display name per user. */
 private object FakeProfiles : ProfileRepository {
     override suspend fun findById(userId: UserId): Profile? = null
-    override suspend fun findOrCreate(userId: UserId): Profile = Profile(
+    override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = Profile(
         userId = userId,
         displayName = "P-${userId.value.toString().take(4)}",
         avatarEmoji = "🃏",

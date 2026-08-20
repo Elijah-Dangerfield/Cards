@@ -29,6 +29,7 @@ import com.dangerfield.cards.server.domain.FindOrCreateResult
 import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletEvent
 import com.dangerfield.cards.server.domain.WalletRepository
+import com.dangerfield.cards.server.http.ClientContext
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
@@ -103,6 +104,26 @@ class MeRoutesTest {
         callMe(repo, bearer = validJwt()) { resp ->
             assertEquals(HttpStatusCode.OK, resp.status)
             assertEquals(1, repo.findOrCreateCalls)
+        }
+    }
+
+    @Test
+    fun me_passesCallerPlatformToTheCreatePath() = runTest {
+        val repo = FakeProfileRepository(existing = null)
+        callMe(repo, bearer = validJwt(), platformHeader = "ios") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(listOf(ClientContext.Platform.iOS), repo.signupPlatforms)
+        }
+    }
+
+    @Test
+    fun me_recordsOtherPlatform_whenClientSendsNoPlatformHeader() = runTest {
+        // A client too old to send X-Platform must still get a profile — the
+        // signup-platform column is a reporting dimension, never a gate.
+        val repo = FakeProfileRepository(existing = null)
+        callMe(repo, bearer = validJwt(), platformHeader = null) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(listOf(ClientContext.Platform.Other), repo.signupPlatforms)
         }
     }
 
@@ -474,6 +495,7 @@ class MeRoutesTest {
         adminClient: SupabaseAdminClient = AlwaysSuccessAdmin,
         inventory: InventoryRepository = EmptyInventory,
         installIdHeader: String? = null,
+        platformHeader: String? = null,
         installSweep: com.dangerfield.cards.server.domain.OrphanInstallSweep = NoOpInstallSweep,
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
@@ -491,6 +513,7 @@ class MeRoutesTest {
             val response = client.get("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
                 installIdHeader?.let { header(INSTALL_ID_HEADER, it) }
+                platformHeader?.let { header(ClientContext.HEADER_PLATFORM, it) }
             }
             assert(response)
         }
@@ -569,11 +592,16 @@ class MeRoutesTest {
         var updateCalls: Int = 0
             private set
         val installIdCalls: MutableList<Pair<UserId, UUID>> = mutableListOf()
+        val signupPlatforms: MutableList<ClientContext.Platform> = mutableListOf()
 
         override suspend fun findById(userId: UserId): Profile? = existing
 
-        override suspend fun findOrCreate(userId: UserId): Profile {
+        override suspend fun findOrCreate(
+            userId: UserId,
+            signupPlatform: ClientContext.Platform,
+        ): Profile {
             findOrCreateCalls++
+            signupPlatforms += signupPlatform
             return existing ?: Profile(
                 userId = userId,
                 displayName = "GeneratedName",
@@ -586,9 +614,10 @@ class MeRoutesTest {
 
         override suspend fun findOrCreateResult(
             userId: UserId,
+            signupPlatform: ClientContext.Platform,
         ): com.dangerfield.cards.server.domain.FindOrCreateProfileResult =
             com.dangerfield.cards.server.domain.FindOrCreateProfileResult(
-                profile = findOrCreate(userId),
+                profile = findOrCreate(userId, signupPlatform),
                 created = reportsCreated,
             )
 

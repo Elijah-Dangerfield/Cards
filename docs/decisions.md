@@ -4,6 +4,16 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-08-20 — Signup platform is stamped once on `profiles` and never revisited (ENG-39)
+
+**Problem:** The all-time user count and the growth-by-platform view were install-based, read out of Loki `app.foregrounded` records. That caps at ~30 days of log retention, so "how many users do we have" silently became "how many devices opened the app this month", and it folds in emulator and side-load noise. `profiles` rows persist forever in Postgres and are noise-light, but carried no platform, so they could answer "how many" and not "on which OS".
+
+**Decision:** A `platform` column on `profiles` (V90), written on the INSERT that creates the row and never touched again. The value comes from the `X-Platform` header the client already sends on every request, so nothing new ships client-side — the column starts filling the moment the server deploys, with no app release in the loop. Rows created before V90 stay NULL permanently and read as "unknown (pre-V90)" on the dashboard: a fixed historical bucket that can never grow.
+
+The load-bearing part is that it is *signup* platform, a cohort dimension, not a last-seen-on. The `findOrCreate` fast path returns before any write, so immutability is structural rather than a rule someone has to remember, and there's a test that returns the same user on the other OS and asserts the column didn't move.
+
+**Alternatives rejected:** a lazy backfill (`UPDATE … WHERE platform IS NULL`) to fill in the legacy rows — tempting because it would eventually give the historical bars real platforms, and wrong twice: a user who signed up on Android and later switched to iOS rewrites their own past bar, and because dormant users keep returning the backfill never converges, so every historical bar on the growth graph keeps shifting under whoever is reading it. A stable known-unknown beats a moving answer. Also rejected: storing the platform in `auth.users` metadata (the dashboards already query `profiles`, and reading `auth` needs a schema grant we'd rather not hand the Grafana role), and a new domain enum mirroring `ClientContext.Platform` (the domain layer already depends on that type in `Product` and `AppConfigSource`; a second enum is two things to keep in sync). `Platform.wire` exists so the persisted spelling is declared rather than derived from a constant name that a rename could change out from under the data.
+
 ## 2026-08-18 — The clean-exit marker ENG-25 rejected is now shipped alongside MetricKit (ENG-42)
 
 **Problem:** ENG-25's alternatives-rejected list turned down a clean-exit-marker heuristic and set the condition for revisiting it: "if iOS exit rates become load-bearing." That condition fired. iOS shipped to the App Store on 2026-07-23, and CARDS-3 — two `WatchdogTermination` fatals on a retail iPad, foregrounded on the onboarding welcome step, then abandonment — is the only fatal on it. Neither existing signal could rule on it: Sentry's watchdog detection is a next-launch heuristic that can't separate a hang from a force-quit, and `previous_exit` is a day-granular MetricKit sample that reads `unknown` on precisely these launches, exactly as designed.

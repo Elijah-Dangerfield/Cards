@@ -1,5 +1,7 @@
 package com.dangerfield.cards.server.domain
 
+import com.dangerfield.cards.server.http.ClientContext
+
 /**
  * The single high-level operation `/v1/me` needs.
  *
@@ -16,7 +18,17 @@ package com.dangerfield.cards.server.domain
  * via retry — see the implementation.
  */
 interface ProfileRepository {
-    suspend fun findOrCreate(userId: UserId): Profile
+    /**
+     * [signupPlatform] is recorded only on the call that actually inserts the
+     * row, and is never revisited afterwards — it's the cohort dimension the
+     * growth graph splits on, so a returning user on a second OS must not be
+     * able to rewrite it (V90). Callers that aren't a real client request pass
+     * the default and land as `other`.
+     */
+    suspend fun findOrCreate(
+        userId: UserId,
+        signupPlatform: ClientContext.Platform = ClientContext.Platform.Other,
+    ): Profile
 
     /**
      * Like [findOrCreate] but reports whether THIS call created the profile row
@@ -28,8 +40,11 @@ interface ProfileRepository {
      * (SignedUp vs SignedIn). Default delegates with `created = false` for fakes
      * that don't distinguish; the Postgres impl reports the real flag.
      */
-    suspend fun findOrCreateResult(userId: UserId): FindOrCreateProfileResult =
-        FindOrCreateProfileResult(findOrCreate(userId), created = false)
+    suspend fun findOrCreateResult(
+        userId: UserId,
+        signupPlatform: ClientContext.Platform = ClientContext.Platform.Other,
+    ): FindOrCreateProfileResult =
+        FindOrCreateProfileResult(findOrCreate(userId, signupPlatform), created = false)
 
     suspend fun findById(userId: UserId): Profile?
 

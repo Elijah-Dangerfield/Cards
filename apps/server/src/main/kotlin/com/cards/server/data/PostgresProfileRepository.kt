@@ -20,6 +20,7 @@ import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.UsernameGenerator
+import com.dangerfield.cards.server.http.ClientContext
 import me.tatarka.inject.annotations.Inject
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.ResultRow
@@ -216,10 +217,15 @@ class PostgresProfileRepository(
         UpdateProfileOutcome.Success(refreshed)
     }
 
-    override suspend fun findOrCreate(userId: UserId): Profile =
-        findOrCreateResult(userId).profile
+    override suspend fun findOrCreate(
+        userId: UserId,
+        signupPlatform: ClientContext.Platform,
+    ): Profile = findOrCreateResult(userId, signupPlatform).profile
 
-    override suspend fun findOrCreateResult(userId: UserId): FindOrCreateProfileResult = database.transaction {
+    override suspend fun findOrCreateResult(
+        userId: UserId,
+        signupPlatform: ClientContext.Platform,
+    ): FindOrCreateProfileResult = database.transaction {
         // Fast path: already exists → not a new account.
         val existing = ProfilesTable
             .selectAll()
@@ -241,7 +247,7 @@ class PostgresProfileRepository(
         // handled — if some other request just inserted the profile, our
         // own insert fails, we re-read.
         try {
-            FindOrCreateProfileResult(insertWithUniqueName(userId), created = true)
+            FindOrCreateProfileResult(insertWithUniqueName(userId, signupPlatform), created = true)
         } catch (e: ExposedSQLException) {
             if (e.isUniqueViolation()) {
                 // Either the userId PK or the displayName UQ tripped. The
@@ -276,7 +282,10 @@ class PostgresProfileRepository(
         return exists
     }
 
-    private suspend fun insertWithUniqueName(userId: UserId): Profile {
+    private suspend fun insertWithUniqueName(
+        userId: UserId,
+        signupPlatform: ClientContext.Platform,
+    ): Profile {
         val now = clock.now()
         val nowJava = now.toJavaInstant()
         val emoji = avatarGenerator.random()
@@ -290,7 +299,7 @@ class PostgresProfileRepository(
         // anyway as a defense against future shrinkage of either list.
         repeat(MAX_ATTEMPTS) {
             val name = usernameGenerator.random()
-            if (tryInsert(userId, name, emoji, backgroundColor, nowJava)) {
+            if (tryInsert(userId, name, emoji, backgroundColor, signupPlatform, nowJava)) {
                 seedStarterInventory(userId, nowJava)
                 val seq = readSeq(userId)
                 if (seq <= foundingMemberThreshold) {
@@ -378,6 +387,7 @@ class PostgresProfileRepository(
         displayName: String,
         avatarEmoji: String,
         avatarBackgroundColor: String,
+        signupPlatform: ClientContext.Platform,
         now: java.time.Instant,
     ): Boolean {
         // Wrap the insert in a SAVEPOINT so a unique-constraint violation
@@ -394,6 +404,7 @@ class PostgresProfileRepository(
                 it[ProfilesTable.displayName] = displayName
                 it[ProfilesTable.avatarEmoji] = avatarEmoji
                 it[ProfilesTable.avatarBackgroundColor] = avatarBackgroundColor
+                it[ProfilesTable.platform] = signupPlatform.wire
                 it[createdAt] = now
                 it[updatedAt] = now
             }

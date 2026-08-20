@@ -630,7 +630,7 @@ class BillingRoutesTest {
 
     private class LineageProfiles(private val lineage: Set<UserId>) : ProfileRepository {
         override suspend fun findInstallLineage(userId: UserId): Set<UserId> = lineage
-        override suspend fun findOrCreate(userId: UserId): Profile = notNeeded()
+        override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = notNeeded()
         override suspend fun findById(userId: UserId): Profile = notNeeded()
         override suspend fun update(
             userId: UserId,

@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.http.ClientContext
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
@@ -607,7 +608,7 @@ class RoomRoutesTest {
         private val nameFor: (UserId) -> String,
     ) : ProfileRepository {
         override suspend fun findById(userId: UserId): Profile? = null
-        override suspend fun findOrCreate(userId: UserId): Profile = Profile(
+        override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = Profile(
             userId = userId,
             displayName = nameFor(userId),
             avatarEmoji = "🃏",

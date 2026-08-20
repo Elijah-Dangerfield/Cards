@@ -14,6 +14,7 @@ import com.dangerfield.cards.server.domain.RespondResult
 import com.dangerfield.cards.server.domain.SendRequestResult
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.http.ClientContext
 import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
 import com.dangerfield.cards.server.game.GameSession
 import com.dangerfield.cards.server.game.NoOpSessionSnapshotStore
@@ -534,7 +535,7 @@ class TelemetryTest {
     @OptIn(kotlin.time.ExperimentalTime::class)
     private object FixedProfiles : ProfileRepository {
         override suspend fun findById(userId: UserId): Profile? = null
-        override suspend fun findOrCreate(userId: UserId): Profile = Profile(
+        override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = Profile(
             userId = userId,
             displayName = "P-${userId.value.toString().take(4)}",
             avatarEmoji = "🃏",
