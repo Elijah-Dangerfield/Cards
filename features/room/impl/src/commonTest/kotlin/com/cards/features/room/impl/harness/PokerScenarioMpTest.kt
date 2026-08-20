@@ -18,6 +18,7 @@ import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.rooms.RoomStatus
+import kotlinx.coroutines.test.TestScope
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -899,6 +900,97 @@ class PokerScenarioMpTest : PokerScenarioTest() {
             s.appCache.get().pendingHomeAchievementIds.isEmpty(),
             "a silenced session enqueues nothing, matching the muted at-table behaviour",
         )
+    }
+
+    // ---------- Rebuy (MP-38) ----------
+
+    @Test
+    fun mashingRebuy_sendsOneFrame() = runUnitTest {
+        // Prod, 14 days: 10 accepted rebuys and 131 `seat is not busted`
+        // rejections behind them — roughly thirteen doomed intents per real
+        // rebuy. The tap showed no sign of having landed for a whole round-trip,
+        // so players kept tapping.
+        val s = bustedLocalPlayer()
+
+        s.iTapRebuy(times = 5)
+
+        assertEquals(
+            1,
+            s.sentFrames().filterIsInstance<ClientFrame.Rebuy>().size,
+            "the seat can only be bought back once, so only one intent may reach the wire",
+        )
+    }
+
+    @Test
+    fun rebuyInFlight_isSet_soTheCtaCanShowItHeardTheTap() = runUnitTest {
+        val s = bustedLocalPlayer()
+
+        s.iTapRebuy()
+
+        assertTrue(s.vm.state.rebuyInFlight, "the CTA reads this to disable itself and show progress")
+    }
+
+    @Test
+    fun rebuyStaysGuarded_afterTheServerAccepts_untilTheRefilledSeatArrives() = runUnitTest {
+        // The dialog is still up between the ack and the refilled snapshot. If
+        // the guard lifted on the ack, a tap in that window would send a second
+        // intent the server can only refuse.
+        val s = bustedLocalPlayer()
+        s.iTapRebuy()
+        s.serverAcksRebuy(accepted = true)
+
+        s.iTapRebuy(times = 3)
+
+        assertEquals(1, s.sentFrames().filterIsInstance<ClientFrame.Rebuy>().size)
+        assertTrue(s.vm.state.rebuyInFlight)
+    }
+
+    @Test
+    fun refilledSeat_clearsTheGuard_soALaterBustCanRebuyAgain() = runUnitTest {
+        val s = bustedLocalPlayer()
+        s.iTapRebuy()
+        s.serverAcksRebuy(accepted = true)
+
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 1_000),
+                    mpSeat(1, playerId = "peer", stack = 1_000),
+                ),
+                actingSeatIndex = 0,
+                handNumber = 2,
+            ),
+        )
+
+        assertFalse(s.vm.state.rebuyInFlight, "the seat has chips again — the guard has nothing left to guard")
+    }
+
+    @Test
+    fun refusedRebuy_reArmsTheCta_soAPlayerWhoTopsUpCanRetry() = runUnitTest {
+        val s = bustedLocalPlayer()
+        s.iTapRebuy()
+
+        s.serverAcksRebuy(accepted = false, error = "insufficient chips")
+
+        assertFalse(s.vm.state.rebuyInFlight, "nothing was bought, so the button must come back")
+        s.iTapRebuy()
+        assertEquals(2, s.sentFrames().filterIsInstance<ClientFrame.Rebuy>().size, "the retry goes through")
+    }
+
+    /** Heads-up table where the local player has just busted and the hand is over. */
+    private suspend fun TestScope.bustedLocalPlayer(): RunningMpScenario {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+        s.serverSnapshot(
+            mpTable(
+                seats = listOf(
+                    mpSeat(0, playerId = MP_LOCAL_USER, stack = 0),
+                    mpSeat(1, playerId = "peer", stack = 2_000),
+                ),
+                actingSeatIndex = null,
+                street = BettingRound.Complete,
+            ),
+        )
+        return s
     }
 
     private fun earnedAchievement(id: AchievementId): EarnedAchievement =

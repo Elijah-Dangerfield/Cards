@@ -39,6 +39,7 @@ import cards.libraries.resources.generated.resources.room_mp_bust_body
 import cards.libraries.resources.generated.resources.room_mp_bust_buy_chips_button
 import cards.libraries.resources.generated.resources.room_mp_bust_leave_button
 import cards.libraries.resources.generated.resources.room_mp_bust_rebuy_button
+import cards.libraries.resources.generated.resources.room_mp_bust_rebuy_pending_button
 import cards.libraries.resources.generated.resources.room_mp_bust_title
 import cards.libraries.resources.generated.resources.room_match_over_result_button
 import cards.libraries.resources.generated.resources.room_match_over_result_loss_body
@@ -320,6 +321,7 @@ internal fun MultiplayerBustDialog(
     earnedAchievements: List<EarnedAchievement>,
     buyIn: Long,
     chipBalance: Long?,
+    rebuyInFlight: Boolean,
     onRebuy: () -> Unit,
     onBuyChips: () -> Unit,
     onLeaveGame: () -> Unit,
@@ -369,13 +371,18 @@ internal fun MultiplayerBustDialog(
             if (canAffordRebuy) {
                 ButtonPrimary(
                     onClick = onRebuy,
+                    enabled = !rebuyInFlight,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        text = stringResource(
-                            Res.string.room_mp_bust_rebuy_button,
-                            formatThousands(buyIn),
-                        ),
+                        text = if (rebuyInFlight) {
+                            stringResource(Res.string.room_mp_bust_rebuy_pending_button)
+                        } else {
+                            stringResource(
+                                Res.string.room_mp_bust_rebuy_button,
+                                formatThousands(buyIn),
+                            )
+                        },
                     )
                 }
             } else {
@@ -388,6 +395,7 @@ internal fun MultiplayerBustDialog(
             }
             ButtonSecondary(
                 onClick = onLeaveGame,
+                enabled = !rebuyInFlight,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(text = stringResource(Res.string.room_mp_bust_leave_button))
@@ -718,6 +726,57 @@ private fun BustDialogPreview() {
             earnedAchievements = emptyList(),
             xpMode = XpMode.BOTS,
             onDealMeIn = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun MultiplayerBustDialogPreview_CanAffordRebuy() {
+    PreviewContent {
+        MultiplayerBustDialog(
+            xpEarned = 25,
+            earnedAchievements = emptyList(),
+            buyIn = 1_000,
+            chipBalance = 8_400,
+            rebuyInFlight = false,
+            onRebuy = {},
+            onBuyChips = {},
+            onLeaveGame = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun MultiplayerBustDialogPreview_RebuyInFlight() {
+    PreviewContent {
+        MultiplayerBustDialog(
+            xpEarned = 25,
+            earnedAchievements = emptyList(),
+            buyIn = 1_000,
+            chipBalance = 8_400,
+            rebuyInFlight = true,
+            onRebuy = {},
+            onBuyChips = {},
+            onLeaveGame = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun MultiplayerBustDialogPreview_CannotAffordRebuy() {
+    PreviewContent {
+        MultiplayerBustDialog(
+            xpEarned = 0,
+            earnedAchievements = emptyList(),
+            buyIn = 1_000,
+            chipBalance = 120,
+            rebuyInFlight = false,
+            onRebuy = {},
+            onBuyChips = {},
+            onLeaveGame = {},
         )
     }
 }

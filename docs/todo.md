@@ -71,11 +71,3 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 **Acceptance:** A panel charts `foreground_termination` net of Sentry-reported crashes, split by platform, once a build carrying the events ships. Then either reproduce and fix the welcome-step hang, or show these were force-quits and drop this to P1.
 
 **Hints:** Read `docs/wiki/app-events.md` → "Reading `app.previous_run` honestly" first — `foreground_termination` is a candidate set, not a verdict, and Android is the calibration (it carries the same marker plus `ApplicationExitInfo` ground truth in `previous_exit`). Instrumentation is `RunOutcome*` in `:libraries:telemetry:impl`. Case `docs/agent/feedback-cases/CARDS-3.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-3.
-
-## MP-38 [P1] — One Rebuy tap fans out into ~13 rebuy intents; the CTA never disables
-
-**Problem:** Nothing dedupes `PlayPokerAction.Rebuy` (unlike `Submit`, which has `submittedTurnToken`), and the bust dialog's CTA stays enabled with no in-flight state, so a player taps again while the first round-trip is still out. Prod over 14d: 10 successful rebuys, 131 `intent rejected: seat is not busted` warns — 57% of the entire client warn+ stream. The route also checks the busted seat off an unlocked `peek` before debiting the buy-in, so concurrent rebuys can double-debit and land in the compensating-refund path.
-
-**Acceptance:** Mashing Rebuy sends exactly one `ClientFrame.Rebuy` per bust; both CTAs (`MultiplayerBustDialog`, `MatchOverCountdownBanner`) disable and show progress while it's in flight. Server can't issue the buy-in debit off a stale read — the busted-seat check happens under `GameSession`'s lock. Red test first in the MP scenario harness: bust, tap Rebuy 5×, assert one frame on the wire.
-
-**Hints:** `PlayPokerViewModel.kt:1173` (vs the `Submit` dedupe at `:952`); `PlayPokerScreen.kt:363` + `:708`; `HandResultDialogs.kt:369`; `RemotePokerSession.rebuy()` mints a fresh nonce per call so the server ring can't collapse them; server side `RoomSocketRoutes.handleRebuy` (`:731`) and `GameSession.rebuy` (`:647`). Harness: `PokerScenarioMpTest` / `FakeRoomServer`. Case `docs/agent/feedback-cases/2026-08-20-duplicate-rebuy-intents.md`. No Sentry issue (it's caught and logged at WARN).

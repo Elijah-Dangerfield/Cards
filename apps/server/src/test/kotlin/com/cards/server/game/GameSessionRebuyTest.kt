@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -137,6 +138,70 @@ class GameSessionRebuyTest {
         val result = session.rebuy("nobody", clientNonce = "n1")
 
         assertIs<IntentResult.Rejected>(result)
+    }
+
+    @Test
+    fun rebuy_twoRacingCallers_onlyOnePaysTheBuyIn() = runTest {
+        // MP-38. The route used to check the busted seat off an unlocked read and
+        // debit before calling in, so two rebuys racing the same bust could both
+        // pay and the loser had to be compensated with a keyed refund. The debit
+        // now runs inside this lock, after the seat check, so the loser never pays.
+        val session = seatedSession()
+        session.hydrate(completedStateWithBustedSeat())
+        var buyInsTaken = 0
+
+        val first = async { session.rebuy("alice", clientNonce = "a") { authorized { buyInsTaken++ } } }
+        val second = async { session.rebuy("alice", clientNonce = "b") { authorized { buyInsTaken++ } } }
+        val results = listOf(first.await(), second.await())
+
+        assertEquals(1, buyInsTaken, "the seat is only busted once, so only one caller may be charged")
+        assertEquals(1, results.count { it is IntentResult.Accepted })
+        assertEquals(1, results.count { it is IntentResult.Rejected })
+    }
+
+    @Test
+    fun rebuy_refusedBuyIn_leavesTheSeatBusted_andFreesTheNonceForARetry() = runTest {
+        val session = seatedSession()
+        session.hydrate(completedStateWithBustedSeat())
+
+        val refused = session.rebuy("alice", clientNonce = "same") {
+            IntentResult.Rejected("insufficient chips")
+        }
+        val retried = session.rebuy("alice", clientNonce = "same")
+
+        assertIs<IntentResult.Rejected>(refused)
+        assertIs<IntentResult.Accepted>(retried)
+        assertEquals(
+            settings.startingStack,
+            session.state.value!!.seats.first { it.playerId == "alice" }.stack,
+            "a refused buy-in must not burn the nonce — topping up and retrying has to work",
+        )
+    }
+
+    @Test
+    fun rebuy_buyInIsNotChargedWhenTheSeatIsNotBusted() = runTest {
+        val session = seatedSession()
+        session.hydrate(completedStateWithBustedSeat())
+        var buyInsTaken = 0
+
+        session.rebuy("bob", clientNonce = "n1") { authorized { buyInsTaken++ } }
+
+        assertEquals(0, buyInsTaken, "an invalid rebuy must be refused before any money moves")
+    }
+
+    private inline fun authorized(charge: () -> Unit): IntentResult {
+        charge()
+        return IntentResult.Accepted
+    }
+
+    private suspend fun seatedSession(): GameSession = newSession().also {
+        it.startHand(
+            listOf(
+                SeatOccupant(seatIndex = 0, userId = "alice", displayName = "Alice", isBot = false),
+                SeatOccupant(seatIndex = 1, userId = "bob", displayName = "Bob", isBot = false),
+            ),
+            settings,
+        )
     }
 
     @Test

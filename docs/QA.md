@@ -508,6 +508,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - Both devices show a live countdown ticking down (~60s). Device B (busted) sees "Rebuy in N or lose your seat" + a Rebuy CTA; Device A (winner) sees "Opponent busted. Auto-continues in N".
 - **Rebuy path:** B's rebuy clears the countdown on both devices and play resumes — A is not routed off, no result screen shows.
 - **Expiry path:** when the window expires, A sees a "You won the match" result (not a silent pop) and B sees "Match over"; tapping Done routes each off the dead table cleanly. A's wallet reflects the cashed-out stack on the surface they land on. (Covers todo MP-14.)
+- **Mashing Rebuy sends one rebuy (MP-38):** on the rebuy path, have Device B tap the Rebuy CTA five times as fast as possible (works on both the countdown banner and the bust dialog). The button goes disabled and reads "Buying in…" / "Buying back in…" on the first tap and stays that way until the refilled seat lands. B's wallet is debited exactly one buy-in, and the session log shows one rebuy, no `intent rejected: seat is not busted` warns. If the rebuy is refused (drain B's wallet below the buy-in first), the button comes back so a top-up-and-retry works.
 
 ---
 

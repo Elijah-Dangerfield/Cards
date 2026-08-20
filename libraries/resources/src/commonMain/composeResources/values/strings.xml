@@ -943,6 +943,7 @@
     <string name="room_mp_bust_leave_button">Leave game</string>
     <!-- %1$s = formatted buy-in chip amount, e.g. "1,000". -->
     <string name="room_mp_bust_rebuy_button">Rebuy (%1$s)</string>
+    <string name="room_mp_bust_rebuy_pending_button">Buying back in…</string>
 
     <!-- Room - In-game quick-buy chip sheet (busted-player upsell, no nav away). -->
     <string name="room_quick_buy_title">Buy chips</string>
@@ -982,6 +983,7 @@
     <!-- Room - heads-up match-over rebuy countdown (MP-14). Shown to the busted player. %1$s is a m:ss countdown. -->
     <string name="room_match_over_busted_title">Rebuy in %1$s or lose your seat</string>
     <string name="room_match_over_busted_rebuy_button">Rebuy now</string>
+    <string name="room_match_over_busted_rebuy_pending_button">Buying in…</string>
     <!-- Room - match-over countdown shown to the winner while they wait out the busted player's rebuy grace. %1$s is a m:ss countdown. -->
     <string name="room_match_over_winner_label">Opponent busted. Auto-continues in %1$s</string>
 

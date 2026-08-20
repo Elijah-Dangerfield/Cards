@@ -1407,3 +1407,17 @@ The pre-flight alone would be incomplete — every repository that writes a per-
 **Downgrade, not drop.** The Grafana tree still decides *whether* a record ships on the original log level; the classifier only changes the severity it ships at, to DEBUG. These lines are genuinely how a session gets reconstructed after the fact — the case file that opened this item is itself a worked example. Dropping them would trade one blind spot for another.
 
 **Alternatives rejected:** downgrading at the source in `Catching.logOnFailure` (tempting, and it would fix the ERROR tier everywhere at once, but the Grafana tree only forwards Warn+ — so a source-level downgrade would delete the Loki record entirely, which is the outcome this item explicitly rejects); a level-only filter in the Grafana tree (would have left the two trees still holding separate opinions, which is the actual defect).
+
+## 2026-08-20 — The rebuy buy-in is charged inside the game session's lock
+
+**Problem:** `handleRebuy` checked the busted seat off an unlocked `peek`, debited the buy-in, and only then called `GameSession.rebuy`, which re-checked under its own mutex. Two rebuys racing the same bust could both clear the unlocked read and both pay; the loser was rejected under the lock and compensated with a keyed `mp_rebuy_refund`. Chips netted to zero, but only because the compensation worked, and the route's own comment conceded the debit and the refill were not one transaction. Prod produced ~13 duplicate rebuy intents per real rebuy (MP-38), which widens that window as far as it goes.
+
+**Decision:** `GameSession.rebuy` takes an `authorizeBuyIn: suspend () -> IntentResult` and invokes it **inside the mutex**, after the seat is confirmed busted and immediately before the refill. The route passes the `TableSessionService.rebuy` debit as that callback. A second caller racing the same bust is now refused at the `stack > 0` check without its money ever moving. The nonce is recorded only after authorization approves, so a refused buy-in doesn't burn the nonce and block a top-up-and-retry.
+
+**The engine stays pure** in the sense that matters: it doesn't know what the callback does, only when it must run. Owning the *ordering* is the session's job — it's the thing holding the lock — while owning the *money* stays the route's.
+
+**The cost, accepted deliberately:** the session mutex is now held across the debit's database round-trip. Rebuy only happens between hands, so no one is waiting to act, and a few milliseconds of table-wide serialisation is much cheaper than reasoning about a compensated double-debit on a real-chip path.
+
+The compensating refund is kept as a backstop rather than deleted. It should no longer be reachable, but an un-refunded debit is a far worse failure than an unreachable branch.
+
+**Alternatives rejected:** a two-phase reservation (mark the seat reserved under the lock, release on failure) — better latency, but it adds a state that can leak if the release is missed, for an operation that happens between hands where latency doesn't matter; refilling first and rolling back if the debit fails (lets a player act on chips they haven't paid for).

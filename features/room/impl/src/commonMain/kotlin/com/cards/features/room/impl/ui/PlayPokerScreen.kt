@@ -46,6 +46,7 @@ import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_connection_lost_banner
 import cards.libraries.resources.generated.resources.room_loading_dealing_in
 import cards.libraries.resources.generated.resources.room_match_over_busted_rebuy_button
+import cards.libraries.resources.generated.resources.room_match_over_busted_rebuy_pending_button
 import cards.libraries.resources.generated.resources.room_match_over_busted_title
 import cards.libraries.resources.generated.resources.room_match_over_winner_label
 import cards.libraries.resources.generated.resources.room_next_hand_countdown_label
@@ -360,6 +361,7 @@ fun PlayPokerScreen(
                 state.matchOverCountdown?.takeIf { state.matchOverResult == null }?.let { countdown ->
                     MatchOverCountdownBanner(
                         countdown = countdown,
+                        rebuyInFlight = state.rebuyInFlight,
                         onRebuy = { onAction(PlayPokerAction.Rebuy) },
                     )
                 }
@@ -705,6 +707,7 @@ fun PlayPokerScreen(
                     earnedAchievements = state.recentlyEarned,
                     buyIn = active.buyIn,
                     chipBalance = state.chipBalance,
+                    rebuyInFlight = state.rebuyInFlight,
                     onRebuy = { onAction(PlayPokerAction.Rebuy) },
                     onBuyChips = { onAction(PlayPokerAction.OpenQuickBuy) },
                     onLeaveGame = {
@@ -905,6 +908,7 @@ private fun SpectatingSeatPlaceholder() {
 @Composable
 private fun MatchOverCountdownBanner(
     countdown: com.dangerfield.cards.features.room.impl.session.MatchOverCountdown,
+    rebuyInFlight: Boolean,
     onRebuy: () -> Unit,
 ) {
     val remainingMs = rememberBoostRemainingMs(countdown.deadlineEpochMs)
@@ -932,9 +936,16 @@ private fun MatchOverCountdownBanner(
                 )
                 ButtonPrimary(
                     onClick = onRebuy,
+                    enabled = !rebuyInFlight,
                     size = ButtonSize.Small,
                 ) {
-                    Text(text = stringResource(Res.string.room_match_over_busted_rebuy_button))
+                    Text(
+                        text = if (rebuyInFlight) {
+                            stringResource(Res.string.room_match_over_busted_rebuy_pending_button)
+                        } else {
+                            stringResource(Res.string.room_match_over_busted_rebuy_button)
+                        },
+                    )
                 }
             }
         } else {
