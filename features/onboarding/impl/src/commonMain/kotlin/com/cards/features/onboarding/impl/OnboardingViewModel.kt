@@ -38,6 +38,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import me.tatarka.inject.annotations.Inject
 import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
@@ -174,6 +176,17 @@ class OnboardingViewModel(
             return
         }
         val age = (clock.now() - Instant.fromEpochMilliseconds(attempt.startedAtEpochMs))
+        // Wall clock, so the arithmetic can come back nonsense: an NTP or
+        // timezone correction backwards makes the age negative, and a device
+        // that booted with an unsynced clock before writing the marker makes it
+        // decades. Neither says anything about the user, and a negative age is
+        // younger than any window, so leaving it would wedge the marker
+        // permanently. Drop it without reporting — under-counting is the safe
+        // direction here, the same call the window itself makes.
+        if (age < Duration.ZERO || age > ABANDON_AGE_CEILING) {
+            clearAttempt()
+            return
+        }
         if (age < ABANDON_SETTLE_AFTER) return
         logger.logEvent(
             "onboarding.abandoned",
@@ -583,6 +596,14 @@ class OnboardingViewModel(
          * did walk away from that run.
          */
         internal val ABANDON_SETTLE_AFTER = 24.hours
+
+        /**
+         * Past this, a marker's age is a broken clock rather than a patient
+         * user. Generous on purpose — a genuine months-later return should
+         * still report — but an unsynced boot clock puts the age in decades,
+         * and that number would land in the funnel as fact.
+         */
+        internal val ABANDON_AGE_CEILING = 365.days
 
         /** Max display-name length; mirrors EditProfile's cap so onboarding and
          *  edit-profile agree. Stricter than the server limit (UX clamp). */

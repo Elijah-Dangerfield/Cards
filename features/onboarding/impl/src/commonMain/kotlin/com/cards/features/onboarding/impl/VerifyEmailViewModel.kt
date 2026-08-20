@@ -164,12 +164,12 @@ class VerifyEmailViewModel(
     private suspend fun routeAfterConfirmation() {
         when (authOutcomeClassifier.classify(wasLink = guestLink)) {
             AuthOutcome.Linked -> {
-                appCache.update { it.copy(hasUserOnboarded = true) }
+                appCache.update { it.copy(hasUserOnboarded = true, onboardingAttempt = null) }
                 sendEvent(VerifyEmailEvent.NavigateToAccountSaved)
             }
             AuthOutcome.SignedUp -> sendEvent(VerifyEmailEvent.NavigateToOnboarding)
             AuthOutcome.SignedIn -> {
-                appCache.update { it.copy(hasUserOnboarded = true) }
+                appCache.update { it.copy(hasUserOnboarded = true, onboardingAttempt = null) }
                 sendEvent(VerifyEmailEvent.NavigateToHome)
             }
         }

@@ -2,11 +2,13 @@ package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
+import com.dangerfield.cards.libraries.cards.OnboardingAttempt
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.test.Test
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class UserScopedAppDataResetTest : CoroutineTest() {
@@ -41,6 +43,27 @@ class UserScopedAppDataResetTest : CoroutineTest() {
         assertFalse(
             cache.get().tutorialBannerDismissed,
             "the new-here banner must re-show for the next identity",
+        )
+    }
+
+    @Test
+    fun clear_dropsAnUnfinishedOnboardingAttempt_soItCantSettleAgainstTheNextIdentity() = runUnitTest {
+        // AUTH-31: the marker records an onboarding run that hasn't finished. It
+        // belongs to the identity that started it — carrying it across a user
+        // change would let the next account's first launch settle a marker it
+        // never wrote and report an abandonment nobody performed.
+        val cache = FakeAppCache(
+            initial = AppData(
+                onboardingAttempt = OnboardingAttempt(step = "welcome", startedAtEpochMs = 1_000L),
+            ),
+        )
+        val reset = UserScopedAppDataReset(appCache = cache)
+
+        reset.clear(previousUserId = "user-1")
+
+        assertNull(
+            cache.get().onboardingAttempt,
+            "an unfinished attempt must not survive into the next identity",
         )
     }
 

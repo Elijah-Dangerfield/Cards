@@ -41,6 +41,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
@@ -859,6 +860,78 @@ class OnboardingViewModelTest : CoroutineTest() {
 
         fun eventExtras(name: String): Map<String, Any?> =
             entries.first { it.context.extras[EXTRA_APP_EVENT] == name }.context.extras
+    }
+
+    @Test
+    fun aClockThatMovedBackwards_doesNotWedgeTheAttemptForever() = runUnitTest {
+        // NTP or a timezone correction can land the wall clock behind where the
+        // marker was written. A negative age is younger than any window, so the
+        // attempt would never settle — and because logStepViewed preserves the
+        // original startedAtEpochMs, it stays stuck until real time catches up.
+        val clock = MutableClock()
+        val cache = FakeAppCache(
+            initial = AppData(
+                onboardingAttempt = OnboardingAttempt(
+                    step = "welcome",
+                    startedAtEpochMs = clock.now().toEpochMilliseconds(),
+                ),
+            ),
+        )
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            clock.advanceBy(-(30.days))
+            newVm(cache = cache, clock = clock)
+            runCurrent()
+
+            // Landing on Welcome opens a fresh attempt, so the marker is back —
+            // what matters is that it's a *new* one. Left wedged, logStepViewed
+            // would have carried the old start time forward forever.
+            assertEquals(
+                clock.now().toEpochMilliseconds(),
+                cache.get().onboardingAttempt?.startedAtEpochMs,
+                "an age we can't trust gets dropped and restarted, not carried forever",
+            )
+            assertEquals(
+                emptyList(),
+                tree.eventNames().filter { it == "onboarding.abandoned" },
+                "and it must not be reported either — we don't know what happened",
+            )
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    @Test
+    fun anAbsurdlyOldAttempt_isDroppedRatherThanReportedWithGarbageAge() = runUnitTest {
+        // A device that cold-boots with an unsynced clock writes the marker near
+        // the epoch, then NTP corrects. Reporting that as an abandonment puts an
+        // age of decades into the funnel.
+        val clock = MutableClock()
+        val cache = FakeAppCache(
+            initial = AppData(
+                onboardingAttempt = OnboardingAttempt(step = "welcome", startedAtEpochMs = 0L),
+            ),
+        )
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            newVm(cache = cache, clock = clock)
+            runCurrent()
+
+            assertEquals(
+                emptyList(),
+                tree.eventNames().filter { it == "onboarding.abandoned" },
+                "a decades-old age is a broken clock, not a user who walked away",
+            )
+            assertEquals(
+                clock.now().toEpochMilliseconds(),
+                cache.get().onboardingAttempt?.startedAtEpochMs,
+                "the unusable marker is replaced by one written against a clock we trust",
+            )
+        } finally {
+            KLog.uproot(tree)
+        }
     }
 
     private class MutableClock : kotlin.time.Clock {

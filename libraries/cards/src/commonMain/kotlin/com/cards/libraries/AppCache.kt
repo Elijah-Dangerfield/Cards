@@ -423,6 +423,10 @@ fun AppData.resetAccountScoped(): AppData = copy(
     // Home celebration belongs to the previous account — drop it so the next
     // account never sees a celebration for something it didn't earn.
     pendingHomeAchievementIds = emptyList(),
+    // An unfinished onboarding run belongs to the identity that started it.
+    // Carried across, the next account's first launch would settle a marker it
+    // never wrote and report an abandonment nobody performed (AUTH-31).
+    onboardingAttempt = null,
 )
 
 interface AppCache : Cache<AppData>
