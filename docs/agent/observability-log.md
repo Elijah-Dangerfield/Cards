@@ -29,7 +29,7 @@ duplicate) if a resolved signal gets materially worse.
 | [CARDS-AB](https://elijah-dangerfield.sentry.io/issues/CARDS-AB) | `Terminally rejected replayed receipt for order …555 — finishing it` (client) | no-action: dup of BILL-13; client's terminal-finish path logged at error → Sentry noise |
 | [CARDS-BR](https://elijah-dangerfield.sentry.io/issues/CARDS-BR) | `ApplicationNotResponding: ANR` (Android, syscall) | no-action: environmental — emulator/side-load ANR at PairIP license gate, no app frames (new benign class in wiki) |
 | [CARDS-3](https://elijah-dangerfield.sentry.io/issues/CARDS-3) | `WatchdogTermination` on the iOS onboarding welcome screen (App Store build) | → todo ENG-42 |
-| [CARDS-8V](https://elijah-dangerfield.sentry.io/issues/CARDS-8V) | Store did not recognize 3/3 chip-pack SKUs (**store-ios-release**) | → todo ENG-43 + developer-todo (ASC). **Supersedes the 2026-07-10 / CARDS-96 "dev store-listing noise" call — it's prod now** |
+| [CARDS-8V](https://elijah-dangerfield.sentry.io/issues/CARDS-8V) | Store did not recognize 3/3 chip-pack SKUs (**store-ios-release**) | → todo ENG-43 (**shipped 8a2360da**) + developer-todo (ASC), which is now the sole remaining owner and is human-only. **Supersedes the 2026-07-10 / CARDS-96 "dev store-listing noise" call — it's prod now.** Stays unresolved until the App Store Connect listing is fixed |
 | [CARDS-BS](https://elijah-dangerfield.sentry.io/issues/CARDS-BS) | `ProxyBillingActivity` NPE `getIntentSender()` (Android billing) | no-action: uncatchable upstream Play Billing crash (null PendingIntent in Google's onCreate); 1 event on a Play review-emulator. **NB (corrected 2026-07-27): 1009/billing-7.1.1 IS current prod (only release tag), NOT superseded; the 9.1.0 bump is develop-only/unreleased & not a confirmed fix.** Re-open if it hits a real retail device |
 
 ## Grafana signals
@@ -45,6 +45,8 @@ duplicate) if a resolved signal gets materially worse.
 | `alert:A5-false-page-2026-07-26` | A5 (billing critical) paged ~03:00Z; owner found nothing in Sentry/logs | no-action: FALSE ALARM — Loki datasource blip (connection refused) + `exec_err_state=Alerting` fired it; billing healthy (0 failed / 1 completed / 3 initiated in 48h). Fixed: A5 `exec_err_state=OK` + `runbook_url` → dc-billing-health; added a live Purchase-funnel section to that dashboard |
 | `sweep:2026-07-27-interactive` | Owner-requested "look for issues across Sentry + Grafana" | no-action: 1 Sentry issue (CARDS-BS → no-action); no alerts firing/pending; 0 cards-server warn/error/fatal in 24h; 4 one-off client warnings (noise) |
 | `sweep:2026-08-18-nightly` | Firing-alert sweep (A1–A7) + Loki server/client sweep | no-action: none firing/pending; 0 cards-server prod warn+ in 7d (357 scanned, stream live); iOS store traffic is live in the client stream |
+| `loki:duplicate-rebuy-intents` | 131 `intent rejected: seat is not busted` vs 10 `game.rebuy` in prod/14d | → todo MP-38 [P1] |
+| `loki:onboarding-abandoned-false-positive` | `onboarding.abandoned` fires on back-out; 4 of 6 "abandoned" installs completed | → todo AUTH-31 [P2] |
 
 ---
 
@@ -405,3 +407,73 @@ FOR A HUMAN, two things:
 - 2026-08-19 · CARDS-3 · no-action: re-verified, unchanged since 08-18 (last seen 08-14T01:40:53Z); already owned by ENG-42, left unresolved · https://elijah-dangerfield.sentry.io/issues/CARDS-3 · case docs/agent/feedback-cases/CARDS-3.md
 - 2026-08-19 · loki:expected-controlflow-at-error · todo: ENG-44 [P2] expected control-flow throwables (AuthUnready) bypass GrafanaLogTree's filter and land in Loki at ERROR, making 85% of the client error tier noise · grafanacloud-logs `{service_name="cards-client", deployment_environment="prod"} | detected_level=~"warn|error|fatal"` · case docs/agent/feedback-cases/2026-08-19-expected-controlflow-loki.md
 - 2026-08-19 · sweep:2026-08-19-nightly · no-action: A1–A8 none firing/pending; 0 cards-server prod warn/error/fatal over 48h (23 scanned, stream live); prod Fly memory flat (~488 MiB available of ~962 MiB, 24h); 31 app.foregrounded/14d · dc-pulse / dc-infra / grafanacloud-logs
+
+<!-- 2026-08-20 nightly observability triage (Phase 1b, stacked on Phase 1a's 84f2b800; feedback-triage
+filed nothing tonight). Sentry MCP again not connected — REST API with the keychain token.
+
+**The headline: prod stopped being idle.** Every run since 08-11 recorded an empty population and
+said so. That reversed between last night's sweep and this one. cards-server prod Loki went from
+23 lines/48h to 1,278 lines/7d, all INFO, zero warn/error/fatal; the traffic is real multiplayer —
+matchmaking finds, socket connects, 220 `hand.completed`, 25 `game.started`, bot subsidy payouts,
+room open/close. Read every "flat panel" note in the 08-11 and 08-19 entries as expired.
+
+That matters beyond the summary line: the two findings below only exist because people played. A
+telemetry sweep against an idle app cannot find gameplay bugs, and for eight days this triage was
+confidently reporting green on a sample of nobody.
+
+Sentry: still exactly two unresolved issues in the cards project, CARDS-3 (26 events, last seen
+08-14T01:40:53Z) and CARDS-8V (6 events, last seen 08-12T02:37:38Z). Counts and last-seen are
+byte-identical to the 08-19 run, so neither is materially worse and neither re-opens. Both left
+unresolved. One pointer repointed: **ENG-43 shipped in 8a2360da**, so CARDS-8V's remaining owner is
+the App Store Connect item in developer-todo.md, which is human-only — the ledger row now says so
+rather than pointing at a closed todo. The two `ProductsRepository` ERROR lines in the client stream
+are that same issue (iOS build 3, 08-12), not a new one.
+
+Grafana: `alerting_manage_rules(states=[firing,pending])` → null. All eight rules A1–A8 read
+`state=normal, health=ok`, last evaluated within 45 minutes of the sweep, so they are live and not
+stale. A1 (ledger drift) normal is worth stating explicitly now that real chips are moving again.
+Fly prod memory: min available over 24h = 472 MiB of ~962 MiB, no creep. (The "512MB ceiling" in the
+skill's fixed coordinates is still wrong — flagged 08-19, repeating because it is still there.)
+
+Two new signals, both filed, both found in the client log stream rather than by an alert or a panel.
+
+- **`loki:duplicate-rebuy-intents` (NEW).** 131 `intent rejected: seat is not busted` warns against
+  10 `game.rebuy` successes over 14d — 57% of the entire client warn+ stream, from 3 installs on
+  Android store build 1026. Reconstructed per-hand: the first rebuy is accepted, then ~13 more fire
+  and are refused because the seat is no longer busted. Nothing dedupes `PlayPokerAction.Rebuy`
+  (`Submit` right above it in the same `when` does), and the CTA never disables, so a player who
+  gets no feedback for a round-trip taps again. Behind it is a real money-path race: the route
+  checks the busted seat off an unlocked `peek` before debiting the buy-in, so two concurrent
+  rebuys can both debit and fall into the compensating-refund path. Nothing was lost here (A1 drift
+  0; every duplicate landed after the accept) — but that is ordering luck, not a guarantee.
+  → **todo MP-38 [P1]**, case 2026-08-20-duplicate-rebuy-intents.md. Judgement call made
+  unattended: P1 not P0, because no chips moved and the compensator exists; P1 not P2, because it
+  is a live user-facing defect on a real-chip path.
+
+- **`loki:onboarding-abandoned-false-positive` (NEW).** 12 `onboarding.abandoned` events, 100% of
+  them `step=welcome`, which reads like a welcome-screen problem and is not one. 4 of the 6 installs
+  that "abandoned" went on to complete onboarding, and the 12 events came from those same 6
+  installs. `OnboardingViewModel.onCleared()` emits it, and system-back on Welcome exits the app, so
+  backgrounding-then-returning logs an abandonment — one traced session backed out twice and
+  finished 48s later. The step skew is an artifact of Welcome being the only step where back leaves
+  the app. → **todo AUTH-31 [P2]**, case 2026-08-20-onboarding-abandoned-false-positive.md. P2 for
+  consistency with ENG-44 (instrument accuracy, not a broken flow), but note it gates honest reads
+  for **ENG-36** (diagnoses the grant double-miss off these events) and **ENG-42** (deciding whether
+  the iOS welcome step really loses people). A ~67% false-positive rate pointing at exactly the
+  screen ENG-42 is investigating is the kind of corroboration that would push that call the wrong
+  way.
+
+Deliberately NOT filed: `App recomposed` ×32 (build 1026 predates the f7b67e11 fix — verified with
+`git merge-base --is-ancestor`), `AuthUnready` ×43 (owned by ENG-44), `SocketException` /
+`Unable to resolve host` (wiki known-benign), a single `insufficient_balance` on matchmaking/find,
+a single `room_not_found` from a mistyped code, one 10s intent timeout.
+
+FOR A HUMAN: with play resumed, this is the first fortnight where funnel and gameplay numbers mean
+anything. Two of the first three things they said were wrong (the abandonment metric above, and
+ENG-44's error panel from last night). Worth weighting instrument-correctness items higher than
+their P2 tags suggest before reading much into any dashboard trend. -->
+- 2026-08-20 · CARDS-3 · no-action: re-verified, unchanged since 08-18 (26 events, last seen 08-14T01:40:53Z); already owned by ENG-42, left unresolved · https://elijah-dangerfield.sentry.io/issues/CARDS-3 · case docs/agent/feedback-cases/CARDS-3.md
+- 2026-08-20 · CARDS-8V · no-action: re-verified, unchanged since 08-18 (6 events, last seen 08-12T02:37:38Z); ENG-43 shipped (8a2360da) so the sole remaining owner is the human-only App Store Connect item in developer-todo.md — ledger pointer repointed, issue left unresolved · https://elijah-dangerfield.sentry.io/issues/CARDS-8V · case docs/agent/feedback-cases/CARDS-8V.md
+- 2026-08-20 · loki:duplicate-rebuy-intents · todo: MP-38 [P1] one Rebuy tap fans out into ~13 intents (131 rejections vs 10 successes/14d); no client dedupe, CTA never disables, and the server debits off an unlocked seat read · grafanacloud-logs `{service_name="cards-client", deployment_environment="prod"} | detected_level=~"warn|error|fatal"` · case docs/agent/feedback-cases/2026-08-20-duplicate-rebuy-intents.md
+- 2026-08-20 · loki:onboarding-abandoned-false-positive · todo: AUTH-31 [P2] `onboarding.abandoned` fires on a back-out, so 4 of 6 "abandoned" installs actually completed and the welcome-step skew is an artifact · grafanacloud-logs `| event_name=~"onboarding.abandoned|onboarding.completed"` · case docs/agent/feedback-cases/2026-08-20-onboarding-abandoned-false-positive.md
+- 2026-08-20 · sweep:2026-08-20-nightly · no-action: A1–A8 all normal/ok and freshly evaluated, none firing/pending; 0 cards-server prod warn/error/fatal over 7d (1,278 INFO lines, stream busy with real MP play); Fly prod memory min-available 472 MiB/24h, no creep · dc-pulse / dc-infra / grafanacloud-logs
