@@ -32,6 +32,14 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** FK is `*_user_id_fk` → `auth.users(id)`, added in `V11__fk_auth_users.sql`. Write path is the `findOrCreate` repos inside `Database.transaction`. Reproduce test-first with a JWT for an id absent from `auth.users`. Ignore the `Profile.kt` KDoc claiming we don't enforce the FK at the schema level — it predates V11 and is wrong; fix it while you're in there.
 
+## AUTH-31 [P2] — `onboarding.abandoned` fires on a back-out, so the funnel counts finishers as quitters
+
+**Problem:** The event is emitted from `OnboardingViewModel.onCleared()`, and system-back on the Welcome step exits the app, so backgrounding-then-returning logs an abandonment. 4 of the 6 prod installs that "abandoned" in 14d went on to complete onboarding, and 12 events came from those 6 installs. All 12 read `step=welcome`, which is an artifact of where back exits the app, not a welcome-screen problem.
+
+**Acceptance:** One `onboarding.abandoned` per genuine abandonment per install — resolve it at re-entry (durable in-progress marker in `appCache`, settled on the next launch that reaches Home or after a staleness window) rather than at VM clear, which also fixes the process-kill under-count the wiki already documents. Event carries a `resumed`/`reason` attribute; a VM test that backgrounds on Welcome, restores and completes asserts zero abandonment events.
+
+**Hints:** `OnboardingViewModel.kt:527` (`onCleared`) and the `exitedToHome` latch; `docs/wiki/app-events.md:116` warns about the opposite failure mode and needs correcting. **Fix before trusting welcome-step drop-off in ENG-36 or ENG-42.** Case `docs/agent/feedback-cases/2026-08-20-onboarding-abandoned-false-positive.md`. No Sentry issue (that's the bug).
+
 ## ENG-35 [P1] — Banned client keeps firing (and Sentry-logging) doomed requests; no circuit breaker or un-ban recovery
 
 **Problem:** A banned user's client keeps sending normal requests that all 403 `{"reason":"banned"}` (Sentry CARDS-BG), each logged to Sentry as an error. There's no local short-circuit, and no way out of the blocking `AccessDeniedScreen` without an app relaunch.
@@ -95,3 +103,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 **Acceptance:** One shared classifier next to `isExpectedControlFlow` in `:libraries:core` decides what counts as an error, and both trees consult it; `AuthUnready` and offline errors no longer appear at warn+ in Loki. Downgrade rather than delete (they're useful at DEBUG for session reconstruction). Cover it with a `GrafanaLogTreeTest` case mirroring the existing `SentryLogTreeTest` assertions.
 
 **Hints:** `GrafanaLogTree.log` forwardAsPlainLog gate (`:libraries:telemetry:impl`) vs `SentryLogTree.kt:80-84`; `isExpectedControlFlow` currently has exactly one non-test reference. Same throwable also double-logs at ERROR and WARN 1ms apart — worth a look. Case `docs/agent/feedback-cases/2026-08-19-expected-controlflow-loki.md`. No Sentry issue (that's the bug).
+
+## MP-38 [P1] — One Rebuy tap fans out into ~13 rebuy intents; the CTA never disables
+
+**Problem:** Nothing dedupes `PlayPokerAction.Rebuy` (unlike `Submit`, which has `submittedTurnToken`), and the bust dialog's CTA stays enabled with no in-flight state, so a player taps again while the first round-trip is still out. Prod over 14d: 10 successful rebuys, 131 `intent rejected: seat is not busted` warns — 57% of the entire client warn+ stream. The route also checks the busted seat off an unlocked `peek` before debiting the buy-in, so concurrent rebuys can double-debit and land in the compensating-refund path.
+
+**Acceptance:** Mashing Rebuy sends exactly one `ClientFrame.Rebuy` per bust; both CTAs (`MultiplayerBustDialog`, `MatchOverCountdownBanner`) disable and show progress while it's in flight. Server can't issue the buy-in debit off a stale read — the busted-seat check happens under `GameSession`'s lock. Red test first in the MP scenario harness: bust, tap Rebuy 5×, assert one frame on the wire.
+
+**Hints:** `PlayPokerViewModel.kt:1173` (vs the `Submit` dedupe at `:952`); `PlayPokerScreen.kt:363` + `:708`; `HandResultDialogs.kt:369`; `RemotePokerSession.rebuy()` mints a fresh nonce per call so the server ring can't collapse them; server side `RoomSocketRoutes.handleRebuy` (`:731`) and `GameSession.rebuy` (`:647`). Harness: `PokerScenarioMpTest` / `FakeRoomServer`. Case `docs/agent/feedback-cases/2026-08-20-duplicate-rebuy-intents.md`. No Sentry issue (it's caught and logged at WARN).
