@@ -160,3 +160,24 @@ The telemetry half is narrow on purpose: `401` and `403` stop being captured, `4
 
 **Deferred:**
 - Verifying the ratio actually moved. Needs a shipped build carrying the change, same soft block as ENG-36 / ENG-38 / ENG-42. The next observability triage run after a release is the natural place to check.
+
+## fix(room): one Rebuy tap sends one rebuy (MP-38)
+
+**Problem:** 10 accepted rebuys in prod over 14 days, with 131 `seat is not busted` rejections behind them — 57% of the entire client warn stream. The tap showed no sign of having landed for a whole round-trip, so players kept tapping, and nothing on either side stopped them.
+
+**Approach:** Both halves of the case file's fix direction, plus the server one it flagged.
+
+**Client:** a single `rebuyInFlight` flag rather than the `Submit`-style token the item pointed at. `Submit` needs a token because the thing being deduped is "this specific turn"; a rebuy is simply "the seat is busted, and it can only be bought back once", so the flag *is* the state. **The part worth reviewing: it survives a successful ack.** The dialog stays up between the ack and the refilled snapshot, so clearing on the ack would leave a live button in that window; it clears when the snapshot shows the seat with chips, which is also when the dialog goes away. A *failed* attempt re-arms it, because a player who tops up has to be able to retry — there's a test for each of those.
+
+**Server:** `GameSession.rebuy` takes the buy-in debit as an `authorizeBuyIn` callback and runs it inside its own mutex, after the busted-seat check. That's the item's "take the lock before the debit", done by moving the debit rather than moving the check, which keeps the wallet out of the engine — the session decides *when* it runs, the route still decides *what* it does. **The trade-off I made: the session mutex is now held across a database round-trip.** Rebuy only happens between hands, so nobody is waiting to act, and a few ms of table-wide serialisation is much cheaper than reasoning about a compensated double-debit on a real-chip path. The alternative (a two-phase reservation under the lock) has better latency and a state that can leak; not worth it here.
+
+**Reviewer notes:**
+- **Red-then-green held on the client, not on the server.** `mashingRebuy_sendsOneFrame` and `rebuyStaysGuarded_afterTheServerAccepts...` both fail with the guard neutered (verified). The server's new tests couldn't fail against the old code because the old `rebuy` had no callback to assert on — they pin the invariant going forward rather than reproducing the race.
+- **I kept the compensating refund** even though the new ordering should make it unreachable. Deleting it is the tidier diff, but an un-refunded debit on a real-chip path is a much worse failure than a dead branch. The KDoc says plainly that it's now a backstop. If you'd rather it go, it goes.
+- `iTapRebuy` in the harness only `runCurrent`s between taps on purpose. Draining virtual time would time the first rebuy out and re-arm the button, which is not what a burst of taps does.
+- The MP bust dialog had no `@Preview` at all before this. Added three (affordable / in-flight / can't-afford), which is how the new disabled state is actually inspectable.
+- No Sentry issue to resolve; MP-38 came from a Loki sweep, and the rejections are caught and logged at WARN.
+
+**Deferred:**
+- **Nothing alerts on a rebuy rejection rate.** This was 57% of the warn stream and no alert or panel saw it — the nightly Loki sweep found it by reading messages. A rate rule over `game.intent_rejected` would have caught it in a day. Not filed; it feels like a real gap but it's an observability item rather than part of this fix, and ENG-44 just changed what lands in that stream, so the shape should settle first.
+- `RemotePokerSession.rebuy()` still mints a fresh nonce per call. With the client guard in place nothing reaches it twice, so a stable per-bust nonce would be belt-and-braces rather than a fix. Left alone; noted here in case a reviewer wants the server-side idempotency to stand on its own.
