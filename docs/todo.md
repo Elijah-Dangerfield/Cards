@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-08-18 (curate-todos) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-08-19 (curate-todos) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -30,11 +30,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Acceptance:** Server detects "valid JWT, no `auth.users` row" before the child write and returns a typed 401/409 (→ re-auth), not a 500 leaking the FK. Client maps it to sign-out + a "your session ended, sign in again" surface and stops the sync retry loop.
 
-**Hints:** FK is `*_user_id_fk[ey]` → `auth.users(id)`, added in `V11__fk_auth_users.sql`. Write path is the `findOrCreate` repos inside `Database.transaction`. Reproduce test-first with a JWT for an id absent from `auth.users`.
+**Hints:** FK is `*_user_id_fk` → `auth.users(id)`, added in `V11__fk_auth_users.sql`. Write path is the `findOrCreate` repos inside `Database.transaction`. Reproduce test-first with a JWT for an id absent from `auth.users`. Ignore the `Profile.kt` KDoc claiming we don't enforce the FK at the schema level — it predates V11 and is wrong; fix it while you're in there.
 
 ## ENG-35 [P1] — Banned client keeps firing (and Sentry-logging) doomed requests; no circuit breaker or un-ban recovery
 
-**Problem:** A banned user's client keeps sending normal requests that all 403 `{"reason":"banned"}` (Sentry CARDS-BG), each logged to Sentry as an error. There's no local short-circuit, and no way out of the blocking `AccessDeniedScreen` without an app relaunch. Sibling to AUTH-29 (that's the missing-`auth.users` 500 path; this is the clean-403 banned path).
+**Problem:** A banned user's client keeps sending normal requests that all 403 `{"reason":"banned"}` (Sentry CARDS-BG), each logged to Sentry as an error. There's no local short-circuit, and no way out of the blocking `AccessDeniedScreen` without an app relaunch.
 
 **Acceptance:** While banned, non-allowlisted requests are short-circuited client-side (zero wire traffic, no error telemetry); `/v1/me` stays allowlisted and a 200 clears the banned flag and dismisses the screen without relaunch. Expected 4xx (403 banned, 401) and user-cancellations no longer reach Sentry as errors.
 
@@ -50,7 +50,7 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## ENG-37 [P1] — Consolidate the starter-grant reveal onto the Home notification manager (drop the onboarding-step race)
 
-**Problem:** The reveal exists twice — onboarding's `kickOffGrantReveal` (races the balance on a 1.5s `GRANT_REVEAL_TIMEOUT`, and is the fragile path that silently failed) and the Home manager's `HomeNotification.Welcome`. **Decided:** make the Home `Welcome` the single top-priority reveal and delete the onboarding race — one arbiter for every launch/Home surface, and Home is past the account-creation cold start so the real balance is likelier ready. Since this removes the backup, the Home gating must be bulletproof first: **sequenced after ENG-36**.
+**Problem:** The reveal exists twice — onboarding's `kickOffGrantReveal` (races the balance on a 1.5s `GRANT_REVEAL_TIMEOUT`) and the Home manager's `HomeNotification.Welcome`. **Decided:** make Home `Welcome` the single reveal and delete the onboarding race. That removes the backup, so the Home gating must be bulletproof first — **sequenced after ENG-36**.
 
 **Acceptance:** Onboarding no longer runs the balance race (`GRANT_REVEAL_TIMEOUT` deleted; at most a contentless "you're all set" beat); every new account sees the `Welcome` reveal exactly once, including offline-then-reconnect. The arbiter is a pure function, so unit-test it hard: fresh account online, offline-then-reconnect, slow sync, Home resume re-present, account switch, process death mid-onboarding, welcome-already-seen.
 
@@ -78,7 +78,7 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Acceptance:** The real App Store id replaces `APP_STORE_ID_PLACEHOLDER` in `features/home/impl/.../StoreReviewLink.kt`, the stale "the iOS App Store listing doesn't exist yet" TODO comment goes with it, and a test asserts the iOS URL carries a non-placeholder id.
 
-**Hints:** The id is resolvable without App Store Connect access: `https://itunes.apple.com/lookup?bundleId=com.dangerfield.cards.Cards` → `results[0].trackId`. Android already points at the live Play listing.
+**Hints:** **The id has to come from a human reading App Store Connect** — the iTunes lookup route is a dead end (`resultCount: 0` for that bundle id in every storefront tried; checked-in id is `com.dangerfield.cards.Cards$(TEAM_ID)` with `TEAM_ID` empty in source). Everything else on this item is worker-pickable once the id lands.
 
 ## ENG-42 [P0] — Chart the iOS foreground-termination rate, then rule the welcome-screen kills real or not
 
