@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.core.AuthVerdict
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.networking.AccessDeniedBus
+import com.dangerfield.cards.libraries.networking.BannedState
 import com.dangerfield.cards.libraries.networking.SessionRejectionBus
 import com.dangerfield.cards.libraries.networking.AuthTokenProvider
 import com.dangerfield.cards.libraries.networking.ClientHeaders
@@ -28,8 +29,10 @@ import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.request
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.HttpHeaders
+import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import me.tatarka.inject.annotations.Inject
@@ -47,6 +50,7 @@ class NetworkClientImpl(
     private val headersProvider: ClientHeadersProvider,
     private val reachability: NetworkReachability,
     private val accessDeniedBus: AccessDeniedBus,
+    private val bannedState: BannedState,
     private val sessionRejectionBus: SessionRejectionBus,
     // Lazy: AuthGate's impl (identity) reaches NetworkClient through its own
     // deps, so a direct injection would cycle at construction time.
@@ -55,13 +59,27 @@ class NetworkClientImpl(
 
     override val client: HttpClient by lazy {
         HttpClient(platformHttpEngineFactory) {
-            applyCommonConfig(config, headersProvider, reachability, accessDeniedBus, ::onAccountMissing)
+            applyCommonConfig(
+                config,
+                headersProvider,
+                reachability,
+                accessDeniedBus,
+                bannedState,
+                ::onAccountMissing,
+            )
         }
     }
 
     override val authenticatedClient: HttpClient by lazy {
         HttpClient(platformHttpEngineFactory) {
-            applyCommonConfig(config, headersProvider, reachability, accessDeniedBus, ::onAccountMissing)
+            applyCommonConfig(
+                config,
+                headersProvider,
+                reachability,
+                accessDeniedBus,
+                bannedState,
+                ::onAccountMissing,
+            )
             install(Auth) {
                 bearer {
                     // By the time loadTokens runs, authedCall has already
@@ -128,17 +146,24 @@ private fun HttpClientConfig<*>.applyCommonConfig(
     headersProvider: ClientHeadersProvider,
     reachability: NetworkReachability,
     accessDeniedBus: AccessDeniedBus,
+    bannedState: BannedState,
     onAccountMissing: suspend () -> Unit,
 ) {
     install(ContentNegotiation) {
         json(NetworkJson)
     }
+    // Ahead of Auth on purpose: a banned request should be cut before the bearer
+    // plugin spends a token load or refresh on it.
+    install(bannedCircuitBreaker(bannedState))
     // Witnessed reachability: a response (any status, even 4xx/5xx) means the
     // round-trip worked; a failure *without* a response (timeout / IO / DNS /
     // captive portal) means it didn't. This is what lets the offline banner
     // reflect "actually online" rather than just the OS's "there's a path."
     HttpResponseValidator {
-        validateResponse { reachability.reportReachable() }
+        validateResponse { response ->
+            reachability.reportReachable()
+            clearBanIfStatusProbeSucceeded(response, bannedState)
+        }
         handleResponseExceptionWithRequest { cause, _ ->
             // A ResponseException means the server answered (a 4xx/5xx) — the
             // network is fine. Anything else never reached the server.
@@ -147,8 +172,10 @@ private fun HttpClientConfig<*>.applyCommonConfig(
                 return@handleResponseExceptionWithRequest
             }
             when (cause.response.status) {
-                HttpStatusCode.Forbidden -> signalAccessDeniedIfEnveloped(cause.response, accessDeniedBus)
-                HttpStatusCode.Unauthorized -> signalAccountMissingIfEnveloped(cause.response, onAccountMissing)
+                HttpStatusCode.Forbidden ->
+                    signalAccessDeniedIfEnveloped(cause.response, accessDeniedBus, bannedState)
+                HttpStatusCode.Unauthorized ->
+                    signalAccountMissingIfEnveloped(cause.response, onAccountMissing)
                 else -> Unit
             }
         }
@@ -219,17 +246,30 @@ internal data class AccessDeniedWire(
 internal suspend fun signalAccessDeniedIfEnveloped(
     response: HttpResponse,
     accessDeniedBus: AccessDeniedBus,
+    bannedState: BannedState,
 ) {
     Catching { response.body<AccessDeniedWire>() }
         .onSuccess { wire ->
-            accessDeniedBus.signalDenied(
-                AccessDeniedBus.Denial(
-                    reason = wire.reason,
-                    until = wire.until,
-                    appealUrl = wire.appealUrl,
-                ),
+            val denial = AccessDeniedBus.Denial(
+                reason = wire.reason,
+                until = wire.until,
+                appealUrl = wire.appealUrl,
             )
+            bannedState.setBanned(denial)
+            accessDeniedBus.signalDenied(denial)
         }
+}
+
+/**
+ * A `200` from the allowlisted account-status probe is the only thing that lifts
+ * a local ban. Gated on the exact path so an unrelated success — a public
+ * app-config fetch, say — can't clear a block the server still enforces.
+ */
+internal fun clearBanIfStatusProbeSucceeded(response: HttpResponse, bannedState: BannedState) {
+    if (!bannedState.isBanned) return
+    if (!response.status.isSuccess()) return
+    if (response.request.url.encodedPath != ACCOUNT_STATUS_PATH) return
+    bannedState.clearBanned()
 }
 
 /**

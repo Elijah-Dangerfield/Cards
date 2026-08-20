@@ -14,6 +14,7 @@ import com.dangerfield.cards.libraries.networking.ClientHeaders
 import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.NetworkConfig
 import com.dangerfield.cards.libraries.networking.impl.AccessDeniedBusImpl
+import com.dangerfield.cards.libraries.networking.impl.BannedStateImpl
 import com.dangerfield.cards.libraries.networking.impl.NetworkClientImpl
 import com.dangerfield.cards.libraries.networking.impl.NetworkReachabilityImpl
 import com.dangerfield.cards.libraries.networking.impl.SessionRejectionBusImpl
@@ -82,6 +83,7 @@ class TestClient(
         FixedHeaders,
         NetworkReachabilityImpl(appScope),
         AccessDeniedBusImpl(),
+        BannedStateImpl(),
         SessionRejectionBusImpl(),
         { authGate },
     )

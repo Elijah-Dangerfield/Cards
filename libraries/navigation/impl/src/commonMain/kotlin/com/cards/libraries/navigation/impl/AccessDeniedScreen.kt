@@ -17,6 +17,9 @@ import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.access_denied_appeal
 import cards.libraries.resources.generated.resources.access_denied_banned_message
 import cards.libraries.resources.generated.resources.access_denied_banned_title
+import cards.libraries.resources.generated.resources.access_denied_check_again
+import cards.libraries.resources.generated.resources.access_denied_checking
+import cards.libraries.resources.generated.resources.access_denied_still_blocked
 import cards.libraries.resources.generated.resources.access_denied_default_message
 import cards.libraries.resources.generated.resources.access_denied_default_title
 import cards.libraries.resources.generated.resources.access_denied_suspended_message
@@ -40,7 +43,10 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 internal fun AccessDeniedScreen(
     reason: String,
     appealUrl: String?,
+    checking: Boolean,
+    stillBlocked: Boolean,
     onAppeal: (String) -> Unit,
+    onCheckAgain: () -> Unit,
 ) {
     BackHandler { doNothing() }
     val copy = accessDeniedCopy(reason)
@@ -65,9 +71,34 @@ internal fun AccessDeniedScreen(
                 typography = AppTheme.typography.Body.B400,
                 textAlign = TextAlign.Center,
             )
+            if (stillBlocked) {
+                Spacer(modifier = Modifier.height(Dimension.D500))
+                Text(
+                    text = stringResource(Res.string.access_denied_still_blocked),
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.contentSecondary,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
             Spacer(modifier = Modifier.weight(2f))
 
+            Button(
+                size = ButtonSize.Large,
+                type = ButtonType.Secondary,
+                enabled = !checking,
+                onClick = onCheckAgain,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = stringResource(
+                        if (checking) Res.string.access_denied_checking else Res.string.access_denied_check_again,
+                    ),
+                )
+            }
+
             if (appealUrl != null) {
+                Spacer(modifier = Modifier.height(Dimension.D500))
                 Button(
                     size = ButtonSize.Large,
                     type = ButtonType.Secondary,
@@ -76,8 +107,8 @@ internal fun AccessDeniedScreen(
                 ) {
                     Text(text = stringResource(Res.string.access_denied_appeal))
                 }
-                VerticalSpacerD1600()
             }
+            VerticalSpacerD1600()
         }
     }
 }
@@ -106,7 +137,10 @@ private fun AccessDeniedScreenPreview_Banned() {
         AccessDeniedScreen(
             reason = "banned",
             appealUrl = "https://support.cards.app/appeal",
+            checking = false,
+            stillBlocked = false,
             onAppeal = {},
+            onCheckAgain = {},
         )
     }
 }
@@ -118,7 +152,40 @@ private fun AccessDeniedScreenPreview_Suspended_NoAppeal() {
         AccessDeniedScreen(
             reason = "suspended",
             appealUrl = null,
+            checking = false,
+            stillBlocked = false,
             onAppeal = {},
+            onCheckAgain = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun AccessDeniedScreenPreview_Checking() {
+    PreviewContent {
+        AccessDeniedScreen(
+            reason = "banned",
+            appealUrl = "https://support.cards.app/appeal",
+            checking = true,
+            stillBlocked = false,
+            onAppeal = {},
+            onCheckAgain = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun AccessDeniedScreenPreview_StillBlockedAfterCheck() {
+    PreviewContent {
+        AccessDeniedScreen(
+            reason = "banned",
+            appealUrl = "https://support.cards.app/appeal",
+            checking = false,
+            stillBlocked = true,
+            onAppeal = {},
+            onCheckAgain = {},
         )
     }
 }
@@ -130,7 +197,10 @@ private fun AccessDeniedScreenPreview_UnknownReason() {
         AccessDeniedScreen(
             reason = "something_new",
             appealUrl = "https://support.cards.app/appeal",
+            checking = false,
+            stillBlocked = false,
             onAppeal = {},
+            onCheckAgain = {},
         )
     }
 }

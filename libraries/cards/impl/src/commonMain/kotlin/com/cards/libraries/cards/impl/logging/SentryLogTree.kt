@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.core.logging.LogEntry
 import com.dangerfield.cards.libraries.core.logging.LogId
 import com.dangerfield.cards.libraries.core.logging.LogLevel
 import com.dangerfield.cards.libraries.core.logging.LogTree
+import com.dangerfield.cards.libraries.networking.isExpectedClientError
 import com.dangerfield.cards.libraries.networking.isOfflineError
 import io.sentry.kotlin.multiplatform.Sentry
 import io.sentry.kotlin.multiplatform.SentryLevel
@@ -70,17 +71,28 @@ class SentryLogTree(
     }
 
     /**
-     * Error-level and above becomes a Sentry event, except two expected classes
-     * that still breadcrumb and buffer locally but never inflate error counts:
-     * typed control-flow throwables (e.g. `AuthUnready` short-circuiting an
-     * authed call before it hits the wire), and device-offline connectivity
-     * failures (ENG-34 — a phone in airplane mode failing background calls is
-     * not an app failure, and one such device flooded the error panel).
+     * Error-level and above becomes a Sentry event, except three expected
+     * classes that still breadcrumb and buffer locally but never inflate error
+     * counts:
+     *
+     *  - typed control-flow throwables (e.g. `AuthUnready` short-circuiting an
+     *    authed call before it hits the wire),
+     *  - device-offline connectivity failures (ENG-34 — a phone in airplane mode
+     *    failing background calls is not an app failure, and one such device
+     *    flooded the error panel),
+     *  - the server correctly refusing a caller, `401` or `403` (ENG-35 — one
+     *    banned account kept every sync 403-ing, and the client already shows
+     *    the user what happened).
+     *
+     * Cancellations never reach here: `Catching` re-throws them rather than
+     * folding them into a failure, so `logOnFailure` never runs on one.
      */
     internal fun shouldCaptureEvent(entry: LogEntry): Boolean {
         if (entry.level.priority < minEventLevel.priority) return false
         val throwable = entry.throwable ?: return true
-        return !throwable.isExpectedControlFlow && !throwable.isOfflineError()
+        return !throwable.isExpectedControlFlow &&
+            !throwable.isOfflineError() &&
+            !throwable.isExpectedClientError()
     }
 
     /**

@@ -76,6 +76,9 @@
     <string name="access_denied_default_title">Access blocked</string>
     <string name="access_denied_default_message">Downcard is not available for this account right now.</string>
     <string name="access_denied_appeal">Open appeal</string>
+    <string name="access_denied_check_again">Check again</string>
+    <string name="access_denied_checking">Checking…</string>
+    <string name="access_denied_still_blocked">Still blocked. If you have appealed, it can take a few days.</string>
     <string name="shop_snackbar_insufficient_chips_title">Not enough chips</string>
     <string name="shop_snackbar_insufficient_chips_message">You need more chips to grab %1$s.</string>
     <string name="shop_snackbar_claim_required_title">Account needed</string>

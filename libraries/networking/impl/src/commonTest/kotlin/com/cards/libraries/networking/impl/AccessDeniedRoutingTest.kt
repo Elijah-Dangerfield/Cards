@@ -141,7 +141,7 @@ class AccessDeniedRoutingTest : CoroutineTest() {
                 handleResponseExceptionWithRequest { cause, _ ->
                     if (cause !is ResponseException) return@handleResponseExceptionWithRequest
                     if (cause.response.status == HttpStatusCode.Forbidden) {
-                        signalAccessDeniedIfEnveloped(cause.response, bus)
+                        signalAccessDeniedIfEnveloped(cause.response, bus, BannedStateImpl())
                     }
                 }
             }

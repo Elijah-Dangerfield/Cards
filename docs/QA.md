@@ -549,6 +549,20 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
+### `MOD-3` ⚠️ 📱 A blocked account stops talking to the server, and can un-block without a relaunch (ENG-35)
+
+**State:** a device signed in and sitting on Home, online. A second person (or the Supabase dashboard) able to set and clear `auth.users.banned_until` for that account.
+
+1. With the app open, ban the account from the dashboard.
+2. On the device, do something that syncs (pull to refresh on Home, play a hand, open the shop).
+3. Once the blocking screen appears, leave the app open and watch the network inspector (shake → "Network inspector") for a minute.
+4. Tap "Check again".
+5. Clear the ban from the dashboard, then tap "Check again" once more.
+
+**Expected:** The blocking screen appears with the usual copy plus a "Check again" button. After it appears, the inspector shows **no** further requests going out except the ones you trigger — no sync writes, no room calls. Tapping "Check again" fires exactly one `GET /v1/me`; while it's out the button reads "Checking…" and is disabled; on a still-banned answer the screen adds "Still blocked. If you have appealed, it can take a few days." Once the ban is cleared, "Check again" pops the screen and the app works normally with no relaunch. No entries appear in Sentry for any of the 403s. (Covers todo ENG-35.)
+
+---
+
 ## Profile & items
 
 ### `PROF-1` ℹ️ 📱 Default felt + card back show as equipped on a fresh account

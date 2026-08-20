@@ -34,6 +34,7 @@ import kotlin.reflect.typeOf
 @Inject
 class ErrorEntryPoints(
     private val sessionExpiredViewModelFactory: () -> SessionExpiredViewModel,
+    private val accessDeniedViewModelFactory: () -> AccessDeniedViewModel,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -68,10 +69,26 @@ class ErrorEntryPoints(
 
         screen<AccessDeniedRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<AccessDeniedRoute>()
+            val viewModel: AccessDeniedViewModel = viewModel { accessDeniedViewModelFactory() }
+            val state by viewModel.stateFlow.collectAsStateWithLifecycle()
+
+            LaunchedEffect(viewModel) {
+                viewModel.eventFlow.collect { event ->
+                    when (event) {
+                        // The block lifted while the screen was up — pop it and
+                        // the user is back where they were.
+                        AccessDeniedViewModel.Event.AccessRestored -> router.goBack()
+                    }
+                }
+            }
+
             AccessDeniedScreen(
                 reason = route.reason,
                 appealUrl = route.appealUrl,
+                checking = state.checking,
+                stillBlocked = state.stillBlocked,
                 onAppeal = { url -> router.openWebLink(url) },
+                onCheckAgain = { viewModel.takeAction(AccessDeniedViewModel.Action.CheckAgain) },
             )
         }
 

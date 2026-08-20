@@ -32,14 +32,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** `OnboardingViewModel.kt:527` (`onCleared`) and the `exitedToHome` latch; `docs/wiki/app-events.md:116` warns about the opposite failure mode and needs correcting. **Fix before trusting welcome-step drop-off in ENG-36 or ENG-42.** Case `docs/agent/feedback-cases/2026-08-20-onboarding-abandoned-false-positive.md`. No Sentry issue (that's the bug).
 
-## ENG-35 [P1] — Banned client keeps firing (and Sentry-logging) doomed requests; no circuit breaker or un-ban recovery
-
-**Problem:** A banned user's client keeps sending normal requests that all 403 `{"reason":"banned"}` (Sentry CARDS-BG), each logged to Sentry as an error. There's no local short-circuit, and no way out of the blocking `AccessDeniedScreen` without an app relaunch.
-
-**Acceptance:** While banned, non-allowlisted requests are short-circuited client-side (zero wire traffic, no error telemetry); `/v1/me` stays allowlisted and a 200 clears the banned flag and dismisses the screen without relaunch. Expected 4xx (403 banned, 401) and user-cancellations no longer reach Sentry as errors.
-
-**Hints:** Reuse the `ExpectedControlFlow` short-circuit pattern (auth). Full plan, file list, and tests: [`docs/agent/feedback-cases/ENG-35.md`](agent/feedback-cases/ENG-35.md). Insertion point `NetworkClientImpl.applyCommonConfig`; classifier `SentryLogTree.shouldCaptureEvent`.
-
 ## ENG-36 [P1] — Diagnose the starter-grant "double-miss" and surface reveal health
 
 **Problem:** A new prod user saw neither the onboarding grant number nor the Home welcome-dialog backup, yet got their 10k chips. Why the Home backup didn't fire is unconfirmed (`accountJustCreated` / `welcomeIdentity` race?).
