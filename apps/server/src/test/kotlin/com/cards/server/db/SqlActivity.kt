@@ -17,6 +17,12 @@ import java.util.concurrent.atomic.AtomicInteger
  * (`src/test/resources/META-INF/services/…`), which is the only way to see
  * inside a transaction a repository opens for itself. Counting is JVM-wide,
  * so [reset] immediately before the call under test.
+ *
+ * That JVM-wide count is only safe because the server suite runs in one JVM,
+ * sequentially — nothing sets `maxParallelForks` and there is no
+ * `junit-platform.properties`. Turning on parallel execution will make every
+ * assertion against these counters flake against unrelated classes' SQL;
+ * scope the counting per-transaction before you do.
  */
 object SqlActivity {
 

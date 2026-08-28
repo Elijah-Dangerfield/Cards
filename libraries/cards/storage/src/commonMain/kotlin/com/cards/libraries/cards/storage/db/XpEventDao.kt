@@ -52,6 +52,16 @@ interface XpEventDao : ClearableDao {
     suspend fun markSynced(keys: List<String>)
 
     /**
+     * XP sitting in the outbox that the server hasn't counted yet.
+     *
+     * The authoritative total only covers rows the server has taken, so a
+     * partly-drained outbox has to add this back or the local total reads
+     * lower than what the player already earned.
+     */
+    @Query("SELECT COALESCE(SUM(delta_xp), 0) FROM xp_events WHERE user_id = 'user' AND synced = 0")
+    suspend fun unsyncedDeltaXp(): Long
+
+    /**
      * Idempotency keys already present locally, for the re-hydration dedup:
      * server-echoed rows whose key is already held must not be re-inserted
      * (the local ledger has no unique index on the key — Room would duplicate).

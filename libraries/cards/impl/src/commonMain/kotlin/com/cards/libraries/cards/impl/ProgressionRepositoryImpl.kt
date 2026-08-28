@@ -172,7 +172,8 @@ class ProgressionRepositoryImpl(
             drainOutbox(
                 loadPage = { limit -> xpEventDao.getUnsynced(limit) },
                 flushPage = { page -> flushPage(client, page) },
-            )
+                keyOf = { it.idempotencyKey },
+            ).warnIfIncomplete(syncLogger, "progression")
         }
     }
 
@@ -180,9 +181,9 @@ class ProgressionRepositoryImpl(
      * Posts one page of the outbox and reconciles what comes back. An empty
      * [page] is a valid "hydrate total" call — that's how a reinstall or a
      * second device picks up XP earned elsewhere — so this never short-circuits
-     * on an empty batch. Returns how many rows the server resolved.
+     * on an empty batch.
      */
-    private suspend fun flushPage(client: HttpClient, page: List<XpEventEntity>): Int {
+    private suspend fun flushPage(client: HttpClient, page: List<XpEventEntity>) {
         val request = ProgressionSyncRequestDto(events = page.map { it.toDto() })
         val response: ProgressionSyncResponseDto = client
             .post("/v1/me/progression/sync") {
@@ -219,10 +220,12 @@ class ProgressionRepositoryImpl(
         }
 
         // Reconcile the local total to the server's authoritative value
-        // (the setBalance analog). After the just-posted events that's the
-        // correct sum; a cross-device gain is also picked up here.
+        // (the setBalance analog), plus whatever is still queued behind this
+        // page. The server total only counts rows it has taken, so writing it
+        // bare mid-drain would drop the player's XP bar and level to the
+        // partial figure and walk them back up page by page.
         progressionDao.ensureExistsAndSetTotalXp(
-            totalXp = response.totalXp,
+            totalXp = response.totalXp + xpEventDao.unsyncedDeltaXp(),
             updatedAtEpochMs = clock.now().toEpochMilliseconds(),
         )
 
@@ -243,7 +246,6 @@ class ProgressionRepositoryImpl(
             "Sync page complete: ${page.size} sent, ${resolvedKeys.size} resolved, " +
                 "total now ${response.totalXp}."
         }
-        return resolvedKeys.size
     }
 
     override suspend fun deleteAll() {

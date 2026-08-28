@@ -160,7 +160,9 @@ class PlayerStatsRepositoryImpl(
             drainOutbox(
                 loadPage = { limit -> playerStatEventDao.getUnsynced(limit) },
                 flushPage = { page -> flushPage(client, page) },
-            )
+                keyOf = { it.idempotencyKey },
+                pageSize = OUTBOX_PAGE_SIZE_PER_EVENT_ROUTE,
+            ).warnIfIncomplete(logger, "player-stats")
         }
     }
 
@@ -168,9 +170,8 @@ class PlayerStatsRepositoryImpl(
      * Posts one page of the outbox. An empty [page] is a valid "hydrate
      * snapshot" call — how a reinstall or a second device picks up stats
      * accumulated elsewhere — so this never short-circuits on an empty batch.
-     * Returns how many rows the server resolved.
      */
-    private suspend fun flushPage(client: HttpClient, page: List<PlayerStatEventEntity>): Int {
+    private suspend fun flushPage(client: HttpClient, page: List<PlayerStatEventEntity>) {
         val request = PlayerStatsSyncRequestDto(events = page.map { it.toDto() })
         val response: PlayerStatsSyncResponseDto = client
             .post("/v1/me/player-stats/sync") {
@@ -192,7 +193,6 @@ class PlayerStatsRepositoryImpl(
             "Sync page complete: ${page.size} sent, ${resolvedKeys.size} resolved, " +
                 "handsPlayed now ${response.stats.handsPlayed}."
         }
-        return resolvedKeys.size
     }
 
     override suspend fun deleteAll() {

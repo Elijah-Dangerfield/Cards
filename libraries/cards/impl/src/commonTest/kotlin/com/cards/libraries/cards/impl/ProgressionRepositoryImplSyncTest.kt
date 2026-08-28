@@ -300,6 +300,32 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
+    fun partialDrain_doesNotWalkTheLocalTotalBackwards() = runUnitTest {
+        // The server total only counts rows it has taken. Writing it bare after
+        // each page dropped the player's XP bar to the partial figure and
+        // climbed it back page by page — and left it there if the drain ran out
+        // of budget.
+        val backlog = (1..OUTBOX_PAGE_SIZE * OUTBOX_MAX_PAGES_PER_SYNC + 25).map { xpEvent("k$it", 1) }
+        val progressionDao = FakeProgressionDao(seedTotalXp = backlog.size.toLong())
+        val xpDao = FakeXpEventDao(*backlog.toTypedArray())
+        var taken = 0L
+        val repo = buildRepo(progressionDao, xpDao) { request ->
+            val sent = request.sentKeys()
+            taken += sent.size
+            respondJson(appliedResponse(totalXp = taken, keys = sent))
+        }
+
+        repo.sync()
+
+        assertEquals(25, xpDao.pending().size, "this sync spent its budget with rows left over")
+        assertEquals(
+            backlog.size.toLong(),
+            progressionDao.getProgression()?.totalXp,
+            "XP still in the outbox counts toward the displayed total",
+        )
+    }
+
+    @Test
     fun pageTheServerResolvesNothingFrom_stopsInsteadOfSpinning() = runUnitTest {
         // A full page that comes back with nothing resolved means re-reading it
         // would hand back the same rows — keep going and the loop never ends.
@@ -458,6 +484,9 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
 
         override suspend fun getUnsynced(limit: Int): List<XpEventEntity> =
             rows.filter { !it.synced }.take(limit)
+
+        override suspend fun unsyncedDeltaXp(): Long =
+            rows.filter { !it.synced }.sumOf { it.deltaXp.toLong() }
 
         override suspend fun markSynced(keys: List<String>) {
             val set = keys.toSet()

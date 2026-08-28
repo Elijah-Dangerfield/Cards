@@ -8,6 +8,9 @@ import com.dangerfield.cards.server.domain.ApplyXpOutcome
 import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.XpEventInput
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.deleteAll
 import org.junit.After
@@ -263,6 +266,32 @@ class PostgresProgressionRepositoryTest : DatabaseTest() {
         assertEquals(setOf("shared"), forB.appliedKeys, "another user's key is not a replay")
         assertEquals(10L, forB.totalXp)
     }
+
+    /**
+     * `RetryPolicy.idempotent()` means the same payload really can be in
+     * flight twice — that is what ENG-45's timeouts produced — so the key
+     * dedup has to hold across transactions, not just within one.
+     */
+    @Test
+    fun applyXpBatch_concurrentFlushOfTheSameKeys_creditsOnce() = runTest {
+        val repo = newRepo()
+        val userId = newUser()
+        val batch = listOf(xpInput("hand_1", deltaXp = 50))
+
+        val results = awaitAll(
+            async(Dispatchers.IO) { repo.applyXpBatch(userId, batch) },
+            async(Dispatchers.IO) { repo.applyXpBatch(userId, batch) },
+        )
+
+        assertEquals(50L, repo.findOrCreate(userId).totalXp, "the same key credited twice")
+        assertEquals(
+            1,
+            results.count { "hand_1" in it.appliedKeys },
+            "exactly one flush may claim the key; the other is a replay",
+        )
+        assertEquals(1, repo.recentEvents(userId, 10).size)
+    }
+
 
     @Test
     fun deleteAllForUser_clears_andOnlyTheGivenUser() = runTest {

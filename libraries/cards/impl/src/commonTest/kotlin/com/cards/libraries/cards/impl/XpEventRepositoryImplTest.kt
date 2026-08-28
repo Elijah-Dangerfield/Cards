@@ -168,6 +168,9 @@ class XpEventRepositoryImplTest : CoroutineTest() {
         override suspend fun getUnsynced(limit: Int): List<XpEventEntity> =
             flow.value.filter { !it.synced }.take(limit)
 
+        override suspend fun unsyncedDeltaXp(): Long =
+            flow.value.filter { !it.synced }.sumOf { it.deltaXp.toLong() }
+
         override suspend fun markSynced(keys: List<String>) {
             val set = keys.toSet()
             flow.value = flow.value.map { if (it.idempotencyKey in set) it.copy(synced = true) else it }

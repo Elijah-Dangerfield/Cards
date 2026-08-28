@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.core.logging.Logger
+
 /**
  * How many outbox rows ride in one sync request.
  *
@@ -15,33 +17,90 @@ package com.dangerfield.cards.libraries.cards.impl
 internal const val OUTBOX_PAGE_SIZE = 200
 
 /**
+ * Page size for outboxes whose server route still applies one event per
+ * database transaction: play style and player stats (ENG-47).
+ *
+ * Those routes cost roughly 185 ms per event against Supabase, so a
+ * [OUTBOX_PAGE_SIZE] page would spend ~37 s server-side and time the client
+ * out at 30 s — the exact wedge ENG-45 fixed for XP, reproduced on a sibling
+ * endpoint. 25 events keeps a page near five seconds with room to spare.
+ *
+ * Delete this and fold both outboxes back onto [OUTBOX_PAGE_SIZE] once those
+ * routes batch their writes.
+ */
+internal const val OUTBOX_PAGE_SIZE_PER_EVENT_ROUTE = 25
+
+/**
  * Requests one `sync()` will make before yielding. Bounds the work a single
  * trigger edge can do; whatever is left drains on the next one.
  */
 internal const val OUTBOX_MAX_PAGES_PER_SYNC = 10
 
+/** Why [drainOutbox] stopped. Anything but [Drained] left rows behind. */
+internal enum class OutboxDrainOutcome {
+    /** The outbox is empty. */
+    Drained,
+
+    /** Rows remain; this sync spent its page budget and the next edge continues. */
+    BudgetSpent,
+
+    /**
+     * The same page came back twice, so flushing it changed nothing. Rows the
+     * server won't resolve, or acks whose keys don't match anything local.
+     * Without this the loop would re-post an identical page every iteration.
+     */
+    Stalled,
+}
+
 /**
  * Flushes a sync outbox one bounded page at a time until it drains.
  *
- * [flushPage] posts the page, marks whatever the server resolved, and returns
- * how many rows that was. It runs at least once even when the outbox is empty
- * — an event-less POST is the "hydrate my totals" pulse a cold boot or a
- * reinstall depends on.
+ * [flushPage] posts the page and marks whatever the server resolved. It runs
+ * at least once even when the outbox is empty — an event-less POST is the
+ * "hydrate my totals" pulse a cold boot or a reinstall depends on.
  *
- * Draining stops when a page comes back short (the outbox is empty) or when
- * the server resolved nothing from a full page. That second guard matters:
- * without it, rows the server keeps refusing to resolve would be re-read and
- * re-posted forever.
+ * Progress is judged on the outbox shrinking, not on the server answering:
+ * a response that resolves keys the local table doesn't hold would otherwise
+ * read as progress and re-post the same page until the budget ran out.
  */
 internal suspend fun <T> drainOutbox(
     loadPage: suspend (limit: Int) -> List<T>,
-    flushPage: suspend (page: List<T>) -> Int,
+    flushPage: suspend (page: List<T>) -> Unit,
+    keyOf: (T) -> String,
     pageSize: Int = OUTBOX_PAGE_SIZE,
     maxPages: Int = OUTBOX_MAX_PAGES_PER_SYNC,
-) {
+): OutboxDrainOutcome {
+    var previousKeys: List<String>? = null
     repeat(maxPages) {
         val page = loadPage(pageSize)
-        val resolved = flushPage(page)
-        if (page.size < pageSize || resolved == 0) return
+        val keys = page.map(keyOf)
+        if (keys == previousKeys) return OutboxDrainOutcome.Stalled
+        previousKeys = keys
+
+        flushPage(page)
+        if (page.size < pageSize) return OutboxDrainOutcome.Drained
+    }
+    return OutboxDrainOutcome.BudgetSpent
+}
+
+/**
+ * Says so when a sync left rows behind.
+ *
+ * A drain that gives up returns normally and the sync reports success, so
+ * without this a player wedged behind rows the server won't take looks exactly
+ * like a clean sync. That silence is how ENG-45 stayed invisible for eight
+ * days.
+ */
+internal fun OutboxDrainOutcome.warnIfIncomplete(logger: Logger, outbox: String) {
+    when (this) {
+        OutboxDrainOutcome.Drained -> Unit
+        OutboxDrainOutcome.BudgetSpent -> logger.w {
+            "$outbox outbox still has rows after spending this sync's page budget; " +
+                "the next sync edge continues."
+        }
+        OutboxDrainOutcome.Stalled -> logger.w {
+            "$outbox outbox stalled — the same page came back unresolved, so flushing " +
+                "it is changing nothing."
+        }
     }
 }

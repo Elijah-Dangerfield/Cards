@@ -108,17 +108,18 @@ class PlayStyleRepositoryImpl(
             drainOutbox(
                 loadPage = { limit -> playStyleEventDao.getUnsynced(limit) },
                 flushPage = { page -> flushPage(client, page) },
-            )
+                keyOf = { it.idempotencyKey },
+                pageSize = OUTBOX_PAGE_SIZE_PER_EVENT_ROUTE,
+            ).warnIfIncomplete(logger, "play-style")
         }
     }
 
     /**
      * Posts one page of the outbox. An empty [page] is a valid "hydrate axes"
      * call — how a reinstall or a second device picks up a style computed
-     * elsewhere — so this never short-circuits on an empty batch. Returns how
-     * many rows the server resolved.
+     * elsewhere — so this never short-circuits on an empty batch.
      */
-    private suspend fun flushPage(client: HttpClient, page: List<PlayStyleEventEntity>): Int {
+    private suspend fun flushPage(client: HttpClient, page: List<PlayStyleEventEntity>) {
         val request = PlayStyleSyncRequestDto(events = page.map { it.toDto() })
         val response: PlayStyleSyncResponseDto = client
             .post("/v1/me/play-style/sync") {
@@ -140,7 +141,6 @@ class PlayStyleRepositoryImpl(
             "Sync page complete: ${page.size} sent, ${resolvedKeys.size} resolved, " +
                 "sample now ${response.axes.sampleSize}."
         }
-        return resolvedKeys.size
     }
 
     override suspend fun getStyleFor(userId: String): Result<PlayStyleAxes?> {

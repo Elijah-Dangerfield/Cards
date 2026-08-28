@@ -70,6 +70,15 @@ class PostgresProgressionRepository(
         readProgression(userId)
     }
 
+    /**
+     * Correct against a concurrent flush of the same payload, which
+     * `RetryPolicy.idempotent()` genuinely produces: the ledger's
+     * `(user_id, idempotency_key)` conflict decides who owns each key, and the
+     * total moves only by the keys this transaction actually inserted, applied
+     * as a relative update (see [addToTotal]). Heavy contention on one user can
+     * still exhaust Exposed's retries and fail the request, which is loud and
+     * recoverable rather than wrong — ENG-48.
+     */
     override suspend fun applyXpBatch(
         userId: UserId,
         events: List<XpEventInput>,
@@ -94,16 +103,45 @@ class PostgresProgressionRepository(
         val gained = deduped
             .filter { it.idempotencyKey in insertedKeys }
             .sumOf { ProgressionRepository.clampEventXp(it.deltaXp) }
-        val newTotal = progression.totalXp + gained
 
-        if (insertedKeys.isNotEmpty()) {
-            UserProgressionTable.update({ UserProgressionTable.userId eq userId.value }) {
-                it[UserProgressionTable.totalXp] = newTotal
-                it[UserProgressionTable.updatedAt] = now.toJavaInstant()
-            }
+        val newTotal = if (insertedKeys.isEmpty()) {
+            progression.totalXp
+        } else {
+            addToTotal(userId, gained, now)
         }
 
         ApplyXpBatchResult(totalXp = newTotal, appliedKeys = insertedKeys)
+    }
+
+    /**
+     * Moves the total by [gained] and returns what it became.
+     *
+     * Relative on purpose. Writing an absolute `read + gained` loses credit
+     * whenever two flushes overlap — and they do, because a client that times
+     * out retries a request the server is still running (ENG-45). Postgres
+     * evaluates `total_xp + ?` against the committed row under the UPDATE's own
+     * row lock, so the arithmetic is correct however the transactions
+     * interleave, at any isolation level.
+     */
+    private fun addToTotal(userId: UserId, gained: Long, now: kotlin.time.Instant): Long {
+        var total: Long? = null
+        TransactionManager.current().exec(
+            stmt = """
+                UPDATE user_progression
+                SET total_xp = total_xp + ?, updated_at = ?
+                WHERE user_id = ?
+                RETURNING total_xp
+            """.trimIndent(),
+            args = listOf<Pair<IColumnType<*>, Any?>>(
+                LongColumnType() to gained,
+                JavaInstantColumnType() to now.toJavaInstant(),
+                UUIDColumnType() to userId.value,
+            ),
+            explicitStatementType = StatementType.SELECT,
+        ) { rs ->
+            if (rs.next()) total = rs.getLong(1)
+        }
+        return total ?: error("Progression row missing for user ${userId.value} during total update")
     }
 
     /**
