@@ -11,3 +11,15 @@
 **Deferred:**
 - `AchievementDao.getUnsyncedEarned()` left unbounded on purpose (an achievement is earned once, so the outbox is capped by the catalog). Reasoning is a KDoc on the method and a "Not done" note in the decisions entry.
 - ENG-46 (alerting on slow-but-successful requests) is what made this invisible for 8 days. Already a separate todo item, untouched here.
+
+## Review follow-up (`bb9afcae`)
+
+A staff review of `c86cb4e4` returned "safe as-is" plus six non-blocking findings. Applied all of them, and one turned out to be a real defect the review had cleared.
+
+- **The total update was absolute, and lost credit.** `read + gained` written absolutely means two overlapping flushes both succeed and the later write erases the earlier one's credit. At 24 concurrent flushes the caller was told 24 landed while the total reflected 10. Pre-existing — the per-event write had the same shape — so not an ENG-45 regression. `addToTotal` now issues a relative `total_xp = total_xp + ? … RETURNING`, which Postgres evaluates against the committed row.
+- **The review's stated safety argument did not hold up.** It reported, from a two-transaction probe, that REPEATABLE READ plus Exposed's retry made the absolute write safe. At 6 and 8 concurrent flushes both write shapes fail, and at 24 the absolute one is silently wrong. Filed the availability half as ENG-48; the correctness half is fixed here.
+- **No concurrency regression test.** Tried and dropped one: an N-way concurrent test is scheduling-dependent and passed against the buggy write on some runs. A real guard needs explicit transaction interleaving. Left the deterministic same-key idempotency test and did not leave behind a test claiming more than it proves.
+- Local XP total no longer regresses mid-drain; drain progress is judged on the outbox shrinking; a drain that gives up logs at warn; `SqlActivity`'s JVM-wide counting documented.
+- Play style and player stats page at 25 rows until ENG-47 batches their routes.
+
+**Not done:** dropping `XpEventResultDto.totalXp`. The review called it dead weight, but the server deploys independently of the app release, so removing a field build-1026 clients may treat as non-nullable is a wire-compat risk for no gain.
