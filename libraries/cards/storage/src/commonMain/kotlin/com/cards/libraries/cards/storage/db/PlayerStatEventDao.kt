@@ -11,7 +11,27 @@ interface PlayerStatEventDao : ClearableDao {
     @Insert
     suspend fun insertAll(events: List<PlayerStatEventEntity>)
 
-    /** Rows not yet flushed to the server, oldest first (apply order). */
+    /**
+     * The oldest [limit] rows not yet flushed to the server, in apply order.
+     * Mandatory limit for the same reason as [XpEventDao.getUnsynced] — an
+     * unbounded flush has no ceiling and no exit once it starts timing out.
+     */
+    @Query(
+        """
+        SELECT * FROM player_stat_events
+        WHERE user_id = 'user' AND synced = 0
+        ORDER BY created_at_epoch_ms ASC, id ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getUnsynced(limit: Int): List<PlayerStatEventEntity>
+
+    /**
+     * The whole unsynced outbox. This is the counter-projection read (the
+     * optimistic delta folded onto the server snapshot), NOT a flush — folding
+     * a partial outbox would under-report achievement progress. Never post
+     * this; page with [getUnsynced] instead.
+     */
     @Query(
         """
         SELECT * FROM player_stat_events
@@ -19,7 +39,7 @@ interface PlayerStatEventDao : ClearableDao {
         ORDER BY created_at_epoch_ms ASC, id ASC
         """
     )
-    suspend fun getUnsynced(): List<PlayerStatEventEntity>
+    suspend fun getAllUnsynced(): List<PlayerStatEventEntity>
 
     /** Observe the unsynced outbox (oldest first) — the optimistic delta folded
      *  onto the server snapshot for live, offline-correct achievement counters. */

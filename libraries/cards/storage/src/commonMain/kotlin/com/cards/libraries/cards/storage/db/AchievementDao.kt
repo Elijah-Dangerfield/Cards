@@ -24,7 +24,12 @@ interface AchievementDao : ClearableDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertEarned(entity: AchievementEarnedEntity)
 
-    /** Earned rows not yet flushed to the server. */
+    /**
+     * Earned rows not yet flushed to the server. Unbounded on purpose, unlike
+     * the paged event outboxes ([XpEventDao.getUnsynced] and friends): an
+     * achievement is earned at most once, so this set can never exceed the
+     * catalog — a few dozen rows, whatever happens to the sync.
+     */
     @Query("SELECT * FROM achievement_earned WHERE synced = 0")
     suspend fun getUnsyncedEarned(): List<AchievementEarnedEntity>
 

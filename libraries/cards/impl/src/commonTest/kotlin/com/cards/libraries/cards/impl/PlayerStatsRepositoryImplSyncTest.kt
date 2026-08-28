@@ -53,7 +53,7 @@ class PlayerStatsRepositoryImplSyncTest : CoroutineTest() {
 
         repo.recordHand(handSummary(handId = "7", won = true, vsBot = true, beatenBotId = "Jane", noBustStreak = 3))
 
-        val rows = events.getUnsynced()
+        val rows = events.pending()
         assertEquals(1, rows.size)
         assertTrue(rows.single().won)
         assertEquals("Jane", rows.single().beatenBotId)
@@ -104,7 +104,7 @@ class PlayerStatsRepositoryImplSyncTest : CoroutineTest() {
 
         repo.sync()
 
-        assertTrue(events.getUnsynced().isEmpty(), "Applied + AlreadyApplied are marked synced")
+        assertTrue(events.pending().isEmpty(), "Applied + AlreadyApplied are marked synced")
     }
 
     @Test
@@ -123,7 +123,7 @@ class PlayerStatsRepositoryImplSyncTest : CoroutineTest() {
 
         repo.sync()
 
-        assertEquals(1, events.getUnsynced().size, "an unknown outcome leaves the row for a newer client to retry")
+        assertEquals(1, events.pending().size, "an unknown outcome leaves the row for a newer client to retry")
     }
 
     @Test
@@ -137,7 +137,7 @@ class PlayerStatsRepositoryImplSyncTest : CoroutineTest() {
         val result = repo.sync()
 
         assertTrue(result.isFailure)
-        assertEquals(1, events.getUnsynced().size, "a failed sync keeps rows pending")
+        assertEquals(1, events.pending().size, "a failed sync keeps rows pending")
         assertNull(stats.get(), "a failed sync doesn't cache a snapshot")
     }
 
@@ -227,7 +227,12 @@ class PlayerStatsRepositoryImplSyncTest : CoroutineTest() {
     private class FakePlayerStatEventDao(vararg seed: PlayerStatEventEntity) : PlayerStatEventDao {
         private val rows = seed.toMutableList()
         override suspend fun insertAll(events: List<PlayerStatEventEntity>) { rows += events }
-        override suspend fun getUnsynced(): List<PlayerStatEventEntity> = rows.filter { !it.synced }
+        fun pending(): List<PlayerStatEventEntity> = rows.filter { !it.synced }
+
+        override suspend fun getUnsynced(limit: Int): List<PlayerStatEventEntity> =
+            rows.filter { !it.synced }.take(limit)
+
+        override suspend fun getAllUnsynced(): List<PlayerStatEventEntity> = rows.filter { !it.synced }
         override fun observeUnsynced(): kotlinx.coroutines.flow.Flow<List<PlayerStatEventEntity>> =
             kotlinx.coroutines.flow.flowOf(rows.filter { !it.synced })
         override suspend fun markSynced(keys: List<String>) {

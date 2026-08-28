@@ -6,21 +6,29 @@ import com.dangerfield.cards.server.db.XpEventsTable
 import com.dangerfield.cards.server.db.toJavaInstant
 import com.dangerfield.cards.server.db.toKotlinInstant
 import com.dangerfield.cards.server.di.ServerScope
-import com.dangerfield.cards.server.domain.ApplyXpOutcome
+import com.dangerfield.cards.server.domain.ApplyXpBatchResult
 import com.dangerfield.cards.server.domain.FindOrCreateProgressionResult
 import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserProgression
 import com.dangerfield.cards.server.domain.XpEvent
+import com.dangerfield.cards.server.domain.XpEventInput
 import me.tatarka.inject.annotations.Inject
 import org.jetbrains.exposed.exceptions.ExposedSQLException
+import org.jetbrains.exposed.sql.BooleanColumnType
+import org.jetbrains.exposed.sql.IColumnType
+import org.jetbrains.exposed.sql.LongColumnType
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.TextColumnType
+import org.jetbrains.exposed.sql.UUIDColumnType
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.javatime.JavaInstantColumnType
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.statements.StatementType
+import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.update
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
@@ -34,9 +42,10 @@ import kotlin.time.ExperimentalTime
  * branch.
  *
  * Concurrency: every multi-statement op runs in one `database.transaction { }`
- * so the ledger row + total commit together. Idempotency: the
- * `(user_id, idempotency_key)` PK is the dedup boundary; a duplicate insert
- * raises a unique-violation we catch and treat as a no-op replay.
+ * so the ledger rows + total commit together. Idempotency: the
+ * `(user_id, idempotency_key)` PK is the dedup boundary, and `ON CONFLICT DO
+ * NOTHING` collapses a replay to a no-op, so the whole batch costs a bounded
+ * number of round trips no matter how many events it carries.
  */
 @SingleIn(ServerScope::class)
 @ContributesBinding(ServerScope::class)
@@ -61,59 +70,85 @@ class PostgresProgressionRepository(
         readProgression(userId)
     }
 
-    override suspend fun applyXp(
+    override suspend fun applyXpBatch(
         userId: UserId,
-        idempotencyKey: String,
-        deltaXp: Long,
-        source: String,
-        mode: String,
-        handId: String?,
-        wasBoosted: Boolean,
-    ): ApplyXpOutcome = database.transaction {
+        events: List<XpEventInput>,
+    ): ApplyXpBatchResult = database.transaction {
         val progression = readProgression(userId) ?: create(userId, clock.now())
 
-        // Replay detection: an event with this key already committed.
-        if (eventExists(userId, idempotencyKey)) {
-            return@transaction ApplyXpOutcome.Applied(
+        // A client can repeat a key inside one payload; the first occurrence
+        // is the one that counts, both for the insert and for the sum.
+        val deduped = events.distinctBy { it.idempotencyKey }
+        if (deduped.isEmpty()) {
+            return@transaction ApplyXpBatchResult(
                 totalXp = progression.totalXp,
-                wasAlreadyApplied = true,
+                appliedKeys = emptySet(),
             )
         }
 
-        // Cheap per-event sanity clamp — XP only accrues; never negative,
-        // never absurd. Not a balance lever (see MAX_EVENT_XP).
-        val clamped = deltaXp.coerceIn(0L, ProgressionRepository.MAX_EVENT_XP)
-        val newTotal = progression.totalXp + clamped
         val now = clock.now()
+        val insertedKeys = deduped
+            .chunked(INSERT_CHUNK_ROWS)
+            .flatMapTo(mutableSetOf()) { chunk -> insertNewEvents(userId, chunk, now) }
 
-        try {
-            XpEventsTable.insert {
-                it[XpEventsTable.userId] = userId.value
-                it[XpEventsTable.idempotencyKey] = idempotencyKey
-                it[XpEventsTable.deltaXp] = clamped
-                it[XpEventsTable.eventSource] = source
-                it[XpEventsTable.mode] = mode
-                it[XpEventsTable.handId] = handId
-                it[XpEventsTable.wasBoosted] = wasBoosted
-                it[XpEventsTable.appliedAt] = now.toJavaInstant()
+        val gained = deduped
+            .filter { it.idempotencyKey in insertedKeys }
+            .sumOf { ProgressionRepository.clampEventXp(it.deltaXp) }
+        val newTotal = progression.totalXp + gained
+
+        if (insertedKeys.isNotEmpty()) {
+            UserProgressionTable.update({ UserProgressionTable.userId eq userId.value }) {
+                it[UserProgressionTable.totalXp] = newTotal
+                it[UserProgressionTable.updatedAt] = now.toJavaInstant()
             }
-        } catch (e: ExposedSQLException) {
-            // A concurrent writer beat us to this key — treat as replay.
-            if (e.isUniqueViolation()) {
-                return@transaction ApplyXpOutcome.Applied(
-                    totalXp = progression.totalXp,
-                    wasAlreadyApplied = true,
-                )
-            }
-            throw e
         }
 
-        UserProgressionTable.update({ UserProgressionTable.userId eq userId.value }) {
-            it[UserProgressionTable.totalXp] = newTotal
-            it[UserProgressionTable.updatedAt] = now.toJavaInstant()
-        }
+        ApplyXpBatchResult(totalXp = newTotal, appliedKeys = insertedKeys)
+    }
 
-        ApplyXpOutcome.Applied(totalXp = newTotal, wasAlreadyApplied = false)
+    /**
+     * One `INSERT … ON CONFLICT DO NOTHING RETURNING idempotency_key` for the
+     * whole chunk. Raw SQL because Exposed's batch insert can't hand back the
+     * rows that actually landed, and that set is what the total moves by —
+     * without it a batch racing a concurrent flush of the same keys would
+     * double-count them.
+     */
+    private fun insertNewEvents(
+        userId: UserId,
+        events: List<XpEventInput>,
+        now: kotlin.time.Instant,
+    ): List<String> {
+        val appliedAt = now.toJavaInstant()
+        val values = events.joinToString(",") { "(?,?,?,?,?,?,?,?)" }
+        val args = events.flatMap { event ->
+            listOf<Pair<IColumnType<*>, Any?>>(
+                UUIDColumnType() to userId.value,
+                TextColumnType() to event.idempotencyKey,
+                LongColumnType() to ProgressionRepository.clampEventXp(event.deltaXp),
+                TextColumnType() to event.source,
+                TextColumnType() to event.mode,
+                TextColumnType() to event.handId,
+                BooleanColumnType() to event.wasBoosted,
+                JavaInstantColumnType() to appliedAt,
+            )
+        }
+        val inserted = mutableListOf<String>()
+        TransactionManager.current().exec(
+            stmt = """
+                INSERT INTO xp_events
+                    (user_id, idempotency_key, delta_xp, source, mode, hand_id, was_boosted, applied_at)
+                VALUES $values
+                ON CONFLICT (user_id, idempotency_key) DO NOTHING
+                RETURNING idempotency_key
+            """.trimIndent(),
+            args = args,
+            explicitStatementType = StatementType.SELECT,
+        ) { rs ->
+            while (rs.next()) {
+                inserted += rs.getString(1)
+            }
+        }
+        return inserted
     }
 
     override suspend fun recentEvents(userId: UserId, limit: Int): List<XpEvent> =
@@ -157,15 +192,6 @@ class PostgresProgressionRepository(
         )
     }
 
-    private fun eventExists(userId: UserId, key: String): Boolean = XpEventsTable
-        .selectAll()
-        .where {
-            (XpEventsTable.userId eq userId.value) and
-                (XpEventsTable.idempotencyKey eq key)
-        }
-        .limit(1)
-        .any()
-
     private fun ResultRow.toProgression(): UserProgression = UserProgression(
         userId = UserId(this[UserProgressionTable.userId]),
         totalXp = this[UserProgressionTable.totalXp],
@@ -192,5 +218,12 @@ class PostgresProgressionRepository(
 
     companion object {
         private const val POSTGRES_UNIQUE_VIOLATION_SQLSTATE = "23505"
+
+        /**
+         * Rows per `INSERT`. Eight bind parameters each, so this sits an order
+         * of magnitude under Postgres's 65,535-parameter ceiling while still
+         * collapsing any realistic backlog into a handful of round trips.
+         */
+        private const val INSERT_CHUNK_ROWS = 500
     }
 }

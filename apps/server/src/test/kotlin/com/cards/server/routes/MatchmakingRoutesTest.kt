@@ -514,14 +514,9 @@ class MatchmakingRoutesTest {
     private object StubProgression : com.dangerfield.cards.server.domain.ProgressionRepository {
         override suspend fun findOrCreateResult(userId: UserId) = error("unused")
         override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.UserProgression? = null
-        override suspend fun applyXp(
+        override suspend fun applyXpBatch(
             userId: UserId,
-            idempotencyKey: String,
-            deltaXp: Long,
-            source: String,
-            mode: String,
-            handId: String?,
-            wasBoosted: Boolean,
+            events: List<com.dangerfield.cards.server.domain.XpEventInput>,
         ) = error("unused")
         override suspend fun recentEvents(userId: UserId, limit: Int) =
             emptyList<com.dangerfield.cards.server.domain.XpEvent>()

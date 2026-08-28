@@ -632,15 +632,10 @@ internal class FakeProgressionRepository(
             )
         }
 
-    override suspend fun applyXp(
+    override suspend fun applyXpBatch(
         userId: com.dangerfield.cards.server.domain.UserId,
-        idempotencyKey: String,
-        deltaXp: Long,
-        source: String,
-        mode: String,
-        handId: String?,
-        wasBoosted: Boolean,
-    ) = error("applyXp not used in room-socket tests")
+        events: List<com.dangerfield.cards.server.domain.XpEventInput>,
+    ) = error("applyXpBatch not used in room-socket tests")
 
     override suspend fun recentEvents(
         userId: com.dangerfield.cards.server.domain.UserId,

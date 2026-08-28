@@ -416,7 +416,8 @@ class ProgressionRepositoryImplTest : CoroutineTest() {
         override fun observeRecent(limit: Int): Flow<List<XpEventEntity>> =
             flow.asStateFlow()
 
-        override suspend fun getUnsynced(): List<XpEventEntity> = inserted.filter { !it.synced }
+        override suspend fun getUnsynced(limit: Int): List<XpEventEntity> =
+            inserted.filter { !it.synced }.take(limit)
 
         override suspend fun markSynced(keys: List<String>) {
             val set = keys.toSet()

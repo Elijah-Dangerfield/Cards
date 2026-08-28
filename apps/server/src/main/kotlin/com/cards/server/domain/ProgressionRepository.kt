@@ -56,6 +56,26 @@ sealed interface ApplyXpOutcome {
     ) : ApplyXpOutcome
 }
 
+/** One XP award in a [ProgressionRepository.applyXpBatch] payload. */
+data class XpEventInput(
+    val idempotencyKey: String,
+    val deltaXp: Long,
+    val source: String,
+    val mode: String,
+    val handId: String?,
+    val wasBoosted: Boolean = false,
+)
+
+/**
+ * Result of [ProgressionRepository.applyXpBatch]. [appliedKeys] holds only the
+ * keys this call actually committed — every other key in the batch was already
+ * on the server (a replay) and moved nothing.
+ */
+data class ApplyXpBatchResult(
+    val totalXp: Long,
+    val appliedKeys: Set<String>,
+)
+
 /**
  * Result of [ProgressionRepository.findOrCreateResult]. [created] is `true`
  * only on the call that inserted the row. Provided for parity with the wallet
@@ -79,15 +99,25 @@ interface ProgressionRepository {
     suspend fun find(userId: UserId): UserProgression?
 
     /**
-     * Apply an XP award idempotently. Lazy-creates the row if missing.
-     * [deltaXp] is clamped to `0..`[MAX_EVENT_XP] before it's written — a
-     * cheap sanity backstop (XP is play-money/low-stakes in V1; harden to
-     * server-derivation when stakes rise). Re-applying the same
+     * Apply a whole batch of XP awards idempotently, lazy-creating the row if
+     * missing. Each [XpEventInput.deltaXp] is clamped to `0..`[MAX_EVENT_XP]
+     * before it's written — a cheap sanity backstop (XP is play-money /
+     * low-stakes in V1; harden to server-derivation when stakes rise).
+     * Duplicate keys *within* [events] collapse to their first occurrence.
+     *
+     * Implementations MUST apply the whole batch in ONE transaction, and its
+     * cost must not scale with `events.size` in round trips — a client
+     * flushing a week-old backlog is the case that broke prod (ENG-45).
+     * [ApplyXpBatchResult.totalXp] moves by exactly the clamped sum of the
+     * keys in [ApplyXpBatchResult.appliedKeys], so a full replay moves it by
+     * zero.
+     */
+    suspend fun applyXpBatch(userId: UserId, events: List<XpEventInput>): ApplyXpBatchResult
+
+    /**
+     * Single-event convenience over [applyXpBatch]. Re-applying the same
      * [idempotencyKey] returns [ApplyXpOutcome.Applied] with
      * `wasAlreadyApplied = true` and the current total, mutating nothing.
-     *
-     * Implementations MUST take a transaction so the ledger row + total
-     * commit together or not at all.
      */
     suspend fun applyXp(
         userId: UserId,
@@ -97,7 +127,25 @@ interface ProgressionRepository {
         mode: String,
         handId: String?,
         wasBoosted: Boolean = false,
-    ): ApplyXpOutcome
+    ): ApplyXpOutcome {
+        val result = applyXpBatch(
+            userId = userId,
+            events = listOf(
+                XpEventInput(
+                    idempotencyKey = idempotencyKey,
+                    deltaXp = deltaXp,
+                    source = source,
+                    mode = mode,
+                    handId = handId,
+                    wasBoosted = wasBoosted,
+                ),
+            ),
+        )
+        return ApplyXpOutcome.Applied(
+            totalXp = result.totalXp,
+            wasAlreadyApplied = idempotencyKey !in result.appliedKeys,
+        )
+    }
 
     /** Recent ledger rows for a user, newest first, capped to [limit]. */
     suspend fun recentEvents(userId: UserId, limit: Int): List<XpEvent>
@@ -116,5 +164,11 @@ interface ProgressionRepository {
          * rejects absurd/garbage deltas. Not a game-balance lever.
          */
         const val MAX_EVENT_XP: Long = 10_000L
+
+        /**
+         * The clamp itself, so the write path and the response's per-key
+         * running total can't drift apart on what an event was worth.
+         */
+        fun clampEventXp(deltaXp: Long): Long = deltaXp.coerceIn(0L, MAX_EVENT_XP)
     }
 }

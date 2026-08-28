@@ -4,6 +4,18 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-08-28 — XP sync is a batch write on the server and a paged flush on the client (ENG-45)
+
+**Problem:** `POST /v1/me/progression/sync` cost one DB transaction and roughly four statements *per event*, and the client posted its entire unsynced outbox in one request with no cap. Those two compose into a trap with no exit: one player's backlog reached 2,703 rows, the request took 501 seconds server-side, the client gave up at 30 seconds, nothing got marked synced, and the next flush sent everything again plus a week of new hands.
+
+**Decision:** Fix both halves, because either alone still wedges. Server-side, `ProgressionRepository.applyXpBatch` replaces the per-event `applyXp` as the one abstract write (the single-event call survives as a default that wraps a one-element batch, so nothing else had to change). It runs the whole batch in one transaction: chunked `INSERT … ON CONFLICT (user_id, idempotency_key) DO NOTHING RETURNING idempotency_key`, then one `UPDATE` of the total. Measured against a Testcontainer Postgres, 2,000 events went from 2,000 commits / 6,002 statements / 3.2s to 1 commit / under 12 statements / 71ms. Client-side, every event outbox DAO takes a mandatory `limit`, and `drainOutbox` pages the flush at 200 rows, marking each page synced as it lands.
+
+The load-bearing detail is `RETURNING`, and it is a money decision. The total moves by the clamped sum of exactly the keys *this transaction* inserted, which is what the old per-event code did when it caught a unique violation and skipped the update. Keep that and a full replay provably moves the total by zero, so `RewardChips.rewardedLevelsCrossed` finds no crossing and mints nothing.
+
+**Alternatives rejected:** deriving the total as `SUM(delta_xp)` over the ledger instead of accumulating it. It is self-healing, race-free, and matches what the schema comment already claims the column is. It also means that on deploy, any user whose stored total happens to sit below their true ledger sum jumps up and mints level-reward chips as a side effect of a perf fix. We cannot verify from here that no such user exists, and a bug fix should not move money. Also rejected: select-existing-keys then batch-insert the rest (no `RETURNING`, but a concurrent flush of the same keys, which is exactly what `RetryPolicy.idempotent()` produces, would let both writers count the same delta), and Exposed's `batchInsert(ignore = true)`, which cannot report which rows actually landed.
+
+**Not done:** `AchievementDao.getUnsyncedEarned()` stays unbounded. An achievement is earned at most once, so that outbox is capped by the catalog at a few dozen rows, and a partial page would be a worse contract than an unbounded read. The other three outboxes (XP, play style, player stats) are all paged.
+
 ## 2026-08-20 — Signup platform is stamped once on `profiles` and never revisited (ENG-39)
 
 **Problem:** The all-time user count and the growth-by-platform view were install-based, read out of Loki `app.foregrounded` records. That caps at ~30 days of log retention, so "how many users do we have" silently became "how many devices opened the app this month", and it folds in emulator and side-load noise. `profiles` rows persist forever in Postgres and are noise-light, but carried no platform, so they could answer "how many" and not "on which OS".

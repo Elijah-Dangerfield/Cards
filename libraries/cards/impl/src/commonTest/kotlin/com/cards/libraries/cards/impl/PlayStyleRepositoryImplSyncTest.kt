@@ -55,7 +55,7 @@ class PlayStyleRepositoryImplSyncTest : CoroutineTest() {
 
         repo.recordHand(handSummary(handId = "7", vpip = true))
 
-        val rows = events.getUnsynced()
+        val rows = events.pending()
         assertEquals(1, rows.size)
         assertTrue(rows.single().vpip)
         assertFalse(rows.single().synced)
@@ -94,7 +94,7 @@ class PlayStyleRepositoryImplSyncTest : CoroutineTest() {
 
         repo.sync()
 
-        assertTrue(events.getUnsynced().isEmpty(), "Applied + AlreadyApplied are marked synced")
+        assertTrue(events.pending().isEmpty(), "Applied + AlreadyApplied are marked synced")
     }
 
     @Test
@@ -109,7 +109,7 @@ class PlayStyleRepositoryImplSyncTest : CoroutineTest() {
 
         repo.sync()
 
-        assertEquals(1, events.getUnsynced().size, "an unknown outcome leaves the row for a newer client to retry")
+        assertEquals(1, events.pending().size, "an unknown outcome leaves the row for a newer client to retry")
     }
 
     @Test
@@ -123,7 +123,7 @@ class PlayStyleRepositoryImplSyncTest : CoroutineTest() {
         val result = repo.sync()
 
         assertTrue(result.isFailure)
-        assertEquals(1, events.getUnsynced().size, "a failed sync keeps rows pending")
+        assertEquals(1, events.pending().size, "a failed sync keeps rows pending")
         assertNull(style.get(), "a failed sync doesn't cache axes")
     }
 
@@ -248,7 +248,10 @@ class PlayStyleRepositoryImplSyncTest : CoroutineTest() {
     private class FakePlayStyleEventDao(vararg seed: PlayStyleEventEntity) : PlayStyleEventDao {
         private val rows = seed.toMutableList()
         override suspend fun insertAll(events: List<PlayStyleEventEntity>) { rows += events }
-        override suspend fun getUnsynced(): List<PlayStyleEventEntity> = rows.filter { !it.synced }
+        fun pending(): List<PlayStyleEventEntity> = rows.filter { !it.synced }
+
+        override suspend fun getUnsynced(limit: Int): List<PlayStyleEventEntity> =
+            rows.filter { !it.synced }.take(limit)
         override suspend fun markSynced(keys: List<String>) {
             val set = keys.toSet()
             for (i in rows.indices) if (rows[i].idempotencyKey in set) rows[i] = rows[i].copy(synced = true)

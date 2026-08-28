@@ -21,6 +21,7 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.authedCall
 import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
+import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.post
@@ -45,10 +46,10 @@ import kotlin.uuid.Uuid
  *
  * [recordHand] appends one `play_style_events` outbox row per finished hand
  * (`synced = false`). [sync] flushes the unsynced rows through `POST
- * /v1/me/play-style/sync`, marks them synced, and caches the server's computed
- * axes into the singleton `play_style` row for instant + offline display. The
- * axes are never derived on-device — the count → axis formula stays server-side
- * and tunable.
+ * /v1/me/play-style/sync` a bounded page at a time, marks each page synced as
+ * it lands, and caches the server's computed axes into the singleton
+ * `play_style` row for instant + offline display. The axes are never derived
+ * on-device — the count → axis formula stays server-side and tunable.
  *
  * [getStyleFor] reads another player's public axes for the Opponent Style
  * Reader; results are cached in-session so re-tapping a seat doesn't refetch.
@@ -103,35 +104,43 @@ class PlayStyleRepositoryImpl(
     }
 
     override suspend fun sync(): Result<Unit> = syncMutex.withLock {
-        // Always POST — an empty events list is a valid "hydrate axes" call,
-        // which is how a reinstall / second device picks up a style computed
-        // elsewhere.
         networkClient.authedCall("play-style.sync", retry = RetryPolicy.idempotent()) { client ->
-            val pending = playStyleEventDao.getUnsynced()
-
-            val request = PlayStyleSyncRequestDto(events = pending.map { it.toDto() })
-            val response: PlayStyleSyncResponseDto = client
-                .post("/v1/me/play-style/sync") {
-                    contentType(ContentType.Application.Json)
-                    setBody(request)
-                }
-                .body()
-
-            val resolvedKeys = response.results
-                .filter { it.outcome in RESOLVED_OUTCOMES }
-                .map { it.idempotencyKey }
-            if (resolvedKeys.isNotEmpty()) {
-                playStyleEventDao.markSynced(resolvedKeys)
-            }
-
-            cacheOwnAxes(response.axes)
-
-            logger.d {
-                "Sync complete: ${pending.size} sent, ${resolvedKeys.size} resolved, " +
-                    "sample now ${response.axes.sampleSize}."
-            }
-            Unit
+            drainOutbox(
+                loadPage = { limit -> playStyleEventDao.getUnsynced(limit) },
+                flushPage = { page -> flushPage(client, page) },
+            )
         }
+    }
+
+    /**
+     * Posts one page of the outbox. An empty [page] is a valid "hydrate axes"
+     * call — how a reinstall or a second device picks up a style computed
+     * elsewhere — so this never short-circuits on an empty batch. Returns how
+     * many rows the server resolved.
+     */
+    private suspend fun flushPage(client: HttpClient, page: List<PlayStyleEventEntity>): Int {
+        val request = PlayStyleSyncRequestDto(events = page.map { it.toDto() })
+        val response: PlayStyleSyncResponseDto = client
+            .post("/v1/me/play-style/sync") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+            .body()
+
+        val resolvedKeys = response.results
+            .filter { it.outcome in RESOLVED_OUTCOMES }
+            .map { it.idempotencyKey }
+        if (resolvedKeys.isNotEmpty()) {
+            playStyleEventDao.markSynced(resolvedKeys)
+        }
+
+        cacheOwnAxes(response.axes)
+
+        logger.d {
+            "Sync page complete: ${page.size} sent, ${resolvedKeys.size} resolved, " +
+                "sample now ${response.axes.sampleSize}."
+        }
+        return resolvedKeys.size
     }
 
     override suspend fun getStyleFor(userId: String): Result<PlayStyleAxes?> {
