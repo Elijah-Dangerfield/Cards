@@ -477,3 +477,67 @@ their P2 tags suggest before reading much into any dashboard trend. -->
 - 2026-08-20 · loki:duplicate-rebuy-intents · todo: MP-38 [P1] one Rebuy tap fans out into ~13 intents (131 rejections vs 10 successes/14d); no client dedupe, CTA never disables, and the server debits off an unlocked seat read · grafanacloud-logs `{service_name="cards-client", deployment_environment="prod"} | detected_level=~"warn|error|fatal"` · case docs/agent/feedback-cases/2026-08-20-duplicate-rebuy-intents.md
 - 2026-08-20 · loki:onboarding-abandoned-false-positive · todo: AUTH-31 [P2] `onboarding.abandoned` fires on a back-out, so 4 of 6 "abandoned" installs actually completed and the welcome-step skew is an artifact · grafanacloud-logs `| event_name=~"onboarding.abandoned|onboarding.completed"` · case docs/agent/feedback-cases/2026-08-20-onboarding-abandoned-false-positive.md
 - 2026-08-20 · sweep:2026-08-20-nightly · no-action: A1–A8 all normal/ok and freshly evaluated, none firing/pending; 0 cards-server prod warn/error/fatal over 7d (1,278 INFO lines, stream busy with real MP play); Fly prod memory min-available 472 MiB/24h, no creep · dc-pulse / dc-infra / grafanacloud-logs
+
+<!-- 2026-08-28 observability triage (owner-requested, interactive). Sentry MCP still not connected;
+ran against the REST API with the keychain token. Note for future runs: the *project* issues
+endpoint only accepts statsPeriod '', 24h or 14d — use the **organization** endpoint
+(`/organizations/elijah-dangerfield/issues/?project=-1`) for a real 90d sweep.
+
+6 unresolved issues project-wide, two of them (`PHONY-GAMES-A`, `SHOULD-WE-BREAK-UP-Q`) belong to
+other Sentry projects and are out of scope. Zero unresolved feedback carriers/twins, so
+feedback-triage has nothing waiting either. No alerts firing or pending (A1–A8). Server warn+ over
+9 days is 4 lines total: two websocket `Ping timeout`s (client dropped, benign) and one
+`could not serialize access due to concurrent update` on `table_sessions.markClosing` that Exposed
+retried and won. Client crash-free 7d: 25 clean / 1 Android `oom` / 28 `unknown` (iOS, expected
+until ENG-25) — one device-side kill on a 26-launch sample, too small to file.
+
+- **`CARDS-BW` (NEW, and the headline).** `/v1/me/progression/sync` timing out at 30s for one
+  retail Pixel 7 install, 26 events over 8 days. The client blames the network; the server log
+  refutes that — it answers **200 OK in 306,000–501,000 ms**, climbing monotonically across the
+  week. Prod Postgres: that one user holds **2,703 of the 4,477 rows** in `xp_events`, at ~185 ms
+  per event = one Supabase round trip per statement. The server runs a full `database.transaction`
+  per event in a serial `map`; the client's `getUnsynced()` has no LIMIT and only marks rows synced
+  after a response it never receives. So the batch grows every session and the loop has no exit.
+  Money and XP are both safe (replays return `AlreadyApplied`, the total doesn't move, no crossing
+  mints, all rows are committed server-side) — what's broken is convergence and cost. The
+  second-largest user (669 rows) is already at 35s, so crossover is ~a week of steady play and the
+  whole engaged population walks into it. → **todo ENG-45 [P0]**, case CARDS-BW.md. P0 over P1
+  because it's live, worsening without bound, and holds a 5–8 minute request + Hikari connection on
+  a single-writer 512MB machine — an availability property that doesn't scale, even though no money
+  moved.
+
+- **`sweep:no-latency-alert` (NEW, found by the dashboard sweep).** Every one of those 8-minute
+  requests logged `200 OK` at INFO and tripped nothing. A1–A8 cover down/drift/failure/silence;
+  none covers *slow but successful*, and no `dc-infra` panel charts per-route server latency. The
+  suite is structurally blind to this whole failure class. → **todo ENG-46 [P1]**, same case file.
+
+- **`CARDS-BX` (NEW).** One 401 on `/v1/me/messages/sync`, 1 event, 1 user, warm-boot token race
+  after `BackgroundRollover` (repos had deferred as offline, network returned, request beat the
+  token refresh). Session intact (`SKIP_HAS_SESSION`), same install's other authed calls returned
+  200 in ~410 ms two days later, next foreground edge re-syncs. → **no-action**, resolved in
+  Sentry, case CARDS-BX.md.
+
+- **`CARDS-8V` (RE-OPENED as an escalation, not a new todo).** Previously dispositioned no-action
+  pointing at the human-only App Store Connect item. It got materially worse: **two new iOS installs
+  hit it on 2026-08-28** (96fe609f, fb0c0600), vs the single 08-12 install at last review. That's
+  three distinct real App Store users who have opened a shop selling nothing. The engineering half
+  (ENG-43, A8 alerting) shipped; the remaining fix is entirely in App Store Connect, so there is
+  nothing to file — it stays a developer-todo item. Ledger pointer unchanged; escalated in the run
+  summary instead.
+
+Deliberately NOT filed: the two websocket ping timeouts and the single Exposed serialization retry
+(self-healed, 1 occurrence in 9 days — though "Wait 0 milliseconds before retrying" is a retry with
+no backoff, worth a glance if it ever recurs); the single Android `previous_exit=oom`.
+
+FOR A HUMAN: two things. (1) **iOS has now sold nothing to three separate users over 36 days** and
+the fix is a console task only you can do — this is the highest-value hour available anywhere in
+the project right now. (2) ENG-45 is the first defect we've had whose cost grows with engagement:
+it punishes the players who play the most, and it stayed invisible for 8 days because it returns
+200. Worth reading the "Why nothing caught it" section of the case file before deciding how much
+ENG-46 is worth.
+-->
+- 2026-08-28 · CARDS-BW · todo: ENG-45 [P0] progression sync wedged in a growing loop — server answers 200 OK in 306–501s (one transaction per event, 2,703 events for one user), client times out at 30s and never marks rows synced · https://elijah-dangerfield.sentry.io/issues/CARDS-BW · case docs/agent/feedback-cases/CARDS-BW.md
+- 2026-08-28 · sweep:no-latency-alert · todo: ENG-46 [P1] A1–A8 and dc-infra are blind to slow-but-successful requests; 501s calls logged 200 OK at INFO and tripped nothing · grafanacloud-logs `{service_name="cards-server", deployment_environment="prod"} |~ "progression"` · case docs/agent/feedback-cases/CARDS-BW.md
+- 2026-08-28 · CARDS-BX · no-action: single 401 on messages/sync from a warm-boot token race; session intact, self-heals on the next foreground edge, no recurrence · https://elijah-dangerfield.sentry.io/issues/CARDS-BX · case docs/agent/feedback-cases/CARDS-BX.md
+- 2026-08-28 · CARDS-8V · no-action: re-opened — materially worse (2 new iOS installs on 08-28, now 3 real users), but the remaining fix is App Store Connect only; still owned by the developer-todo.md ASC item, left unresolved · https://elijah-dangerfield.sentry.io/issues/CARDS-8V · case docs/agent/feedback-cases/CARDS-8V.md
+- 2026-08-28 · sweep:2026-08-28 · no-action: A1–A8 none firing/pending; 4 server warn lines in 9d (2 ws ping timeouts + 1 self-healed Exposed serialization retry); crash-free 7d 25 clean / 1 android oom / 28 unknown (iOS, ENG-25) · dc-pulse / dc-infra / grafanacloud-logs

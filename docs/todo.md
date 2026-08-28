@@ -48,6 +48,22 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Values are strings, so match `="true"` not a bool. **"Accounts (all-time)" can't be filtered this way** — it's a Postgres count over `profiles`, which has no telemetry attrs; either drop it from scope or join on something server-side. Attribute semantics: `docs/wiki/app-events.md` → "Install and device facts".
 
+## ENG-45 [P0] — Stop progression sync from wedging itself: batch the server write, page the client flush
+
+**Problem:** One retail Android player's `/v1/me/progression/sync` has taken 5–8 minutes server-side (200 OK) every attempt since 2026-08-21, so the client times out at 30s, never marks rows synced, and re-sends a batch that grows every session — 306s → 501s over the week, now 2,703 events (60% of all `xp_events`). The server runs one DB transaction per event; the client posts every unsynced row with no cap. No XP or chips lost; convergence and cost are what's broken.
+
+**Acceptance:** A 2,000-event batch syncs in one transaction well under a second, and an existing oversized backlog fully drains across repeated `sync()` calls. Red-first: a server test that the batch is one transaction (not N), and a client test that a backlog larger than one page drains and marks every row.
+
+**Hints:** Server `ProgressionRoutes.kt:74` (`body.events.map { applyXp }`) + `PostgresProgressionRepository.applyXp` (own `database.transaction` per event) → single batch insert `ON CONFLICT DO NOTHING` + one total `UPDATE`. Client `ProgressionRepositoryImpl.sync()` + `XpEventDao.getUnsynced()` (no LIMIT); `RetryPolicy.idempotent()` multiplies each attempt. Same unbounded flush in `PlayStyleEventDao` / `PlayerStatEventDao` / `AchievementDao` — fix the class. Case `docs/agent/feedback-cases/CARDS-BW.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-BW.
+
+## ENG-46 [P1] — Alert on slow-but-successful server requests (A1–A8 are blind to them)
+
+**Problem:** The ENG-45 requests each logged `200 OK` at INFO for up to 501 seconds and tripped nothing. A1–A8 cover ledger drift, Fly/Supabase down, backend-unreachable, purchase failures, OOM, silence and dropped SKUs — none covers a request that succeeds slowly, and no `dc-infra` panel charts per-route server latency.
+
+**Acceptance:** A route-level latency signal exists (panel + alert) that would have fired within a day of 2026-08-21, without paging on the legitimately-slow long-poll paths. Verify by replaying the window: the alert must trip on the real `progression/sync` data.
+
+**Hints:** Server durations are already in Loki (`{service_name="cards-server"}`, the `CallLogging.kt` `... in NNNms` line) — parse there rather than waiting on spanmetrics, since gameplay spans are INTERNAL-kind and never reach `traces_spanmetrics_*` (`docs/wiki/observability.md` → Known gaps). Alerts live in the `downcard-engineering` folder; `severity=critical` pages a phone, so this is a warning. Case `docs/agent/feedback-cases/CARDS-BW.md` → "Why nothing caught it".
+
 ## ENG-42 [P0] — Chart the iOS foreground-termination rate, then rule the welcome-screen kills real or not
 
 **Problem:** A retail iPad on the App Store build `cards@0.1.0+3` hit two `WatchdogTermination` fatals while foregrounded on the onboarding `welcome` step, then abandoned. The per-run signal to judge it now exists (`app.previous_run` splits `foreground_termination` from `background_exit`; `app.exit_metrics` carries the raw MetricKit watchdog counts), but nothing charts it, so it's still an anecdote instead of a rate.
