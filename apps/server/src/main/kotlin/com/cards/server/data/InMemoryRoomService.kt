@@ -53,7 +53,7 @@ import kotlin.time.Instant
  * critical section so observers see one consistent snapshot per change.
  *
  * Code generation: 6-char alphanumeric from an unambiguous alphabet
- * (no 0/O/1/I/L). 32^6 ≈ 1 billion combos — collision-rate analysis at
+ * (no 0/O/1/I/L). 31^6 ≈ 890 million combos — collision-rate analysis at
  * 10k concurrent rooms is < 1 / 100k creations. Retry on conflict
  * caps at [MAX_CODE_RETRIES] before giving up (would only fire under
  * pathological RNG misalignment).
@@ -133,9 +133,6 @@ class InMemoryRoomService(
     ): CreateResult = mutex.withLock {
         val activeHosted = rooms.values.count { it.room.hostUserId == hostUserId }
         if (activeHosted >= RoomService.MAX_ROOMS_PER_HOST) {
-            // Soft cap — see `RoomService.MAX_ROOMS_PER_HOST`. Honest
-            // workflows can always leave a prior room and try again; the
-            // sweep will eventually free abandoned ones too.
             return@withLock CreateResult.TooManyRooms(activeCount = activeHosted)
         }
         val now = clock.now()
@@ -200,8 +197,6 @@ class InMemoryRoomService(
             seatIndex = seatIndex,
             joinedAt = now,
             isConnected = false,
-            // See `create` — stamp disconnectedAt so the sweep treats
-            // "joined-but-never-opened-a-socket" the same as a clean drop.
             disconnectedAt = now,
             avatarEmoji = sanitizeMemberAvatar(avatarEmoji),
             avatarBackgroundColor = avatarBackgroundColor,
@@ -423,7 +418,6 @@ class InMemoryRoomService(
                 rooms.remove(code)
                 forget(code)
                 closedRoom = current
-                // Info: room lifecycle end — explains "the room disappeared."
                 log.info("Room $code closed: last member $userId left")
                 return@withLock LeaveResult.Success(roomGone = true)
             }
@@ -445,8 +439,6 @@ class InMemoryRoomService(
             )
             state.update(next)
             persist(next)
-            // Info: member churn + host migration is session-meaningful — answers
-            // "who left / who's host now" when a game's flow is reported as broken.
             if (nextHostUserId != current.hostUserId) {
                 log.info("Room $code: $userId left (was host); host migrated to $nextHostUserId, ${remaining.size} remain")
             } else {
@@ -495,10 +487,6 @@ class InMemoryRoomService(
         if (!current.wieldsHostPowers(requestedBy)) return@withLock AddBotResult.NotHost
         if (current.status != RoomStatus.Lobby) return@withLock AddBotResult.NotJoinable(current.status)
 
-        // Add bots up to [target] (or capacity) in ONE critical section, so a
-        // concurrent double-tap can't each fill from the same starting size and
-        // overshoot past the target into a packed table. Already at/over target →
-        // no-op success (idempotent).
         while (current.members.size < target && !current.isFull) {
             val seat = nextFreeSeat(current)
             current = current.copy(
@@ -604,7 +592,6 @@ class InMemoryRoomService(
         val next = current.copy(
             members = current.members.map { m ->
                 if (m.userId == userId) {
-                    // Stamp disconnectedAt on disconnect; clear it on reconnect.
                     // The sweep reads this stamp to decide grace-window expiry.
                     m.copy(
                         isConnected = connected,
@@ -717,13 +704,9 @@ class InMemoryRoomService(
             for (code in codes) {
                 val state = rooms[code] ?: continue
                 val current = state.room
-                // A member is sweepable iff they're currently disconnected
-                // AND the stamp on the disconnect is older than the cutoff.
-                // Note: create() and join() both stamp disconnectedAt = now,
-                // so "joined-but-never-opened-a-socket" is treated the same
-                // as a clean drop — both age into sweep eligibility at the
-                // same rate. The null-check is belt-and-braces; markConnected
-                // is the only path that clears the field.
+                // create() and join() both stamp disconnectedAt = now, so
+                // "joined-but-never-opened-a-socket" ages into sweep eligibility
+                // at the same rate as a clean drop.
                 val toReap = current.members.filter { member ->
                     val droppedAt = member.disconnectedAt
                     !member.isConnected && droppedAt != null && droppedAt <= cutoff
@@ -807,8 +790,6 @@ class InMemoryRoomService(
                 val swept = current.copy(hostUserId = nextHostUserId, members = survivors)
                 state.update(swept)
                 persist(swept)
-                // Info: seat-freeing after a drop — explains "my opponent vanished"
-                // or "I got kicked" in a reported session.
                 if (nextHostUserId != current.hostUserId) {
                     log.info("Room $code: reaped $userId (was host) after grace; host migrated to $nextHostUserId, ${survivors.size} remain")
                 } else {
@@ -913,20 +894,17 @@ class InMemoryRoomService(
         return candidates.firstOrNull { it.name !in seatedBotNames } ?: candidates.last()
     }
 
+    /** Lowest unused seat index — keeps the seating chart stable as people leave + rejoin. */
     private fun nextFreeSeat(room: Room): Int {
-        // Fill the lowest unused seat index — keeps the seating chart
-        // visually stable as people leave + rejoin.
         val taken = room.members.map { it.seatIndex }.toSet()
         for (i in 0 until room.maxSeats) if (i !in taken) return i
-        // Shouldn't be reachable thanks to the [isFull] check above, but
-        // belt + braces.
         error("No free seats in room ${room.code}")
     }
 
     companion object {
         const val CODE_LENGTH = 6
-        // Unambiguous alphabet — drops 0/O, 1/I/L. 32 chars × 6 length
-        // = ~1 billion combos.
+        // Unambiguous alphabet — drops 0/O, 1/I/L. 31 chars × 6 length
+        // = ~890 million combos.
         const val CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
         private const val MAX_CODE_RETRIES = 50
 

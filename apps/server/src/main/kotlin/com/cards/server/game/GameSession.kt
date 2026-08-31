@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
+import com.dangerfield.cards.libraries.gameplay.StepResult
 import com.dangerfield.cards.server.domain.HandOutcome
 import com.dangerfield.cards.server.domain.PlayerHandOutcome
 import com.dangerfield.cards.server.plugins.SpanAttrs
@@ -429,7 +430,7 @@ class GameSession internal constructor(
      * sealed type.
      */
     private sealed interface EngineResolution {
-        data class Resolved(val result: com.dangerfield.cards.libraries.gameplay.StepResult) : EngineResolution
+        data class Resolved(val result: StepResult) : EngineResolution
         data class Rejected(val reason: String) : EngineResolution
     }
 
@@ -783,16 +784,6 @@ class GameSession internal constructor(
     }
 
     /**
-     * Derive the per-hand-shape signals for the just-completed [finalState].
-     * Each human seat dealt into the hand gets a [PlayerHandOutcome] built
-     * from its start-of-hand stack ([handStartStacks]) versus its final
-     * stack. Bots are excluded — they never carry a server-witnessed grant.
-     *
-     * [events] is the engine step that completed the hand; its `HandEnded`
-     * carries the authoritative `byFold` per winner, which the stack delta
-     * can't distinguish from a showdown win.
-     */
-    /**
      * The stack [userId] settled with as of the last hand they were seated for, or
      * null if they were never dealt in. Read by the leave / teardown cash-out as a
      * fallback when the player holds no live seat, so a busted-and-dropped player is
@@ -804,6 +795,16 @@ class GameSession internal constructor(
         state.seats.forEach { seat -> seat.playerId?.let { lastKnownStacks[it] = seat.stack } }
     }
 
+    /**
+     * Derive the per-hand-shape signals for the just-completed [finalState].
+     * Each human seat dealt into the hand gets a [PlayerHandOutcome] built
+     * from its start-of-hand stack ([handStartStacks]) versus its final
+     * stack. Bots are excluded — they never carry a server-witnessed grant.
+     *
+     * [events] is the engine step that completed the hand; its `HandEnded`
+     * carries the authoritative `byFold` per winner, which the stack delta
+     * can't distinguish from a showdown win.
+     */
     private fun buildHandOutcome(finalState: GameState, events: List<GameEvent>): HandOutcome {
         val potTotal = finalState.seats.sumOf { it.contributedThisHand }
         val bustedOpponentCount = finalState.seats.count { seat ->
