@@ -48,6 +48,14 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Values are strings, so match `="true"` not a bool. **"Accounts (all-time)" can't be filtered this way** — it's a Postgres count over `profiles`, which has no telemetry attrs; either drop it from scope or join on something server-side. Attribute semantics: `docs/wiki/app-events.md` → "Install and device facts".
 
+## ENG-49 [P1] — Chart ANR/OOM by device class, then find what a low-end phone runs out of mid-game
+
+**Problem:** A retail moto g42 (3.59 GB, Play install, not side-loaded) was OOM-killed, then ANR-killed 33 minutes later on hand 22 of a live multiplayer game. It does **not** match the benign PairIP ANR exemption, which needs the emulator/side-load fingerprint this device lacks. Four distinct installs have hit OOM in 30 days; two of those are the ENG-45 wedge user and should stop once that ships.
+
+**Acceptance:** ANR and OOM charted by `device.class` and platform from `app.launched`'s `previous_exit`, so this is a rate rather than an anecdote. Then either reproduce a heap climb over a long session on a ~4 GB device and fix it, or show the remaining cluster is background kills and drop to P2.
+
+**Hints:** ANR stack is main-thread-blocked-on-render (`HardwareRenderer.nSyncAndDrawFrame` → `pthread_cond_wait`), no first-party frames. Prime suspect to profile first is the achievement celebration overlay — a dozen fired during that one game. Re-measure after ENG-45 ships to separate the XP-payload OOMs from the real low-end signal. Case `docs/agent/feedback-cases/CARDS-BZ.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-BZ.
+
 ## ENG-47 [P1] — Batch the play-style and player-stats sync writes the way progression now is
 
 **Problem:** `PlayerStatsRoutes.kt:49` and `PlayStyleRoutes.kt:63` still do `body.events.map { applyHand(...) }`, one transaction and ~4 statements per event — the exact shape that made ENG-45 a five-minute request. Their outboxes are capped at 25 rows as a stopgap so they can't wedge, which makes a backlog drain slowly instead of never.

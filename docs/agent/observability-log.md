@@ -541,3 +541,40 @@ ENG-46 is worth.
 - 2026-08-28 · CARDS-BX · no-action: single 401 on messages/sync from a warm-boot token race; session intact, self-heals on the next foreground edge, no recurrence · https://elijah-dangerfield.sentry.io/issues/CARDS-BX · case docs/agent/feedback-cases/CARDS-BX.md
 - 2026-08-28 · CARDS-8V · no-action: re-opened — materially worse (2 new iOS installs on 08-28, now 3 real users), but the remaining fix is App Store Connect only; still owned by the developer-todo.md ASC item, left unresolved · https://elijah-dangerfield.sentry.io/issues/CARDS-8V · case docs/agent/feedback-cases/CARDS-8V.md
 - 2026-08-28 · sweep:2026-08-28 · no-action: A1–A8 none firing/pending; 4 server warn lines in 9d (2 ws ping timeouts + 1 self-healed Exposed serialization retry); crash-free 7d 25 clean / 1 android oom / 28 unknown (iOS, ENG-25) · dc-pulse / dc-infra / grafanacloud-logs
+
+<!-- 2026-08-31 observability triage (owner-prompted: "I think we just got an ANR"). Yes, and it is
+a real one. Also two other new signals since the 08-28 sweep.
+
+- **`CARDS-BZ` (NEW, the ANR).** Fatal `ApplicationNotResponding: Background ANR` on a retail
+  moto g42 (3.59 GB, Android 13, `device.class=low`), Play install, `isSideLoaded=false`,
+  `simulator=False`, real Motorola build fingerprint. **Deliberately NOT exempted as the PairIP
+  class**: that exemption needs zero first-party frames AND the emulator/side-load fingerprint, and
+  this has only the first. Session story: cold launch already reporting `previous_exit=oom`, then
+  21 multiplayer hands over 22 minutes with ~12 achievement celebrations, then ANR on hand 22 with
+  the main thread blocked in `HardwareRenderer.nSyncAndDrawFrame` → `pthread_cond_wait`. Two
+  resource kills 33 minutes apart on one device. `app.in_foreground=False`, so no frozen screen —
+  but the process dies while the player is seated in a live hand against a real opponent, who then
+  waits out a timeout. Wider signal: 4 installs OOM-killed in 30d, though 2 of those are the
+  ENG-45 wedge user and should disappear when that ships. → **todo ENG-49 [P1]**, case CARDS-BZ.md.
+  P1 not P0: one event, one device, no user report, and the honest read is that we don't yet know
+  the rate. P1 not P2: it is fatal, on retail hardware, and it drops a real player out of a real
+  game.
+
+- **`CARDS-BY` (NEW, but it's ENG-45's tail, not a new bug).** Server-side
+  `BadRequestException: Failed to convert request body to ProgressionSyncRequest`, from
+  `JsonDecodingException` at **offset 212,992** — `$.events[1810].idempotencyKey`, "Expected
+  quotation mark but had EOF". install `6a17639a`: the same Pixel 7 whose outbox ENG-45 is about.
+  Their sync has now escalated from "times out after 500s" to "body truncated at ~208 KB and
+  rejected 400". Same root cause, same fix, already on develop — the client's 200-row page makes
+  that body ~15 KB. No new todo. It does raise the urgency of shipping ENG-45, and it is the most
+  likely explanation for that install's two OOM exits.
+
+- **`CARDS-BW`** unchanged in disposition, now 30 events, last seen 08-30. Still ENG-45, still
+  waiting on the release.
+
+FOR A HUMAN: the ENG-45 server fix deploys independently of the app release and would end
+`CARDS-BW` + `CARDS-BY` for the already-installed build the moment you approve the prod gate.
+That is still un-approved. The client half (paging) needs the store release to reach anyone.
+-->
+- 2026-08-31 · CARDS-BZ · todo: ENG-49 [P1] real retail low-end Android ANR-killed on hand 22 of a live MP game, 33min after an OOM on the same device; fails the PairIP benign gate on build image and install source · https://elijah-dangerfield.sentry.io/issues/CARDS-BZ · case docs/agent/feedback-cases/CARDS-BZ.md
+- 2026-08-31 · CARDS-BY · no-action: duplicate of ENG-45 — same install as CARDS-BW, oversized XP outbox now truncated at 212,992 bytes and rejected 400 instead of timing out; fix already on develop · https://elijah-dangerfield.sentry.io/issues/CARDS-BY · case docs/agent/feedback-cases/CARDS-BW.md
