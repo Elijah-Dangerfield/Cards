@@ -41,6 +41,13 @@ object ProfilesTable : Table("profiles") {
      * profile that's seen one authed `/v1/me` from a current client.
      */
     val installId = uuid("install_id").nullable()
+    /**
+     * Signup platform (V90) — `android` | `ios` | `other`, written once at
+     * insert from the caller's `X-Platform` header and never updated. NULL
+     * means the row predates V90, which is permanent: see the migration for
+     * why a lazy backfill would corrupt the growth graph it exists to serve.
+     */
+    val platform = text("platform").nullable()
     override val primaryKey = PrimaryKey(userId)
 }
 

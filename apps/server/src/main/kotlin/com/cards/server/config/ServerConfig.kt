@@ -221,6 +221,25 @@ data class AdminConfig(
      */
     val webDir: String = "apps/server/admin-web",
 ) {
+    /**
+     * Whether [presented] is the configured admin token. Constant-time over
+     * the expected length so the secret can't be recovered a character at a
+     * time; the length short-circuit isn't load-bearing, since a timing oracle
+     * leaks the length either way. An unconfigured server matches nothing.
+     *
+     * Lives on the config rather than at either call site because both the
+     * request gate (`authenticatedAsAdmin`) and the rate limiter need it, and
+     * two copies of a constant-time compare is how one of them quietly stops
+     * being constant-time.
+     */
+    fun matchesApiToken(presented: String?): Boolean {
+        val token = apiToken?.takeUnless { it.isBlank() } ?: return false
+        if (presented == null || presented.length != token.length) return false
+        var mismatch = 0
+        for (i in token.indices) mismatch = mismatch or (token[i].code xor presented[i].code)
+        return mismatch == 0
+    }
+
     companion object {
         fun fromEnv(env: Env): AdminConfig = AdminConfig(
             apiToken = env["ADMIN_API_TOKEN"],

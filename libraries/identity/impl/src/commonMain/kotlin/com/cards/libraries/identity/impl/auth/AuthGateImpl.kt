@@ -101,6 +101,12 @@ class AuthGateImpl(
                 healer.heal("authGate")
                 AuthReason.FinishingSetup
             }
+            // Backend unreachable — the session couldn't be verified. Route to the
+            // dismissible offline surface (enter the app behind the banner), not a
+            // NeedAccount wall or a SessionExpired recovery screen. Keyed off the
+            // reason so it holds even when the optimistic isOffline flag hasn't
+            // resolved yet (AUTH-30).
+            unauth?.reason == AuthState.Unauthenticated.Reason.Unreachable -> AuthReason.Offline
             appState.isOffline.value -> AuthReason.Offline
             unauth?.reason == AuthState.Unauthenticated.Reason.SessionExpired -> AuthReason.SessionExpired
             else -> AuthReason.NeedAccount

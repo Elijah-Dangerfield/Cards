@@ -463,6 +463,8 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
         override fun observeTimeAnchor(): Flow<CatalogTimeAnchor?> = MutableStateFlow(null)
         override fun observeIsRefreshing(): Flow<Boolean> = MutableStateFlow(false)
         override fun observeRefreshFailed(): Flow<Boolean> = MutableStateFlow(false)
+
+        override fun observeChipPacksUnavailable(): Flow<Boolean> = MutableStateFlow(false)
     }
 
     private class FakeAppConfigMap(realPurchasesEnabled: Boolean) : AppConfigMap() {

@@ -115,6 +115,14 @@ data class PlayPokerState(
     val quickBuyOpen: Boolean = false,
     /** True while a quick-buy IAP round-trip is in flight; the sheet shows a spinner. */
     val purchaseInFlight: Boolean = false,
+    /**
+     * True from the moment a rebuy is dispatched until the refilled seat comes
+     * back (or the attempt fails). Both rebuy CTAs read it to disable themselves
+     * and show that something is happening — the tap used to do nothing visible
+     * for a whole round-trip, so players tapped again, and one real rebuy
+     * averaged thirteen doomed duplicate intents (MP-38).
+     */
+    val rebuyInFlight: Boolean = false,
     /** The human's own derived play-style for their self-card; null pre-sync. */
     val ownPlayStyle: PlayStyleAxes? = null,
     /**
@@ -342,6 +350,13 @@ sealed interface PlayPokerAction {
      * [PlayPokerEvent.RebuyInsufficientChips].
      */
     data object Rebuy : PlayPokerAction
+
+    /**
+     * The rebuy round-trip came back without buying anything (refused, timed
+     * out). Re-arms the CTA so a player who tops up can try again. A *successful*
+     * rebuy doesn't fire this — that one clears on the refilled snapshot.
+     */
+    data object RebuyAttemptFailed : PlayPokerAction
 
     /** Fired by the AppCache mirror; flips the swipe-fold confirmation gate. */
     data class SwipeFoldAckChanged(val acknowledged: Boolean) : PlayPokerAction

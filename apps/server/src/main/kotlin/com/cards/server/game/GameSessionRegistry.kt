@@ -100,10 +100,18 @@ interface GameSessionRegistry {
      * Buy [userId]'s busted seat back into the table. Resolves via [peek]
      * (no hydrate — a rebuy only matters while a live in-memory session
      * exists) and delegates to [GameSession.rebuy]. Rejected when no session
-     * is registered for [code]. The route owns the wallet debit; this only
-     * refills the table stack.
+     * is registered for [code], in which case [authorizeBuyIn] never runs.
+     *
+     * The route still owns the wallet debit — it passes it as [authorizeBuyIn],
+     * which the session invokes under its own lock once the seat is confirmed
+     * busted. See [GameSession.rebuy] for why the ordering matters.
      */
-    suspend fun rebuy(code: String, userId: String, clientNonce: String): IntentResult
+    suspend fun rebuy(
+        code: String,
+        userId: String,
+        clientNonce: String,
+        authorizeBuyIn: suspend () -> IntentResult = { IntentResult.Accepted },
+    ): IntentResult
 
     /**
      * Queue a player who joined the room mid-hand to be dealt in at the next
@@ -257,8 +265,13 @@ class DefaultGameSessionRegistry(
     override suspend fun forfeitSeat(code: String, userId: String): IntentResult =
         peek(code)?.forfeitSeat(userId) ?: IntentResult.Accepted
 
-    override suspend fun rebuy(code: String, userId: String, clientNonce: String): IntentResult =
-        peek(code)?.rebuy(userId, clientNonce)
+    override suspend fun rebuy(
+        code: String,
+        userId: String,
+        clientNonce: String,
+        authorizeBuyIn: suspend () -> IntentResult,
+    ): IntentResult =
+        peek(code)?.rebuy(userId, clientNonce, authorizeBuyIn)
             ?: IntentResult.Rejected("no game session for room $code")
 
     override suspend fun queueJoiner(code: String, occupant: SeatOccupant) {

@@ -15,6 +15,7 @@ import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
@@ -22,6 +23,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -79,7 +83,7 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
 
         repo.sync()
 
-        assertTrue(xpDao.getUnsynced().isEmpty(), "applied rows are marked synced")
+        assertTrue(xpDao.pending().isEmpty(), "applied rows are marked synced")
         assertEquals(35L, progressionDao.getProgression()?.totalXp)
     }
 
@@ -94,7 +98,7 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
 
         repo.sync()
 
-        assertTrue(xpDao.getUnsynced().isEmpty(), "replay (AlreadyApplied) still marks the row synced")
+        assertTrue(xpDao.pending().isEmpty(), "replay (AlreadyApplied) still marks the row synced")
     }
 
     @Test
@@ -110,7 +114,7 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
 
         assertEquals(
             listOf("k1"),
-            xpDao.getUnsynced().map { it.idempotencyKey },
+            xpDao.pending().map { it.idempotencyKey },
             "an unknown outcome leaves the row pending for a newer client",
         )
     }
@@ -126,7 +130,7 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
         val result = repo.sync()
 
         assertTrue(result.isFailure)
-        assertEquals(listOf("k1"), xpDao.getUnsynced().map { it.idempotencyKey }, "failed sync keeps rows pending")
+        assertEquals(listOf("k1"), xpDao.pending().map { it.idempotencyKey }, "failed sync keeps rows pending")
         assertEquals(99L, progressionDao.getProgression()?.totalXp, "failed sync leaves the local total untouched")
     }
 
@@ -151,7 +155,7 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
         val keys = xpDao.observeRecentSnapshot().map { it.idempotencyKey }
         assertEquals(setOf("srv1", "srv2"), keys.toSet(), "echoed rows are inserted into the local feed")
         assertTrue(
-            xpDao.getUnsynced().isEmpty(),
+            xpDao.pending().isEmpty(),
             "re-hydrated rows are already on the server → inserted as synced",
         )
     }
@@ -211,7 +215,7 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
         repo.sync()
 
         assertEquals(1, hits, "the first sync flushes the pending degraded-play deltas")
-        assertTrue(xpDao.getUnsynced().isEmpty(), "applied degraded-play rows are marked synced")
+        assertTrue(xpDao.pending().isEmpty(), "applied degraded-play rows are marked synced")
         assertEquals(70L, progressionDao.getProgression()?.totalXp, "total reconciles to the server value")
 
         repo.sync()
@@ -255,7 +259,104 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
         assertEquals(0, chips.syncCalls, "a mint-less sync must not spam wallet pulls")
     }
 
+    @Test
+    fun backlogLargerThanOnePage_drainsWithoutEverOversizingARequest() = runUnitTest {
+        // ENG-45: the flush used to post every pending row in one request, so a
+        // backlog that timed out grew forever. Each request is capped now and
+        // the pages chain until the outbox is empty.
+        val backlog = (1..OUTBOX_PAGE_SIZE + 50).map { xpEvent("k$it", 1) }
+        val xpDao = FakeXpEventDao(*backlog.toTypedArray())
+        val sentSizes = mutableListOf<Int>()
+        val repo = buildRepo(FakeProgressionDao(seedTotalXp = 0L), xpDao) { request ->
+            val sent = request.sentKeys()
+            sentSizes += sent.size
+            respondJson(appliedResponse(totalXp = 250, keys = sent))
+        }
+
+        repo.sync()
+
+        assertEquals(listOf(OUTBOX_PAGE_SIZE, 50), sentSizes, "no single request carries more than a page")
+        assertTrue(xpDao.pending().isEmpty(), "every row in the backlog ends up marked synced")
+    }
+
+    @Test
+    fun backlogBeyondOneSyncsBudget_drainsAcrossRepeatedSyncCalls() = runUnitTest {
+        val backlog = (1..OUTBOX_PAGE_SIZE * OUTBOX_MAX_PAGES_PER_SYNC + 25).map { xpEvent("k$it", 1) }
+        val xpDao = FakeXpEventDao(*backlog.toTypedArray())
+        var requests = 0
+        val repo = buildRepo(FakeProgressionDao(seedTotalXp = 0L), xpDao) { request ->
+            requests++
+            respondJson(appliedResponse(totalXp = backlog.size.toLong(), keys = request.sentKeys()))
+        }
+
+        repo.sync()
+
+        assertEquals(OUTBOX_MAX_PAGES_PER_SYNC, requests, "one sync spends a bounded number of requests")
+        assertEquals(25, xpDao.pending().size, "what's left waits for the next sync edge")
+
+        repo.sync()
+
+        assertTrue(xpDao.pending().isEmpty(), "the next sync finishes the drain")
+    }
+
+    @Test
+    fun partialDrain_doesNotWalkTheLocalTotalBackwards() = runUnitTest {
+        // The server total only counts rows it has taken. Writing it bare after
+        // each page dropped the player's XP bar to the partial figure and
+        // climbed it back page by page — and left it there if the drain ran out
+        // of budget.
+        val backlog = (1..OUTBOX_PAGE_SIZE * OUTBOX_MAX_PAGES_PER_SYNC + 25).map { xpEvent("k$it", 1) }
+        val progressionDao = FakeProgressionDao(seedTotalXp = backlog.size.toLong())
+        val xpDao = FakeXpEventDao(*backlog.toTypedArray())
+        var taken = 0L
+        val repo = buildRepo(progressionDao, xpDao) { request ->
+            val sent = request.sentKeys()
+            taken += sent.size
+            respondJson(appliedResponse(totalXp = taken, keys = sent))
+        }
+
+        repo.sync()
+
+        assertEquals(25, xpDao.pending().size, "this sync spent its budget with rows left over")
+        assertEquals(
+            backlog.size.toLong(),
+            progressionDao.getProgression()?.totalXp,
+            "XP still in the outbox counts toward the displayed total",
+        )
+    }
+
+    @Test
+    fun pageTheServerResolvesNothingFrom_stopsInsteadOfSpinning() = runUnitTest {
+        // A full page that comes back with nothing resolved means re-reading it
+        // would hand back the same rows — keep going and the loop never ends.
+        val xpDao = FakeXpEventDao(*(1..OUTBOX_PAGE_SIZE).map { xpEvent("k$it", 1) }.toTypedArray())
+        var requests = 0
+        val repo = buildRepo(FakeProgressionDao(seedTotalXp = 0L), xpDao) {
+            requests++
+            respondJson("""{"schemaVersion":1,"totalXp":0,"results":[]}""")
+        }
+
+        repo.sync()
+
+        assertEquals(1, requests, "an unresolved page ends the drain")
+        assertEquals(OUTBOX_PAGE_SIZE, xpDao.pending().size, "the rows stay pending for a later attempt")
+    }
+
     // ---------- Scaffolding ----------
+
+    private fun HttpRequestData.sentKeys(): List<String> = Json
+        .parseToJsonElement((body as TextContent).text)
+        .jsonObject
+        .getValue("events")
+        .jsonArray
+        .map { it.jsonObject.getValue("idempotencyKey").jsonPrimitive.content }
+
+    private fun appliedResponse(totalXp: Long, keys: List<String>): String {
+        val results = keys.joinToString(",") { key ->
+            """{"idempotencyKey":"$key","outcome":"Applied","totalXp":$totalXp}"""
+        }
+        return """{"schemaVersion":1,"totalXp":$totalXp,"results":[$results]}"""
+    }
 
     private fun buildRepo(
         progressionDao: FakeProgressionDao,
@@ -379,7 +480,13 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
         override fun observeSince(sinceEpochMs: Long): Flow<List<XpEventEntity>> = flow.asStateFlow()
         override fun observeRecent(limit: Int): Flow<List<XpEventEntity>> = flow.asStateFlow()
 
-        override suspend fun getUnsynced(): List<XpEventEntity> = rows.filter { !it.synced }
+        fun pending(): List<XpEventEntity> = rows.filter { !it.synced }
+
+        override suspend fun getUnsynced(limit: Int): List<XpEventEntity> =
+            rows.filter { !it.synced }.take(limit)
+
+        override suspend fun unsyncedDeltaXp(): Long =
+            rows.filter { !it.synced }.sumOf { it.deltaXp.toLong() }
 
         override suspend fun markSynced(keys: List<String>) {
             val set = keys.toSet()

@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
+import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.data.RelaxedGrantRateLimiter
 import com.dangerfield.cards.server.domain.BillingEventAction
 import com.dangerfield.cards.server.domain.BillingEventAttempt
@@ -406,7 +407,7 @@ class BillingRoutesTest {
         testApplication {
             application {
                 installSerialization()
-                installRateLimits()
+                installRateLimits(AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6))
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing {
@@ -486,7 +487,7 @@ class BillingRoutesTest {
         testApplication {
             application {
                 installSerialization()
-                installRateLimits()
+                installRateLimits(AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6))
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing { billingRoutes(catalog, validator, billing, profiles, rateLimiter, billingEvents, messages) }
@@ -629,7 +630,7 @@ class BillingRoutesTest {
 
     private class LineageProfiles(private val lineage: Set<UserId>) : ProfileRepository {
         override suspend fun findInstallLineage(userId: UserId): Set<UserId> = lineage
-        override suspend fun findOrCreate(userId: UserId): Profile = notNeeded()
+        override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = notNeeded()
         override suspend fun findById(userId: UserId): Profile = notNeeded()
         override suspend fun update(
             userId: UserId,

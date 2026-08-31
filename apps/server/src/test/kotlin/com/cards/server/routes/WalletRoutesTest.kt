@@ -14,6 +14,7 @@ import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletEvent
 import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
+import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
@@ -264,7 +265,7 @@ class WalletRoutesTest {
         testApplication {
             application {
                 installSerialization()
-                installRateLimits()
+                installRateLimits(AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6))
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing { walletRoutes(repo, messages) }
@@ -289,7 +290,7 @@ class WalletRoutesTest {
         testApplication {
             application {
                 installSerialization()
-                installRateLimits()
+                installRateLimits(AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6))
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing { walletRoutes(repo, messages) }

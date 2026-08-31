@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.core.AuthVerdict
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.networking.AccessDeniedBus
+import com.dangerfield.cards.libraries.networking.BannedState
 import com.dangerfield.cards.libraries.networking.SessionRejectionBus
 import com.dangerfield.cards.libraries.networking.AuthTokenProvider
 import com.dangerfield.cards.libraries.networking.ClientHeaders
@@ -14,6 +15,7 @@ import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.NetworkConfig
 import com.dangerfield.cards.libraries.networking.NetworkJson
+import com.dangerfield.cards.libraries.networking.indicatesBackendUnreachable
 import com.dangerfield.cards.libraries.networking.NetworkReachability
 import com.dangerfield.cards.libraries.networking.platformHttpEngineFactory
 import io.ktor.client.HttpClient
@@ -28,8 +30,10 @@ import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.request
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.HttpHeaders
+import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import me.tatarka.inject.annotations.Inject
@@ -47,6 +51,7 @@ class NetworkClientImpl(
     private val headersProvider: ClientHeadersProvider,
     private val reachability: NetworkReachability,
     private val accessDeniedBus: AccessDeniedBus,
+    private val bannedState: BannedState,
     private val sessionRejectionBus: SessionRejectionBus,
     // Lazy: AuthGate's impl (identity) reaches NetworkClient through its own
     // deps, so a direct injection would cycle at construction time.
@@ -55,13 +60,27 @@ class NetworkClientImpl(
 
     override val client: HttpClient by lazy {
         HttpClient(platformHttpEngineFactory) {
-            applyCommonConfig(config, headersProvider, reachability, accessDeniedBus)
+            applyCommonConfig(
+                config,
+                headersProvider,
+                reachability,
+                accessDeniedBus,
+                bannedState,
+                ::onAccountMissing,
+            )
         }
     }
 
     override val authenticatedClient: HttpClient by lazy {
         HttpClient(platformHttpEngineFactory) {
-            applyCommonConfig(config, headersProvider, reachability, accessDeniedBus)
+            applyCommonConfig(
+                config,
+                headersProvider,
+                reachability,
+                accessDeniedBus,
+                bannedState,
+                ::onAccountMissing,
+            )
             install(Auth) {
                 bearer {
                     // By the time loadTokens runs, authedCall has already
@@ -109,6 +128,18 @@ class NetworkClientImpl(
 
     override val sessionRejectionEpoch: Long
         get() = sessionRejectionBus.rejectionEpoch
+
+    /**
+     * Our server answered a verified token with "that account doesn't exist"
+     * (AUTH-29). Supabase still honours the token — it's our `auth.users` row
+     * that's gone — so the bearer plugin's refresh path will never notice, and
+     * without this every sync would keep firing doomed writes forever. Route it
+     * into the same rejection bus a server-rejected refresh uses so the session
+     * tears down once and the auth gate short-circuits the rest.
+     */
+    private suspend fun onAccountMissing() {
+        sessionRejectionBus.signalRejected(wasAnonymous = tokenProvider.isAnonymousSession())
+    }
 }
 
 private fun HttpClientConfig<*>.applyCommonConfig(
@@ -116,25 +147,38 @@ private fun HttpClientConfig<*>.applyCommonConfig(
     headersProvider: ClientHeadersProvider,
     reachability: NetworkReachability,
     accessDeniedBus: AccessDeniedBus,
+    bannedState: BannedState,
+    onAccountMissing: suspend () -> Unit,
 ) {
     install(ContentNegotiation) {
         json(NetworkJson)
     }
+    // Ahead of Auth on purpose: a banned request should be cut before the bearer
+    // plugin spends a token load or refresh on it.
+    install(bannedCircuitBreaker(bannedState))
     // Witnessed reachability: a response (any status, even 4xx/5xx) means the
     // round-trip worked; a failure *without* a response (timeout / IO / DNS /
     // captive portal) means it didn't. This is what lets the offline banner
     // reflect "actually online" rather than just the OS's "there's a path."
     HttpResponseValidator {
-        validateResponse { reachability.reportReachable() }
+        validateResponse { response ->
+            reachability.reportReachable()
+            clearBanIfStatusProbeSucceeded(response, bannedState)
+        }
         handleResponseExceptionWithRequest { cause, _ ->
             // A ResponseException means the server answered (a 4xx/5xx) — the
-            // network is fine. Anything else never reached the server.
+            // network is fine. Anything else never reached the server, unless we
+            // are the reason it didn't leave.
             if (cause !is ResponseException) {
-                reachability.reportUnreachable()
+                if (cause.indicatesBackendUnreachable()) reachability.reportUnreachable()
                 return@handleResponseExceptionWithRequest
             }
-            if (cause.response.status == HttpStatusCode.Forbidden) {
-                signalAccessDeniedIfEnveloped(cause.response, accessDeniedBus)
+            when (cause.response.status) {
+                HttpStatusCode.Forbidden ->
+                    signalAccessDeniedIfEnveloped(cause.response, accessDeniedBus, bannedState)
+                HttpStatusCode.Unauthorized ->
+                    signalAccountMissingIfEnveloped(cause.response, onAccountMissing)
+                else -> Unit
             }
         }
     }
@@ -204,15 +248,55 @@ internal data class AccessDeniedWire(
 internal suspend fun signalAccessDeniedIfEnveloped(
     response: HttpResponse,
     accessDeniedBus: AccessDeniedBus,
+    bannedState: BannedState,
 ) {
     Catching { response.body<AccessDeniedWire>() }
         .onSuccess { wire ->
-            accessDeniedBus.signalDenied(
-                AccessDeniedBus.Denial(
-                    reason = wire.reason,
-                    until = wire.until,
-                    appealUrl = wire.appealUrl,
-                ),
+            val denial = AccessDeniedBus.Denial(
+                reason = wire.reason,
+                until = wire.until,
+                appealUrl = wire.appealUrl,
             )
+            bannedState.setBanned(denial)
+            accessDeniedBus.signalDenied(denial)
         }
 }
+
+/**
+ * A `200` from the allowlisted account-status probe is the only thing that lifts
+ * a local ban. Gated on the exact path so an unrelated success — a public
+ * app-config fetch, say — can't clear a block the server still enforces.
+ */
+internal fun clearBanIfStatusProbeSucceeded(response: HttpResponse, bannedState: BannedState) {
+    if (!bannedState.isBanned) return
+    if (!response.status.isSuccess()) return
+    if (response.request.url.encodedPath != ACCOUNT_STATUS_PATH) return
+    bannedState.clearBanned()
+}
+
+/**
+ * Server's error envelope. Only [ProblemWire.error]'s `code` is read — the
+ * message is server-authored English we never show.
+ */
+@Serializable
+internal data class ProblemWire(val error: Problem) {
+    @Serializable
+    internal data class Problem(val code: String)
+}
+
+/**
+ * `account_not_found` is our server saying the token verified but its
+ * `auth.users` row is gone (AUTH-29): the session can't be saved, only replaced.
+ * Every other 401 stays untouched, including the ordinary expired-token one the
+ * bearer plugin refreshes through — misreading one of those as account death
+ * would sign people out over a hiccup.
+ */
+internal suspend fun signalAccountMissingIfEnveloped(
+    response: HttpResponse,
+    onAccountMissing: suspend () -> Unit,
+) {
+    val code = Catching { response.body<ProblemWire>().error.code }.getOrNull()
+    if (code == ACCOUNT_NOT_FOUND_CODE) onAccountMissing()
+}
+
+private const val ACCOUNT_NOT_FOUND_CODE = "account_not_found"

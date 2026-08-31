@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.http.ClientContext
 import com.dangerfield.cards.server.plugins.ServerMetrics
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
@@ -234,7 +235,7 @@ class DefaultOrphanAnonymousSweepTest {
             if (userId in cancelOn) throw CancellationException("simulated cancellation")
             if (userId in failOn) error("simulated profile delete failure")
         }
-        override suspend fun findOrCreate(userId: UserId): Profile = error("unused")
+        override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = error("unused")
         override suspend fun findById(userId: UserId): Profile? = error("unused")
         override suspend fun update(
             userId: UserId,

@@ -1,10 +1,10 @@
 # TODO
 
-**Last reviewed:** 2026-07-21 (todo-maintainer) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-08-28 (observability-triage + ENG-45 review) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
-**Build the best thing, not the smallest change.** Android is live (real users, real data); iOS isn't shipped yet. The goal is scalable, maintainable, production-ready systems: restructure or rebuild rather than stacking minimal patches. But Android now has a production population, so changes to schema, persisted state, or live behaviour must be safe for existing Android users (iOS has no users yet). When you pick an item up, take a step back and ask what's genuinely best for the project and the user, then build that. Full rule: AGENTS.md → Coding Guidelines and the `work-item` skill (`.claude/skills/work-item/`) → Picking work.
+**Build the best thing, not the smallest change.** **Both platforms are live with real users.** Android on Play, and iOS on the App Store since 2026-07-23 (`cards@0.1.0+3`, tag `v0.1.0`, release channel `store-ios-release`). The goal is scalable, maintainable, production-ready systems: restructure or rebuild rather than stacking minimal patches. But there is no longer a greenfield platform — changes to schema, persisted state, or live behaviour must migrate **and** be safe for the existing population on *both* Android and iOS. Treat any doc or skill that still says "iOS isn't shipped / iOS has no users yet" as stale. When you pick an item up, take a step back and ask what's genuinely best for the project and the user, then build that. Full rule: AGENTS.md → Coding Guidelines and the `work-item` skill (`.claude/skills/work-item/`) → Picking work.
 
 **Fixing a bug? Reproduce it with a failing test first.** Red (the test fails *because of the bug*), then green (the fix makes it pass). It proves you found the real cause, not a guess, and leaves a permanent regression guard. Can't reproduce it in a test? The harness is missing something — build that first. See AGENTS.md → Coding Guidelines.
 
@@ -24,58 +24,58 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## AUTH-29 [P1] — Authed user with no `auth.users` row gets a raw 500 and a silent client retry-storm
-
-**Problem:** When a valid JWT names a user id that's no longer in Supabase `auth.users` (account deleted/banned mid-session, or a token minted against the wrong Supabase project), every `/v1/me/*/sync` write fails the FK to `auth.users` and the server returns a raw Postgres 500. The client swallows it and retry-storms (26–30 events in seconds) with nothing shown to the user. Found 2026-07-24 by deleting test users in Supabase while their clients were live — Sentry CARDS-BF/BG/BH/BP + BJ/BK/BM/BN + BQ, all since resolved.
-
-**Acceptance:** Server detects "valid JWT, no `auth.users` row" before the child write and returns a clean typed response (401/409 → re-auth), not a 500 leaking the FK. Client maps it to sign-out + a "your session ended, sign in again" surface and stops the sync retry loop.
-
-**Hints:** FK is `*_user_id_fk[ey]` → `auth.users(id)` ([V11](../apps/server/src/main/kotlin/com/cards/server/db/../resources/db/migration/V11__fk_auth_users.sql)). Write path is the `findOrCreate` repos (progression/wallet/profile/player-stats/play-style) inside `Database.transaction`. Reproduce test-first with a JWT for an id absent from `auth.users`. Pairs with the backlog item "Surface a reason when a server-side no is absorbed silently."
-
-## ENG-35 [P1] — Banned client keeps firing (and Sentry-logging) doomed requests; no circuit breaker or un-ban recovery
-
-**Problem:** A banned user's client keeps sending normal requests that all 403 `{"reason":"banned"}` (Sentry CARDS-BG), each logged to Sentry as an error. There's no local short-circuit, and no way out of the blocking `AccessDeniedScreen` without an app relaunch. Sibling to AUTH-29 (that's the missing-`auth.users` 500 path; this is the clean-403 banned path).
-
-**Acceptance:** While banned, non-allowlisted requests are short-circuited client-side (zero wire traffic, no error telemetry); `/v1/me` stays allowlisted and a 200 clears the banned flag and dismisses the screen without relaunch. Expected 4xx (403 banned, 401) and user-cancellations no longer reach Sentry as errors.
-
-**Hints:** Reuse the `ExpectedControlFlow` short-circuit pattern (auth). Full plan, file list, and tests: [`docs/agent/feedback-cases/ENG-35.md`](agent/feedback-cases/ENG-35.md). Insertion point `NetworkClientImpl.applyCommonConfig`; classifier `SentryLogTree.shouldCaptureEvent`.
-
 ## ENG-36 [P1] — Diagnose the starter-grant "double-miss" and surface reveal health
 
-**Problem:** A new prod user saw neither the onboarding grant number nor the Home welcome-dialog backup, yet got their 10k chips. The onboarding miss was a null `onboarding.starterGrant` config (now seeded, V89) plus a tight 1.5s balance-sync window; why the Home backup *also* didn't fire is unconfirmed (`accountJustCreated` / `welcomeIdentity` race?). Both paths were silent until now.
+**Problem:** A new prod user saw neither the onboarding grant number nor the Home welcome-dialog backup, yet got their 10k chips. Why the Home backup didn't fire is unconfirmed (`accountJustCreated` / `welcomeIdentity` race?).
 
-**Acceptance:** Using the new `onboarding.grant_revealed` / `grant_reveal_degraded` events, confirm the double-miss cause and close it (e.g. widen `GRANT_REVEAL_TIMEOUT`, or make the Home backup fire whenever a fresh account never got a reveal). Add a `dc-funnel` panel: reveals by surface/source + degraded-with-no-backup.
+**Acceptance:** Using the `onboarding.grant_revealed` / `grant_reveal_degraded` events, confirm the double-miss cause and close it (widen `GRANT_REVEAL_TIMEOUT`, or make the Home backup fire whenever a fresh account never got a reveal). Add a `dc-funnel` panel: reveals by surface/source + degraded-with-no-backup.
 
-**Hints:** `OnboardingViewModel.kickOffGrantReveal` (`GRANT_REVEAL_TIMEOUT` = 1.5s); `GetHomeScreenNotification.welcome()` gating (`accountJustCreated`, `didSeeInitialGrantInOnboarding`, `welcomeIdentity`). Events in `docs/wiki/app-events.md`. Panel stays empty until the release carrying these events ships.
+**Hints:** `OnboardingViewModel.kickOffGrantReveal` (`GRANT_REVEAL_TIMEOUT` = 1.5s); `GetHomeScreenNotification.welcome()` gating (`accountJustCreated`, `didSeeInitialGrantInOnboarding`, `welcomeIdentity`). Events in `docs/wiki/app-events.md`; the panel stays empty until a build carrying them ships.
 
 ## ENG-37 [P1] — Consolidate the starter-grant reveal onto the Home notification manager (drop the onboarding-step race)
 
-**Problem:** The reveal exists twice: the bespoke onboarding "Starter grant" step (`kickOffGrantReveal`, which races the balance with a 1.5s `GRANT_REVEAL_TIMEOUT`) and the Home notification manager's `HomeNotification.Welcome`. The bespoke path is the fragile one that silently failed. **Decision (chosen): option B** — make the Home manager's `Welcome` the single, top-priority reveal and delete the onboarding-step race. Rationale: one arbiter for all launch/Home surfaces (future what's-new / promos / events all arbitrate against it instead of colliding); better timing (Home is past the account-creation cold start, so the real balance is likelier ready, with config as instant fallback); graceful re-present on resume when offline.
+**Problem:** The reveal exists twice — onboarding's `kickOffGrantReveal` (races the balance on a 1.5s `GRANT_REVEAL_TIMEOUT`) and the Home manager's `HomeNotification.Welcome`. **Decided:** make Home `Welcome` the single reveal and delete the onboarding race. That removes the backup, so the Home gating must be bulletproof first — **sequenced after ENG-36**.
 
-**This is NOT a straight swap — it removes the backup, so the Home `Welcome` gating must be bulletproof FIRST (depends on ENG-36).** Really consider the surrounding logic before ripping anything out: does `accountJustCreated` reliably survive the onboarding→Home handoff (prime suspect for the double-miss)? Is `welcomeIdentity` resolution timing race-free? Are `didSeeInitialGrantInOnboarding` semantics right once onboarding no longer sets it? The arbiter is a pure function, so there is **no excuse not to heavily unit-test it** — cover fresh account online, fresh account offline-then-reconnect, slow sync, Home resume re-present, account switch, process death mid-onboarding, and welcome-already-seen. It has to be bulletproof or it does not land.
+**Acceptance:** Onboarding no longer runs the balance race (`GRANT_REVEAL_TIMEOUT` deleted; at most a contentless "you're all set" beat); every new account sees the `Welcome` reveal exactly once, including offline-then-reconnect. The arbiter is a pure function, so unit-test it hard: fresh account online, offline-then-reconnect, slow sync, Home resume re-present, account switch, process death mid-onboarding, welcome-already-seen.
 
-**Acceptance:** Onboarding no longer runs the balance-race reveal (either no grant step, or a contentless "you're all set" beat); every new account sees the `Welcome` reveal exactly once via the manager, including the offline-then-reconnect path; `GRANT_REVEAL_TIMEOUT` and the balance race are deleted; all the gating edge cases above are covered by unit tests that would have caught the original double-miss.
+**Hints:** `OnboardingViewModel.kickOffGrantReveal`; arbiter `GetHomeScreenNotification` + `HomeNotificationSnapshot`; `accountJustCreated` latch from `/v1/me` `isNewAccount` (prime suspect — check it survives the onboarding→Home handoff).
 
-**Hints:** `OnboardingViewModel.kickOffGrantReveal`; pure arbiter `GetHomeScreenNotification` + `HomeNotificationSnapshot`; `HomeViewModel` snapshot `combine` / `presentPendingBlocking` / `DialogIntroDelay` / watermark latches; `accountJustCreated` latch in the profile repo (`/v1/me` `isNewAccount`). Sequenced after ENG-36.
+## ENG-38 [P1] — Filter emulator/sideload noise out of the `dc-pulse` health panels
 
-## ENG-38 [P1] — Emit stable install/device facts as OTel Resource attributes, then filter noise out of the dashboards
+**Problem:** The client now stamps `genuine_install` (+ `is_emulator`, `is_sideloaded`, `is_rooted`, `installer_package`, `device_class`, `os_version`) onto every record as a Loki structured-metadata field, but nothing reads it — the crash-free and DAU panels still count emulators as users.
 
-**Problem:** Prod client telemetry can't tell a genuine retail install from an emulator or a side-loaded store build, so that noise pollutes crash-free, DAU, and the all-time user count — one emulator ANR (CARDS-BR) dragged crash-free users to 94%. The launch events only carry `install_id` / `platform` / `previous_exit` / `release_channel`; the facts that identify noise aren't emitted.
+**Acceptance:** Filter the `dc-pulse` crash-free sessions/users/trend, DAU-by-device, and Installs-30d panels on `genuine_install="true"` behind a "show all" toggle var. Blocked until a store build carrying the attrs reaches prod: no record has the field yet, so filtering today zeroes row 1. Verify against live data first (`{service_name="cards-client"} | genuine_install="true"` returns rows), and calibrate — if `genuine_install="false"` is a rounding error, close this instead of filtering.
 
-**Acceptance:** Add stable install/device facts as OTel **Resource** attributes (set once at SDK init so they ride every log/span/metric): at minimum `is_emulator`, `is_sideloaded`, `installer_package`, `is_rooted` (+ `device_class`, `os_version` for segmentation). Verify the Loki OTLP mapping lands them as filterable structured metadata (promote only the low-cardinality genuineness booleans to labels, and only if cheap). Then update the `dc-pulse` crash-free / DAU / all-time-users panels to filter `genuine_install` with a dashboard "show all" toggle var (done via the Grafana MCP once a build carrying the attrs ships). **Tag, don't drop** — keep the noise queryable so we can still see piracy/emulator activity on purpose.
+**Hints:** Values are strings, so match `="true"` not a bool. **"Accounts (all-time)" can't be filtered this way** — it's a Postgres count over `profiles`, which has no telemetry attrs; either drop it from scope or join on something server-side. Attribute semantics: `docs/wiki/app-events.md` → "Install and device facts".
 
-**Hints:** Sentry already computes these (`isSideLoaded`, `device.class`, `os`) on the event — mirror that logic into the Resource. Resource init lives near the telemetry bootstrap (OTel/Sentry setup, cf. `GrafanaAppEvents`). Debug builds already route to the dev env, so the prod gap is specifically store-build-on-emulator. Keep new attrs low-cardinality.
+## ENG-47 [P1] — Batch the play-style and player-stats sync writes the way progression now is
 
-## ENG-39 [P1] — Stamp signup-platform on `profiles` and drive user growth from Postgres, not Loki
+**Problem:** `PlayerStatsRoutes.kt:49` and `PlayStyleRoutes.kt:63` still do `body.events.map { applyHand(...) }`, one transaction and ~4 statements per event — the exact shape that made ENG-45 a five-minute request. Their outboxes are capped at 25 rows as a stopgap so they can't wedge, which makes a backlog drain slowly instead of never.
 
-**Problem:** The all-time user count and growth-by-platform graph are install-based (Loki), so they cap at ~30d log retention and fold in emulator/side-load noise. Accounts (`profiles`) are created at onboarding completion — they persist forever in Postgres and are noise-light — but carry no `platform`, so they can't drive a by-platform growth curve.
+**Acceptance:** Both routes apply a batch in one transaction, and both outboxes go back to `OUTBOX_PAGE_SIZE` (delete `OUTBOX_PAGE_SIZE_PER_EVENT_ROUTE`). Same statement-count guard as `applyXpBatch_twoThousandEvents_costOneTransactionAndAHandfulOfStatements`.
 
-**Acceptance:** Add a `platform` column to `profiles` (new V-migration), **stamped once at profile creation and never updated** (= signup-platform, an immutable cohort dimension — do NOT refresh it per request, or a user who uses both OSes flip-flops and retroactively rewrites past growth bars). Client includes `platform` in the profile insert only. Repoint the `dc-pulse` growth graph to Postgres — cumulative `profiles` by `created_at` split by `platform` (persistent, no 30d wall, dedup-free). Keep the Loki install panel as the DAU/reach view. **Decision (chosen): a typed `profiles` column, not `auth.users` metadata** — it's the table the dashboards already query, it's typed/indexable, and it needs no `auth`-schema grant (the profiles count doesn't touch `auth.users` at all). Reversible if we'd rather use `app_metadata`. If we later want *multi-platform usage* (not signup-platform), model it separately — a `user_platforms` set or derive it from install/session telemetry — don't mutate this column.
+**Hints:** Play style is a pure sum, so it batches like progression. Player stats is not: `AchievementCounters.fold` is order-dependent (no-bust streak) and each row stores a derived `noBustStreak`, so fold sequentially in memory over the keys the insert actually returned, then write the aggregate once. Getting that wrong corrupts achievement counters — test the fold order explicitly.
 
-**Hints:** Profile-create path is the client's supabase-kt `findOrCreate` insert. Grafana Postgres datasource `ffrewas5byf40d` (prod) / `dfrex4f7bg7b4b` (dev) already runs SQL for panels 401–403. Pairs with ENG-38, whose `is_emulator` flag can optionally exclude dev/emulator activations from the count.
+## ENG-48 [P2] — Sustained concurrent flushes for one user 500 instead of queueing
 
-## ENG-40 [P2] — Wire the real iOS App Store id into the store-review deep link
+**Problem:** The pool runs REPEATABLE READ, so concurrent updates to one `user_progression` row abort with `40001`; Exposed retries a bounded number of times, then the request fails. Measured: 4 concurrent flushes of one user pass, 6 and 8 fail. Pre-existing (the per-event write had the same shape), and the batch fix makes it rarer by shortening requests, but `RetryPolicy.idempotent()` still overlaps retries.
 
-**Problem:** The welcome dialog's "Leave a store review" button opens the App Store write-review sheet on iOS, but the numeric App Store id doesn't exist yet, so the link uses a placeholder and won't resolve until the iOS listing is live.
+**Acceptance:** Concurrent flushes for one user converge instead of erroring — widen the retry budget for serialization failures, or serialise per user. A test at 8+ concurrent flushes passes without a 500 and without losing credit.
 
-**Acceptance:** Replace `APP_STORE_ID_PLACEHOLDER` in `features/home/impl/.../StoreReviewLink.kt` with the real App Store id (from App Store Connect once the listing exists), and confirm the deep link opens the review sheet on a device. Android already points at the live Play listing.
+**Hints:** `Database.transaction` wraps `newSuspendedTransaction`; Exposed 0.56 retries via `transaction.maxAttempts`. The writes themselves are already safe — `PostgresProgressionRepository.addToTotal` is a relative `total_xp = total_xp + ?`, so this is about availability, not correctness. Don't "fix" it by reverting to a read-then-write absolute update: that trades 500s for silent lost credit.
+
+## ENG-46 [P1] — Alert on slow-but-successful server requests (A1–A8 are blind to them)
+
+**Problem:** The ENG-45 requests each logged `200 OK` at INFO for up to 501 seconds and tripped nothing. A1–A8 cover ledger drift, Fly/Supabase down, backend-unreachable, purchase failures, OOM, silence and dropped SKUs — none covers a request that succeeds slowly, and no `dc-infra` panel charts per-route server latency.
+
+**Acceptance:** A route-level latency signal exists (panel + alert) that would have fired within a day of 2026-08-21, without paging on the legitimately-slow long-poll paths. Verify by replaying the window: the alert must trip on the real `progression/sync` data.
+
+**Hints:** Server durations are already in Loki (`{service_name="cards-server"}`, the `CallLogging.kt` `... in NNNms` line) — parse there rather than waiting on spanmetrics, since gameplay spans are INTERNAL-kind and never reach `traces_spanmetrics_*` (`docs/wiki/observability.md` → Known gaps). Alerts live in the `downcard-engineering` folder; `severity=critical` pages a phone, so this is a warning. Case `docs/agent/feedback-cases/CARDS-BW.md` → "Why nothing caught it".
+
+## ENG-42 [P0] — Chart the iOS foreground-termination rate, then rule the welcome-screen kills real or not
+
+**Problem:** A retail iPad on the App Store build `cards@0.1.0+3` hit two `WatchdogTermination` fatals while foregrounded on the onboarding `welcome` step, then abandoned. The per-run signal to judge it now exists (`app.previous_run` splits `foreground_termination` from `background_exit`; `app.exit_metrics` carries the raw MetricKit watchdog counts), but nothing charts it, so it's still an anecdote instead of a rate.
+
+**Acceptance:** A panel charts `foreground_termination` net of Sentry-reported crashes, split by platform, once a build carrying the events ships. Then either reproduce and fix the welcome-step hang, or show these were force-quits and drop this to P1.
+
+**Hints:** Read `docs/wiki/app-events.md` → "Reading `app.previous_run` honestly" first — `foreground_termination` is a candidate set, not a verdict, and Android is the calibration (it carries the same marker plus `ApplicationExitInfo` ground truth in `previous_exit`). Instrumentation is `RunOutcome*` in `:libraries:telemetry:impl`. Case `docs/agent/feedback-cases/CARDS-3.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-3.

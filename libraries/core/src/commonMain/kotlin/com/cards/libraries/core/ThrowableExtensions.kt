@@ -21,9 +21,13 @@ private fun Throwable.isThrowableCancellation() =
 
 /**
  * Marker for typed, expected control-flow throwables — a short-circuit the caller
- * is meant to handle, not a failure. Telemetry sinks drop these before they turn
- * into error events, so an expected signal that reaches an error-level log line
- * never inflates error counts. [AuthUnready] is the reference implementor.
+ * is meant to handle, not a failure. [AuthUnready] is the reference implementor.
+ *
+ * The contract is that an expected signal reaching an error-level log line never
+ * inflates error counts. It is enforced by `Throwable.isExpectedFailure()` in
+ * `:libraries:networking`, which every telemetry sink consults — Sentry drops the
+ * event, Grafana ships the record at DEBUG. Marking a throwable here is not on
+ * its own enough; that predicate is what the sinks actually read.
  */
 interface ExpectedControlFlow
 

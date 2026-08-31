@@ -2,7 +2,13 @@ package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.OnboardingAttempt
 import com.dangerfield.cards.libraries.core.LegalUrls
+import com.dangerfield.cards.libraries.core.logging.EXTRA_APP_EVENT
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.LogEntry
+import com.dangerfield.cards.libraries.core.logging.LogId
+import com.dangerfield.cards.libraries.core.logging.LogTree
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
 import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
@@ -35,6 +41,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /**
@@ -692,6 +700,244 @@ class OnboardingViewModelTest : CoroutineTest() {
 
         assertEquals(OnboardingAuthError.OAuthFailed, vm.state.authError)
         assertNull(vm.state.oauthInFlight)
+    }
+
+    // ---------- AUTH-31: abandonment settles at re-entry, not at VM clear ----------
+
+    @Test
+    fun backingOutOnWelcome_thenReturningAndCompleting_emitsNoAbandonment() = runUnitTest {
+        // The prod session the case file reconstructed: back out of Welcome,
+        // relaunch seconds later, finish 48s in. The funnel logged two
+        // abandonments for a user who completed.
+        val cache = FakeAppCache()
+        val clock = MutableClock()
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            newVm(cache = cache, clock = clock)
+            runCurrent()
+            assertEquals("welcome", cache.get().onboardingAttempt?.step, "landing on Welcome opens an attempt")
+
+            // Back out (app exits, VM clears), relaunch 12s later.
+            clock.advanceBy(12.seconds)
+            val relaunched = newVm(cache = cache, clock = clock)
+            runCurrent()
+
+            relaunched.takeAction(OnboardingAction.Finish)
+            runCurrent()
+
+            assertEquals(
+                emptyList(),
+                tree.eventNames().filter { it == "onboarding.abandoned" },
+                "a user who came back and finished is not an abandonment",
+            )
+            assertTrue(cache.get().hasUserOnboarded)
+            assertNull(cache.get().onboardingAttempt, "completing closes the attempt")
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    @Test
+    fun attemptOlderThanTheWindow_reportsOneAbandonmentOnNextLaunch() = runUnitTest {
+        val clock = MutableClock()
+        val cache = FakeAppCache(
+            initial = AppData(
+                onboardingAttempt = OnboardingAttempt(
+                    step = "pick_identity",
+                    startedAtEpochMs = clock.now().toEpochMilliseconds(),
+                ),
+            ),
+        )
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            clock.advanceBy(OnboardingViewModel.ABANDON_SETTLE_AFTER + 1.seconds)
+            newVm(cache = cache, clock = clock)
+            runCurrent()
+
+            assertEquals(
+                listOf("onboarding.abandoned"),
+                tree.eventNames().filter { it == "onboarding.abandoned" },
+            )
+            val extras = tree.eventExtras("onboarding.abandoned")
+            assertEquals("pick_identity", extras["step"], "the step reported is where they stopped, not where they are now")
+            assertEquals("stale", extras["reason"])
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    @Test
+    fun aSettledAttempt_isNotReportedAgainOnTheLaunchAfter() = runUnitTest {
+        val clock = MutableClock()
+        val cache = FakeAppCache(
+            initial = AppData(
+                onboardingAttempt = OnboardingAttempt(
+                    step = "welcome",
+                    startedAtEpochMs = clock.now().toEpochMilliseconds(),
+                ),
+            ),
+        )
+        clock.advanceBy(OnboardingViewModel.ABANDON_SETTLE_AFTER + 1.seconds)
+        newVm(cache = cache, clock = clock)
+        runCurrent()
+
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            newVm(cache = cache, clock = clock)
+            runCurrent()
+
+            assertEquals(
+                emptyList(),
+                tree.eventNames().filter { it == "onboarding.abandoned" },
+                "one event per abandoned attempt per install, however many times they relaunch",
+            )
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    @Test
+    fun anAttemptLeftBehindByAnOnboardedUser_isClearedWithoutReporting() = runUnitTest {
+        // Residue: the flag landed but the marker didn't clear. They onboarded,
+        // so there is nothing to report — just tidy up.
+        val clock = MutableClock()
+        val cache = FakeAppCache(
+            initial = AppData(
+                hasUserOnboarded = true,
+                onboardingAttempt = OnboardingAttempt(
+                    step = "welcome",
+                    startedAtEpochMs = clock.now().toEpochMilliseconds(),
+                ),
+            ),
+        )
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            clock.advanceBy(OnboardingViewModel.ABANDON_SETTLE_AFTER + 1.seconds)
+            newVm(cache = cache, clock = clock)
+            runCurrent()
+
+            assertEquals(emptyList(), tree.eventNames().filter { it == "onboarding.abandoned" })
+            assertNull(cache.get().onboardingAttempt)
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    @Test
+    fun advancingThroughSteps_movesTheAttemptWithoutRestartingItsClock() = runUnitTest {
+        val cache = FakeAppCache()
+        val clock = MutableClock()
+        val vm = newVm(cache = cache, clock = clock)
+        runCurrent()
+        val startedAt = cache.get().onboardingAttempt?.startedAtEpochMs
+
+        clock.advanceBy(30.seconds)
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+
+        val attempt = cache.get().onboardingAttempt
+        assertEquals("pick_identity", attempt?.step)
+        assertEquals(
+            startedAt,
+            attempt?.startedAtEpochMs,
+            "the window measures the whole run, so stepping forward must not reset it",
+        )
+    }
+
+    private class CapturingLogTree : LogTree() {
+        val entries = mutableListOf<LogEntry>()
+        override fun log(entry: LogEntry): LogId? {
+            entries += entry
+            return null
+        }
+
+        fun eventNames(): List<String> =
+            entries.mapNotNull { it.context.extras[EXTRA_APP_EVENT] as? String }
+
+        fun eventExtras(name: String): Map<String, Any?> =
+            entries.first { it.context.extras[EXTRA_APP_EVENT] == name }.context.extras
+    }
+
+    @Test
+    fun aClockThatMovedBackwards_doesNotWedgeTheAttemptForever() = runUnitTest {
+        // NTP or a timezone correction can land the wall clock behind where the
+        // marker was written. A negative age is younger than any window, so the
+        // attempt would never settle — and because logStepViewed preserves the
+        // original startedAtEpochMs, it stays stuck until real time catches up.
+        val clock = MutableClock()
+        val cache = FakeAppCache(
+            initial = AppData(
+                onboardingAttempt = OnboardingAttempt(
+                    step = "welcome",
+                    startedAtEpochMs = clock.now().toEpochMilliseconds(),
+                ),
+            ),
+        )
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            clock.advanceBy(-(30.days))
+            newVm(cache = cache, clock = clock)
+            runCurrent()
+
+            // Landing on Welcome opens a fresh attempt, so the marker is back —
+            // what matters is that it's a *new* one. Left wedged, logStepViewed
+            // would have carried the old start time forward forever.
+            assertEquals(
+                clock.now().toEpochMilliseconds(),
+                cache.get().onboardingAttempt?.startedAtEpochMs,
+                "an age we can't trust gets dropped and restarted, not carried forever",
+            )
+            assertEquals(
+                emptyList(),
+                tree.eventNames().filter { it == "onboarding.abandoned" },
+                "and it must not be reported either — we don't know what happened",
+            )
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    @Test
+    fun anAbsurdlyOldAttempt_isDroppedRatherThanReportedWithGarbageAge() = runUnitTest {
+        // A device that cold-boots with an unsynced clock writes the marker near
+        // the epoch, then NTP corrects. Reporting that as an abandonment puts an
+        // age of decades into the funnel.
+        val clock = MutableClock()
+        val cache = FakeAppCache(
+            initial = AppData(
+                onboardingAttempt = OnboardingAttempt(step = "welcome", startedAtEpochMs = 0L),
+            ),
+        )
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            newVm(cache = cache, clock = clock)
+            runCurrent()
+
+            assertEquals(
+                emptyList(),
+                tree.eventNames().filter { it == "onboarding.abandoned" },
+                "a decades-old age is a broken clock, not a user who walked away",
+            )
+            assertEquals(
+                clock.now().toEpochMilliseconds(),
+                cache.get().onboardingAttempt?.startedAtEpochMs,
+                "the unusable marker is replaced by one written against a clock we trust",
+            )
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    private class MutableClock : kotlin.time.Clock {
+        private var current = kotlin.time.Instant.fromEpochMilliseconds(1_700_000_000_000L)
+        override fun now() = current
+        fun advanceBy(duration: kotlin.time.Duration) { current += duration }
     }
 
     // ---------- Test scaffolding ----------

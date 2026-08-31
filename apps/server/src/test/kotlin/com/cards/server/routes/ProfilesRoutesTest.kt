@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.http.ClientContext
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
@@ -135,7 +136,7 @@ class ProfilesRoutesTest {
             return byId[userId]
         }
 
-        override suspend fun findOrCreate(userId: UserId): Profile = error("not used in this test")
+        override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = error("not used in this test")
 
         override suspend fun update(
             userId: UserId,

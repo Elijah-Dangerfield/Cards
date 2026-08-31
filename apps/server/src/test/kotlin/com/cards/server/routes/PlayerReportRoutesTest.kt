@@ -5,6 +5,7 @@ import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.domain.PlayerReportRepository
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
+import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
@@ -182,7 +183,7 @@ class PlayerReportRoutesTest {
         testApplication {
             application {
                 installSerialization()
-                installRateLimits()
+                installRateLimits(AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6))
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing { playerReportRoutes(repo) }

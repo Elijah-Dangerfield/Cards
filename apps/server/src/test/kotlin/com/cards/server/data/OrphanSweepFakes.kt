@@ -2,7 +2,7 @@ package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.server.domain.AcquisitionSource
 import com.dangerfield.cards.server.domain.ApplyOutcome
-import com.dangerfield.cards.server.domain.ApplyXpOutcome
+import com.dangerfield.cards.server.domain.ApplyXpBatchResult
 import com.dangerfield.cards.server.domain.FindOrCreateProgressionResult
 import com.dangerfield.cards.server.domain.FindOrCreateResult
 import com.dangerfield.cards.server.domain.FoundingMemberCatalog
@@ -16,6 +16,7 @@ import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletEvent
 import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.domain.XpEvent
+import com.dangerfield.cards.server.domain.XpEventInput
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -101,15 +102,10 @@ internal object OrphanSweepFakes {
 
         override suspend fun findOrCreateResult(userId: UserId): FindOrCreateProgressionResult =
             error("unused")
-        override suspend fun applyXp(
+        override suspend fun applyXpBatch(
             userId: UserId,
-            idempotencyKey: String,
-            deltaXp: Long,
-            source: String,
-            mode: String,
-            handId: String?,
-            wasBoosted: Boolean,
-        ): ApplyXpOutcome = error("unused")
+            events: List<XpEventInput>,
+        ): ApplyXpBatchResult = error("unused")
         override suspend fun recentEvents(userId: UserId, limit: Int): List<XpEvent> = emptyList()
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }

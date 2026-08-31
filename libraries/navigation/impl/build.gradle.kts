@@ -17,6 +17,8 @@ kotlin {
             implementation(projects.libraries.cards)
             // Auth-gate: reads AuthState + guest-creation state to gate routes.
             implementation(projects.libraries.identity)
+            // Access-denied screen: reads the latched ban + fires the status probe.
+            implementation(projects.libraries.networking)
             // Session-expired blocking screen copy.
             implementation(projects.libraries.resources)
             // `:features:profile` api carries `BugReportRoute`, the
@@ -34,6 +36,7 @@ kotlin {
             implementation(projects.libraries.core)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.cards)
+            implementation(projects.libraries.networking)
         }
     }
 }

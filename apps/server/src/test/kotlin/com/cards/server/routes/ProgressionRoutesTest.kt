@@ -2,13 +2,15 @@ package com.dangerfield.cards.server.routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import com.dangerfield.cards.server.domain.ApplyXpOutcome
+import com.dangerfield.cards.server.config.AdminConfig
+import com.dangerfield.cards.server.domain.ApplyXpBatchResult
 import com.dangerfield.cards.server.domain.FindOrCreateProgressionResult
 import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserProgression
 import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.XpEvent
+import com.dangerfield.cards.server.domain.XpEventInput
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
@@ -163,6 +165,114 @@ class ProgressionRoutesTest {
         }
     }
 
+    @Test
+    fun sync_appliesTheWholeBatchInOneRepositoryCall() = runTest {
+        // ENG-45: the route used to call the repo once per event, and each of
+        // those calls opened its own transaction. 2,703 events cost 500s in
+        // prod. The batch is one call now, whatever its size.
+        val repo = FakeProgressionRepo(recent = emptyList())
+        val events = (1..2_000).map { XpEventDto("k$it", deltaXp = 1, source = "hand", mode = "BOTS") }
+        callSync(repo, ProgressionSyncRequest(events = events)) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(1, repo.batchCalls, "the whole batch is one repository call")
+            assertEquals(2_000, resp.body<ProgressionSyncResponse>().results.size)
+        }
+    }
+
+    @Test
+    fun sync_mixedNewAndReplayedBatch_reportsPerKeyOutcomes() = runTest {
+        val repo = FakeProgressionRepo(recent = emptyList(), heldKeys = setOf("old"), seedTotalXp = 30)
+        callSync(
+            repo,
+            ProgressionSyncRequest(
+                events = listOf(
+                    XpEventDto("old", deltaXp = 30, source = "hand", mode = "BOTS"),
+                    XpEventDto("new", deltaXp = 12, source = "hand", mode = "BOTS"),
+                ),
+            ),
+        ) { resp ->
+            val body = resp.body<ProgressionSyncResponse>()
+            assertEquals(
+                listOf(XpEventOutcomeDto.AlreadyApplied, XpEventOutcomeDto.Applied),
+                body.results.map { it.outcome },
+            )
+            assertEquals(listOf(30L, 42L), body.results.map { it.totalXp }, "the running total tracks each key")
+            assertEquals(42L, body.totalXp)
+        }
+    }
+
+    @Test
+    fun sync_duplicateKeyInsideOneBatch_countsOnce() = runTest {
+        val repo = FakeProgressionRepo(recent = emptyList())
+        callSync(
+            repo,
+            ProgressionSyncRequest(
+                events = listOf(
+                    XpEventDto("dupe", deltaXp = 50, source = "hand", mode = "BOTS"),
+                    XpEventDto("dupe", deltaXp = 50, source = "hand", mode = "BOTS"),
+                ),
+            ),
+        ) { resp ->
+            val body = resp.body<ProgressionSyncResponse>()
+            assertEquals(50L, body.totalXp, "a key repeated inside one payload is awarded once")
+            assertEquals(
+                listOf(XpEventOutcomeDto.Applied, XpEventOutcomeDto.AlreadyApplied),
+                body.results.map { it.outcome },
+                "the repeat reads as a replay, exactly as it did event-at-a-time",
+            )
+        }
+    }
+
+    @Test
+    fun sync_fullReplay_movesNothing_andMintsNothing() = runTest {
+        // The wedged-client case: every key already on the server. The total
+        // must not move, so no rewarded level is crossed and no chips mint.
+        val repo = FakeProgressionRepo(
+            recent = emptyList(),
+            heldKeys = setOf("a", "b"),
+            seedTotalXp = 3_000,
+        )
+        val wallet = RecordingWalletRepo()
+        callSync(
+            repo,
+            ProgressionSyncRequest(
+                events = listOf(
+                    XpEventDto("a", deltaXp = 1_500, source = "hand", mode = "BOTS"),
+                    XpEventDto("b", deltaXp = 1_500, source = "hand", mode = "BOTS"),
+                ),
+            ),
+            wallet = wallet,
+        ) { resp ->
+            val body = resp.body<ProgressionSyncResponse>()
+            assertEquals(3_000L, body.totalXp, "a replay moves the authoritative total by zero")
+            assertTrue(body.results.all { it.outcome == XpEventOutcomeDto.AlreadyApplied })
+            assertTrue(wallet.applies.isEmpty(), "no crossing, no mint")
+            assertEquals(null, body.walletBalance)
+        }
+    }
+
+    @Test
+    fun sync_clampsEachEventToTheSanityCap() = runTest {
+        val repo = FakeProgressionRepo(recent = emptyList())
+        callSync(
+            repo,
+            ProgressionSyncRequest(
+                events = listOf(
+                    XpEventDto("huge", deltaXp = ProgressionRepository.MAX_EVENT_XP * 3, source = "hand", mode = "BOTS"),
+                    XpEventDto("negative", deltaXp = -500, source = "hand", mode = "BOTS"),
+                ),
+            ),
+        ) { resp ->
+            val body = resp.body<ProgressionSyncResponse>()
+            assertEquals(ProgressionRepository.MAX_EVENT_XP, body.totalXp, "each delta is clamped before it counts")
+            assertEquals(
+                listOf(ProgressionRepository.MAX_EVENT_XP, ProgressionRepository.MAX_EVENT_XP),
+                body.results.map { it.totalXp },
+                "the per-key running total reports clamped values too",
+            )
+        }
+    }
+
     // ---------- scaffolding ----------
 
     private fun xpEvent(
@@ -207,7 +317,7 @@ class ProgressionRoutesTest {
         testApplication {
             application {
                 installSerialization()
-                installRateLimits()
+                installRateLimits(AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6))
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing { progressionRoutes(repo, wallet) }
@@ -224,13 +334,23 @@ class ProgressionRoutesTest {
         }
     }
 
+    /**
+     * Mirrors the Postgres repo's batch contract: dedupe within the payload,
+     * clamp each delta, ignore keys already held, and move the total by the
+     * sum of what actually landed.
+     */
     private class FakeProgressionRepo(
         private val recent: List<XpEvent>,
+        heldKeys: Set<String> = emptySet(),
+        seedTotalXp: Long = 0,
     ) : ProgressionRepository {
         var recentEventsCalls: Int = 0
             private set
+        var batchCalls: Int = 0
+            private set
 
-        private var total: Long = 0
+        private val held = heldKeys.toMutableSet()
+        private var total: Long = seedTotalXp
 
         override suspend fun findOrCreateResult(userId: UserId): FindOrCreateProgressionResult =
             FindOrCreateProgressionResult(
@@ -245,17 +365,19 @@ class ProgressionRoutesTest {
 
         override suspend fun find(userId: UserId): UserProgression? = null
 
-        override suspend fun applyXp(
+        override suspend fun applyXpBatch(
             userId: UserId,
-            idempotencyKey: String,
-            deltaXp: Long,
-            source: String,
-            mode: String,
-            handId: String?,
-            wasBoosted: Boolean,
-        ): ApplyXpOutcome {
-            total += deltaXp
-            return ApplyXpOutcome.Applied(totalXp = total, wasAlreadyApplied = false)
+            events: List<XpEventInput>,
+        ): ApplyXpBatchResult {
+            batchCalls++
+            val applied = events
+                .distinctBy { it.idempotencyKey }
+                .filter { held.add(it.idempotencyKey) }
+            total += applied.sumOf { it.deltaXp.coerceIn(0L, ProgressionRepository.MAX_EVENT_XP) }
+            return ApplyXpBatchResult(
+                totalXp = total,
+                appliedKeys = applied.mapTo(mutableSetOf()) { it.idempotencyKey },
+            )
         }
 
         override suspend fun recentEvents(userId: UserId, limit: Int): List<XpEvent> {

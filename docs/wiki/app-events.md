@@ -9,9 +9,39 @@ Grafana Cloud Loki. The dashboards these feed are mapped in
 Dashboard queries treat this page as the source of truth for names and attributes. Names are
 dot-namespaced snake_case; every record automatically carries `session_id` + `install_id` +
 `is_offline` (per-record) plus resource attributes (`service.name="cards-client"`, deployment
-environment, version, platform). `is_offline` is `AppState.isOffline` captured **at emit time** —
+environment, version, platform, and the install/device facts below). `is_offline` is
+`AppState.isOffline` captured **at emit time** —
 records that ship later from the disk buffer still say what connectivity looked like when the
 event happened, so reliability funnels can segment "emitted offline" without span archaeology.
+
+### Install and device facts
+
+Every record also carries a block of resource attributes describing the install itself, resolved
+once per process by `InstallFactsProvider` and stamped on the Resource at SDK init (ENG-38). They
+exist because prod telemetry previously could not tell a retail install from an emulator or a
+re-signed build, so our own noise landed in crash-free and DAU — one emulator ANR pulled crash-free
+users to 94%.
+
+| Attribute | Values | Notes |
+| --- | --- | --- |
+| `genuine_install` | `true` / `false` | The one the dashboards filter on. `!is_emulator && !is_sideloaded && !is_rooted` |
+| `is_emulator` | `true` / `false` | Android: `Build` fingerprint/hardware/product heuristics. iOS: the `SIMULATOR_DEVICE_NAME` env var |
+| `is_sideloaded` | `true` / `false` | Derived from `installer_package` — true for anything outside the known store set |
+| `is_rooted` | `true` / `false` | Android: `test-keys` tag or an `su` binary. iOS: jailbreak paths, **skipped on the simulator** (the host is macOS, so every path exists) |
+| `installer_package` | `play_store`, `amazon_appstore`, `galaxy_store`, `app_store`, `testflight`, `other`, `none`, `unknown` | A closed token set, **not** the raw installer package name — this rides on every record and a raw name is an unbounded cardinality leak. iOS has no installer package, so the value is the receipt-derived distribution channel |
+| `device_class` | `low` / `medium` / `high` / `unknown` | Blunt hardware tier from RAM + core count (`deviceClassFor`). Both inputs must clear a threshold to promote. Mirrors the shape of Sentry's `device.class` |
+| `os_version` | e.g. `15`, `18.5.1` | Android `Build.VERSION.RELEASE`; iOS `NSProcessInfo.operatingSystemVersion` |
+
+Two rules these follow, and dashboards should assume:
+
+- **Tag, don't drop.** Nothing here suppresses a record. Emulator and sideload traffic still ships
+  and stays queryable; each panel decides whether to filter.
+- **A failed lookup never manufactures noise.** When a platform lookup throws, `installer_package`
+  is `unknown` and `genuine_install` stays `true`. Guessing the other way would silently delete
+  real users from the numbers these feed, which is a worse failure than under-counting noise.
+
+`testflight` is deliberately *not* a sideload — it is a real device running a real signed build.
+Segment it out with `release_channel` when you want retail only.
 
 **Query shape (verified against live Loki 2026-07-11):** stream is
 `{service_name="cards-client", deployment_environment="dev"|"prod"}`; `event_name`, `session_id`,
@@ -65,11 +95,26 @@ and anything already in a ledger.
 | Event | Attributes | Fires |
 |---|---|---|
 | `app.launched` | `cold_start` (always true), `previous_exit` (clean/crash/anr/oom/unknown) | Once per cold start, on the boot foreground (`GrafanaAppEvents.onForeground`) — after the session tracker rolls session #1, so it shares the boot's `session_id` with every other event (ENG-24; it used to fire at DI init and land orphaned on a pre-rollover id). Doubles as the pipeline smoke test. `previous_exit` comes from Android's historical exit reasons (API 30+; older devices report `unknown`); **iOS derives it from MetricKit** (`MXAppExitMetric` foreground exits), which is day-granular and lags up to 24h — each report is surfaced by exactly one launch then cleared, so most iOS launches say `unknown` and non-unknown values are daily samples, not per-run truth. Always segment by platform before reading exit rates |
+| `app.previous_run` | `outcome` (foreground_termination/background_exit/unknown), `previous_session_id`, `previous_run_age_sec` | Once per cold start, next to `app.launched` (`RunOutcomeReporter`). The per-run counterpart to `previous_exit`: a marker written synchronously on every foreground/background transition says where the app *was* when it stopped checking in, so a run that vanished on screen (`foreground_termination`) reads differently from one the user swiped out of the app switcher — swiping backgrounds the app first, so that lands as `background_exit`. `previous_session_id` joins to everything the dead run emitted. See the caveats below before reading a rate |
+| `app.exit_metrics` | `exit_normal`, `exit_abnormal`, `exit_watchdog`, `exit_memory_limit`, `exit_bad_access`, `exit_illegal_instruction`, `classified_as` | **iOS only**, once per MetricKit payload delivery (roughly daily). The raw `MXAppExitMetric` foreground counts that `previous_exit` reduces to one string — the only source for an actual iOS watchdog *rate*. Counts are cumulative within the payload's ~24h window, so chart them per delivery, never as a running total |
 | `app.foregrounded` | `cold_start` | Every foreground (`LifecycleAppEventLogger`); `cold_start=true` on the boot foreground |
 | `app.backgrounded` | `session_duration_sec` | Every background; `session_duration_sec` = whole seconds since the matching foreground (monotonic clock), so session length is a direct query — no span join needed. Omitted in the (shouldn't-happen) case of a background with no prior foreground |
 | `game.started` | `mode` (bots/multiplayer), `difficulty` | `PlayPokerViewModel` init |
 | `game.ended` | `mode`, `hands_played`, `duration_sec`, `end_reason` (left/bust/match_over/opponent_left/room_closed) | Once per session (latched) at whichever end path fires first |
 | `hand.completed` | `mode`, `hand_number`, `won`, `showdown` | Each hand the human actually played |
+
+### Reading `app.previous_run` honestly (ENG-42)
+
+`foreground_termination` is a **candidate set, not a verdict.** A hard crash, a device power-off, and
+an OS upgrade all kill a foregrounded process too, so the number only means something net of the
+crashes Sentry reports for the same `previous_session_id`. The rate to watch is
+`foreground_termination` minus known crashes, segmented by platform.
+
+Android is the calibration: it carries the same marker *and* has `ApplicationExitInfo` ground truth
+via `previous_exit`, so the two disagreeing on Android is the signal that the iOS reading can't be
+trusted either. Two more known blind spots: an install's first launch after picking this up has no
+prior marker and reports `unknown`, and `previous_run_age_sec` is wall-clock based, so it is omitted
+rather than reported negative when the device clock moves backwards between runs.
 
 ## Matchmaking funnel
 
@@ -98,9 +143,17 @@ All in `OnboardingViewModel`.
 | `onboarding.step_viewed` | `step` (welcome/pick_identity/how_it_works/starter_grant) | Each step entered (including back-navigation) |
 | `onboarding.auth_selected` | `method` (guest/google/apple), `returning` | Guest continue; OAuth/Apple sign-in success |
 | `onboarding.completed` | `duration_sec`, `account_ready` (false = degraded will-retry) | "Take a seat" |
-| `onboarding.abandoned` | `step` | Best-effort on VM clear without reaching Home; a process kill won't emit it — count step_viewed-without-completed sessions for the full picture |
+| `onboarding.abandoned` | `step`, `reason` (stale), `age_sec` | Settled at **re-entry**, not at VM clear: an unfinished run is recorded in `AppData.onboardingAttempt`, and the next launch that finds one older than 24h emits once and clears it. `step` is where the user stopped, not where they are now. Someone who backs out and comes back the same day to finish emits nothing, which is the point — see the caveat below |
 | `onboarding.grant_revealed` | `surface` (onboarding_step/home_backup), `source` (balance/config, onboarding_step only), `amount` | The starter-grant number was actually shown — on the onboarding grant step, or via the Home welcome-dialog backup. `source=config` means the live-balance sync missed the reveal window and the server-advertised value carried it |
 | `onboarding.grant_reveal_degraded` | — | The onboarding grant step could NOT show a number (no live balance within the 1.5s window and no `onboarding.starterGrant` config). User saw "lands when you reconnect". A degraded event with no later `surface=home_backup` reveal = the user never saw their starter chips |
+
+### Reading `onboarding.abandoned` honestly
+
+**It under-counts, on purpose.** Someone who walks away and never opens the app again emits nothing, because the event is settled by the *next launch* and there isn't one. Cross-check with step_viewed-without-completed sessions for the full denominator.
+
+That is the deliberate trade for killing a much worse failure. Until AUTH-31 the event fired from `OnboardingViewModel.onCleared()`, and on Android system back on the Welcome step exits the app — so backgrounding and returning logged an abandonment. In the first fortnight after launch that ran at roughly a two-thirds false-positive rate: 12 events from 6 installs, 4 of which went on to complete onboarding, and **100% of them read `step=welcome`** purely because Welcome is the only step where back leaves the app rather than stepping backwards. Any historical read of this event before AUTH-31 shipped carries that artifact, and the welcome-step concentration in particular means nothing.
+
+Over-counting was the more dangerous direction because it manufactured a problem that wasn't there — a welcome-screen drop-off that two other open items were about to reason from.
 
 ## Monetization funnel
 
@@ -114,6 +167,7 @@ Backend ledger owns the money truth; these cover the funnel around it.
 | `purchase.completed` / `.failed` / `.cancelled` | `product_id`, `error?` | IAP round-trip outcome |
 | `shop.item_redeemed` | `product_id`, `chip_cost` | Chip-funded cosmetic redeem + XP-boost purchase |
 | `game.rebuy` | `mode`, `via_quick_buy` | Rebuy accepted by the table |
+| `shop.catalog_skus_dropped` | `dropped`, `total`, `skus` | The platform store answered authoritatively and didn't recognize some or all chip-pack SKUs, so `reconcileAgainst` hid them (`ProductsRepositoryImpl`). Alerted on by **A8** — this is the gap A5 structurally can't see, because zero visible packs means zero purchase attempts and a permanently healthy success rate. `dropped == total` also raises the shop's honest empty state instead of silently vanishing the shelf. Segment by the `platform` resource attribute to tell an App Store Connect problem from a Play one (ENG-43, CARDS-8V) |
 
 ## Reliability from the client's chair
 

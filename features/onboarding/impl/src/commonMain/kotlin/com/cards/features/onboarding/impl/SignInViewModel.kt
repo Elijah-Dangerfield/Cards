@@ -116,7 +116,7 @@ class SignInViewModel(
                 // grant-flag bookkeeping needed: the Home dialog keys on the
                 // authoritative account-just-created signal (server `/v1/me`
                 // `isNewAccount`), which is false for a pre-existing account.
-                appCache.update { it.copy(hasUserOnboarded = true) }
+                appCache.update { it.copy(hasUserOnboarded = true, onboardingAttempt = null) }
                 updateState { it.copy(isSubmitting = false) }
                 logger.i { "Success → marked onboarded, NavigateToHome" }
                 sendEvent(SignInEvent.NavigateToHome)

@@ -245,6 +245,8 @@ Two variants, both must pass:
 
 **Expected:** Lands on Home with the same account — balance, XP, and level unchanged (session survives the upgrade; anonymous sessions carry a file-backed mirror that restores the Keychain copy if the OS store lost it). It must **never** silently reset to 10,000 chips / level 0 — that means a fresh guest was minted over the real account. If the session genuinely can't be recovered, the full-screen "session expired" recovery screen appears instead of Home, offering retry and an explicit sign-in / start-fresh choice; the session log shows `GuestSessionHealer` `STOP_FOR_RECOVERY`, not `MINT`.
 
+- Deleted-from-under-you variant (AUTH-29): with the app signed in and open, delete the account's row from Supabase `auth.users` in the dashboard, then trigger a sync (pull to refresh on Home, or play a hand). The same "session expired" recovery screen appears. The session log shows one `account_not_found` 401 and then nothing — no repeating failures, and no error entries in Sentry for the doomed calls.
+
 ---
 
 ### `ONB-19` ⚠️ 📱 Delete account → continue as guest shows true new-user state (AUTH-27)
@@ -506,6 +508,7 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 - Both devices show a live countdown ticking down (~60s). Device B (busted) sees "Rebuy in N or lose your seat" + a Rebuy CTA; Device A (winner) sees "Opponent busted. Auto-continues in N".
 - **Rebuy path:** B's rebuy clears the countdown on both devices and play resumes — A is not routed off, no result screen shows.
 - **Expiry path:** when the window expires, A sees a "You won the match" result (not a silent pop) and B sees "Match over"; tapping Done routes each off the dead table cleanly. A's wallet reflects the cashed-out stack on the surface they land on. (Covers todo MP-14.)
+- **Mashing Rebuy sends one rebuy (MP-38):** on the rebuy path, have Device B tap the Rebuy CTA five times as fast as possible (works on both the countdown banner and the bust dialog). The button goes disabled and reads "Buying in…" / "Buying back in…" on the first tap and stays that way until the refilled seat lands. B's wallet is debited exactly one buy-in, and the session log shows one rebuy, no `intent rejected: seat is not busted` warns. If the rebuy is refused (drain B's wallet below the buy-in first), the button comes back so a top-up-and-retry works.
 
 ---
 
@@ -544,6 +547,20 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** The report sheet's "Submit report" stays disabled until at least one reason is selected. Submitting files the report and toasts a confirmation ("Thanks. Our team will take a look."). The card's Report button flips to "Reported" and is disabled; reopening the card keeps it "Reported" for the session. The Report action shows on any human opponent regardless of whether the social features flag is on, and never on bots, empty seats, or your own card. Offline, the report toasts an error and the button reverts so it can be retried. (Covers todo MOD-1.)
 - **Reason picker + details (MOD-2):** the sheet offers multi-select reason tags (harassment, cheating, offensive name, spam, something else) plus an optional free-text box; the selected reasons and text ride with the report (a moderator can filter by category). Cancel closes the sheet without filing.
+
+---
+
+### `MOD-3` ⚠️ 📱 A blocked account stops talking to the server, and can un-block without a relaunch (ENG-35)
+
+**State:** a device signed in and sitting on Home, online. A second person (or the Supabase dashboard) able to set and clear `auth.users.banned_until` for that account.
+
+1. With the app open, ban the account from the dashboard.
+2. On the device, do something that syncs (pull to refresh on Home, play a hand, open the shop).
+3. Once the blocking screen appears, leave the app open and watch the network inspector (shake → "Network inspector") for a minute.
+4. Tap "Check again".
+5. Clear the ban from the dashboard, then tap "Check again" once more.
+
+**Expected:** The blocking screen appears with the usual copy plus a "Check again" button. After it appears, the inspector shows **no** further requests going out except the ones you trigger — no sync writes, no room calls. Tapping "Check again" fires exactly one `GET /v1/me`; while it's out the button reads "Checking…" and is disabled; on a still-banned answer the screen adds "Still blocked. If you have appealed, it can take a few days." Once the ban is cleared, "Check again" pops the screen and the app works normally with no relaunch. No entries appear in Sentry for any of the 403s. (Covers todo ENG-35.)
 
 ---
 
@@ -736,6 +753,16 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 3. Tap "Check for missing purchases".
 
 **Expected:** Each purchase shows its pack, chip amount, and status (Added / Pending / Refunded), newest first. A delisted pack still renders with a generic label, not a blank row. "Check for missing purchases" re-runs the outstanding-purchase drain and the list reloads; a purchase that resolves flips from Pending to Added. With no purchases the screen shows a calm "No purchases yet", and a failed load with nothing to show offers a retry, not a misleading empty state.
+
+### `SHOP-12` 🍎🤖 Shop explains itself when the store sells no chip packs
+
+**State:** a build whose platform store recognizes none of the chip-pack SKUs. On iOS that's the live App Store condition CARDS-8V describes; otherwise reproduce by pointing the build at a store account with no IAP products provisioned. Must be online, so the store answers rather than timing out. (Covers todo ENG-43.)
+
+1. Open the Shop and look at the top of the screen.
+2. Scroll the rest of the shop.
+3. Turn airplane mode on, force-quit, relaunch, and open the Shop again.
+
+**Expected:** The "Get chips" heading is still there, with an info banner under it saying chip packs are unavailable and that it's a problem on our end, not the user's account. The shelf does not silently disappear. Cosmetic shelves below it still render and chip-funded redeems still work. Offline, where the store never gave a real answer, the shop falls back to its normal cached behaviour and does **not** show the unavailable banner — an unreachable store must never read as a misconfigured one.
 
 ---
 

@@ -28,6 +28,8 @@ duplicate) if a resolved signal gets materially worse.
 | [CARDS-A2](https://elijah-dangerfield.sentry.io/issues/CARDS-A2) | `Server rejected replayed receipt for order …555` (iOS) | no-action: dup of BILL-13 (replayed-receipt cluster) |
 | [CARDS-AB](https://elijah-dangerfield.sentry.io/issues/CARDS-AB) | `Terminally rejected replayed receipt for order …555 — finishing it` (client) | no-action: dup of BILL-13; client's terminal-finish path logged at error → Sentry noise |
 | [CARDS-BR](https://elijah-dangerfield.sentry.io/issues/CARDS-BR) | `ApplicationNotResponding: ANR` (Android, syscall) | no-action: environmental — emulator/side-load ANR at PairIP license gate, no app frames (new benign class in wiki) |
+| [CARDS-3](https://elijah-dangerfield.sentry.io/issues/CARDS-3) | `WatchdogTermination` on the iOS onboarding welcome screen (App Store build) | → todo ENG-42 |
+| [CARDS-8V](https://elijah-dangerfield.sentry.io/issues/CARDS-8V) | Store did not recognize 3/3 chip-pack SKUs (**store-ios-release**) | → todo ENG-43 (**shipped 8a2360da**) + developer-todo (ASC), which is now the sole remaining owner and is human-only. **Supersedes the 2026-07-10 / CARDS-96 "dev store-listing noise" call — it's prod now.** Stays unresolved until the App Store Connect listing is fixed |
 | [CARDS-BS](https://elijah-dangerfield.sentry.io/issues/CARDS-BS) | `ProxyBillingActivity` NPE `getIntentSender()` (Android billing) | no-action: uncatchable upstream Play Billing crash (null PendingIntent in Google's onCreate); 1 event on a Play review-emulator. **NB (corrected 2026-07-27): 1009/billing-7.1.1 IS current prod (only release tag), NOT superseded; the 9.1.0 bump is develop-only/unreleased & not a confirmed fix.** Re-open if it hits a real retail device |
 
 ## Grafana signals
@@ -42,6 +44,9 @@ duplicate) if a resolved signal gets materially worse.
 | `alerts:A1-A7-2026-07-17-nightly` | Firing-alert sweep (A1–A7) + OnCall + Loki server warn/error/fatal sweep | no-action: none firing/pending, no OnCall groups; 4 WARN lines all apple_account_mismatch redeem rejections (covered by BILL-11/12/13) |
 | `alert:A5-false-page-2026-07-26` | A5 (billing critical) paged ~03:00Z; owner found nothing in Sentry/logs | no-action: FALSE ALARM — Loki datasource blip (connection refused) + `exec_err_state=Alerting` fired it; billing healthy (0 failed / 1 completed / 3 initiated in 48h). Fixed: A5 `exec_err_state=OK` + `runbook_url` → dc-billing-health; added a live Purchase-funnel section to that dashboard |
 | `sweep:2026-07-27-interactive` | Owner-requested "look for issues across Sentry + Grafana" | no-action: 1 Sentry issue (CARDS-BS → no-action); no alerts firing/pending; 0 cards-server warn/error/fatal in 24h; 4 one-off client warnings (noise) |
+| `sweep:2026-08-18-nightly` | Firing-alert sweep (A1–A7) + Loki server/client sweep | no-action: none firing/pending; 0 cards-server prod warn+ in 7d (357 scanned, stream live); iOS store traffic is live in the client stream |
+| `loki:duplicate-rebuy-intents` | 131 `intent rejected: seat is not busted` vs 10 `game.rebuy` in prod/14d | → todo MP-38 [P1] |
+| `loki:onboarding-abandoned-false-positive` | `onboarding.abandoned` fires on back-out; 4 of 6 "abandoned" installs completed | → todo AUTH-31 [P2] |
 
 ---
 
@@ -271,3 +276,268 @@ Grafana: alerting_manage_rules(states=firing,pending) → null (none firing). Lo
 
 No Grafana sweep this run (single-issue investigation, not a full nightly). -->
 - 2026-07-24 · CARDS-BR · no-action: environmental — emulator/side-load ANR at the PairIP license gate, entire stack is Android framework + native graphics with no app frames; new benign class added to observability.md · https://elijah-dangerfield.sentry.io/issues/CARDS-BR
+
+<!-- 2026-08-11 nightly observability triage (Phase 1b, stacked on Phase 1a's intake commit 2fe33166; feedback-triage filed no todos tonight). Sentry MCP not connected this session — fell back to the REST API with the keychain token. Reviewed 0 unresolved Sentry issues + 5 Grafana/log signals. Filed 1 todo (ENG-41 [P2]); no P0. The headline is that prod is genuinely idle, not that it's healthy.
+
+Sentry: **zero unresolved issues, full history.** `is:unresolved` returns 0 for both `statsPeriod=14d` and `''`; the 71 issues seen in the 14d window are all resolved (59) or ignored (12), and the newest event of any kind is 2026-07-29. Phase 1a resolved the last two (CARDS-BT/BV, the AUTH-30 feedback pair). Nothing to triage, nothing to re-open. No new case files from this channel.
+
+Grafana alerts: all seven A1-A7 `state=normal, health=ok`, last evaluated 2026-08-11 08:00-08:04Z (so the rules are live, not stale). `alerting_manage_rules(states=[firing,pending])` → null. A7 (Server silent) reads normal off Fly HTTP *metrics*, which is consistent with the machine being up and answering health checks even though the app log is near-silent — the two are different sources, not a contradiction.
+
+Prod is idle, and that's the real finding. cards-server prod Loki: 6 entries in 7d (3 in 48h), zero warn/error/fatal, and every line is inbound scanner noise (`/robots.txt`, GETs on POST-only routes) — no app traffic at all. cards-client prod: last event 2026-08-01 (~10d ago); `app.foregrounded` and every other event flatline after that. Checked whether that meant a broken telemetry pipeline rather than an empty population: prod Postgres `profiles` has 5 rows total, newest `created_at` 2026-07-29, so accounts stopped being created *before* telemetry went quiet. Population is genuinely zero; the pipeline is fine. Dashboard sweep therefore reads empty for the expected reason (cf. wiki "Known gaps": MP/Tempo/RED panels empty until real play resumes) and nothing was filed off an empty panel. FOR A HUMAN: ~10 days of no prod users at all is a business signal, not an engineering one — flagging it here because every health dashboard will read "green" while showing nothing.
+
+- admin-probe-2026-08-11 (NEW). The only non-owner `/v1/admin` traffic in 30d: `405 GET /v1/admin/messages` + `405 GET /v1/admin/grant-chips` (2026-08-08, 1s apart) and `401 GET /v1/admin/config/manifest` (2026-07-31), interleaved with `/robots.txt` 404s = a crawler, and the endpoint names are public because the repo is. NOT a breach: all seven admin routes are gated by `authenticatedAsAdmin` (constant-time `X-Admin-Token`), the 405s are Ktor method-mismatch fired before the handler, and A1 ledger drift is normal so no chips moved. The defensible defect underneath is observability: the 401 branch logs nothing at any level and `/v1/admin` opts into no rate-limit bucket (only the global 600 req/IP/min), so a brute force against the chip-minting route would look exactly like silence. → todo ENG-41 [P2], case admin-probe-2026-08-11.md. Judgement call made unattended: filed as P2, not P0 — the gate held, evidence is two probe requests, and nothing was breached.
+-->
+- 2026-08-11 · sentry:2026-08-11-nightly · no-action: zero unresolved Sentry issues (full history); newest event of any kind 2026-07-29 · https://elijah-dangerfield.sentry.io/issues/?query=is%3Aunresolved
+- 2026-08-11 · admin-probe-2026-08-11 · todo: ENG-41 [P2] make a failed /v1/admin token attempt visible (log + dedicated rate-limit bucket); gate held, no breach · https://cards.grafana.net/d/dc-infra · case docs/agent/feedback-cases/admin-probe-2026-08-11.md
+- 2026-08-11 · sweep:2026-08-11-nightly · no-action: A1-A7 all normal; cards-server prod 6 log lines/7d with 0 warn+; cards-client prod silent since 08-01 and prod `profiles` newest 07-29, so the population is genuinely empty, not a broken pipeline · dc-pulse / grafanacloud-logs
+
+<!-- 2026-08-18 nightly observability triage (Phase 1b, stacked on develop HEAD ff6de00b; Phase 1a
+committed nothing). Sentry MCP not connected — REST API + keychain token, `statsPeriod` omitted
+(the endpoint rejects 90d). Reviewed 2 unresolved Sentry issues + a Grafana alert/log sweep.
+Filed 2 todos (ENG-42 [P0], ENG-43 [P1]) + 1 human-only line in developer-todo.md; 1 no-action
+(the Grafana sweep). Both Sentry issues left unresolved with triage comments.
+
+**The headline is that iOS is live on the App Store and nobody's telemetry story reflects it.**
+Both unresolved issues carry `environment=store-ios-release`, `release=cards@0.1.0+3`, dist
+202607231404, `commit_sha 36aa3153f4ab` — which is tag `v0.1.0`, the only release tag. So the
+public iOS build has been out since 2026-07-23 with real retail users (iPhone17,2 ×2 installs,
+iPad15,3 ×1; iOS 26.5.2 / 26.6.1; locale en_SG), and both issues are in `substatus: regressed` —
+they were resolved as dev noise and came back as production. The 2026-08-11 run's "population is
+genuinely zero" conclusion was true for its window (client stream silent 08-01 → 08-10) but is no
+longer: `{service_name="cards-client", deployment_environment="prod"} | platform="ios"` now has
+205 entries across 3 streams in the last 8 days.
+
+- **CARDS-3** (`WatchdogTermination`, fatal/unhandled, 26 events since 2026-06-05, regressed, last
+  seen 08-14T01:40:53Z). Two kills 99s apart on ONE retail iPad (`simulator=false`, 6.7GB usable of
+  8GB, `in_foreground=true`), both on `OnboardingRoute`. Loki + breadcrumbs reconstruct it: cold
+  launch → `onboarding.step_viewed step=welcome` → four clean HTTP calls (200/200/200/204) →
+  ~86s with zero breadcrumbs → no `app.backgrounded` → gone; relaunch, same thing; third launch
+  backgrounded cleanly after 19s and the install never returned. The user never reached
+  `onboarding.auth_selected`. The other live iOS install completed onboarding in 34s the same
+  week, so it isn't universal. **Honest limit: we cannot tell a real hang from a force-quit.**
+  Sentry's watchdog detection is a next-launch heuristic, and `previous_exit` is `unknown` on all
+  of these launches — correctly, because ENG-25 made iOS `previous_exit` a consume-once MetricKit
+  sample that lands up to 24h late. `decisions.md` 2026-07-11 deferred per-run exit classification
+  "until iOS exit rates become load-bearing"; a fatal on the App Store build's first screen is that
+  trigger. → **todo ENG-42 [P0]**, case CARDS-3.md. Judgement call made unattended: P0 because it's
+  a fatal on the live store build on the first screen a new user sees and it took out one of two
+  iOS installs; the todo's own acceptance says to downgrade to P1 if the signal work shows these
+  were force-quits.
+
+- **CARDS-8V** (chip-pack SKUs unrecognized, 6 events since 2026-07-09, regressed, last seen
+  08-12T02:37:38Z). Phase 1a passed this over as "already dispositioned 2026-07-10, confirm and
+  move on". It does not survive the confirm. The 07-10 call (and this ledger's CARDS-96 twin, "dev
+  store-listing noise") was made when the events were dev builds; **every event in the current
+  window is `store-ios-release` on retail iPhones**, two distinct installs. StoreKit returns none
+  of `com.cards.iap.chips.{small,medium,large}`, `ProductsRepositoryImpl.reconcileAgainst` drops
+  all 3 packs, and the iOS shop renders an empty chip-pack section. iOS revenue is zero by
+  construction and has been for ~3.5 weeks. Verified in Loki on install ad8cc889's 08-12 first
+  launch (line logged twice at ERROR, then the user completed onboarding normally).
+  **Why nothing escalated it:** exactly the standing 2026-07-15 A5 blind spot in a new shape — A5
+  is a success *rate*, so zero visible packs means zero attempts means no `purchase.initiated` /
+  `purchase.failed`, and A5 reads healthy while the store sells nothing. `dc-revenue` at $0 is
+  indistinguishable from a quiet day. The one signal that exists is a bare ERROR string with no
+  `event_name`, no alert, no panel. Split by owner: the App Store Connect config is human-only →
+  **appended one line to developer-todo.md** (append-only; no existing entry touched — noted here
+  because that file is normally worker-forbidden, and a live revenue-zero condition with no record
+  seemed the worse failure); the visibility/graceful-degradation work is worker-pickable →
+  **todo ENG-43 [P1]**, case CARDS-8V.md. P1, not P0, because ENG-43 doesn't unblock the money —
+  the ASC item does.
+
+Grafana: `alerting_manage_rules(states=[firing,pending])` → null (none firing).
+`{service_name="cards-server", deployment_environment="prod"} | detected_level=~"warn|error|fatal"`
+over 08-11 → 08-18 → 0 lines, 357 scanned (base stream live, and up from 6 lines/7d on 08-11).
+Client prod iOS stream reviewed in full (see above). Nothing filed off a dashboard panel.
+
+FOR A HUMAN, three things:
+1. **iOS is live on the App Store and the docs don't say so.** `docs/todo.md`'s preamble still says
+   "Android is live …; iOS isn't shipped yet", and ENG-40 is still written as "until the iOS listing
+   is live". Both need a pass — left for `curate-todos`, not edited here.
+2. **The ASC chip-pack item is the only thing standing between the iOS build and revenue.** It's in
+   developer-todo.md now.
+3. **A5 has now been blind to two different money-loss modes** (the BILL-12 redeem-400
+   misclassification, standing since 07-15, and now zero-visible-packs). A success-rate alert with
+   no floor on attempt volume can't see either. Worth rethinking the rule shape, not just adding
+   another one — flagging rather than filing because it's a threshold-design call and Grafana is
+   read-only to me.
+-->
+- 2026-08-18 · CARDS-3 · todo: ENG-42 [P0] iOS OS-watchdog kills on the onboarding welcome screen (live App Store build, retail iPad); can't yet distinguish a real hang from a force-quit · https://elijah-dangerfield.sentry.io/issues/CARDS-3 · case docs/agent/feedback-cases/CARDS-3.md
+- 2026-08-18 · CARDS-8V · todo: ENG-43 [P1] store drops all 3 chip packs → iOS shop silently empty, nothing alerts (+ developer-todo line for the App Store Connect fix); supersedes the 2026-07-10 "dev noise" disposition — it's `store-ios-release` now · https://elijah-dangerfield.sentry.io/issues/CARDS-8V · case docs/agent/feedback-cases/CARDS-8V.md
+- 2026-08-18 · sweep:2026-08-18-nightly · no-action: A1–A7 none firing/pending; 0 cards-server prod warn/error/fatal over 7d (357 scanned, stream live); iOS store-release client traffic now live in Loki (205 entries/8d) · dc-pulse / grafanacloud-logs
+
+<!-- 2026-08-19 nightly triage (phase 1b). Sentry MCP was NOT connected this run; step 1 ran against
+the Sentry REST API with the keychain token instead. Note the project-issues endpoint only accepts
+statsPeriod '', '24h', '14d' — use the ORG issues endpoint with explicit start/end for a 30d/90d
+window, and always pass project=4511478399565824, because project=-1 sweeps the whole org and drags
+in unrelated projects (phony-games, should-we-break-up) whose issues are not ours.
+
+Sentry, verified rather than taken on faith from phase 1a: over both 30d and 90d the cards project
+has exactly two unresolved issues, CARDS-8V and CARDS-3, and both last-seen timestamps are unchanged
+from yesterday's run (08-12T02:37:38Z and 08-14T01:40:53Z), so neither is materially worse and
+neither re-opens. Both stay unresolved with their todos pending (ENG-43 + the App Store Connect
+developer-todo item; ENG-42). No Sentry writes made.
+
+Grafana: alerting_manage_rules(states=[firing,pending]) → null, nothing firing or pending. Note the
+skill's fixed-coordinate list is stale here: docs/wiki/observability.md documents EIGHT rules now,
+including A8 (store dropped chip-pack SKUs, hourly warning) added by the ENG-43 work, and A7 is live
+since launch rather than paused. A8 not firing is correct — it is event-driven and no iOS user has
+opened the shop since 08-12.
+
+Server logs 08-17→08-19: 0 warn/error/fatal, 23 scanned, base stream confirmed live. Client prod
+stream fully characterized over 14d (222 lines) rather than sampled — that is what turned up the one
+real finding below.
+
+One genuinely new signal, and it is about our own instruments rather than the product. See the case
+file: ExpectedControlFlow throwables are filtered out of Sentry and shipped to Loki anyway, so 11 of
+the 13 client ERROR lines in prod over 14d are AuthUnready. The session that surfaced it
+(install dec4b4be, store Android build 1026) is healthy — the auth gate blocked a profile write for
+a still-being-created guest, the healer fixed it in 13s, onboarding completed with account_ready=true.
+No user harm; the harm is to the error panel this triage reads. → todo ENG-44 [P2].
+
+FOR A HUMAN, two things:
+1. **The "512MB ceiling" in the skill and the infra notes is stale.** The prod Fly machine now
+   reports fly_instance_memory_mem_total ≈ 962 MiB, and mem_available sat flat at ≈488 MiB across
+   all 24h with no drift. There is no memory pressure and no creep. Not filed as a bug — it is a
+   docs correction, and Grafana is read-only to me.
+2. **Prod traffic is too small for dashboard anomaly detection to mean anything.** 31 app.foregrounded
+   in 14 days (28 android, 3 ios). Panels being flat is a sample-size fact, not a health verdict.
+   Worth remembering before reading any trend on dc-pulse as signal.
+-->
+- 2026-08-19 · CARDS-8V · no-action: re-verified, unchanged since 08-18 (last seen 08-12T02:37:38Z); already owned by ENG-43 + the App Store Connect developer-todo item, left unresolved · https://elijah-dangerfield.sentry.io/issues/CARDS-8V · case docs/agent/feedback-cases/CARDS-8V.md
+- 2026-08-19 · CARDS-3 · no-action: re-verified, unchanged since 08-18 (last seen 08-14T01:40:53Z); already owned by ENG-42, left unresolved · https://elijah-dangerfield.sentry.io/issues/CARDS-3 · case docs/agent/feedback-cases/CARDS-3.md
+- 2026-08-19 · loki:expected-controlflow-at-error · todo: ENG-44 [P2] expected control-flow throwables (AuthUnready) bypass GrafanaLogTree's filter and land in Loki at ERROR, making 85% of the client error tier noise · grafanacloud-logs `{service_name="cards-client", deployment_environment="prod"} | detected_level=~"warn|error|fatal"` · case docs/agent/feedback-cases/2026-08-19-expected-controlflow-loki.md
+- 2026-08-19 · sweep:2026-08-19-nightly · no-action: A1–A8 none firing/pending; 0 cards-server prod warn/error/fatal over 48h (23 scanned, stream live); prod Fly memory flat (~488 MiB available of ~962 MiB, 24h); 31 app.foregrounded/14d · dc-pulse / dc-infra / grafanacloud-logs
+
+<!-- 2026-08-20 nightly observability triage (Phase 1b, stacked on Phase 1a's 84f2b800; feedback-triage
+filed nothing tonight). Sentry MCP again not connected — REST API with the keychain token.
+
+**The headline: prod stopped being idle.** Every run since 08-11 recorded an empty population and
+said so. That reversed between last night's sweep and this one. cards-server prod Loki went from
+23 lines/48h to 1,278 lines/7d, all INFO, zero warn/error/fatal; the traffic is real multiplayer —
+matchmaking finds, socket connects, 220 `hand.completed`, 25 `game.started`, bot subsidy payouts,
+room open/close. Read every "flat panel" note in the 08-11 and 08-19 entries as expired.
+
+That matters beyond the summary line: the two findings below only exist because people played. A
+telemetry sweep against an idle app cannot find gameplay bugs, and for eight days this triage was
+confidently reporting green on a sample of nobody.
+
+Sentry: still exactly two unresolved issues in the cards project, CARDS-3 (26 events, last seen
+08-14T01:40:53Z) and CARDS-8V (6 events, last seen 08-12T02:37:38Z). Counts and last-seen are
+byte-identical to the 08-19 run, so neither is materially worse and neither re-opens. Both left
+unresolved. One pointer repointed: **ENG-43 shipped in 8a2360da**, so CARDS-8V's remaining owner is
+the App Store Connect item in developer-todo.md, which is human-only — the ledger row now says so
+rather than pointing at a closed todo. The two `ProductsRepository` ERROR lines in the client stream
+are that same issue (iOS build 3, 08-12), not a new one.
+
+Grafana: `alerting_manage_rules(states=[firing,pending])` → null. All eight rules A1–A8 read
+`state=normal, health=ok`, last evaluated within 45 minutes of the sweep, so they are live and not
+stale. A1 (ledger drift) normal is worth stating explicitly now that real chips are moving again.
+Fly prod memory: min available over 24h = 472 MiB of ~962 MiB, no creep. (The "512MB ceiling" in the
+skill's fixed coordinates is still wrong — flagged 08-19, repeating because it is still there.)
+
+Two new signals, both filed, both found in the client log stream rather than by an alert or a panel.
+
+- **`loki:duplicate-rebuy-intents` (NEW).** 131 `intent rejected: seat is not busted` warns against
+  10 `game.rebuy` successes over 14d — 57% of the entire client warn+ stream, from 3 installs on
+  Android store build 1026. Reconstructed per-hand: the first rebuy is accepted, then ~13 more fire
+  and are refused because the seat is no longer busted. Nothing dedupes `PlayPokerAction.Rebuy`
+  (`Submit` right above it in the same `when` does), and the CTA never disables, so a player who
+  gets no feedback for a round-trip taps again. Behind it is a real money-path race: the route
+  checks the busted seat off an unlocked `peek` before debiting the buy-in, so two concurrent
+  rebuys can both debit and fall into the compensating-refund path. Nothing was lost here (A1 drift
+  0; every duplicate landed after the accept) — but that is ordering luck, not a guarantee.
+  → **todo MP-38 [P1]**, case 2026-08-20-duplicate-rebuy-intents.md. Judgement call made
+  unattended: P1 not P0, because no chips moved and the compensator exists; P1 not P2, because it
+  is a live user-facing defect on a real-chip path.
+
+- **`loki:onboarding-abandoned-false-positive` (NEW).** 12 `onboarding.abandoned` events, 100% of
+  them `step=welcome`, which reads like a welcome-screen problem and is not one. 4 of the 6 installs
+  that "abandoned" went on to complete onboarding, and the 12 events came from those same 6
+  installs. `OnboardingViewModel.onCleared()` emits it, and system-back on Welcome exits the app, so
+  backgrounding-then-returning logs an abandonment — one traced session backed out twice and
+  finished 48s later. The step skew is an artifact of Welcome being the only step where back leaves
+  the app. → **todo AUTH-31 [P2]**, case 2026-08-20-onboarding-abandoned-false-positive.md. P2 for
+  consistency with ENG-44 (instrument accuracy, not a broken flow), but note it gates honest reads
+  for **ENG-36** (diagnoses the grant double-miss off these events) and **ENG-42** (deciding whether
+  the iOS welcome step really loses people). A ~67% false-positive rate pointing at exactly the
+  screen ENG-42 is investigating is the kind of corroboration that would push that call the wrong
+  way.
+
+Deliberately NOT filed: `App recomposed` ×32 (build 1026 predates the f7b67e11 fix — verified with
+`git merge-base --is-ancestor`), `AuthUnready` ×43 (owned by ENG-44), `SocketException` /
+`Unable to resolve host` (wiki known-benign), a single `insufficient_balance` on matchmaking/find,
+a single `room_not_found` from a mistyped code, one 10s intent timeout.
+
+FOR A HUMAN: with play resumed, this is the first fortnight where funnel and gameplay numbers mean
+anything. Two of the first three things they said were wrong (the abandonment metric above, and
+ENG-44's error panel from last night). Worth weighting instrument-correctness items higher than
+their P2 tags suggest before reading much into any dashboard trend. -->
+- 2026-08-20 · CARDS-3 · no-action: re-verified, unchanged since 08-18 (26 events, last seen 08-14T01:40:53Z); already owned by ENG-42, left unresolved · https://elijah-dangerfield.sentry.io/issues/CARDS-3 · case docs/agent/feedback-cases/CARDS-3.md
+- 2026-08-20 · CARDS-8V · no-action: re-verified, unchanged since 08-18 (6 events, last seen 08-12T02:37:38Z); ENG-43 shipped (8a2360da) so the sole remaining owner is the human-only App Store Connect item in developer-todo.md — ledger pointer repointed, issue left unresolved · https://elijah-dangerfield.sentry.io/issues/CARDS-8V · case docs/agent/feedback-cases/CARDS-8V.md
+- 2026-08-20 · loki:duplicate-rebuy-intents · todo: MP-38 [P1] one Rebuy tap fans out into ~13 intents (131 rejections vs 10 successes/14d); no client dedupe, CTA never disables, and the server debits off an unlocked seat read · grafanacloud-logs `{service_name="cards-client", deployment_environment="prod"} | detected_level=~"warn|error|fatal"` · case docs/agent/feedback-cases/2026-08-20-duplicate-rebuy-intents.md
+- 2026-08-20 · loki:onboarding-abandoned-false-positive · todo: AUTH-31 [P2] `onboarding.abandoned` fires on a back-out, so 4 of 6 "abandoned" installs actually completed and the welcome-step skew is an artifact · grafanacloud-logs `| event_name=~"onboarding.abandoned|onboarding.completed"` · case docs/agent/feedback-cases/2026-08-20-onboarding-abandoned-false-positive.md
+- 2026-08-20 · sweep:2026-08-20-nightly · no-action: A1–A8 all normal/ok and freshly evaluated, none firing/pending; 0 cards-server prod warn/error/fatal over 7d (1,278 INFO lines, stream busy with real MP play); Fly prod memory min-available 472 MiB/24h, no creep · dc-pulse / dc-infra / grafanacloud-logs
+
+<!-- 2026-08-28 observability triage (owner-requested, interactive). Sentry MCP still not connected;
+ran against the REST API with the keychain token. Note for future runs: the *project* issues
+endpoint only accepts statsPeriod '', 24h or 14d — use the **organization** endpoint
+(`/organizations/elijah-dangerfield/issues/?project=-1`) for a real 90d sweep.
+
+6 unresolved issues project-wide, two of them (`PHONY-GAMES-A`, `SHOULD-WE-BREAK-UP-Q`) belong to
+other Sentry projects and are out of scope. Zero unresolved feedback carriers/twins, so
+feedback-triage has nothing waiting either. No alerts firing or pending (A1–A8). Server warn+ over
+9 days is 4 lines total: two websocket `Ping timeout`s (client dropped, benign) and one
+`could not serialize access due to concurrent update` on `table_sessions.markClosing` that Exposed
+retried and won. Client crash-free 7d: 25 clean / 1 Android `oom` / 28 `unknown` (iOS, expected
+until ENG-25) — one device-side kill on a 26-launch sample, too small to file.
+
+- **`CARDS-BW` (NEW, and the headline).** `/v1/me/progression/sync` timing out at 30s for one
+  retail Pixel 7 install, 26 events over 8 days. The client blames the network; the server log
+  refutes that — it answers **200 OK in 306,000–501,000 ms**, climbing monotonically across the
+  week. Prod Postgres: that one user holds **2,703 of the 4,477 rows** in `xp_events`, at ~185 ms
+  per event = one Supabase round trip per statement. The server runs a full `database.transaction`
+  per event in a serial `map`; the client's `getUnsynced()` has no LIMIT and only marks rows synced
+  after a response it never receives. So the batch grows every session and the loop has no exit.
+  Money and XP are both safe (replays return `AlreadyApplied`, the total doesn't move, no crossing
+  mints, all rows are committed server-side) — what's broken is convergence and cost. The
+  second-largest user (669 rows) is already at 35s, so crossover is ~a week of steady play and the
+  whole engaged population walks into it. → **todo ENG-45 [P0]**, case CARDS-BW.md. P0 over P1
+  because it's live, worsening without bound, and holds a 5–8 minute request + Hikari connection on
+  a single-writer 512MB machine — an availability property that doesn't scale, even though no money
+  moved.
+
+- **`sweep:no-latency-alert` (NEW, found by the dashboard sweep).** Every one of those 8-minute
+  requests logged `200 OK` at INFO and tripped nothing. A1–A8 cover down/drift/failure/silence;
+  none covers *slow but successful*, and no `dc-infra` panel charts per-route server latency. The
+  suite is structurally blind to this whole failure class. → **todo ENG-46 [P1]**, same case file.
+
+- **`CARDS-BX` (NEW).** One 401 on `/v1/me/messages/sync`, 1 event, 1 user, warm-boot token race
+  after `BackgroundRollover` (repos had deferred as offline, network returned, request beat the
+  token refresh). Session intact (`SKIP_HAS_SESSION`), same install's other authed calls returned
+  200 in ~410 ms two days later, next foreground edge re-syncs. → **no-action**, resolved in
+  Sentry, case CARDS-BX.md.
+
+- **`CARDS-8V` (RE-OPENED as an escalation, not a new todo).** Previously dispositioned no-action
+  pointing at the human-only App Store Connect item. It got materially worse: **two new iOS installs
+  hit it on 2026-08-28** (96fe609f, fb0c0600), vs the single 08-12 install at last review. That's
+  three distinct real App Store users who have opened a shop selling nothing. The engineering half
+  (ENG-43, A8 alerting) shipped; the remaining fix is entirely in App Store Connect, so there is
+  nothing to file — it stays a developer-todo item. Ledger pointer unchanged; escalated in the run
+  summary instead.
+
+Deliberately NOT filed: the two websocket ping timeouts and the single Exposed serialization retry
+(self-healed, 1 occurrence in 9 days — though "Wait 0 milliseconds before retrying" is a retry with
+no backoff, worth a glance if it ever recurs); the single Android `previous_exit=oom`.
+
+FOR A HUMAN: two things. (1) **iOS has now sold nothing to three separate users over 36 days** and
+the fix is a console task only you can do — this is the highest-value hour available anywhere in
+the project right now. (2) ENG-45 is the first defect we've had whose cost grows with engagement:
+it punishes the players who play the most, and it stayed invisible for 8 days because it returns
+200. Worth reading the "Why nothing caught it" section of the case file before deciding how much
+ENG-46 is worth.
+-->
+- 2026-08-28 · CARDS-BW · todo: ENG-45 [P0] progression sync wedged in a growing loop — server answers 200 OK in 306–501s (one transaction per event, 2,703 events for one user), client times out at 30s and never marks rows synced · https://elijah-dangerfield.sentry.io/issues/CARDS-BW · case docs/agent/feedback-cases/CARDS-BW.md
+- 2026-08-28 · sweep:no-latency-alert · todo: ENG-46 [P1] A1–A8 and dc-infra are blind to slow-but-successful requests; 501s calls logged 200 OK at INFO and tripped nothing · grafanacloud-logs `{service_name="cards-server", deployment_environment="prod"} |~ "progression"` · case docs/agent/feedback-cases/CARDS-BW.md
+- 2026-08-28 · CARDS-BX · no-action: single 401 on messages/sync from a warm-boot token race; session intact, self-heals on the next foreground edge, no recurrence · https://elijah-dangerfield.sentry.io/issues/CARDS-BX · case docs/agent/feedback-cases/CARDS-BX.md
+- 2026-08-28 · CARDS-8V · no-action: re-opened — materially worse (2 new iOS installs on 08-28, now 3 real users), but the remaining fix is App Store Connect only; still owned by the developer-todo.md ASC item, left unresolved · https://elijah-dangerfield.sentry.io/issues/CARDS-8V · case docs/agent/feedback-cases/CARDS-8V.md
+- 2026-08-28 · sweep:2026-08-28 · no-action: A1–A8 none firing/pending; 4 server warn lines in 9d (2 ws ping timeouts + 1 self-healed Exposed serialization retry); crash-free 7d 25 clean / 1 android oom / 28 unknown (iOS, ENG-25) · dc-pulse / dc-infra / grafanacloud-logs

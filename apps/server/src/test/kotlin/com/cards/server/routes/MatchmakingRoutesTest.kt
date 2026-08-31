@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
+import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.data.InMemoryRoomService
 import com.dangerfield.cards.server.domain.FriendRepository
 import com.dangerfield.cards.server.domain.Profile
@@ -11,6 +12,7 @@ import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SendRequestResult
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.http.ClientContext
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
@@ -440,7 +442,7 @@ class MatchmakingRoutesTest {
         testApplication {
             application {
                 installSerialization()
-                installRateLimits()
+                installRateLimits(AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6))
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 val registry = com.dangerfield.cards.server.game.DefaultGameSessionRegistry(
@@ -512,14 +514,9 @@ class MatchmakingRoutesTest {
     private object StubProgression : com.dangerfield.cards.server.domain.ProgressionRepository {
         override suspend fun findOrCreateResult(userId: UserId) = error("unused")
         override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.UserProgression? = null
-        override suspend fun applyXp(
+        override suspend fun applyXpBatch(
             userId: UserId,
-            idempotencyKey: String,
-            deltaXp: Long,
-            source: String,
-            mode: String,
-            handId: String?,
-            wasBoosted: Boolean,
+            events: List<com.dangerfield.cards.server.domain.XpEventInput>,
         ) = error("unused")
         override suspend fun recentEvents(userId: UserId, limit: Int) =
             emptyList<com.dangerfield.cards.server.domain.XpEvent>()
@@ -528,7 +525,7 @@ class MatchmakingRoutesTest {
 
     private object StubProfiles : ProfileRepository {
         override suspend fun findById(userId: UserId): Profile? = null
-        override suspend fun findOrCreate(userId: UserId): Profile = Profile(
+        override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = Profile(
             userId = userId,
             displayName = "P-${userId.value.toString().take(4)}",
             avatarEmoji = "🃏",

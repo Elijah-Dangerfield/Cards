@@ -1050,3 +1050,39 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 **Idea (2026-07-26):** Make the `hotfix` skill fireable remotely so an alert on the phone → dispatch a fix from the GitHub mobile app, running in the cloud (not the owner's laptop, which is closed while asleep). Shape: a `hotfix.yml` workflow on `workflow_dispatch` (+ `repository_dispatch`) that runs Claude Code headless invoking the `hotfix` skill with the incident context; a `.mcp.json` wiring the Grafana + Sentry MCPs; Actions secrets (Anthropic key, scoped `gh` token, `FLY_API_TOKEN` for `flyctl releases rollback`, Grafana/Sentry tokens); allowed-tools set in the workflow (the app's permission bypass does NOT reach a CI runner). Ship behind a dry-run flag first (prepare + page, don't merge). Optional later: a cheap scheduled `incident-watch.yml` (~10-min plain-script poll of Grafana/Sentry that auto-dispatches) + a canary Grafana alert (crash-free on the just-shipped version) for fully-hands-off incident response.
 
 **Status:** Backlog. Owner triggers `/hotfix` locally for now. Pull when manual-local gets old or when "handle it while I'm away" becomes worth the setup. Full design in the 2026-07-26 chat; `docs/agent/README.md` → "Still to wire".
+
+## Cold boot on an unreachable backend takes ~30 s before the UI settles
+
+**Idea (2026-07-31):** From the AUTH-30 case (`docs/agent/feedback-cases/300814df036746f795d3b50ff0fc47ef.md`) — the reporter's lead complaint was "it took a long time to get into the app". On a captive-portal boot the launch requests (`/v1/app-config`, `/v1/avatars`, `/v1/products`) each burn the full 5 s `NetworkCall` timeout, and the auth resolve then runs 5 attempts, so ~30 s elapses before the app settles. Nothing is cancelled early and nothing is run against a fail-fast reachability probe first. Worth a look at running the launch fetches concurrently against a shorter first-attempt budget, and short-circuiting the resolve ladder once `appState.isOffline` is true rather than running it to exhaustion.
+
+**Status:** Backlog. Distinct from AUTH-30, which is the *destructive* half (the session teardown) and is a P0 todo; this is the *slow* half and is cosmetic by comparison. Pull after AUTH-30 lands, since that fix already touches the resolve ladder.
+
+## Correct the "iOS isn't shipped yet" framing in AGENTS.md and the agent skills
+
+**Idea (2026-08-18):** iOS has been live on the App Store since 2026-07-23 (`cards@0.1.0+3`, tag `v0.1.0`, `store-ios-release`), but four files still tell workers the opposite and explicitly license treating iOS data as greenfield: `AGENTS.md` (Coding Guidelines → "Build the best thing", ~line 392), `.claude/skills/work-item/SKILL.md` (three places: "Confidence gates ambition", "Reshape freely, but Android is live", and the migration-safety note), and `.claude/skills/review-and-pr/SKILL.md` (the migration-safety review gate). The review gate is the dangerous one: it currently instructs the reviewer to wave through migrations that assume a fresh iOS world. `docs/todo.md`'s preamble was corrected 2026-08-18; these were left because the curator's scope is todo-only.
+
+**Status:** Backlog (small, mechanical, but outside the curator's write scope). Pull whenever someone is next editing `AGENTS.md` or the skills. Same edit in each place: both platforms are live, no greenfield platform remains, migrations must be safe for Android *and* iOS.
+
+## iOS "Leave a store review" dead-ends on a placeholder App Store id (was ENG-40)
+
+**Idea (2026-08-20):** On the live iOS build `storeReviewUrl()` returns `apps.apple.com/app/id0000000000?action=write-review`, so the welcome dialog's review button opens nothing for real users. The fix is mechanical once the id exists: replace `APP_STORE_ID_PLACEHOLDER` in `features/home/impl/.../StoreReviewLink.kt:26`, delete the stale "the iOS App Store listing doesn't exist yet" TODO above it, and assert the iOS URL carries a non-placeholder id.
+
+**Status:** Backlog, parked on a human. The numeric id has to be read out of App Store Connect — the iTunes lookup route was checked and is a dead end (`resultCount: 0` for the bundle id in every storefront tried; the checked-in id is `com.dangerfield.cards.Cards$(TEAM_ID)` with `TEAM_ID` empty in source, recorded in 87376f68). Pulled out of `docs/todo.md`, whose contract is that every item is worker-pickable. Move it back the moment the id lands.
+
+## `device_class=high` is unreachable on iPhone
+
+**Idea (2026-08-20):** ENG-38's `deviceClassFor` requires `processorCount >= 8` for `High`, but every A-series iPhone SoC since the A11 reports 6 active cores (2 performance + 4 efficiency), current Pro models included. So the whole iPhone fleet caps at `Medium` while an 8-core midrange Android promotes to `High` — backwards from the dimension's stated purpose (split cheap phone from flagship when reading a latency or ANR distribution). Either tier per-platform, or drop the core-count conjunction on iOS and lean on memory alone. Found in review of `932ad547`.
+
+**Status:** Backlog. The dimension is new and nothing reads it yet, so there's no live misreading to correct — but fix it before any panel groups by `device_class`, or the first conclusion drawn from it will be wrong.
+
+## A blocked client says "Still blocked" even when its check never left the device
+
+**Idea (2026-08-20):** ENG-35's "Check again" button on the access-denied screen fires `HttpAccessStatusProbe`, which deliberately swallows every failure — its own KDoc says not reaching the server is not evidence either way. But `AccessDeniedViewModel` then reads the latch unconditionally and renders "Still blocked. If you have appealed, it can take a few days." So a user who is offline, or whose call short-circuits at the auth gate, is told the appeal was reviewed and refused when nothing left the phone. The probe needs to report reached / not-reached / still-denied — three states, not two — and the screen needs a "couldn't check, try again" branch. Found in review of `e16139f6`.
+
+**Status:** Backlog. Narrow blast radius (one screen, only while banned) but it states something untrue to the user. Pull with any other pass on the access-denied screen.
+
+## A `401` anywhere now bypasses Sentry, including `account_not_found`
+
+**Idea (2026-08-20):** ENG-44's `isExpectedClientError()` matches `401`/`403` by status alone, with no endpoint or code carve-out, and every telemetry sink consults it. That is right for the banned-client refusals it was built for, but it also means AUTH-29's `401 account_not_found` — landed the same night — never reaches Sentry. A stranded session is a real defect class, and the reason we found it at all was that it was loud. Grafana still ships these at DEBUG so they're recoverable by query, but the error panel no longer shows them. Worth a carve-out keyed on the problem code rather than the status. Found in review of `44f62fa3` + `2cfef3cf`.
+
+**Status:** Backlog. Deliberate trade, not an oversight — flagging because the two commits were written hours apart and nobody weighed them together.

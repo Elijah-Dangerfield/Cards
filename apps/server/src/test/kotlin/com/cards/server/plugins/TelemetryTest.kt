@@ -4,6 +4,7 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.config.ObservabilityConfig
 import com.dangerfield.cards.server.data.InMemoryRoomService
 import com.dangerfield.cards.server.domain.FriendRepository
@@ -13,6 +14,7 @@ import com.dangerfield.cards.server.domain.RespondResult
 import com.dangerfield.cards.server.domain.SendRequestResult
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.http.ClientContext
 import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
 import com.dangerfield.cards.server.game.GameSession
 import com.dangerfield.cards.server.game.NoOpSessionSnapshotStore
@@ -454,7 +456,7 @@ class TelemetryTest {
         testApplication {
             application {
                 installSerialization()
-                installRateLimits()
+                installRateLimits(AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6))
                 installStatusPages()
                 installAuthenticationWithVerifier(verifier)
                 val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), kotlin.time.Clock.System)
@@ -516,14 +518,9 @@ class TelemetryTest {
     private object StubProgression : com.dangerfield.cards.server.domain.ProgressionRepository {
         override suspend fun findOrCreateResult(userId: UserId) = error("unused")
         override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.UserProgression? = null
-        override suspend fun applyXp(
+        override suspend fun applyXpBatch(
             userId: UserId,
-            idempotencyKey: String,
-            deltaXp: Long,
-            source: String,
-            mode: String,
-            handId: String?,
-            wasBoosted: Boolean,
+            events: List<com.dangerfield.cards.server.domain.XpEventInput>,
         ) = error("unused")
         override suspend fun recentEvents(userId: UserId, limit: Int) =
             emptyList<com.dangerfield.cards.server.domain.XpEvent>()
@@ -533,7 +530,7 @@ class TelemetryTest {
     @OptIn(kotlin.time.ExperimentalTime::class)
     private object FixedProfiles : ProfileRepository {
         override suspend fun findById(userId: UserId): Profile? = null
-        override suspend fun findOrCreate(userId: UserId): Profile = Profile(
+        override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = Profile(
             userId = userId,
             displayName = "P-${userId.value.toString().take(4)}",
             avatarEmoji = "🃏",

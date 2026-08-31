@@ -19,6 +19,7 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.authedCall
 import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
+import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -45,9 +46,9 @@ import kotlin.uuid.Uuid
  *
  * [recordHand] appends one `player_stat_events` outbox row per finished hand
  * (`synced = false`). [sync] flushes the unsynced rows through `POST
- * /v1/me/player-stats/sync`, marks them synced, and caches the server's
- * authoritative snapshot into the singleton `player_stats` row for instant +
- * offline display.
+ * /v1/me/player-stats/sync` a bounded page at a time, marks each page synced
+ * as it lands, and caches the server's authoritative snapshot into the
+ * singleton `player_stats` row for instant + offline display.
  *
  * The counters are server-authoritative — the client never accumulates them
  * locally; it only sends the per-hand signals and renders whatever the server
@@ -80,7 +81,7 @@ class PlayerStatsRepositoryImpl(
         ) { snapshot, unsynced -> effective(snapshot, unsynced) }
 
     override suspend fun effectiveCounters(): Map<String, Long> =
-        effective(playerStatsDao.get(), playerStatEventDao.getUnsynced())
+        effective(playerStatsDao.get(), playerStatEventDao.getAllUnsynced())
 
     /**
      * The server snapshot's counter projection with the unsynced outbox folded on
@@ -153,35 +154,44 @@ class PlayerStatsRepositoryImpl(
     }
 
     override suspend fun sync(): Result<Unit> = syncMutex.withLock {
-        // Always POST — an empty events list is a valid "hydrate snapshot" call,
-        // which is how a reinstall / second device picks up stats accumulated
-        // elsewhere. Callers gate *when* to sync (see the event hooks below); this
-        // just does the work.
+        // Callers gate *when* to sync (see the event hooks below); this just
+        // does the work, one bounded page at a time until the outbox drains.
         networkClient.authedCall("player-stats.sync", retry = RetryPolicy.idempotent()) { client ->
-            val pending = playerStatEventDao.getUnsynced()
+            drainOutbox(
+                loadPage = { limit -> playerStatEventDao.getUnsynced(limit) },
+                flushPage = { page -> flushPage(client, page) },
+                keyOf = { it.idempotencyKey },
+                pageSize = OUTBOX_PAGE_SIZE_PER_EVENT_ROUTE,
+            ).warnIfIncomplete(logger, "player-stats")
+        }
+    }
 
-            val request = PlayerStatsSyncRequestDto(events = pending.map { it.toDto() })
-            val response: PlayerStatsSyncResponseDto = client
-                .post("/v1/me/player-stats/sync") {
-                    contentType(ContentType.Application.Json)
-                    setBody(request)
-                }
-                .body()
-
-            val resolvedKeys = response.results
-                .filter { it.outcome in RESOLVED_OUTCOMES }
-                .map { it.idempotencyKey }
-            if (resolvedKeys.isNotEmpty()) {
-                playerStatEventDao.markSynced(resolvedKeys)
+    /**
+     * Posts one page of the outbox. An empty [page] is a valid "hydrate
+     * snapshot" call — how a reinstall or a second device picks up stats
+     * accumulated elsewhere — so this never short-circuits on an empty batch.
+     */
+    private suspend fun flushPage(client: HttpClient, page: List<PlayerStatEventEntity>) {
+        val request = PlayerStatsSyncRequestDto(events = page.map { it.toDto() })
+        val response: PlayerStatsSyncResponseDto = client
+            .post("/v1/me/player-stats/sync") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
             }
+            .body()
 
-            cacheSnapshot(response.stats)
+        val resolvedKeys = response.results
+            .filter { it.outcome in RESOLVED_OUTCOMES }
+            .map { it.idempotencyKey }
+        if (resolvedKeys.isNotEmpty()) {
+            playerStatEventDao.markSynced(resolvedKeys)
+        }
 
-            logger.d {
-                "Sync complete: ${pending.size} sent, ${resolvedKeys.size} resolved, " +
-                    "handsPlayed now ${response.stats.handsPlayed}."
-            }
-            Unit
+        cacheSnapshot(response.stats)
+
+        logger.d {
+            "Sync page complete: ${page.size} sent, ${resolvedKeys.size} resolved, " +
+                "handsPlayed now ${response.stats.handsPlayed}."
         }
     }
 

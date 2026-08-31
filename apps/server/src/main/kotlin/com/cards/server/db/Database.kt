@@ -82,6 +82,12 @@ class Database private constructor(
                 // requests pile up on a non-existent pool.
                 initializationFailTimeout = 10_000
                 isAutoCommit = false
+                // Deliberate, and the ledger writes lean on it: concurrent
+                // updates to the same row abort here rather than interleaving.
+                // Exposed retries that abort a bounded number of times, so
+                // sustained contention on one row surfaces as a 500 (ENG-48).
+                // Don't treat this as a substitute for writes that are correct
+                // on their own — prefer relative updates over read-then-write.
                 transactionIsolation = "TRANSACTION_REPEATABLE_READ"
                 // Hikari adds these as JDBC connection properties; PG-side
                 // they ensure UTF-8 + a sane app_name in pg_stat_activity.

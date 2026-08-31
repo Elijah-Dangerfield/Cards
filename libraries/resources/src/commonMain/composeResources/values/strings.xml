@@ -76,6 +76,9 @@
     <string name="access_denied_default_title">Access blocked</string>
     <string name="access_denied_default_message">Downcard is not available for this account right now.</string>
     <string name="access_denied_appeal">Open appeal</string>
+    <string name="access_denied_check_again">Check again</string>
+    <string name="access_denied_checking">Checking…</string>
+    <string name="access_denied_still_blocked">Still blocked. If you have appealed, it can take a few days.</string>
     <string name="shop_snackbar_insufficient_chips_title">Not enough chips</string>
     <string name="shop_snackbar_insufficient_chips_message">You need more chips to grab %1$s.</string>
     <string name="shop_snackbar_claim_required_title">Account needed</string>
@@ -92,6 +95,8 @@
     <string name="shop_header_subtitle">Spend chips. Stock up. Flex.</string>
     <string name="shop_get_chips_title">Get chips</string>
     <string name="shop_get_chips_footnote">Or earn them free at the table, every day.</string>
+    <string name="shop_chip_packs_unavailable_title">Chip packs are unavailable</string>
+    <string name="shop_chip_packs_unavailable_body">This is a problem on our end, not with your account. You can still earn chips free at the table every day.</string>
     <string name="shop_idea_footer_button">Got an idea? Tell us</string>
     <string name="shop_personal_cosmetic_hint">Only you see this</string>
     <string name="shop_also_earnable_hint">Also earnable</string>
@@ -938,6 +943,7 @@
     <string name="room_mp_bust_leave_button">Leave game</string>
     <!-- %1$s = formatted buy-in chip amount, e.g. "1,000". -->
     <string name="room_mp_bust_rebuy_button">Rebuy (%1$s)</string>
+    <string name="room_mp_bust_rebuy_pending_button">Buying back in…</string>
 
     <!-- Room - In-game quick-buy chip sheet (busted-player upsell, no nav away). -->
     <string name="room_quick_buy_title">Buy chips</string>
@@ -977,6 +983,7 @@
     <!-- Room - heads-up match-over rebuy countdown (MP-14). Shown to the busted player. %1$s is a m:ss countdown. -->
     <string name="room_match_over_busted_title">Rebuy in %1$s or lose your seat</string>
     <string name="room_match_over_busted_rebuy_button">Rebuy now</string>
+    <string name="room_match_over_busted_rebuy_pending_button">Buying in…</string>
     <!-- Room - match-over countdown shown to the winner while they wait out the busted player's rebuy grace. %1$s is a m:ss countdown. -->
     <string name="room_match_over_winner_label">Opponent busted. Auto-continues in %1$s</string>
 

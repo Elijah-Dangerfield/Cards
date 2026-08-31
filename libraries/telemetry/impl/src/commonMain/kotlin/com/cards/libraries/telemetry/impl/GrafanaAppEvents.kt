@@ -48,6 +48,7 @@ class GrafanaAppEvents(
     appState: AppState,
     fileManager: FileManager,
     backgroundFlusher: TelemetryBackgroundFlusher,
+    installFactsProvider: InstallFactsProvider,
 ) : AutoInit {
 
     private val logger = KLog.withTag("GrafanaAppEvents")
@@ -61,6 +62,7 @@ class GrafanaAppEvents(
                 currentSessionId = { sessionIdProvider.current() },
                 currentInstallId = { installIdProvider.current() },
                 isOffline = { appState.isOffline.value },
+                installFacts = installFactsProvider::facts,
                 processorFactory = {
                     durableLogRecordProcessor(
                         exporter = OtlpJsonLogRecordExporter(GrafanaCloud.OTLP_BASE_URL, grafanaHttpClient()),

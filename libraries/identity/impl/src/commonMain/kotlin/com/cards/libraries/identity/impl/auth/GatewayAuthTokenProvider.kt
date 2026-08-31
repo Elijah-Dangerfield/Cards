@@ -53,6 +53,9 @@ class GatewayAuthTokenProvider(
         return token
     }
 
+    override suspend fun isAnonymousSession(): Boolean =
+        gateway.currentSession()?.isAnonymous ?: false
+
     override suspend fun refreshAccessToken(): String? {
         // No session at all — e.g. a fresh install before onboarding creates an
         // account, where a public request 401s and Ktor's bearer plugin tries a

@@ -1,5 +1,8 @@
 package com.dangerfield.cards.server.routes
 
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.data.InMemoryRoomService
 import com.dangerfield.cards.server.data.createOrFail
@@ -23,6 +26,8 @@ import com.dangerfield.cards.server.domain.FindOrCreateResult
 import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletEvent
 import com.dangerfield.cards.server.domain.WalletRepository
+import com.dangerfield.cards.server.http.ClientContext
+import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -42,11 +47,15 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.slf4j.LoggerFactory
 import java.util.UUID
 import kotlin.random.Random
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
@@ -69,11 +78,33 @@ import kotlin.time.Instant
  *    not let any caller trigger sweeps)
  *  - GET /v1/admin/rooms — token-gated, returns one summary per live
  *    room with connected / disconnected counts.
+ *  - ENG-41: every rejection is logged (path + IP, never the presented
+ *    token) and a burst of wrong tokens is throttled, while a caller
+ *    holding the right one is not.
  */
 @OptIn(ExperimentalTime::class)
 class AdminRoutesTest {
 
     private val token = "test-admin-token-32-chars-long-x"
+
+    /** Mirrors the `ADMIN_TOKEN_LIMIT` bucket in `RateLimits.kt`. */
+    private val GUESS_BUDGET = 20
+
+    private val logCapture = ListAppender<ILoggingEvent>()
+    private val adminAuthLogger = LoggerFactory.getLogger("AdminAuth") as Logger
+
+    @BeforeTest
+    fun captureAdminAuthLogs() {
+        logCapture.start()
+        adminAuthLogger.addAppender(logCapture)
+    }
+
+    @AfterTest
+    fun releaseAdminAuthLogs() {
+        adminAuthLogger.detachAppender(logCapture)
+        logCapture.stop()
+    }
+
     private val host = UserId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
     private val alice = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
     private val json = Json { ignoreUnknownKeys = true }
@@ -742,8 +773,76 @@ class AdminRoutesTest {
 
     // ---------- scaffolding ----------
 
+    // ---------- ENG-41: probe visibility + guessing budget ----------
+
+    @Test
+    fun burstOfWrongTokens_isCutOffWith429() = runTest {
+        withApp { client ->
+            val statuses = (1..GUESS_BUDGET + 2).map { attempt ->
+                client.post("/v1/admin/grant-chips") {
+                    header("X-Admin-Token", "wrong-$attempt")
+                }.status
+            }
+
+            assertTrue(
+                statuses.take(GUESS_BUDGET).all { it == HttpStatusCode.Unauthorized },
+                "the first $GUESS_BUDGET guesses are rejected but served: $statuses",
+            )
+            assertTrue(
+                statuses.drop(GUESS_BUDGET).all { it == HttpStatusCode.TooManyRequests },
+                "guesses past the budget are throttled: $statuses",
+            )
+        }
+    }
+
+    @Test
+    fun correctToken_isNotSpentFromTheGuessingBudget() = runTest {
+        withApp { client ->
+            repeat(GUESS_BUDGET * 2) {
+                client.post("/v1/admin/grant-chips") { header("X-Admin-Token", token) }
+            }
+
+            assertEquals(
+                HttpStatusCode.Unauthorized,
+                client.post("/v1/admin/grant-chips") { header("X-Admin-Token", "wrong") }.status,
+                "authenticated traffic must not exhaust the budget — the config console fires " +
+                    "several reads per page load and locking the owner out is not a fix",
+            )
+        }
+    }
+
+    @Test
+    fun rejection_isLoggedWithPathAndIp_butNeverThePresentedToken() = runTest {
+        withApp { client ->
+            client.post("/v1/admin/grant-chips") { header("X-Admin-Token", "hunter2-nearly-right") }
+
+            val message = adminAuthWarnings().single()
+            assertTrue(message.contains("/v1/admin/grant-chips"), "queryable by path: $message")
+            assertTrue(message.contains("token mismatch"), "says why it was rejected: $message")
+            assertFalse(
+                message.contains("hunter2-nearly-right"),
+                "a near-miss guess must never reach the log store: $message",
+            )
+        }
+    }
+
+    @Test
+    fun unconfiguredServer_readsDifferentlyFromACallerWhoForgotTheToken() = runTest {
+        withApp(configuredToken = null) { client ->
+            client.post("/v1/admin/grant-chips")
+
+            assertTrue(
+                adminAuthWarnings().single().contains("no admin token configured server-side"),
+                "a deploy missing ADMIN_API_TOKEN must be diagnosable from the log alone",
+            )
+        }
+    }
+
+    private fun adminAuthWarnings(): List<String> =
+        logCapture.list.filter { it.level.levelStr == "WARN" }.map { it.formattedMessage }
+
     private suspend fun withApp(
-        rooms: InMemoryRoomService,
+        rooms: InMemoryRoomService = InMemoryRoomService(clock = AdvanceableClock(), random = Random(0L)),
         configuredToken: String? = token,
         wallets: WalletRepository = FakeWalletRepository(),
         messages: UserMessageRepository = FakeMessageRepository(),
@@ -751,17 +850,21 @@ class AdminRoutesTest {
         supabaseAdmin: SupabaseAdminClient = NoopSupabaseAdmin,
         block: suspend (io.ktor.client.HttpClient) -> Unit,
     ) {
+        val config = AdminConfig(
+            apiToken = configuredToken,
+            orphanAnonTtlDays = 30,
+            staleRoomTtlHours = 6,
+        )
         testApplication {
             application {
                 installSerialization()
+                // /v1/admin sits in the ADMIN_TOKEN_LIMIT bucket (ENG-41), so
+                // the plugin has to be here or route setup throws.
+                installRateLimits(config)
                 installStatusPages()
                 routing {
                     adminRoutes(
-                        config = AdminConfig(
-                            apiToken = configuredToken,
-                            orphanAnonTtlDays = 30,
-                            staleRoomTtlHours = 6,
-                        ),
+                        config = config,
                         sweep = NoopSweep,
                         rooms = rooms,
                         wallets = wallets,
@@ -791,7 +894,7 @@ class AdminRoutesTest {
         private val names: List<ProfileDisplayName> = emptyList(),
     ) : ProfileRepository {
         override suspend fun listAllDisplayNames(): List<ProfileDisplayName> = names
-        override suspend fun findOrCreate(userId: UserId): Profile = error("unused")
+        override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = error("unused")
         override suspend fun findById(userId: UserId): Profile? = null
         override suspend fun update(
             userId: UserId,

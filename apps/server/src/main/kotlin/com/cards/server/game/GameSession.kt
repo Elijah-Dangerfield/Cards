@@ -635,12 +635,25 @@ class GameSession internal constructor(
      * hand is `Complete` (we never mutate a live stack mid-action), the caller
      * is seated, and the seat is actually busted (`stack == 0`).
      *
-     * **No wallet logic here** — the engine stays pure. The route debits the
-     * wallet by the buy-in *before* calling this and refunds if this rejects.
+     * **No wallet logic here** — the engine stays pure. [authorizeBuyIn] is the
+     * seam: the route passes the debit, and it runs *inside this lock*, after
+     * the seat is confirmed busted and before anything mutates. That ordering is
+     * what makes the debit safe. The route used to check the busted seat off an
+     * unlocked read and debit before calling in, so two rebuys racing the same
+     * bust could both pay before either refill landed — the loser was rejected
+     * here and compensated with a keyed refund. Chips netted to zero, but only
+     * because the compensation worked (MP-38). Now the second caller is refused
+     * at the `stack > 0` check without its money ever moving.
+     *
+     * The cost is holding the session mutex across the debit's round-trip. Rebuy
+     * only happens between hands, so nothing is waiting to act, and paying for
+     * it here is much cheaper than reasoning about a compensated double-debit.
      *
      * Idempotent via the nonce ring: a retried [clientNonce] returns
      * `Accepted` without re-refilling (the refill is a `set`, not an `add`, so
-     * it's harmless anyway — the guard mainly mirrors the other mutations).
+     * it's harmless anyway — the guard mainly mirrors the other mutations). The
+     * nonce is recorded only once [authorizeBuyIn] approves, so a refused buy-in
+     * doesn't burn the nonce and block the retry.
      *
      * Refilling to `stack > 0` is all that's needed to re-seat the player:
      * the next [requestNextHand] no longer filters them out.
@@ -648,6 +661,7 @@ class GameSession internal constructor(
     suspend fun rebuy(
         actorUserId: String,
         clientNonce: String,
+        authorizeBuyIn: suspend () -> IntentResult = { IntentResult.Accepted },
     ): IntentResult = mutex.withLock {
         val current = _state.value
             ?: return@withLock IntentResult.Rejected("no hand to rebuy into")
@@ -658,6 +672,9 @@ class GameSession internal constructor(
         val seat = current.seats.firstOrNull { it.playerId == actorUserId }
             ?: return@withLock IntentResult.Rejected("not seated in this room")
         if (seat.stack > 0) return@withLock IntentResult.Rejected("seat is not busted")
+
+        val authorization = authorizeBuyIn()
+        if (authorization is IntentResult.Rejected) return@withLock authorization
 
         recordNonce(clientNonce)
         withSpan(

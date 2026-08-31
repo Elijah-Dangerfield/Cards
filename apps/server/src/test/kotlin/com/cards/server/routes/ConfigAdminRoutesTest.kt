@@ -9,6 +9,7 @@ import com.dangerfield.cards.server.domain.ManifestEntry
 import com.dangerfield.cards.server.domain.ManifestVersion
 import com.dangerfield.cards.server.domain.RuleConditions
 import com.dangerfield.cards.server.domain.TargetingRule
+import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import io.ktor.client.request.delete
@@ -88,6 +89,8 @@ class ConfigAdminRoutesTest {
         testApplication {
             application {
                 installSerialization()
+                // /v1/admin/config shares the ADMIN_TOKEN_LIMIT bucket (ENG-41).
+                installRateLimits(adminConfig)
                 installStatusPages()
                 routing { configAdminRoutes(adminConfig, repo, manifest, notifier) }
             }

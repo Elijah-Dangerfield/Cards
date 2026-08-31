@@ -117,7 +117,7 @@ class ProgressionRepositoryImplTest : CoroutineTest() {
         // The boosted amount is what lands in the ledger (so it syncs to server).
         assertEquals(
             boostedDao.row().totalXp,
-            boostedLedger.inserted.sumOf { it.deltaXp }.toLong(),
+            boostedLedger.inserted.sumOf { it.deltaXp.toLong() }.toLong(),
             "every ledger row carries the boosted amount",
         )
         // Boosted rows are flagged so the recent-XP feed can label them.
@@ -416,7 +416,11 @@ class ProgressionRepositoryImplTest : CoroutineTest() {
         override fun observeRecent(limit: Int): Flow<List<XpEventEntity>> =
             flow.asStateFlow()
 
-        override suspend fun getUnsynced(): List<XpEventEntity> = inserted.filter { !it.synced }
+        override suspend fun getUnsynced(limit: Int): List<XpEventEntity> =
+            inserted.filter { !it.synced }.take(limit)
+
+        override suspend fun unsyncedDeltaXp(): Long =
+            inserted.filter { !it.synced }.sumOf { it.deltaXp.toLong() }
 
         override suspend fun markSynced(keys: List<String>) {
             val set = keys.toSet()

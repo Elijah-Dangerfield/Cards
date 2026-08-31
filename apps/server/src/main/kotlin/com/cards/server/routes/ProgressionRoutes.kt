@@ -1,9 +1,9 @@
 package com.dangerfield.cards.server.routes
 
-import com.dangerfield.cards.server.domain.ApplyXpOutcome
 import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.RewardChips
 import com.dangerfield.cards.server.domain.WalletRepository
+import com.dangerfield.cards.server.domain.XpEventInput
 import com.dangerfield.cards.server.plugins.PROGRESSION_WRITE_LIMIT
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
@@ -70,29 +70,38 @@ fun Route.progressionRoutes(
                 val body = call.receive<ProgressionSyncRequest>()
 
                 val initial = repository.findOrCreateResult(userId)
-                var lastTotal = initial.progression.totalXp
-                val results = body.events.map { event ->
-                    val outcome = repository.applyXp(
-                        userId = userId,
-                        idempotencyKey = event.idempotencyKey,
-                        deltaXp = event.deltaXp,
-                        source = event.source,
-                        mode = event.mode,
-                        handId = event.handId,
-                        wasBoosted = event.wasBoosted,
-                    )
-                    lastTotal = outcome.totalXp
-                    when (outcome) {
-                        is ApplyXpOutcome.Applied -> XpEventResultDto(
+                val batch = repository.applyXpBatch(
+                    userId = userId,
+                    events = body.events.map { event ->
+                        XpEventInput(
                             idempotencyKey = event.idempotencyKey,
-                            outcome = if (outcome.wasAlreadyApplied) {
-                                XpEventOutcomeDto.AlreadyApplied
-                            } else {
-                                XpEventOutcomeDto.Applied
-                            },
-                            totalXp = outcome.totalXp,
+                            deltaXp = event.deltaXp,
+                            source = event.source,
+                            mode = event.mode,
+                            handId = event.handId,
+                            wasBoosted = event.wasBoosted,
                         )
+                    },
+                )
+                val lastTotal = batch.totalXp
+
+                // Per-key outcomes, with the running total each event landed
+                // on. A key the batch committed reads Applied exactly once —
+                // a repeat of it inside the same payload is a replay like any
+                // other, same as when the events went one at a time.
+                var runningTotal = initial.progression.totalXp
+                val counted = mutableSetOf<String>()
+                val results = body.events.map { event ->
+                    val applied = event.idempotencyKey in batch.appliedKeys &&
+                        counted.add(event.idempotencyKey)
+                    if (applied) {
+                        runningTotal += ProgressionRepository.clampEventXp(event.deltaXp)
                     }
+                    XpEventResultDto(
+                        idempotencyKey = event.idempotencyKey,
+                        outcome = if (applied) XpEventOutcomeDto.Applied else XpEventOutcomeDto.AlreadyApplied,
+                        totalXp = runningTotal,
+                    )
                 }
 
                 // When a crossing mints, the response carries the post-mint

@@ -17,9 +17,12 @@ import com.dangerfield.cards.server.domain.RuleConditions
 import com.dangerfield.cards.server.domain.TargetingRule
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.http.ClientContext
+import com.dangerfield.cards.server.plugins.ADMIN_TOKEN_LIMIT
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.header
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
@@ -60,142 +63,144 @@ fun Route.configAdminRoutes(
 ) {
     val engine = AppConfigTargetingEngine()
 
-    route("/v1/admin/config") {
+    rateLimit(RateLimitName(ADMIN_TOKEN_LIMIT)) {
+        route("/v1/admin/config") {
 
-        get {
-            if (!call.requireAdmin(config)) return@get
-            call.respond(
-                HttpStatusCode.OK,
-                ConfigListResponse(repository.listFlags().map { it.toDto() }),
-            )
-        }
-
-        put("/flags/{path}") {
-            if (!call.requireAdmin(config)) return@put
-            val path = call.parameters["path"]?.takeUnless { it.isBlank() }
-                ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_path", "path is required.")
-            val body = call.receiveOrNull<UpsertFlagRequest>()
-                ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_body", "Malformed flag body.")
-            schema(manifestRepository).validateValue(path, body.value)?.let {
-                return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_value", it)
-            }
-            val record = repository.upsertFlag(path, body.value, call.actor())
-            notifier.changed(ConfigChangeEvent(call.actor(), "update_flag", path, body.value.toString()))
-            call.respond(HttpStatusCode.OK, record.toDto())
-        }
-
-        delete("/flags/{path}") {
-            if (!call.requireAdmin(config)) return@delete
-            val path = call.parameters["path"]?.takeUnless { it.isBlank() }
-                ?: return@delete call.respondProblem(HttpStatusCode.BadRequest, "invalid_path", "path is required.")
-            if (repository.deleteFlag(path, call.actor())) {
-                notifier.changed(ConfigChangeEvent(call.actor(), "delete_flag", path, null))
-                call.respond(HttpStatusCode.OK, OkResponse())
-            } else {
-                call.respondProblem(HttpStatusCode.NotFound, "not_found", "No such flag.")
-            }
-        }
-
-        put("/rules/{id}") {
-            if (!call.requireAdmin(config)) return@put
-            val id = call.parameters["id"]?.toUuidOrNull()
-                ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_id", "id must be a UUID.")
-            val body = call.receiveOrNull<UpsertRuleRequest>()
-                ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_body", "Malformed rule body.")
-            validateRuleConditions(body.conditions)?.let {
-                return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_conditions", it)
-            }
-            schema(manifestRepository).validateValue(body.flagPath, body.value)?.let {
-                return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_value", it)
-            }
-            // A rule needs a flag row to attach to (FK). Rather than make the admin
-            // mint a base override by hand, lazily materialize the flag from its
-            // shipped manifest default the first time it carries a rule. Only the
-            // truly-unknown flag (no DB row, no manifest entry) stays a 409.
-            seedFlagFromManifestIfMissing(body.flagPath, repository, manifestRepository, call.actor())
-            val rule = TargetingRule(
-                id = id,
-                flagPath = body.flagPath,
-                priority = body.priority,
-                value = body.value,
-                conditions = body.conditions,
-                enabled = body.enabled,
-                description = body.description?.takeUnless { it.isBlank() },
-            )
-            val saved = repository.upsertRule(rule, call.actor())
-                ?: return@put call.respondProblem(
-                    HttpStatusCode.Conflict,
-                    "unknown_flag",
-                    "Rule references a flag that doesn't exist and isn't in any manifest: ${body.flagPath}",
+            get {
+                if (!call.requireAdmin(config)) return@get
+                call.respond(
+                    HttpStatusCode.OK,
+                    ConfigListResponse(repository.listFlags().map { it.toDto() }),
                 )
-            notifier.changed(ConfigChangeEvent(call.actor(), "update_rule", body.flagPath, body.value.toString()))
-            call.respond(HttpStatusCode.OK, saved.toDto())
-        }
-
-        delete("/rules/{id}") {
-            if (!call.requireAdmin(config)) return@delete
-            val id = call.parameters["id"]?.toUuidOrNull()
-                ?: return@delete call.respondProblem(HttpStatusCode.BadRequest, "invalid_id", "id must be a UUID.")
-            if (repository.deleteRule(id, call.actor())) {
-                notifier.changed(ConfigChangeEvent(call.actor(), "delete_rule", null, "rule $id"))
-                call.respond(HttpStatusCode.OK, OkResponse())
-            } else {
-                call.respondProblem(HttpStatusCode.NotFound, "not_found", "No such rule.")
             }
-        }
 
-        get("/audit") {
-            if (!call.requireAdmin(config)) return@get
-            val flag = call.parameters["flag"]?.takeUnless { it.isBlank() }
-            val limit = call.parameters["limit"]?.toIntOrNull() ?: DEFAULT_AUDIT_LIMIT
-            call.respond(
-                HttpStatusCode.OK,
-                AuditListResponse(repository.listAudit(flag, limit).map { it.toDto() }),
-            )
-        }
+            put("/flags/{path}") {
+                if (!call.requireAdmin(config)) return@put
+                val path = call.parameters["path"]?.takeUnless { it.isBlank() }
+                    ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_path", "path is required.")
+                val body = call.receiveOrNull<UpsertFlagRequest>()
+                    ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_body", "Malformed flag body.")
+                schema(manifestRepository).validateValue(path, body.value)?.let {
+                    return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_value", it)
+                }
+                val record = repository.upsertFlag(path, body.value, call.actor())
+                notifier.changed(ConfigChangeEvent(call.actor(), "update_flag", path, body.value.toString()))
+                call.respond(HttpStatusCode.OK, record.toDto())
+            }
 
-        put("/manifest") {
-            if (!call.requireAdmin(config)) return@put
-            val body = call.receiveOrNull<UploadManifestRequest>()
-                ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_body", "Malformed manifest body.")
-            val count = manifestRepository.upsertManifest(
-                versionCode = body.versionCode,
-                appVersion = body.appVersion,
-                entries = body.entries.map { it.toDomain() },
-            )
-            call.respond(HttpStatusCode.OK, UploadManifestResponse(versionCode = body.versionCode, flagCount = count))
-        }
+            delete("/flags/{path}") {
+                if (!call.requireAdmin(config)) return@delete
+                val path = call.parameters["path"]?.takeUnless { it.isBlank() }
+                    ?: return@delete call.respondProblem(HttpStatusCode.BadRequest, "invalid_path", "path is required.")
+                if (repository.deleteFlag(path, call.actor())) {
+                    notifier.changed(ConfigChangeEvent(call.actor(), "delete_flag", path, null))
+                    call.respond(HttpStatusCode.OK, OkResponse())
+                } else {
+                    call.respondProblem(HttpStatusCode.NotFound, "not_found", "No such flag.")
+                }
+            }
 
-        get("/manifest/versions") {
-            if (!call.requireAdmin(config)) return@get
-            call.respond(
-                HttpStatusCode.OK,
-                ManifestVersionsResponse(manifestRepository.listVersions().map { it.toDto() }),
-            )
-        }
+            put("/rules/{id}") {
+                if (!call.requireAdmin(config)) return@put
+                val id = call.parameters["id"]?.toUuidOrNull()
+                    ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_id", "id must be a UUID.")
+                val body = call.receiveOrNull<UpsertRuleRequest>()
+                    ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_body", "Malformed rule body.")
+                validateRuleConditions(body.conditions)?.let {
+                    return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_conditions", it)
+                }
+                schema(manifestRepository).validateValue(body.flagPath, body.value)?.let {
+                    return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_value", it)
+                }
+                // A rule needs a flag row to attach to (FK). Rather than make the admin
+                // mint a base override by hand, lazily materialize the flag from its
+                // shipped manifest default the first time it carries a rule. Only the
+                // truly-unknown flag (no DB row, no manifest entry) stays a 409.
+                seedFlagFromManifestIfMissing(body.flagPath, repository, manifestRepository, call.actor())
+                val rule = TargetingRule(
+                    id = id,
+                    flagPath = body.flagPath,
+                    priority = body.priority,
+                    value = body.value,
+                    conditions = body.conditions,
+                    enabled = body.enabled,
+                    description = body.description?.takeUnless { it.isBlank() },
+                )
+                val saved = repository.upsertRule(rule, call.actor())
+                    ?: return@put call.respondProblem(
+                        HttpStatusCode.Conflict,
+                        "unknown_flag",
+                        "Rule references a flag that doesn't exist and isn't in any manifest: ${body.flagPath}",
+                    )
+                notifier.changed(ConfigChangeEvent(call.actor(), "update_rule", body.flagPath, body.value.toString()))
+                call.respond(HttpStatusCode.OK, saved.toDto())
+            }
 
-        get("/manifest") {
-            if (!call.requireAdmin(config)) return@get
-            val requested = call.parameters["version"]?.toIntOrNull()
-            val versions = manifestRepository.listVersions()
-            val target = requested ?: versions.firstOrNull()?.versionCode
-            val meta = versions.firstOrNull { it.versionCode == target }
-            val entries = manifestRepository.getManifest(target)
-            call.respond(
-                HttpStatusCode.OK,
-                ManifestResponse(
-                    versionCode = target,
-                    appVersion = meta?.appVersion,
-                    entries = entries.map { it.toDto() },
-                ),
-            )
-        }
+            delete("/rules/{id}") {
+                if (!call.requireAdmin(config)) return@delete
+                val id = call.parameters["id"]?.toUuidOrNull()
+                    ?: return@delete call.respondProblem(HttpStatusCode.BadRequest, "invalid_id", "id must be a UUID.")
+                if (repository.deleteRule(id, call.actor())) {
+                    notifier.changed(ConfigChangeEvent(call.actor(), "delete_rule", null, "rule $id"))
+                    call.respond(HttpStatusCode.OK, OkResponse())
+                } else {
+                    call.respondProblem(HttpStatusCode.NotFound, "not_found", "No such rule.")
+                }
+            }
 
-        post("/resolve") {
-            if (!call.requireAdmin(config)) return@post
-            val body = call.receiveOrNull<ResolveRequest>()
-                ?: return@post call.respondProblem(HttpStatusCode.BadRequest, "invalid_body", "Malformed resolve body.")
-            call.respond(HttpStatusCode.OK, resolveFlags(body, repository, manifestRepository, engine))
+            get("/audit") {
+                if (!call.requireAdmin(config)) return@get
+                val flag = call.parameters["flag"]?.takeUnless { it.isBlank() }
+                val limit = call.parameters["limit"]?.toIntOrNull() ?: DEFAULT_AUDIT_LIMIT
+                call.respond(
+                    HttpStatusCode.OK,
+                    AuditListResponse(repository.listAudit(flag, limit).map { it.toDto() }),
+                )
+            }
+
+            put("/manifest") {
+                if (!call.requireAdmin(config)) return@put
+                val body = call.receiveOrNull<UploadManifestRequest>()
+                    ?: return@put call.respondProblem(HttpStatusCode.BadRequest, "invalid_body", "Malformed manifest body.")
+                val count = manifestRepository.upsertManifest(
+                    versionCode = body.versionCode,
+                    appVersion = body.appVersion,
+                    entries = body.entries.map { it.toDomain() },
+                )
+                call.respond(HttpStatusCode.OK, UploadManifestResponse(versionCode = body.versionCode, flagCount = count))
+            }
+
+            get("/manifest/versions") {
+                if (!call.requireAdmin(config)) return@get
+                call.respond(
+                    HttpStatusCode.OK,
+                    ManifestVersionsResponse(manifestRepository.listVersions().map { it.toDto() }),
+                )
+            }
+
+            get("/manifest") {
+                if (!call.requireAdmin(config)) return@get
+                val requested = call.parameters["version"]?.toIntOrNull()
+                val versions = manifestRepository.listVersions()
+                val target = requested ?: versions.firstOrNull()?.versionCode
+                val meta = versions.firstOrNull { it.versionCode == target }
+                val entries = manifestRepository.getManifest(target)
+                call.respond(
+                    HttpStatusCode.OK,
+                    ManifestResponse(
+                        versionCode = target,
+                        appVersion = meta?.appVersion,
+                        entries = entries.map { it.toDto() },
+                    ),
+                )
+            }
+
+            post("/resolve") {
+                if (!call.requireAdmin(config)) return@post
+                val body = call.receiveOrNull<ResolveRequest>()
+                    ?: return@post call.respondProblem(HttpStatusCode.BadRequest, "invalid_body", "Malformed resolve body.")
+                call.respond(HttpStatusCode.OK, resolveFlags(body, repository, manifestRepository, engine))
+            }
         }
     }
 }

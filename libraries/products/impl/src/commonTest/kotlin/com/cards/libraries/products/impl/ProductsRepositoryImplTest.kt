@@ -420,6 +420,63 @@ class ProductsRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
+    fun chipPacksUnavailable_raisedOnlyWhenTheStoreRecognizesNone() = runUnitTest {
+        // ENG-43 / CARDS-8V: the live iOS shop hid all three packs and told
+        // the user nothing. The flag is what lets the shelf explain itself,
+        // so it must separate "store recognized none" from "store dropped
+        // some" and from "we never got an authoritative answer".
+        val dto = ProductCatalogDto(
+            chipPacks = listOf(
+                ChipPackDto(
+                    id = "small",
+                    title = "Pocket Stack",
+                    subtitle = "5,000 chips",
+                    iconEmoji = "🪙",
+                    grantsChips = 5_000,
+                    store = StoreSkuDto("chips_small", "$0.99"),
+                ),
+                ChipPackDto(
+                    id = "large",
+                    title = "Whale Stack",
+                    subtitle = "80,000 chips",
+                    iconEmoji = "🐋",
+                    grantsChips = 80_000,
+                    store = StoreSkuDto("chips_large", "$9.99"),
+                ),
+            ),
+        )
+        val billing = FakeBillingAvailability(recognizedSkus = emptyMap())
+        val repo = newRepo(source = FakeDataSource(dto), billing = billing)
+
+        repo.refresh()
+        assertTrue(repo.observeChipPacksUnavailable().firstValue(), "store recognized none of the packs")
+
+        billing.recognizedSkus = mapOf("chips_small" to BillingProduct("chips_small", "$0.99", "USD", 990_000))
+        repo.refresh(force = true)
+        assertFalse(
+            repo.observeChipPacksUnavailable().firstValue(),
+            "one purchasable pack means the shelf has something to show",
+        )
+    }
+
+    @Test
+    fun chipPacksUnavailable_isNotRaisedByAnUnreachableStore() = runUnitTest {
+        // A connectivity blip must never accuse the store of being
+        // misconfigured — only an authoritative answer moves the flag.
+        val billing = FakeBillingAvailability(
+            recognizedSkus = mapOf("chips_small" to BillingProduct("chips_small", "$0.99", "USD", 990_000)),
+        )
+        val repo = newRepo(source = FakeDataSource(SAMPLE_DTO), billing = billing)
+        repo.refresh()
+        assertFalse(repo.observeChipPacksUnavailable().firstValue())
+
+        billing.nextResult = QueryProductsResult.NotConnected
+        repo.refresh(force = true)
+
+        assertFalse(repo.observeChipPacksUnavailable().firstValue())
+    }
+
+    @Test
     fun reconcile_storeNotConnected_fallsBackToCachedSnapshot() = runUnitTest {
         val firstStoreState = FakeBillingAvailability(
             recognizedSkus = mapOf("chips_small" to BillingProduct("chips_small", "$0.99", "USD", 990_000)),

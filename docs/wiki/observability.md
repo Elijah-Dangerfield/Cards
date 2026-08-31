@@ -46,11 +46,17 @@ green, close the tab.**
 
 ## Alerts (folder Downcard — Engineering)
 
-Seven rules, labelled `severity: critical|warning`. A1 ledger drift ≠ 0 (hourly, critical) ·
+Eight rules, labelled `severity: critical|warning`. A1 ledger drift ≠ 0 (hourly, critical) ·
 A2 Fly prod down (5m, critical) · A3 Supabase down (10m, critical) · A4 ≥3 installs reporting
 `net.backend_unreachable` in 15m (critical) · A5 purchase success rate low (critical) · A6 any
-OOM kill (critical) · A7 server silent 60m (warning, **live since launch 2026-07-24**). Root
-policy repeats at most every 24h.
+OOM kill (critical) · A7 server silent 60m (warning, **live since launch 2026-07-24**) ·
+A8 store dropped chip-pack SKUs in prod (hourly, warning). Root policy repeats at most every 24h.
+
+**A8 covers the blind spot A5 structurally cannot see (ENG-43, CARDS-8V).** A5 divides purchase
+completions by attempts, so a store that recognizes none of our SKUs produces zero visible packs,
+zero attempts, and a permanently green A5 while the shop sells nothing. A8 fires on the
+`shop.catalog_skus_dropped` event instead. It is a warning rather than critical on purpose: the fix
+lives in App Store Connect / Play Console during business hours, so paging overnight buys nothing.
 
 **Routing (live 2026-07-24):** the notification policy routes `severity=critical` → contact point
 `downcard-critical` (email + IRM mobile push); everything else (warnings, e.g. A7) → `owner-email`
@@ -62,6 +68,20 @@ so they stay UI-editable. Crash emails: enable Sentry's own new-issue alert (Sen
 **Known false-alarm class:** A2/A3 use `no_data = Alerting`, so a dead metrics scrape (expired
 Supabase key, Fly metrics hiccup) pages you even when prod is fine. Better a false page than a
 missed outage, but check the datasource is actually scraping before assuming prod is down.
+
+## Admin-surface probes (ENG-41)
+
+`/v1/admin` can mint chips, so it's the one route where guessing the secret pays for itself. Every
+rejected `X-Admin-Token` now emits one WARN from the `AdminAuth` logger carrying the method, path,
+client IP, and *why* (no token presented / token mismatch / no token configured server-side). The
+presented value is never logged — a near-miss guess in the log store is a secret in a softer place
+than the secret store. Query it in Loki with the server stream filtered to that logger.
+
+The route also sits in a dedicated bucket where **only failed attempts count**: 20 wrong tokens per
+IP per hour, correct ones free. A flat cap would have throttled the hosted config console, which
+fires several authenticated reads per page load, and throttling a caller who already holds the
+secret protects nothing. A scanner probed `POST /v1/admin/grant-chips` on prod in 2026-08 and left
+no trace on any dashboard; that's the gap this closes.
 
 ## Known-benign client signals (not incidents)
 

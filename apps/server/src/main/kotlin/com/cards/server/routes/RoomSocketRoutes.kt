@@ -715,17 +715,24 @@ private fun recordIntentOutcome(result: IntentResult) {
  * Cross-domain orchestration lives here, not in [com.dangerfield.cards.server.game.GameSession]
  * (which stays pure-engine):
  *
- *  1. Pre-check off the live session so an obviously-invalid rebuy (no completed
- *     hand, caller not seated, seat not busted) is rejected *without* touching
- *     the ledger. [com.dangerfield.cards.server.game.GameSession.rebuy] re-checks
- *     under its lock — this just keeps the common rejects off the wallet.
+ *  1. Cheap pre-check off the live session so an obviously-invalid rebuy (no
+ *     completed hand, caller not seated, seat not busted) is refused without
+ *     taking the session lock at all. Purely an optimisation — the authoritative
+ *     check is inside the lock.
  *  2. [com.dangerfield.cards.server.domain.TableSessionService.rebuy] debits one
  *     more buy-in (keyed `table:{sessionId}:rebuy:{n}`, idempotent) and bumps the
- *     session's rebuy counter, re-applying the entry bar for public tables.
- *  3. Refill the engine seat. The debit and refill aren't one transaction, so if
- *     the refill loses a race against the next hand we compensate with a keyed
- *     refund. (The rebuy counter stays bumped — the next real rebuy just uses
- *     n+1; chips net to zero, which is what matters.)
+ *     session's rebuy counter, re-applying the entry bar for public tables. It is
+ *     handed to [com.dangerfield.cards.server.game.GameSessionRegistry.rebuy] as
+ *     the authorization callback, so it runs **under the session's lock**, after
+ *     the seat is confirmed busted and immediately before the refill.
+ *
+ * That ordering is the fix for MP-38. The debit used to happen out here, off the
+ * unlocked pre-check, so two rebuys racing the same bust could both pay before
+ * either refill landed; the loser was rejected and compensated with a keyed
+ * refund. Now the loser is refused at the busted-seat check and never pays. The
+ * refund below is kept as a backstop for a debit that somehow lands against a
+ * rejected refill — an un-refunded debit is much worse than an unreachable
+ * branch — but it should no longer be a path anything takes.
  */
 private suspend fun handleRebuy(
     code: String,
@@ -747,18 +754,22 @@ private suspend fun handleRebuy(
         ?: return IntentResult.Rejected("not seated in this room")
     if (seat.stack > 0) return IntentResult.Rejected("seat is not busted")
 
-    when (tableSessions.rebuy(userId, enforceEntryBar = room.visibility != RoomVisibility.Private)) {
-        is com.dangerfield.cards.server.domain.RebuyResult.NoActiveSession ->
-            return IntentResult.Rejected("no active table session to rebuy into")
-        is com.dangerfield.cards.server.domain.RebuyResult.BelowEntryBar ->
-            return IntentResult.Rejected("below entry bar")
-        is com.dangerfield.cards.server.domain.RebuyResult.InsufficientChips ->
-            return IntentResult.Rejected("insufficient chips")
-        is com.dangerfield.cards.server.domain.RebuyResult.ReboughtIn -> Unit
+    var debited = false
+    val result = gameSessions.rebuy(code, userId.value.toString(), clientNonce) {
+        when (tableSessions.rebuy(userId, enforceEntryBar = room.visibility != RoomVisibility.Private)) {
+            is com.dangerfield.cards.server.domain.RebuyResult.NoActiveSession ->
+                IntentResult.Rejected("no active table session to rebuy into")
+            is com.dangerfield.cards.server.domain.RebuyResult.BelowEntryBar ->
+                IntentResult.Rejected("below entry bar")
+            is com.dangerfield.cards.server.domain.RebuyResult.InsufficientChips ->
+                IntentResult.Rejected("insufficient chips")
+            is com.dangerfield.cards.server.domain.RebuyResult.ReboughtIn -> {
+                debited = true
+                IntentResult.Accepted
+            }
+        }
     }
-
-    val result = gameSessions.rebuy(code, userId.value.toString(), clientNonce)
-    if (result is IntentResult.Rejected) {
+    if (debited && result is IntentResult.Rejected) {
         // Refill lost a race after the escrow debit — credit the buy-in back under
         // a distinct key so it isn't deduped against the table:rebuy debit.
         wallets.apply(

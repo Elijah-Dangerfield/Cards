@@ -22,6 +22,7 @@ class AppLaunchedEventTest {
                 currentSessionId = { "session-uuid-1" },
                 currentInstallId = { "install-uuid-1" },
                 isOffline = { false },
+                installFacts = { RetailInstallFacts },
                 processorFactory = { processor },
             ),
         )

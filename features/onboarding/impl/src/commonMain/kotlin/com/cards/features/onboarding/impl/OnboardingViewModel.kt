@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.onboarding.impl
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.OnboardingAttempt
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.LegalUrls
@@ -37,7 +38,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import me.tatarka.inject.annotations.Inject
 import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Instant
 import kotlin.time.TimeSource
 
 /**
@@ -105,13 +110,6 @@ class OnboardingViewModel(
 
     private val onboardingStartedAt = TimeSource.Monotonic.markNow()
 
-    /**
-     * True once this instance routed to Home (completed, or a returning user
-     * bounced/signed in) — suppresses the best-effort `onboarding.abandoned`
-     * fired from [onCleared].
-     */
-    private var exitedToHome = false
-
     init {
         // Resolve where onboarding opens (Home bounce / identity re-entry /
         // Welcome landing) through the action loop so state updates run in an
@@ -121,10 +119,10 @@ class OnboardingViewModel(
 
     private suspend fun OnboardingAction.handleResolveEntry() {
         Catching {
+            settlePriorAttempt()
             val authed = authRepository.current() as? AuthState.Authenticated
             when {
                 appCache.get().hasUserOnboarded -> {
-                    exitedToHome = true
                     sendEvent(OnboardingEvent.NavigateToHome)
                 }
                 // A real (non-anonymous) account that hasn't finished onboarding
@@ -148,13 +146,59 @@ class OnboardingViewModel(
                 // Treat them as returning: adopt the onboarded flag and go Home.
                 authed != null -> {
                     logger.logEvent("onboarding.auth_selected", "method" to "guest", "returning" to true)
-                    appCache.update { it.copy(hasUserOnboarded = true) }
-                    exitedToHome = true
+                    appCache.update { it.copy(hasUserOnboarded = true, onboardingAttempt = null) }
                     sendEvent(OnboardingEvent.NavigateToHome)
                 }
-                else -> logger.logEvent("onboarding.step_viewed", "step" to "welcome")
+                else -> logStepViewed(OnboardingStep.Welcome)
             }
         }.logOnFailure { "Onboarding entry resolution failed" }
+    }
+
+    /**
+     * Decide what the previous run through onboarding was, now that we can see
+     * whether the user came back.
+     *
+     * Three outcomes, and only one of them is an abandonment: a user who has
+     * since onboarded leaves behind bookkeeping residue, a marker younger than
+     * [ABANDON_SETTLE_AFTER] is somebody resuming (back out, relaunch, carry
+     * on), and a marker older than that is a run the user walked away from.
+     *
+     * A run that's never returned to emits nothing at all, because nothing
+     * runs to notice. That under-count is the same one the funnel has always
+     * had, and it's the safe direction — the over-count this replaced
+     * manufactured a welcome-step problem that didn't exist (AUTH-31).
+     */
+    private suspend fun settlePriorAttempt() {
+        val data = appCache.get()
+        val attempt = data.onboardingAttempt ?: return
+        if (data.hasUserOnboarded) {
+            clearAttempt()
+            return
+        }
+        val age = (clock.now() - Instant.fromEpochMilliseconds(attempt.startedAtEpochMs))
+        // Wall clock, so the arithmetic can come back nonsense: an NTP or
+        // timezone correction backwards makes the age negative, and a device
+        // that booted with an unsynced clock before writing the marker makes it
+        // decades. Neither says anything about the user, and a negative age is
+        // younger than any window, so leaving it would wedge the marker
+        // permanently. Drop it without reporting — under-counting is the safe
+        // direction here, the same call the window itself makes.
+        if (age < Duration.ZERO || age > ABANDON_AGE_CEILING) {
+            clearAttempt()
+            return
+        }
+        if (age < ABANDON_SETTLE_AFTER) return
+        logger.logEvent(
+            "onboarding.abandoned",
+            "step" to attempt.step,
+            "reason" to "stale",
+            "age_sec" to age.inWholeSeconds,
+        )
+        clearAttempt()
+    }
+
+    private suspend fun clearAttempt() {
+        appCache.update { it.copy(onboardingAttempt = null) }
     }
 
     override suspend fun handleAction(action: OnboardingAction) {
@@ -273,9 +317,8 @@ class OnboardingViewModel(
                 }
             }
             AuthOutcome.SignedIn, AuthOutcome.Linked -> {
-                appCache.update { it.copy(hasUserOnboarded = true) }
+                appCache.update { it.copy(hasUserOnboarded = true, onboardingAttempt = null) }
                 updateState { it.copy(oauthInFlight = null) }
-                exitedToHome = true
                 sendEvent(OnboardingEvent.NavigateToHome)
             }
         }
@@ -508,30 +551,27 @@ class OnboardingViewModel(
             }
         }
 
-        exitedToHome = true
         logger.logEvent(
             "onboarding.completed",
             "duration_sec" to onboardingStartedAt.elapsedNow().inWholeSeconds,
             "account_ready" to !state.creationFailed,
         )
-        appCache.update { it.copy(hasUserOnboarded = true) }
+        appCache.update { it.copy(hasUserOnboarded = true, onboardingAttempt = null) }
         updateState { it.copy(isFinishing = false) }
         sendEvent(OnboardingEvent.NavigateToHome)
     }
 
-    override fun onCleared() {
-        // Best-effort abandonment marker: the VM outliving the flow without ever
-        // routing Home means the user backed out (system back on Welcome exits
-        // the app and clears the entry). A process kill won't reach this — the
-        // funnel's step_viewed-without-completed sessions cover that case.
-        if (!exitedToHome) {
-            logger.logEvent("onboarding.abandoned", "step" to state.step.eventName())
-        }
-        super.onCleared()
-    }
-
-    private fun logStepViewed(step: OnboardingStep) {
+    private suspend fun logStepViewed(step: OnboardingStep) {
         logger.logEvent("onboarding.step_viewed", "step" to step.eventName())
+        appCache.update { data ->
+            data.copy(
+                onboardingAttempt = OnboardingAttempt(
+                    step = step.eventName(),
+                    startedAtEpochMs = data.onboardingAttempt?.startedAtEpochMs
+                        ?: clock.now().toEpochMilliseconds(),
+                ),
+            )
+        }
     }
 
     private fun OnboardingStep.eventName(): String = when (this) {
@@ -543,6 +583,27 @@ class OnboardingViewModel(
 
     companion object {
         internal const val STARTER_TILE_COUNT = 8
+
+        /**
+         * How long an unfinished onboarding run sits before the next launch
+         * calls it abandoned.
+         *
+         * Deliberately generous. Someone who backs out and returns the same day
+         * to finish is a finisher, and counting them as a quitter is the exact
+         * bug this window exists to close — so the cost of being wrong is
+         * lopsided, and a day of slack buys near-zero false positives for a
+         * little under-counting. Anyone who leaves for longer than this really
+         * did walk away from that run.
+         */
+        internal val ABANDON_SETTLE_AFTER = 24.hours
+
+        /**
+         * Past this, a marker's age is a broken clock rather than a patient
+         * user. Generous on purpose — a genuine months-later return should
+         * still report — but an unsynced boot clock puts the age in decades,
+         * and that number would land in the funnel as fact.
+         */
+        internal val ABANDON_AGE_CEILING = 365.days
 
         /** Max display-name length; mirrors EditProfile's cap so onboarding and
          *  edit-profile agree. Stricter than the server limit (UX clamp). */

@@ -39,7 +39,16 @@ data class ClientContext(
     /** Per-install UUID from `X-Install-Id`, or null. Stable across sessions. */
     val installId: String? = null,
 ) {
-    enum class Platform { Android, iOS, Other }
+    /**
+     * [wire] is the persisted spelling, declared rather than derived from the
+     * enum name so renaming a constant can't silently change what's already
+     * written to `profiles.platform` (V90) or compared against it.
+     */
+    enum class Platform(val wire: String) {
+        Android("android"),
+        iOS("ios"),
+        Other("other"),
+    }
 
     companion object {
         const val HEADER_PLATFORM: String = "X-Platform"

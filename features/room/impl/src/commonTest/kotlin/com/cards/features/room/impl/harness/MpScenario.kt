@@ -300,6 +300,28 @@ class RunningMpScenario internal constructor(
     fun sentFrames(): List<ClientFrame> = handle.sent
     fun lastSent(): ClientFrame = handle.sent.last()
 
+    /**
+     * Tap Rebuy [times] in a row without letting the server answer, the way a
+     * player mashes a CTA that shows no sign of having heard them. Only
+     * `runCurrent` between taps: draining virtual time would time the first
+     * rebuy out and re-arm the button, which is not what a real burst does.
+     */
+    suspend fun iTapRebuy(times: Int = 1) {
+        repeat(times) {
+            vm.takeAction(PlayPokerAction.Rebuy)
+            scope.runCurrent()
+        }
+    }
+
+    /** Answer the outstanding rebuy the way the server would. */
+    suspend fun serverAcksRebuy(accepted: Boolean = true, error: String? = null) {
+        val sent = handle.sent.filterIsInstance<ClientFrame.Rebuy>().last()
+        handle.pushFrame(
+            GameplayFrame.IntentAck(clientNonce = sent.clientNonce, accepted = accepted, error = error),
+        )
+        scope.advanceUntilIdle()
+    }
+
     suspend fun iSubmitAndAck(
         intent: PlayerIntent,
         accepted: Boolean = true,

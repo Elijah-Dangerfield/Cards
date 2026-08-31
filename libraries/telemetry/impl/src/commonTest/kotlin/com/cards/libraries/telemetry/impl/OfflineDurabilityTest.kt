@@ -61,6 +61,7 @@ class OfflineDurabilityTest {
             currentSessionId = { "session-uuid-1" },
             currentInstallId = { "install-uuid-1" },
             isOffline = { offline },
+            installFacts = { RetailInstallFacts },
             processorFactory = {
                 durableLogRecordProcessor(
                     exporter = exporter,

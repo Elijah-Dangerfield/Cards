@@ -23,6 +23,7 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.authedCall
 import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
+import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -45,9 +46,10 @@ import kotlin.uuid.Uuid
  *
  * [awardForHand] / [applyAchievementXp] bump the local `total_xp` and append
  * `xp_events` rows tagged with a per-row idempotency key (`synced = false`).
- * [sync] flushes the unsynced rows through `POST /v1/me/progression/sync`,
- * marks them synced, and reconciles the local total to the server's
- * authoritative value. Lifetime hand counters stay client-local for now.
+ * [sync] flushes the unsynced rows through `POST /v1/me/progression/sync` a
+ * bounded page at a time, marks each page synced as it lands, and reconciles
+ * the local total to the server's authoritative value. Lifetime hand counters
+ * stay client-local for now.
  *
  * `level` is never stored or synced — the client derives it from `total_xp`.
  */
@@ -166,72 +168,83 @@ class ProgressionRepositoryImpl(
     }
 
     override suspend fun sync(): Result<Unit> = syncMutex.withLock {
-        // Always POST — an empty events list is a valid "hydrate total" call,
-        // which is how a reinstall / second device picks up XP earned elsewhere.
         networkClient.authedCall("progression.sync", retry = RetryPolicy.idempotent()) { client ->
-            val pending = xpEventDao.getUnsynced()
+            drainOutbox(
+                loadPage = { limit -> xpEventDao.getUnsynced(limit) },
+                flushPage = { page -> flushPage(client, page) },
+                keyOf = { it.idempotencyKey },
+            ).warnIfIncomplete(syncLogger, "progression")
+        }
+    }
 
-            val request = ProgressionSyncRequestDto(events = pending.map { it.toDto() })
-            val response: ProgressionSyncResponseDto = client
-                .post("/v1/me/progression/sync") {
-                    contentType(ContentType.Application.Json)
-                    setBody(request)
-                }
-                .body()
-
-            // Applied + AlreadyApplied → server has it; mark the local row
-            // synced (kept for the history feed, not deleted). Unknown → leave
-            // it unsynced so a newer client retries.
-            val resolvedKeys = response.results
-                .filter { it.outcome in RESOLVED_OUTCOMES }
-                .map { it.idempotencyKey }
-            if (resolvedKeys.isNotEmpty()) {
-                xpEventDao.markSynced(resolvedKeys)
+    /**
+     * Posts one page of the outbox and reconciles what comes back. An empty
+     * [page] is a valid "hydrate total" call — that's how a reinstall or a
+     * second device picks up XP earned elsewhere — so this never short-circuits
+     * on an empty batch.
+     */
+    private suspend fun flushPage(client: HttpClient, page: List<XpEventEntity>) {
+        val request = ProgressionSyncRequestDto(events = page.map { it.toDto() })
+        val response: ProgressionSyncResponseDto = client
+            .post("/v1/me/progression/sync") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
             }
+            .body()
 
-            // Re-hydrate the recent-XP feed. On a pure-hydrate sync (no pending
-            // rows — the cold-boot / account-switch / reinstall pulse) the
-            // server echoes its recent ledger rows; insert any whose key we
-            // don't already hold, marked synced (they're already on the
-            // server). Dedup is required: the local table has no unique index
-            // on the idempotency key, so a re-insert would duplicate the feed.
-            if (response.recentEvents.isNotEmpty()) {
-                val incomingKeys = response.recentEvents.map { it.idempotencyKey }
-                val held = xpEventDao.existingKeys(incomingKeys).toSet()
-                val fresh = response.recentEvents
-                    .filter { it.idempotencyKey !in held }
-                    .map { it.toSyncedEntity() }
-                if (fresh.isNotEmpty()) {
-                    xpEventDao.insertAll(fresh)
-                }
+        // Applied + AlreadyApplied → server has it; mark the local row
+        // synced (kept for the history feed, not deleted). Unknown → leave
+        // it unsynced so a newer client retries.
+        val resolvedKeys = response.results
+            .filter { it.outcome in RESOLVED_OUTCOMES }
+            .map { it.idempotencyKey }
+        if (resolvedKeys.isNotEmpty()) {
+            xpEventDao.markSynced(resolvedKeys)
+        }
+
+        // Re-hydrate the recent-XP feed. On a pure-hydrate sync (no pending
+        // rows — the cold-boot / account-switch / reinstall pulse) the
+        // server echoes its recent ledger rows; insert any whose key we
+        // don't already hold, marked synced (they're already on the
+        // server). Dedup is required: the local table has no unique index
+        // on the idempotency key, so a re-insert would duplicate the feed.
+        if (response.recentEvents.isNotEmpty()) {
+            val incomingKeys = response.recentEvents.map { it.idempotencyKey }
+            val held = xpEventDao.existingKeys(incomingKeys).toSet()
+            val fresh = response.recentEvents
+                .filter { it.idempotencyKey !in held }
+                .map { it.toSyncedEntity() }
+            if (fresh.isNotEmpty()) {
+                xpEventDao.insertAll(fresh)
             }
+        }
 
-            // Reconcile the local total to the server's authoritative value
-            // (the setBalance analog). After the just-posted events that's the
-            // correct sum; a cross-device gain is also picked up here.
-            progressionDao.ensureExistsAndSetTotalXp(
-                totalXp = response.totalXp,
-                updatedAtEpochMs = clock.now().toEpochMilliseconds(),
-            )
+        // Reconcile the local total to the server's authoritative value
+        // (the setBalance analog), plus whatever is still queued behind this
+        // page. The server total only counts rows it has taken, so writing it
+        // bare mid-drain would drop the player's XP bar and level to the
+        // partial figure and walk them back up page by page.
+        progressionDao.ensureExistsAndSetTotalXp(
+            totalXp = response.totalXp + xpEventDao.unsyncedDeltaXp(),
+            updatedAtEpochMs = clock.now().toEpochMilliseconds(),
+        )
 
-            // The server minted level-reward chips during this sync (ENG-9
-            // grants them here — wallet sync refuses the client's own
-            // `levelup.*` credit). Without a wallet re-pull the reward stays
-            // invisible until the next trigger edge (PROG-12). A fresh pull
-            // issued *after* the mint is ordering-safe against any concurrent
-            // wallet sync; applying the returned balance directly would not be
-            // (arrival order ≠ server processing order across connections).
-            if (response.walletBalance != null) {
-                syncLogger.i { "Server minted level-reward chips — re-pulling the wallet" }
-                Catching { chipsRepository.sync() }
-                    .logOnFailure { "Wallet re-pull after level-chip mint failed; the next sync edge heals it" }
-            }
+        // The server minted level-reward chips during this sync (ENG-9
+        // grants them here — wallet sync refuses the client's own
+        // `levelup.*` credit). Without a wallet re-pull the reward stays
+        // invisible until the next trigger edge (PROG-12). A fresh pull
+        // issued *after* the mint is ordering-safe against any concurrent
+        // wallet sync; applying the returned balance directly would not be
+        // (arrival order ≠ server processing order across connections).
+        if (response.walletBalance != null) {
+            syncLogger.i { "Server minted level-reward chips — re-pulling the wallet" }
+            Catching { chipsRepository.sync() }
+                .logOnFailure { "Wallet re-pull after level-chip mint failed; the next sync edge heals it" }
+        }
 
-            syncLogger.d {
-                "Sync complete: ${pending.size} sent, ${resolvedKeys.size} resolved, " +
-                    "total now ${response.totalXp}."
-            }
-            Unit
+        syncLogger.d {
+            "Sync page complete: ${page.size} sent, ${resolvedKeys.size} resolved, " +
+                "total now ${response.totalXp}."
         }
     }
 

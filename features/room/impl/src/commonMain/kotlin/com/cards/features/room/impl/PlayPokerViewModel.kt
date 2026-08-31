@@ -767,6 +767,16 @@ class PlayPokerViewModel @Inject constructor(
         return state.seats.firstOrNull { it.index == seatIndex }?.playerId
     }
 
+    /**
+     * Whether the local seat is sitting at zero in [state]. A seat that isn't
+     * there at all counts as not busted — there is nothing to buy back.
+     */
+    private fun humanSeatIsBusted(state: GameState): Boolean {
+        val seatIndex = sessionFactory.humanSeatIndex(state)
+        val seat = state.seats.firstOrNull { it.index == seatIndex } ?: return false
+        return seat.stack <= 0
+    }
+
     private fun logGameEnded(endReason: String) {
         if (gameEndLogged) return
         gameEndLogged = true
@@ -884,6 +894,11 @@ class PlayPokerViewModel @Inject constructor(
                     val withTable = current.copy(
                         table = table,
                         preFoldArmed = if (handChanged) false else current.preFoldArmed,
+                        // The seat having chips again is the rebuy landing, and it
+                        // is also the snapshot that takes the bust dialog away.
+                        // Anything that isn't a busted seat clears the flag, so it
+                        // can never be left set into a later bust.
+                        rebuyInFlight = current.rebuyInFlight && humanSeatIsBusted(action.state),
                     )
                     val fold = preFoldToFire(withTable)
                     preActionToFire = fold
@@ -1171,29 +1186,47 @@ class PlayPokerViewModel @Inject constructor(
                 }
             }
             is PlayPokerAction.Rebuy -> {
-                // On viewModelScope (unlike LeaveGameFromBust): the player is
-                // staying, so the rebuy round-trip must outlive the action but
-                // not the screen.
-                viewModelScope.launch {
-                    Catching { session.rebuy() }
-                        .onSuccess {
-                            logger.logEvent(
-                                "game.rebuy",
-                                "mode" to sessionFactory.xpMode.name.lowercase(),
-                                "via_quick_buy" to quickBuyUsedThisSession,
-                            )
-                            sendEvent(PlayPokerEvent.RebuySucceeded)
-                        }
-                        .onFailure { e ->
-                            if (e is IntentRejectedException &&
-                                e.reason.contains("insufficient", ignoreCase = true)
-                            ) {
-                                sendEvent(PlayPokerEvent.RebuyInsufficientChips)
-                            } else {
-                                logger.w(e) { "rebuy failed" }
+                // One outstanding rebuy per bust. The seat can only be bought
+                // back once, so every extra dispatch is an intent the server can
+                // only refuse — and it refused 131 of them against 10 real
+                // rebuys in prod (MP-38). The flag survives a successful ack on
+                // purpose: it clears when the refilled seat arrives, which is
+                // also when the dialog goes away.
+                if (state.rebuyInFlight) {
+                    logger.d { "Ignoring duplicate Rebuy — one is already in flight" }
+                } else {
+                    action.updateState { it.copy(rebuyInFlight = true) }
+                    // On viewModelScope (unlike LeaveGameFromBust): the player is
+                    // staying, so the rebuy round-trip must outlive the action but
+                    // not the screen.
+                    viewModelScope.launch {
+                        Catching { session.rebuy() }
+                            .onSuccess {
+                                logger.logEvent(
+                                    "game.rebuy",
+                                    "mode" to sessionFactory.xpMode.name.lowercase(),
+                                    "via_quick_buy" to quickBuyUsedThisSession,
+                                )
+                                sendEvent(PlayPokerEvent.RebuySucceeded)
                             }
-                        }
+                            .onFailure { e ->
+                                // Nothing was bought, so re-arm the CTA — a
+                                // refusal the player can act on (top up, then
+                                // retry) must not leave a dead button.
+                                takeAction(PlayPokerAction.RebuyAttemptFailed)
+                                if (e is IntentRejectedException &&
+                                    e.reason.contains("insufficient", ignoreCase = true)
+                                ) {
+                                    sendEvent(PlayPokerEvent.RebuyInsufficientChips)
+                                } else {
+                                    logger.w(e) { "rebuy failed" }
+                                }
+                            }
+                    }
                 }
+            }
+            is PlayPokerAction.RebuyAttemptFailed -> action.updateState {
+                it.copy(rebuyInFlight = false)
             }
             is PlayPokerAction.SwipeFoldAckChanged -> action.updateState {
                 it.copy(swipeFoldGestureAck = action.acknowledged)

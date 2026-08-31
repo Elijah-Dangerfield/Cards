@@ -42,7 +42,7 @@ class SessionExpiredViewModel(
         updateState { it.copy(retrying = true, retryFailed = false) }
         val outcome = authRepository.retry()
         if (outcome is AuthState.Authenticated) {
-            appCache.update { it.copy(hasUserOnboarded = true) }
+            appCache.update { it.copy(hasUserOnboarded = true, onboardingAttempt = null) }
             sendEvent(Event.SessionRestored)
         } else {
             updateState { it.copy(retrying = false, retryFailed = true) }

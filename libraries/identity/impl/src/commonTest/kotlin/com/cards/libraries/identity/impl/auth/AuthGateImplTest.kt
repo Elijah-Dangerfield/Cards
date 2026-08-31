@@ -163,6 +163,22 @@ class AuthGateImplTest : CoroutineTest() {
     }
 
     @Test
+    fun account_whenUnreachable_blocksWithOffline_andNeverHeals() = runUnitTest {
+        // AUTH-30: the backend was unreachable, so the session couldn't be
+        // verified. The gate must route to the dismissible Offline surface (enter
+        // the app behind the banner), NOT a NeedAccount wall or a SessionExpired
+        // recovery screen — and must not heal/mint. offline=false proves the
+        // routing keys off the reason, not the (optimistically-false) flag.
+        val h = build(onboarded = true, offline = false)
+        h.auth.emit(AuthState.Unauthenticated(reason = AuthState.Unauthenticated.Reason.Unreachable))
+        advanceUntilIdle()
+
+        assertEquals(blocked(AuthReason.Offline), h.gate.verdict(AuthRequirement.Account))
+        advanceUntilIdle()
+        assertEquals(0, h.auth.retryCalls, "unreachable is not healable — wait for connectivity, don't mint")
+    }
+
+    @Test
     fun account_whenSignedOut_blocksWithNeedAccount_andNeverHeals() = runUnitTest {
         val h = build(onboarded = true)
         h.auth.emit(AuthState.Unauthenticated(reason = AuthState.Unauthenticated.Reason.SignedOut))

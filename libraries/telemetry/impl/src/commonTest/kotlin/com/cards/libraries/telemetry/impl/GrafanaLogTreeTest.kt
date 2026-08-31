@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.telemetry.impl
 
+import com.dangerfield.cards.libraries.core.AuthReason
+import com.dangerfield.cards.libraries.core.AuthUnready
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.logEvent
 import io.opentelemetry.kotlin.logging.SeverityNumber
@@ -28,6 +30,7 @@ class GrafanaLogTreeTest {
                 currentSessionId = { sessionId },
                 currentInstallId = { installId },
                 isOffline = { offline },
+                installFacts = { RetailInstallFacts },
                 processorFactory = { processor },
             ),
         )
@@ -96,6 +99,49 @@ class GrafanaLogTreeTest {
         assertEquals(SeverityNumber.ERROR, record.severityNumber)
         assertEquals("IllegalStateException", record.attributes["exception_type"])
         assertEquals("socket already closed", record.attributes["exception_message"])
+    }
+
+    @Test
+    fun klogForwardingOn_expectedControlFlow_shipsAtDebugInsteadOfError() {
+        // ENG-44: `AuthUnready` was 85% of prod client ERROR lines, in the exact
+        // panel the nightly triage reads to find real bugs. The marker's own
+        // contract said telemetry sinks drop these; only Sentry honoured it.
+        klogForwardingEnabled = true
+        plantTree()
+
+        KLog.e("auth gate blocked the write", AuthUnready(AuthReason.FinishingSetup))
+
+        val record = processor.records.single()
+        assertEquals(SeverityNumber.DEBUG, record.severityNumber)
+    }
+
+    @Test
+    fun klogForwardingOn_downgradedRecordKeepsItsDetail() {
+        // Downgraded, not dropped — reconstructing a session after the fact is
+        // exactly what these lines are still good for.
+        klogForwardingEnabled = true
+        plantTree()
+
+        KLog.withTag("ProfileRepository")
+            .e("resolve failed", AuthUnready(AuthReason.FinishingSetup))
+
+        val record = processor.records.single()
+        assertEquals("resolve failed", record.body)
+        assertEquals("AuthUnready", record.attributes["exception_type"])
+        assertEquals("ProfileRepository", record.attributes["tag"])
+        assertEquals("session-uuid-1", record.attributes["session_id"])
+    }
+
+    @Test
+    fun klogForwardingOn_realFailuresKeepTheirSeverity() {
+        klogForwardingEnabled = true
+        plantTree()
+
+        KLog.e("engine died", IllegalStateException("boom"))
+        KLog.w("something odd", IllegalArgumentException("hmm"))
+
+        assertEquals(SeverityNumber.ERROR, processor.records[0].severityNumber)
+        assertEquals(SeverityNumber.WARN, processor.records[1].severityNumber)
     }
 
     @Test

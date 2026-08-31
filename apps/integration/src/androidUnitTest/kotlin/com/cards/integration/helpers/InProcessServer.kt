@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.http.ClientContext
 import com.dangerfield.cards.libraries.gameplay.Deck
 import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
 import com.dangerfield.cards.server.game.GameSessionRegistry
@@ -19,6 +20,7 @@ import com.dangerfield.cards.server.plugins.installWebSockets
 import com.dangerfield.cards.server.routes.matchmakingRoutes
 import com.dangerfield.cards.server.routes.roomRoutes
 import com.dangerfield.cards.server.routes.roomSocketRoutes
+import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.routes.DEFAULT_REAPER_GRACE
 import io.ktor.server.engine.EmbeddedServer
@@ -163,7 +165,9 @@ class InProcessServer(
         return embeddedServer(Netty, port = port) {
             installSerialization()
             installStatusPages()
-            installRateLimits()
+            installRateLimits(
+                AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6),
+            )
             installWebSockets()
             installAuthentication(IntegrationAuth.verification)
             routing {
@@ -308,7 +312,7 @@ private class InMemorySessionSnapshotStore : SessionSnapshotStore {
 /** Server-side profile source — a deterministic display name per user. */
 private object FakeProfiles : ProfileRepository {
     override suspend fun findById(userId: UserId): Profile? = null
-    override suspend fun findOrCreate(userId: UserId): Profile = Profile(
+    override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = Profile(
         userId = userId,
         displayName = "P-${userId.value.toString().take(4)}",
         avatarEmoji = "🃏",
@@ -567,14 +571,9 @@ private class HarnessTableSessionRepository(
 private object FakeProgression : com.dangerfield.cards.server.domain.ProgressionRepository {
     override suspend fun findOrCreateResult(userId: UserId) = error("unused in the integration harness")
     override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.UserProgression? = null
-    override suspend fun applyXp(
+    override suspend fun applyXpBatch(
         userId: UserId,
-        idempotencyKey: String,
-        deltaXp: Long,
-        source: String,
-        mode: String,
-        handId: String?,
-        wasBoosted: Boolean,
+        events: List<com.dangerfield.cards.server.domain.XpEventInput>,
     ) = error("unused in the integration harness")
     override suspend fun recentEvents(
         userId: UserId,

@@ -30,19 +30,36 @@ interface XpEventDao : ClearableDao {
     )
     fun observeRecent(limit: Int): Flow<List<XpEventEntity>>
 
-    /** Rows not yet flushed to the server, oldest first (apply order). */
+    /**
+     * The oldest [limit] rows not yet flushed to the server, in apply order.
+     *
+     * The limit is mandatory: an unbounded read is what let one player's
+     * outbox grow to 2,703 rows and put a five-minute request on the server
+     * every sync (ENG-45). Callers page until the outbox drains.
+     */
     @Query(
         """
         SELECT * FROM xp_events
         WHERE user_id = 'user' AND synced = 0
         ORDER BY created_at_epoch_ms ASC, id ASC
+        LIMIT :limit
         """
     )
-    suspend fun getUnsynced(): List<XpEventEntity>
+    suspend fun getUnsynced(limit: Int): List<XpEventEntity>
 
     /** Mark rows synced once the server has acked them (by idempotency key). */
     @Query("UPDATE xp_events SET synced = 1 WHERE idempotency_key IN (:keys)")
     suspend fun markSynced(keys: List<String>)
+
+    /**
+     * XP sitting in the outbox that the server hasn't counted yet.
+     *
+     * The authoritative total only covers rows the server has taken, so a
+     * partly-drained outbox has to add this back or the local total reads
+     * lower than what the player already earned.
+     */
+    @Query("SELECT COALESCE(SUM(delta_xp), 0) FROM xp_events WHERE user_id = 'user' AND synced = 0")
+    suspend fun unsyncedDeltaXp(): Long
 
     /**
      * Idempotency keys already present locally, for the re-hydration dedup:

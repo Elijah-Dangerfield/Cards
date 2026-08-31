@@ -1,5 +1,8 @@
 package com.dangerfield.cards.libraries.telemetry.impl
 
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
+
 /**
  * One MetricKit foreground-exit report (`MXForegroundExitData`), reduced to
  * the counts our `previous_exit` taxonomy can express. Counts cover the
@@ -22,6 +25,27 @@ internal data class ForegroundExitCounts(
         normal > 0 -> PreviousExit.Clean
         else -> PreviousExit.Unknown
     }
+}
+
+/**
+ * `app.exit_metrics` — the raw window counts, emitted once per MetricKit
+ * payload. [ForegroundExitCounts.classify] throws away everything but the most
+ * severe exit, which is right for a single `previous_exit` string and useless
+ * for the question ENG-42 asks: how often does iOS watchdog-kill this app?
+ * These counts are cumulative within the payload's ~24h window, so a dashboard
+ * charts them as a rate over deliveries, not as a running total.
+ */
+internal fun logForegroundExitMetrics(counts: ForegroundExitCounts) {
+    KLog.logEvent(
+        "app.exit_metrics",
+        "exit_normal" to counts.normal,
+        "exit_abnormal" to counts.abnormal,
+        "exit_watchdog" to counts.watchdog,
+        "exit_memory_limit" to counts.memoryLimit,
+        "exit_bad_access" to counts.badAccess,
+        "exit_illegal_instruction" to counts.illegalInstruction,
+        "classified_as" to counts.classify().value,
+    )
 }
 
 /**

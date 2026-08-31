@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.http.ClientContext
 import kotlinx.coroutines.test.runTest
 import java.util.UUID
 import kotlin.test.Test
@@ -184,7 +185,7 @@ class DefaultOrphanInstallSweepTest {
             deletedProfileUsers += userId
         }
 
-        override suspend fun findOrCreate(userId: UserId): Profile = error("unused")
+        override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform): Profile = error("unused")
         override suspend fun findById(userId: UserId): Profile? = null
         override suspend fun update(
             userId: UserId,
