@@ -30,6 +30,9 @@ on:
       # changes redeploy the server too.
       - 'apps/admin/**'
       - 'build-logic/**'
+      # The admin bundle is built from this lock and ships inside the
+      # server image, so a lock change is a deploy-worthy change.
+      - 'kotlin-js-store/**'
       - 'gradle/libs.versions.toml'
       - 'settings.gradle.kts'
       - 'build.gradle.kts'
