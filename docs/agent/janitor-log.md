@@ -60,3 +60,10 @@ last touched. Don't re-clean anything from the last ~30 days — pick a fresh sl
 | 2026-07-13 | features/rooms/impl/.../PublicSearchingScreen.kt | 10 FQN `@org.jetbrains…Preview` → imported `@Preview`; inline-FQN `RoomStatus.Lobby` in a preview → import |
 | 2026-07-13 | features/rooms/impl/.../PublicFindScreen.kt | 2 FQN `@Preview` → imported; deleted a narrating comment restating the buy-in chips row |
 | 2026-07-13 | docs/agent/ai-style-guide.md | +1 dead-code tip: `internal` helpers in a shared `*Common` file die silently when their only screen is cut — grep the whole module |
+| 2026-08-31 | apps/server/.../game/GameSession.kt | FIX: `requestNextHand` cleared the pending-joiner queue before the occupant check, stranding joiners a refused advance never seated; now cleared only on Accepted. `buildHandOutcome` KDoc had drifted onto `lastKnownStack`; `StepResult` FQN → import |
+| 2026-08-31 | apps/server/.../data/InMemoryRoomService.kt | FIX: `join` now hydrates from the durable store on a cache miss like `find`/`observe` (post-restart joins 404'd). Code-alphabet comments corrected 32→31 chars; duplicated create/join/fillBots rationale + `// Info:` log captions trimmed |
+| 2026-08-31 | apps/server/.../routes/RoomSocketRoutes.kt | 6 FQN domain/game types → imports, import block ordered; deleted operator narration (scan/distinctUntilChanged), the three `diffDeltas` loop captions, and the `// Info:` log captions |
+| 2026-08-31 | apps/server/.../domain/Room.kt | Stale docs fixed: `markFinished` + `RoomStatus.Finished` were documented as never set — both wired to heads-up match-over (MP-14) |
+| 2026-08-31 | apps/server/.../game/GameSessionTest.kt | +2 tests: refused advance keeps the joiner queued; the held joiner is dealt in by the next advance |
+| 2026-08-31 | apps/server/.../data/InMemoryRoomServiceTest.kt | +1 test + a round-tripping `FakeRoomStore`: join hydrates a persisted room after a process restart |
+| 2026-08-31 | docs/agent/ai-style-guide.md | +6 tips: new "State & lifecycle" group (consume-on-success, hydrate on every first-touch entry point, nonce-on-commit), log-caption + stale-"unused"-doc + quoted-constant tips |

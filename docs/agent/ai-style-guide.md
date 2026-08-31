@@ -7,11 +7,14 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 ## Logging & telemetry
 - Never log per-recomposition, per-flow-emission, per-engine-tick, or per-bot-iteration — it floods Sentry/Loki/Tempo. Log once per hand / user action / state transition.
 - Delete leftover debug scaffolding before shipping (tagged investigation logs like `[some-bug-tag]`, hash-code dumps, "does this fire?" probes). It's not telemetry.
+- Don't caption a log line with why it's at that level (`// Info: explains "the room disappeared."`) — the message already says it.
 
 ## Comments
 - Keep only genuine WHY (a gotcha, a regression it guards, "why this way not the obvious way"). Delete narration that restates the next line.
 - Don't delete a substantive WHY just because it's long — over-trimming good context is worse than leaving it.
 - Fix KDoc that describes code that no longer exists (renamed actions, removed flows, "used to render here" history) — a wrong doc misleads worse than none.
+- Re-check docs that claim something is unused ("not called anywhere yet", "reserved for a later phase") — they rot the moment it gets wired. Grep for callers before believing one.
+- Check numbers quoted in comments against the constant they describe (an alphabet documented as 32 chars was 31).
 
 ## Compose & previews
 - Import `Preview` from `org.jetbrains.compose.ui.tooling.preview.Preview` — never write the fully-qualified `@org.jetbrains…Preview` inline.
@@ -30,6 +33,11 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 - Dead strings hide in `strings.xml` — grep with word boundaries before trusting "used" (`…_start_button` matched only `…_start_button_waiting`).
 - A VM action no screen dispatches is dead API (`DismissError` with no dismiss affordance) — grep for the *dispatch* (`onAction(…)`), not the handler; its own tests keep it looking alive.
 - `if (!flag) Chrome()` is dead when every path into that screen sets the flag — trace the flag's producers (back buttons on steps only reachable after `creationStarted = true` never rendered).
+
+## State & lifecycle
+- Consume a queue/buffer only on the path that succeeded — clearing it before the operation can still be refused silently drops the work nothing will re-queue.
+- If a read path falls back to durable storage on a cache miss, every entry point that can be *first to touch* the key needs the same fallback — `find` hydrating but `join` 404-ing is a restart bug.
+- Record an idempotency nonce only once the mutation is committed; burning it on a refused path makes the client's retry a silent no-op.
 
 ## Naming & clarity
 - Don't shadow an outer `val` with an inner one of the same name — rename the inner (e.g. `previousHumans` → `priorHumans`) so each read is unambiguous.
