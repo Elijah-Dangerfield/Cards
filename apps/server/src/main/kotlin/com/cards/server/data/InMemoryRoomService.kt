@@ -174,7 +174,10 @@ class InMemoryRoomService(
         avatarEmoji: String,
         avatarBackgroundColor: String?,
     ): JoinResult = mutex.withLock {
-        val state = rooms[code] ?: return@withLock JoinResult.RoomNotFound
+        // Hydrate on a cache miss like find()/observe() do: after a restart the
+        // invited friend may be the first to touch the room, and refusing them a
+        // room the durable store still holds is the whole point of persisting it.
+        val state = (rooms[code] ?: hydrateLocked(code)) ?: return@withLock JoinResult.RoomNotFound
         val current = state.room
 
         current.memberFor(userId)?.let { return@withLock JoinResult.AlreadyJoined(current) }

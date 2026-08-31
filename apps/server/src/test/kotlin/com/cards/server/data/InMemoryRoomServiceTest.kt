@@ -75,6 +75,25 @@ class InMemoryRoomServiceTest {
     }
 
     @Test
+    fun join_hydratesFromTheDurableStore_whenTheProcessRestarted() = runTest {
+        val store = FakeRoomStore()
+        val beforeRestart = InMemoryRoomService(FixedClock(), Random(0L), store)
+        val code = beforeRestart.createOrFail(host, "Host").code
+
+        // Fresh process: the durable rows survive, the in-memory map doesn't. The
+        // invited friend is the first to touch the room, so nothing has hydrated it.
+        val afterRestart = InMemoryRoomService(FixedClock(), Random(1L), store)
+        val result = afterRestart.join(code, alice, "Alice")
+
+        assertIs<JoinResult.Success>(result)
+        assertEquals(
+            setOf(host, alice),
+            result.room.members.map { it.userId }.toSet(),
+            "the joiner lands in the persisted room alongside its host",
+        )
+    }
+
+    @Test
     fun create_codeMatchesAlphabet_andIsCorrectLength() = runTest {
         val service = newService()
         val room = service.createOrFail(host, "Host")
@@ -1225,6 +1244,20 @@ class InMemoryRoomServiceTest {
         clock = FixedClock(),
         random = Random(seed),
     )
+
+    /** A durable store that actually round-trips, so a test can stand a second
+     *  service on the same rows and model a process restart. */
+    private class FakeRoomStore : com.dangerfield.cards.server.domain.RoomStore {
+        private val rows = mutableMapOf<String, com.dangerfield.cards.server.domain.Room>()
+        override suspend fun save(room: com.dangerfield.cards.server.domain.Room) {
+            rows[room.code] = room
+        }
+        override suspend fun delete(code: String) {
+            rows.remove(code)
+        }
+        override suspend fun load(code: String): com.dangerfield.cards.server.domain.Room? = rows[code]
+        override suspend fun deleteStaleRooms(olderThan: Instant, keepCodes: Set<String>): Int = 0
+    }
 
     /** Records which room codes were torn down, for the teardown-hook tests. */
     private class RecordingRoomClosedListener : com.dangerfield.cards.server.domain.RoomClosedListener {
