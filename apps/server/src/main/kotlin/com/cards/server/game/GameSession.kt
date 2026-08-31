@@ -511,19 +511,17 @@ class GameSession internal constructor(
                     xp = it.xp,
                 )
             }
-        // Fold in anyone who joined mid-hand (skip a stray collision with a
-        // returning seat, and anyone since removed), then clear the queue —
-        // they're being dealt now.
+        // Fold in anyone who joined mid-hand, skipping a stray collision with a
+        // returning seat and anyone since removed.
         val returningIds = returning.mapTo(mutableSetOf()) { it.userId }
         val occupants = returning + pendingJoiners.values
             .filter { it.userId !in returningIds && it.userId !in removedPlayerIds }
-        pendingJoiners.clear()
         if (occupants.size < 2) {
             return@withLock IntentResult.Rejected("not enough players with chips for next hand")
         }
 
         recordNonce(clientNonce)
-        withSpan(
+        val result = withSpan(
             name = "request_next_hand",
             configure = {
                 setAttribute(SpanAttrs.SessionId, id.toString())
@@ -532,6 +530,13 @@ class GameSession internal constructor(
         ) {
             startHandLocked(occupants, settings)
         }
+        // Only a deal that happened consumes the queue. Clearing it up front
+        // stranded the joiners a refused advance never seated: nothing re-queues
+        // them, so they wait out the session as permanent spectators — and
+        // MatchOverGraceDriver, which holds off a terminal resolve while
+        // [pendingJoinerIds] is non-empty, would call the match over on them.
+        if (result is IntentResult.Accepted) pendingJoiners.clear()
+        result
     }
 
     /**
