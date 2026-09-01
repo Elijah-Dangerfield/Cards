@@ -109,6 +109,22 @@ The app working as designed. Don't file these as bugs; treat them as noise on th
   emulator/side-load fingerprint. A real ANR with Downcard frames, or one recurring across many
   *retail* installs, is a genuine bug — file it.
 
+## Panel conventions worth not relearning
+
+**Set a threshold on every `stat` panel, even a neutral one.** Grafana's default is green below 80
+and red above it, so any descriptive number larger than 80 renders as an alarm. "Total chip supply:
+594,370" in red reads as an incident. Give a purely descriptive stat a single
+`{"color": "text"}` step and reserve colour for panels where a value genuinely is good or bad
+(`Signed up, never played`, `Win %`, `Ledger sane?`). Swept 2026-09-01 across Users, Economy,
+Revenue and User detail.
+
+**Never alias a SQL column to an empty string.** `SELECT emoji AS ""` is a zero-length delimited
+identifier and Postgres rejects the whole query (`SQLSTATE 42601`), taking the panel with it.
+
+**Grafana re-sorts `panels[]` by `gridPos` when a dashboard is saved.** Array indices from before a
+save are not valid after it. Re-read `$.panels[*].title` immediately before every patch, or you
+will edit a different panel than you meant to.
+
 ## Durable vs ephemeral panels
 
 **Loki is capped at 31 days and fails loudly past it.** A 90-day query returns
