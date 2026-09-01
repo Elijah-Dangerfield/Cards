@@ -64,13 +64,13 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** ANR stack is main-thread-blocked-on-render (`HardwareRenderer.nSyncAndDrawFrame` → `pthread_cond_wait`), no first-party frames. Prime suspect to profile first is the achievement celebration overlay — a dozen fired during that one game. Re-measure after ENG-45 ships to separate the XP-payload OOMs from the real low-end signal. Case `docs/agent/feedback-cases/CARDS-BZ.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-BZ.
 
-## ENG-47 [P1] — Batch the play-style and player-stats sync writes the way progression now is
+## ENG-47 [P0] — Batch the play-style and player-stats sync writes the way progression now is
 
-**Problem:** `PlayerStatsRoutes.kt:49` and `PlayStyleRoutes.kt:63` still do `body.events.map { applyHand(...) }`, one transaction and ~4 statements per event — the exact shape that made ENG-45 a five-minute request. Their outboxes are capped at 25 rows as a stopgap so they can't wedge, which makes a backlog drain slowly instead of never.
+**Problem:** LIVE AND WORSENING as of 2026-09-01 20:00Z. `PlayerStatsRoutes.kt:49` and `PlayStyleRoutes.kt:63` still do `body.events.map { applyHand(...) }`, one transaction and ~4 statements per event. Both routes are now answering in **84-87 seconds and climbing** for at least two installs, past the client's 30s timeout, and one has already produced a truncated-body 400 (CARDS-C0, `$.events[147]` cut at 32,768 bytes). This is ENG-45 reproducing exactly on the two routes it didn't cover. The 25-row client page size that would bound it is written but unshipped — it needs a Play release — so **the server batch is the only fix that reaches anyone today**.
 
 **Acceptance:** Both routes apply a batch in one transaction, and both outboxes go back to `OUTBOX_PAGE_SIZE` (delete `OUTBOX_PAGE_SIZE_PER_EVENT_ROUTE`). Same statement-count guard as `applyXpBatch_twoThousandEvents_costOneTransactionAndAHandfulOfStatements`.
 
-**Hints:** Play style is a pure sum, so it batches like progression. Player stats is not: `AchievementCounters.fold` is order-dependent (no-bust streak) and each row stores a derived `noBustStreak`, so fold sequentially in memory over the keys the insert actually returned, then write the aggregate once. Getting that wrong corrupts achievement counters — test the fold order explicitly.
+**Hints:** Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-C0. Watch it on dc-infra → "Slowest requests (server logs)". Play style is a pure sum, so it batches like progression. Player stats is not: `AchievementCounters.fold` is order-dependent (no-bust streak) and each row stores a derived `noBustStreak`, so fold sequentially in memory over the keys the insert actually returned, then write the aggregate once. Getting that wrong corrupts achievement counters — test the fold order explicitly.
 
 ## ENG-48 [P2] — Sustained concurrent flushes for one user 500 instead of queueing
 
