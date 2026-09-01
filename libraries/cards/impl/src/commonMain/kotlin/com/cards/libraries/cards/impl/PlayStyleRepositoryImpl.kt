@@ -109,7 +109,6 @@ class PlayStyleRepositoryImpl(
                 loadPage = { limit -> playStyleEventDao.getUnsynced(limit) },
                 flushPage = { page -> flushPage(client, page) },
                 keyOf = { it.idempotencyKey },
-                pageSize = OUTBOX_PAGE_SIZE_PER_EVENT_ROUTE,
             ).warnIfIncomplete(logger, "play-style")
         }
     }

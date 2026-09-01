@@ -7,6 +7,8 @@ green, close the tab.**
 | Folder | Dashboard (uid) | Headline question |
 |---|---|---|
 | Downcard — Product | **Pulse** (`dc-pulse`, the home dashboard) | Is the app healthy and are people getting good usage? |
+| Downcard — Product | Users (`dc-users`) | Who is using the app, and how? Population, roster, chips, trouble |
+| Downcard — Product | User detail (`dc-user`) | Everything about **one** player. Driven by a `user` variable; reached by clicking a name on Users or the Shark leaderboard |
 | Downcard — Product | Gameplay & Matchmaking (`dc-gameplay`) | How do people play — bots vs MP, friends vs global, sharks, matchmaking friction? |
 | Downcard — Product | Funnel & Progression (`dc-funnel`) | Do new users make it through onboarding; do players level and unlock? |
 | Downcard — Business | Cards — Economy (`cards-economy`) | In-game chips: supply, balances, busts, faucet vs sink, product adoption |
@@ -107,9 +109,103 @@ The app working as designed. Don't file these as bugs; treat them as noise on th
   emulator/side-load fingerprint. A real ANR with Downcard frames, or one recurring across many
   *retail* installs, is a genuine bug — file it.
 
+## Panel conventions worth not relearning
+
+**Set a threshold on every `stat` panel, even a neutral one.** Grafana's default is green below 80
+and red above it, so any descriptive number larger than 80 renders as an alarm. "Total chip supply:
+594,370" in red reads as an incident. Give a purely descriptive stat a single
+`{"color": "text"}` step and reserve colour for panels where a value genuinely is good or bad
+(`Signed up, never played`, `Win %`, `Ledger sane?`). Swept 2026-09-01 across Users, Economy,
+Revenue and User detail.
+
+**Never alias a SQL column to an empty string.** `SELECT emoji AS ""` is a zero-length delimited
+identifier and Postgres rejects the whole query (`SQLSTATE 42601`), taking the panel with it.
+
+**Grafana re-sorts `panels[]` by `gridPos` when a dashboard is saved.** Array indices from before a
+save are not valid after it. Re-read `$.panels[*].title` immediately before every patch, or you
+will edit a different panel than you meant to.
+
+## Durable vs ephemeral panels
+
+**Loki is capped at 31 days and fails loudly past it.** A 90-day query returns
+`this data is no longer available, it is past now - max_query_lookback (31d)`. Widening the time
+picker does not widen the answer, so any panel built on client or server *events* has a hard
+horizon. Postgres has no such limit: `profiles`, `wallets`, `wallet_events`, `xp_events`,
+`player_stat_events`, `table_sessions`, `achievements_earned` and `billing_transactions` are the
+durable record.
+
+**The rule:** a panel may only say *all time*, *ever*, *lifetime* or *since launch* if every one of
+its queries is Postgres. Audited 2026-09-01 and all existing claims pass — `Accounts (all time)`,
+`Chip sources/sinks (all time)`, `Distinct achievements ever earned`, `Cumulative accounts
+(all-time growth)` and `Total chip supply over time` are Postgres-backed. Keep it that way.
+
+**The subtler trap is the panel that claims nothing.** A Loki panel labelled "over the dashboard
+range" is honest about its window and silent about its ceiling, so a 90-day picker quietly answers
+for 31. Every Loki-heavy dashboard now says so in its description.
+
+**Prefer Postgres when both can answer the same question.** Converted 2026-09-01:
+
+| Panel | Was | Now |
+|---|---|---|
+| Pulse → Hands per day by mode | `game.started` events (Loki) | `player_stat_events` — durable, and already reaches back to 2026-07-24, further than Loki can |
+| Gameplay → Player hand win % | `hand.completed` events (Loki) | `player_stat_events.won` |
+| Gameplay → Bots vs multiplayer | `game.started` events (Loki) | `player_stat_events.mode` |
+
+**Still Loki-only, because no DB equivalent exists:** device-based DAU/sessions and installs (keyed
+by `install_id`, which only reaches Postgres via `profiles` for accounts that finished onboarding),
+crash-free rates (`previous_exit` on `app.launched`), the onboarding step funnel (step views are
+client-side), matchmaking friction, and client reliability events. These are legitimately
+ephemeral; label them, don't pretend.
+
+## What the suite cannot see (audited 2026-09-01)
+
+Read this before concluding "the dashboards are green, so we're fine." ENG-45 ran for eight days
+with a real user's sync taking 300-500 seconds and **every panel stayed green**. The audit below is
+what that cost us.
+
+**Slow-but-successful is the blind spot that matters.** A request returning `200 OK` after eight
+minutes produces no error, no 5xx, no crash, and trips none of A1-A8. Three separate things hid it:
+
+1. **The RED panels were ~100% health checks.** `/_health` runs every 30s = ~2,880 requests/day
+   against ~3,000 total. Real user traffic was a rounding error, so `p99` read **4.95 ms** flat
+   through the entire incident. *Fixed 2026-09-01: the latency, request-rate and top-routes panels
+   now exclude `http_route="/_health"`.*
+2. **The histogram cannot express it anyway.** The largest finite bucket is `le=10` seconds, so
+   anything slower collapses into `+Inf` and `histogram_quantile` can only ever say "10s+". Worse,
+   two instrumentation versions emit mismatched bounds (`le="10"` and `le="10.0"`), which
+   `sum by (le)` silently treats as different buckets. **Do not trust these quantiles above ~1s.**
+3. **Nothing charted server-side duration from a source that could represent it.** *Fixed
+   2026-09-01: dc-infra → "Slowest requests (server logs)" reads the `CallLogging` `... in NNNms`
+   line from Loki, which has no upper bound. Empty is healthy.* The alert half is ENG-46.
+
+**Crash-free rates were overstated.** The formula counted only `previous_exit` in
+(`crash`, `anr`) and silently ignored **`oom`**, which outnumbers ANR 8-to-1 in the live
+population. *Fixed 2026-09-01: OOM now counts as a crash.* The iOS half is still blind —
+`previous_exit=unknown` is ~45% of all launches until MetricKit lands (ENG-25), and those sit in
+the denominator but can never reach the numerator, so the number reads **higher than reality**.
+Treat crash-free as an Android figure with an optimistic bias.
+
+**Metrics that do not exist.** These are scraped by nothing, so their panels/queries are
+permanently dead rather than reporting zero. A `0` from any of them means "no data", not "no
+problem":
+
+| Metric | Panel |
+|---|---|
+| `pgrst_db_pool_waiting`, `pgrst_db_pool_timeouts_total` | dc-infra → DB pool *(repurposed 2026-09-01)* |
+| `fly_instance_exit_oom` | dc-infra → Restarts (24h) — *query deleted 2026-09-01* |
+| `fly_app_hard_limit_reached_count` | dc-infra → Concurrency vs limits — *query deleted 2026-09-01* |
+| `fly_instance_cpu_throttle` | dc-infra → CPU % — *query deleted 2026-09-01* |
+
+**Pulse was trimmed 2026-09-01** from 33 panels to 27. The "Users & installs" row moved to
+dc-users, which does it properly; "Median game duration" was a proxy for a `session_duration_sec`
+attribute that now actually exists; "Client warnings & errors" duplicated the by-install panel on
+dc-users. Pulse is a 30-second glance, and 33 panels is a second dashboard wearing its name.
+
+**Postgres `auth` schema is denied** (`SQLSTATE 42501`), so ban state (`auth.users.banned_until`)
+cannot be charted. dc-users documents this in place rather than showing an empty panel.
+
 ## Known gaps (deliberate)
 
 - Offline-emitted events drop (at-most-once delivery) — ENG-25 owns the persistence upgrade.
 - "Bust → walk-away %" on Economy is an event-level approximation, not sessionized.
-- Matchmaking/multiplayer/Tempo panels are empty until real play resumes post-wipe; RED panels show
-  health-check traffic only until launch.
+- Matchmaking/multiplayer/Tempo panels are empty until real play resumes post-wipe.

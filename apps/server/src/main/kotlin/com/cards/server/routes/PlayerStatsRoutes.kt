@@ -46,22 +46,31 @@ fun Route.playerStatsRoutes(repository: PlayerStatsRepository) {
                 val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
                 val body = call.receive<PlayerStatsSyncRequest>()
 
+                // One transaction for the whole payload, folded in the order the
+                // client sent it. An empty batch is the "hydrate my stats"
+                // pulse, and still lazy-creates the row.
+                val batch = repository.applyHandBatch(userId, body.events.map { it.toFacts() })
+
+                // A key the batch committed reads Applied exactly once — a
+                // repeat of it inside the same payload is a replay like any
+                // other, same as when the hands went one at a time.
+                val counted = mutableSetOf<String>()
                 val results = body.events.map { event ->
-                    val outcome = repository.applyHand(userId, event.toFacts())
+                    val applied = event.idempotencyKey in batch.appliedKeys &&
+                        counted.add(event.idempotencyKey)
                     PlayerStatEventResultDto(
                         idempotencyKey = event.idempotencyKey,
-                        outcome = if (outcome.wasAlreadyApplied) {
-                            PlayerStatEventOutcomeDto.AlreadyApplied
-                        } else {
+                        outcome = if (applied) {
                             PlayerStatEventOutcomeDto.Applied
+                        } else {
+                            PlayerStatEventOutcomeDto.AlreadyApplied
                         },
                     )
                 }
 
-                val stats = repository.findOrCreate(userId)
                 call.respond(
                     HttpStatusCode.OK,
-                    PlayerStatsSyncResponse(stats = stats.toDto(), results = results),
+                    PlayerStatsSyncResponse(stats = batch.stats.toDto(), results = results),
                 )
             }
         }

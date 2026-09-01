@@ -101,6 +101,18 @@ data class PlayStyleHand(
  */
 data class ApplyPlayStyleOutcome(val wasAlreadyApplied: Boolean)
 
+/**
+ * Result of [PlayStyleRepository.applyHandBatch]. [appliedKeys] holds only the
+ * keys this call actually committed — every other key in the batch was already
+ * on the server (a replay) and moved nothing. [aggregate] is the post-batch
+ * aggregate, so answering with the axes costs no extra read.
+ */
+@OptIn(ExperimentalTime::class)
+data class ApplyPlayStyleBatchResult(
+    val aggregate: UserPlayStyleAggregate,
+    val appliedKeys: Set<String>,
+)
+
 @OptIn(ExperimentalTime::class)
 interface PlayStyleRepository {
 
@@ -114,14 +126,27 @@ interface PlayStyleRepository {
     suspend fun find(userId: UserId): UserPlayStyleAggregate?
 
     /**
-     * Fold one finished hand into the aggregate idempotently. Lazy-creates the
-     * row if missing. Re-applying the same [PlayStyleHand.idempotencyKey]
-     * returns `wasAlreadyApplied = true` and mutates nothing.
+     * Fold a whole batch of finished hands into the aggregate idempotently,
+     * lazy-creating the row if missing. Duplicate keys *within* [hands]
+     * collapse to their first occurrence, and a key already on the server
+     * moves nothing.
      *
-     * Implementations MUST take a transaction so the ledger row + the bumped
-     * aggregate commit together or not at all.
+     * Implementations MUST apply the whole batch in ONE transaction, so the
+     * ledger rows + the bumped aggregate commit together or not at all — and
+     * its cost must not scale with `hands.size` in round trips. A client
+     * flushing a week-old backlog is the case that broke prod (ENG-47).
      */
-    suspend fun applyHand(userId: UserId, hand: PlayStyleHand): ApplyPlayStyleOutcome
+    suspend fun applyHandBatch(userId: UserId, hands: List<PlayStyleHand>): ApplyPlayStyleBatchResult
+
+    /**
+     * Single-hand convenience over [applyHandBatch]. Re-applying the same
+     * [PlayStyleHand.idempotencyKey] returns `wasAlreadyApplied = true` and
+     * mutates nothing.
+     */
+    suspend fun applyHand(userId: UserId, hand: PlayStyleHand): ApplyPlayStyleOutcome {
+        val result = applyHandBatch(userId, listOf(hand))
+        return ApplyPlayStyleOutcome(wasAlreadyApplied = hand.idempotencyKey !in result.appliedKeys)
+    }
 
     /**
      * Wipe play-style aggregate + ledger for a user. Called from the

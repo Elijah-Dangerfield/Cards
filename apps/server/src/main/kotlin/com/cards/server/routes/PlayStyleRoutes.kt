@@ -60,22 +60,31 @@ fun Route.playStyleRoutes(repository: PlayStyleRepository) {
                 val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
                 val body = call.receive<PlayStyleSyncRequest>()
 
+                // One transaction for the whole payload. An empty batch is the
+                // "hydrate my axes" pulse a cold boot depends on, and still
+                // lazy-creates the aggregate.
+                val batch = repository.applyHandBatch(userId, body.events.map { it.toDomain() })
+
+                // A key the batch committed reads Applied exactly once — a
+                // repeat of it inside the same payload is a replay like any
+                // other, same as when the hands went one at a time.
+                val counted = mutableSetOf<String>()
                 val results = body.events.map { event ->
-                    val outcome = repository.applyHand(userId, event.toDomain())
+                    val applied = event.idempotencyKey in batch.appliedKeys &&
+                        counted.add(event.idempotencyKey)
                     PlayStyleEventResultDto(
                         idempotencyKey = event.idempotencyKey,
-                        outcome = if (outcome.wasAlreadyApplied) {
-                            PlayStyleEventOutcomeDto.AlreadyApplied
-                        } else {
+                        outcome = if (applied) {
                             PlayStyleEventOutcomeDto.Applied
+                        } else {
+                            PlayStyleEventOutcomeDto.AlreadyApplied
                         },
                     )
                 }
 
-                val axes = repository.findOrCreateAggregate(userId).toAxes()
                 call.respond(
                     HttpStatusCode.OK,
-                    PlayStyleSyncResponse(axes = axes.toDto(), results = results),
+                    PlayStyleSyncResponse(axes = batch.aggregate.toAxes().toDto(), results = results),
                 )
             }
         }

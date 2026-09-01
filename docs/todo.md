@@ -48,6 +48,14 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Values are strings, so match `="true"` not a bool. **"Accounts (all-time)" can't be filtered this way** — it's a Postgres count over `profiles`, which has no telemetry attrs; either drop it from scope or join on something server-side. Attribute semantics: `docs/wiki/app-events.md` → "Install and device facts".
 
+## ENG-50 [P1] — Stop the rolling deploy from restart-storming on the single-writer lock
+
+**Problem:** Every prod deploy briefly runs a second machine that cannot take the Postgres advisory lock the old one still holds. It retries, exits, and Fly restarts it, about ten times. Measured on the 2026-09-01 deploy: 10 restarts on the throwaway instance and a CPU spike to 531% from repeated JVM cold starts, ~20 minutes after the deploy had otherwise finished. It resolves itself, and no data is ever at risk — refusing to boot is the correct behaviour. The cost is that a `fatal` uncaught exception is now the normal outcome of a healthy deploy, which means a genuine split-brain would be indistinguishable from deploy noise. That is what makes this P1 rather than cosmetic.
+
+**Acceptance:** A deploy produces at most one restart on the incoming instance. Either have `SingleWriterGuard` wait on the lock rather than exiting (so Fly does not restart it), or have the outgoing machine release the lock before the new one starts.
+
+**Hints:** Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-9Q is this, `level=fatal`, `handled=no`, escalating — previously mis-ledgered as dev-only, it is prod. `SingleWriterGuard.acquire` logs "Single-writer lock held by another instance; retrying (attempt N)" then gives up and exits. `apps/server/fly.prod.toml` explains why the strategy is `rolling` and never blue-green: in-memory room state plus the advisory lock. Rolling avoids the deadlock it was chosen to avoid; it does not avoid this thrash. Evidence: dc-infra → Restarts (24h), broken out per instance.
+
 ## ENG-49 [P1] — Chart ANR/OOM by device class, then find what a low-end phone runs out of mid-game
 
 **Problem:** A retail moto g42 (3.59 GB, Play install, not side-loaded) was OOM-killed, then ANR-killed 33 minutes later on hand 22 of a live multiplayer game. It does **not** match the benign PairIP ANR exemption, which needs the emulator/side-load fingerprint this device lacks. Four distinct installs have hit OOM in 30 days; two of those are the ENG-45 wedge user and should stop once that ships.
@@ -56,14 +64,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** ANR stack is main-thread-blocked-on-render (`HardwareRenderer.nSyncAndDrawFrame` → `pthread_cond_wait`), no first-party frames. Prime suspect to profile first is the achievement celebration overlay — a dozen fired during that one game. Re-measure after ENG-45 ships to separate the XP-payload OOMs from the real low-end signal. Case `docs/agent/feedback-cases/CARDS-BZ.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-BZ.
 
-## ENG-47 [P1] — Batch the play-style and player-stats sync writes the way progression now is
-
-**Problem:** `PlayerStatsRoutes.kt:49` and `PlayStyleRoutes.kt:63` still do `body.events.map { applyHand(...) }`, one transaction and ~4 statements per event — the exact shape that made ENG-45 a five-minute request. Their outboxes are capped at 25 rows as a stopgap so they can't wedge, which makes a backlog drain slowly instead of never.
-
-**Acceptance:** Both routes apply a batch in one transaction, and both outboxes go back to `OUTBOX_PAGE_SIZE` (delete `OUTBOX_PAGE_SIZE_PER_EVENT_ROUTE`). Same statement-count guard as `applyXpBatch_twoThousandEvents_costOneTransactionAndAHandfulOfStatements`.
-
-**Hints:** Play style is a pure sum, so it batches like progression. Player stats is not: `AchievementCounters.fold` is order-dependent (no-bust streak) and each row stores a derived `noBustStreak`, so fold sequentially in memory over the keys the insert actually returned, then write the aggregate once. Getting that wrong corrupts achievement counters — test the fold order explicitly.
-
 ## ENG-48 [P2] — Sustained concurrent flushes for one user 500 instead of queueing
 
 **Problem:** The pool runs REPEATABLE READ, so concurrent updates to one `user_progression` row abort with `40001`; Exposed retries a bounded number of times, then the request fails. Measured: 4 concurrent flushes of one user pass, 6 and 8 fail. Pre-existing (the per-event write had the same shape), and the batch fix makes it rarer by shortening requests, but `RetryPolicy.idempotent()` still overlaps retries.
@@ -71,6 +71,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 **Acceptance:** Concurrent flushes for one user converge instead of erroring — widen the retry budget for serialization failures, or serialise per user. A test at 8+ concurrent flushes passes without a 500 and without losing credit.
 
 **Hints:** `Database.transaction` wraps `newSuspendedTransaction`; Exposed 0.56 retries via `transaction.maxAttempts`. The writes themselves are already safe — `PostgresProgressionRepository.addToTotal` is a relative `total_xp = total_xp + ?`, so this is about availability, not correctness. Don't "fix" it by reverting to a read-then-write absolute update: that trades 500s for silent lost credit.
+
+`PostgresPlayerStatsRepository.applyHandBatch` has the same shape by design (ENG-47): the counter fold is order-dependent, so it can't be expressed as relative arithmetic and instead takes `SELECT … FOR UPDATE` on the aggregate. Under REPEATABLE READ that raises `40001` rather than queueing, so whatever fixes progression should cover it too. Play style and progression are both relative and need no lock.
 
 ## ENG-46 [P1] — Alert on slow-but-successful server requests (A1–A8 are blind to them)
 

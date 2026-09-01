@@ -73,8 +73,33 @@ Read `docs/wiki/observability.md` first, then start at **Pulse** (`dc-pulse`) �
 
 A signal earns a todo when it's a **plausible regression or defect**, not merely noteworthy — "crash-free % fell below 99% after last night's build" is a bug; "DAU dipped" is not. And a **known-benign signal is never a todo**: a banned-403 (`CARDS-BG`), a user-cancelled purchase, or a single install's `net.backend_unreachable` is the app working as designed (wiki → "Known-benign client signals"). A banned-403 in particular is owned by ENG-35 — don't re-file it.
 
+**Green dashboards are not evidence of health.** ENG-45 ran eight days at 300-500s per request,
+returning `200 OK` the whole time, and every panel stayed green. Before you write "nothing found",
+run the two checks that would have caught it:
+
+```
+# 1. Slow-but-successful. No upper bound, unlike the Prometheus histogram (which tops out at a
+#    10s bucket and cannot represent anything worse).
+{service_name="cards-server", deployment_environment="prod"} |~ ` in [0-9]{5,}ms` != `101 Switching Protocols`
+
+# 2. Abnormal exits, INCLUDING oom — it outnumbers anr 8-to-1 and used to be excluded entirely.
+sum by (previous_exit) (count_over_time({service_name="cards-client", deployment_environment="prod"} | event_name="app.launched" [7d]))
+```
+
+The first is now dc-infra → "Slowest requests (server logs)"; empty is the healthy state and
+anything in it is a real finding. **Never conclude a route is fast from the RED latency panel
+alone** — read `docs/wiki/observability.md` → "What the suite cannot see" for why those quantiles
+are unreliable above about a second.
+
 **Also scan the server logs directly** — a failing path can be live before any dashboard panel or alert reflects it. Over the last 24h:
 `query_loki_logs(datasourceUid='grafanacloud-logs', logql='{service_name="cards-server", deployment_environment="prod"} | detected_level=~"warn|error|fatal"', ...)`. **Include `warn`** — money-touching failures like `receipt_rejected` / redeem-400s are logged at WARN, so an `error|fatal`-only filter misses them entirely. Recurring warnings/errors not already owned by a Sentry issue or todo are their own signal. And **`totalLinesScanned: 0` on a filtered query does not mean the server is silent** — the filter just matched nothing; confirm the base stream is live (`query_loki_stats`, or an unfiltered `{service_name="cards-server"}` count) before concluding there are no server logs.
+
+**Loki cannot answer past 31 days.** A wider query fails with
+`max_query_lookback (31d)`, so never conclude "this has never happened" from an event query — it
+only means "not in the last month". Postgres (`profiles`, `wallet_events`, `xp_events`,
+`player_stat_events`, `table_sessions`, `billing_transactions`) is the durable record; reach for it
+whenever the question is historical. Same rule applies when you *build* a panel: only Postgres-backed
+panels may claim "all time" (`docs/wiki/observability.md` → "Durable vs ephemeral panels").
 
 **Know the expected-empty panels so you don't file phantom bugs** (all documented in the wiki's "Known gaps"): matchmaking/MP/Tempo/RED panels read empty (or health-check-only) until real play resumes post-wipe; iOS crash-free shows `previous_exit=unknown` until MetricKit (ENG-25); offline-emitted events drop by design. **Query gotchas:** Loki stream labels are only `service_name` + `deployment_environment` (everything else is structured metadata — pipe filters); gameplay spans are INTERNAL-kind so they're not in `traces_spanmetrics_*` Prom metrics (use TraceQL metrics on Tempo); count users/sessions from `app.foregrounded`, never `app.launched`; prod is the default env.
 

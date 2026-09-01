@@ -829,9 +829,9 @@ class MeRoutesTest {
     private object EmptyPlayStyle : com.dangerfield.cards.server.domain.PlayStyleRepository {
         override suspend fun findOrCreateAggregate(userId: UserId) = error("unused")
         override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.UserPlayStyleAggregate? = null
-        override suspend fun applyHand(
+        override suspend fun applyHandBatch(
             userId: UserId,
-            hand: com.dangerfield.cards.server.domain.PlayStyleHand,
+            hands: List<com.dangerfield.cards.server.domain.PlayStyleHand>,
         ) = error("unused")
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit
@@ -840,9 +840,9 @@ class MeRoutesTest {
     private object EmptyPlayerStats : com.dangerfield.cards.server.domain.PlayerStatsRepository {
         override suspend fun findOrCreate(userId: UserId) = error("unused")
         override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.PlayerStats? = null
-        override suspend fun applyHand(
+        override suspend fun applyHandBatch(
             userId: UserId,
-            facts: com.dangerfield.cards.libraries.achievements.HandFacts,
+            facts: List<com.dangerfield.cards.libraries.achievements.HandFacts>,
         ) = error("unused")
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit
