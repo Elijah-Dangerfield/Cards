@@ -15,7 +15,7 @@ duplicate) if a resolved signal gets materially worse.
 | Issue | Title (short) | Disposition |
 |---|---|---|
 | [CARDS-9R](https://elijah-dangerfield.sentry.io/issues/CARDS-9R) | `JsonConvertException: unknown key 'walletBalance'` (iOS, debug) | no-action: already fixed on develop |
-| [CARDS-9Q](https://elijah-dangerfield.sentry.io/issues/CARDS-9Q) | `SingleWriterGuard` refusing to boot (dev) | no-action: guard working as designed, dev-only, self-resolved |
+| [CARDS-9Q](https://elijah-dangerfield.sentry.io/issues/CARDS-9Q) | `SingleWriterGuard` refusing to boot | **RE-OPENED 2026-09-01 → todo ENG-50.** The earlier "dev-only" call was wrong: all 11 events in the current window are `environment=prod`, `level=fatal`, `handled=no`, and Sentry has it as *escalating*. Fires on every prod deploy. |
 | [CARDS-97](https://elijah-dangerfield.sentry.io/issues/CARDS-97) | `SavedStateHandle` can't put `AccountActionsState` (twin CARDS-93) | no-action: already fixed on develop (ENG-27) |
 | [CARDS-9V](https://elijah-dangerfield.sentry.io/issues/CARDS-9V) | `ReceiptRejectedException: apple_account_mismatch` (server, prod) | no-action: dup of BILL-11 (server twin) + BILL-12 |
 | [CARDS-9H](https://elijah-dangerfield.sentry.io/issues/CARDS-9H) | Redeem unreachable — order left uncredited | no-action: dup of BILL-12 (client misclassifies the 400) + BILL-11 root; supersedes prior BILL-7 pointer |
@@ -578,3 +578,19 @@ That is still un-approved. The client half (paging) needs the store release to r
 -->
 - 2026-08-31 · CARDS-BZ · todo: ENG-49 [P1] real retail low-end Android ANR-killed on hand 22 of a live MP game, 33min after an OOM on the same device; fails the PairIP benign gate on build image and install source · https://elijah-dangerfield.sentry.io/issues/CARDS-BZ · case docs/agent/feedback-cases/CARDS-BZ.md
 - 2026-08-31 · CARDS-BY · no-action: duplicate of ENG-45 — same install as CARDS-BW, oversized XP outbox now truncated at 212,992 bytes and rejected 400 instead of timing out; fix already on develop · https://elijah-dangerfield.sentry.io/issues/CARDS-BY · case docs/agent/feedback-cases/CARDS-BW.md
+
+<!-- 2026-09-01 owner-prompted re-check of CARDS-9Q. Correcting a stale disposition: it was
+ledgered as "dev-only, working as designed" and it is neither. Every event in the current window
+carries environment=prod, and the newest (15:49-15:56) came from server_name 0800d06fd07748 — the
+throwaway instance the 2026-09-01 rolling deploy stood up, which could not take the advisory lock
+the outgoing machine still held.
+
+The guard itself is behaving correctly and no data was at risk: refusing to boot is exactly what
+should happen rather than two machines split-braining in-memory room state. What is wrong is that
+a `fatal`, `handled=no` uncaught exception is now the NORMAL outcome of a deploy, ~10 times per
+deploy. That does three things: it pollutes the crash surface, it drives the restart storm and the
+531% CPU spike measured the same afternoon, and — the reason this is worth more than cosmetic — it
+makes a genuine split-brain indistinguishable from routine deploy noise. A fatal alert that fires
+on every healthy deploy cannot warn you about the one unhealthy time. Raised ENG-50 P2 → P1 on that
+basis. Left unresolved in Sentry; the worker that ships ENG-50 resolves it. -->
+- 2026-09-01 · CARDS-9Q · todo: ENG-50 [P1] re-opened — prod-fatal on every deploy, not dev-only as previously ledgered; the guard is right but the noise makes a real split-brain unreadable · https://elijah-dangerfield.sentry.io/issues/CARDS-9Q · case docs/agent/feedback-cases/CARDS-BW.md
