@@ -64,14 +64,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** ANR stack is main-thread-blocked-on-render (`HardwareRenderer.nSyncAndDrawFrame` → `pthread_cond_wait`), no first-party frames. Prime suspect to profile first is the achievement celebration overlay — a dozen fired during that one game. Re-measure after ENG-45 ships to separate the XP-payload OOMs from the real low-end signal. Case `docs/agent/feedback-cases/CARDS-BZ.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-BZ.
 
-## ENG-47 [P0] — Batch the play-style and player-stats sync writes the way progression now is
-
-**Problem:** LIVE AND WORSENING as of 2026-09-01 20:00Z. `PlayerStatsRoutes.kt:49` and `PlayStyleRoutes.kt:63` still do `body.events.map { applyHand(...) }`, one transaction and ~4 statements per event. Both routes are now answering in **84-87 seconds and climbing** for at least two installs, past the client's 30s timeout, and one has already produced a truncated-body 400 (CARDS-C0, `$.events[147]` cut at 32,768 bytes). This is ENG-45 reproducing exactly on the two routes it didn't cover. The 25-row client page size that would bound it is written but unshipped — it needs a Play release — so **the server batch is the only fix that reaches anyone today**.
-
-**Acceptance:** Both routes apply a batch in one transaction, and both outboxes go back to `OUTBOX_PAGE_SIZE` (delete `OUTBOX_PAGE_SIZE_PER_EVENT_ROUTE`). Same statement-count guard as `applyXpBatch_twoThousandEvents_costOneTransactionAndAHandfulOfStatements`.
-
-**Hints:** Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-C0. Watch it on dc-infra → "Slowest requests (server logs)". Play style is a pure sum, so it batches like progression. Player stats is not: `AchievementCounters.fold` is order-dependent (no-bust streak) and each row stores a derived `noBustStreak`, so fold sequentially in memory over the keys the insert actually returned, then write the aggregate once. Getting that wrong corrupts achievement counters — test the fold order explicitly.
-
 ## ENG-48 [P2] — Sustained concurrent flushes for one user 500 instead of queueing
 
 **Problem:** The pool runs REPEATABLE READ, so concurrent updates to one `user_progression` row abort with `40001`; Exposed retries a bounded number of times, then the request fails. Measured: 4 concurrent flushes of one user pass, 6 and 8 fail. Pre-existing (the per-event write had the same shape), and the batch fix makes it rarer by shortening requests, but `RetryPolicy.idempotent()` still overlaps retries.
@@ -79,6 +71,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 **Acceptance:** Concurrent flushes for one user converge instead of erroring — widen the retry budget for serialization failures, or serialise per user. A test at 8+ concurrent flushes passes without a 500 and without losing credit.
 
 **Hints:** `Database.transaction` wraps `newSuspendedTransaction`; Exposed 0.56 retries via `transaction.maxAttempts`. The writes themselves are already safe — `PostgresProgressionRepository.addToTotal` is a relative `total_xp = total_xp + ?`, so this is about availability, not correctness. Don't "fix" it by reverting to a read-then-write absolute update: that trades 500s for silent lost credit.
+
+`PostgresPlayerStatsRepository.applyHandBatch` has the same shape by design (ENG-47): the counter fold is order-dependent, so it can't be expressed as relative arithmetic and instead takes `SELECT … FOR UPDATE` on the aggregate. Under REPEATABLE READ that raises `40001` rather than queueing, so whatever fixes progression should cover it too. Play style and progression are both relative and need no lock.
 
 ## ENG-46 [P1] — Alert on slow-but-successful server requests (A1–A8 are blind to them)
 

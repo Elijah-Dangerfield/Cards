@@ -1,5 +1,20 @@
 # In flight
 
+## perf(sync): batch the play-style and player-stats writes (ENG-47)
+
+**Problem:** The two sibling routes ENG-45 didn't cover were doing the same thing it fixed — one transaction and ~4 statements per event. Live and worsening at the time of the fix: `play-style/sync` and `player-stats/sync` answering in 84 to 87 seconds and climbing for at least two installs, past the client's 30s timeout. One had already produced a truncated-body 400 (CARDS-C0: the payload cut at exactly 32,768 bytes, mid-`$.events[147]`).
+
+**Approach:** `applyHandBatch` is now the one abstract write on both repositories; the single-hand `applyHand` survives as a default wrapping a one-element batch, and both routes reconstruct per-key `Applied`/`AlreadyApplied` from `appliedKeys` the way `ProgressionRoutes` does. Both return the post-batch aggregate, which also drops the second read the routes used to do.
+
+The two halves are not the same problem:
+
+- **Play style is a pure sum.** It mirrors `applyXpBatch` exactly: chunked `INSERT … ON CONFLICT DO NOTHING RETURNING idempotency_key`, then one relative `UPDATE … SET hands_dealt = hands_dealt + ?, …` over the keys that actually landed. Relative for the same reason `addToTotal` is — an absolute `read + delta` loses counts whenever two flushes overlap, which `RetryPolicy.idempotent()` genuinely produces.
+- **Player stats is not.** `AchievementCounters.fold` carries the no-bust streak, two high-water marks and the short-stack latch, so the counters exist only as an ordered replay and can't be expressed as relative arithmetic. That batch takes `SELECT … FOR UPDATE` on the aggregate up front, probes which keys are already in the ledger (needed *before* the insert, because each row stores the streak as of its own hand), folds the remainder sequentially in arrival order, and writes the aggregate once. If the returned key set ever differs from the probed one it re-folds over exactly what committed.
+
+**Reviewer notes:** Measured green-after with a statement-count guard on each side, mirroring ENG-45's: 2,000 hands cost 1 commit and ≤12 statements (play style) / ≤16 (player stats), against ~8,000 before. The fold order is pinned by four tests, verified red by reversing `deduped` — an explicit arrival-order streak assertion, a per-ledger-row streak assertion (a single value stamped across the batch passes the aggregate check and fails this one), a partial-replay case, and a batch-vs-hand-by-hand parity test that covers the latch and high-water marks without enumerating them. Client side, `OUTBOX_PAGE_SIZE_PER_EVENT_ROUTE` is gone and both outboxes are back on `OUTBOX_PAGE_SIZE`.
+
+**Deferred:** The `FOR UPDATE` gives player stats the same contention shape as ENG-48 — under REPEATABLE READ a collision raises `40001` and burns Exposed's retry budget rather than queueing. That's loud-and-recoverable rather than silently wrong, which is the trade ENG-48 already documents; noted on that item rather than fixed here.
+
 ## perf(progression): batch the XP sync write and page the client flush (ENG-45)
 
 **Problem:** `POST /v1/me/progression/sync` cost one transaction per event server-side and the client posted its whole unsynced outbox in one request, so a player's backlog grew until every sync took 5 to 8 minutes and timed out at 30s with nothing marked synced.

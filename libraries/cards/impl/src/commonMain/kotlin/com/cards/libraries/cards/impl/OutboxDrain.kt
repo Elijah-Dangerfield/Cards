@@ -17,20 +17,6 @@ import com.dangerfield.cards.libraries.core.logging.Logger
 internal const val OUTBOX_PAGE_SIZE = 200
 
 /**
- * Page size for outboxes whose server route still applies one event per
- * database transaction: play style and player stats (ENG-47).
- *
- * Those routes cost roughly 185 ms per event against Supabase, so a
- * [OUTBOX_PAGE_SIZE] page would spend ~37 s server-side and time the client
- * out at 30 s — the exact wedge ENG-45 fixed for XP, reproduced on a sibling
- * endpoint. 25 events keeps a page near five seconds with room to spare.
- *
- * Delete this and fold both outboxes back onto [OUTBOX_PAGE_SIZE] once those
- * routes batch their writes.
- */
-internal const val OUTBOX_PAGE_SIZE_PER_EVENT_ROUTE = 25
-
-/**
  * Requests one `sync()` will make before yielding. Bounds the work a single
  * trigger edge can do; whatever is left drains on the next one.
  */

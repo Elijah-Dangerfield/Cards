@@ -72,6 +72,18 @@ fun AchievementCounters.perBotWins(): Map<String, Long> {
  */
 data class ApplyPlayerStatOutcome(val wasAlreadyApplied: Boolean)
 
+/**
+ * Result of [PlayerStatsRepository.applyHandBatch]. [appliedKeys] holds only
+ * the keys this call actually committed — every other key in the batch was
+ * already on the server (a replay) and moved nothing. [stats] is the post-batch
+ * snapshot, so answering with it costs no extra read.
+ */
+@OptIn(ExperimentalTime::class)
+data class ApplyPlayerStatsBatchResult(
+    val stats: PlayerStats,
+    val appliedKeys: Set<String>,
+)
+
 @OptIn(ExperimentalTime::class)
 interface PlayerStatsRepository {
 
@@ -85,15 +97,31 @@ interface PlayerStatsRepository {
     suspend fun find(userId: UserId): PlayerStats?
 
     /**
-     * Fold one finished hand's raw [HandFacts] into the aggregate idempotently.
-     * Lazy-creates the row if missing. Re-applying the same
+     * Fold a whole batch of finished hands' raw [HandFacts] into the aggregate
+     * idempotently, lazy-creating the row if missing. Duplicate keys *within*
+     * [facts] collapse to their first occurrence, and a key already on the
+     * server moves nothing.
+     *
+     * Implementations MUST apply the whole batch in ONE transaction, so the
+     * ledger rows + the bumped aggregate commit together or not at all — and
+     * its cost must not scale with `facts.size` in round trips (ENG-47).
+     *
+     * [AchievementCounters.fold] is order-dependent (streaks, high-water marks
+     * and the short-stack latch all read the previous hand's value), so
+     * implementations MUST fold the committed hands sequentially, in the order
+     * the caller sent them, over the counters already in the aggregate.
+     */
+    suspend fun applyHandBatch(userId: UserId, facts: List<HandFacts>): ApplyPlayerStatsBatchResult
+
+    /**
+     * Single-hand convenience over [applyHandBatch]. Re-applying the same
      * [HandFacts.idempotencyKey] returns `wasAlreadyApplied = true` and mutates
      * nothing.
-     *
-     * Implementations MUST take a transaction so the ledger row + the bumped
-     * aggregate commit together or not at all.
      */
-    suspend fun applyHand(userId: UserId, facts: HandFacts): ApplyPlayerStatOutcome
+    suspend fun applyHand(userId: UserId, facts: HandFacts): ApplyPlayerStatOutcome {
+        val result = applyHandBatch(userId, listOf(facts))
+        return ApplyPlayerStatOutcome(wasAlreadyApplied = facts.idempotencyKey !in result.appliedKeys)
+    }
 
     /**
      * Wipe player-stats aggregate + ledger for a user. Called from the
