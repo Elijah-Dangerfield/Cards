@@ -48,6 +48,14 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Values are strings, so match `="true"` not a bool. **"Accounts (all-time)" can't be filtered this way** — it's a Postgres count over `profiles`, which has no telemetry attrs; either drop it from scope or join on something server-side. Attribute semantics: `docs/wiki/app-events.md` → "Install and device facts".
 
+## ENG-50 [P2] — Stop the rolling deploy from restart-storming on the single-writer lock
+
+**Problem:** Every prod deploy briefly runs a second machine that cannot take the Postgres advisory lock the old one still holds. It retries, exits, and Fly restarts it, about ten times. Measured on the 2026-09-01 deploy: 10 restarts on the throwaway instance and a CPU spike to 531% from repeated JVM cold starts, ~20 minutes after the deploy had otherwise finished. It resolves itself, but it makes the Restarts panel read like a crash loop and burns the machine during a window when real users are on it.
+
+**Acceptance:** A deploy produces at most one restart on the incoming instance. Either have `SingleWriterGuard` wait on the lock rather than exiting (so Fly does not restart it), or have the outgoing machine release the lock before the new one starts.
+
+**Hints:** `SingleWriterGuard.acquire` logs "Single-writer lock held by another instance; retrying (attempt N)" then gives up and exits. `apps/server/fly.prod.toml` explains why the strategy is `rolling` and never blue-green: in-memory room state plus the advisory lock. Rolling avoids the deadlock it was chosen to avoid; it does not avoid this thrash. Evidence: dc-infra → Restarts (24h), broken out per instance.
+
 ## ENG-49 [P1] — Chart ANR/OOM by device class, then find what a low-end phone runs out of mid-game
 
 **Problem:** A retail moto g42 (3.59 GB, Play install, not side-loaded) was OOM-killed, then ANR-killed 33 minutes later on hand 22 of a live multiplayer game. It does **not** match the benign PairIP ANR exemption, which needs the emulator/side-load fingerprint this device lacks. Four distinct installs have hit OOM in 30 days; two of those are the ENG-45 wedge user and should stop once that ships.
