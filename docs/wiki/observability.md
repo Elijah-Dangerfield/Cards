@@ -142,9 +142,14 @@ problem":
 | Metric | Panel |
 |---|---|
 | `pgrst_db_pool_waiting`, `pgrst_db_pool_timeouts_total` | dc-infra → DB pool *(repurposed 2026-09-01)* |
-| `fly_instance_exit_oom` | dc-infra → Restarts (24h), the "of which OOM" stat |
-| `fly_app_hard_limit_reached_count` | dc-infra → Concurrency vs limits (query B) |
-| `fly_instance_cpu_throttle` | dc-infra → CPU % (query B) |
+| `fly_instance_exit_oom` | dc-infra → Restarts (24h) — *query deleted 2026-09-01* |
+| `fly_app_hard_limit_reached_count` | dc-infra → Concurrency vs limits — *query deleted 2026-09-01* |
+| `fly_instance_cpu_throttle` | dc-infra → CPU % — *query deleted 2026-09-01* |
+
+**Pulse was trimmed 2026-09-01** from 33 panels to 27. The "Users & installs" row moved to
+dc-users, which does it properly; "Median game duration" was a proxy for a `session_duration_sec`
+attribute that now actually exists; "Client warnings & errors" duplicated the by-install panel on
+dc-users. Pulse is a 30-second glance, and 33 panels is a second dashboard wearing its name.
 
 **Postgres `auth` schema is denied** (`SQLSTATE 42501`), so ban state (`auth.users.banned_until`)
 cannot be charted. dc-users documents this in place rather than showing an empty panel.
