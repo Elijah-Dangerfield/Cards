@@ -7,6 +7,8 @@ green, close the tab.**
 | Folder | Dashboard (uid) | Headline question |
 |---|---|---|
 | Downcard — Product | **Pulse** (`dc-pulse`, the home dashboard) | Is the app healthy and are people getting good usage? |
+| Downcard — Product | Users (`dc-users`) | Who is using the app, and how? Population, roster, chips, trouble |
+| Downcard — Product | User detail (`dc-user`) | Everything about **one** player. Driven by a `user` variable; reached by clicking a name on Users or the Shark leaderboard |
 | Downcard — Product | Gameplay & Matchmaking (`dc-gameplay`) | How do people play — bots vs MP, friends vs global, sharks, matchmaking friction? |
 | Downcard — Product | Funnel & Progression (`dc-funnel`) | Do new users make it through onboarding; do players level and unlock? |
 | Downcard — Business | Cards — Economy (`cards-economy`) | In-game chips: supply, balances, busts, faucet vs sink, product adoption |
