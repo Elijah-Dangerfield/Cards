@@ -107,6 +107,38 @@ The app working as designed. Don't file these as bugs; treat them as noise on th
   emulator/side-load fingerprint. A real ANR with Downcard frames, or one recurring across many
   *retail* installs, is a genuine bug — file it.
 
+## Durable vs ephemeral panels
+
+**Loki is capped at 31 days and fails loudly past it.** A 90-day query returns
+`this data is no longer available, it is past now - max_query_lookback (31d)`. Widening the time
+picker does not widen the answer, so any panel built on client or server *events* has a hard
+horizon. Postgres has no such limit: `profiles`, `wallets`, `wallet_events`, `xp_events`,
+`player_stat_events`, `table_sessions`, `achievements_earned` and `billing_transactions` are the
+durable record.
+
+**The rule:** a panel may only say *all time*, *ever*, *lifetime* or *since launch* if every one of
+its queries is Postgres. Audited 2026-09-01 and all existing claims pass — `Accounts (all time)`,
+`Chip sources/sinks (all time)`, `Distinct achievements ever earned`, `Cumulative accounts
+(all-time growth)` and `Total chip supply over time` are Postgres-backed. Keep it that way.
+
+**The subtler trap is the panel that claims nothing.** A Loki panel labelled "over the dashboard
+range" is honest about its window and silent about its ceiling, so a 90-day picker quietly answers
+for 31. Every Loki-heavy dashboard now says so in its description.
+
+**Prefer Postgres when both can answer the same question.** Converted 2026-09-01:
+
+| Panel | Was | Now |
+|---|---|---|
+| Pulse → Hands per day by mode | `game.started` events (Loki) | `player_stat_events` — durable, and already reaches back to 2026-07-24, further than Loki can |
+| Gameplay → Player hand win % | `hand.completed` events (Loki) | `player_stat_events.won` |
+| Gameplay → Bots vs multiplayer | `game.started` events (Loki) | `player_stat_events.mode` |
+
+**Still Loki-only, because no DB equivalent exists:** device-based DAU/sessions and installs (keyed
+by `install_id`, which only reaches Postgres via `profiles` for accounts that finished onboarding),
+crash-free rates (`previous_exit` on `app.launched`), the onboarding step funnel (step views are
+client-side), matchmaking friction, and client reliability events. These are legitimately
+ephemeral; label them, don't pretend.
+
 ## What the suite cannot see (audited 2026-09-01)
 
 Read this before concluding "the dashboards are green, so we're fine." ENG-45 ran for eight days

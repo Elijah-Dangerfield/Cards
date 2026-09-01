@@ -94,6 +94,13 @@ are unreliable above about a second.
 **Also scan the server logs directly** — a failing path can be live before any dashboard panel or alert reflects it. Over the last 24h:
 `query_loki_logs(datasourceUid='grafanacloud-logs', logql='{service_name="cards-server", deployment_environment="prod"} | detected_level=~"warn|error|fatal"', ...)`. **Include `warn`** — money-touching failures like `receipt_rejected` / redeem-400s are logged at WARN, so an `error|fatal`-only filter misses them entirely. Recurring warnings/errors not already owned by a Sentry issue or todo are their own signal. And **`totalLinesScanned: 0` on a filtered query does not mean the server is silent** — the filter just matched nothing; confirm the base stream is live (`query_loki_stats`, or an unfiltered `{service_name="cards-server"}` count) before concluding there are no server logs.
 
+**Loki cannot answer past 31 days.** A wider query fails with
+`max_query_lookback (31d)`, so never conclude "this has never happened" from an event query — it
+only means "not in the last month". Postgres (`profiles`, `wallet_events`, `xp_events`,
+`player_stat_events`, `table_sessions`, `billing_transactions`) is the durable record; reach for it
+whenever the question is historical. Same rule applies when you *build* a panel: only Postgres-backed
+panels may claim "all time" (`docs/wiki/observability.md` → "Durable vs ephemeral panels").
+
 **Know the expected-empty panels so you don't file phantom bugs** (all documented in the wiki's "Known gaps"): matchmaking/MP/Tempo/RED panels read empty (or health-check-only) until real play resumes post-wipe; iOS crash-free shows `previous_exit=unknown` until MetricKit (ENG-25); offline-emitted events drop by design. **Query gotchas:** Loki stream labels are only `service_name` + `deployment_environment` (everything else is structured metadata — pipe filters); gameplay spans are INTERNAL-kind so they're not in `traces_spanmetrics_*` Prom metrics (use TraceQL metrics on Tempo); count users/sessions from `app.foregrounded`, never `app.launched`; prod is the default env.
 
 ### 5. Determine root cause and decide
