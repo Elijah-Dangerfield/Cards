@@ -107,9 +107,50 @@ The app working as designed. Don't file these as bugs; treat them as noise on th
   emulator/side-load fingerprint. A real ANR with Downcard frames, or one recurring across many
   *retail* installs, is a genuine bug — file it.
 
+## What the suite cannot see (audited 2026-09-01)
+
+Read this before concluding "the dashboards are green, so we're fine." ENG-45 ran for eight days
+with a real user's sync taking 300-500 seconds and **every panel stayed green**. The audit below is
+what that cost us.
+
+**Slow-but-successful is the blind spot that matters.** A request returning `200 OK` after eight
+minutes produces no error, no 5xx, no crash, and trips none of A1-A8. Three separate things hid it:
+
+1. **The RED panels were ~100% health checks.** `/_health` runs every 30s = ~2,880 requests/day
+   against ~3,000 total. Real user traffic was a rounding error, so `p99` read **4.95 ms** flat
+   through the entire incident. *Fixed 2026-09-01: the latency, request-rate and top-routes panels
+   now exclude `http_route="/_health"`.*
+2. **The histogram cannot express it anyway.** The largest finite bucket is `le=10` seconds, so
+   anything slower collapses into `+Inf` and `histogram_quantile` can only ever say "10s+". Worse,
+   two instrumentation versions emit mismatched bounds (`le="10"` and `le="10.0"`), which
+   `sum by (le)` silently treats as different buckets. **Do not trust these quantiles above ~1s.**
+3. **Nothing charted server-side duration from a source that could represent it.** *Fixed
+   2026-09-01: dc-infra → "Slowest requests (server logs)" reads the `CallLogging` `... in NNNms`
+   line from Loki, which has no upper bound. Empty is healthy.* The alert half is ENG-46.
+
+**Crash-free rates were overstated.** The formula counted only `previous_exit` in
+(`crash`, `anr`) and silently ignored **`oom`**, which outnumbers ANR 8-to-1 in the live
+population. *Fixed 2026-09-01: OOM now counts as a crash.* The iOS half is still blind —
+`previous_exit=unknown` is ~45% of all launches until MetricKit lands (ENG-25), and those sit in
+the denominator but can never reach the numerator, so the number reads **higher than reality**.
+Treat crash-free as an Android figure with an optimistic bias.
+
+**Metrics that do not exist.** These are scraped by nothing, so their panels/queries are
+permanently dead rather than reporting zero. A `0` from any of them means "no data", not "no
+problem":
+
+| Metric | Panel |
+|---|---|
+| `pgrst_db_pool_waiting`, `pgrst_db_pool_timeouts_total` | dc-infra → DB pool *(repurposed 2026-09-01)* |
+| `fly_instance_exit_oom` | dc-infra → Restarts (24h), the "of which OOM" stat |
+| `fly_app_hard_limit_reached_count` | dc-infra → Concurrency vs limits (query B) |
+| `fly_instance_cpu_throttle` | dc-infra → CPU % (query B) |
+
+**Postgres `auth` schema is denied** (`SQLSTATE 42501`), so ban state (`auth.users.banned_until`)
+cannot be charted. dc-users documents this in place rather than showing an empty panel.
+
 ## Known gaps (deliberate)
 
 - Offline-emitted events drop (at-most-once delivery) — ENG-25 owns the persistence upgrade.
 - "Bust → walk-away %" on Economy is an event-level approximation, not sessionized.
-- Matchmaking/multiplayer/Tempo panels are empty until real play resumes post-wipe; RED panels show
-  health-check traffic only until launch.
+- Matchmaking/multiplayer/Tempo panels are empty until real play resumes post-wipe.
