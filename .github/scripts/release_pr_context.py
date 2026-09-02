@@ -315,23 +315,41 @@ def ios_state() -> str:
         return "- **iOS**: not checked, App Store Connect API credentials are not set."
 
     token = asc_token()
-    bundle = ios_bundle_id()
-    apps = []
-    if bundle:
-        q = urllib.parse.quote(bundle, safe="")
-        apps = asc_get(f"/v1/apps?filter[bundleId]={q}&limit=2", token).get("data") or []
-    if not apps:
-        # The bundle id is assembled from an xcconfig interpolation plus a
-        # secret, so a miss here is far more likely to be our string than a
-        # missing app. Fall back to the account's app list.
-        apps = asc_get("/v1/apps?limit=2", token).get("data") or []
-    if len(apps) != 1:
-        return (
-            "- **iOS**: could not identify the app in App Store Connect "
-            f"(bundle id `{bundle}` matched {len(apps)} apps). Check review state by hand."
-        )
+    app_id = os.environ.get("ASC_APP_ID", "").strip()
 
-    app_id = apps[0]["id"]
+    if not app_id:
+        # `PRODUCT_BUNDLE_IDENTIFIER` is an xcconfig interpolation plus a secret,
+        # so this string is a guess. On the first live run it produced
+        # `com.dangerfield.cards.CardsMSMDV43SUS`, which matches nothing.
+        bundle = ios_bundle_id()
+        apps = []
+        if bundle:
+            q = urllib.parse.quote(bundle, safe="")
+            apps = asc_get(f"/v1/apps?filter[bundleId]={q}&limit=2", token).get("data") or []
+
+        if not apps:
+            candidates = (
+                asc_get("/v1/apps?limit=50&fields[apps]=name,bundleId", token).get("data") or []
+            )
+            named = [
+                a for a in candidates
+                if "downcard" in str((a.get("attributes") or {}).get("name", "")).lower()
+            ]
+            apps = candidates if len(candidates) == 1 else named
+
+        if len(apps) != 1:
+            # Say what was actually found. A failure that names the candidates is
+            # one someone can fix; "matched N apps" is not.
+            listing = ", ".join(
+                f"{(a.get('attributes') or {}).get('name')} (`{(a.get('attributes') or {}).get('bundleId')}`)"
+                for a in (candidates if not apps else apps)
+            ) or "no apps visible to this key"
+            return (
+                "- **iOS**: could not identify the app in App Store Connect. Derived bundle id "
+                f"`{bundle}` matched nothing, and the account has: {listing}. "
+                "Set the `ASC_APP_ID` secret to the right app id to fix this permanently."
+            )
+        app_id = apps[0]["id"]
     versions = (
         asc_get(
             f"/v1/apps/{app_id}/appStoreVersions?limit=5"

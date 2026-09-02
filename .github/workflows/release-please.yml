@@ -81,6 +81,9 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Optional: skips deriving the bundle id from the xcconfig, which is a
+          # guess. Set it once and the iOS probe stops depending on that string.
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
         run: |
           set -euo pipefail
           PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r .number)
