@@ -617,3 +617,35 @@ le=10, so an 87-second request is literally unrepresentable there, and both rout
 was the only surface that could see it. ENG-46 is the alert that would have paged instead of
 requiring someone to look. -->
 - 2026-09-01 · CARDS-C0 · resolved: ENG-47 shipped (8759af4e, prod 21:43Z) — both sync routes batched; 96-112s → ~300ms, zero >5s requests in the 40min after deploy; both affected installs recovered · https://elijah-dangerfield.sentry.io/issues/CARDS-C0
+
+<!-- 2026-09-02 owner-prompted investigation of a new ANR, CARDS-C1. Left unresolved: real,
+reproducible-in-principle, and not yet fixed.
+
+First ANR with a stack that names a decision we own. The main thread was inside
+CompositionImpl.applyChanges → DisposableEffectImpl.onRemembered → ModalBottomSheetDialog →
+Dialog.show → ViewRootImpl.setView → ThreadedRenderer.create → nCreateProxy → pthread_cond_wait.
+Material3's ModalBottomSheet on Android is a real Dialog, so each mount allocates a window plus
+its own render proxy, and building that proxy synchronises with the render thread. PlayerActionSheet
+is composed conditionally on the player's turn, so a live poker session pays that cost on every
+betting decision.
+
+Foreground (in_foreground=True), so unlike CARDS-BZ the player watched the table freeze. Device is
+an 8.17 GB nubia Z2356 — Sentry calls it device.class=low but it is not memory-starved, which
+takes ENG-49 off the low-RAM theory it was built on. It was a brand-new user's first session:
+installed, onboarded, joined a real MP game, froze on hand 9 against two humans.
+
+Two corrections came out of this and both are worth more than the finding itself. The achievement
+celebration overlay was ENG-49's prime suspect and is NOT reachable in multiplayer at all
+(celebrationActive is set only when isBots), so the planned "profile a bots session with the
+achievement queue firing" would have chased nothing. And achievement.celebration_shown is emitted
+before the mode check, so it fires when no celebration is displayed — 11 of them in this MP session
+made the wrong suspect look guilty.
+
+Rate over 29 days, whole population: 2 anr, 9 oom, 0 crash. Both ANRs and 7 of the 9 OOMs are in
+the last 7 days; the OOM skew tracks the ENG-45/ENG-47 sync wedge whose server fixes only landed
+09-01 and 09-02, so re-measure OOM in a week before reading anything into it.
+
+Recommended NOT fixing before 0.2.0: already live in build 1026 so the release neither worsens nor
+protects, 2 events in 29 days, both needing a second stressor, and the fix touches the most-used
+interactive surface in the app. -->
+- 2026-09-02 · CARDS-C1 · todo: ENG-49 rewritten [P1] — foreground ANR blocked in Dialog.show building a render proxy for a ModalBottomSheet; PlayerActionSheet allocates a new window every betting turn. Corrects the celebration-overlay suspect and the misleading celebration_shown event. Not a pre-release fix · https://elijah-dangerfield.sentry.io/issues/CARDS-C1 · case docs/agent/feedback-cases/CARDS-C1.md
