@@ -89,8 +89,10 @@ if (actionSheetOpen && active?.isHumanTurn == true && legal != null) {
 }
 ```
 
-Entering and leaving composition per turn means **a new dialog window and a new render proxy on
-every betting decision** — several per hand, and this session had reached hand 9.
+`actionSheetOpen` is a plain `remember { mutableStateOf(false) }` flipped true by
+`onExpandRaise` (:392), so the sheet mounts fresh **every time the player opens the raise sizer**.
+Not every decision — fold, call and check go straight through `onIntent` without a sheet. Still
+repeated many times across nine hands, and each mount is a new window and a new render proxy.
 
 ## Corrects a hypothesis in CARDS-BZ
 
