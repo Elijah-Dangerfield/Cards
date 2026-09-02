@@ -24,7 +24,7 @@
 #                 workflow_dispatch if one platform needs re-running.
 # Edit to change: apps/ios/fastlane/Fastfile (iOS submission details),
 #                 this file's Play upload step (track, userFraction).
-# See: docs/release-automation.md → "Cutting a release"
+# See: docs/practices/release.md → "Cutting a release (for humans)"
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Release
@@ -293,7 +293,7 @@ jobs:
 
       - name: Warn on missing Play credentials
         if: ${{ !inputs.skip_play_store && env.PLAY_SERVICE_ACCOUNT_JSON == '' }}
-        run: echo "::warning::PLAY_SERVICE_ACCOUNT_JSON secret is not set — skipping Play Store submission. See docs/release-automation.md to configure."
+        run: echo "::warning::PLAY_SERVICE_ACCOUNT_JSON secret is not set — skipping Play Store submission. See docs/practices/release.md → \"Play service account — one-time setup\" to configure."
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
 

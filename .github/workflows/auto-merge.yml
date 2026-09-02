@@ -9,7 +9,7 @@
 # Use case:     Sentry-triage routine opens `ai-autofix` PRs; this ships them
 #               without a human click. Remove the label to block merge.
 # Edit to change: the `contains(..., 'ai-autofix')` filter or merge strategy.
-# See: docs/release-automation.md → "How automated fixes land"
+# See: docs/practices/release.md → "How automated fixes land (what the bots do)"
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Auto-merge
