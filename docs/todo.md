@@ -56,13 +56,15 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-9Q is this, `level=fatal`, `handled=no`, escalating — previously mis-ledgered as dev-only, it is prod. `SingleWriterGuard.acquire` logs "Single-writer lock held by another instance; retrying (attempt N)" then gives up and exits. `apps/server/fly.prod.toml` explains why the strategy is `rolling` and never blue-green: in-memory room state plus the advisory lock. Rolling avoids the deadlock it was chosen to avoid; it does not avoid this thrash. Evidence: dc-infra → Restarts (24h), broken out per instance.
 
-## ENG-49 [P1] — Chart ANR/OOM by device class, then find what a low-end phone runs out of mid-game
+## ENG-49 [P1] — The RenderThread wedges on text during a hand, freezing the whole app
 
-**Problem:** A retail moto g42 (3.59 GB, Play install, not side-loaded) was OOM-killed, then ANR-killed 33 minutes later on hand 22 of a live multiplayer game. It does **not** match the benign PairIP ANR exemption, which needs the emulator/side-load fingerprint this device lacks. Four distinct installs have hit OOM in 30 days; two of those are the ENG-45 wedge user and should stop once that ships.
+**Problem:** Both ANRs on record are the same thing: the RenderThread saturated, everything else queued behind it. CARDS-C1's RenderThread stack is 79 frames deep, mid-frame, ~17 nested `RenderNodeDrawable` levels, ending in Skia's GPU glyph cache evicting entries while trying to draw (`SkCanvas::drawTextBlob` → `GrTextBlobRedrawCoordinator::drawGlyphRunList` → `internalRemove` → `GrTextBlob::Key::operator==`). A binder thread was blocked behind it on `CanvasContext::onSurfaceStatsAvailable`. The main thread was a **victim**: it happened to be asking for a render proxy for a bottom sheet's window, but any caller needing that thread would have hung the same way. CARDS-BZ blocked in `syncAndDrawFrame` for the same reason. Foreground freeze, live MP hand, new user's first session, 8 GB phone.
 
-**Acceptance:** ANR and OOM charted by `device.class` and platform from `app.launched`'s `previous_exit`, so this is a rate rather than an anecdote. Then either reproduce a heap climb over a long session on a ~4 GB device and fix it, or show the remaining cluster is background kills and drop to P2.
+**Acceptance:** A hand plays out without the RenderThread exceeding frame budget on a mid-range device, measured before and after. Specifically: no text is rastered under a continuously-changing transform, and the table's render-node nesting is materially shallower than 17.
 
-**Hints:** ANR stack is main-thread-blocked-on-render (`HardwareRenderer.nSyncAndDrawFrame` → `pthread_cond_wait`), no first-party frames. Prime suspect to profile first is the achievement celebration overlay — a dozen fired during that one game. Re-measure after ENG-45 ships to separate the XP-payload OOMs from the real low-end signal. Case `docs/agent/feedback-cases/CARDS-BZ.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-BZ.
+**Hints:** Full write-up and step-by-step plan in `docs/plans/renderthread-text-stall.md`. Case: `docs/agent/feedback-cases/CARDS-C1.md`. Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-C1 and https://elijah-dangerfield.sentry.io/issues/CARDS-BZ.
+
+**Do not** start by rewriting the bottom sheets — that was the first (wrong) diagnosis, drawn from the victim thread. Start by confirming what the RenderThread is spending its time on.
 
 ## ENG-48 [P2] — Sustained concurrent flushes for one user 500 instead of queueing
 

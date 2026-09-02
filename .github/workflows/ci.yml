@@ -15,7 +15,7 @@
 #               pass/fail counts + click-through to failures. Ship by
 #               cutting a release via the release-please PR → release.yml.
 # Edit to change: compile commands or the test task below.
-# See: docs/release-automation.md
+# See: docs/practices/release.md → "Cutting a release (for humans)"
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: CI

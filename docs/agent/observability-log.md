@@ -595,3 +595,80 @@ on every healthy deploy cannot warn you about the one unhealthy time. Raised ENG
 basis. Left unresolved in Sentry; the worker that ships ENG-50 resolves it. -->
 - 2026-09-01 · CARDS-9Q · todo: ENG-50 [P1] re-opened — prod-fatal on every deploy, not dev-only as previously ledgered; the guard is right but the noise makes a real split-brain unreadable · https://elijah-dangerfield.sentry.io/issues/CARDS-9Q · case docs/agent/feedback-cases/CARDS-BW.md
 - 2026-09-01 · CARDS-C0 · todo: ENG-47 raised P1 → P0 — play-style/player-stats syncs now 84-87s and climbing on 2+ installs; body truncated at 32,768 bytes when the client's 30s timeout tore down the connection. ENG-45's shape on the two routes it didn't cover; client page cap unshipped so the server batch is the only fix that lands today · https://elijah-dangerfield.sentry.io/issues/CARDS-C0 · case docs/agent/feedback-cases/CARDS-BW.md
+
+<!-- 2026-09-01 21:46Z — ENG-47 shipped and verified in prod, closing CARDS-C0.
+
+Deploy: commit 8759af4e, prod run 33562637588, approved 21:43Z. Server-side only, so it reached
+build-1026 clients without an app release — the same property that let ENG-45's server half rescue
+users this morning.
+
+Measured in prod, both routes, before → after:
+  fd1f0a5b (Ilucha)  96,000-112,000ms → 1,135ms on the first call, then ~274-394ms
+  530ddb9a            60,000-66,000ms → 275-737ms
+Zero requests over 5s across both routes in the 40 minutes after the deploy, against a steady
+stream of live traffic (two rooms active). The 1,135ms first call is the ~640-row backlog draining
+in a single request, which is the behaviour the fix was for.
+
+Worth recording about the detection, not just the fix: this was found because the "Slowest requests
+(server logs)" panel existed by then. It had been added hours earlier in the same session, in
+response to ENG-45 being invisible for eight days. The Prometheus histogram still tops out at
+le=10, so an 87-second request is literally unrepresentable there, and both routes returned
+200 OK throughout — no error panel or alert would have shown either. A log-derived latency panel
+was the only surface that could see it. ENG-46 is the alert that would have paged instead of
+requiring someone to look. -->
+- 2026-09-01 · CARDS-C0 · resolved: ENG-47 shipped (8759af4e, prod 21:43Z) — both sync routes batched; 96-112s → ~300ms, zero >5s requests in the 40min after deploy; both affected installs recovered · https://elijah-dangerfield.sentry.io/issues/CARDS-C0
+
+<!-- 2026-09-02 owner-prompted investigation of a new ANR, CARDS-C1. Left unresolved: real,
+reproducible-in-principle, and not yet fixed.
+
+First ANR with a stack that names a decision we own. The main thread was inside
+CompositionImpl.applyChanges → DisposableEffectImpl.onRemembered → ModalBottomSheetDialog →
+Dialog.show → ViewRootImpl.setView → ThreadedRenderer.create → nCreateProxy → pthread_cond_wait.
+Material3's ModalBottomSheet on Android is a real Dialog, so each mount allocates a window plus
+its own render proxy, and building that proxy synchronises with the render thread. PlayerActionSheet
+is composed conditionally on the player's turn, so a live poker session pays that cost on every
+betting decision.
+
+Foreground (in_foreground=True), so unlike CARDS-BZ the player watched the table freeze. Device is
+an 8.17 GB nubia Z2356 — Sentry calls it device.class=low but it is not memory-starved, which
+takes ENG-49 off the low-RAM theory it was built on. It was a brand-new user's first session:
+installed, onboarded, joined a real MP game, froze on hand 9 against two humans.
+
+Two corrections came out of this and both are worth more than the finding itself. The achievement
+celebration overlay was ENG-49's prime suspect and is NOT reachable in multiplayer at all
+(celebrationActive is set only when isBots), so the planned "profile a bots session with the
+achievement queue firing" would have chased nothing. And achievement.celebration_shown is emitted
+before the mode check, so it fires when no celebration is displayed — 11 of them in this MP session
+made the wrong suspect look guilty.
+
+Rate over 29 days, whole population: 2 anr, 9 oom, 0 crash. Both ANRs and 7 of the 9 OOMs are in
+the last 7 days; the OOM skew tracks the ENG-45/ENG-47 sync wedge whose server fixes only landed
+09-01 and 09-02, so re-measure OOM in a week before reading anything into it.
+
+Recommended NOT fixing before 0.2.0: already live in build 1026 so the release neither worsens nor
+protects, 2 events in 29 days, both needing a second stressor, and the fix touches the most-used
+interactive surface in the app. -->
+- 2026-09-02 · CARDS-C1 · todo: ENG-49 rewritten [P1] — foreground ANR blocked in Dialog.show building a render proxy for a ModalBottomSheet; PlayerActionSheet allocates a new window every betting turn. Corrects the celebration-overlay suspect and the misleading celebration_shown event. Not a pre-release fix · https://elijah-dangerfield.sentry.io/issues/CARDS-C1 · case docs/agent/feedback-cases/CARDS-C1.md
+
+<!-- 2026-09-02 CORRECTION to the CARDS-C1 entry above. The bottom-sheet diagnosis was wrong.
+
+It reasoned only from the crashed thread, whose innermost frames were pthread_cond_wait. That
+thread was WAITING. Reading the other 54 threads in the same event showed the RenderThread 79
+frames deep, mid-frame, drawing text with Skia's GPU glyph cache in eviction
+(drawGlyphRunList -> internalRemove -> GrTextBlob::Key::operator==), about 17 nested
+RenderNodeDrawable levels, with a binder thread also blocked behind it on
+CanvasContext::onSurfaceStatsAvailable. The main thread wanted a render proxy for a bottom sheet's
+window and queued behind that. Any caller would have hung the same way, which is why CARDS-BZ
+blocked in syncAndDrawFrame instead.
+
+The proposed fix (rework PlayerActionSheet) would have changed nothing.
+
+Sentry captures every thread and we already had them; the UI shows the crashed one by default,
+which is the entire reason this was missed. Written into the observability-triage skill as a hard
+rule: a stack ending in a wait names the victim, never the cause, so read the other threads before
+writing any diagnosis.
+
+ENG-49 rewritten around the RenderThread. Plan in docs/plans/renderthread-text-stall.md. Leading
+hypothesis is text rastered under animated transforms (card flips), unproven and explicitly
+flagged as such this time. -->
+- 2026-09-02 · CARDS-C1 · CORRECTED: not a bottom-sheet bug. RenderThread wedged drawing text with the glyph cache thrashing; the sheet was the victim thread. Diagnosis had been drawn from a waiting stack without reading the other 54 threads. ENG-49 rewritten; skill hardened · https://elijah-dangerfield.sentry.io/issues/CARDS-C1 · plan docs/plans/renderthread-text-stall.md

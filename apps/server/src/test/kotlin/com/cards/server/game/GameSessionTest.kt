@@ -203,6 +203,53 @@ class GameSessionTest {
         )
     }
 
+    private val dave = SeatOccupant(seatIndex = 3, userId = "dave", displayName = "Dave", isBot = false)
+
+    /** Strands the table's only waiting joiner: both seated players left after the
+     *  hand resolved, so the advance is refused — and used to swallow Carol with it. */
+    private suspend fun GameSession.refusedAdvanceWithCarolWaiting(nonce: String): IntentResult {
+        startHand(listOf(alice, bob), settings)
+        forfeitSeat(actingUserId())
+        queueJoiner(carol)
+        removePlayer("alice")
+        removePlayer("bob")
+        return requestNextHand(actorUserId = "alice", clientNonce = nonce)
+    }
+
+    @Test
+    fun refusedNextHand_keepsThePendingJoinerQueued() = runTest {
+        val session = newSession()
+        val result = session.refusedAdvanceWithCarolWaiting(nonce = "n1")
+        runCurrent()
+
+        assertIs<IntentResult.Rejected>(result)
+        assertEquals(
+            setOf("carol"),
+            session.pendingJoinerIds,
+            "a refused advance must not consume the joiner queue",
+        )
+    }
+
+    @Test
+    fun joinerSurvivingARefusedAdvance_isDealtInByTheNextOne() = runTest {
+        val session = newSession()
+        assertIs<IntentResult.Rejected>(session.refusedAdvanceWithCarolWaiting(nonce = "n1"))
+        runCurrent()
+
+        // A second joiner arrives, so the table is playable again. Carol only gets
+        // seated here if the refused advance left her in the queue.
+        session.queueJoiner(dave)
+        val retry = session.requestNextHand(actorUserId = "alice", clientNonce = "n2")
+        runCurrent()
+
+        assertIs<IntentResult.Accepted>(retry)
+        assertEquals(
+            setOf("carol", "dave"),
+            session.state.value!!.seats.mapNotNull { it.playerId }.toSet(),
+            "the joiner a refused advance held onto is dealt in by the next one",
+        )
+    }
+
     // ---------- forfeitSeat (mid-hand leave) ----------
 
     @Test
