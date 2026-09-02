@@ -4,27 +4,32 @@ import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import com.dangerfield.cards.libraries.gameplay.scrubbedFor
 import com.dangerfield.cards.server.domain.EntryBar
+import com.dangerfield.cards.server.domain.EquipmentRepository
+import com.dangerfield.cards.server.domain.ProgressionRepository
+import com.dangerfield.cards.server.domain.RebuyResult
 import com.dangerfield.cards.server.domain.Room
+import com.dangerfield.cards.server.domain.RoomMember
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
 import com.dangerfield.cards.server.domain.RoomVisibility
+import com.dangerfield.cards.server.domain.SitDownResult
+import com.dangerfield.cards.server.domain.TableSessionService
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.WalletRepository
+import com.dangerfield.cards.server.game.GameSession
 import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.game.IntentResult
 import com.dangerfield.cards.server.game.MatchOverEvent
 import com.dangerfield.cards.server.game.NextHandEvent
 import com.dangerfield.cards.server.game.SeatOccupant
 import com.dangerfield.cards.server.game.settleLeaver
-import java.util.UUID
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.SpanAttrs
 import com.dangerfield.cards.server.plugins.userId
 import com.dangerfield.cards.server.plugins.withSpan
 import io.ktor.server.auth.authenticate
-import io.opentelemetry.api.trace.Span
-import io.opentelemetry.api.trace.SpanContext
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.application
 import io.ktor.server.websocket.WebSocketServerSession
@@ -33,7 +38,10 @@ import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.SpanContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -46,11 +54,11 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import java.util.UUID
 import org.slf4j.LoggerFactory
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-import com.dangerfield.cards.libraries.gameplay.scrubbedFor
 
 /**
  * `GET /v1/rooms/{code}/socket` (WebSocket upgrade) — the per-room
@@ -100,14 +108,14 @@ import com.dangerfield.cards.libraries.gameplay.scrubbedFor
  *    [RoomSocketEventDto.IntentAck] keyed by clientNonce so callers can
  *    correlate retries / surface rejection reasons.
  */
-@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 fun Route.roomSocketRoutes(
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
-    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
-    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+    equipmentRepository: EquipmentRepository,
+    progressionRepository: ProgressionRepository,
     wallets: WalletRepository,
-    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
+    tableSessions: TableSessionService,
     reaperGrace: Duration = DEFAULT_REAPER_GRACE,
 ) {
     val app = application
@@ -135,8 +143,6 @@ fun Route.roomSocketRoutes(
             // we never implicit-join here.
             val isSpectator = current.memberFor(userId) == null
             if (isSpectator && current.visibility == RoomVisibility.Private) {
-                // Info: a refused join is the backend half of "I couldn't get
-                // into the game"; carries session_id via MDC for correlation.
                 LoggerFactory.getLogger("RoomSocket")
                     .info("Socket refused: room=$code user=$userId not a member (private room)")
                 return@webSocket close(
@@ -158,8 +164,6 @@ fun Route.roomSocketRoutes(
             // returned id tags THIS socket so its own teardown can tell whether a
             // newer socket has since superseded it (the fast-reconnect race).
             val connectionId = if (!isSpectator) rooms.openSocketConnection(code, userId) else null
-            // Info: one line per socket open anchors "user joined room at T" in
-            // Loki — the backend bookend to the client's connection breadcrumb.
             LoggerFactory.getLogger("RoomSocket")
                 .info("Socket connected: room=$code user=$userId spectator=$isSpectator")
 
@@ -233,9 +237,6 @@ fun Route.roomSocketRoutes(
             // runs to flip isConnected back.
             val publisher = launch {
                 try {
-                    // scan() lets us diff the previous snapshot against
-                    // the new one each tick. distinctUntilChanged
-                    // suppresses idempotent re-emits.
                     flow.distinctUntilChanged()
                         .scan<Room, Pair<Room?, Room>?>(null) { acc, next ->
                             val previous = acc?.second
@@ -639,9 +640,9 @@ private suspend fun handleClientFrame(
     frame: RoomClientFrame,
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
-    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
-    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
-    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+    tableSessions: TableSessionService,
+    equipmentRepository: EquipmentRepository,
+    progressionRepository: ProgressionRepository,
     wallets: WalletRepository,
 ): RoomSocketEventDto.IntentAck {
     val result: IntentResult = when (frame) {
@@ -712,17 +713,17 @@ private fun recordIntentOutcome(result: IntentResult) {
  * Buy a busted seat back into the table — the escrow top-up that pairs with the
  * engine refill.
  *
- * Cross-domain orchestration lives here, not in [com.dangerfield.cards.server.game.GameSession]
+ * Cross-domain orchestration lives here, not in [GameSession]
  * (which stays pure-engine):
  *
  *  1. Cheap pre-check off the live session so an obviously-invalid rebuy (no
  *     completed hand, caller not seated, seat not busted) is refused without
  *     taking the session lock at all. Purely an optimisation — the authoritative
  *     check is inside the lock.
- *  2. [com.dangerfield.cards.server.domain.TableSessionService.rebuy] debits one
+ *  2. [TableSessionService.rebuy] debits one
  *     more buy-in (keyed `table:{sessionId}:rebuy:{n}`, idempotent) and bumps the
  *     session's rebuy counter, re-applying the entry bar for public tables. It is
- *     handed to [com.dangerfield.cards.server.game.GameSessionRegistry.rebuy] as
+ *     handed to [GameSessionRegistry.rebuy] as
  *     the authorization callback, so it runs **under the session's lock**, after
  *     the seat is confirmed busted and immediately before the refill.
  *
@@ -740,7 +741,7 @@ private suspend fun handleRebuy(
     clientNonce: String,
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
-    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
+    tableSessions: TableSessionService,
     wallets: WalletRepository,
 ): IntentResult {
     val room = rooms.find(code) ?: return IntentResult.Rejected("room not found")
@@ -757,13 +758,13 @@ private suspend fun handleRebuy(
     var debited = false
     val result = gameSessions.rebuy(code, userId.value.toString(), clientNonce) {
         when (tableSessions.rebuy(userId, enforceEntryBar = room.visibility != RoomVisibility.Private)) {
-            is com.dangerfield.cards.server.domain.RebuyResult.NoActiveSession ->
+            is RebuyResult.NoActiveSession ->
                 IntentResult.Rejected("no active table session to rebuy into")
-            is com.dangerfield.cards.server.domain.RebuyResult.BelowEntryBar ->
+            is RebuyResult.BelowEntryBar ->
                 IntentResult.Rejected("below entry bar")
-            is com.dangerfield.cards.server.domain.RebuyResult.InsufficientChips ->
+            is RebuyResult.InsufficientChips ->
                 IntentResult.Rejected("insufficient chips")
-            is com.dangerfield.cards.server.domain.RebuyResult.ReboughtIn -> {
+            is RebuyResult.ReboughtIn -> {
                 debited = true
                 IntentResult.Accepted
             }
@@ -792,9 +793,9 @@ private suspend fun handleStartHand(
     userId: UserId,
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
-    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
-    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
-    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+    tableSessions: TableSessionService,
+    equipmentRepository: EquipmentRepository,
+    progressionRepository: ProgressionRepository,
 ): IntentResult {
     val room = rooms.find(code)
         ?: return IntentResult.Rejected("room not found")
@@ -827,9 +828,9 @@ private suspend fun dealFundedHand(
     room: Room,
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
-    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
-    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
-    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+    tableSessions: TableSessionService,
+    equipmentRepository: EquipmentRepository,
+    progressionRepository: ProgressionRepository,
 ): IntentResult {
     // Escrow moves real chips on a real-stakes (majority-human) table OR a public
     // disclosed-bot table (a lone human vs labelled bots — the house funds the
@@ -919,9 +920,9 @@ private data class FundedStart(val occupants: List<SeatOccupant>, val newlyFunde
 
 private suspend fun fundAndBuildOccupants(
     room: Room,
-    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
-    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
-    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+    tableSessions: TableSessionService,
+    equipmentRepository: EquipmentRepository,
+    progressionRepository: ProgressionRepository,
 ): FundedStart {
     val subsidized = isSubsidizedBotTable(room)
     // The 25% entry bar is a public-matchmaking guard; private friend games AND
@@ -936,11 +937,11 @@ private suspend fun fundAndBuildOccupants(
             continue
         }
         when (val sit = tableSessions.sitDown(member.userId, room.code, room.buyIn, enforceEntryBar, subsidized)) {
-            is com.dangerfield.cards.server.domain.SitDownResult.Funded -> {
+            is SitDownResult.Funded -> {
                 newlyFunded += member.userId
                 occupants += seatOccupantFor(member, equipmentRepository, progressionRepository)
             }
-            is com.dangerfield.cards.server.domain.SitDownResult.AlreadyAtTable ->
+            is SitDownResult.AlreadyAtTable ->
                 // Already escrowed here (a re-deal / concurrent start) → seat them.
                 // Escrowed at a DIFFERENT room → leave them out of this deal.
                 if (sit.roomCode == room.code) {
@@ -950,17 +951,17 @@ private suspend fun fundAndBuildOccupants(
             // in (the client surfaces the right upsell / "come back tomorrow").
             // Log the drop so a connected player silently left out of the hand is
             // visible in Loki, not a mystery "why am I still waiting?" report.
-            is com.dangerfield.cards.server.domain.SitDownResult.BelowEntryBar ->
+            is SitDownResult.BelowEntryBar ->
                 LoggerFactory.getLogger("RoomSocket").warn(
                     "Dropped from deal: user={} room={} buyIn={} below entry bar (balance={} needs={})",
                     member.userId, room.code, room.buyIn, sit.balance, sit.minBalance,
                 )
-            is com.dangerfield.cards.server.domain.SitDownResult.InsufficientChips ->
+            is SitDownResult.InsufficientChips ->
                 LoggerFactory.getLogger("RoomSocket").warn(
                     "Dropped from deal: user={} room={} buyIn={} insufficient chips (balance={})",
                     member.userId, room.code, room.buyIn, sit.balance,
                 )
-            is com.dangerfield.cards.server.domain.SitDownResult.SubsidyCapReached ->
+            is SitDownResult.SubsidyCapReached ->
                 LoggerFactory.getLogger("RoomSocket").warn(
                     "Dropped from deal: user={} room={} buyIn={} bot-subsidy cap reached (granted={} cap={})",
                     member.userId, room.code, room.buyIn, sit.grantedToday, sit.cap,
@@ -977,9 +978,9 @@ private suspend fun fundAndBuildOccupants(
  * once here and frozen onto the Seat for the session.
  */
 private suspend fun seatOccupantFor(
-    member: com.dangerfield.cards.server.domain.RoomMember,
-    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
-    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+    member: RoomMember,
+    equipmentRepository: EquipmentRepository,
+    progressionRepository: ProgressionRepository,
 ): SeatOccupant {
     val botSeat = member.bot
     return if (botSeat != null) {
@@ -1034,12 +1035,11 @@ internal suspend fun startServerDealtTableIfReady(
     code: String,
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
-    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
-    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
-    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+    tableSessions: TableSessionService,
+    equipmentRepository: EquipmentRepository,
+    progressionRepository: ProgressionRepository,
 ): IntentResult {
     val room = rooms.find(code) ?: return IntentResult.Rejected("room not found")
-    // Private rooms wait for the host; Open + Public are server-dealt.
     if (room.visibility == RoomVisibility.Private) return IntentResult.Rejected("private table is host-dealt")
     if (room.status != RoomStatus.Lobby) return IntentResult.Accepted // already dealt
     if (gameSessions.peek(code) != null) return IntentResult.Accepted // session already live
@@ -1100,9 +1100,9 @@ private suspend fun queueMidHandJoinerIfNeeded(
     userId: UserId,
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
-    tableSessions: com.dangerfield.cards.server.domain.TableSessionService,
-    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
-    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
+    tableSessions: TableSessionService,
+    equipmentRepository: EquipmentRepository,
+    progressionRepository: ProgressionRepository,
 ) {
     val room = rooms.find(code) ?: return
     if (room.status != RoomStatus.Playing) return
@@ -1114,8 +1114,8 @@ private suspend fun queueMidHandJoinerIfNeeded(
 
     if (isRealStakesTable(room)) {
         when (tableSessions.sitDown(userId, code, room.buyIn, enforceEntryBar = room.visibility != RoomVisibility.Private)) {
-            is com.dangerfield.cards.server.domain.SitDownResult.BelowEntryBar,
-            is com.dangerfield.cards.server.domain.SitDownResult.InsufficientChips ->
+            is SitDownResult.BelowEntryBar,
+            is SitDownResult.InsufficientChips ->
                 return // can't afford the buy-in → spectate, don't queue a seat
             else -> Unit // Funded, or already escrowed here → proceed
         }
@@ -1248,7 +1248,6 @@ internal fun diffDeltas(previous: Room, next: Room): List<RoomSocketEventDto> {
     val nextById = next.members.associateBy { it.userId }
     val out = mutableListOf<RoomSocketEventDto>()
 
-    // Presence flips for members present in both snapshots.
     for ((id, nextMember) in nextById) {
         val prevMember = prevById[id] ?: continue
         if (prevMember.isConnected != nextMember.isConnected) {
@@ -1258,13 +1257,11 @@ internal fun diffDeltas(previous: Room, next: Room): List<RoomSocketEventDto> {
             )
         }
     }
-    // Leaves: anyone in previous but not next.
     for ((id, _) in prevById) {
         if (id !in nextById) {
             out += RoomSocketEventDto.MemberLeft(userId = id.value.toString())
         }
     }
-    // Joins: anyone in next but not previous.
     for ((id, member) in nextById) {
         if (id !in prevById) {
             out += RoomSocketEventDto.MemberJoined(member = member.toDto())

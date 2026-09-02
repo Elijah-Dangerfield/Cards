@@ -104,7 +104,7 @@ data class RoomMember(
     /** Snapshot at the moment the user joined — keeps the UI stable even
      *  if the user later edits their profile name from another device. */
     val displayName: String,
-    /** 0-based seat — stable across reconnect. Used by gameplay later. */
+    /** 0-based seat — stable across reconnect. */
     val seatIndex: Int,
     val joinedAt: Instant,
     /**
@@ -149,8 +149,9 @@ data class RoomMember(
  * sit). [Playing] = a hand is in flight; new joins are still accepted —
  * the joiner becomes a member, takes a seat slot, and is dealt in at
  * the next hand boundary (the in-flight hand's seat order is fixed, so
- * they spectate it). [Finished] is a terminal state that rejects new
- * members; not currently set anywhere (sketched in for future).
+ * they spectate it). [Finished] is terminal — set by [RoomService.markFinished]
+ * when a heads-up match resolves; it rejects new members and is skipped by
+ * matchmaking discovery.
  */
 enum class RoomStatus { Lobby, Playing, Finished }
 
@@ -396,11 +397,12 @@ interface RoomService {
     suspend fun markPlaying(code: String): Room?
 
     /**
-     * Transition the room from [RoomStatus.Playing] back to [RoomStatus.Lobby].
-     * Phase 2a doesn't call this — the hand ends but the room stays
-     * Playing so the post-hand summary sticks. Reserved for the polish
-     * phase where "back to lobby" is a user choice; the implementation is
-     * here so the symmetry with [markPlaying] is obvious in the interface.
+     * Transition the room to the terminal [RoomStatus.Finished], so it stops
+     * accepting new members and drops out of matchmaking discovery. Called by the
+     * socket route when a heads-up match resolves (MP-14). A room that never left
+     * the lobby is left alone — there's no match to finish. An ordinary hand
+     * ending does NOT finish the room: it stays Playing so the post-hand summary
+     * sticks and the table can deal again.
      */
     suspend fun markFinished(code: String): Room?
 
