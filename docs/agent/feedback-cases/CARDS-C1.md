@@ -1,12 +1,17 @@
-# CARDS-C1 — a foreground ANR while Compose was opening a bottom sheet mid-multiplayer-hand
+# CARDS-C1 — a foreground ANR: the RenderThread wedged on text, everything queued behind it
 
 **Sentry:** [CARDS-C1](https://elijah-dangerfield.sentry.io/issues/CARDS-C1) ·
 `ApplicationNotResponding: ANR`, level `fatal`, mechanism `AppExitInfo` ·
 1 event, 1 user, **2026-09-02T20:14:00Z**.
 
-This is the first ANR with a stack that names something we own the decision behind. CARDS-BZ
-(ENG-49) was 25 frames of platform code with nothing to point at. This one points at a specific,
-frequent, first-party UI choice.
+> **Corrected 2026-09-02.** This file first concluded that mounting a `ModalBottomSheet` was the
+> cause, reasoning only from the crashed thread. That was wrong. The main thread was *waiting*;
+> reading the other 54 threads in the same event showed the RenderThread wedged in Skia's glyph
+> cache. The original reasoning is kept below under "The wrong turn" because the mistake is more
+> instructive than the finding.
+
+The event carries **55 thread stacks**. The crashed one names where the app stopped. The
+RenderThread's names why.
 
 ## Not the benign class, again
 
@@ -40,7 +45,7 @@ happen. This player was looking at a frozen poker table, mid-hand, against two o
 but that classification is not carrying its weight here — this is not the low-RAM story ENG-49 was
 built around. Whatever blocked the main thread was not the phone being small.
 
-## The stack, and what it actually says
+## The main thread's stack (the victim)
 
 44 frames. The interesting run, reading inward:
 
@@ -72,7 +77,47 @@ Note that CARDS-BZ ends in the same two frames (`pthread_cond_wait` → `__futex
 `syncAndDrawFrame`. **Both ANRs on record are the main thread blocked on the render thread.**
 CARDS-C1 is the one that names what asked it to block.
 
-## Which sheet
+## The RenderThread's stack (the cause)
+
+79 frames, mid-frame, not idle:
+
+```
+CanvasContext::draw → SkiaOpenGLPipeline::draw → SkiaPipeline::renderFrame → renderFrameImpl
+  → RenderNodeDrawable::forceDraw / drawContent / DisplayListData::draw   ← ~17 nested levels
+  → SkCanvas::drawTextBlob
+  → GrTextBlobRedrawCoordinator::drawGlyphRunList
+  → GrTextBlobRedrawCoordinator::internalRemove
+  → GrTextBlob::Key::operator==
+```
+
+The RenderThread was **drawing text with the GPU glyph cache in eviction**. `internalRemove`
+inside `drawGlyphRunList` is Skia throwing cached text away while trying to draw more of it, and
+`Key::operator==` is the linear scan it runs while doing so. A cache that spends its time evicting
+is a cache that is never hitting, which means something is producing text it cannot reuse.
+
+The tree is also ~17 `RenderNodeDrawable` levels deep, which multiplies the cost of every frame.
+
+Corroboration from a third thread: `binder:32032_6` was blocked in
+`CanvasContext::onSurfaceStatsAvailable` → `pthread_mutex_lock`, waiting on a mutex the
+RenderThread holds. Two threads stacked up behind it, not one.
+
+So the main thread's `Dialog.show` is where the freeze surfaced, not what caused it. Any caller
+needing the RenderThread would have hung the same way, which is exactly what CARDS-BZ did through
+`syncAndDrawFrame`.
+
+**Leading hypothesis, not proven:** text rastered under a continuously changing transform, since a
+new scale or rotation per frame means a new glyph raster per frame. `BoardArea.kt:211` and
+`PlayerArea.kt` (~:473, ~:779) wrap `PlayingCard`, whose rank and suit are text, in a
+`graphicsLayer` animating `scaleX`/`scaleY`/`rotationY`. Plan to confirm or kill it:
+`docs/plans/renderthread-text-stall.md`.
+
+## The wrong turn
+
+Kept deliberately. This is what the case concluded from the crashed thread alone, before anyone
+read the other 54. Everything asserted below is individually true and the conclusion is still
+wrong, which is the point.
+
+### Which sheet
 
 Not provable from the stack — it names `ModalBottomSheet_androidKt`, not our call site. The
 candidates reachable on `PlayMultiplayerRoute` are in `PlayPokerScreen.kt`:
@@ -94,7 +139,7 @@ if (actionSheetOpen && active?.isHumanTurn == true && legal != null) {
 Not every decision — fold, call and check go straight through `onIntent` without a sheet. Still
 repeated many times across nine hands, and each mount is a new window and a new render proxy.
 
-## Corrects a hypothesis in CARDS-BZ
+### Corrects a hypothesis in CARDS-BZ
 
 The CARDS-BZ case file named the achievement celebration overlay as the prime suspect, on the
 grounds that a dozen fired during that game. **That was wrong, and ENG-49's "profile a long bots
@@ -145,27 +190,29 @@ number.
 
 ## Recommendation
 
-**Do not fix this before the 0.2.0 release.** The reasoning, plainly:
+**Not a release blocker, and not urgent.**
 
-- It is not a regression. This code is already live in build 1026, so shipping 0.2.0 does not make
-  it worse, and holding 0.2.0 does not protect anyone.
-- 2 ANRs in 29 days across the whole population, both requiring a second stressor to trigger.
-- The fix touches the betting sheet, the single most-used interactive surface in the app. Swapping
-  a dialog-backed sheet for an in-window overlay days before a release trades a rare freeze for a
-  likely common regression, and it cannot be validated without a device profile.
+- Not a regression. Already live in build 1026, so shipping or holding a release changes nothing.
+- 2 ANRs in 29 days population-wide, and Play Console vitals shows nothing at ~25 users.
+- Both events needed a second stressor. CARDS-BZ followed an OOM kill 33 minutes earlier; this one
+  landed inside a 6.6s network outage on a 14 kbps cellular link.
 
-Fold it into ENG-49 and do it deliberately after 0.2.0 ships.
+It is still a foreground freeze on a new user's first session against real opponents, which is the
+worst-feeling failure the app has. Worth doing once, properly.
 
 ## What would settle it
 
-1. **Profile `PlayerActionSheet` open/close on a mid-range device**, watching main-thread stalls
-   at `Dialog.show`. Confirm the window/renderer allocation is the cost, and how big it is.
-2. **Stop recreating the window per turn.** Either keep one sheet mounted and drive visibility
-   through `sheetState`, or render the action sheet as an in-composition overlay so no second
-   window exists. The second is the real fix and the bigger change.
-3. **Check whether Material3 still needs a separate window** at the Compose version we're on
-   (`composeMultiplatform 1.11.0`) before rewriting anything by hand.
-4. Split ANR/OOM by `device.class` and platform on a dashboard, as ENG-49 already asks. Two events
-   is an anecdote; the panel is what turns it into a rate.
-5. Fix the misleading `achievement.celebration_shown` event so the next investigation doesn't lose
-   time to it the way this one nearly did.
+Full plan in `docs/plans/renderthread-text-stall.md`. In short:
+
+1. **Confirm the RenderThread is the bottleneck during a deal.** On-device GPU profiling bars
+   first, then a Perfetto trace of the `DrawFrame` slices on a mid-range device.
+2. **Find the text load.** Test the leading suspect by rendering card faces as vectors or images
+   instead of text, or by dropping the flip animation, and re-measuring. Then look for text bound
+   to per-frame values (chip stacks, pot, odds, countdowns).
+3. **Flatten the render tree.** ~17 nested layers is the other half of the cost and helps every
+   frame, not just the pathological ones.
+4. Chart ANR/OOM by `device.class` and platform so this is a rate rather than two anecdotes.
+5. Fix the misleading `achievement.celebration_shown` event (`PlayPokerViewModel.kt:636`), which
+   fires when no celebration is shown and sent the first investigation down the wrong path.
+
+**Do not** start with the bottom sheets.

@@ -54,6 +54,35 @@ Read the top event (`get_sentry_resource` — pass the full issue `url=`, e.g. `
 
 `analyze_issue_with_seer` is fine for a fast code-level hypothesis — treat it as a lead, confirm against the trace/logs. Empty Tempo/Loki for a `session_id` usually means a dev build that never reached the cloud backend or a pre-correlation client — say so and lower confidence; don't fabricate a backend cause.
 
+#### A blocked stack tells you WHERE it stopped, never WHY
+
+**If the crashed thread's innermost frames are a wait — `pthread_cond_wait`, `__futex_wait_ex`, `Unsafe.park`, `condition_variable::wait`, `Object.wait` — you have found a victim, not a cause.** That thread is waiting on something else. Naming the last thing it called as "the cause" produces a confident, wrong answer and a fix that changes nothing.
+
+This is not hypothetical: CARDS-C1 (2026-09-02) was first triaged as "opening a `ModalBottomSheet` blocks the main thread", because the main thread's stack ended in `Dialog.show` → `ThreadedRenderer.create` → `pthread_cond_wait`. Every word of that was true and the conclusion was still wrong. The RenderThread was wedged in Skia's glyph cache, so *any* caller would have hung. The proposed fix would have done nothing.
+
+**Sentry already captures every thread.** CARDS-C1 carried 55 of them. The UI shows the crashed thread by default, which is why this is easy to miss. Get the rest:
+
+```bash
+curl -sS "https://us.sentry.io/api/0/issues/<issueId>/events/latest/" \
+  -H "Authorization: Bearer $TOKEN" -o /tmp/ev.json
+python3 - <<'PY'
+import json
+e = json.load(open("/tmp/ev.json"))
+for entry in e.get("entries", []):
+    if entry["type"] != "threads": continue
+    for t in entry["data"]["values"]:
+        frames = ((t.get("stacktrace") or {}).get("frames") or [])
+        if len(frames) < 6: continue          # idle pool threads are noise
+        print(f"\n=== {t.get('id')} {t.get('name')!r} crashed={t.get('crashed')} ({len(frames)})")
+        for f in frames[::-1][:20]:
+            print("   ", f.get("function"), f.get("filename") or "", f.get("lineNo") or "")
+PY
+```
+
+On an Android ANR the threads worth reading, in order: **`RenderThread`** (a long stack here means the UI thread is queued behind drawing), `main`, `hwuiTask*`, then any `binder:*` blocked on a mutex rather than sitting in `ioctl` (an idle binder thread parked in `talkWithDriver` is normal and means nothing). The one with the *deep, busy* stack is the cause; the one that's waiting is the symptom.
+
+Only once you know what the busy thread was doing should you name a root cause.
+
 ### 3. Grafana — firing alerts first
 
 ```
@@ -160,5 +189,7 @@ Short summary: N Sentry issues + M Grafana signals reviewed, K todos filed (with
 - **Read-only on Grafana:** never create/modify/delete alert rules, dashboards, or annotations. If a threshold looks wrong, file a todo/backlog note for the human — don't touch it.
 - **Read-mostly on Sentry:** the only Sentry write is issue status (with a token). No code changes — fixing the bug is a worker's job off the todo you file.
 - **Don't invent telemetry:** empty Tempo/Loki for a `session_id` → say so, don't guess a backend cause.
+- **Never name a root cause off a waiting thread.** If the crashed stack ends in `pthread_cond_wait` / `futex` / `park`, read the other threads before writing a word of diagnosis (step 2 → "A blocked stack tells you WHERE it stopped"). Filing the victim as the cause sends a worker to rewrite code that was never the problem.
+- **Say which parts are proven.** Separate what the stack/logs show from what you inferred, and name the alternative you couldn't rule out. A triage note that reads as certain gets acted on as certain.
 - **Expected-empty ≠ incident:** check the wiki's "Known gaps" before filing a phantom bug off a deliberately-empty panel.
 - **One signal → at most one todo.** Several issues sharing a root cause → one todo, the rest resolved as duplicate pointing at it.

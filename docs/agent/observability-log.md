@@ -649,3 +649,26 @@ Recommended NOT fixing before 0.2.0: already live in build 1026 so the release n
 protects, 2 events in 29 days, both needing a second stressor, and the fix touches the most-used
 interactive surface in the app. -->
 - 2026-09-02 · CARDS-C1 · todo: ENG-49 rewritten [P1] — foreground ANR blocked in Dialog.show building a render proxy for a ModalBottomSheet; PlayerActionSheet allocates a new window every betting turn. Corrects the celebration-overlay suspect and the misleading celebration_shown event. Not a pre-release fix · https://elijah-dangerfield.sentry.io/issues/CARDS-C1 · case docs/agent/feedback-cases/CARDS-C1.md
+
+<!-- 2026-09-02 CORRECTION to the CARDS-C1 entry above. The bottom-sheet diagnosis was wrong.
+
+It reasoned only from the crashed thread, whose innermost frames were pthread_cond_wait. That
+thread was WAITING. Reading the other 54 threads in the same event showed the RenderThread 79
+frames deep, mid-frame, drawing text with Skia's GPU glyph cache in eviction
+(drawGlyphRunList -> internalRemove -> GrTextBlob::Key::operator==), about 17 nested
+RenderNodeDrawable levels, with a binder thread also blocked behind it on
+CanvasContext::onSurfaceStatsAvailable. The main thread wanted a render proxy for a bottom sheet's
+window and queued behind that. Any caller would have hung the same way, which is why CARDS-BZ
+blocked in syncAndDrawFrame instead.
+
+The proposed fix (rework PlayerActionSheet) would have changed nothing.
+
+Sentry captures every thread and we already had them; the UI shows the crashed one by default,
+which is the entire reason this was missed. Written into the observability-triage skill as a hard
+rule: a stack ending in a wait names the victim, never the cause, so read the other threads before
+writing any diagnosis.
+
+ENG-49 rewritten around the RenderThread. Plan in docs/plans/renderthread-text-stall.md. Leading
+hypothesis is text rastered under animated transforms (card flips), unproven and explicitly
+flagged as such this time. -->
+- 2026-09-02 · CARDS-C1 · CORRECTED: not a bottom-sheet bug. RenderThread wedged drawing text with the glyph cache thrashing; the sheet was the victim thread. Diagnosis had been drawn from a waiting stack without reading the other 54 threads. ENG-49 rewritten; skill hardened · https://elijah-dangerfield.sentry.io/issues/CARDS-C1 · plan docs/plans/renderthread-text-stall.md
