@@ -595,3 +595,25 @@ on every healthy deploy cannot warn you about the one unhealthy time. Raised ENG
 basis. Left unresolved in Sentry; the worker that ships ENG-50 resolves it. -->
 - 2026-09-01 · CARDS-9Q · todo: ENG-50 [P1] re-opened — prod-fatal on every deploy, not dev-only as previously ledgered; the guard is right but the noise makes a real split-brain unreadable · https://elijah-dangerfield.sentry.io/issues/CARDS-9Q · case docs/agent/feedback-cases/CARDS-BW.md
 - 2026-09-01 · CARDS-C0 · todo: ENG-47 raised P1 → P0 — play-style/player-stats syncs now 84-87s and climbing on 2+ installs; body truncated at 32,768 bytes when the client's 30s timeout tore down the connection. ENG-45's shape on the two routes it didn't cover; client page cap unshipped so the server batch is the only fix that lands today · https://elijah-dangerfield.sentry.io/issues/CARDS-C0 · case docs/agent/feedback-cases/CARDS-BW.md
+
+<!-- 2026-09-01 21:46Z — ENG-47 shipped and verified in prod, closing CARDS-C0.
+
+Deploy: commit 8759af4e, prod run 33562637588, approved 21:43Z. Server-side only, so it reached
+build-1026 clients without an app release — the same property that let ENG-45's server half rescue
+users this morning.
+
+Measured in prod, both routes, before → after:
+  fd1f0a5b (Ilucha)  96,000-112,000ms → 1,135ms on the first call, then ~274-394ms
+  530ddb9a            60,000-66,000ms → 275-737ms
+Zero requests over 5s across both routes in the 40 minutes after the deploy, against a steady
+stream of live traffic (two rooms active). The 1,135ms first call is the ~640-row backlog draining
+in a single request, which is the behaviour the fix was for.
+
+Worth recording about the detection, not just the fix: this was found because the "Slowest requests
+(server logs)" panel existed by then. It had been added hours earlier in the same session, in
+response to ENG-45 being invisible for eight days. The Prometheus histogram still tops out at
+le=10, so an 87-second request is literally unrepresentable there, and both routes returned
+200 OK throughout — no error panel or alert would have shown either. A log-derived latency panel
+was the only surface that could see it. ENG-46 is the alert that would have paged instead of
+requiring someone to look. -->
+- 2026-09-01 · CARDS-C0 · resolved: ENG-47 shipped (8759af4e, prod 21:43Z) — both sync routes batched; 96-112s → ~300ms, zero >5s requests in the 40min after deploy; both affected installs recovered · https://elijah-dangerfield.sentry.io/issues/CARDS-C0
