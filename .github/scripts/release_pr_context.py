@@ -298,7 +298,14 @@ def asc_get(path: str, token: str) -> dict:
 
 
 def ios_bundle_id() -> str | None:
-    """`PRODUCT_BUNDLE_IDENTIFIER` with the `$(TEAM_ID)` suffix resolved."""
+    """`PRODUCT_BUNDLE_IDENTIFIER` with `$(TEAM_ID)` resolved from the same file.
+
+    `$(TEAM_ID)` refers to the `TEAM_ID=` line in this xcconfig, which is empty
+    as committed, giving `com.dangerfield.cards.Cards` — the id `apps/ios/
+    fastlane/Appfile` targets. Substituting the `APPLE_TEAM_ID` secret instead
+    produced `com.dangerfield.cards.CardsMSMDV43SUS`, which matches no app in
+    App Store Connect. Read the file's own value, not the secret.
+    """
     try:
         with open("apps/ios/Configuration/Config.xcconfig") as f:
             text = f.read()
@@ -307,7 +314,8 @@ def ios_bundle_id() -> str | None:
     m = re.search(r"^PRODUCT_BUNDLE_IDENTIFIER=(.+)$", text, re.MULTILINE)
     if not m:
         return None
-    return m.group(1).strip().replace("$(TEAM_ID)", os.environ.get("APPLE_TEAM_ID", ""))
+    team = re.search(r"^TEAM_ID\s*=(.*)$", text, re.MULTILINE)
+    return m.group(1).strip().replace("$(TEAM_ID)", (team.group(1).strip() if team else ""))
 
 
 def ios_state() -> str:
