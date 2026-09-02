@@ -12,7 +12,7 @@
 #               chore/docs/ci/build/refactor/style/test/revert → no bump.
 # Edit to change: release-please-config.json (which files are bumped, bump
 #                 rules), .release-please-manifest.json (current version).
-# See: docs/release-automation.md → "Cutting a release"
+# See: docs/practices/release.md → "Cutting a release"
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: release-please
@@ -21,6 +21,9 @@ on:
   push:
     branches:
       - main
+  # Re-render the open release PR without needing a push. Useful when the store
+  # state has changed (a review cleared, a rollout finished) but main hasn't.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -56,6 +59,50 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      # The body release-please writes is a fixed string (pull-request-header in
+      # release-please-config.json), so it asserted the same four things every
+      # release whether or not they were true. On 2026-09-01 it read "submitted
+      # to App Store review" while a build was already sitting in review, which
+      # is precisely the case where merging is the wrong move.
+      #
+      # This asks the stores instead of assuming, and says what this particular
+      # release changes for a user. Never fails the workflow: a body that is
+      # missing the block is recoverable, one that lies is not, so every probe
+      # inside degrades to "could not check".
+      - name: Add live release context to the PR body
+        if: steps.release.outputs.pr != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_JSON: ${{ steps.release.outputs.pr }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r .number)
+          HEAD_BRANCH=$(printf '%s' "$PR_JSON" | jq -r .headBranchName)
+
+          # The version lives in the manifest release-please just wrote on its
+          # own branch — more reliable than scraping it out of the body.
+          RELEASE_VERSION=$(gh api \
+            "repos/$GITHUB_REPOSITORY/contents/.release-please-manifest.json?ref=$HEAD_BRANCH" \
+            --jq '.content' | base64 -d | jq -r '."."' || echo "")
+          export RELEASE_VERSION
+
+          python3 .github/scripts/release_pr_context.py > /tmp/context.md
+          gh pr view "$PR_NUMBER" --json body -q .body > /tmp/body.md
+
+          {
+            cat /tmp/context.md
+            printf '\n---\n\n'
+            cat /tmp/body.md
+          } > /tmp/new-body.md
+
+          gh pr edit "$PR_NUMBER" --body-file /tmp/new-body.md
 
       - name: Prepend first-release banner to release-please PR
         if: steps.first_release.outputs.is_first_release == 'true' && steps.release.outputs.pr != ''

@@ -39,6 +39,32 @@ So a server change lands in prod when a human approves the auto-queued deploy �
    - iOS → TestFlight external group "main" → submitted to App Store review with Apple's built-in phased release
 4. Apple review (1–3 days) and Play review (few hours) approve. Builds roll out automatically.
 
+### Read the top of the release PR before you merge
+
+The body starts with a **"What merging this actually does"** block, rebuilt by
+[release_pr_context.py](../../.github/scripts/release_pr_context.py) every time release-please
+touches the PR. Unlike the rest of the body it is not boilerplate; it asks the stores and the git
+history what is true for *this* release:
+
+- **Android.** Whether Play actually has a production release (if not, the run routes to
+  `internal` and you must promote by hand), and whether a **previous staged rollout is still in
+  progress**, since shipping supersedes it.
+- **iOS.** Whether a version is already `WAITING_FOR_REVIEW`, `IN_REVIEW` or
+  `PENDING_DEVELOPER_RELEASE`. App Store Connect holds one version in flight at a time, so
+  merging while one sits there collides with it. **This is the check worth waiting on.**
+- **Scope.** How many commits touch client code (what merging actually delivers) versus
+  server-only commits, which deploy on their own cadence and are usually already live in prod
+  before you ever see the release PR. Without this the changelog reads as though a server fix
+  ships with the app, which it does not.
+
+Every probe degrades to an explicit "not checked" line when a credential is missing. It never
+guesses, because a body the reader can't trust is what this replaced. If the whole step fails the
+PR still updates, just without the block (`continue-on-error: true`).
+
+The static remainder of the body lives in `pull-request-header` in
+[release-please-config.json](../../release-please-config.json) and should only ever contain
+claims that are true for every release.
+
 ### What if the release PR doesn't exist?
 
 No conventional-commit changes since the last release. Merge a `fix:` or `feat:` PR and the bot will open one within a minute.
