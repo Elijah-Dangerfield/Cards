@@ -396,6 +396,10 @@
     <!-- Home - Out-of-chips sheet (once per below-buy-in episode). -->
     <string name="home_out_of_chips_title">Short stacked</string>
     <string name="home_out_of_chips_body">You're under the %1$s-chip Casual buy-in. Two ways back to the tables.</string>
+    <string name="home_update_title">There's a newer Downcard</string>
+    <string name="home_update_body">Version %1$s is on the store. Updating gets you the latest fixes and whatever we've added since.</string>
+    <string name="home_update_cta">Get the update</string>
+    <string name="home_update_dismiss">Not now</string>
     <string name="home_out_of_chips_buy_title">Get a chip pack</string>
     <string name="home_out_of_chips_buy_subtitle">Packs from the shop land in your stack right away.</string>
     <string name="home_out_of_chips_earn_title">Win them back from the bots</string>

@@ -12,6 +12,10 @@ import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.Progression
+import com.dangerfield.cards.libraries.cards.AppUpdateSource
+import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.Catching
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.dangerfield.cards.libraries.cards.PlayStyleAxes
 import com.dangerfield.cards.libraries.cards.PlayStyleRepository
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
@@ -67,6 +71,7 @@ class HomeViewModel(
     private val foundingMemberUntil: WelcomeFoundingMemberUntil,
     private val clock: Clock,
     private val appCache: AppCache,
+    private val appUpdateSource: AppUpdateSource,
     private val appScope: AppCoroutineScope,
     socialEnabledConfig: SocialEnabled,
 ) : SEAViewModel<HomeState, HomeEvent, HomeAction>(
@@ -108,6 +113,15 @@ class HomeViewModel(
     // latch this one *resets* — when the balance recovers past the buy-in the
     // episode closes and the next shortfall may legitimately present again.
     private var outOfChipsPresentedThisEpisode = false
+    private var updatePromptPresented = false
+
+    /**
+     * Latest version the store will give this user, or null until (and unless)
+     * the check answers. Checked once per process, not per Home visit: the
+     * answer can't change underneath a running app, and this must never sit
+     * between the user and a Home screen they asked for.
+     */
+    private val latestStoreVersion = MutableStateFlow<String?>(null)
 
     // Highest level whose celebration we've already presented this VM's life.
     // The persisted [AppData.lastCelebratedLevel] is the durable watermark, but
@@ -134,6 +148,7 @@ class HomeViewModel(
             }
         }
         observeHomeNotifications()
+        checkForUpdate()
         viewModelScope.launch {
             chipsRepository.observeBalance().collect { balance ->
                 takeAction(HomeAction.ChipsChanged(balance))
@@ -237,6 +252,15 @@ class HomeViewModel(
      *   time. Either way the "we showed it" write follows the present, not
      *   precedes it.
      */
+    private fun checkForUpdate() {
+        appScope.launch {
+            latestStoreVersion.value = Catching { appUpdateSource.latestAvailableVersion() }
+                .onFailure { homeLogger.d(it) { "Update check failed; not prompting." } }
+                .getOrNull()
+                ?.toString()
+        }
+    }
+
     private fun observeHomeNotifications() {
         viewModelScope.launch {
             homeNotificationSnapshots()
@@ -253,6 +277,7 @@ class HomeViewModel(
             playStyleRepository.observeOwnStyle(),
             appCache.updates,
             profileRepository.observeAccountJustCreated(),
+            latestStoreVersion,
         ) { values ->
             val progression = values[0] as Progression
             val chips = values[1] as Long?
@@ -260,6 +285,7 @@ class HomeViewModel(
             val playStyle = values[3] as PlayStyleAxes?
             val appData = values[4] as AppData
             val accountJustCreated = values[5] as Boolean
+            val storeVersion = values[6] as String?
 
             val currentLevel = levelProgressFor(progression.totalXp, progressionConfig.levelCurve()).level
             val auth = profile as? Profile.Authenticated
@@ -293,6 +319,9 @@ class HomeViewModel(
                 outOfChipsSeen = appData.outOfChipsSeen,
                 casualBuyIn = StakeTier.Casual.buyIn,
                 pendingAchievementIds = appData.pendingHomeAchievementIds,
+                installedVersion = BuildInfo.versionName,
+                latestStoreVersion = storeVersion,
+                lastPromptedUpdateVersion = appData.lastPromptedUpdateVersion,
             )
         }
 
@@ -496,6 +525,21 @@ class HomeViewModel(
                 appCache.update { it.copy(playStyleUnlockSeen = true) }
                 delay(DialogIntroDelay)
                 sendEvent(HomeEvent.OpenPlayStyleUnlocked)
+            }
+            is HomeNotification.UpdateAvailable -> {
+                if (updatePromptPresented) return
+                updatePromptPresented = true
+                homeLogger.i { "home notification: update available (${notification.latestVersion})" }
+                homeLogger.logEvent(
+                    "app.update_prompt_shown",
+                    "installed" to BuildInfo.versionName,
+                    "latest" to notification.latestVersion,
+                )
+                // Mark before presenting, same as the others: a re-entrant
+                // snapshot must not double-fire while the write lands.
+                appCache.update { it.copy(lastPromptedUpdateVersion = notification.latestVersion) }
+                delay(DialogIntroDelay)
+                sendEvent(HomeEvent.OpenUpdateAvailable(notification.latestVersion))
             }
             is HomeNotification.OutOfChips -> {
                 if (outOfChipsPresentedThisEpisode) return
@@ -769,6 +813,9 @@ sealed interface HomeEvent {
 
     /** The balance dropped under the Casual buy-in — offer the ways back once per episode. */
     data class OpenOutOfChipsSheet(val balance: Long, val casualBuyIn: Long) : HomeEvent
+
+    /** A newer store version is worth mentioning. Lowest-priority blocking notification. */
+    data class OpenUpdateAvailable(val latestVersion: String) : HomeEvent
 
     /** The confirmed Forfeit's leave call failed — the seat is still held, say so. */
     data object ForfeitFailed : HomeEvent

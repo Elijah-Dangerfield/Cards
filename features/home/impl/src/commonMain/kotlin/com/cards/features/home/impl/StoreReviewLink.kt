@@ -14,13 +14,26 @@ import com.dangerfield.cards.libraries.core.isiOS
  */
 internal fun storeReviewUrl(): String =
     if (BuildInfo.isiOS()) {
-        // TODO(review): the iOS App Store listing doesn't exist yet, so there's
-        //  no real numeric id to deep-link to. Swap APP_STORE_ID_PLACEHOLDER for
-        //  the real App Store id at iOS launch — until then this link won't
-        //  resolve. See docs/todo.md (ENG store-review deep link).
-        "https://apps.apple.com/app/id$APP_STORE_ID_PLACEHOLDER?action=write-review"
+        "https://apps.apple.com/app/id$APP_STORE_ID?action=write-review"
     } else {
         "https://play.google.com/store/apps/details?id=${BuildInfo.applicationId}"
     }
 
-private const val APP_STORE_ID_PLACEHOLDER = "0000000000"
+/**
+ * Downcard's numeric App Store id, from the App Store Connect build
+ * notification (App Apple ID 6788423648). Previously a placeholder, which meant
+ * the iOS review link resolved to nothing.
+ */
+private const val APP_STORE_ID = "6788423648"
+
+/**
+ * The plain store listing, for "a newer version is available". Same target as
+ * [storeReviewUrl] minus the write-review action: we want the Update button,
+ * not the review sheet.
+ */
+internal fun storeListingUrl(): String =
+    if (BuildInfo.isiOS()) {
+        "https://apps.apple.com/app/id$APP_STORE_ID"
+    } else {
+        "https://play.google.com/store/apps/details?id=${BuildInfo.applicationId}"
+    }

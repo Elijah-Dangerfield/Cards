@@ -66,6 +66,14 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Do not** start by rewriting the bottom sheets — that was the first (wrong) diagnosis, drawn from the victim thread. Start by confirming what the RenderThread is spending its time on.
 
+## ENG-52 [P1] — Give the update prompt a real version source
+
+**Problem:** The "there's a newer Downcard" prompt is wired end to end (rule, arbiter slot, sheet, persistence) but bound to `NoUpdateSource`, which never reports an update, so it can never fire. The two stores answer different questions and neither alone is enough. **Play's In-App Updates API** correctly answers "is an update available to *this* install", staged rollouts included, but returns an `availableVersionCode` integer and never a version *name* — and the prompt rule needs `major.minor.patch` to tell a feature release from a patch. **Apple ships no equivalent API at all**, though its public iTunes lookup does return a real version string.
+
+**Acceptance:** A device one feature release behind sees the prompt once; a device one patch behind never does; a device on a staged rollout it hasn't reached yet never does. Swap the `@ContributesBinding` off `NoUpdateSource` — no call-site changes.
+
+**Hints:** The shape that satisfies both stores is Play for *availability* plus our own version-name source for the *label*. `release.yml` already publishes a config manifest at release time (`PUT /v1/admin/config/manifest`), so the server already knows the shipped version name; exposing it is the smaller half. iOS can use the iTunes lookup alone. Don't drive this from remote config on its own: it answers "what we shipped", not "what this user can install", so it would prompt everyone during a 10% rollout. Reasoning is in the `NoUpdateSource` KDoc; rule and its tests are `AppVersion.isWorthPromptingFrom`.
+
 ## ENG-48 [P2] — Sustained concurrent flushes for one user 500 instead of queueing
 
 **Problem:** The pool runs REPEATABLE READ, so concurrent updates to one `user_progression` row abort with `40001`; Exposed retries a bounded number of times, then the request fails. Measured: 4 concurrent flushes of one user pass, 6 and 8 fail. Pre-existing (the per-event write had the same shape), and the batch fix makes it rarer by shortening requests, but `RetryPolicy.idempotent()` still overlaps retries.

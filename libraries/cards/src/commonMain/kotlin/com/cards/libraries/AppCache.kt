@@ -325,6 +325,18 @@ data class AppData(
     val outOfChipsSeen: Boolean = false,
 
     /**
+     * The app version we last showed an "update available" prompt for, blank
+     * when we never have. Keyed by version rather than a boolean so someone who
+     * skips a feature release still gets asked once on the next one, instead of
+     * either being nagged every launch or silenced forever.
+     *
+     * Device-scoped, not account-scoped: which build is installed has nothing
+     * to do with who is signed in, so it deliberately survives an account
+     * switch (see [resetAccountScoped]).
+     */
+    val lastPromptedUpdateVersion: String = "",
+
+    /**
      * The `LegalUrls.LEGAL_VERSION` the user last accepted by proceeding past
      * the onboarding Welcome step (the passive "by continuing, you agree to
      * Terms + Privacy" consent). `0` means no acceptance has been recorded.

@@ -94,6 +94,20 @@ sealed interface HomeNotification {
     ) : Blocking
 
     /**
+     * A newer app version is on the store and worth mentioning. **Lowest
+     * priority of the blocking band, below even out-of-chips** — nothing here
+     * is time-sensitive, and it should only ever take a Home slot that no
+     * celebration, milestone or shortfall wanted.
+     *
+     * The "worth mentioning" rule lives in
+     * [com.dangerfield.cards.libraries.cards.isWorthPromptingFrom]: newer,
+     * a feature bump rather than a patch, and not already asked about.
+     */
+    data class UpdateAvailable(
+        val latestVersion: String,
+    ) : Blocking
+
+    /**
      * The chip odometer should roll [from] → [to]. Ambient — it plays alongside
      * a blocking celebration rather than blocking on it.
      */
