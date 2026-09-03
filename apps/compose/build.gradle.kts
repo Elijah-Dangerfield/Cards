@@ -101,4 +101,12 @@ kotlin {
 // :libraries:networking:impl). Nothing reaches a release build.
 dependencies {
     debugImplementation(libs.androidx.compose.runtimeTracing)
+    // runtime-tracing alone ships the API, not the native library it dlopens.
+    // Android Studio sideloads that for you when you tick "composition tracing",
+    // which is why a Studio capture works without these — but a plain
+    // `adb shell perfetto` capture fails with UnsatisfiedLinkError on
+    // libtracing_perfetto.so. Bundling them makes tracing work from the command
+    // line too, which is what a repeatable before/after measurement needs.
+    debugImplementation(libs.androidx.tracing.perfetto)
+    debugImplementation(libs.androidx.tracing.perfettoBinary)
 }

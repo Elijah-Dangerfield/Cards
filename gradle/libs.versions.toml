@@ -7,6 +7,8 @@ androidx-core-splashscreen = "1.2.0"
 # Pinned to the resolved androidx.compose.runtime version. Composition tracing
 # instruments the runtime, so a mismatch here is a silent no-op at best.
 androidx-composeRuntimeTracing = "1.11.1"
+# The error message names the version it wants, so it is pinned rather than ranged.
+androidx-tracingPerfetto = "1.0.1"
 androidx-espresso = "3.7.0"
 androidx-lifecycle = "2.10.0"
 android-lifecycle-etx = "2.2.0"
@@ -90,6 +92,8 @@ compose-uiTestManifest = { module = "androidx.compose.ui:ui-test-manifest", vers
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
 androidx-compose-runtimeTracing = { module = "androidx.compose.runtime:runtime-tracing", version.ref = "androidx-composeRuntimeTracing" }
+androidx-tracing-perfetto = { module = "androidx.tracing:tracing-perfetto", version.ref = "androidx-tracingPerfetto" }
+androidx-tracing-perfettoBinary = { module = "androidx.tracing:tracing-perfetto-binary", version.ref = "androidx-tracingPerfetto" }
 androidx-lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "androidx-lifecycle" }
 androidx-lifecycle-viewmodel-savedstate = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-savedstate", version.ref = "androidx-lifecycle" }
 androidx-lifecycle-viewmodelCompose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }

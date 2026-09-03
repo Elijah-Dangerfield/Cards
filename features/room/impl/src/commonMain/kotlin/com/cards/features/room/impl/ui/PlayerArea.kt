@@ -48,6 +48,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.State
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -55,8 +56,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -68,6 +75,7 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
@@ -134,12 +142,19 @@ internal fun PlayerArea(
     val winAmount = humanWin?.amount ?: 0L
     // Pulse the band around the whole player area when it's the human's turn.
     // This replaces the dropped "Your turn" text banner.
-    val pulseAlpha = if (human.isActing) pulseAlpha(low = 0.30f, high = 0.85f) else 0f
-    val borderColor = when {
-        isWinner -> AppTheme.colors.poker.chipGold.color
-        human.isActing -> AppTheme.colors.poker.seatActive.color.copy(alpha = pulseAlpha)
-        else -> Color.Transparent
-    }
+    //
+    // The alpha is deliberately kept as State and never unwrapped here. Reading
+    // an animated value during composition recomposes every caller on every
+    // animation frame, and this sits at the top of PlayerArea — so the whole
+    // subtree, including the name/chip/hand-label text in PlayerInfoTile, was
+    // recomposing ~60 times a second for the entire time it was your turn. That
+    // rebuilt a text blob per frame, thrashed Skia's glyph cache, and wedged the
+    // RenderThread hard enough to ANR (ENG-49; four production traces sit in
+    // docs/agent/feedback-cases/anr-traces/). [pulsingBorder] reads it at draw
+    // time instead, so the pulse animates without recomposing anything.
+    val pulseAlpha = if (human.isActing) rememberPulseAlpha(low = 0.30f, high = 0.85f) else null
+    val winnerColor = AppTheme.colors.poker.chipGold.color
+    val activeColor = AppTheme.colors.poker.seatActive.color
     val borderWidth = if (isWinner || human.isActing) 2.dp else 0.dp
     val swipeFoldEnabled = table.isHumanTurn &&
         table.humanLegalActions != null &&
@@ -213,7 +228,13 @@ internal fun PlayerArea(
         // renders rounded without a clip.
         modifier = Modifier
             .fillMaxWidth()
-            .border(borderWidth, borderColor, Radii.R800.shape)
+            .pulsingBorder(borderWidth, Radii.R800.shape) {
+                when {
+                    isWinner -> winnerColor
+                    human.isActing -> activeColor.copy(alpha = pulseAlpha?.value ?: 0f)
+                    else -> Color.Transparent
+                }
+            }
             .padding(horizontal = 8.dp, vertical = 8.dp)
             .height(PlayingCardSize.Hole.height),
         verticalAlignment = Alignment.CenterVertically,
@@ -414,9 +435,13 @@ internal fun PlayerArea(
  * doesn't fit a shared component's API.
  */
 @Composable
-private fun pulseAlpha(low: Float = 0.32f, high: Float = 0.78f): Float {
+private fun rememberPulseAlpha(low: Float = 0.32f, high: Float = 0.78f): State<Float> {
     val transition = rememberInfiniteTransition(label = "active-pulse")
-    val alpha by transition.animateFloat(
+    // Returns the State rather than its value on purpose. `by`-delegating here,
+    // or returning `alpha`, subscribes the *caller's* composition to a value
+    // that changes every frame. Handing back the State lets the read happen
+    // wherever it is cheapest — for us, inside a draw lambda.
+    return transition.animateFloat(
         initialValue = low,
         targetValue = high,
         animationSpec = infiniteRepeatable(
@@ -425,7 +450,37 @@ private fun pulseAlpha(low: Float = 0.32f, high: Float = 0.78f): Float {
         ),
         label = "alpha",
     )
-    return alpha
+}
+
+/**
+ * A border whose colour is resolved during **draw**, not composition.
+ *
+ * `Modifier.border(width, color, shape)` takes an already-resolved `Color`, so
+ * an animated colour forces a recomposition per frame to produce it. Taking a
+ * lambda instead means the snapshot read happens inside the draw scope, and
+ * only the draw phase invalidates when the animation ticks.
+ */
+private fun Modifier.pulsingBorder(
+    width: Dp,
+    shape: Shape,
+    color: () -> Color,
+): Modifier = drawWithCache {
+    val stroke = width.toPx()
+    // Inset by half the stroke so the ring sits inside the bounds, which is
+    // where Modifier.border puts it, rather than straddling the edge.
+    val inset = shape.createOutline(
+        Size(size.width - stroke, size.height - stroke),
+        layoutDirection,
+        this,
+    )
+    onDrawWithContent {
+        drawContent()
+        if (stroke > 0f) {
+            translate(left = stroke / 2f, top = stroke / 2f) {
+                drawOutline(outline = inset, color = color(), style = Stroke(width = stroke))
+            }
+        }
+    }
 }
 
 @Composable
