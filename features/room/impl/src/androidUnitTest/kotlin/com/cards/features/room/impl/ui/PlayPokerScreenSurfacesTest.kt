@@ -81,7 +81,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(manifest = Config.NONE, sdk = [34])
+@Config(manifest = Config.NONE, sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class PlayPokerScreenSurfacesTest {
 
     // ── VM-owned surfaces: open, absent, and driven by state ─────────────────

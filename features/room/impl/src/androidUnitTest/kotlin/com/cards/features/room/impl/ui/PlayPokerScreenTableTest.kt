@@ -67,11 +67,10 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-// The one deviation from the sibling files' @Config: a phone-sized viewport.
-// Robolectric's default is 320×470px, shorter than any shipping device, and this
-// screen is a full-height felt — the pot pill and the action slot measure to zero
-// height there, which would make half of these assertions untestable for reasons
-// no user will ever hit.
+// Phone-sized viewport, matched across every play-screen suite. Robolectric's
+// default is 320×470px, shorter than any shipping device, and this screen is a
+// full-height felt — the pot pill and the action slot measure to zero height
+// there, so assertions would pass or fail for reasons no user will ever hit.
 @Config(manifest = Config.NONE, sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class PlayPokerScreenTableTest {
 
