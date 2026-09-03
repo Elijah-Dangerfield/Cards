@@ -80,7 +80,7 @@ If it recurs, the shape to look for is an animation whose value is read during c
 
 **Acceptance:** Release builds obfuscate, `mapping.txt` reaches Sentry, and the smoke checklist passes against the installed release artifact. Staged per `docs/plans/r8-obfuscation.md` so a failure names its own cause: shrink-only first, then renaming, then optimization.
 
-**Hints:** Full plan and risk inventory in `docs/plans/r8-obfuscation.md`. **No test we have can catch R8 breakage** — `apps/integration` is `androidUnitTest` and runs unminified, and there is no Robolectric/compose-uiTest infra — so verification is the device smoke run, not a test suite. Top risk is type-safe nav routes: `androidx.navigation` keys destinations on the qualified class name and ours are `@Serializable` classes. Fix `KLog.kt:256-258` first — it filters stack frames by `::class.qualifiedName`, so obfuscation would silently misattribute every log line to the logger instead of the call site. Rollback is one line.
+**Hints:** Full plan and risk inventory in `docs/plans/r8-obfuscation.md`. **No test we have can catch R8 breakage** — every test we have runs on the JVM against unminified classes, including the Robolectric `compose-uiTest` suites — so verification is the device smoke run, not a test suite. Top risk is type-safe nav routes: `androidx.navigation` keys destinations on the qualified class name and ours are `@Serializable` classes. Fix `KLog.kt:256-258` first — it filters stack frames by `::class.qualifiedName`, so obfuscation would silently misattribute every log line to the logger instead of the call site. Rollback is one line.
 
 ## ENG-52 [P1] — Give the update prompt a real version source
 

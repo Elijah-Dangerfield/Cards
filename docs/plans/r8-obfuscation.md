@@ -19,8 +19,10 @@ This is the part that matters for "how do we know it's safe", and it is uncomfor
 
 **Every test we have runs on unminified bytecode.** `apps/integration` is `androidUnitTest`, so
 the scenario harness, the ViewModel tests and the server suite all execute JVM classes that R8
-never touched. There is also no Robolectric or `compose-uiTest` infrastructure at all
-(`docs/plans/compose-ui-testing-spike.md`: "none of this has been built"). So there is no existing
+never touched. Robolectric + `compose-uiTest` suites **do** exist
+(`features/room/impl/src/androidUnitTest/.../PlayPokerScreenTest.kt`, 14 tests) — an earlier
+version of this doc claimed otherwise, copying a stale status line from the spike doc — but they
+are JVM tests running unminified classes too, so they change nothing here. There is no existing
 test, at any level, that would go red if R8 broke the app.
 
 R8 failures are release-only and specific: a DTO that won't deserialize, a nav route whose class
