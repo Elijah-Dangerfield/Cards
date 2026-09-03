@@ -8,4 +8,11 @@ PRODUCT_NAME=Downcard
 PRODUCT_BUNDLE_IDENTIFIER=com.dangerfield.cards.Cards$(TEAM_ID)
 
 CURRENT_PROJECT_VERSION=1
-MARKETING_VERSION=0.1.0
+
+// The markers below are load-bearing — see the note in versions.properties.
+// release-please only updates arbitrary files where it finds them, and says
+// nothing when they're absent, which is how v0.2.0 shipped to App Store
+// Connect labelled 0.1.0.
+// x-release-please-start-version
+MARKETING_VERSION=0.2.0
+// x-release-please-end

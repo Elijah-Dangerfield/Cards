@@ -298,7 +298,14 @@ def asc_get(path: str, token: str) -> dict:
 
 
 def ios_bundle_id() -> str | None:
-    """`PRODUCT_BUNDLE_IDENTIFIER` with the `$(TEAM_ID)` suffix resolved."""
+    """`PRODUCT_BUNDLE_IDENTIFIER` with `$(TEAM_ID)` resolved from the same file.
+
+    `$(TEAM_ID)` refers to the `TEAM_ID=` line in this xcconfig, which is empty
+    as committed, giving `com.dangerfield.cards.Cards` — the id `apps/ios/
+    fastlane/Appfile` targets. Substituting the `APPLE_TEAM_ID` secret instead
+    produced `com.dangerfield.cards.CardsMSMDV43SUS`, which matches no app in
+    App Store Connect. Read the file's own value, not the secret.
+    """
     try:
         with open("apps/ios/Configuration/Config.xcconfig") as f:
             text = f.read()
@@ -307,7 +314,8 @@ def ios_bundle_id() -> str | None:
     m = re.search(r"^PRODUCT_BUNDLE_IDENTIFIER=(.+)$", text, re.MULTILINE)
     if not m:
         return None
-    return m.group(1).strip().replace("$(TEAM_ID)", os.environ.get("APPLE_TEAM_ID", ""))
+    team = re.search(r"^TEAM_ID\s*=(.*)$", text, re.MULTILINE)
+    return m.group(1).strip().replace("$(TEAM_ID)", (team.group(1).strip() if team else ""))
 
 
 def ios_state() -> str:
@@ -315,23 +323,41 @@ def ios_state() -> str:
         return "- **iOS**: not checked, App Store Connect API credentials are not set."
 
     token = asc_token()
-    bundle = ios_bundle_id()
-    apps = []
-    if bundle:
-        q = urllib.parse.quote(bundle, safe="")
-        apps = asc_get(f"/v1/apps?filter[bundleId]={q}&limit=2", token).get("data") or []
-    if not apps:
-        # The bundle id is assembled from an xcconfig interpolation plus a
-        # secret, so a miss here is far more likely to be our string than a
-        # missing app. Fall back to the account's app list.
-        apps = asc_get("/v1/apps?limit=2", token).get("data") or []
-    if len(apps) != 1:
-        return (
-            "- **iOS**: could not identify the app in App Store Connect "
-            f"(bundle id `{bundle}` matched {len(apps)} apps). Check review state by hand."
-        )
+    app_id = os.environ.get("ASC_APP_ID", "").strip()
 
-    app_id = apps[0]["id"]
+    if not app_id:
+        # `PRODUCT_BUNDLE_IDENTIFIER` is an xcconfig interpolation plus a secret,
+        # so this string is a guess. On the first live run it produced
+        # `com.dangerfield.cards.CardsMSMDV43SUS`, which matches nothing.
+        bundle = ios_bundle_id()
+        apps = []
+        if bundle:
+            q = urllib.parse.quote(bundle, safe="")
+            apps = asc_get(f"/v1/apps?filter[bundleId]={q}&limit=2", token).get("data") or []
+
+        if not apps:
+            candidates = (
+                asc_get("/v1/apps?limit=50&fields[apps]=name,bundleId", token).get("data") or []
+            )
+            named = [
+                a for a in candidates
+                if "downcard" in str((a.get("attributes") or {}).get("name", "")).lower()
+            ]
+            apps = candidates if len(candidates) == 1 else named
+
+        if len(apps) != 1:
+            # Say what was actually found. A failure that names the candidates is
+            # one someone can fix; "matched N apps" is not.
+            listing = ", ".join(
+                f"{(a.get('attributes') or {}).get('name')} (`{(a.get('attributes') or {}).get('bundleId')}`)"
+                for a in (candidates if not apps else apps)
+            ) or "no apps visible to this key"
+            return (
+                "- **iOS**: could not identify the app in App Store Connect. Derived bundle id "
+                f"`{bundle}` matched nothing, and the account has: {listing}. "
+                "Set the `ASC_APP_ID` secret to the right app id to fix this permanently."
+            )
+        app_id = apps[0]["id"]
     versions = (
         asc_get(
             f"/v1/apps/{app_id}/appStoreVersions?limit=5"
@@ -398,6 +424,41 @@ def package_name() -> str:
     return m.group(1).strip() if m else ""
 
 
+def version_file_drift(expected: str) -> str | None:
+    """Warn when the files the binaries are built from disagree with the release.
+
+    release-please tracks the version in its own manifest and only updates
+    `versions.properties` / `Config.xcconfig` where it finds an
+    `x-release-please-*` marker. When those markers went missing it said
+    nothing, the job went green, and v0.2.0 shipped to both stores labelled
+    0.1.0. This is the check that would have caught it before the merge.
+    """
+    if not expected:
+        return None
+    files = {
+        "versions.properties": r"^versionName=(.+)$",
+        "apps/ios/Configuration/Config.xcconfig": r"^MARKETING_VERSION=(.+)$",
+    }
+    stale = []
+    for path, pattern in files.items():
+        try:
+            with open(path) as f:
+                m = re.search(pattern, f.read(), re.MULTILINE)
+        except OSError:
+            continue
+        found = m.group(1).strip() if m else None
+        if found != expected:
+            stale.append(f"`{path}` says **{found or 'nothing'}**")
+    if not stale:
+        return None
+    return (
+        f"> 🛑 **The version files do not say {expected}.** " + "; ".join(stale) + ".\n>\n"
+        "> The tag, the changelog and the store listing will say one version while the "
+        "binaries report another, which is what happened to v0.2.0. Check that both files "
+        "still have their `x-release-please-start-version` markers before merging."
+    )
+
+
 def main() -> int:
     version = os.environ.get("RELEASE_VERSION", "").strip()
     prev = previous_tag()
@@ -420,6 +481,10 @@ def main() -> int:
             f"{'fix' if fixes == 1 else 'fixes'} {since}."
         )
         out.append("")
+        drift = guard(lambda: version_file_drift(version), "Version files")
+        if drift and drift.startswith(">"):
+            out.append(drift)
+            out.append("")
 
     checked = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     out.append(f"### Where it goes _(checked live at {checked})_")

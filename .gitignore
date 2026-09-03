@@ -50,3 +50,7 @@ apps/admin/admin-tokens.local.properties
 # .gitkeep so the COPY always has a directory to take.
 apps/server/admin-web/*
 !apps/server/admin-web/.gitkeep
+
+# Python bytecode from repo scripts
+__pycache__/
+*.pyc
