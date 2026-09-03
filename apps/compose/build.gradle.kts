@@ -88,3 +88,17 @@ kotlin {
         }
     }
 }
+// Composition tracing: makes @Composable function names show up as named slices
+// in a Perfetto / Android Studio system trace, so a slow frame can be attributed
+// to a composable instead of to "Compose".
+//
+// Added for ENG-49, where four production ANRs put the RenderThread inside
+// Skia's glyph cache under a text draw and the open question is *which* text.
+// Guessing at the answer already cost one wrong diagnosis; this names it.
+//
+// Debug-only, in the top-level dependencies block because the `debugImplementation`
+// configuration only exists on the Android target (same reason as Wiretap in
+// :libraries:networking:impl). Nothing reaches a release build.
+dependencies {
+    debugImplementation(libs.androidx.compose.runtimeTracing)
+}
