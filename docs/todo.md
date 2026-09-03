@@ -66,6 +66,14 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Do not** start by rewriting the bottom sheets — that was the first (wrong) diagnosis, drawn from the victim thread. Start by confirming what the RenderThread is spending its time on.
 
+## ENG-53 [P2] — Turn on R8 obfuscation before Play's Feb 2027 deadline
+
+**Problem:** Android vitals reports obfuscation at **1%** (the 1% is pre-obfuscated dependencies; none of our code is), against Play's 25% threshold, with a stated deadline of Feb 2027 and "may impact your visibility and publishing capabilities". Release builds set `isMinifyEnabled = false` and there is no `proguard-rules.pro`, so they are neither shrunk nor obfuscated and emit no `mapping.txt`.
+
+**Acceptance:** Release builds obfuscate, `mapping.txt` reaches Sentry, and the smoke checklist passes against the installed release artifact. Staged per `docs/plans/r8-obfuscation.md` so a failure names its own cause: shrink-only first, then renaming, then optimization.
+
+**Hints:** Full plan and risk inventory in `docs/plans/r8-obfuscation.md`. **No test we have can catch R8 breakage** — `apps/integration` is `androidUnitTest` and runs unminified, and there is no Robolectric/compose-uiTest infra — so verification is the device smoke run, not a test suite. Top risk is type-safe nav routes: `androidx.navigation` keys destinations on the qualified class name and ours are `@Serializable` classes. Fix `KLog.kt:256-258` first — it filters stack frames by `::class.qualifiedName`, so obfuscation would silently misattribute every log line to the logger instead of the call site. Rollback is one line.
+
 ## ENG-52 [P1] — Give the update prompt a real version source
 
 **Problem:** The "there's a newer Downcard" prompt is wired end to end (rule, arbiter slot, sheet, persistence) but bound to `NoUpdateSource`, which never reports an update, so it can never fire. The two stores answer different questions and neither alone is enough. **Play's In-App Updates API** correctly answers "is an update available to *this* install", staged rollouts included, but returns an `availableVersionCode` integer and never a version *name* — and the prompt rule needs `major.minor.patch` to tell a feature release from a patch. **Apple ships no equivalent API at all**, though its public iTunes lookup does return a real version string.
