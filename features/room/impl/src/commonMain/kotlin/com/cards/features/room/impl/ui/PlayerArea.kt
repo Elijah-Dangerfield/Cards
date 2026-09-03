@@ -44,6 +44,7 @@ import cards.libraries.resources.generated.resources.room_player_odds_dial_win_l
 import cards.libraries.resources.generated.resources.room_player_odds_flip_a11y
 import cards.libraries.resources.generated.resources.room_player_odds_heading
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -519,21 +520,26 @@ private fun HoleCardSlot(
             // instead of pinching at 90°. Both branches render inside
             // an identical centered Box so the rectangle the flip
             // occupies never shifts shape between front and back.
-            val flipRotation by animateFloatAsState(
+            // State, not `by` — the angle is a draw-phase input. Composition
+            // only needs to know which face is toward the viewer, which changes
+            // once, so `derivedStateOf` collapses the 380ms sweep into a single
+            // invalidation rather than one per frame.
+            val flipRotation = animateFloatAsState(
                 targetValue = if (manuallyFacedown) 180f else 0f,
                 animationSpec = tween(380),
                 label = "hole-manual-flip",
             )
+            val frontTowardViewer by remember { derivedStateOf { flipRotation.value <= 90f } }
             Box(
                 modifier = Modifier
                     .size(width = size.width, height = size.height)
                     .graphicsLayer {
-                        rotationY = flipRotation
+                        rotationY = flipRotation.value
                         cameraDistance = 48f * density
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                if (flipRotation <= 90f) {
+                if (frontTowardViewer) {
                     PlayingCard(card = card, size = size)
                 } else {
                     Box(modifier = Modifier.graphicsLayer { rotationY = 180f }) {
@@ -544,26 +550,32 @@ private fun HoleCardSlot(
         } else {
             val flightDp = -260f
             val flightPx = with(LocalDensity.current) { flightDp.dp.toPx() }
-            val translationY by animateFloatAsState(
+            // The deal-in. This slot was the top *measured* recomposer left on
+            // the screen (~298 per the ENG-49 trace) precisely because both of
+            // these were unwrapped here: two cards each recomposing through a
+            // 360ms flight and a 380ms flip, every hand. Both are draw-phase
+            // inputs, and the only thing composition needs is which face is up.
+            val flight = animateFloatAsState(
                 targetValue = if (arrived) 0f else flightPx,
                 animationSpec = tween(360, easing = FastOutSlowInEasing),
                 label = "hole-fly",
             )
-            val rotation by animateFloatAsState(
+            val rotation = animateFloatAsState(
                 targetValue = if (revealed) 180f else 0f,
                 animationSpec = tween(380),
                 label = "hole-flip",
             )
+            val backTowardViewer by remember { derivedStateOf { rotation.value <= 90f } }
             Box(
                 modifier = Modifier
                     .size(width = size.width, height = size.height)
                     .graphicsLayer {
-                        this.translationY = translationY
-                        rotationY = rotation
+                        translationY = flight.value
+                        rotationY = rotation.value
                         cameraDistance = 12f * density
                     },
             ) {
-                if (rotation <= 90f) {
+                if (backTowardViewer) {
                     PlayingCardBack(size = size, avatarOverlay = avatarOverlay)
                 } else {
                     Box(
@@ -825,11 +837,15 @@ private fun FlippablePlayerInfoTile(
     LaunchedEffect(canFlip) {
         if (!canFlip) flipped = false
     }
-    val rotation by animateFloatAsState(
+    // State, not `by`: this tile carries the stack and win-odds text, so a
+    // per-frame recomposition here rebuilds text blobs through the whole 520ms
+    // flip — the exact path the ENG-49 traces ended in.
+    val rotation = animateFloatAsState(
         targetValue = if (flipped) 180f else 0f,
         animationSpec = tween(durationMillis = 520),
         label = "info-tile-flip",
     )
+    val frontTowardViewer by remember { derivedStateOf { rotation.value <= 90f } }
 
     // Discoverability wiggle — fires once per session when the user owns
     // the tool AND has never flipped the tile before (persisted via
@@ -864,7 +880,7 @@ private fun FlippablePlayerInfoTile(
     Box(
         modifier = modifier
             .graphicsLayer {
-                rotationY = rotation + hintRotation.value
+                rotationY = rotation.value + hintRotation.value
                 cameraDistance = 14f * density
             }
             .pointerInput(canFlip, swipeCommitPx) {
@@ -879,7 +895,7 @@ private fun FlippablePlayerInfoTile(
                 )
             },
     ) {
-        if (rotation <= 90f) {
+        if (frontTowardViewer) {
             PlayerInfoTile(
                 seat = seat,
                 handLabel = handLabel,

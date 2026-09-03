@@ -17,6 +17,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -1006,7 +1009,7 @@ private fun NextHandCountdownBar(
     // client needing to know the configured beat length.
     val totalMs = remember(countdown.deadlineEpochMs) { remainingMs.coerceAtLeast(1L) }
     val targetFraction = (remainingMs.toFloat() / totalMs).coerceIn(0f, 1f)
-    val fraction by animateFloatAsState(
+    val fraction = animateFloatAsState(
         targetValue = targetFraction,
         animationSpec = tween(durationMillis = 1_000, easing = LinearEasing),
         label = "next-hand-drain",
@@ -1032,21 +1035,32 @@ private fun NextHandCountdownBar(
         }
         // Draining fill — empties as the next deal nears, so "how long do I have"
         // reads at a glance without parsing the digits.
+        //
+        // Painted rather than laid out. The obvious spelling is a child Box with
+        // `fillMaxWidth(fraction)`, but `fillMaxWidth` takes a Float, so the
+        // fraction has to be unwrapped during composition and the bar then
+        // recomposes *and* re-lays-out every frame for a second. Reading it
+        // inside `drawBehind` keeps the whole drain in the draw phase. This bar
+        // runs at hand end, alongside the pot ship and the chip odometer — the
+        // exact moment the ENG-49 traces caught the RenderThread wedged.
+        val fillColor = AppTheme.colors.poker.chipGold.color
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
                 .clip(Radii.Round.shape)
-                .background(AppTheme.colors.surfaceRaised.color),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(fraction)
-                    .height(6.dp)
-                    .clip(Radii.Round.shape)
-                    .background(AppTheme.colors.poker.chipGold.color),
-            )
-        }
+                .background(AppTheme.colors.surfaceRaised.color)
+                .drawBehind {
+                    val filled = size.width * fraction.value
+                    if (filled > 0f) {
+                        drawRoundRect(
+                            color = fillColor,
+                            size = Size(filled, size.height),
+                            cornerRadius = CornerRadius(size.height / 2f),
+                        )
+                    }
+                },
+        )
     }
 }
 

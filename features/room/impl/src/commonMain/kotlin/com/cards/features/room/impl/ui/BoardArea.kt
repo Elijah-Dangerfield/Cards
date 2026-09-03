@@ -204,7 +204,12 @@ private fun BoardSlot(
         if (!skip) delay(appearDelayMs.toLong())
         appeared = true
     }
-    val appear by animateFloatAsState(
+    // Deliberately `State<Float>`, not `by`. Both values feed the graphicsLayer
+    // below, which is a draw-phase lambda — unwrapping them here would
+    // subscribe *composition* to them and recompose this slot on all ~37 frames
+    // of the appear + flip tween, five slots at a time, for nothing. Same class
+    // of mistake as ENG-49.
+    val appear = animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
         animationSpec = tween(240, easing = FastOutSlowInEasing),
         label = "board-appear",
@@ -217,22 +222,28 @@ private fun BoardSlot(
             flipped = true
         }
     }
-    val flip by animateFloatAsState(
+    val flip = animateFloatAsState(
         targetValue = if (flipped) 180f else 0f,
         animationSpec = tween(380),
         label = "board-flip",
     )
+    // The one thing composition genuinely needs from the flip is which face is
+    // toward the viewer, and that changes exactly once. `derivedStateOf`
+    // collapses the whole 380ms sweep into that single invalidation instead of
+    // one per frame.
+    val faceTowardViewer by remember { derivedStateOf { flip.value > 90f } }
 
     Box(
         modifier = Modifier
             .size(width = size.width, height = size.height)
             .graphicsLayer {
-                translationY = (1f - appear) * (-18).dp.toPx()
-                alpha = appear
-                val s = 0.8f + 0.2f * appear
+                val appeared = appear.value
+                translationY = (1f - appeared) * (-18).dp.toPx()
+                alpha = appeared
+                val s = 0.8f + 0.2f * appeared
                 scaleX = s
                 scaleY = s
-                rotationY = flip
+                rotationY = flip.value
                 cameraDistance = 12f * density
             },
     ) {
@@ -243,7 +254,7 @@ private fun BoardSlot(
         // play screen down. Nothing emits that today, but the crash primitive
         // does not need to exist: a slot with no card is a back, whatever angle
         // it is at.
-        if (flip <= 90f || card == null) {
+        if (!faceTowardViewer || card == null) {
             PlayingCardBack(size = size)
         } else {
             Box(modifier = Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }) {
