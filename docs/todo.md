@@ -117,13 +117,13 @@ So a stability config file or a move to `kotlinx.collections.immutable` would ha
 
 **Hints:** Design already written in `docs/plans/compose-ui-testing-spike.md` (Option 3, "full app"), including which external boundaries to substitute. **That doc's status line was stale for three months and propagated a false "no Compose UI test infrastructure" claim into two other docs — treat its framing with suspicion and verify before quoting it.** Orthogonal to ENG-61: this catches nav wiring, that catches intra-screen state binding. Neither would have caught the other's bugs.
 
-## ENG-61 [P1] — Compose tests that cross a hand boundary
+## ENG-61 — Compose tests that cross a hand boundary — DONE 2026-09-03
 
-**Problem:** 14 Compose UI tests over this screen exist and pass, and every one renders a **single state**. None crosses a hand boundary, which is exactly the seam tap-to-flip fell through — that bug needed two hands to observe and shipped with a green suite. `PokerScenario` already drives a real ViewModel over a real bots session across multiple hands; it just never renders.
+The play screen went from 14 single-state tests to **106 across five suites**, every one of which drives at least one hand boundary. Suites: table projection and felt rendering, end-of-hand disposition, modal surfaces and the leave flow, multi-hand transitions, and skippability.
 
-**Acceptance:** A test plays two hands and asserts tap-to-flip still toggles. It must fail against `c0e813ec~1`.
+They paid for themselves immediately, finding a latent crash (`BoardArea`'s `card!!`), the stacked practice-tier explainer, the action sheet riding a hand boundary, and the frozen player-profile snapshot. They also caught an ordering flaw in the harness itself: with `autoAdvance` off, a hoisted state write must be pumped before the clock advances.
 
-**Hints:** Plan and staging in `docs/plans/playpokerscreen-tests.md`, including the full FSM. No new module, source set or dependency needed — `commonTest` and `androidUnitTest` share a classpath. `PlayingCard` emits rank and suit as real `Text` while `PlayingCardBack` is Canvas-only, so face-up/face-down is assertable with no test tags. Take the wall-clock path over virtual time first; it designs the clock-interop problem out.
+Note for anyone extending them: Robolectric's default viewport is 320x470px, shorter than any shipping phone, which measures some felt elements to zero height. `PlayPokerScreenTableTest` sets `qualifiers = "w411dp-h891dp-xhdpi"`; the others should be brought in line.
 
 ## ENG-49 [P2] — Confirm the RenderThread text stall is actually gone in production
 
@@ -135,13 +135,11 @@ So a stability config file or a move to `kotlinx.collections.immutable` would ha
 
 If it recurs, the shape to look for is an animation whose value is read during composition (`val x by animateFloatAsState(...)`), which recomposes its whole subtree every frame. Three instances of that caused this. `AnimatedStateReadInComposition` in `:detekt-rules` is meant to catch them and does not run yet — see ENG-54.
 
-## ENG-54 [P2] — Make the AnimatedStateReadInComposition detekt rule actually run
+## ENG-54 — Make the AnimatedStateReadInComposition detekt rule run — DONE 2026-09-03
 
-**Problem:** `detekt-rules/.../AnimatedStateReadInComposition.kt` catches `val x by animateFloatAsState(...)`, the anti-pattern behind ENG-49's four production ANRs. It is registered, configured active, and compiles into the ruleset jar — and detekt **2.0.0-alpha.5 never dispatches to it**. Proven by making it report unconditionally on every call expression: zero findings, while `VerifyStrings` fires normally on the same file in the same run. A lint rule that silently never fires is worse than no rule, because it looks like coverage.
+The prime suspect was right: it was the alpha. Bumping detekt `2.0.0-alpha.5` -> `2.0.0-alpha.6` made the rule dispatch, with no change to the rule itself. Everything else that had been ruled out (provider ordering, config cache, jar freshness, YAML, baseline) was a red herring.
 
-**Acceptance:** Planting `val x by animateFloatAsState(...)` in any module makes `./gradlew detekt` fail. Until then nobody should believe this rule is protecting them.
-
-**Hints:** Already ruled out: rule ordering in the provider, Gradle configuration-cache staleness, jar freshness (jar newer than source), YAML indentation and comment placement, and the baseline (which only contains `VerifyStrings` entries). `RuleSet` takes `Map<RuleName, (Config) -> Rule>` with a `Companion.invoke` List overload — the list form is what the provider uses and what `VerifyStrings` rides on, so it does work in general. **Prime suspect is the alpha itself**: `detekt-rules/build.gradle.kts` already documents a separate packaging defect in this exact version (`detekt-test` fixtures 404 on Maven Central). Try upgrading off `2.0.0-alpha.5` before debugging the rule logic.
+It found **19 instances** on its first run, seven of them in files that had just been swept by hand for exactly this pattern. All 19 are cleared — see `3ff898ba`. One deliberate suppression remains, in `Header.elevateOnScroll`, with its reason in the code: `Modifier.shadow` has no lambda form.
 
 ## ENG-53 [P2] — Turn on R8 obfuscation before Play's Feb 2027 deadline
 
