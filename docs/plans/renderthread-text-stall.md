@@ -51,11 +51,50 @@ That is why CARDS-BZ blocked in `syncAndDrawFrame` instead. Same wedge, differen
 `observability-triage` skill, but it applies here directly. A stack ending in a wait names the
 victim, not the cause.
 
+## Confirmed 2026-09-03 by three Play Console ANR traces
+
+Three more ANRs, pulled from Play Console, put this beyond hypothesis. **All three have a
+byte-identical RenderThread stack**, and it is the same one CARDS-C1 had:
+
+```
+GrTextBlobRedrawCoordinator::internalRemove      ← top of stack in all four events
+GrTextBlobRedrawCoordinator::drawGlyphRunList
+skgpu::v1::SurfaceDrawContext::drawGlyphRunList
+  ...
+SkCanvas::drawTextBlob
+  → 13 nested RenderNodeDrawable levels
+  → DrawFrameTask::postAndWait
+```
+
+**The decisive part is the main thread, which is different in every one:**
+
+| Trace | What `main` was blocked doing |
+|---|---|
+| `stacktrace.log` | Dialog **dismiss** → `destroyHardwareResources` → `nDestroyHardwareResources` |
+| `stacktrace (1).log` | Dialog **show** → `ThreadedRenderer.create` → `nCreateProxy` |
+| `stacktrace (2).log` | **An ordinary frame** → `ViewRootImpl.performTraversals` → `nSyncAndDrawFrame` |
+
+Three unrelated operations — opening a window, closing a window, and drawing a normal frame — all
+stalled behind the same wedged RenderThread. One of them involves no bottom sheet at all.
+
+That closes the question the first investigation got wrong. **The bottom sheet is not the cause and
+never was**; it is simply a frequent caller, so it shows up as the victim often. Anything needing
+the RenderThread hangs identically, which is exactly what the third trace shows.
+
+**Step 1 of the plan below is therefore already done.** No profiling run is needed to establish
+that the RenderThread is the bottleneck; four independent production events say so. Start at
+Step 2.
+
 ## What is proven and what is not
 
-**Proven, straight from the event:** the RenderThread was mid-frame, deep in text rendering, with
-the glyph cache in eviction, roughly 17 render-node levels deep, and other threads were blocked
-behind it.
+**Proven, across four independent production events:** the RenderThread is mid-frame, deep in
+text rendering, with the glyph cache churning inside `internalRemove`, 13 to 17 render-node levels
+deep, and whatever else needs that thread is blocked behind it.
+
+Worth knowing what `internalRemove` inside `drawGlyphRunList` actually means: Skia is dropping a
+cached text blob it cannot reuse and rebuilding it. Being caught there in every single sample is
+the signature of text whose **draw parameters change every frame**. Blob reuse survives a change
+in position; it does not survive a change in scale or rotation.
 
 **Not proven:** what specifically is generating that text load. The leading suspect is text drawn
 inside a continuously changing transform, because a new scale or rotation each frame means a new
@@ -71,7 +110,7 @@ day.
 
 ## What to do
 
-### Step 1: See it happen (30 minutes, no code changes)
+### ~~Step 1: See it happen~~ — done, see the confirmation above
 
 The cheapest confirmation is the on-device GPU profiler.
 
