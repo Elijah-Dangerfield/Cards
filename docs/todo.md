@@ -66,6 +66,14 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Do not** start by rewriting the bottom sheets — that was the first (wrong) diagnosis, drawn from the victim thread, and the third Play trace disproves it outright (no sheet, same stall). The RenderThread bottleneck no longer needs confirming; start at Step 2 of the plan, finding which text is being re-rastered every frame.
 
+## ENG-54 [P2] — Make the AnimatedStateReadInComposition detekt rule actually run
+
+**Problem:** `detekt-rules/.../AnimatedStateReadInComposition.kt` catches `val x by animateFloatAsState(...)`, the anti-pattern behind ENG-49's four production ANRs. It is registered, configured active, and compiles into the ruleset jar — and detekt **2.0.0-alpha.5 never dispatches to it**. Proven by making it report unconditionally on every call expression: zero findings, while `VerifyStrings` fires normally on the same file in the same run. A lint rule that silently never fires is worse than no rule, because it looks like coverage.
+
+**Acceptance:** Planting `val x by animateFloatAsState(...)` in any module makes `./gradlew detekt` fail. Until then nobody should believe this rule is protecting them.
+
+**Hints:** Already ruled out: rule ordering in the provider, Gradle configuration-cache staleness, jar freshness (jar newer than source), YAML indentation and comment placement, and the baseline (which only contains `VerifyStrings` entries). `RuleSet` takes `Map<RuleName, (Config) -> Rule>` with a `Companion.invoke` List overload — the list form is what the provider uses and what `VerifyStrings` rides on, so it does work in general. **Prime suspect is the alpha itself**: `detekt-rules/build.gradle.kts` already documents a separate packaging defect in this exact version (`detekt-test` fixtures 404 on Maven Central). Try upgrading off `2.0.0-alpha.5` before debugging the rule logic.
+
 ## ENG-53 [P2] — Turn on R8 obfuscation before Play's Feb 2027 deadline
 
 **Problem:** Android vitals reports obfuscation at **1%** (the 1% is pre-obfuscated dependencies; none of our code is), against Play's 25% threshold, with a stated deadline of Feb 2027 and "may impact your visibility and publishing capabilities". Release builds set `isMinifyEnabled = false` and there is no `proguard-rules.pro`, so they are neither shrunk nor obfuscated and emit no `mapping.txt`.
