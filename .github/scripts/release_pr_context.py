@@ -424,6 +424,41 @@ def package_name() -> str:
     return m.group(1).strip() if m else ""
 
 
+def version_file_drift(expected: str) -> str | None:
+    """Warn when the files the binaries are built from disagree with the release.
+
+    release-please tracks the version in its own manifest and only updates
+    `versions.properties` / `Config.xcconfig` where it finds an
+    `x-release-please-*` marker. When those markers went missing it said
+    nothing, the job went green, and v0.2.0 shipped to both stores labelled
+    0.1.0. This is the check that would have caught it before the merge.
+    """
+    if not expected:
+        return None
+    files = {
+        "versions.properties": r"^versionName=(.+)$",
+        "apps/ios/Configuration/Config.xcconfig": r"^MARKETING_VERSION=(.+)$",
+    }
+    stale = []
+    for path, pattern in files.items():
+        try:
+            with open(path) as f:
+                m = re.search(pattern, f.read(), re.MULTILINE)
+        except OSError:
+            continue
+        found = m.group(1).strip() if m else None
+        if found != expected:
+            stale.append(f"`{path}` says **{found or 'nothing'}**")
+    if not stale:
+        return None
+    return (
+        f"> 🛑 **The version files do not say {expected}.** " + "; ".join(stale) + ".\n>\n"
+        "> The tag, the changelog and the store listing will say one version while the "
+        "binaries report another, which is what happened to v0.2.0. Check that both files "
+        "still have their `x-release-please-start-version` markers before merging."
+    )
+
+
 def main() -> int:
     version = os.environ.get("RELEASE_VERSION", "").strip()
     prev = previous_tag()
@@ -446,6 +481,10 @@ def main() -> int:
             f"{'fix' if fixes == 1 else 'fixes'} {since}."
         )
         out.append("")
+        drift = guard(lambda: version_file_drift(version), "Version files")
+        if drift and drift.startswith(">"):
+            out.append(drift)
+            out.append("")
 
     checked = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     out.append(f"### Where it goes _(checked live at {checked})_")
