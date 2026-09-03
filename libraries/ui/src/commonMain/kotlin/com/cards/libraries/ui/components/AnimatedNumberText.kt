@@ -97,11 +97,17 @@ fun AnimatedNumberText(
                 value < previous -> lossColor
                 else -> null
             }
+            val rollFrom = previous
             animated.animateTo(
                 targetValue = value.toFloat(),
                 animationSpec = tween(durationMillis, easing = FastOutSlowInEasing),
             ) {
-                displayed = this.value.toLong()
+                // Quantized, not per-frame. Writing the raw value here renders a
+                // different string every frame, and a different string is a new
+                // Skia glyph blob — the churn behind four production ANRs
+                // (ENG-49). Snapping to a bounded number of steps still reads as
+                // counting and lands exactly on the target.
+                displayed = quantizeRollingNumber(this.value.toLong(), rollFrom, value)
             }
             // Hold the tint a beat past the roll so the win/loss registers, then
             // settle back to the base color.

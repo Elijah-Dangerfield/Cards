@@ -24,6 +24,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.dangerfield.cards.libraries.ui.components.quantizeRollingNumber
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -118,10 +120,23 @@ internal fun BoardArea(
                 shipAnim.animateTo(0f, animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing))
             }
         }
-        val potAmount = when {
-            !shipping -> table.pot
-            inPreview -> shippedTotal
-            else -> shipAnim.value.toLong()
+        // derivedStateOf so BoardArea's scope invalidates once per quantized
+        // step (~12 over the 800ms ship) instead of once per frame. Reading
+        // shipAnim.value directly here dragged the whole board — including the
+        // BoxWithConstraints subcomposition — at 60fps, and fed PotAmount a
+        // fresh string each time, which is the glyph-cache path from ENG-49.
+        //
+        // Keyed on everything the lambda captures. An unkeyed
+        // remember { derivedStateOf { } } capturing a State that gets recreated
+        // is what silently broke tap-to-flip; not repeating that.
+        val potAmount by remember(shipping, inPreview, shippedTotal, table.pot) {
+            derivedStateOf {
+                when {
+                    !shipping -> table.pot
+                    inPreview -> shippedTotal
+                    else -> quantizeRollingNumber(shipAnim.value.toLong(), shippedTotal, 0L)
+                }
+            }
         }
         if (potAmount > 0) {
             VerticalSpacerD500()
