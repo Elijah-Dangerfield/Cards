@@ -29,6 +29,12 @@ green, close the tab.**
 - **Crash-free rates** come from the `previous_exit` attribute on `app.launched` (next-launch
   marking) — not Sentry; the Grafana Sentry datasource can only chart issues/events/usage. Sentry
   stays the stack-trace tool. iOS reports `previous_exit=unknown` until MetricKit lands (ENG-25).
+- **Crash and ANR are separate numbers** (Pulse → Stability, split 2026-09-03). Crash-free counts
+  `crash` + `oom`: the app died. ANR-free counts `anr` on its own: the app froze on the main thread
+  and the OS offered to kill it. They have different causes, different fixes and different bars —
+  Play demotes an app above a 0.47% user-perceived ANR rate, so ANR-free goes amber at 99.7% while
+  crash-free goes amber at 98%. Averaging them together hid a 2-ANR week behind an OOM spike.
+  "Abnormal exits per day by kind" charts the raw counts so you can see which one you have.
 - **Warn+ client logs** land in Loki behind `telemetry.klogForwardingEnabled` (default on):
   `{service_name="cards-client"} | detected_level=~"warn|error"`.
 - **Platform split:** every client event carries a `platform` structured-metadata value
@@ -184,6 +190,12 @@ population. *Fixed 2026-09-01: OOM now counts as a crash.* The iOS half is still
 `previous_exit=unknown` is ~45% of all launches until MetricKit lands (ENG-25), and those sit in
 the denominator but can never reach the numerator, so the number reads **higher than reality**.
 Treat crash-free as an Android figure with an optimistic bias.
+
+**ANRs hid inside crash-free.** Once OOM joined the numerator it dominated it (7 OOM vs 2 ANR over
+the 7 days to 2026-09-03), so a freeze and a death produced the same single percentage and neither
+was legible. *Fixed 2026-09-03: crash-free is `crash` + `oom`, ANR-free is its own stat, and
+"Abnormal exits per day by kind" charts the three separately.* Both still carry the iOS blind spot
+above.
 
 **Metrics that do not exist.** These are scraped by nothing, so their panels/queries are
 permanently dead rather than reporting zero. A `0` from any of them means "no data", not "no
