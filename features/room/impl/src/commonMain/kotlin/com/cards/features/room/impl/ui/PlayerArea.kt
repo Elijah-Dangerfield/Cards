@@ -213,9 +213,15 @@ internal fun PlayerArea(
     // leaves them there; the gate-keyed reset above only fires once it's the
     // human's turn again, so between the fold and the next turn the freshly
     // dealt cards render stuck up top in a "ghost" placement (GAME-10). Snap
-    // back on every new deal — keyed on the hole cards, which change identity
-    // each hand — so the next hand always starts at rest regardless of turn.
-    LaunchedEffect(human.holeCards) {
+    // back on every new deal so the next hand always starts at rest.
+    //
+    // Keyed on the hand number, not just the cards. `Card` is a data class, so
+    // being dealt the identical pair on a later hand leaves `holeCards` equal
+    // and the effect never restarts — which carried a face-down hand into a
+    // fresh deal and left a swipe-folded card stuck off-screen. Rare (~1/2652
+    // heads-up) but permanent for that hand, and a Compose test that repeats a
+    // hand caught it after the `key(card)` fix next door had already missed it.
+    LaunchedEffect(table.handNumber, human.holeCards) {
         if (dragOffsetY.value != 0f) {
             dragOffsetY.snapTo(0f)
         }
