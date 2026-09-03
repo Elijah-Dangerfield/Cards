@@ -6,7 +6,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.State
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -40,17 +41,21 @@ fun RingedAvatar(
     backgroundColorHex: String? = null,
 ) {
     val target = fraction.coerceIn(0f, 1f)
-    // Skip the fill animation in previews so @Preview pins render at the
-    // requested fraction instead of catching the ring mid-fill — mirrors XpBadge.
-    val animatedFraction = if (LocalInspectionMode.current) {
-        target
+    // Skipped entirely in previews so @Preview pins render at the requested
+    // fraction instead of catching the ring mid-fill — mirrors XpBadge.
+    //
+    // Either way it stays `State` and is read inside the Canvas lambda below,
+    // never unwrapped here: a composition-scope read would recompose this
+    // avatar on every frame of the 600ms fill, and the play screen draws one
+    // per seat.
+    val animatedFraction: State<Float> = if (LocalInspectionMode.current) {
+        rememberUpdatedState(target)
     } else {
-        val anim by animateFloatAsState(
+        animateFloatAsState(
             targetValue = target,
             animationSpec = tween(durationMillis = 600),
             label = "avatar-xp-ring",
         )
-        anim
     }
 
     val ringColor = AppTheme.colors.accentSecondary.color
@@ -77,11 +82,12 @@ fun RingedAvatar(
                 size = arcSize,
                 style = Stroke(width = strokePx, cap = StrokeCap.Round),
             )
-            if (animatedFraction > 0f) {
+            val fill = animatedFraction.value
+            if (fill > 0f) {
                 drawArc(
                     color = ringColor,
                     startAngle = -90f,
-                    sweepAngle = 360f * animatedFraction,
+                    sweepAngle = 360f * fill,
                     useCenter = false,
                     topLeft = topLeft,
                     size = arcSize,
