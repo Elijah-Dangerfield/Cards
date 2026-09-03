@@ -100,6 +100,14 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Cheapest is a compose-compiler stability configuration file. Better is `kotlinx.collections.immutable` for the list fields. Highest ceiling of anything on the list, but it touches a lot of surface — schedule it deliberately, do not squeeze it in beside the one-liners.
 
+## ENG-62 [P2] — Nothing tests app-root navigation wiring
+
+**Problem:** Two multiplayer leave bugs (2026-06-24) lived *between* the ViewModel and the navigator and slipped past every test. That gap is still open: `apps/compose` has no `androidUnitTest` source set and there is no `TestAppComponent`, so no test boots the real app with real screens and a real navigator. Per-feature Compose tests exist (`features/room/impl`, `features/onboarding/impl`) but each renders one screen in isolation, so nav wiring is untested by construction.
+
+**Acceptance:** A test drives a real navigation flow end to end — leave a multiplayer table and assert where you land — against the real graph, not a stub. Stubbing the screens is what made the earlier spike's first attempt worthless.
+
+**Hints:** Design already written in `docs/plans/compose-ui-testing-spike.md` (Option 3, "full app"), including which external boundaries to substitute. **That doc's status line was stale for three months and propagated a false "no Compose UI test infrastructure" claim into two other docs — treat its framing with suspicion and verify before quoting it.** Orthogonal to ENG-61: this catches nav wiring, that catches intra-screen state binding. Neither would have caught the other's bugs.
+
 ## ENG-61 [P1] — Compose tests that cross a hand boundary
 
 **Problem:** 14 Compose UI tests over this screen exist and pass, and every one renders a **single state**. None crosses a hand boundary, which is exactly the seam tap-to-flip fell through — that bug needed two hands to observe and shipped with a green suite. `PokerScenario` already drives a real ViewModel over a real bots session across multiple hands; it just never renders.

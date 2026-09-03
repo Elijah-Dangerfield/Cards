@@ -1,5 +1,11 @@
 # Compose UI testing spike — full-app vs nav-graph
 
+> **Reference, not a plan. Tracked as ENG-62 in `docs/todo.md`, which is the source of truth for
+> whether this is still worth doing.** This file is kept for its design analysis (Option 2 vs
+> Option 3, and which external boundaries to substitute). It is *not* kept for its status claims:
+> its status line was wrong for three months and that error propagated into two other documents.
+> If this file and the todo ever disagree, the todo wins.
+
 **Date:** 2026-06-24
 **Status (2026-09-03):** *partly* built, and this line was wrong for two months. Robolectric +
 `compose-uiTest` **do** exist and run in CI: `features/room/impl/src/androidUnitTest/.../PlayPokerScreenTest.kt`
