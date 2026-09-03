@@ -315,7 +315,11 @@ private fun WinAmountBadge(amount: Long) {
 @Composable
 private fun GoldSeatRing(modifier: Modifier = Modifier) {
     val transition = rememberInfiniteTransition(label = "to-act")
-    val alpha by transition.animateFloat(
+    // State, never `by`. Unwrapping here would recompose this seat on every
+    // frame of an animation that never ends — measured at 294 recompositions,
+    // and with up to three opponents that is three of them at once. See
+    // [pulsingBorder] and ENG-49.
+    val alpha = transition.animateFloat(
         initialValue = 0.5f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
@@ -324,12 +328,12 @@ private fun GoldSeatRing(modifier: Modifier = Modifier) {
         ),
         label = "to-act-alpha",
     )
+    val gold = AppTheme.colors.poker.chipGold.color
     Box(
-        modifier = modifier.border(
+        modifier = modifier.pulsingBorder(
             width = SeatGoldRing,
-            color = AppTheme.colors.poker.chipGold.color.copy(alpha = alpha),
             shape = CircleShape,
-        ),
+        ) { gold.copy(alpha = alpha.value) },
     )
 }
 

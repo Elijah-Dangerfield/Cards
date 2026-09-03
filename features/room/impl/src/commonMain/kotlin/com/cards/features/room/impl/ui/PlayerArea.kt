@@ -47,7 +47,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.State
 import androidx.compose.runtime.rememberCoroutineScope
@@ -57,14 +56,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -76,7 +69,6 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.Dp
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
@@ -453,36 +445,7 @@ private fun rememberPulseAlpha(low: Float = 0.32f, high: Float = 0.78f): State<F
     )
 }
 
-/**
- * A border whose colour is resolved during **draw**, not composition.
- *
- * `Modifier.border(width, color, shape)` takes an already-resolved `Color`, so
- * an animated colour forces a recomposition per frame to produce it. Taking a
- * lambda instead means the snapshot read happens inside the draw scope, and
- * only the draw phase invalidates when the animation ticks.
- */
-private fun Modifier.pulsingBorder(
-    width: Dp,
-    shape: Shape,
-    color: () -> Color,
-): Modifier = drawWithCache {
-    val stroke = width.toPx()
-    // Inset by half the stroke so the ring sits inside the bounds, which is
-    // where Modifier.border puts it, rather than straddling the edge.
-    val inset = shape.createOutline(
-        Size(size.width - stroke, size.height - stroke),
-        layoutDirection,
-        this,
-    )
-    onDrawWithContent {
-        drawContent()
-        if (stroke > 0f) {
-            translate(left = stroke / 2f, top = stroke / 2f) {
-                drawOutline(outline = inset, color = color(), style = Stroke(width = stroke))
-            }
-        }
-    }
-}
+
 
 @Composable
 private fun HoleCardSlot(
@@ -526,31 +489,21 @@ private fun HoleCardSlot(
             // instead of pinching at 90°. Both branches render inside
             // an identical centered Box so the rectangle the flip
             // occupies never shifts shape between front and back.
-            // State, not a `by`-unwrapped Float: reading the angle in
-            // composition recomposes this slot every frame of the flip. Same
-            // mistake the turn pulse made in PlayerArea (ENG-49). The
-            // graphicsLayer lambda reads it at draw time instead.
-            val flipRotation = animateFloatAsState(
+            val flipRotation by animateFloatAsState(
                 targetValue = if (manuallyFacedown) 180f else 0f,
                 animationSpec = tween(380),
                 label = "hole-manual-flip",
             )
-            // The face/back swap genuinely has to happen in composition — it
-            // changes which composable is emitted. Deriving the boolean means
-            // that costs two recompositions per flip rather than one per frame.
-            val showingFace by remember {
-                derivedStateOf { flipRotation.value <= 90f }
-            }
             Box(
                 modifier = Modifier
                     .size(width = size.width, height = size.height)
                     .graphicsLayer {
-                        rotationY = flipRotation.value
+                        rotationY = flipRotation
                         cameraDistance = 48f * density
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                if (showingFace) {
+                if (flipRotation <= 90f) {
                     PlayingCard(card = card, size = size)
                 } else {
                     Box(modifier = Modifier.graphicsLayer { rotationY = 180f }) {
@@ -561,27 +514,26 @@ private fun HoleCardSlot(
         } else {
             val flightDp = -260f
             val flightPx = with(LocalDensity.current) { flightDp.dp.toPx() }
-            val translationY = animateFloatAsState(
+            val translationY by animateFloatAsState(
                 targetValue = if (arrived) 0f else flightPx,
                 animationSpec = tween(360, easing = FastOutSlowInEasing),
                 label = "hole-fly",
             )
-            val rotation = animateFloatAsState(
+            val rotation by animateFloatAsState(
                 targetValue = if (revealed) 180f else 0f,
                 animationSpec = tween(380),
                 label = "hole-flip",
             )
-            val showingBack by remember { derivedStateOf { rotation.value <= 90f } }
             Box(
                 modifier = Modifier
                     .size(width = size.width, height = size.height)
                     .graphicsLayer {
-                        this.translationY = translationY.value
-                        rotationY = rotation.value
+                        this.translationY = translationY
+                        rotationY = rotation
                         cameraDistance = 12f * density
                     },
             ) {
-                if (showingBack) {
+                if (rotation <= 90f) {
                     PlayingCardBack(size = size, avatarOverlay = avatarOverlay)
                 } else {
                     Box(
