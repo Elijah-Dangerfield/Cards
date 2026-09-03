@@ -47,6 +47,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.State
 import androidx.compose.runtime.rememberCoroutineScope
@@ -525,21 +526,31 @@ private fun HoleCardSlot(
             // instead of pinching at 90°. Both branches render inside
             // an identical centered Box so the rectangle the flip
             // occupies never shifts shape between front and back.
-            val flipRotation by animateFloatAsState(
+            // State, not a `by`-unwrapped Float: reading the angle in
+            // composition recomposes this slot every frame of the flip. Same
+            // mistake the turn pulse made in PlayerArea (ENG-49). The
+            // graphicsLayer lambda reads it at draw time instead.
+            val flipRotation = animateFloatAsState(
                 targetValue = if (manuallyFacedown) 180f else 0f,
                 animationSpec = tween(380),
                 label = "hole-manual-flip",
             )
+            // The face/back swap genuinely has to happen in composition — it
+            // changes which composable is emitted. Deriving the boolean means
+            // that costs two recompositions per flip rather than one per frame.
+            val showingFace by remember {
+                derivedStateOf { flipRotation.value <= 90f }
+            }
             Box(
                 modifier = Modifier
                     .size(width = size.width, height = size.height)
                     .graphicsLayer {
-                        rotationY = flipRotation
+                        rotationY = flipRotation.value
                         cameraDistance = 48f * density
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                if (flipRotation <= 90f) {
+                if (showingFace) {
                     PlayingCard(card = card, size = size)
                 } else {
                     Box(modifier = Modifier.graphicsLayer { rotationY = 180f }) {
@@ -550,26 +561,27 @@ private fun HoleCardSlot(
         } else {
             val flightDp = -260f
             val flightPx = with(LocalDensity.current) { flightDp.dp.toPx() }
-            val translationY by animateFloatAsState(
+            val translationY = animateFloatAsState(
                 targetValue = if (arrived) 0f else flightPx,
                 animationSpec = tween(360, easing = FastOutSlowInEasing),
                 label = "hole-fly",
             )
-            val rotation by animateFloatAsState(
+            val rotation = animateFloatAsState(
                 targetValue = if (revealed) 180f else 0f,
                 animationSpec = tween(380),
                 label = "hole-flip",
             )
+            val showingBack by remember { derivedStateOf { rotation.value <= 90f } }
             Box(
                 modifier = Modifier
                     .size(width = size.width, height = size.height)
                     .graphicsLayer {
-                        this.translationY = translationY
-                        rotationY = rotation
+                        this.translationY = translationY.value
+                        rotationY = rotation.value
                         cameraDistance = 12f * density
                     },
             ) {
-                if (rotation <= 90f) {
+                if (showingBack) {
                     PlayingCardBack(size = size, avatarOverlay = avatarOverlay)
                 } else {
                     Box(
