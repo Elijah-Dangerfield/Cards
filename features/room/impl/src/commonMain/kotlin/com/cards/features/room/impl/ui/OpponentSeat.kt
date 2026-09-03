@@ -120,7 +120,10 @@ internal fun OpponentSeat(
     val dimMod = Modifier.alpha(dimAlpha)
     // The seat on the clock sits at full size; everyone else shrinks a touch so
     // attention pulls to whoever's acting. Draw-only scale, so the row never reflows.
-    val seatScale by animateFloatAsState(
+    // State, not `by`: the only consumer is the graphicsLayer lambda below, so
+    // unwrapping here would recompose the whole seat — avatar, name, action chip,
+    // chip count — for 220ms on every turn change, for nothing.
+    val seatScale = animateFloatAsState(
         targetValue = if (seat.isActing) 1f else 0.92f,
         animationSpec = tween(220),
         label = "seat-scale",
@@ -139,8 +142,8 @@ internal fun OpponentSeat(
         modifier = Modifier
             .padding(horizontal = 2.dp)
             .graphicsLayer {
-                scaleX = seatScale
-                scaleY = seatScale
+                scaleX = seatScale.value
+                scaleY = seatScale.value
             },
     ) {
         Box(

@@ -79,13 +79,17 @@ fun TurnCountdownRing(
     }
     val calm = AppTheme.colors.poker.seatActive.color
     val urgent = AppTheme.colors.danger.color
-    val value = progress.value
-    // Blend toward the danger color through the final stretch so the last few
-    // seconds read as urgent. Fully calm above the threshold, fully urgent at 0.
-    val arcColor = lerp(urgent, calm, (value / UrgentThreshold).coerceIn(0f, 1f))
     val trackColor = calm.copy(alpha = 0.18f)
     val stroke = with(LocalDensity.current) { strokeWidth.toPx() }
+    // `progress` is read inside the draw lambda, never here. It tweens linearly
+    // across the whole remaining turn, so a composition-scope read would
+    // invalidate this composable ~1800 times per 30s turn and buy nothing — the
+    // Canvas lambda re-runs anyway. Same class of mistake as ENG-49.
     Canvas(modifier = modifier) {
+        val value = progress.value
+        // Blend toward the danger color through the final stretch so the last few
+        // seconds read as urgent. Fully calm above the threshold, fully urgent at 0.
+        val arcColor = lerp(urgent, calm, (value / UrgentThreshold).coerceIn(0f, 1f))
         val inset = stroke / 2f
         val arcSize = Size(size.width - stroke, size.height - stroke)
         val topLeft = Offset(inset, inset)

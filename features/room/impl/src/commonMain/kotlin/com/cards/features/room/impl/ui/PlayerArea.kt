@@ -193,7 +193,12 @@ internal fun PlayerArea(
     // tilt/fade lands at a clear "ready to fold" peak when the user
     // is at the commit line — and doesn't keep growing if they
     // overshoot.
-    val dragProgress = (abs(dragOffsetY.value) / foldCommitPx).coerceIn(0f, 1f)
+    // Deliberately NOT read here. Its only consumers are the graphicsLayer
+    // lambda below and the swipe-fold gesture, both of which can read
+    // dragOffsetY at draw/gesture time. Computing it in composition subscribes
+    // the whole player area to a value that changes at pointer-sample rate,
+    // which is the same mistake the turn pulse made a few lines above (ENG-49).
+    fun dragProgress(offset: Float) = (abs(offset) / foldCommitPx).coerceIn(0f, 1f)
     // Reset the offset whenever the gate flips back open (e.g. new hand),
     // so we never start with a stale residual translation from a prior
     // commit. Using a Compose effect keyed on `swipeFoldEnabled` keeps the
@@ -363,8 +368,9 @@ internal fun PlayerArea(
                     // Light tilt + fade tied to drag progress so the cards
                     // physically respond to the toss. Capped at small
                     // values — we want a flick, not a tumble.
-                    rotationZ = -6f * dragProgress
-                    alpha = 1f - 0.25f * dragProgress
+                    val progress = dragProgress(dragOffsetY.value)
+                    rotationZ = -6f * progress
+                    alpha = 1f - 0.25f * progress
                 },
             ) {
                 val humanAvatarOverlay = AvatarBackOverlay(
@@ -373,6 +379,7 @@ internal fun PlayerArea(
                 )
                 HoleCardSlot(
                     card = human.holeCards.getOrNull(0),
+                    handNumber = table.handNumber,
                     dealDelayMs = 0,
                     size = PlayingCardSize.Hole,
                     avatarOverlay = humanAvatarOverlay,
@@ -380,6 +387,7 @@ internal fun PlayerArea(
                 )
                 HoleCardSlot(
                     card = human.holeCards.getOrNull(1),
+                    handNumber = table.handNumber,
                     dealDelayMs = 150,
                     size = PlayingCardSize.Hole,
                     avatarOverlay = humanAvatarOverlay,
@@ -460,6 +468,7 @@ private fun rememberPulseAlpha(low: Float = 0.32f, high: Float = 0.78f): State<F
 @Composable
 private fun HoleCardSlot(
     card: Card?,
+    handNumber: Int,
     dealDelayMs: Int,
     size: PlayingCardSize,
     avatarOverlay: AvatarBackOverlay? = null,
@@ -472,7 +481,12 @@ private fun HoleCardSlot(
     // Compose previews don't drive animations to completion, so jump straight
     // to the settled face-up state there.
     val skip = LocalInspectionMode.current
-    key(card) {
+    // Keyed on the hand, not the card. `Card` is a data class, so `key(card)`
+    // reuses the composition group whenever the same card is dealt into the same
+    // slot on a later hand — leaving `settled` true, so that card renders
+    // instantly face-up while its partner flies in. ~3.8%, about one hand in 26.
+    // BoardArea does the same thing correctly with key(table.handNumber).
+    key(handNumber, card) {
         var arrived by remember { mutableStateOf(skip) }
         var revealed by remember { mutableStateOf(skip) }
         var settled by remember { mutableStateOf(skip) }

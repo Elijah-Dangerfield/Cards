@@ -1070,8 +1070,18 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.HandXpAwarded -> action.updateState {
                 it.copy(lastHandXpAwarded = action.amount)
             }
+            // Clears lastHandXpAwarded alongside recentlyEarned. It used to be
+            // cleared only by RequestNextHand, which real-chip tables never
+            // dispatch — the server auto-advances and the player never taps a
+            // dialog CTA — so MultiplayerBustDialog, which mounts the instant
+            // handResult lands, showed a previous hand's XP until the award
+            // coroutine settled.
             is PlayPokerAction.HandEndAchievementsPending -> action.updateState {
-                it.copy(awaitingHandEndAchievements = true, recentlyEarned = emptyList())
+                it.copy(
+                    awaitingHandEndAchievements = true,
+                    recentlyEarned = emptyList(),
+                    lastHandXpAwarded = null,
+                )
             }
             is PlayPokerAction.AchievementsEarned -> action.updateState {
                 it.copy(recentlyEarned = action.earned, awaitingHandEndAchievements = false)
