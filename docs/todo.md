@@ -56,6 +56,58 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-9Q is this, `level=fatal`, `handled=no`, escalating — previously mis-ledgered as dev-only, it is prod. `SingleWriterGuard.acquire` logs "Single-writer lock held by another instance; retrying (attempt N)" then gives up and exits. `apps/server/fly.prod.toml` explains why the strategy is `rolling` and never blue-green: in-memory room state plus the advisory lock. Rolling avoids the deadlock it was chosen to avoid; it does not avoid this thrash. Evidence: dc-infra → Restarts (24h), broken out per instance.
 
+## ENG-55 [P1] — The emote ticker never stops
+
+**Problem:** `EmojiTray.kt:86` gates a 4Hz ticker on `cooldownEndsAtEpochMs > 0L`, which means "has ever sent an emote", not "is still cooling down". The only writer (`PlayPokerViewModel.kt:1264`) sets `now + EMOJI_COOLDOWN_MS` and nothing ever writes 0 back, so `LaunchedEffect(active)` never re-keys and `while(true){ …; delay(250) }` writes snapshot state for the rest of the session. Eight seconds of it are useful. This is a **fourth** infinite composition-scope read that the ENG-49 sweep missed, and unlike the others it costs the user nothing to trigger.
+
+**Acceptance:** The ticker stops when the cooldown expires. Verify with a composition trace (`scripts/compose-trace.sh`): `SeatEmoteBadge` should stop recomposing a few seconds after an emote, not keep going.
+
+**Hints:** Gate on `cooldownEndsAtEpochMs > now` and exit the loop once it passes. Invalidation is contained to `SeatEmoteBadge` (a Box, a cutout, an emoji Text), not all of `PlayerArea` — `rememberSecondTicker` returns a value so it has no restart scope of its own. Full context: `docs/plans/playpokerscreen-review.md`.
+
+## ENG-56 [P1] — Three one-line animation reads still in composition
+
+**Problem:** The ENG-49 sweep fixed three; these three remain, all the same shape (`by` on an animated value whose only consumer is already a draw-phase lambda). `TurnCountdownRing.kt:82` costs ~1800 recompositions per 30s multiplayer turn, on essentially every turn of every MP hand. `OpponentSeat.kt:123` fires on every turn change for every seat. `PlayerArea.kt:196` (`dragProgress`) is the same anti-pattern as the measured 471→16 fix, in the same file, one screenful below the comment explaining why not to do it.
+
+**Acceptance:** All three read `.value` inside their draw lambda. Re-trace and confirm the counts drop.
+
+**Hints:** `docs/plans/playpokerscreen-review.md` items 2, 3, 5. **Expect `OpponentSeat` not to move the RenderThread number** — its text is still drawn under a per-frame-changing scale, and Skia's glyph reuse does not survive a scale change. Fix it for the recomposition, not for the glyph cache.
+
+## ENG-57 [P2] — Hole cards keyed on Card identity skip their deal-in
+
+**Problem:** `PlayerArea.kt:475` uses `key(card)`, and `Card` is a data class. An identical card dealt into the same slot next hand reuses the composition group, so `arrived`/`revealed`/`settled` stay true and that card renders instantly face-up while its partner flies in. 3.8% — about one hand in 26. The same equality assumption underpins the `LaunchedEffect(human.holeCards)` face-up reset, though at 1/2652 that one self-heals the following hand.
+
+**Acceptance:** Deal-in plays every hand. `BoardArea.kt:91` already does this correctly with `key(table.handNumber)` — match it.
+
+## ENG-58 [P2] — Stale XP shown on every real-chip bust
+
+**Problem:** `lastHandXpAwarded` is cleared only by `RequestNextHand` (`PlayPokerViewModel.kt:1008`), which real-chip tables never dispatch — the server auto-advances and the player never taps a dialog CTA. `MultiplayerBustDialog` mounts the instant `handResult` lands, before the award coroutine settles, so it briefly shows the previous hand's XP and then corrects.
+
+**Acceptance:** The bust dialog never shows another hand's number. Clear `lastHandXpAwarded` in `HandEndAchievementsPending`, alongside `recentlyEarned`.
+
+## ENG-59 [P2] — Two places still rebuild a text blob every frame
+
+**Problem:** `BoardArea.kt:124` (pot ship, 800ms) and `AnimatedNumberText.kt:77,113` (chip odometer, 700ms) each feed a **new String every frame** into large text, and they overlap at hand end. This is the exact `GrTextBlobRedrawCoordinator` path the four ANR traces end in, and the last known instance of text *content* changing per frame.
+
+**Acceptance:** Neither produces a new string per frame; quantize to the steps a human can read. Confirm with a trace at hand end.
+
+**Hints:** Do both together or neither — they fire at the same moment on the same screen, so fixing one leaves the stall. The odometer's per-frame string is inherent to an odometer, so this is about step count, not removing the animation.
+
+## ENG-60 [P2] — Make TableUiState skippable
+
+**Problem:** `TableUiState.Active` and `SeatView` carry `List<T>` fields with no `@Immutable`, no `@Stable`, and no compose-compiler stability config in the build. Both are therefore unstable, so every composable taking `table:` is unskippable — which is *why* `PlayerInfoTile` could not skip when `PlayerArea` was recomposing per frame. This is the amplifier under ENG-56, ENG-57 and ENG-59.
+
+**Acceptance:** `ActiveTable`, `OpponentsRow`, `BoardArea`, `PlayerArea` skip when their inputs are unchanged.
+
+**Hints:** Cheapest is a compose-compiler stability configuration file. Better is `kotlinx.collections.immutable` for the list fields. Highest ceiling of anything on the list, but it touches a lot of surface — schedule it deliberately, do not squeeze it in beside the one-liners.
+
+## ENG-61 [P1] — Compose tests that cross a hand boundary
+
+**Problem:** 14 Compose UI tests over this screen exist and pass, and every one renders a **single state**. None crosses a hand boundary, which is exactly the seam tap-to-flip fell through — that bug needed two hands to observe and shipped with a green suite. `PokerScenario` already drives a real ViewModel over a real bots session across multiple hands; it just never renders.
+
+**Acceptance:** A test plays two hands and asserts tap-to-flip still toggles. It must fail against `c0e813ec~1`.
+
+**Hints:** Plan and staging in `docs/plans/playpokerscreen-tests.md`, including the full FSM. No new module, source set or dependency needed — `commonTest` and `androidUnitTest` share a classpath. `PlayingCard` emits rank and suit as real `Text` while `PlayingCardBack` is Canvas-only, so face-up/face-down is assertable with no test tags. Take the wall-clock path over virtual time first; it designs the clock-interop problem out.
+
 ## ENG-49 [P2] — Confirm the RenderThread text stall is actually gone in production
 
 **Problem:** Fixed 2026-09-03, unverified in production. Three infinite animations read their value during composition, recomposing their whole subtree every frame: `PlayerArea`'s turn pulse (471 -> 16), and `GoldSeatRing` on every opponent seat (57 -> 3). All fed text, which thrashed Skia's glyph cache and wedged the RenderThread — worst draw 127.1ms -> 49.6ms. Whether that is enough to stop the ANRs only production can say.
