@@ -152,6 +152,36 @@ class PlayPokerScreenMultiHandTest {
         screen.assertFaceDown(HAND_TWO_RANK)
     }
 
+    /**
+     * A board slot that has already flipped face-up, then loses its card inside
+     * the same hand.
+     *
+     * `BoardSlot`'s `flipped` is only ever set true and never reset, and
+     * `key(table.handNumber)` only re-arms it across hands — so this combination
+     * used to take the `else` branch and dereference a null card, killing the
+     * whole play screen out of composition. No server path emits it today, which
+     * is exactly why it deserves a test rather than a comment: the invariant is
+     * invisible and the next person to touch the projection cannot see it.
+     */
+    @Test
+    fun boardSlotLosingItsCardMidHand_rendersABack_ratherThanCrashing() = runComposeUiTest {
+        val fullBoard = listOf(
+            Card(Rank.Two, Suit.Clubs),
+            Card(Rank.Seven, Suit.Diamonds),
+            Card(Rank.Ten, Suit.Hearts),
+            Card(Rank.Jack, Suit.Spades),
+            Card(Rank.Three, Suit.Clubs),
+        )
+        val screen = renderAcrossHands(handOne().copy(communityCards = fullBoard))
+        screen.assertFaceUp(HAND_ONE_RANK)
+
+        // Same hand number, board shrinks back to the flop.
+        screen.advanceTo(handOne().copy(communityCards = fullBoard.take(3)))
+
+        // Surviving the frame is the assertion; the old code threw here.
+        screen.assertFaceUp(HAND_ONE_RANK)
+    }
+
     // ── harness ──────────────────────────────────────────────────────────────
 
     /**
@@ -183,6 +213,13 @@ class PlayPokerScreenMultiHandTest {
     ) {
         fun advanceTo(table: TableUiState.Active) {
             setTable(table)
+            // Pump the write BEFORE advancing time. With autoAdvance off,
+            // advancing first leaves the state write unapplied and every
+            // assertion afterwards reads the previous frame. These tests only
+            // avoided that by accident — each advanceTo happened to follow a
+            // performClick, which pumps — so a future non-click transition would
+            // have silently asserted against stale state.
+            test.waitForIdle()
             settleDeal()
         }
 

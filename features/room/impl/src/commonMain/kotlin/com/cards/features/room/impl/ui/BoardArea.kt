@@ -236,11 +236,18 @@ private fun BoardSlot(
                 cameraDistance = 12f * density
             },
     ) {
-        if (flip <= 90f) {
+        // `card == null` is part of the condition, not a !! below it. `flipped`
+        // is only ever set true and never reset, and key(handNumber) only saves
+        // us across hands — so a slot whose card goes non-null -> null *within*
+        // one hand kept flip at 180f and dereferenced null, taking the whole
+        // play screen down. Nothing emits that today, but the crash primitive
+        // does not need to exist: a slot with no card is a back, whatever angle
+        // it is at.
+        if (flip <= 90f || card == null) {
             PlayingCardBack(size = size)
         } else {
             Box(modifier = Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }) {
-                PlayingCard(card = card!!, size = size)
+                PlayingCard(card = card, size = size)
             }
         }
     }
