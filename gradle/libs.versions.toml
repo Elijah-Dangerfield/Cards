@@ -205,6 +205,10 @@ buildconfig-gradlePlugin = { module = "com.github.gmazzo.buildconfig:plugin", ve
 android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 kotlin-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 compose-gradlePlugin = { module = "org.jetbrains.compose:compose-gradle-plugin", version.ref = "composeMultiplatform" }
+# The Kotlin 2.x Compose *compiler* plugin, separate from the Compose Multiplatform
+# plugin above. build-logic needs it on the classpath to reach the `composeCompiler`
+# extension and turn on the stability / skippability reports.
+composeCompiler-gradlePlugin = { module = "org.jetbrains.kotlin:compose-compiler-gradle-plugin", version.ref = "kotlin" }
 jetbrains-navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "jetbrainsNavigationCompose" }
 anvil-runtime = { module = "software.amazon.lastmile.kotlin.inject.anvil:runtime", version.ref = "kotlinInjectAnvil" }
 anvil-runtime-optional = { module = "software.amazon.lastmile.kotlin.inject.anvil:runtime-optional", version.ref = "kotlinInjectAnvil" }

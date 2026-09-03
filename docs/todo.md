@@ -92,13 +92,22 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Do both together or neither — they fire at the same moment on the same screen, so fixing one leaves the stall. The odometer's per-frame string is inherent to an odometer, so this is about step count, not removing the animation.
 
-## ENG-60 [P2] — Make TableUiState skippable
+## ENG-60 — Make TableUiState skippable — CLOSED 2026-09-03, premise was wrong
 
-**Problem:** `TableUiState.Active` and `SeatView` carry `List<T>` fields with no `@Immutable`, no `@Stable`, and no compose-compiler stability config in the build. Both are therefore unstable, so every composable taking `table:` is unskippable — which is *why* `PlayerInfoTile` could not skip when `PlayerArea` was recomposing per frame. This is the amplifier under ENG-56, ENG-57 and ENG-59.
+**What it claimed:** `TableUiState.Active` and `SeatView` are unstable, so every composable taking `table:` is unskippable, and that is why `PlayerInfoTile` could not skip during ENG-49. Billed as the highest-ceiling item on the list.
 
-**Acceptance:** `ActiveTable`, `OpponentsRow`, `BoardArea`, `PlayerArea` skip when their inputs are unchanged.
+**What is actually true.** Measured with the Compose compiler's own reports (now wired into the build — see below):
 
-**Hints:** Cheapest is a compose-compiler stability configuration file. Better is `kotlinx.collections.immutable` for the list fields. Highest ceiling of anything on the list, but it touches a lot of surface — schedule it deliberately, do not squeeze it in beside the one-liners.
+- **Zero** composables in `:features:room:impl` are unskippable. All 222 restartable ones are `skippable`. Strong skipping has been on by default since Kotlin 2.0.20 and this repo is on 2.4.0.
+- `TableUiState.Active` is already reported **stable**. `SeatView` is reported unstable, but only because of `lastAction: PlayerAction?` and `personality: BotPersonality?` — types from `:libraries:gameplay` and `:libraries:bots`, which don't apply the Compose compiler, so there is nothing for it to infer.
+- The remaining worry was that strong skipping compares *unstable* parameters by reference, so an equal-but-new `SeatView` would still recompose. **It doesn't.** A probe class with a public `var` — unambiguously unstable — skipped on an equal-but-new instance just the same. So did `SeatView` and `TableUiState.Active`.
+
+So a stability config file or a move to `kotlinx.collections.immutable` would have bought nothing measurable, and the "amplifier under ENG-56/57/59" framing was wrong: those three were each independently real, and each was fixed on its own merits.
+
+**What came out of it anyway:**
+
+- `ComposeStabilityTest` (`:features:room:impl`) asserts the behaviour directly — an unchanged seat and an unchanged table skip, a changed one does not. Behavioural, so it survives a change in comparison semantics, unlike an assertion about compiler metadata.
+- `-Pcards.composeReports=true` generates the compiler's stability/skippability reports into `build/compose-reports/`. See `build-logic/.../ComposeCompiler.kt` for how to read them, **including the warning not to treat "unstable" in that report as a cost.** Reading it that way is what produced this ticket.
 
 ## ENG-62 [P2] — Nothing tests app-root navigation wiring
 

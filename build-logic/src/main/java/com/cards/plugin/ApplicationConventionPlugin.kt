@@ -4,6 +4,7 @@ import com.android.build.api.dsl.ApplicationExtension
 import com.dangerfield.cards.ext.ConfigurationExtension
 import com.dangerfield.cards.util.SharedConstants
 import com.dangerfield.cards.util.configureAndroid
+import com.dangerfield.cards.util.configureComposeCompiler
 import com.dangerfield.cards.util.configureKotlinInject
 import com.dangerfield.cards.util.configureKotlinMultiplatform
 import com.dangerfield.cards.util.configureReleaseSigning
@@ -69,6 +70,7 @@ class ApplicationConventionPlugin : Plugin<Project> {
                 }
             }
             configureKotlinInject()
+            configureComposeCompiler()
 
             extensions.configure<ApplicationExtension> {
                 configureAndroid()

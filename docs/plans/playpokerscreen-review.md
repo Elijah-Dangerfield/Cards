@@ -7,6 +7,12 @@ whose only job was to **attack the other three**.
 That last pass is the reason to trust this list. It killed five findings outright and downgraded
 five more. What follows is what survived being argued against.
 
+**One survivor did not survive measurement.** Item 8 below was the highest-ranked finding on the
+list and is simply false — the Compose compiler's own reports say so. It stayed on the list through
+four passes because every pass reasoned about stability from the source rather than measuring it.
+Worth remembering when reading the rest: the items with a measurement behind them (2, 5, 7) are on
+firmer ground than the ones argued from reading.
+
 ## Review criteria
 
 Derived from what actually broke this week, not from a generic checklist. Every criterion has a
@@ -35,7 +41,7 @@ corpse behind it.
 | 5 | **Swipe-fold drag progress** | `PlayerArea.kt:196` | Same anti-pattern as the measured 471→16 fix, in the same file, one screenful below the comment explaining why not to. Rarer (only during a fold) but identical shape. |
 | 6 | **Stale XP on bust** | `PlayPokerViewModel.kt:1008` | `lastHandXpAwarded` is cleared only by `RequestNextHand`, which real-chip tables never dispatch. `MultiplayerBustDialog` mounts before the award coroutine settles, so every real-chip bust briefly shows the previous hand's XP. Fix: clear it in `HandEndAchievementsPending` beside `recentlyEarned`. |
 | 7 | **Per-frame text content** | `BoardArea.kt:124` + `AnimatedNumberText.kt:77,113` | Both feed a **new String every frame** into large text — the pot ship for 800ms, the chip odometer for 700ms, overlapping at hand end. This is the exact glyph-cache path from the ANR traces. Do both together or neither. |
-| 8 | **`TableUiState` instability** | `TableUiState.kt:29,332` | `List<T>` fields with no `@Immutable` and no stability config, so nothing taking `table:` can ever skip. This is the amplifier under 5, 3 and 7 — it is *why* `PlayerInfoTile` couldn't skip. Highest ceiling, but a build-config change with real regression surface. Schedule it; don't squeeze it in. |
+| 8 | ~~**`TableUiState` instability**~~ | `TableUiState.kt:29,332` | **Wrong, and measured wrong on 2026-09-03.** Zero composables in the module are unskippable; `Active` is already reported stable; and strong skipping (Kotlin 2.4) skips equal-but-new instances for *unstable* parameters too, verified against a class with a public `var`. Nothing taking `table:` was failing to skip, so this was not the amplifier under 3, 5 and 7 — those were three independent bugs. See ENG-60 in `docs/todo.md`. |
 
 ## What was killed, and why it's recorded
 
