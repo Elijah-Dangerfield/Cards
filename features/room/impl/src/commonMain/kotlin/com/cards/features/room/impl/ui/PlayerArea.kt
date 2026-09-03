@@ -180,7 +180,14 @@ internal fun PlayerArea(
     // with the swipe-up-to-fold drag, so we use a tap detector below
     // that fires only on release without movement — a real drag past
     // touch slop cancels the tap automatically.
-    var manuallyFacedown by remember(human.holeCards) { mutableStateOf(false) }
+    // Deliberately NOT `remember(human.holeCards)`. Keying it mints a fresh
+    // MutableState each hand, while the tap detector below is `pointerInput(Unit)`
+    // and so is never restarted — from the second hand on it held the state
+    // object from the first, and every tap wrote somewhere nothing read. That is
+    // why tap-to-flip worked on hand one and silently died afterwards.
+    // One stable state object, reset by the new-hand effect below, so nothing
+    // can capture a stale one.
+    var manuallyFacedown by remember { mutableStateOf(false) }
     // 0..1 progress used to drive the in-flight visual response.
     // Visual progress saturates at the commit threshold so the
     // tilt/fade lands at a clear "ready to fold" peak when the user
@@ -207,6 +214,9 @@ internal fun PlayerArea(
         if (dragOffsetY.value != 0f) {
             dragOffsetY.snapTo(0f)
         }
+        // A fresh deal always starts face-up; you wouldn't carry "hidden" from a
+        // hand you already saw into a new one.
+        manuallyFacedown = false
     }
     // Fixed row height — children inside use `fillMaxHeight()`, so this MUST
     // be bounded. `heightIn(min)` would let `fillMaxHeight` expand to the
