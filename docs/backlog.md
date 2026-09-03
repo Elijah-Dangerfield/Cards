@@ -4,6 +4,20 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
+## Preview-driven screenshot tests (Roborazzi) — parked mid-integration
+
+**Idea (2026-09-03):** Turn the repo's 495 `@Preview` functions into golden-image tests so a pull request fails when the UI changes in a way nobody intended, with a before/after diff to review. Roborazzi renders through the Robolectric setup already in place, and ComposablePreviewScanner discovers every `@Preview` automatically — no per-preview annotation, no per-module test to write. `record` / `verify` / `compare` are per-module Gradle tasks, so re-recording one feature does not touch the rest.
+
+**Already landed, and useful on its own:** all 495 previews moved to the androidx `@Preview` annotation (the scanner does not support the deprecated JetBrains one); `rememberLoopingFloat` stops seven composables animating forever under `@Preview`; `TurnCountdownRing` no longer renders 1800 frames of a 30-second countdown in a preview; the unit-test JVM gets a real heap. The Gradle wiring is committed too — plugin, version-catalog entries, and JitPack pinned by content filter to the one group it may serve.
+
+**Why it is parked:** recording hangs partway through a module. The test worker spins at 100% CPU inside `Recomposer.sendFrame` because something keeps asking for another frame, so Compose never idles and the capture never returns. Seven infinite animations and the countdown ring were real causes and are fixed; a `TutorialPokerScreen` preview still hangs. Best run captured 52 of 111.
+
+**Next step when picked up:** give each preview a timeout so a hang fails loudly instead of wedging the build — that converts an open-ended hunt into a short list of previews to fix or quarantine, and it is the right CI setting regardless. Then move the wiring from `features/room/impl/build.gradle.kts` into `ComposeMultiplatformConventionPlugin` (generating the per-module test class so no module writes one), drop the forced phone qualifier so small components render small, add a `verifyRoborazzi` CI step, and document it in the wiki.
+
+**Status:** Backlog. Infrastructure committed, test class not. Owner directive was to park it and come back.
+
+---
+
 ## Multiplayer wallet/payout test coverage across table sizes + leave timing
 
 **Idea (owner directive 2026-06-28, Sentry [CARDS-61](https://elijah-dangerfield.sentry.io/issues/CARDS-61)):** Owner wants much broader testing around multiplayer games of varying sizes and player behavior — betting, checking, leaving mid-hand — to verify the correct wallet actions fire: that the pot is split as expected, that the right players get paid and others don't, and that opting out of the next hand settles a player out with exactly the expected amount. This is a test-coverage / scenario-harness effort (the poker scenario harness exists for the play screen), not a single bug fix; spans engine, server settlement, and client wallet reconcile. Concrete bugs found along the way (e.g. MP-26, MP-27) get their own todos.
