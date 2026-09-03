@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -88,7 +90,7 @@ internal fun CountdownBadge(
     val urgency = urgencyFor(remainingMs)
     val pulseAlpha = if (urgency == Urgency.Critical) {
         val transition = rememberInfiniteTransition(label = "countdown-pulse")
-        val animated by transition.animateFloat(
+        val animated = transition.animateFloat(
             initialValue = 0.6f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
@@ -99,12 +101,12 @@ internal fun CountdownBadge(
         )
         animated
     } else {
-        1f
+        rememberUpdatedState(1f)
     }
 
     Row(
         modifier = modifier
-            .alpha(pulseAlpha)
+            .graphicsLayer { alpha = pulseAlpha.value }
             .clip(Radii.Round.shape)
             .background(urgency.background.color)
             .padding(horizontal = 10.dp, vertical = 4.dp),

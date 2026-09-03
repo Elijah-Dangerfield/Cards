@@ -263,7 +263,7 @@ private fun Sparkle(
     phaseOffsetMs: Int = 0,
 ) {
     val transition = rememberInfiniteTransition(label = "sparkle")
-    val alpha by transition.animateFloat(
+    val alpha = transition.animateFloat(
         initialValue = 0.35f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
@@ -273,7 +273,7 @@ private fun Sparkle(
         ),
         label = "sparkle-alpha",
     )
-    val scale by transition.animateFloat(
+    val scale = transition.animateFloat(
         initialValue = 0.7f,
         targetValue = 1.1f,
         animationSpec = infiniteRepeatable(
@@ -287,9 +287,10 @@ private fun Sparkle(
         modifier = modifier
             .size(size)
             .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                this.alpha = alpha
+                val s = scale.value
+                scaleX = s
+                scaleY = s
+                this.alpha = alpha.value
             },
     ) {
         val color = ColorResource.PokerSparkleGold.color

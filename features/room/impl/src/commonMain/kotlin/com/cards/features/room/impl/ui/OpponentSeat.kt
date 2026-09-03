@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.features.room.impl.SeatView
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
+import com.dangerfield.cards.libraries.ui.components.pulsingBorder
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.cutout
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle

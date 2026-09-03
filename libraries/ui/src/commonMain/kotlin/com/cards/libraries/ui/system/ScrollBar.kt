@@ -37,7 +37,7 @@ fun Modifier.scrollbar(
     ),
     padding: PaddingValues = PaddingValues(all = 0.dp)
 ): Modifier = composed {
-    val scrollbarAlpha by animateFloatAsState(
+    val scrollbarAlphaState = animateFloatAsState(
         targetValue = alpha,
         animationSpec = alphaAnimationSpec
     )
@@ -46,6 +46,7 @@ fun Modifier.scrollbar(
 
     drawWithContent {
         drawContent()
+        val scrollbarAlpha = scrollbarAlphaState.value
 
         val showScrollBar = state.isScrollInProgress || scrollbarAlpha > 0.0f
 
@@ -113,7 +114,7 @@ fun Modifier.scrollbar(
     ),
     padding: PaddingValues = PaddingValues(all = 0.dp)
 ): Modifier = composed {
-    val scrollbarAlpha by animateFloatAsState(
+    val scrollbarAlphaState = animateFloatAsState(
         targetValue = alpha,
         animationSpec = alphaAnimationSpec
     )
@@ -122,6 +123,7 @@ fun Modifier.scrollbar(
 
     drawWithContent {
         drawContent()
+        val scrollbarAlpha = scrollbarAlphaState.value
 
         val showScrollBar = state.isScrollInProgress || scrollbarAlpha > 0.0f
         if (showScrollBar) {

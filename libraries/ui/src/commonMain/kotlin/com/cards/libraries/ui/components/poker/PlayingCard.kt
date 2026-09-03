@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -208,7 +209,12 @@ private fun CardBackOrnament(
             // rainbow strobing at 60fps is a battery hit and visually
             // noisy at table-density.
             val infinite = rememberInfiniteTransition(label = "holo-shimmer")
-            val shift by infinite.animateFloat(
+            // State + a draw-phase read. `by` here would recompose every
+            // holographic card back on screen for as long as it is mounted —
+            // this animation never ends, and at table density that is several
+            // cards recomposing forever. The gradient is rebuilt per frame
+            // either way; the point is that only the *draw* phase re-runs.
+            val shift = infinite.animateFloat(
                 initialValue = 0f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
@@ -217,24 +223,26 @@ private fun CardBackOrnament(
                 ),
                 label = "holo-shift",
             )
+            val shimmerWidth = size.width.value
+            val shimmerHeight = size.height.value
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer { alpha = 0.55f }
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color.White.copy(alpha = 0.35f),
-                                Color.Transparent,
+                    .drawBehind {
+                        val offset = shift.value * shimmerWidth * 3f
+                        drawRect(
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.White.copy(alpha = 0.35f),
+                                    Color.Transparent,
+                                ),
+                                start = Offset(offset, 0f),
+                                end = Offset(offset + shimmerWidth, shimmerHeight),
                             ),
-                            start = androidx.compose.ui.geometry.Offset(shift * size.width.value * 3f, 0f),
-                            end = androidx.compose.ui.geometry.Offset(
-                                shift * size.width.value * 3f + size.width.value,
-                                size.height.value,
-                            ),
-                        ),
-                    ),
+                        )
+                    },
             )
         }
         CardBackStyle.Avatar -> {

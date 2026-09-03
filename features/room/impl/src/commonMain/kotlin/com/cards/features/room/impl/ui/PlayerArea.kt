@@ -78,6 +78,7 @@ import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
+import com.dangerfield.cards.libraries.ui.components.pulsingBorder
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.cutout
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle

@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -62,11 +64,13 @@ fun RotatingDial(
     // circle when the count is even — an odd count lands two primaries
     // side-by-side at the wrap seam — so round up to the next even number.
     val evenRayCount = if (rayCount % 2 == 0) rayCount else rayCount + 1
-    val angle = if (LocalInspectionMode.current) {
-        0f
+    // State, read inside the Canvas below. This rotation never stops, so
+    // unwrapping it here would recompose the dial at 60fps forever.
+    val angle: State<Float> = if (LocalInspectionMode.current) {
+        rememberUpdatedState(0f)
     } else {
         val transition = rememberInfiniteTransition(label = "rotating-dial")
-        val animated by transition.animateFloat(
+        val animated = transition.animateFloat(
             initialValue = 0f,
             targetValue = 360f,
             animationSpec = infiniteRepeatable(
@@ -105,7 +109,7 @@ fun RotatingDial(
             val outerRadius = radius * 0.94f
             val rayWidth = radius * 0.045f
             val oddRayWidth = rayWidth * 0.6f
-            rotate(degrees = angle, pivot = center) {
+            rotate(degrees = angle.value, pivot = center) {
                 repeat(evenRayCount) { i ->
                     val isOdd = i % 2 == 1
                     rotate(degrees = i * (360f / evenRayCount), pivot = center) {

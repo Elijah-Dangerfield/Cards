@@ -248,7 +248,7 @@ private fun TableauStep(
                 CoachMarkPlacement.Middle -> middleAnchor.coerceAtLeast(topAnchor)
                 CoachMarkPlacement.Bottom -> bottomAnchor.coerceAtLeast(topAnchor)
             }
-            val animatedY by animateDpAsState(
+            val animatedY = animateDpAsState(
                 targetValue = targetY,
                 animationSpec = tween(durationMillis = 320),
                 label = "coachMarkY",
@@ -271,7 +271,7 @@ private fun TableauStep(
                         start = 12.dp + safeInsets.calculateStartPadding(layoutDir),
                         end = 12.dp + safeInsets.calculateEndPadding(layoutDir),
                     )
-                    .offset(y = animatedY)
+                    .offset { IntOffset(0, animatedY.value.roundToPx()) }
                     .onSizeChanged { size ->
                         bannerHeightDp = with(density) { size.height.toDp() }
                     }

@@ -60,7 +60,7 @@ fun MatchmakingRadar(
 
         // Three rings expanding + fading, staggered by ~730ms.
         repeat(3) { i ->
-            val progress by transition.animateFloat(
+            val progress = transition.animateFloat(
                 initialValue = 0f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
@@ -74,10 +74,11 @@ fun MatchmakingRadar(
                 modifier = Modifier
                     .size(size)
                     .graphicsLayer {
-                        val scale = 0.35f + progress * 0.65f
+                        val p = progress.value
+                        val scale = 0.35f + p * 0.65f
                         scaleX = scale
                         scaleY = scale
-                        alpha = (1f - progress) * 0.55f
+                        alpha = (1f - p) * 0.55f
                     }
                     .border(1.5.dp, teal, CircleShape),
             )
@@ -87,7 +88,7 @@ fun MatchmakingRadar(
         Box(Modifier.size(guideRingSize).border(1.dp, guide, CircleShape))
 
         // Rotating conic sweep.
-        val sweepAngle by transition.animateFloat(
+        val sweepAngle = transition.animateFloat(
             initialValue = 0f,
             targetValue = 360f,
             animationSpec = infiniteRepeatable(
@@ -99,7 +100,7 @@ fun MatchmakingRadar(
         Box(
             modifier = Modifier
                 .size(guideRingSize)
-                .graphicsLayer { rotationZ = sweepAngle }
+                .graphicsLayer { rotationZ = sweepAngle.value }
                 .clip(CircleShape)
                 .background(
                     Brush.sweepGradient(
@@ -111,7 +112,7 @@ fun MatchmakingRadar(
         )
 
         // Bobbing medallion.
-        val bob by transition.animateFloat(
+        val bob = transition.animateFloat(
             initialValue = -5f,
             targetValue = 5f,
             animationSpec = infiniteRepeatable(
@@ -120,7 +121,7 @@ fun MatchmakingRadar(
             ),
             label = "bob",
         )
-        Medallion(modifier = Modifier.graphicsLayer { translationY = bob })
+        Medallion(modifier = Modifier.graphicsLayer { translationY = bob.value })
     }
 }
 

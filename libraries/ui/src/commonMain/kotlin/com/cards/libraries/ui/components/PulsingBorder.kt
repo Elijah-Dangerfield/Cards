@@ -1,4 +1,4 @@
-package com.dangerfield.cards.features.room.impl.ui
+package com.dangerfield.cards.libraries.ui.components
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
@@ -18,7 +18,11 @@ import androidx.compose.ui.unit.Dp
  * that colour. Taking a lambda instead moves the snapshot read inside the draw
  * scope, so an animation ticking invalidates draw and nothing else.
  *
- * This exists because the table had the same mistake in two places (ENG-49).
+ * Lives here rather than in the room feature because the same mistake showed up
+ * independently on the profile screen's owned-cosmetic tile: any animated border
+ * anywhere wants this, and a second copy would be a second thing to get wrong.
+ *
+ * It exists because the table had the same mistake in two places (ENG-49).
  * `PlayerArea`'s turn pulse recomposed the human's name, chip count and hand
  * label 471 times in a 25-second trace; `GoldSeatRing` did the same on every
  * opponent seat, 294 times. Rebuilding that text per frame thrashes Skia's
@@ -30,7 +34,7 @@ import androidx.compose.ui.unit.Dp
  * never unwrap it with `by` at the call site — doing that puts the read back in
  * composition and undoes the whole point.
  */
-internal fun Modifier.pulsingBorder(
+fun Modifier.pulsingBorder(
     width: Dp,
     shape: Shape,
     color: () -> Color,
