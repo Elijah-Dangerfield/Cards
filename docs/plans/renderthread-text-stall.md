@@ -108,6 +108,43 @@ two places:
 That is a hypothesis. Confirm it before acting on it, because the last confident guess here cost a
 day.
 
+## Fixed 2026-09-03, measured on a real device
+
+Three infinite animations were reading their value during composition, each
+recomposing its whole subtree every frame for as long as it ran. All three fed
+text, which is why the RenderThread ended up in the glyph cache.
+
+| | before | after |
+|---|---|---|
+| `PlayerArea` | 471 | 16 |
+| `PlayerInfoTile` | 471 | 16 |
+| `FlippablePlayerInfoTile` | 471 | 16 |
+| `GoldSeatRing` (per opponent seat) | 57 | 3 |
+| `Text` rebuilds | 540 | 170 |
+| **RenderThread worst draw** | **127.1 ms** | **49.6 ms** |
+
+Two caveats worth keeping honest. The traces cover different gameplay, so
+totals are not directly comparable — the worst-case draw and the recomposition
+counts are the meaningful figures. And these are debug builds, so absolute
+milliseconds are inflated.
+
+**Whether this actually stops the ANRs is unproven** and only production can
+say. Watch Play vitals and Sentry over the next few weeks; four traces got us
+here, so a month of silence is the confirmation.
+
+### What is deliberately left
+
+`HoleCardSlot` is now the top remaining recomposer at ~298. That is a bounded
+380 ms animation that runs on demand, roughly 23 recompositions per flip, not
+an infinite one — a different order of problem from the pulses.
+
+It was fixed once and reverted (054d9877, reverted in c0e813ec): the
+`remember { derivedStateOf { ... } }` had no keys, so it captured the first
+`flipRotation` State and went stale when `manuallyFacedown` was re-remembered
+on a new hand, which silently killed tap-to-flip after the first hand. If it is
+picked up again, key the `remember` on the State it captures, and verify by
+flipping cards across several hands rather than one.
+
 ## What to do
 
 ### ~~Step 1: See it happen~~ — done, see the confirmation above
