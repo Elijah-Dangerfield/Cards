@@ -51,7 +51,7 @@ import com.dangerfield.cards.system.color.ProvideContentColor
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 /**
  * Low-level bottom-sheet primitive — wraps Material3's [ModalBottomSheet]

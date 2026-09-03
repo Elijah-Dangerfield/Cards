@@ -82,7 +82,7 @@ fun SeatStack(
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@androidx.compose.ui.tooling.preview.Preview
 @Composable
 private fun SeatStackPreview() {
     PreviewContent(contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {

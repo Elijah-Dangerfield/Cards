@@ -6,7 +6,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 import com.dangerfield.cards.libraries.ui.catalog.CHECKBOX_SUBTITLE
 import com.dangerfield.cards.libraries.ui.catalog.CheckboxCatalogBody
 import com.dangerfield.cards.libraries.ui.catalog.CatalogPage

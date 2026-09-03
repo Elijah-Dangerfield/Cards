@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import com.dangerfield.cards.libraries.ui.system.LocalContentColor
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 /*
  * The warm "felt" semantic schema. Naming is role / universal-meaning only.

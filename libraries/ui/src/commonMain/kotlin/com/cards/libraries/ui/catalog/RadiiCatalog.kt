@@ -14,7 +14,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.Radius
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 private const val RADII_SUBTITLE =
     "Reach for the semantic getter (Button / Card / Banner / Callout) — never a raw R-value at a " +

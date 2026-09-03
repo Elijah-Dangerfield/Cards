@@ -54,7 +54,7 @@ import com.dangerfield.cards.system.VerticalSpacerD300
 import kotlin.time.Clock
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 /**
  * Emote-blast badge for the bottom-right corner of the human's seat card.

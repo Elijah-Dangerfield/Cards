@@ -1072,7 +1072,7 @@ private fun previewSettings(isAnonymous: Boolean) = ProfileSettings(
     isFoundingMember = !isAnonymous,
 )
 
-@org.jetbrains.compose.ui.tooling.preview.Preview(heightDp = 2000)
+@androidx.compose.ui.tooling.preview.Preview(heightDp = 2000)
 @Composable
 private fun ProfileScreenPreview() {
     val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
@@ -1165,7 +1165,7 @@ private fun ProfileScreenPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@androidx.compose.ui.tooling.preview.Preview
 @Composable
 private fun ProfileScreenPreview_FreshUser() {
     PreviewContent(bottomBar = PreviewBottomBar.Profile) {
@@ -1185,7 +1185,7 @@ private fun ProfileScreenPreview_FreshUser() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@androidx.compose.ui.tooling.preview.Preview
 @Composable
 private fun ProfileScreenPreview_ActiveBoost() {
     // Inspection mode pins the countdown (see rememberBoostRemainingMs), so any
@@ -1210,7 +1210,7 @@ private fun ProfileScreenPreview_ActiveBoost() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@androidx.compose.ui.tooling.preview.Preview
 @Composable
 private fun ProfileScreenPreview_StockedShelf() {
     // A well-stocked card-backs shelf (9 owned) exercises the two-row split and

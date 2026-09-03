@@ -143,7 +143,7 @@ private fun Medallion(modifier: Modifier = Modifier) {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@androidx.compose.ui.tooling.preview.Preview
 @Composable
 private fun MatchmakingRadarPreview() {
     PreviewContent(contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp)) {
@@ -151,7 +151,7 @@ private fun MatchmakingRadarPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@androidx.compose.ui.tooling.preview.Preview
 @Composable
 private fun MatchmakingRadarPreview_ReducedMotion() {
     PreviewContent(contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp)) {

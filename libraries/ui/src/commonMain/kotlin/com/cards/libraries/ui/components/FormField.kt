@@ -21,7 +21,7 @@ import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.libraries.ui.FieldState
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 /**
  * A wrapper around a field of any kind, could be text, switch, anything

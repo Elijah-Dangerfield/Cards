@@ -53,7 +53,7 @@ import com.dangerfield.cards.system.VerticalSpacerD800
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 /**
  * Final tutorial page. Visual hero: two aces fanning out from a

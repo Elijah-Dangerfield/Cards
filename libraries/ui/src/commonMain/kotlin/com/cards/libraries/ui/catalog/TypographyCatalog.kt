@@ -12,7 +12,7 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.typography.TypographyResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 private const val TYPE_SUBTITLE =
     "Display = serif (the felt headline). Heading / Label / Body / Caption = sans. Higher number = " +

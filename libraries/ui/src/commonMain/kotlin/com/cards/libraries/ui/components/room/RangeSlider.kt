@@ -56,7 +56,7 @@ fun RangeSlider(
     )
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@androidx.compose.ui.tooling.preview.Preview
 @Composable
 private fun RangeSliderPreview() {
     PreviewContent(contentPadding = PaddingValues(16.dp)) {

@@ -36,7 +36,7 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD500
 import org.jetbrains.compose.resources.stringResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 /**
  * "Friends online" shelf — header (title + see-all) plus a horizontal
