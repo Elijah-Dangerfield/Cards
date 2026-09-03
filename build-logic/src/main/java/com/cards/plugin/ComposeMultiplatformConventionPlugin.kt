@@ -4,6 +4,7 @@ import com.android.build.gradle.LibraryExtension
 import com.dangerfield.cards.ext.ConfigurationExtension
 import com.dangerfield.cards.util.configureAndroid
 import com.dangerfield.cards.util.configureComposeCompiler
+import com.dangerfield.cards.util.configureUnitTestJvm
 import com.dangerfield.cards.util.configureKotlinInject
 import com.dangerfield.cards.util.configureKotlinMultiplatform
 import com.dangerfield.cards.util.enforceModuleBoundaries
@@ -57,6 +58,7 @@ class ComposeMultiplatformConventionPlugin : Plugin<Project> {
             configureKotlinMultiplatform()
             configureKotlinInject()
             configureComposeCompiler()
+            configureUnitTestJvm()
             configureComposeTestDependencies()
             
             extensions.configure<LibraryExtension> {

@@ -28,6 +28,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.State
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -45,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.features.room.impl.SeatView
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
+import com.dangerfield.cards.libraries.ui.components.rememberLoopingFloat
 import com.dangerfield.cards.libraries.ui.components.pulsingBorder
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.cutout
@@ -318,12 +323,16 @@ private fun WinAmountBadge(amount: Long) {
  */
 @Composable
 private fun GoldSeatRing(modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "to-act")
     // State, never `by`. Unwrapping here would recompose this seat on every
     // frame of an animation that never ends — measured at 294 recompositions,
     // and with up to three opponents that is three of them at once. See
     // [pulsingBorder] and ENG-49.
-    val alpha = transition.animateFloat(
+    //
+    // Held at full strength under `@Preview` and in screenshot tests: an
+    // endless animation keeps the Compose clock from ever going idle, which
+    // hangs a capture waiting on idle, and would give a different alpha on
+    // every run besides.
+    val alpha = rememberLoopingFloat(
         initialValue = 0.5f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(

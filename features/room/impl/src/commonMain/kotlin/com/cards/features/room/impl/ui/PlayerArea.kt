@@ -78,6 +78,7 @@ import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
+import com.dangerfield.cards.libraries.ui.components.rememberLoopingFloat
 import com.dangerfield.cards.libraries.ui.components.pulsingBorder
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.cutout
@@ -455,19 +456,24 @@ internal fun PlayerArea(
  */
 @Composable
 private fun rememberPulseAlpha(low: Float = 0.32f, high: Float = 0.78f): State<Float> {
-    val transition = rememberInfiniteTransition(label = "active-pulse")
+    // Pinned at its brightest under `@Preview` and in screenshot tests. An
+    // animation that never ends never lets the Compose clock go idle, so any
+    // capture that waits for idle hangs on it — and even if it didn't, it would
+    // sample a different alpha every run, which no golden image can match.
+    // Same reason `BoardSlot` and `XpBadge` skip their animations in previews.
+
     // Returns the State rather than its value on purpose. `by`-delegating here,
     // or returning `alpha`, subscribes the *caller's* composition to a value
     // that changes every frame. Handing back the State lets the read happen
     // wherever it is cheapest — for us, inside a draw lambda.
-    return transition.animateFloat(
+    return rememberLoopingFloat(
         initialValue = low,
         targetValue = high,
         animationSpec = infiniteRepeatable(
             animation = tween(1100, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse,
         ),
-        label = "alpha",
+        label = "active-pulse",
     )
 }
 

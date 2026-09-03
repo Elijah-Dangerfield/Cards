@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -57,7 +58,17 @@ fun TurnCountdownRing(
     deadlineEpochMs: Long? = null,
 ) {
     val progress = remember { Animatable(1f) }
-    LaunchedEffect(turnKey, durationSeconds, deadlineEpochMs) {
+    // Previews and screenshot tests show the ring part-depleted rather than
+    // running the clock. The sweep is a tween as long as the turn timer itself
+    // — thirty seconds, ~1800 frames — and a capture that waits for animations
+    // to settle will sit at 100% CPU for the whole of it, once per preview.
+    // A still ring at 60% reads as "on the clock" better than a full one anyway.
+    val inPreview = LocalInspectionMode.current
+    LaunchedEffect(turnKey, durationSeconds, deadlineEpochMs, inPreview) {
+        if (inPreview) {
+            progress.snapTo(PreviewProgress)
+            return@LaunchedEffect
+        }
         val totalMs = durationSeconds.toLong() * 1_000L
         if (totalMs <= 0L) {
             progress.snapTo(1f)
@@ -113,6 +124,9 @@ fun TurnCountdownRing(
         )
     }
 }
+
+/** Where a preview / screenshot parks the sweep. */
+private const val PreviewProgress = 0.6f
 
 private const val StartAngle = -90f
 private const val UrgentThreshold = 0.25f
