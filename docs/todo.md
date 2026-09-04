@@ -109,6 +109,36 @@ So a stability config file or a move to `kotlinx.collections.immutable` would ha
 - `ComposeStabilityTest` (`:features:room:impl`) asserts the behaviour directly — an unchanged seat and an unchanged table skip, a changed one does not. Behavioural, so it survives a change in comparison semantics, unlike an assertion about compiler metadata.
 - `-Pcards.composeReports=true` generates the compiler's stability/skippability reports into `build/compose-reports/`. See `build-logic/.../ComposeCompiler.kt` for how to read them, **including the warning not to treat "unstable" in that report as a cost.** Reading it that way is what produced this ticket.
 
+## ENG-63 [P1] — Report real-user jank to Grafana with JankStats
+
+**Problem:** There is no frame data anywhere. ANRs are detected only after the fact (`ApplicationExitInfo` on Android, MetricKit watchdog on iOS, both landing as `PreviousExit.Anr`), which tells you a session died and nothing about what was slow before it did. ENG-49 asks whether the RenderThread fix held, and today nothing can answer that except waiting for the ANR count not to move.
+
+**Acceptance:** `androidx.metrics:metrics-performance` reports janky frames with per-screen state attribution into the existing telemetry pipe, and a `dc-pulse` panel shows jank rate by screen over time. "Did the play screen get worse in this release" becomes a question you can look up.
+
+**Hints:** `JankStats.createAndTrack(window)` per activity; attribute state with `PerformanceMetricsState.getHolderForHierarchy(view).state?.putState("screen", route)` so frames are tagged with the route that was up. Android-only — there is no iOS equivalent, so scope it that way rather than trying to make it multiplatform. Route the records the same way `GrafanaAppEvents` already does. Be careful not to log every frame: aggregate client-side and emit a summary, or the volume will swamp Loki.
+
+## ENG-64 [P2] — StrictMode in debug builds
+
+**Problem:** Nothing catches main-thread disk or network reads during development, which is the most common cause of ANRs after the composition-phase class we just fixed.
+
+**Acceptance:** Debug builds enable a thread policy (disk reads/writes, network) and a VM policy (leaked closables, activity leaks), logging rather than crashing. Release builds are untouched.
+
+**Hints:** Roughly ten lines in the Android `Application`, guarded on `BuildConfig.DEBUG`. Expect it to surface existing violations on first run — triage them into their own items rather than blocking this on a clean slate. `penaltyLog()` first; only consider `penaltyDeath()` once it is quiet.
+
+## ENG-65 [P2] — Baseline Profile for app startup
+
+**Problem:** No baseline profile ships, so every install runs interpreted until JIT warms up. That is real first-run jank on exactly the cold starts a new player judges the app on.
+
+**Acceptance:** A generated `baseline-prof.txt` ships in the release build and startup improves measurably against the same journey without it.
+
+**Hints:** `androidx.baselineprofile` plugin + a `com.android.test` module. **A physical device is not needed** — a Gradle Managed Device spins up an emulator as part of the build. Emulator noise does not matter here the way it does for frame timing, because a profile records *which* code ran, not how long it took (which is why ENG-66 was dropped and this was not). Do startup-only first: driving UiAutomator past onboarding and auth to reach the play screen is where the effort goes, and startup alone is most of the win.
+
+## ENG-66 — Macrobenchmark frame timing — NOT DOING, 2026-09-04
+
+Recorded so it does not get re-proposed. `FrameTimingMetric` is the standard tool for "run a UI journey, diff P95 frame times," and it is the right shape for catching jank regressions. It needs a real device to produce a usable signal: emulator frame timing on a shared CI runner has run-to-run variance larger than the regressions worth catching, so a per-PR threshold produces flaky red and gets disabled. CI here is macOS + ubuntu runners with no device, and the owner is not standing up a device farm or Firebase Test Lab for this.
+
+What covers the gap instead: `AnimatedStateReadInComposition` catches the *cause* class statically on every PR with zero noise (it found 19 instances on its first run), ENG-63 gives real-user frame data with no device at all, and Play vitals plus the existing `PreviousExit.Anr` telemetry remain the ground truth. Revisit only if a physical device farm appears for another reason.
+
 ## ENG-61 — Compose tests that cross a hand boundary — DONE 2026-09-03
 
 The play screen went from 14 single-state tests to **106 across five suites**, every one of which drives at least one hand boundary. Suites: table projection and felt rendering, end-of-hand disposition, modal surfaces and the leave flow, multi-hand transitions, and skippability.
