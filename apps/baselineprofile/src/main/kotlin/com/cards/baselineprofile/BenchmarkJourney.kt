@@ -80,16 +80,24 @@ object BenchmarkJourney {
         // Practice opens a table-setup sheet rather than dealing straight away.
         device.tapRequired(START)
 
-        check(device.wait(Until.hasObject(By.textContains(FOLD)), TABLE_TIMEOUT_MS) == true) {
-            "Reached table setup but never dealt. " + device.describeScreen()
+        // Wait for the *action bar*, not a Fold button. This screen has no Fold
+        // button — folding is a swipe gesture — so the original check could only
+        // ever have matched an opponent's "FOLD" last-action pill, by accident.
+        // The table was dealing correctly for five runs while this assertion
+        // said otherwise.
+        //
+        // Call/Check/Raise also mean something stronger than "dealt": the hand
+        // is live and it is our turn, which is the state the next loop needs.
+        check(device.wait(Until.hasObject(ANY_ACTION), TABLE_TIMEOUT_MS) == true) {
+            "Reached table setup but never got the action. " + device.describeScreen()
         }
 
         // One selector for "whatever the table offers", not a chain. A chain
         // costs its full timeout per miss, and misses are the normal case while
         // bots think — that is the difference between two minutes and thirty.
-        val anyAction = By.text(Pattern.compile("$CHECK|$CALL.*|$NEXT_HAND|$CONTINUE"))
+        val anyTappable = By.text(Pattern.compile("$CHECK|$CALL.*|$NEXT_HAND|$CONTINUE"))
         repeat(ACTIONS_TO_TAKE) {
-            if (!device.tapMatching(anyAction, ACTION_TIMEOUT_MS)) device.waitForIdle()
+            if (!device.tapMatching(anyTappable, ACTION_TIMEOUT_MS)) device.waitForIdle()
         }
     }
 
@@ -103,8 +111,17 @@ object BenchmarkJourney {
     const val START = "Start"
     const val CHECK = "Check"
     const val CALL = "Call"
-    const val FOLD = "Fold"
+    const val RAISE = "Raise"
     const val NEXT_HAND = "Next hand"
+
+    /**
+     * The action bar being up: the hand is dealt and it is our turn.
+     *
+     * There is deliberately no "Fold" here. The felt folds by swipe, so the only
+     * "FOLD" text on screen is an opponent's last-action pill — which is why
+     * waiting on it looked like the table never dealt when it always had.
+     */
+    val ANY_ACTION: BySelector = By.text(Pattern.compile("$CHECK|$CALL.*|$RAISE.*"))
 
     const val FIRST_SCREEN_TIMEOUT_MS = 20_000L
     const val TABLE_TIMEOUT_MS = 30_000L

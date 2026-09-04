@@ -5,9 +5,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
-import com.dangerfield.cards.baselineprofile.BenchmarkJourney.CALL
-import com.dangerfield.cards.baselineprofile.BenchmarkJourney.CHECK
-import com.dangerfield.cards.baselineprofile.BenchmarkJourney.FOLD
+import com.dangerfield.cards.baselineprofile.BenchmarkJourney.ANY_ACTION
 import com.dangerfield.cards.baselineprofile.BenchmarkJourney.PRACTICE
 import com.dangerfield.cards.baselineprofile.BenchmarkJourney.START
 import com.dangerfield.cards.baselineprofile.BenchmarkJourney.describeScreen
@@ -16,7 +14,6 @@ import com.dangerfield.cards.baselineprofile.BenchmarkJourney.tapMatching
 import com.dangerfield.cards.baselineprofile.BenchmarkJourney.tapRequired
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.util.regex.Pattern
 
 /**
  * Drives the **minified** app through a real journey. This is the R8 smoke test.
@@ -72,15 +69,15 @@ class MinifiedReleaseSmokeTest {
         device.tapRequired(PRACTICE)
         device.tapRequired(START)
 
-        // A dealt hand means the room route resolved, the session started and
-        // the table projection rendered.
-        check(device.wait(Until.hasObject(By.textContains(FOLD)), TABLE_TIMEOUT_MS) == true) {
-            "Reached table setup but never dealt. " + device.describeScreen()
+        // The action bar being up means the room route resolved, the session
+        // started, the table projection rendered and LegalActions survived —
+        // navigation, serialization and the engine all through R8.
+        check(device.wait(Until.hasObject(ANY_ACTION), TABLE_TIMEOUT_MS) == true) {
+            "Reached table setup but never got the action. " + device.describeScreen()
         }
 
-        val anyAction = By.text(Pattern.compile("$CHECK|$CALL.*|$FOLD"))
-        check(device.tapMatching(anyAction, ACTION_TIMEOUT_MS)) {
-            "The table dealt but offered no action. " + device.describeScreen()
+        check(device.tapMatching(ANY_ACTION, ACTION_TIMEOUT_MS)) {
+            "The action bar appeared but would not take a tap. " + device.describeScreen()
         }
     }
 

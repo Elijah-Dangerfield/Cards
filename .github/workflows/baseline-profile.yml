@@ -112,7 +112,9 @@ jobs:
             The profile lists classes and methods compiled ahead of time, so a
             player's first run of a code path is not interpreted. It is captured
             by walking the app on an emulator: Home, a practice table, and a few
-            hands.
+            hands. The table is considered live when the action bar offers
+            Check/Call/Raise — this felt folds by swipe, so there is no Fold
+            button to wait on.
 
             **What to look at:** the rule count and which packages are covered.
             A large drop means the journey broke rather than the app shrinking —
