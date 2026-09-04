@@ -66,7 +66,7 @@ class MinifiedReleaseSmokeTest {
         // Reaching Home means the DI graph built and the start destination
         // resolved — the first thing R8 could have broken.
         check(device.wait(Until.hasObject(By.text(PRACTICE)), LAUNCH_TIMEOUT_MS) == true) {
-            "Never reached Home.\n" + device.describeScreen()
+            "Never reached Home. " + device.describeScreen()
         }
 
         device.tapRequired(PRACTICE)
@@ -75,12 +75,12 @@ class MinifiedReleaseSmokeTest {
         // A dealt hand means the room route resolved, the session started and
         // the table projection rendered.
         check(device.wait(Until.hasObject(By.textContains(FOLD)), TABLE_TIMEOUT_MS) == true) {
-            "Reached table setup but never dealt.\n" + device.describeScreen()
+            "Reached table setup but never dealt. " + device.describeScreen()
         }
 
         val anyAction = By.text(Pattern.compile("$CHECK|$CALL.*|$FOLD"))
         check(device.tapMatching(anyAction, ACTION_TIMEOUT_MS)) {
-            "The table dealt but offered no action.\n" + device.describeScreen()
+            "The table dealt but offered no action. " + device.describeScreen()
         }
     }
 

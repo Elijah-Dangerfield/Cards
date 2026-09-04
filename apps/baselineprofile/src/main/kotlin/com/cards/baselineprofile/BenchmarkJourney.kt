@@ -64,7 +64,7 @@ object BenchmarkJourney {
             device.tapMatching(anyOnboardingCta, ONBOARDING_STEP_TIMEOUT_MS)
         }
         check(device.wait(Until.hasObject(By.text(PRACTICE)), FIRST_SCREEN_TIMEOUT_MS) == true) {
-            "Never reached Home.\n" + device.describeScreen()
+            "Never reached Home. " + device.describeScreen()
         }
     }
 
@@ -81,7 +81,7 @@ object BenchmarkJourney {
         device.tapRequired(START)
 
         check(device.wait(Until.hasObject(By.textContains(FOLD)), TABLE_TIMEOUT_MS) == true) {
-            "Reached table setup but never dealt.\n" + device.describeScreen()
+            "Reached table setup but never dealt. " + device.describeScreen()
         }
 
         // One selector for "whatever the table offers", not a chain. A chain
@@ -151,7 +151,7 @@ object BenchmarkJourney {
     /** Taps something that must be there, failing the run loudly if it is not. */
     fun UiDevice.tapRequired(text: String, timeoutMs: Long = 15_000L) {
         check(tap(text, timeoutMs)) {
-            "Journey stalled: no \"$text\" after ${timeoutMs}ms.\n" + describeScreen()
+            "Journey stalled: no \"$text\" after ${timeoutMs}ms. " + describeScreen()
         }
     }
 
@@ -179,15 +179,16 @@ object BenchmarkJourney {
         // dialog, or a launch that never landed all look identical otherwise.
         val foreground = runCatchingStale { currentPackageName } ?: "unknown"
 
-        return buildString {
-            append("Foreground package: $foreground")
-            if (visible.isEmpty()) {
-                append("\nNo readable text on screen — blank, still loading, or crashed.")
-            } else {
-                append("\nOn screen:\n")
-                append(visible.joinToString("\n") { "  - $it" })
-            }
+        // Deliberately ONE line. Gradle's console prints only the first line of
+        // an assertion message, so a pretty multi-line dump is invisible exactly
+        // when it is needed — which already cost a run: "Foreground package:
+        // com.dangerfield.cards" printed and the screen contents did not.
+        val screen = if (visible.isEmpty()) {
+            "<no readable text — blank, loading, or a native-canvas-only screen>"
+        } else {
+            visible.joinToString(" | ")
         }
+        return "[foreground=$foreground] screen: $screen"
     }
 
     /** UiAutomator throws if a node vanishes mid-read; a diagnostic must not. */
