@@ -51,6 +51,10 @@ datastore = "1.2.1"
 detekt = "2.0.0-alpha.6"
 roomGradlePlugin = "2.8.4"
 sentryKmp = "0.26.0"
+# Sentry's ANDROID Gradle plugin, distinct from the KMP SDK above. Used only to
+# inject the ProGuard UUID and upload mapping.txt — its SDK auto-installation is
+# turned OFF so it cannot add a second Sentry SDK alongside the KMP one.
+sentryAndroidGradlePlugin = "5.8.0"
 supabaseKt = "3.6.0"
 lifecycleProcess = "2.10.0"
 turbine = "1.2.1"
@@ -247,6 +251,7 @@ kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref =
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 androidxRoom = { id = "androidx.room", version.ref = "room" }
 sentryKmp = { id = "io.sentry.kotlin.multiplatform.gradle", version.ref = "sentryKmp" }
+sentryAndroid = { id = "io.sentry.android.gradle", version.ref = "sentryAndroidGradlePlugin" }
 buildconfig = { id = "com.github.gmazzo.buildconfig", version.ref = "buildconfig" }
 kotlinCocoapods = { id = "org.jetbrains.kotlin.native.cocoapods", version.ref = "kotlin" }
 

@@ -309,11 +309,16 @@ jobs:
           RELEASE="cards@${{ needs.resolve-tag.outputs.version }}+${{ needs.build-number.outputs.value }}"
           npx --yes @sentry/cli releases new "$RELEASE"
           npx --yes @sentry/cli releases set-commits "$RELEASE" --auto || true
-          if [ -f apps/compose/build/outputs/mapping/release/mapping.txt ]; then
-            npx --yes @sentry/cli upload-proguard \
-              --android-manifest apps/compose/build/intermediates/merged_manifests/release/AndroidManifest.xml \
-              apps/compose/build/outputs/mapping/release/mapping.txt || true
-          fi
+          # The ProGuard mapping is NOT uploaded here. The Sentry Android
+          # Gradle plugin does it during the build, because it also generates
+          # the UUID that ties a mapping to a build and packages it into
+          # assets/sentry-debug-meta.properties.
+          #
+          # This step used to run `upload-proguard` itself and could never have
+          # worked: it pointed at a manifest path AGP stopped using, and the app
+          # carried no UUID to match against, so the upload associated with
+          # nothing and reported success. It was dormant until R8 was enabled,
+          # which is the only reason it went unnoticed.
           npx --yes @sentry/cli debug-files upload apps/compose/build/intermediates/merged_native_libs/release/out/lib || true
           npx --yes @sentry/cli releases finalize "$RELEASE"
 
