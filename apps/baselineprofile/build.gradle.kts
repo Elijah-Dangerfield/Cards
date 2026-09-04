@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     // No versions: AGP and the Kotlin plugin already sit on the build classpath
     // via build-logic's includeBuild, and re-declaring a version there is an
@@ -19,6 +21,12 @@ plugins {
  * `cards.*` convention plugins: this is a `com.android.test` module that ships
  * nothing, exists only at build time, and has no iOS counterpart.
  */
+fun localProperty(key: String): String? =
+    rootProject.file("local.properties")
+        .takeIf { it.exists() }
+        ?.let { file -> Properties().apply { file.inputStream().use(::load) } }
+        ?.getProperty(key)
+
 android {
     namespace = "com.dangerfield.cards.baselineprofile"
     compileSdk = 36
@@ -33,6 +41,16 @@ android {
         minSdk = 28
         targetSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Optional reserved-account credentials, forwarded to the generator as
+        // instrumentation arguments. Read from local.properties or -P, never
+        // committed: this repository is public. Absent is fine — the app then
+        // makes a guest account, which profiles just as well.
+        listOf("cards.benchmark.email", "cards.benchmark.password").forEach { key ->
+            (localProperty(key) ?: providers.gradleProperty(key).orNull)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { testInstrumentationRunnerArguments[key] = it }
+        }
     }
 
     targetProjectPath = ":apps:compose"

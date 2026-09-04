@@ -12,6 +12,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.dangerfield.cards.benchmark.BenchmarkHooks
 import com.dangerfield.cards.libraries.telemetry.impl.AndroidJankMonitor
 
 class MainActivity : ComponentActivity() {
@@ -32,7 +33,18 @@ class MainActivity : ComponentActivity() {
         )
 
         val appComponent = (application as CardsApplication).appComponent
-        
+
+        // Before anything reads the start destination. `AppViewModel` resolves it
+        // once in its `init`, so a benchmark hook applied later would be a no-op
+        // and the generator would silently walk onboarding anyway.
+        //
+        // `runBlocking` in onCreate is normally indefensible. It is confined to
+        // a path that only exists when an explicit benchmark intent arrives AND
+        // the build points at dev, so a real launch never reaches it.
+        if (BenchmarkHooks.isRequested(intent)) {
+            kotlinx.coroutines.runBlocking { BenchmarkHooks.apply(intent, appComponent) }
+        }
+
         // Keep the splash screen on until AppViewModel has determined the destination.
         // AppViewModel is a singleton, so this is the same instance used in App composable.
         splashScreen.setKeepOnScreenCondition {

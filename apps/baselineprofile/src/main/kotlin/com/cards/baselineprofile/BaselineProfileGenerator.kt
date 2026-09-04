@@ -1,6 +1,8 @@
 package com.dangerfield.cards.baselineprofile
 
+import android.content.Intent
 import androidx.benchmark.macro.junit4.BaselineProfileRule
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.StaleObjectException
@@ -77,8 +79,26 @@ class BaselineProfileGenerator {
         includeInStartupProfile = true,
     ) {
         pressHome()
-        startActivityAndWait()
+        // Ask the app to skip onboarding and land on Home. Credentials are
+        // optional: without them the app makes a guest account, which is enough
+        // for a profile and needs no secret on a contributor's machine.
+        startActivityAndWait(
+            Intent().apply {
+                // The class by name, not MAIN/LAUNCHER. Resolving by category
+                // fails once extras and the benchmark's own flags are attached;
+                // naming the component sidesteps intent resolution entirely.
+                setClassName(PACKAGE, "$PACKAGE.MainActivity")
+                putExtra(EXTRA_SKIP_ONBOARDING, true)
+                InstrumentationRegistry.getArguments().getString(ARG_EMAIL)
+                    ?.let { putExtra(EXTRA_EMAIL, it) }
+                InstrumentationRegistry.getArguments().getString(ARG_PASSWORD)
+                    ?.let { putExtra(EXTRA_PASSWORD, it) }
+            },
+        )
 
+        // The hook is best-effort by design: if the build ignored it (wrong
+        // environment, older APK) onboarding is still on screen, and walking it
+        // is the correct fallback rather than failing the run.
         completeOnboarding()
         playAPracticeTable()
     }
@@ -123,6 +143,10 @@ class BaselineProfileGenerator {
      */
     private fun MacrobenchmarkScopeLike.playAPracticeTable() {
         device.tapRequired(PRACTICE)
+        // Practice opens a table-setup sheet (seats, stakes, difficulty) rather
+        // than dealing straight away. Missing this is why earlier runs produced
+        // a profile with zero coverage of the felt while still passing.
+        device.tapRequired(START)
 
         // The deal-in animation runs before any action is offered.
         device.wait(Until.hasObject(By.textContains(FOLD)), TABLE_TIMEOUT_MS)
@@ -144,6 +168,17 @@ class BaselineProfileGenerator {
     private companion object {
         const val PACKAGE = "com.dangerfield.cards"
 
+        // Mirrors BenchmarkHooks. Duplicated rather than shared because this
+        // module must not depend on the app's code — it drives the installed
+        // binary, and a compile dependency would be a lie about that boundary.
+        const val EXTRA_SKIP_ONBOARDING = "cards.benchmark.skipOnboarding"
+        const val EXTRA_EMAIL = "cards.benchmark.email"
+        const val EXTRA_PASSWORD = "cards.benchmark.password"
+
+        /** Instrumentation args, passed through from Gradle. */
+        const val ARG_EMAIL = "cards.benchmark.email"
+        const val ARG_PASSWORD = "cards.benchmark.password"
+
         // Verbatim from libraries/resources/.../strings.xml. If one of these
         // changes, this test is where it surfaces — which is the point.
         const val CONTINUE_AS_GUEST = "Continue as guest"
@@ -151,6 +186,7 @@ class BaselineProfileGenerator {
         const val CLAIM_AND_PLAY = "Claim & play"
         const val TAKE_A_SEAT = "Take a seat"
         const val PRACTICE = "Practice"
+        const val START = "Start"
         const val CHECK = "Check"
         const val CALL = "Call"
         const val FOLD = "Fold"
