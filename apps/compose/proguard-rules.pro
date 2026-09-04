@@ -61,6 +61,32 @@
 -keep class com.dangerfield.cards.**AppComponent* { *; }
 
 # ---------------------------------------------------------------------------
+# Wiretap — present in debug, swapped for a no-op in release
+# ---------------------------------------------------------------------------
+# `releaseImplementation(wiretap.ktor.noop)` covers the Ktor plugins but not the
+# console launcher, so `launchNetworkInspector()` compiles against a class that
+# is not in a release APK. Unminified nobody noticed: the call is unreachable
+# because the shake menu only offers the inspector when `BuildInfo.isDebug`.
+# R8 is right to flag it and this says "yes, on purpose".
+-dontwarn dev.skymansandy.wiretap.**
+
+# ---------------------------------------------------------------------------
+# Readable crash output
+# ---------------------------------------------------------------------------
+# Keep exception *class names*. Obfuscated, every Sentry issue and every ANR
+# report arrives titled `a.b.c` and has to be un-mangled before it can even be
+# triaged. Throwable names are a rounding error in APK size and the difference
+# between a readable inbox and an unreadable one.
+-keepnames class * extends java.lang.Throwable
+
+# Logging is deliberately NOT stripped. The default `proguard-android-optimize`
+# file does not remove `android.util.Log` calls, and nothing here adds an
+# `-assumenosideeffects` rule to do it. The app logs through Kermit/KLog anyway,
+# which feeds the Grafana pipe — stripping it would blind production telemetry,
+# not just logcat. Do not add a log-stripping rule without reading
+# docs/wiki/observability.md first.
+
+# ---------------------------------------------------------------------------
 # Third parties that resolve by name
 # ---------------------------------------------------------------------------
 # Ktor, Supabase, Sentry and Room ship their own consumer rules; these cover
