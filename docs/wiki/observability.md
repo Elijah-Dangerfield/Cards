@@ -15,6 +15,7 @@ green, close the tab.**
 | Downcard — Business | Revenue (`dc-revenue`) | Real money only: $, % payers, per-pack breakdowns (pinned prod) |
 | Downcard — Engineering | Infra (`dc-infra`) | Backend/DB health: Fly machine, Supabase, RED, memory/OOM |
 | Downcard — Engineering | Game Server Pipeline (`cards-gameplay`) | Turn-processing internals from Tempo traces |
+| Downcard — Engineering | Performance (`dc-perf`) | Is the app smooth, and which screen is not? Jank rate and worst frame per screen from `app.jank` (JankStats), with abnormal exits as the outcome they predict. **Android only** — iOS has no frame-timing API and reports nothing here. **Empty until a build carrying JankStats reaches prod**; the "Screens reporting" stat is the tell (0 = no such build yet, not a smooth app) |
 | Downcard — Engineering | Billing Health (`dc-billing-health`) | Chip-purchase recovery pipeline: stuck purchases with age, mismatch rate, grant-on-replay, refunds, wedged escalations, retry distribution, sliceable by reason |
 
 ## Conventions
