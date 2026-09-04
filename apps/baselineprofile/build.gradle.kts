@@ -76,10 +76,18 @@ android {
 }
 
 baselineProfile {
-    managedDevices += "pixel6Api34"
-    // Never silently fall back to whatever happens to be plugged in: a profile
-    // captured on an unknown device is not reproducible.
-    useConnectedDevices = false
+    // `-Pcards.benchmark.useConnectedDevice=true` runs against an emulator or
+    // phone you started yourself, so you can WATCH the journey instead of
+    // inferring it from a failure string. The managed device is headless, which
+    // is right for CI and miserable for debugging.
+    //
+    // Off by default: a profile captured on whatever happened to be plugged in
+    // is not reproducible, and that is not a mistake worth making silently.
+    val useConnected =
+        providers.gradleProperty("cards.benchmark.useConnectedDevice").orNull == "true"
+
+    if (!useConnected) managedDevices += "pixel6Api34"
+    useConnectedDevices = useConnected
 }
 
 kotlin {
