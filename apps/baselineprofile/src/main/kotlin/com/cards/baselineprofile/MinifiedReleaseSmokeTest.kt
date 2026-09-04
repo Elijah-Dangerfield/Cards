@@ -52,8 +52,7 @@ class MinifiedReleaseSmokeTest {
         // Reaching Home at all means the DI graph built and the start
         // destination resolved — the first thing R8 could have broken.
         check(device.wait(Until.hasObject(By.text(PRACTICE)), LAUNCH_TIMEOUT_MS) == true) {
-            "Minified app never reached Home. Check the keep rules for the DI " +
-                "entry point and the navigation routes."
+            "Never reached Home.\n" + describeScreen()
         }
 
         device.tapRequired(PRACTICE)
@@ -63,14 +62,34 @@ class MinifiedReleaseSmokeTest {
         // the table projection rendered. That is navigation, serialization and
         // the engine all surviving obfuscation.
         check(device.wait(Until.hasObject(By.textContains(FOLD)), TABLE_TIMEOUT_MS) == true) {
-            "Minified app reached table setup but never dealt. Most likely a " +
-                "@Serializable model or route was renamed — check mapping.txt."
+            "Reached table setup but never dealt.\n" + describeScreen()
         }
 
         val anyAction = By.text(Pattern.compile("$CHECK|$CALL.*|$FOLD"))
         check(device.tapMatching(anyAction, ACTION_TIMEOUT_MS)) {
-            "The table dealt but offered no action. The LegalActions projection " +
-                "likely did not survive minification."
+            "The table dealt but offered no action.\n" + describeScreen()
+        }
+    }
+
+    /**
+     * Everything readable on screen when an assertion failed.
+     *
+     * Without this a failure says only "the thing I wanted was not there",
+     * which cannot distinguish an R8 breakage from an error dialog, a spinner,
+     * a sign-in wall, or a step of the journey nobody knew existed. Those need
+     * completely different fixes, and guessing between them costs a
+     * fifteen-minute emulator run per guess.
+     */
+    private fun describeScreen(): String {
+        val visible = device.findObjects(By.textContains(""))
+            .mapNotNull { it.text?.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(MAX_REPORTED_LINES)
+        return if (visible.isEmpty()) {
+            "Nothing with text on screen — likely a blank or still-loading window."
+        } else {
+            "On screen:\n" + visible.joinToString("\n") { "  - $it" }
         }
     }
 
@@ -104,6 +123,9 @@ class MinifiedReleaseSmokeTest {
         const val CHECK = "Check"
         const val CALL = "Call"
         const val FOLD = "Fold"
+
+        /** Enough to name the screen without pasting a whole hierarchy dump. */
+        const val MAX_REPORTED_LINES = 25
 
         const val LAUNCH_TIMEOUT_MS = 30_000L
         const val TABLE_TIMEOUT_MS = 30_000L
