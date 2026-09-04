@@ -139,6 +139,16 @@ The prime suspect was right: it was the alpha. Bumping detekt `2.0.0-alpha.5` ->
 
 It found **19 instances** on its first run, seven of them in files that had just been swept by hand for exactly this pattern. All 19 are cleared — see `3ff898ba`. One deliberate suppression remains, in `Header.elevateOnScroll`, with its reason in the code: `Modifier.shadow` has no lambda form.
 
+## ENG-68 [P2] — Stop treating 429 as an error on background syncers
+
+**Problem:** `isExpectedClientError` allowlists only 401/403 (`ExpectedClientErrors.kt:30`), so a 429 from a background syncer becomes `KLog.e` and a Sentry event. Rate limiting is normal backpressure, not a failure. Worse, `UserScopedSyncCoordinator`'s `RunWhenRetry.exponential()` ladder (`RunWhen.kt:101-108`) does not skip 4xx the way the HTTP retry does (`RetryPolicy.kt:168-173`), so one exhausted bucket costs six more requests and six more Sentry events per foreground — it retries against a bucket it already knows is empty.
+
+**Acceptance:** A 429 on a background sync is a breadcrumb, not an error event, and the coordinator does not retry into a bucket it just exhausted.
+
+**Hints:** Same argument ENG-34/ENG-35 already made for offline and 403. User-facing routes already map 429 sensibly (`MatchmakingRepositoryImpl.kt:49`, `FriendRepositoryImpl.kt:124`); it is only the background syncers that do not. The bucket mis-assignment that triggered this is fixed (equipment sync moved from the 30/hr profile bucket to the 480/hr progression one), so the symptom is gone — but the handling is still wrong and the next mis-sized bucket will look identical.
+
+**Not user-affecting today:** over Loki's full 30-day retention the server returned 429 twelve times, all `deployment_environment=dev`, zero in prod. Prod served 583 equipment syncs in 14 days cleanly.
+
 ## ENG-67 [P1] — Upload the R8 mapping to Sentry
 
 **Problem:** Release builds are minified as of 2026-09-04, and nothing uploads `mapping.txt` to Sentry. Play gets it automatically from the AAB; Sentry does not. Exception *class* names stay readable (`-keepnames class * extends java.lang.Throwable`) and line numbers are kept, but **method names inside every stack frame will be obfuscated** in the Sentry inbox from the first minified release onward. That is a triage tax on exactly the reports that matter most.
