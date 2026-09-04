@@ -10,7 +10,7 @@ This doc covers how accounts end (deletion, orphan sweep) and the trade-offs we 
 
 - No support inbox yet. The "I deleted by mistake, can you restore?" email has no recipient, so a 30-day window adds no user-visible value in V1.
 - No EU users yet, so GDPR's right-to-erasure isn't applying pressure.
-- The migration path to soft-delete is cheap when it's needed: add `deleted_at TIMESTAMPTZ` to `profiles`, flip `DELETE /v1/me` to `UPDATE profiles SET deleted_at = now()`, add a daily sweep endpoint that hard-deletes rows older than 30 days (mirrors the existing `sweep-messages.yml` scheduled-workflow pattern).
+- The migration path to soft-delete is cheap when it's needed: add `deleted_at TIMESTAMPTZ` to `profiles`, flip `DELETE /v1/me` to `UPDATE profiles SET deleted_at = now()`, add a daily sweep endpoint that hard-deletes rows older than 30 days (mirrors the existing `sweep-messages-prod.yml` scheduled-workflow pattern).
 
 **Triggers to revisit:**
 

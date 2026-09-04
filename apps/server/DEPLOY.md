@@ -299,7 +299,7 @@ grows.
 filters expired rows out so a stale notice never reaches the client
 even if the sweep cron is lagging.
 
-The nightly cron `Sweep expired messages (dev)` calls
+The nightly cron `Sweep expired messages (prod)` calls
 `POST /v1/admin/sweep-expired-messages` at 04:23 UTC and purges:
   - Every acked row (regardless of age).
   - Unacked rows whose `expires_at` has passed.
@@ -311,8 +311,20 @@ the workflow surfaces them in the run summary.
 
 ### Rotating `ADMIN_API_TOKEN`
 
-If the token leaks, rotate **both sides at once** — anything mismatched
-breaks the sweeps. From the repo root:
+Each environment has its own token, and both sides of a pair must move
+at once — a mismatch breaks that environment's admin workflows. Rotate
+whichever leaked; there is no reason to touch the other.
+
+Production (this is the one the nightly sweep uses):
+
+```bash
+NEW_TOKEN="$(openssl rand -hex 32)"
+fly secrets set ADMIN_API_TOKEN="$NEW_TOKEN" -a cards-server-prod
+gh secret set CARDS_ADMIN_API_TOKEN_PROD --body "$NEW_TOKEN"
+unset NEW_TOKEN
+```
+
+Dev:
 
 ```bash
 NEW_TOKEN="$(openssl rand -hex 32)"
@@ -323,8 +335,8 @@ unset NEW_TOKEN
 
 The `fly secrets set` triggers a redeploy; the GitHub secret update
 takes effect on the next workflow run. Verify by manually triggering
-`Sweep disconnected room members` from the Actions tab — a 401 means
-the values drifted.
+`Sweep expired messages (prod)` from the Actions tab — a 401 means the
+values drifted.
 
 ## Multiplayer (Phase 4.1 — lobby + presence)
 
