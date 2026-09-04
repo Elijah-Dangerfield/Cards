@@ -2,6 +2,7 @@ package com.dangerfield.cards
 
 import com.dangerfield.cards.debug.StrictModeLog
 import com.dangerfield.cards.libraries.telemetry.impl.JankMonitor
+import com.dangerfield.cards.libraries.telemetry.impl.StartupReporter
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.InAppMessageManager
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
@@ -42,6 +43,13 @@ interface AppComponent {
      * binds a no-op (see [JankMonitor]).
      */
     val jankMonitor: JankMonitor
+
+    /**
+     * Cold-start duration, reported once per process when the first usable
+     * frame lands. Driven from the platform entry point, since only it knows
+     * when that frame was actually drawn.
+     */
+    val startupReporter: StartupReporter
 
     /** Debug-only StrictMode violation log, surfaced through the shake menu. */
     val strictModeLog: StrictModeLog

@@ -1,9 +1,11 @@
 package com.dangerfield.cards
 
+import android.view.ViewTreeObserver
 import android.widget.Toast
 import androidx.lifecycle.lifecycleScope
 import com.dangerfield.cards.libraries.core.BuildInfo
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import android.content.Intent
 import android.os.Bundle
@@ -68,6 +70,45 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             App(appComponent)
+        }
+
+        reportStartupWhenReady()
+    }
+
+    /**
+     * Closes the cold-start measurement at the moment the player can actually
+     * use the app, and tells the platform the same thing.
+     *
+     * The timing is the whole point. [AppViewModel.isReady] is when the start
+     * destination is resolved and the splash condition lets go — but the frame
+     * behind the splash has not been drawn yet at that instant. `onPreDraw`
+     * fires immediately *before* that frame, so posting from inside it lands
+     * just after the pixels are up. Measuring at `isReady` instead would
+     * under-report by however long the first real composition takes, which is
+     * the slowest frame of the launch and the one most worth counting.
+     *
+     * [reportFullyDrawn] hands that same instant to the platform, which is what
+     * Play Console grades "fully drawn" startup on. Without it Play measures to
+     * the first frame — the splash — and grades the app on a number no player
+     * ever experiences.
+     */
+    private fun reportStartupWhenReady() {
+        lifecycleScope.launch {
+            appComponent.appViewModel.isReady.first { it }
+
+            val decorView = window.decorView
+            decorView.viewTreeObserver.addOnPreDrawListener(
+                object : ViewTreeObserver.OnPreDrawListener {
+                    override fun onPreDraw(): Boolean {
+                        decorView.viewTreeObserver.removeOnPreDrawListener(this)
+                        decorView.post {
+                            reportFullyDrawn()
+                            appComponent.startupReporter.onAppReady()
+                        }
+                        return true
+                    }
+                },
+            )
         }
     }
 

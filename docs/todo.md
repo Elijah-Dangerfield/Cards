@@ -159,6 +159,20 @@ The hand-rolled `upload-proguard` step in `release.yml` is deleted. It could nev
 
 **Still to confirm:** read the frames on a real Sentry issue from the first minified release. An upload that "succeeded" proves nothing on its own — that is exactly how the old step looked healthy for months.
 
+## ENG-69 — Cold-start timing on dc-perf — DONE 2026-09-04, empty until a build ships
+
+`app.startup`, one event per process, carrying `startup_ms` from OS process creation to the first frame a player can act on. Four stats and two timeseries on `dc-perf` under "How fast does it start?".
+
+Measured from process creation rather than from our first line of Kotlin, because a large share of a cold start (process fork, DEX loading, Application init) happens before any of our code runs — and that is exactly the part a Baseline Profile is meant to improve. A timer started later would have reported "no change" after the change that mattered most.
+
+Two things are deliberately dropped at the source rather than charted. Launches over 30s are the system having started our process in the background hours before anyone opened the app; they are real elapsed time and would drag every percentile somewhere meaningless. Repeat calls within a process are Activity recreations (rotation, theme change), which draw a fresh first frame that is not a startup.
+
+`MainActivity` also calls `reportFullyDrawn()` at the same instant, which is a separate win: Play Console grades "fully drawn" startup on that call, and without it Play measures to the splash frame — a number no player experiences.
+
+**Android only.** iOS has no readable process-start clock: `sysctl(KERN_PROC)` is the only source, Kotlin/Native does not expose `kinfo_proc` for Apple targets, and it is a required-reason API besides. The correct iOS source is MetricKit's `MXAppLaunchMetric.histogrammedTimeToFirstDraw`, which we can reach through the existing `MetricKitExitReport` seam. It should land under its own event name — it is a daily histogram, not a single launch. Reasoning is in `IosProcessStartTimeProvider`'s KDoc.
+
+**Still to confirm:** the panels have never rendered against real data. The query shapes were validated against `app.backgrounded`, which proved the Loki `by (...)` gotcha now written up in `docs/wiki/observability.md`, but "the query is valid" is not "the number is right". Check the median against a stopwatch on a real cold start once a build lands.
+
 ## ENG-53 — Turn on R8 obfuscation — DONE 2026-09-04, needs a device check before release
 
 `isMinifyEnabled` and `isShrinkResources` are on for release, with rules in `apps/compose/proguard-rules.pro`. Play's "Obfuscation (1%)" warning and its Feb 2027 deadline were the trigger; shrinking and optimisation come along with it.

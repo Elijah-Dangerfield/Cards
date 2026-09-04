@@ -15,7 +15,7 @@ green, close the tab.**
 | Downcard — Business | Revenue (`dc-revenue`) | Real money only: $, % payers, per-pack breakdowns (pinned prod) |
 | Downcard — Engineering | Infra (`dc-infra`) | Backend/DB health: Fly machine, Supabase, RED, memory/OOM |
 | Downcard — Engineering | Game Server Pipeline (`cards-gameplay`) | Turn-processing internals from Tempo traces |
-| Downcard — Engineering | Performance (`dc-perf`) | Is the app smooth, and which screen is not? Jank rate and worst frame per screen from `app.jank` (JankStats), with abnormal exits as the outcome they predict. **Android only** — iOS has no frame-timing API and reports nothing here. **Empty until a build carrying JankStats reaches prod**; the "Screens reporting" stat is the tell (0 = no such build yet, not a smooth app) |
+| Downcard — Engineering | Performance (`dc-perf`) | Is the app smooth, how fast does it start, and which screen is at fault? Jank rate and worst frame per screen from `app.jank` (JankStats); cold-start p50/p90 from `app.startup`, measured from OS process creation; abnormal exits as the outcome both predict. **Android only** — iOS has neither a frame-timing API nor a readable process-start clock, and reports nothing here. **Empty until a build carrying them reaches prod**; the "Screens reporting" and "Cold starts recorded" stats are the tell (0 = no such build yet, not a fast, smooth app) |
 | Downcard — Engineering | Billing Health (`dc-billing-health`) | Chip-purchase recovery pipeline: stuck purchases with age, mismatch rate, grant-on-replay, refunds, wedged escalations, retry distribution, sliceable by reason |
 
 ## Conventions
@@ -131,6 +131,14 @@ identifier and Postgres rejects the whole query (`SQLSTATE 42601`), taking the p
 **Grafana re-sorts `panels[]` by `gridPos` when a dashboard is saved.** Array indices from before a
 save are not valid after it. Re-read `$.panels[*].title` immediately before every patch, or you
 will edit a different panel than you meant to.
+
+**An unwrapped Loki range aggregation keeps every structured-metadata label, so it must carry an
+explicit `by (...)`.** `quantile_over_time(0.5, {...} | unwrap startup_ms [7d])` looks like it
+returns one number and returns one series *per `session_id` and `install_id`* — 255 of them on a
+week of real traffic. A `stat` panel then reduces whichever series Grafana happens to pick and shows
+a plausible, meaningless value, which is far worse than an error. Add `by (service_name)` for a
+single overall figure, or `by (device_class)` / `by (screen)` for a real breakdown. This does not
+apply to the `sum(sum_over_time(...))` form, where the outer `sum` already collapses the labels.
 
 ## Durable vs ephemeral panels
 
