@@ -34,6 +34,35 @@ Nightly automation uses [`docs/agent/`](docs/agent/) for prompts and the ephemer
 xcodebuild -project apps/ios/iosApp.xcodeproj -scheme iOS -sdk iphonesimulator  # iOS full
 ```
 
+### Baseline Profile
+
+Release builds ship a Baseline Profile — a list of classes and methods ART
+compiles ahead of time at install, so a player's first run of a screen is not
+interpreted. It is committed at
+`apps/compose/src/androidRelease/generated/baselineProfiles/` and consumed at
+build time; nothing regenerates it automatically during a release.
+
+```shell
+# Regenerate. Boots its own throwaway emulator — no device needed. ~6 min.
+./gradlew :apps:compose:generateBaselineProfile -Pcards.targetEnv=dev
+
+# Watch it run on an emulator/phone you started yourself, for debugging.
+./gradlew :apps:baselineprofile:connectedNonMinifiedReleaseAndroidTest \
+  -Pcards.targetEnv=dev -Pcards.benchmark.useConnectedDevice=true
+
+# R8 smoke test: drives the MINIFIED app to a dealt table. Run before a release.
+./gradlew :apps:baselineprofile:pixel6Api34BenchmarkReleaseAndroidTest -Pcards.targetEnv=dev
+```
+
+**`-Pcards.targetEnv=dev` is not optional.** Generation runs a *release* variant,
+and release builds point at **prod**. Without it you mint real accounts in the
+production Supabase and put synthetic jank on the prod dashboards.
+
+A monthly GitHub Action (`.github/workflows/baseline-profile.yml`) regenerates it
+and opens a PR; `workflow_dispatch` runs it on demand. Review the rule counts in
+that PR — a profile that quietly loses rules means the journey broke, not that
+the app shrank.
+
 ## Module Structure
 
 ```
