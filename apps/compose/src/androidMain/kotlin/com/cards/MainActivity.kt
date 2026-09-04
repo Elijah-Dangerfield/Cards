@@ -42,7 +42,11 @@ class MainActivity : ComponentActivity() {
         // a path that only exists when an explicit benchmark intent arrives AND
         // the build points at dev, so a real launch never reaches it.
         if (BenchmarkHooks.isRequested(intent)) {
-            kotlinx.coroutines.runBlocking { BenchmarkHooks.apply(intent, appComponent) }
+            // Only the local flag blocks, and only briefly. Sign-in runs off the
+            // launch path: a bots table needs no account, so waiting on the
+            // network here would stall the activity for nothing.
+            BenchmarkHooks.applyStartDestination(appComponent)
+            BenchmarkHooks.signInIfCredentialsProvided(intent, appComponent)
         }
 
         // Keep the splash screen on until AppViewModel has determined the destination.

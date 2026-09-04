@@ -5,6 +5,12 @@ import com.dangerfield.cards.AndroidAppComponent
 import com.dangerfield.cards.libraries.core.AppEnvironment
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 
 /**
  * Lets the Baseline Profile generator put the app into a known state without
@@ -60,32 +66,53 @@ object BenchmarkHooks {
             intent?.getBooleanExtra(EXTRA_SKIP_ONBOARDING, false) == true
 
     /**
-     * Signs in if credentials were supplied, then marks onboarding complete so
-     * the app opens on Home.
+     * Marks onboarding complete, blocking only for as long as a local cache
+     * write takes.
      *
-     * Suspending and awaited by the caller on purpose: `AppViewModel` reads
-     * `hasUserOnboarded` once, in its `init`, to pick the start destination. A
-     * write that lands after that read is a write that does nothing, and the
-     * generator would silently walk onboarding anyway and produce a profile
-     * that looked fine.
+     * This *has* to happen before `AppViewModel`'s `init` reads
+     * `hasUserOnboarded` to pick the start destination — a write that lands
+     * after that read does nothing, and the generator silently walks onboarding
+     * anyway and produces a profile that looks fine.
+     *
+     * **Nothing network-bound may go in here.** An earlier version also awaited
+     * sign-in, which put a network round trip on the main thread inside
+     * `onCreate`: the activity never finished launching, no frame rendered, and
+     * the benchmark failed with a blank screen and "unable to confirm activity
+     * launch completion". The timeout is the belt to that braces — a wedged
+     * cache write should fail the benchmark, never hang the app.
      */
-    suspend fun apply(intent: Intent, component: AndroidAppComponent) {
-        val email = intent.getStringExtra(EXTRA_EMAIL)
-        val password = intent.getStringExtra(EXTRA_PASSWORD)
-
-        if (!email.isNullOrBlank() && !password.isNullOrBlank()) {
-            // Catching, not try/catch: house rule, and it keeps a cancelled
-            // coroutine from being swallowed as a sign-in failure.
-            Catching { component.authRepository.signInWithEmail(email, password) }
-                .onFailure {
-                    // Never fatal. A profile captured as a guest is worth more
-                    // than no profile, and the credentials may simply be absent
-                    // on a contributor's machine.
-                    KLog.d { "Benchmark sign-in failed; continuing as guest" }
+    fun applyStartDestination(component: AndroidAppComponent) {
+        Catching {
+            runBlocking {
+                withTimeout(CACHE_WRITE_TIMEOUT_MS) {
+                    component.appCache.update { it.copy(hasUserOnboarded = true) }
                 }
-        }
-
-        component.appCache.update { it.copy(hasUserOnboarded = true) }
-        KLog.d { "Benchmark hooks applied: starting on Home" }
+            }
+        }.onFailure { KLog.d { "Benchmark: could not set onboarded flag; walking onboarding" } }
     }
+
+    /**
+     * Signs in as the reserved account, off the launch path.
+     *
+     * Fire-and-forget on purpose. A bots table is served by `LocalBotsSession`
+     * and needs no account at all, so sign-in is a convenience — it keeps the
+     * generator from minting a throwaway account per run. Making launch wait on
+     * it buys nothing and costs the whole benchmark.
+     */
+    fun signInIfCredentialsProvided(intent: Intent, component: AndroidAppComponent) {
+        val email = intent.getStringExtra(EXTRA_EMAIL) ?: return
+        val password = intent.getStringExtra(EXTRA_PASSWORD) ?: return
+        if (email.isBlank() || password.isBlank()) return
+
+        // Its own scope rather than the app graph's: this is benchmark-only
+        // work and has no business outliving or interfering with app-scoped
+        // coroutines. Nothing awaits it, so it is deliberately unstructured.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            Catching { component.authRepository.signInWithEmail(email, password) }
+                .onFailure { KLog.d { "Benchmark sign-in failed; continuing as guest" } }
+        }
+    }
+
+    /** A local cache write. Anything near this is already pathological. */
+    private const val CACHE_WRITE_TIMEOUT_MS = 3_000L
 }
