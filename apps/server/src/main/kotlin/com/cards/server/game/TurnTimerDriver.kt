@@ -3,6 +3,8 @@ package com.dangerfield.cards.server.game
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import com.dangerfield.cards.server.plugins.SpanAttrs
+import com.dangerfield.cards.server.plugins.withRootSpan
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -93,7 +95,17 @@ class TurnTimerDriver(
             if (canCheck) PlayerIntent.Check(acting) else PlayerIntent.Fold(acting)
         val nonce = "timeout:${session.id}:$handNumber:$acting:${live.street}:$armedAtSequence"
 
-        val result = session.applyIntent(playerId, intent, nonce)
+        // Rooted for the same reason as bot_action: a timeout auto-act
+        // originates here, so the trace should start here.
+        val result = withRootSpan(
+            name = "turn_timeout_action",
+            configure = {
+                setAttribute(SpanAttrs.IntentType, intent::class.simpleName ?: "Unknown")
+                setAttribute(SpanAttrs.SessionId, session.id.toString())
+            },
+        ) {
+            session.applyIntent(playerId, intent, nonce)
+        }
         if (result is IntentResult.Rejected) {
             // Expected only on a benign race (the player acted just as the timer
             // fired). Debug so a genuinely wedged seat is still discoverable.

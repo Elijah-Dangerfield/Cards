@@ -185,6 +185,127 @@ class TelemetryTest {
     }
 
     @Test
+    fun withRootSpan_startsANewTrace_insteadOfChainingOntoTheAmbientOne() = runTest {
+        // The prod symptom this guards: one WebSocket upgrade span stays
+        // current for the life of the socket, and the bot / turn-timer
+        // drivers share a Dispatchers.Default scope across every room. Both
+        // leak an ambient context into work that is its own unit — we ended
+        // up with a single trace spanning six rooms, several users and hours,
+        // permanently "root span not yet received".
+        withSpan("ambient_socket_span") {
+            withRootSpan("rooted_action") { }
+        }
+        flushSpans()
+
+        val ambient = exporter.finishedSpanItems.single { it.name == "ambient_socket_span" }
+        val rooted = exporter.finishedSpanItems.single { it.name == "rooted_action" }
+        assertTrue(
+            rooted.traceId != ambient.traceId,
+            "a rooted action must start its own trace, not inherit the ambient one",
+        )
+        assertTrue(
+            rooted.parentSpanContext.isValid.not(),
+            "a rooted action must have no parent span; got ${rooted.parentSpanContext}",
+        )
+    }
+
+    @Test
+    fun withRootSpan_keepsBaggageCorrelationIds() = runTest {
+        // Re-rooting must drop the parent span and nothing else. Baggage
+        // carries session_id / install_id, which is the only thing joining a
+        // Tempo trace to the same session in Sentry and Loki.
+        val context = Baggage.current().toBuilder()
+            .put("session_id", "sess-xyz")
+            .put("install_id", "inst-abc")
+            .build()
+            .storeInContext(Context.current())
+
+        withContext(context.asContextElement()) {
+            withSpan("correlated_ambient") {
+                withRootSpan("correlated_root") {
+                    withSpan("correlated_child") { }
+                }
+            }
+        }
+        flushSpans()
+
+        listOf("correlated_root", "correlated_child").forEach { name ->
+            val span = exporter.finishedSpanItems.single { it.name == name }
+            assertEquals("sess-xyz", span.attributes.get(AttributeKey.stringKey("session_id")), "$name session_id")
+            assertEquals("inst-abc", span.attributes.get(AttributeKey.stringKey("install_id")), "$name install_id")
+        }
+    }
+
+    @Test
+    fun withRootSpan_stillParentsItsOwnChildren() = runTest {
+        withRootSpan("root_action") {
+            withSpan("nested_stage") { }
+        }
+        flushSpans()
+
+        val root = exporter.finishedSpanItems.single { it.name == "root_action" }
+        val nested = exporter.finishedSpanItems.single { it.name == "nested_stage" }
+        assertEquals(root.spanContext.spanId, nested.parentSpanContext.spanId)
+        assertEquals(root.traceId, nested.traceId, "the stage breakdown must stay in one trace")
+    }
+
+    @Test
+    fun gameSession_startHand_nestsUnderItsOriginator() = runTest {
+        val session = GameSession(random = Random(seed = 42))
+        val alice = SeatOccupant(seatIndex = 0, userId = "alice", displayName = "Alice", isBot = false)
+        val bob = SeatOccupant(seatIndex = 1, userId = "bob", displayName = "Bob", isBot = false)
+
+        // Dealing a hand is never the start of a unit of work — something asked
+        // for it (a WS frame, a matchmaking auto-deal, a bot advancing the
+        // table), and that originator owns the root. Rooting here instead would
+        // strand the caller as a childless span and break "why was this deal
+        // slow?".
+        withRootSpan("matchmaking_auto_deal") {
+            session.startHand(listOf(alice, bob), RoomSettings.Default)
+        }
+        flushSpans()
+
+        val originator = exporter.finishedSpanItems.single { it.name == "matchmaking_auto_deal" }
+        val startHand = exporter.finishedSpanItems.single { it.name == "start_hand" }
+        assertEquals(originator.spanContext.spanId, startHand.parentSpanContext.spanId)
+        assertEquals(originator.traceId, startHand.traceId)
+    }
+
+    @Test
+    fun withRootSpan_linksBackToTheSpanItDetachedFrom() = runTest {
+        // Re-rooting must not make causation unanswerable. The link is what
+        // lets you get from the socket frame to the work it kicked off,
+        // without dragging that work into a trace that never ends.
+        withSpan("ambient_socket_span") {
+            withRootSpan("rooted_action") { }
+        }
+        flushSpans()
+
+        val ambient = exporter.finishedSpanItems.single { it.name == "ambient_socket_span" }
+        val rooted = exporter.finishedSpanItems.single { it.name == "rooted_action" }
+        assertEquals(
+            listOf(ambient.spanContext.spanId),
+            rooted.links.map { it.spanContext.spanId },
+            "a rooted span should link to the context it detached from",
+        )
+    }
+
+    @Test
+    fun concurrentRootedActions_doNotShareATrace() = runTest {
+        // Two rooms acting at once on the shared driver dispatcher is the case
+        // that produced the unbounded prod trace.
+        withSpan("shared_pool_context") {
+            withRootSpan("bot_action") { }
+            withRootSpan("bot_action") { }
+        }
+        flushSpans()
+
+        val traces = exporter.finishedSpanItems.filter { it.name == "bot_action" }.map { it.traceId }
+        assertEquals(2, traces.size, "expected both actions to emit a span")
+        assertEquals(2, traces.toSet().size, "each action must get its own trace id; got $traces")
+    }
+
+    @Test
     fun spansWithoutBaggage_haveNoCorrelationAttributes() = runTest {
         withSpan("no_baggage") { }
         flushSpans()
