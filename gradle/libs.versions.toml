@@ -17,6 +17,11 @@ androidx-security-crypto = "1.1.0"
 androidx-work = "2.11.2"
 # JankStats. Android-only; reports real-user frame timing per screen (ENG-63).
 androidx-metricsPerformance = "1.0.0"
+# Baseline profiles (ENG-65). The generator runs on a Gradle Managed Device, so
+# no physical hardware is needed — profile capture records which code ran, not
+# how long it took, so emulator noise is irrelevant here (unlike frame timing).
+androidx-benchmark = "1.4.1"
+androidx-uiautomator = "2.4.0"
 atomicfu = "0.32.1"
 composeMultiplatform = "1.11.0"
 compottie="2.1.0"
@@ -103,6 +108,8 @@ androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-p
 androidx-lifecycle-runtimeCompose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
 androidx-work-runtime = { module = "androidx.work:work-runtime-ktx", version.ref = "androidx-work" }
 androidx-metrics-performance = { module = "androidx.metrics:metrics-performance", version.ref = "androidx-metricsPerformance" }
+androidx-benchmark-macroJunit4 = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "androidx-benchmark" }
+androidx-uiautomator = { module = "androidx.test.uiautomator:uiautomator", version.ref = "androidx-uiautomator" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesCore" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
@@ -229,6 +236,7 @@ kotlinx-serialization-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-ser
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 androidLibrary = { id = "com.android.library", version.ref = "agp" }
+baselineProfile = { id = "androidx.baselineprofile", version.ref = "androidx-benchmark" }
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

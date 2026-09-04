@@ -1,11 +1,27 @@
 plugins {
     id("cards.application")
     id("co.touchlab.skie") version "0.10.13"
-
+    alias(libs.plugins.baselineProfile)
 }
 
 android {
     namespace = "com.dangerfield.cards"
+}
+
+/**
+ * Consume the committed Baseline Profile rather than regenerating it on every
+ * release build — generation starts an emulator and walks the app, which is
+ * minutes nobody wants in the release path.
+ *
+ * Regenerate deliberately when the app's shape changes:
+ * `./gradlew :apps:compose:generateBaselineProfile`
+ */
+baselineProfile {
+    automaticGenerationDuringBuild = false
+}
+
+dependencies {
+    baselineProfile(projects.apps.baselineprofile)
 }
 
 kotlin {
