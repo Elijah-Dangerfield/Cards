@@ -177,3 +177,55 @@ internal suspend inline fun <T> withSpan(
         span.end()
     }
 }
+
+/**
+ * Like [withSpan], but starts a **new trace** instead of chaining onto
+ * whatever OTel context happens to be current.
+ *
+ * Gameplay entry points (one player action, one dealt hand) are the unit
+ * of work we want to reason about in Tempo, and each is its own trace.
+ * Inheriting the ambient context instead gets us the opposite: a
+ * WebSocket upgrade span stays current for the life of the socket, so
+ * every frame on that socket nests under a root that only ends when the
+ * player disconnects. Worse, the bot and turn-timer drivers share one
+ * `Dispatchers.Default` scope across every room, so a context left on a
+ * pool thread is inherited by whichever room lands on it next. Both
+ * failure modes produce the same symptom we saw in prod: one unbounded
+ * trace, hours long, spanning unrelated rooms and users, permanently
+ * "root span not yet received".
+ *
+ * Baggage is deliberately carried over from the current context — it
+ * holds the client correlation ids ([CORRELATION_BAGGAGE_KEYS]) that
+ * [BaggageAttributeSpanProcessor] stamps onto every span, and those must
+ * survive re-rooting or `session_id` stops joining Tempo to Sentry and
+ * Loki. Only the parent *span* is dropped.
+ */
+internal suspend inline fun <T> withRootSpan(
+    name: String,
+    crossinline configure: Span.() -> Unit = {},
+    crossinline block: suspend () -> T,
+): T {
+    val parent = Context.root().with(Baggage.current())
+    // Detach from the ambient span but keep a pointer to it. Re-rooting without
+    // this makes "what caused this?" unanswerable — the WS-triggered auto-deal
+    // could no longer reach the hand it dealt. A link says "related to" without
+    // pulling this work back into a trace that never ends, which is the same
+    // trick the ws_send fan-out already uses to point at its causing action.
+    val cause = Span.current().spanContext.takeIf { it.isValid }
+    val span = serverTracer.spanBuilder(name)
+        .setParent(parent)
+        .apply { cause?.let { addLink(it) } }
+        .startSpan()
+        .apply(configure)
+    return try {
+        withContext(parent.with(span).asContextElement()) { block() }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (t: Throwable) {
+        span.setStatus(StatusCode.ERROR, t.message ?: t::class.java.simpleName)
+        span.recordException(t)
+        throw t
+    } finally {
+        span.end()
+    }
+}
