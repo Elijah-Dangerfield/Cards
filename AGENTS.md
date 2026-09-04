@@ -289,6 +289,12 @@ The `Set<AutoInit>` is resolved at app start (`CardsApplication.onCreate` on And
 
 Every user-facing screen composable needs `@Preview` coverage. Without it, iterating means rebuild → reinstall → navigate → set up state by hand, every change. With previews, Studio renders the screen instantly across states.
 
+**Use `org.jetbrains.compose.ui.tooling.preview.Preview`, and ignore the deprecation warning.**
+
+The compiler deprecates it and points at `androidx.compose.ui.tooling.preview.Preview`. Do not take that advice. On Compose Multiplatform 1.11 the androidx annotation exists only for Android and JVM: the native artifact (`components-ui-tooling-preview`, `library-iosSimulatorArm64Main-1.11.0.klib`) ships only the JetBrains package. Swapping the import compiles cleanly on Android, passes every unit test, and **breaks the iOS build** — which is a failure nothing in CI's JVM tests will catch for you.
+
+This has been attempted and reverted once (`aec14b5d`). Re-check the native klib's contents before trying again on a newer Compose version, and change all ~500 previews or none.
+
 **The rules:**
 
 1. **Every public screen-level composable** in a `:features:*:impl` module must have at least one `@Preview`. New screens land with previews in the same PR.
