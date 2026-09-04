@@ -147,7 +147,9 @@ It found **19 instances** on its first run, seven of them in files that had just
 
 **Hints:** Add `io.sentry.android.gradle` (5.8.0) to `:apps:compose`. **Set `autoInstallation { enabled = false }`** — the plugin's default is to add the `sentry-android` SDK, and this app already uses the Kotlin Multiplatform SDK (`sentryKmp`); two SDKs in one process is the failure to avoid. `SENTRY_AUTH_TOKEN` already exists as a repo secret. The org/project are the same ones `dc-pulse` reads. Verify by forcing a crash in a release build and checking the frames in Sentry, not by checking the upload succeeded — an upload with a mismatched build UUID succeeds and deobfuscates nothing.
 
-**Sequencing:** after ENG-53's device check. Do not stack another release-path plugin on top of an R8 config that has not yet been proven to run.
+**Sequencing: this blocks the first minified release, it is not a follow-up to it.** The moment a minified build ships, every Sentry frame arrives with obfuscated method names — exactly when reading them matters most. Land it after ENG-53's device check and before any release goes out.
+
+The only reasons not to do it in the same change as R8: the plugin makes `SENTRY_AUTH_TOKEN` a hard requirement of the release build, which breaks a local release build for anyone without it (set `ignoreMissingAuthToken`, or gate the plugin on the token being present), and debugging two new release-path things at once is harder than one.
 
 ## ENG-53 — Turn on R8 obfuscation — DONE 2026-09-04, needs a device check before release
 
