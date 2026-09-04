@@ -229,7 +229,7 @@ class BaselineProfileGenerator {
 private typealias MacrobenchmarkScopeLike = androidx.benchmark.macro.MacrobenchmarkScope
 
 /** Taps an exact-text element, returning whether it was there. */
-private fun UiDevice.tap(text: String, timeoutMs: Long): Boolean =
+internal fun UiDevice.tap(text: String, timeoutMs: Long): Boolean =
     tapMatching(By.text(text), timeoutMs)
 
 /**
@@ -273,7 +273,7 @@ private const val RETRY_FIND_MS = 500L
  * The alternative — skipping quietly — still emits a profile, just a worse one,
  * and nobody would notice for months.
  */
-private fun UiDevice.tapRequired(text: String, timeoutMs: Long = 15_000L) {
+internal fun UiDevice.tapRequired(text: String, timeoutMs: Long = 15_000L) {
     check(tap(text, timeoutMs)) {
         "Baseline profile journey stalled: no \"$text\" after ${timeoutMs}ms. " +
             "If the copy changed, update BaselineProfileGenerator to match."

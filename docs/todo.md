@@ -139,6 +139,16 @@ The prime suspect was right: it was the alpha. Bumping detekt `2.0.0-alpha.5` ->
 
 It found **19 instances** on its first run, seven of them in files that had just been swept by hand for exactly this pattern. All 19 are cleared — see `3ff898ba`. One deliberate suppression remains, in `Header.elevateOnScroll`, with its reason in the code: `Modifier.shadow` has no lambda form.
 
+## ENG-67 [P1] — Upload the R8 mapping to Sentry
+
+**Problem:** Release builds are minified as of 2026-09-04, and nothing uploads `mapping.txt` to Sentry. Play gets it automatically from the AAB; Sentry does not. Exception *class* names stay readable (`-keepnames class * extends java.lang.Throwable`) and line numbers are kept, but **method names inside every stack frame will be obfuscated** in the Sentry inbox from the first minified release onward. That is a triage tax on exactly the reports that matter most.
+
+**Acceptance:** A Sentry issue from a release build shows real method names in its frames.
+
+**Hints:** Add `io.sentry.android.gradle` (5.8.0) to `:apps:compose`. **Set `autoInstallation { enabled = false }`** — the plugin's default is to add the `sentry-android` SDK, and this app already uses the Kotlin Multiplatform SDK (`sentryKmp`); two SDKs in one process is the failure to avoid. `SENTRY_AUTH_TOKEN` already exists as a repo secret. The org/project are the same ones `dc-pulse` reads. Verify by forcing a crash in a release build and checking the frames in Sentry, not by checking the upload succeeded — an upload with a mismatched build UUID succeeds and deobfuscates nothing.
+
+**Sequencing:** after ENG-53's device check. Do not stack another release-path plugin on top of an R8 config that has not yet been proven to run.
+
 ## ENG-53 — Turn on R8 obfuscation — DONE 2026-09-04, needs a device check before release
 
 `isMinifyEnabled` and `isShrinkResources` are on for release, with rules in `apps/compose/proguard-rules.pro`. Play's "Obfuscation (1%)" warning and its Feb 2027 deadline were the trigger; shrinking and optimisation come along with it.
