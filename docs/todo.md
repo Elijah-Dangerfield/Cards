@@ -109,22 +109,6 @@ So a stability config file or a move to `kotlinx.collections.immutable` would ha
 - A `ComposeStabilityTest` was written to assert the skipping behaviour directly, then deleted: it exercised Compose's own comparison semantics rather than any of our code, so it could not fail from a change we made. Guarding a framework guarantee is maintenance, not coverage.
 - `-Pcards.composeReports=true` generates the compiler's stability/skippability reports into `build/compose-reports/`. See `build-logic/.../ComposeCompiler.kt` for how to read them, **including the warning not to treat "unstable" in that report as a cost.** Reading it that way is what produced this ticket.
 
-## ENG-63 [P1] — Report real-user jank to Grafana with JankStats
-
-**Problem:** There is no frame data anywhere. ANRs are detected only after the fact (`ApplicationExitInfo` on Android, MetricKit watchdog on iOS, both landing as `PreviousExit.Anr`), which tells you a session died and nothing about what was slow before it did. ENG-49 asks whether the RenderThread fix held, and today nothing can answer that except waiting for the ANR count not to move.
-
-**Acceptance:** `androidx.metrics:metrics-performance` reports janky frames with per-screen state attribution into the existing telemetry pipe, and a `dc-pulse` panel shows jank rate by screen over time. "Did the play screen get worse in this release" becomes a question you can look up.
-
-**Hints:** `JankStats.createAndTrack(window)` per activity; attribute state with `PerformanceMetricsState.getHolderForHierarchy(view).state?.putState("screen", route)` so frames are tagged with the route that was up. Android-only — there is no iOS equivalent, so scope it that way rather than trying to make it multiplatform. Route the records the same way `GrafanaAppEvents` already does. Be careful not to log every frame: aggregate client-side and emit a summary, or the volume will swamp Loki.
-
-## ENG-64 [P2] — StrictMode in debug builds
-
-**Problem:** Nothing catches main-thread disk or network reads during development, which is the most common cause of ANRs after the composition-phase class we just fixed.
-
-**Acceptance:** Debug builds enable a thread policy (disk reads/writes, network) and a VM policy (leaked closables, activity leaks), logging rather than crashing. Release builds are untouched.
-
-**Hints:** Roughly ten lines in the Android `Application`, guarded on `BuildConfig.DEBUG`. Expect it to surface existing violations on first run — triage them into their own items rather than blocking this on a clean slate. `penaltyLog()` first; only consider `penaltyDeath()` once it is quiet.
-
 ## ENG-65 [P2] — Baseline Profile for app startup
 
 **Problem:** No baseline profile ships, so every install runs interpreted until JIT warms up. That is real first-run jank on exactly the cold starts a new player judges the app on.
