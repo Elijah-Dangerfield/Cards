@@ -31,7 +31,7 @@ import com.dangerfield.cards.system.color.defaultColors
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import kotlinx.coroutines.delay
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds

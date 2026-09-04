@@ -24,7 +24,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.Radius
 import com.dangerfield.cards.system.clip
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Shared building blocks used by [ShopScreen] grid cells and

@@ -31,7 +31,7 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.LineHeightRatio
 import com.dangerfield.cards.system.lineHeight
 import com.dangerfield.cards.system.sp
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Typography System Guidelines

@@ -85,7 +85,7 @@ fun LevelProgressBar(
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun LevelProgressBarPreview_HalfFull() {
     PreviewContent {
@@ -93,7 +93,7 @@ private fun LevelProgressBarPreview_HalfFull() {
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun LevelProgressBarPreview_NearlyFull_Tall() {
     PreviewContent {
@@ -101,7 +101,7 @@ private fun LevelProgressBarPreview_NearlyFull_Tall() {
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun LevelProgressBarPreview_Empty() {
     PreviewContent {

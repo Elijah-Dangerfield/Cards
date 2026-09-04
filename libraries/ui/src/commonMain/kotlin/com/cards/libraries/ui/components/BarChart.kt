@@ -40,7 +40,7 @@ import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.thenIf
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.log10

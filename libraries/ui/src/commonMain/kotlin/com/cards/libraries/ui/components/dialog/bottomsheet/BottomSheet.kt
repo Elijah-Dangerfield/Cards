@@ -33,7 +33,7 @@ import com.dangerfield.cards.system.Dimension
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.ui_close_a11y
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Standard bottom-sheet shell with a drag handle (or close button),

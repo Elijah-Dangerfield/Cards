@@ -26,7 +26,7 @@ import com.dangerfield.cards.system.AppTheme
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private const val FadeInMillis = 350
 private const val FanOutMillis = 700

@@ -330,7 +330,7 @@ internal fun currentHandCategory(holeCards: List<Card>, boardCards: List<Card>):
     return HandEvaluator.evaluate(all).category
 }
 
-@androidx.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun HandRankingsCheatSheetPreview_MidHand() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -349,7 +349,7 @@ private fun HandRankingsCheatSheetPreview_MidHand() {
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun HandRankingsCheatSheetPreview_NoHandInfo() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -357,7 +357,7 @@ private fun HandRankingsCheatSheetPreview_NoHandInfo() {
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun HandRankingsCheatSheetPreview_WithRoomCode() {
     com.dangerfield.cards.libraries.ui.PreviewContent {

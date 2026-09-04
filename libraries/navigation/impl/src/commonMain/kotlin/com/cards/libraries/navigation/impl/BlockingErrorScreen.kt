@@ -25,7 +25,7 @@ import com.dangerfield.cards.system.VerticalSpacerD1000
 import com.dangerfield.cards.system.VerticalSpacerD1200
 import com.dangerfield.cards.system.VerticalSpacerD1600
 import com.dangerfield.cards.system.VerticalSpacerD500
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable

@@ -25,7 +25,7 @@ import com.dangerfield.cards.system.AppTheme
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.random.Random
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * A one-shot confetti burst that fires once on first composition: a spray of

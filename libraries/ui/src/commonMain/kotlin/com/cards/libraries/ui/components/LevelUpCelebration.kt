@@ -50,7 +50,7 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Full-screen, teal-identity celebration shown on Home when the user's

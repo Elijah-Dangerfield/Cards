@@ -23,7 +23,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.system.AppTheme
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Depleting circular ring drawn around an acting seat's avatar — the visible

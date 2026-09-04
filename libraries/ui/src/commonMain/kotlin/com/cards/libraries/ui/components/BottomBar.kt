@@ -62,7 +62,7 @@ import cards.libraries.resources.generated.resources.ui_bottom_bar_home_a11y
 import cards.libraries.resources.generated.resources.ui_bottom_bar_profile_a11y
 import cards.libraries.resources.generated.resources.ui_bottom_bar_shop_a11y
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * A tab in the [AppBottomBar]. Each item owns two composable slots —

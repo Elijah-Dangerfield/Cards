@@ -19,7 +19,7 @@ import com.dangerfield.cards.libraries.ui.system.LocalContentColor
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * An [IconButton] that carries a notification badge in its top-right corner.

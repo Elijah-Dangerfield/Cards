@@ -33,7 +33,7 @@ import com.dangerfield.cards.system.thenIf
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * A real playing card you can turn over: the [style]'d [PlayingCardBack] on

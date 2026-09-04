@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.typography.TypographyResource
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun BasicTextField(

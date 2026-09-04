@@ -6,7 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.dangerfield.cards.system.AppTheme
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import com.dangerfield.cards.libraries.ui.catalog.SWITCH_SUBTITLE
 import com.dangerfield.cards.libraries.ui.catalog.SwitchCatalogBody
 import com.dangerfield.cards.libraries.ui.catalog.CatalogPage

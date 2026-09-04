@@ -54,7 +54,7 @@ import com.dangerfield.cards.libraries.ui.system.color.animateColorResourceAsSta
 import com.dangerfield.cards.libraries.ui.components.icon.IconResource
 import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.system.AppTheme
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import com.dangerfield.cards.libraries.ui.catalog.BUTTON_SUBTITLE
 import com.dangerfield.cards.libraries.ui.catalog.ButtonCatalogBody
 import com.dangerfield.cards.libraries.ui.catalog.CatalogPage

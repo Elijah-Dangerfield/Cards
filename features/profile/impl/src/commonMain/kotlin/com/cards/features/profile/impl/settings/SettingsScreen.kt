@@ -94,7 +94,7 @@ import com.dangerfield.cards.system.VerticalSpacerD800
 import com.dangerfield.cards.system.VerticalSpacerD1100
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * App settings — the gear destination from the Profile. Holds everything

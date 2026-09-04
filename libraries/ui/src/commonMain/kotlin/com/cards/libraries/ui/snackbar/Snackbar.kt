@@ -42,7 +42,7 @@ import com.dangerfield.cards.system.color.ProvideContentColor
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.ui_close_a11y
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * The opinionated, DS-styled snackbar.

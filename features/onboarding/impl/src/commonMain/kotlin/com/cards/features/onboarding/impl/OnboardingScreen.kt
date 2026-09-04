@@ -136,7 +136,7 @@ import cards.libraries.resources.generated.resources.onboarding_welcome_title
 import cards.libraries.resources.generated.resources.ui_top_bar_back_a11y
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Four-step onboarding flow driven by [OnboardingViewModel.state.step]:

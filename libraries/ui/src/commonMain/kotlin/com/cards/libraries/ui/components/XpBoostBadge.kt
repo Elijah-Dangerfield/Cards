@@ -23,7 +23,7 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.time.Clock
 
 /**

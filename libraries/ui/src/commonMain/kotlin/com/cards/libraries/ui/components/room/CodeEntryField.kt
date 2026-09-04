@@ -151,7 +151,7 @@ private fun CodeCell(char: Char?, active: Boolean, modifier: Modifier = Modifier
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun CodeEntryFieldPreview() {
     PreviewContent(contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {

@@ -32,7 +32,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD500
 import kotlin.time.Clock
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun AchievementsScreen(

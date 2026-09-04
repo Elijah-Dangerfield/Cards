@@ -17,7 +17,7 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.core.throwIfDebug
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD800
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 const val ANNOTATED_STRING_URL_KEY = "URL"
 const val ANNOTATED_STRING_ON_CLICK_KEY = "ON_CLICK"

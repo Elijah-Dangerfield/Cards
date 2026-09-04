@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.bounceClick
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.enums.EnumEntries
 
 /**

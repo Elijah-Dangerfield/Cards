@@ -48,7 +48,7 @@ import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD300
 import com.dangerfield.cards.system.VerticalSpacerD500
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * In-game quick-buy chip-pack sheet — the non-invasive replacement for sending

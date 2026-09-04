@@ -305,7 +305,7 @@ private fun BlockingScreen(
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun AppGuardLayerPreview_Normal() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -324,7 +324,7 @@ private fun AppGuardLayerPreview_Normal() {
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun AppGuardLayerPreview_Banner() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -346,7 +346,7 @@ private fun AppGuardLayerPreview_Banner() {
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun AppGuardLayerPreview_MaintenanceBlocking() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -359,7 +359,7 @@ private fun AppGuardLayerPreview_MaintenanceBlocking() {
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun AppGuardLayerPreview_UpgradeRequired() {
     com.dangerfield.cards.libraries.ui.PreviewContent {

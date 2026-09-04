@@ -27,7 +27,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.color.ProvideContentColor
 import com.dangerfield.cards.system.typography.TypographyResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Geometry + shape constants for the "bubble that overhangs a modal's

@@ -104,7 +104,7 @@ import com.dangerfield.cards.system.HorizontalSpacerD100
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD500
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 
 @OptIn(ExperimentalComposeUiApi::class)

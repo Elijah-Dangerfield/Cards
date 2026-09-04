@@ -398,7 +398,7 @@ private fun ActionRow(
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun HowToPlaySheetPreview_MidHand() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
@@ -420,7 +420,7 @@ private fun HowToPlaySheetPreview_MidHand() {
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun HowToPlaySheetPreview_NoHand() {
     com.dangerfield.cards.libraries.ui.PreviewContent {

@@ -20,7 +20,7 @@ import com.dangerfield.cards.libraries.ui.components.achievement.MedalSize
 import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.system.VerticalSpacerD500
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Horizontal scroll of the user's most recent achievement unlocks

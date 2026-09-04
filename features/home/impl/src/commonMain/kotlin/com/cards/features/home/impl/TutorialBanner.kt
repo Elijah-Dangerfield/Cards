@@ -36,7 +36,7 @@ import com.dangerfield.cards.system.HorizontalSpacerD500
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * The "New here?" onboarding banner: a green gradient card with a mortarboard

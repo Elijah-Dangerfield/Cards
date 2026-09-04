@@ -40,7 +40,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.buildClickableText
 import com.dangerfield.cards.libraries.ui.detectAndAnnotateLinks
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 
 @NonRestartableComposable

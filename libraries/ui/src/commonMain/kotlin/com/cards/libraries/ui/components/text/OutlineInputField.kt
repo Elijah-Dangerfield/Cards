@@ -14,7 +14,7 @@ import com.dangerfield.cards.libraries.ui.FieldState.Invalid
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ErrorBehavior
 import com.dangerfield.cards.libraries.ui.components.FormField
-import androidx.compose.ui.tooling.preview.Preview
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun OutlineInputField(
