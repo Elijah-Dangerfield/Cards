@@ -149,17 +149,22 @@ It found **19 instances** on its first run, seven of them in files that had just
 
 **Not user-affecting today:** over Loki's full 30-day retention the server returned 429 twelve times, all `deployment_environment=dev`, zero in prod. Prod served 583 equipment syncs in 14 days cleanly.
 
-## ENG-67 [P1] — Upload the R8 mapping to Sentry
+## ENG-67 [P1] — Make the Sentry mapping upload actually associate
 
-**Problem:** Release builds are minified as of 2026-09-04, and nothing uploads `mapping.txt` to Sentry. Play gets it automatically from the AAB; Sentry does not. Exception *class* names stay readable (`-keepnames class * extends java.lang.Throwable`) and line numbers are kept, but **method names inside every stack frame will be obfuscated** in the Sentry inbox from the first minified release onward. That is a triage tax on exactly the reports that matter most.
+**Problem:** `release.yml` already creates a Sentry release and runs `sentry-cli upload-proguard` (`.github/workflows/release.yml:300-317`). That step has been dormant because it is guarded by `if [ -f .../mapping.txt ]` and minification was off. R8 is on now, so it will start running — and two things are wrong with it:
 
-**Acceptance:** A Sentry issue from a release build shows real method names in its frames.
+1. **Stale manifest path.** It passes `--android-manifest apps/compose/build/intermediates/merged_manifests/release/AndroidManifest.xml`. AGP writes to `merged_manifests/release/processReleaseManifest/AndroidManifest.xml` now. The file it names does not exist.
+2. **No UUID to associate with.** `upload-proguard` matches a mapping to a build via an `io.sentry.proguard-uuid` meta-data entry in the manifest. Ours has only the Sentry providers — verified by grepping a real merged manifest. Without it the mapping uploads and associates with nothing.
 
-**Hints:** Add `io.sentry.android.gradle` (5.8.0) to `:apps:compose`. **Set `autoInstallation { enabled = false }`** — the plugin's default is to add the `sentry-android` SDK, and this app already uses the Kotlin Multiplatform SDK (`sentryKmp`); two SDKs in one process is the failure to avoid. `SENTRY_AUTH_TOKEN` already exists as a repo secret. The org/project are the same ones `dc-pulse` reads. Verify by forcing a crash in a release build and checking the frames in Sentry, not by checking the upload succeeded — an upload with a mismatched build UUID succeeds and deobfuscates nothing.
+Both failures are silent: the step ends in `|| true` and the whole block is `continue-on-error: true`, which is correct for not failing a shipped release but means nobody finds out.
 
-**Sequencing: this blocks the first minified release, it is not a follow-up to it.** The moment a minified build ships, every Sentry frame arrives with obfuscated method names — exactly when reading them matters most. Land it after ENG-53's device check and before any release goes out.
+**Acceptance:** A Sentry issue from a minified release build shows real method names in its frames. Verify by reading frames on a real issue — an upload that "succeeded" with no UUID match deobfuscates nothing and reports success.
 
-The only reasons not to do it in the same change as R8: the plugin makes `SENTRY_AUTH_TOKEN` a hard requirement of the release build, which breaks a local release build for anyone without it (set `ignoreMissingAuthToken`, or gate the plugin on the token being present), and debugging two new release-path things at once is harder than one.
+**Hints:** The Sentry Android Gradle plugin (`io.sentry.android.gradle`, 5.8.0) injects the UUID and uploads the mapping itself, which fixes both problems and lets the hand-rolled step be deleted. **Set `autoInstallation { enabled = false }`** — its default adds the `sentry-android` SDK and this app already uses the KMP one; two SDKs in one process is the thing to avoid. Also set `ignoreMissingAuthToken` so a contributor without `SENTRY_AUTH_TOKEN` can still build a release locally.
+
+**iOS is already fine** — `apps/ios/fastlane/Fastfile:311` uploads dSYMs via `sentry-cli debug-files upload`. This is an Android-only gap.
+
+**Blocks the first minified release.** Once one ships, every Sentry frame is obfuscated until this lands.
 
 ## ENG-53 — Turn on R8 obfuscation — DONE 2026-09-04, needs a device check before release
 
