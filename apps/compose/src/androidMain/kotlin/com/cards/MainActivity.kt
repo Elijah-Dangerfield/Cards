@@ -1,5 +1,12 @@
 package com.dangerfield.cards
 
+import android.view.ViewTreeObserver
+import android.widget.Toast
+import androidx.lifecycle.lifecycleScope
+import com.dangerfield.cards.libraries.core.BuildInfo
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -7,6 +14,8 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.dangerfield.cards.benchmark.BenchmarkHooks
+import com.dangerfield.cards.libraries.telemetry.impl.AndroidJankMonitor
 
 class MainActivity : ComponentActivity() {
 
@@ -26,16 +35,117 @@ class MainActivity : ComponentActivity() {
         )
 
         val appComponent = (application as CardsApplication).appComponent
-        
+
+        // Before anything reads the start destination. `AppViewModel` resolves it
+        // once in its `init`, so a benchmark hook applied later would be a no-op
+        // and the generator would silently walk onboarding anyway.
+        //
+        // `runBlocking` in onCreate is normally indefensible. It is confined to
+        // a path that only exists when an explicit benchmark intent arrives AND
+        // the build points at dev, so a real launch never reaches it.
+        if (BenchmarkHooks.isRequested(intent)) {
+            // Only the local flag blocks, and only briefly. Sign-in runs off the
+            // launch path: a bots table needs no account, so waiting on the
+            // network here would stall the activity for nothing.
+            BenchmarkHooks.applyStartDestination(appComponent)
+            BenchmarkHooks.signInIfCredentialsProvided(intent, appComponent)
+        }
+
         // Keep the splash screen on until AppViewModel has determined the destination.
         // AppViewModel is a singleton, so this is the same instance used in App composable.
         splashScreen.setKeepOnScreenCondition {
             !appComponent.appViewModel.isReady.value
         }
 
+        // JankStats needs a Window, so it can only be armed once the Activity
+        // has one. Attaching after setContent would miss the first frames,
+        // which are the ones most likely to be janky.
+        (appComponent.jankMonitor as? AndroidJankMonitor)?.attach(window)
+
+        // One toast per launch when this build has produced a violation that no
+        // previous run ever did. Not per violation — StrictMode fires constantly
+        // and a toast you learn to dismiss reflexively is worse than silence.
+        // The shake menu's badge and the log screen carry the detail.
+        warnOnNewPerformanceIssues()
+
         setContent {
             App(appComponent)
         }
+
+        reportStartupWhenReady()
+    }
+
+    /**
+     * Closes the cold-start measurement at the moment the player can actually
+     * use the app, and tells the platform the same thing.
+     *
+     * The timing is the whole point. [AppViewModel.isReady] is when the start
+     * destination is resolved and the splash condition lets go — but the frame
+     * behind the splash has not been drawn yet at that instant. `onPreDraw`
+     * fires immediately *before* that frame, so posting from inside it lands
+     * just after the pixels are up. Measuring at `isReady` instead would
+     * under-report by however long the first real composition takes, which is
+     * the slowest frame of the launch and the one most worth counting.
+     *
+     * [reportFullyDrawn] hands that same instant to the platform, which is what
+     * Play Console grades "fully drawn" startup on. Without it Play measures to
+     * the first frame — the splash — and grades the app on a number no player
+     * ever experiences.
+     */
+    private fun reportStartupWhenReady() {
+        lifecycleScope.launch {
+            appComponent.appViewModel.isReady.first { it }
+
+            val decorView = window.decorView
+            decorView.viewTreeObserver.addOnPreDrawListener(
+                object : ViewTreeObserver.OnPreDrawListener {
+                    override fun onPreDraw(): Boolean {
+                        decorView.viewTreeObserver.removeOnPreDrawListener(this)
+                        decorView.post {
+                            reportFullyDrawn()
+                            appComponent.startupReporter.onAppReady()
+                        }
+                        return true
+                    }
+                },
+            )
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Flush whatever this screen accumulated before the process can be
+        // killed in the background. A session that never returns still reports
+        // the screen it was on, which is the one worth knowing about.
+        appComponent.jankMonitor.onBackground()
+    }
+
+    override fun onDestroy() {
+        (appComponent.jankMonitor as? AndroidJankMonitor)?.detach()
+        super.onDestroy()
+    }
+
+    private val appComponent get() = (application as CardsApplication).appComponent
+
+    private fun warnOnNewPerformanceIssues() {
+        if (!BuildInfo.isDebug) return
+        lifecycleScope.launch {
+            // Violations land during startup, so give the app a beat to produce
+            // them rather than reading a count that is still zero.
+            delay(NEW_ISSUE_TOAST_DELAY_MS)
+            val count = appComponent.strictModeLog.newViolationCount.value
+            if (count > 0) {
+                Toast.makeText(
+                    this@MainActivity,
+                    "This build has $count new performance issue(s). Shake to view.",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
+
+    private companion object {
+        const val NEW_ISSUE_TOAST_DELAY_MS = 3_000L
     }
 
     override fun onNewIntent(intent: Intent) {

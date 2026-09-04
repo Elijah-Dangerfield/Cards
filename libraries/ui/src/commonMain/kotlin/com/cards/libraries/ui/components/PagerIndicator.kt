@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.layout
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -45,12 +47,17 @@ fun PagerIndicator(
     ) {
         repeat(pageCount) { page ->
             val active = page == currentPage
-            val width by animateDpAsState(
+            // The width genuinely drives layout — the dots shift as the active
+            // one stretches — so it can't be pushed all the way to the draw
+            // phase. `Modifier.layout` is the next best thing: it reads the
+            // animation in the *layout* phase, which still skips recomposition.
+            // The colour is a pure draw input and goes straight to drawBehind.
+            val width = animateDpAsState(
                 targetValue = if (active) ActiveDotWidth else DotSize,
                 animationSpec = tween(220),
                 label = "pager-dot-width",
             )
-            val color by animateColorAsState(
+            val color = animateColorAsState(
                 targetValue = if (active) activeColor.color else inactiveColor.color,
                 animationSpec = tween(220),
                 label = "pager-dot-color",
@@ -58,9 +65,15 @@ fun PagerIndicator(
             Box(
                 modifier = Modifier
                     .height(DotSize)
-                    .width(width)
+                    .layout { measurable, constraints ->
+                        val dotWidth = width.value.roundToPx()
+                        val placeable = measurable.measure(
+                            constraints.copy(minWidth = dotWidth, maxWidth = dotWidth),
+                        )
+                        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                    }
                     .clip(Radii.Round.shape)
-                    .background(color),
+                    .drawBehind { drawRect(color = color.value) },
             )
         }
     }

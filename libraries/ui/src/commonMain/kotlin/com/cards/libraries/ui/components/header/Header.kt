@@ -111,6 +111,13 @@ private fun Modifier.elevateOnScroll(
     }
 
     return this.composed {
+        // Suppressed, not deferred: `Modifier.shadow` takes a Dp and has no
+        // lambda form, so the elevation has to be read during composition.
+        // Re-drawing the shadow by hand to avoid that would trade a real
+        // platform shadow for a worse one. The animation is also bounded and
+        // rare — it runs for 220ms when a list crosses the top, not per frame
+        // of anything continuous.
+        @Suppress("AnimatedStateReadInComposition")
         val elevation by animateDpAsState(
             if (scrollState.canScrollBackward) {
                 Elevation.Header.dp

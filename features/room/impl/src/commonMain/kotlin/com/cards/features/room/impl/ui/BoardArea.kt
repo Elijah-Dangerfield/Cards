@@ -24,6 +24,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.dangerfield.cards.libraries.ui.components.quantizeRollingNumber
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -118,10 +120,23 @@ internal fun BoardArea(
                 shipAnim.animateTo(0f, animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing))
             }
         }
-        val potAmount = when {
-            !shipping -> table.pot
-            inPreview -> shippedTotal
-            else -> shipAnim.value.toLong()
+        // derivedStateOf so BoardArea's scope invalidates once per quantized
+        // step (~12 over the 800ms ship) instead of once per frame. Reading
+        // shipAnim.value directly here dragged the whole board — including the
+        // BoxWithConstraints subcomposition — at 60fps, and fed PotAmount a
+        // fresh string each time, which is the glyph-cache path from ENG-49.
+        //
+        // Keyed on everything the lambda captures. An unkeyed
+        // remember { derivedStateOf { } } capturing a State that gets recreated
+        // is what silently broke tap-to-flip; not repeating that.
+        val potAmount by remember(shipping, inPreview, shippedTotal, table.pot) {
+            derivedStateOf {
+                when {
+                    !shipping -> table.pot
+                    inPreview -> shippedTotal
+                    else -> quantizeRollingNumber(shipAnim.value.toLong(), shippedTotal, 0L)
+                }
+            }
         }
         if (potAmount > 0) {
             VerticalSpacerD500()
@@ -189,7 +204,12 @@ private fun BoardSlot(
         if (!skip) delay(appearDelayMs.toLong())
         appeared = true
     }
-    val appear by animateFloatAsState(
+    // Deliberately `State<Float>`, not `by`. Both values feed the graphicsLayer
+    // below, which is a draw-phase lambda — unwrapping them here would
+    // subscribe *composition* to them and recompose this slot on all ~37 frames
+    // of the appear + flip tween, five slots at a time, for nothing. Same class
+    // of mistake as ENG-49.
+    val appear = animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
         animationSpec = tween(240, easing = FastOutSlowInEasing),
         label = "board-appear",
@@ -202,30 +222,43 @@ private fun BoardSlot(
             flipped = true
         }
     }
-    val flip by animateFloatAsState(
+    val flip = animateFloatAsState(
         targetValue = if (flipped) 180f else 0f,
         animationSpec = tween(380),
         label = "board-flip",
     )
+    // The one thing composition genuinely needs from the flip is which face is
+    // toward the viewer, and that changes exactly once. `derivedStateOf`
+    // collapses the whole 380ms sweep into that single invalidation instead of
+    // one per frame.
+    val faceTowardViewer by remember { derivedStateOf { flip.value > 90f } }
 
     Box(
         modifier = Modifier
             .size(width = size.width, height = size.height)
             .graphicsLayer {
-                translationY = (1f - appear) * (-18).dp.toPx()
-                alpha = appear
-                val s = 0.8f + 0.2f * appear
+                val appeared = appear.value
+                translationY = (1f - appeared) * (-18).dp.toPx()
+                alpha = appeared
+                val s = 0.8f + 0.2f * appeared
                 scaleX = s
                 scaleY = s
-                rotationY = flip
+                rotationY = flip.value
                 cameraDistance = 12f * density
             },
     ) {
-        if (flip <= 90f) {
+        // `card == null` is part of the condition, not a !! below it. `flipped`
+        // is only ever set true and never reset, and key(handNumber) only saves
+        // us across hands — so a slot whose card goes non-null -> null *within*
+        // one hand kept flip at 180f and dereferenced null, taking the whole
+        // play screen down. Nothing emits that today, but the crash primitive
+        // does not need to exist: a slot with no card is a back, whatever angle
+        // it is at.
+        if (!faceTowardViewer || card == null) {
             PlayingCardBack(size = size)
         } else {
             Box(modifier = Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }) {
-                PlayingCard(card = card!!, size = size)
+                PlayingCard(card = card, size = size)
             }
         }
     }

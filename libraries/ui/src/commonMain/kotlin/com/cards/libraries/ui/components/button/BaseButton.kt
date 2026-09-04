@@ -118,7 +118,10 @@ internal fun BaseButton(
             // on press — no soft Material shadow, no scale bounce.
             val depthAtRest = size.pressDepth()
             val pressed by interactionSource.collectIsPressedAsState()
-            val drop by animateDpAsState(
+            // State, not `by`. The offset below is already a lambda modifier,
+            // so the depth was one keyword away from being layout-phase only —
+            // unwrapping it here recomposed the whole button on every press.
+            val drop = animateDpAsState(
                 targetValue = if (pressed) depthAtRest else 0.dp,
                 animationSpec = spring(stiffness = Spring.StiffnessHigh),
                 label = "ButtonLip",
@@ -143,7 +146,7 @@ internal fun BaseButton(
                     propagateMinConstraints = true,
                     modifier = Modifier
                         .padding(bottom = depthAtRest)
-                        .offset { IntOffset(x = 0, y = drop.roundToPx()) },
+                        .offset { IntOffset(x = 0, y = drop.value.roundToPx()) },
                 ) { face() }
             }
         }

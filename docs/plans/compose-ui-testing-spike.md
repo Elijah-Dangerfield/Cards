@@ -1,7 +1,22 @@
 # Compose UI testing spike — full-app vs nav-graph
 
+> **Reference, not a plan. Tracked as ENG-62 in `docs/todo.md`, which is the source of truth for
+> whether this is still worth doing.** This file is kept for its design analysis (Option 2 vs
+> Option 3, and which external boundaries to substitute). It is *not* kept for its status claims:
+> its status line was wrong for three months and that error propagated into two other documents.
+> If this file and the todo ever disagree, the todo wins.
+
 **Date:** 2026-06-24
-**Status (2026-07-04):** proposal only — none of this has been built (no Robolectric/compose-uiTest infra, no `TestAppComponent`, no `androidUnitTest` source set in `apps/compose`). The gap it describes (UI-layer navigation wiring is untested) still exists. Kept as the reference for when this work is picked up.
+**Status (2026-09-03):** *partly* built, and this line was wrong for two months. Robolectric +
+`compose-uiTest` **do** exist and run in CI: `features/room/impl/src/androidUnitTest/.../PlayPokerScreenTest.kt`
+(14 tests) and `features/onboarding/impl/src/androidUnitTest/.../OnboardingScreenTest.kt`, wired in
+each module's `build.gradle.kts`. What is still unbuilt is this doc's actual subject: the
+`TestAppComponent` and the `androidUnitTest` source set in `apps/compose` that would let a test
+boot the whole app and exercise **navigation** wiring. That gap is real and still open.
+
+The stale "none of this has been built" wording propagated into `docs/plans/r8-obfuscation.md` and
+`docs/todo.md` before it was caught, so treat this file's status line as load-bearing and keep it
+current.
 **Question:** should we test the navigation/UI layer by standing up the real app
 (real screens, real repos, real navigator) rather than stubbing — and if so, at
 what level? Prompted by two MP-leave bugs (2026-06-24) that lived *between* the

@@ -4,6 +4,24 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
+## Preview-driven screenshot tests (Roborazzi) — parked mid-integration
+
+**Idea (2026-09-03):** Turn the repo's 495 `@Preview` functions into golden-image tests so a pull request fails when the UI changes in a way nobody intended, with a before/after diff to review. Roborazzi renders through the Robolectric setup already in place, and ComposablePreviewScanner discovers every `@Preview` automatically — no per-preview annotation, no per-module test to write. `record` / `verify` / `compare` are per-module Gradle tasks, so re-recording one feature does not touch the rest.
+
+**Blocked harder than it first looked.** ComposablePreviewScanner only supports the androidx `@Preview` annotation, not the `org.jetbrains.compose` one this repo uses. Migrating all 495 previews across looked like a clean import swap — it compiles on Android, and the compiler actively deprecates the JetBrains annotation in favour of it. **It does not compile for iOS.** On Compose Multiplatform 1.11 the `components-ui-tooling-preview` native klib ships only `org.jetbrains.compose.ui.tooling.preview`; the androidx package is Android/JVM-only. The migration was made and then reverted (verified by unpacking the iosSimulatorArm64 klib). So preview-driven screenshots need either a Compose version that publishes the androidx annotation for Native, or a scanner that accepts the JetBrains one, or an Android-only preview source set. Do not re-attempt the annotation swap without checking that first — the deprecation warning is misleading here.
+
+**Landed anyway, and useful on its own:** `rememberLoopingFloat` stops seven composables animating forever under `@Preview`; `TurnCountdownRing` no longer renders 1800 frames of a 30-second countdown in a preview; the unit-test JVM gets a real heap.
+
+**The Gradle wiring has been removed** — Roborazzi plugin, four dependencies, the golden-output block, the catalog entries, and the JitPack repository. Unused build config is worse than none, and a JitPack repo on a public repo is supply-chain surface earning nothing. To restore it: the plugin is `io.github.takahirom.roborazzi` (1.43.1), the artifacts are `roborazzi`, `roborazzi-compose` and `roborazzi-compose-preview-scanner-support`, and `com.github.sergio-sastre.ComposablePreviewScanner:android` (0.9.1) is JitPack-only and must be pinned with `content { includeGroup(...) }`.
+
+**Why it is parked:** recording hangs partway through a module. The test worker spins at 100% CPU inside `Recomposer.sendFrame` because something keeps asking for another frame, so Compose never idles and the capture never returns. Seven infinite animations and the countdown ring were real causes and are fixed; a `TutorialPokerScreen` preview still hangs. Best run captured 52 of 111.
+
+**Next step when picked up:** give each preview a timeout so a hang fails loudly instead of wedging the build — that converts an open-ended hunt into a short list of previews to fix or quarantine, and it is the right CI setting regardless. Then move the wiring from `features/room/impl/build.gradle.kts` into `ComposeMultiplatformConventionPlugin` (generating the per-module test class so no module writes one), drop the forced phone qualifier so small components render small, add a `verifyRoborazzi` CI step, and document it in the wiki.
+
+**Status:** Backlog. Infrastructure committed, test class not. Owner directive was to park it and come back.
+
+---
+
 ## Multiplayer wallet/payout test coverage across table sizes + leave timing
 
 **Idea (owner directive 2026-06-28, Sentry [CARDS-61](https://elijah-dangerfield.sentry.io/issues/CARDS-61)):** Owner wants much broader testing around multiplayer games of varying sizes and player behavior — betting, checking, leaving mid-hand — to verify the correct wallet actions fire: that the pot is split as expected, that the right players get paid and others don't, and that opting out of the next hand settles a player out with exactly the expected amount. This is a test-coverage / scenario-harness effort (the poker scenario harness exists for the play screen), not a single bug fix; spans engine, server settlement, and client wallet reconcile. Concrete bugs found along the way (e.g. MP-26, MP-27) get their own todos.

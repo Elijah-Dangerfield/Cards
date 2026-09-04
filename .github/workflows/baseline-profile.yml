@@ -1,0 +1,123 @@
+name: Baseline Profile
+
+# Regenerates the Baseline Profile monthly and opens a PR with the diff.
+#
+# Monthly rather than per-release on purpose. The profile is a list of classes
+# and methods to compile ahead of time, and that list only drifts as the app's
+# shape changes — not with every bug fix. Generation boots an emulator and walks
+# the app for ~13 minutes, which is not something a release should wait on.
+#
+# It opens a PR rather than pushing: a profile is a build input that affects
+# every user's first run, and it should be looked at. A diff that suddenly loses
+# half its rules means the journey broke, and that is only visible in review.
+
+on:
+  schedule:
+    # 03:17 on the 3rd of each month. Deliberately not midnight on the 1st —
+    # that is when every scheduled job on GitHub fires and runners are scarce.
+    - cron: "17 3 3 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: baseline-profile
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The emulator needs hardware acceleration. Without this the run does not
+      # fail — it crawls until the job times out, which is a far worse failure
+      # to diagnose than a missing device.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Generate baseline profile
+        env:
+          # Generation runs a *release* variant, which points at prod by build
+          # type. Without this it would create real accounts in production and
+          # put synthetic jank on the prod dashboards.
+          CARDS_PROFILE_GEN: "true"
+          # Optional. Absent is fine: the app falls back to a guest account,
+          # which profiles exactly as well and needs no secret.
+          ORG_GRADLE_PROJECT_cards_benchmark_email: ${{ secrets.BENCHMARK_ACCOUNT_EMAIL }}
+          ORG_GRADLE_PROJECT_cards_benchmark_password: ${{ secrets.BENCHMARK_ACCOUNT_PASSWORD }}
+        run: ./gradlew :apps:compose:generateBaselineProfile -Pcards.targetEnv=dev
+
+      # A profile that lost most of its rules means the journey broke — a step's
+      # copy changed, or a screen moved — and the generator walked less of the
+      # app while still passing every assertion it made. Shipping that quietly
+      # is the failure mode this whole job exists to avoid.
+      - name: Sanity-check the profile
+        run: |
+          DIR=apps/compose/src/androidRelease/generated/baselineProfiles
+          PROFILE=$DIR/baseline-prof.txt
+          STARTUP=$DIR/startup-prof.txt
+          RULES=$(wc -l < "$PROFILE")
+          STARTUP_RULES=$(wc -l < "$STARTUP")
+          echo "baseline: $RULES rules, startup: $STARTUP_RULES rules."
+          if [ "$RULES" -lt 20000 ]; then
+            echo "::error::Only $RULES rules — the journey probably broke. Expected >20000."
+            exit 1
+          fi
+          # The startup profile must be a launch path, not the whole app. When
+          # both generators shared one deep journey these files came out
+          # byte-identical, and an oversized startup profile spills into later
+          # DEX files and slows the very launch it is meant to speed up.
+          if [ "$STARTUP_RULES" -ge "$RULES" ]; then
+            echo "::error::startup-prof ($STARTUP_RULES) is not smaller than baseline-prof ($RULES)."
+            echo "::error::Check includeInStartupProfile — only StartupProfileGenerator should set it."
+            exit 1
+          fi
+          for PKG in "features/home" "features/room"; do
+            COUNT=$(grep -c "$PKG" "$PROFILE" || true)
+            echo "  $PKG: $COUNT"
+            if [ "$COUNT" -eq 0 ]; then
+              echo "::error::No coverage of $PKG — the journey did not reach it."
+              exit 1
+            fi
+          done
+
+      - name: Open a PR if the profile changed
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/baseline-profile
+          base: develop
+          commit-message: "chore(perf): regenerate the baseline profile"
+          title: "chore(perf): regenerate the baseline profile"
+          delete-branch: true
+          add-paths: apps/compose/src/androidRelease/generated/baselineProfiles/
+          body: |
+            Monthly regeneration of the Baseline Profile.
+
+            The profile lists classes and methods compiled ahead of time, so a
+            player's first run of a code path is not interpreted. It is captured
+            by walking the app on an emulator: Home, a practice table, and a few
+            hands. The table is considered live when the action bar offers
+            Check/Call/Raise — this felt folds by swipe, so there is no Fold
+            button to wait on.
+
+            **What to look at:** the rule count and which packages are covered.
+            A large drop means the journey broke rather than the app shrinking —
+            a step's copy changed and the generator walked less of the app while
+            still passing. The job fails below 20,000 rules or with zero coverage
+            of home/room, but a softer regression is only visible here.

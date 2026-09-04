@@ -23,6 +23,9 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -283,24 +286,27 @@ fun AppBottomBar(
  */
 @Composable
 private fun BoostProgressLine(progress: Float) {
-    val animatedFraction by animateFloatAsState(
+    val animatedFraction = animateFloatAsState(
         targetValue = progress.coerceIn(0f, 1f),
         animationSpec = tween(durationMillis = 600),
         label = "boost-bar-fraction",
     )
+    // Painted, not laid out: `fillMaxWidth` takes a Float, so a child Box would
+    // force the fraction to be read during composition and re-lay-out the bar
+    // every frame of the 600ms fill.
+    val fillColor = AppTheme.colors.poker.progressionCyan.color
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(BoostLineHeight)
-            .background(AppTheme.colors.poker.progressionCyan.withAlpha(0.25f)),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(animatedFraction)
-                .height(BoostLineHeight)
-                .background(AppTheme.colors.poker.progressionCyan),
-        )
-    }
+            .background(AppTheme.colors.poker.progressionCyan.withAlpha(0.25f))
+            .drawBehind {
+                val filled = size.width * animatedFraction.value
+                if (filled > 0f) {
+                    drawRect(color = fillColor, size = Size(filled, size.height))
+                }
+            },
+    )
 }
 
 private val BoostLineHeight = 3.dp
@@ -333,7 +339,7 @@ private fun MagnifyingBottomBarItem(
     isSelected: Boolean,
     modifier: Modifier
 ) {
-    val scale by animateFloatAsState(
+    val scale = animateFloatAsState(
         targetValue = if (isSelected) 1.1f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -347,7 +353,11 @@ private fun MagnifyingBottomBarItem(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            modifier = Modifier.scale(scale),
+            modifier = Modifier.graphicsLayer {
+                val s = scale.value
+                scaleX = s
+                scaleY = s
+            },
             contentAlignment = Alignment.Center
         ) {
             BadgedBox(

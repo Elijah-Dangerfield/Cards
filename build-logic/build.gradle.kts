@@ -29,6 +29,7 @@ dependencies {
     compileOnly(libs.android.gradlePlugin)
     compileOnly(libs.kotlin.gradlePlugin)
     compileOnly(libs.compose.gradlePlugin)
+    compileOnly(libs.composeCompiler.gradlePlugin)
     implementation(files(libs.javaClass.superclass.protectionDomain.codeSource.location))
     api(libs.ksp.gradlePlugin)
     api(libs.androidx.room.gradlePlugin)

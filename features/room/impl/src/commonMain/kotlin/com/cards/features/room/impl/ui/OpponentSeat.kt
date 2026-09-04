@@ -28,6 +28,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.State
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -45,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.features.room.impl.SeatView
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
+import com.dangerfield.cards.libraries.ui.components.rememberLoopingFloat
+import com.dangerfield.cards.libraries.ui.components.pulsingBorder
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.cutout
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
@@ -120,7 +126,10 @@ internal fun OpponentSeat(
     val dimMod = Modifier.alpha(dimAlpha)
     // The seat on the clock sits at full size; everyone else shrinks a touch so
     // attention pulls to whoever's acting. Draw-only scale, so the row never reflows.
-    val seatScale by animateFloatAsState(
+    // State, not `by`: the only consumer is the graphicsLayer lambda below, so
+    // unwrapping here would recompose the whole seat — avatar, name, action chip,
+    // chip count — for 220ms on every turn change, for nothing.
+    val seatScale = animateFloatAsState(
         targetValue = if (seat.isActing) 1f else 0.92f,
         animationSpec = tween(220),
         label = "seat-scale",
@@ -139,8 +148,8 @@ internal fun OpponentSeat(
         modifier = Modifier
             .padding(horizontal = 2.dp)
             .graphicsLayer {
-                scaleX = seatScale
-                scaleY = seatScale
+                scaleX = seatScale.value
+                scaleY = seatScale.value
             },
     ) {
         Box(
@@ -314,8 +323,16 @@ private fun WinAmountBadge(amount: Long) {
  */
 @Composable
 private fun GoldSeatRing(modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "to-act")
-    val alpha by transition.animateFloat(
+    // State, never `by`. Unwrapping here would recompose this seat on every
+    // frame of an animation that never ends — measured at 294 recompositions,
+    // and with up to three opponents that is three of them at once. See
+    // [pulsingBorder] and ENG-49.
+    //
+    // Held at full strength under `@Preview` and in screenshot tests: an
+    // endless animation keeps the Compose clock from ever going idle, which
+    // hangs a capture waiting on idle, and would give a different alpha on
+    // every run besides.
+    val alpha = rememberLoopingFloat(
         initialValue = 0.5f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
@@ -324,12 +341,12 @@ private fun GoldSeatRing(modifier: Modifier = Modifier) {
         ),
         label = "to-act-alpha",
     )
+    val gold = AppTheme.colors.poker.chipGold.color
     Box(
-        modifier = modifier.border(
+        modifier = modifier.pulsingBorder(
             width = SeatGoldRing,
-            color = AppTheme.colors.poker.chipGold.color.copy(alpha = alpha),
             shape = CircleShape,
-        ),
+        ) { gold.copy(alpha = alpha.value) },
     )
 }
 

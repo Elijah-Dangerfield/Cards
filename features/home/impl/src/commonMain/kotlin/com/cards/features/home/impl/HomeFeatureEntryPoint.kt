@@ -86,6 +86,8 @@ class HomeFeatureEntryPoint(
             // carrying the buy-in the body quotes. Declared before the event
             // observer that writes it.
             var outOfChipsBuyIn by remember { mutableStateOf<Long?>(null) }
+            // Non-null = the update sheet is open, carrying the version it quotes.
+            var updateVersion by remember { mutableStateOf<String?>(null) }
             ObserveWithLifecycle(viewModel.eventFlow) { event ->
                 when (event) {
                     is HomeEvent.OpenWelcomeDialog -> {
@@ -106,6 +108,9 @@ class HomeFeatureEntryPoint(
                     }
                     is HomeEvent.OpenOutOfChipsSheet -> {
                         outOfChipsBuyIn = event.casualBuyIn
+                    }
+                    is HomeEvent.OpenUpdateAvailable -> {
+                        updateVersion = event.latestVersion
                     }
                     // The confirmed Forfeit's leave failed — the banner stays (the
                     // observed rooms flow is untouched), so tell the user their
@@ -265,6 +270,17 @@ class HomeFeatureEntryPoint(
                         botSetupOpen = true
                     },
                     onDismiss = { outOfChipsBuyIn = null },
+                )
+            }
+
+            updateVersion?.let { version ->
+                UpdateAvailableSheet(
+                    latestVersion = version,
+                    onUpdate = {
+                        updateVersion = null
+                        router.openWebLink(storeListingUrl())
+                    },
+                    onDismiss = { updateVersion = null },
                 )
             }
 

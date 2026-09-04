@@ -51,11 +51,50 @@ That is why CARDS-BZ blocked in `syncAndDrawFrame` instead. Same wedge, differen
 `observability-triage` skill, but it applies here directly. A stack ending in a wait names the
 victim, not the cause.
 
+## Confirmed 2026-09-03 by three Play Console ANR traces
+
+Three more ANRs, pulled from Play Console, put this beyond hypothesis. **All three have a
+byte-identical RenderThread stack**, and it is the same one CARDS-C1 had:
+
+```
+GrTextBlobRedrawCoordinator::internalRemove      ← top of stack in all four events
+GrTextBlobRedrawCoordinator::drawGlyphRunList
+skgpu::v1::SurfaceDrawContext::drawGlyphRunList
+  ...
+SkCanvas::drawTextBlob
+  → 13 nested RenderNodeDrawable levels
+  → DrawFrameTask::postAndWait
+```
+
+**The decisive part is the main thread, which is different in every one:**
+
+| Trace | What `main` was blocked doing |
+|---|---|
+| `stacktrace.log` | Dialog **dismiss** → `destroyHardwareResources` → `nDestroyHardwareResources` |
+| `stacktrace (1).log` | Dialog **show** → `ThreadedRenderer.create` → `nCreateProxy` |
+| `stacktrace (2).log` | **An ordinary frame** → `ViewRootImpl.performTraversals` → `nSyncAndDrawFrame` |
+
+Three unrelated operations — opening a window, closing a window, and drawing a normal frame — all
+stalled behind the same wedged RenderThread. One of them involves no bottom sheet at all.
+
+That closes the question the first investigation got wrong. **The bottom sheet is not the cause and
+never was**; it is simply a frequent caller, so it shows up as the victim often. Anything needing
+the RenderThread hangs identically, which is exactly what the third trace shows.
+
+**Step 1 of the plan below is therefore already done.** No profiling run is needed to establish
+that the RenderThread is the bottleneck; four independent production events say so. Start at
+Step 2.
+
 ## What is proven and what is not
 
-**Proven, straight from the event:** the RenderThread was mid-frame, deep in text rendering, with
-the glyph cache in eviction, roughly 17 render-node levels deep, and other threads were blocked
-behind it.
+**Proven, across four independent production events:** the RenderThread is mid-frame, deep in
+text rendering, with the glyph cache churning inside `internalRemove`, 13 to 17 render-node levels
+deep, and whatever else needs that thread is blocked behind it.
+
+Worth knowing what `internalRemove` inside `drawGlyphRunList` actually means: Skia is dropping a
+cached text blob it cannot reuse and rebuilding it. Being caught there in every single sample is
+the signature of text whose **draw parameters change every frame**. Blob reuse survives a change
+in position; it does not survive a change in scale or rotation.
 
 **Not proven:** what specifically is generating that text load. The leading suspect is text drawn
 inside a continuously changing transform, because a new scale or rotation each frame means a new
@@ -69,9 +108,46 @@ two places:
 That is a hypothesis. Confirm it before acting on it, because the last confident guess here cost a
 day.
 
+## Fixed 2026-09-03, measured on a real device
+
+Three infinite animations were reading their value during composition, each
+recomposing its whole subtree every frame for as long as it ran. All three fed
+text, which is why the RenderThread ended up in the glyph cache.
+
+| | before | after |
+|---|---|---|
+| `PlayerArea` | 471 | 16 |
+| `PlayerInfoTile` | 471 | 16 |
+| `FlippablePlayerInfoTile` | 471 | 16 |
+| `GoldSeatRing` (per opponent seat) | 57 | 3 |
+| `Text` rebuilds | 540 | 170 |
+| **RenderThread worst draw** | **127.1 ms** | **49.6 ms** |
+
+Two caveats worth keeping honest. The traces cover different gameplay, so
+totals are not directly comparable — the worst-case draw and the recomposition
+counts are the meaningful figures. And these are debug builds, so absolute
+milliseconds are inflated.
+
+**Whether this actually stops the ANRs is unproven** and only production can
+say. Watch Play vitals and Sentry over the next few weeks; four traces got us
+here, so a month of silence is the confirmation.
+
+### What is deliberately left
+
+`HoleCardSlot` is now the top remaining recomposer at ~298. That is a bounded
+380 ms animation that runs on demand, roughly 23 recompositions per flip, not
+an infinite one — a different order of problem from the pulses.
+
+It was fixed once and reverted (054d9877, reverted in c0e813ec): the
+`remember { derivedStateOf { ... } }` had no keys, so it captured the first
+`flipRotation` State and went stale when `manuallyFacedown` was re-remembered
+on a new hand, which silently killed tap-to-flip after the first hand. If it is
+picked up again, key the `remember` on the State it captures, and verify by
+flipping cards across several hands rather than one.
+
 ## What to do
 
-### Step 1: See it happen (30 minutes, no code changes)
+### ~~Step 1: See it happen~~ — done, see the confirmation above
 
 The cheapest confirmation is the on-device GPU profiler.
 

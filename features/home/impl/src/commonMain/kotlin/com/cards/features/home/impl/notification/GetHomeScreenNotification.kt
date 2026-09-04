@@ -1,6 +1,8 @@
 package com.dangerfield.cards.features.home.impl.notification
 
+import com.dangerfield.cards.libraries.cards.AppVersion
 import com.dangerfield.cards.libraries.cards.LevelReward
+import com.dangerfield.cards.libraries.cards.isWorthPromptingFrom
 
 /**
  * A snapshot of every persisted fact the Home notification arbiter reasons over,
@@ -76,6 +78,24 @@ data class HomeNotificationSnapshot(
      * the queue rather than advancing a high-water mark.
      */
     val pendingAchievementIds: List<String>,
+
+    /**
+     * The running app's own version (`BuildInfo.versionName`). Never null — the
+     * build always knows what it is.
+     */
+    val installedVersion: String = "",
+    /**
+     * The newest version the store will give this user, or null when the check
+     * hasn't answered (offline, API failure, sideload). Null means "don't
+     * prompt", never "up to date".
+     */
+    val latestStoreVersion: String? = null,
+    /**
+     * The version we last surfaced an update prompt for, blank when we never
+     * have. Keyed by version rather than a boolean so skipping one feature
+     * release still earns one ask on the next.
+     */
+    val lastPromptedUpdateVersion: String = "",
 ) {
 
     /** The resolved welcome-dialog identity, present only when all its preconditions align. */
@@ -119,7 +139,8 @@ fun HomeNotificationSnapshot.seedsNeeded(): HomeNotificationSeeds {
  *
  * Priority: [HomeNotification.Welcome] (once per account) →
  * [HomeNotification.AchievementsEarned] → [HomeNotification.LevelUp] →
- * [HomeNotification.PlayStyleUnlocked] → [HomeNotification.OutOfChips]. An unset
+ * [HomeNotification.PlayStyleUnlocked] → [HomeNotification.OutOfChips] →
+ * [HomeNotification.UpdateAvailable]. An unset
  * level watermark yields no level-up (it seeds instead — see [seedsNeeded]).
  * Out-of-chips is deliberately last: a level-up may grant chips that resolve the
  * shortfall before we point at the shop.
@@ -135,6 +156,7 @@ fun GetHomeScreenNotification(snapshot: HomeNotificationSnapshot): HomeNotificat
         ?: snapshot.levelUp()
         ?: snapshot.playStyleUnlocked()
         ?: snapshot.outOfChips()
+        ?: snapshot.updateAvailable()
 
 /**
  * True when the persisted [HomeNotificationSnapshot.outOfChipsSeen] episode
@@ -226,4 +248,21 @@ private fun HomeNotificationSnapshot.outOfChips(): HomeNotification.OutOfChips? 
     // anyway, but don't stack this behind the welcome dialog on the same visit.
     if (accountJustCreated) return null
     return HomeNotification.OutOfChips(balance = balance, casualBuyIn = casualBuyIn)
+}
+
+/**
+ * The update prompt, when the store is far enough ahead to be worth a Home slot.
+ *
+ * Everything interesting is in [isWorthPromptingFrom]; this only translates the
+ * persisted strings into versions and refuses to prompt on anything it can't
+ * parse. An unparseable store version is treated as no answer, not as a
+ * mismatch — a prompt driven by a misread version points people at an update
+ * that isn't there.
+ */
+private fun HomeNotificationSnapshot.updateAvailable(): HomeNotification.UpdateAvailable? {
+    val latest = AppVersion.parseOrNull(latestStoreVersion) ?: return null
+    val installed = AppVersion.parseOrNull(installedVersion) ?: return null
+    val lastPrompted = AppVersion.parseOrNull(lastPromptedUpdateVersion)
+    if (!latest.isWorthPromptingFrom(installed, lastPrompted)) return null
+    return HomeNotification.UpdateAvailable(latestVersion = latest.toString())
 }

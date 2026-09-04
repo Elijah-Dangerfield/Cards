@@ -67,6 +67,10 @@ if (!serverOnly) {
     // like the rest of the client graph. The first (and only) JS target.
     include(":apps:admin")
 
+    // Baseline Profile generator. Build-time only: drives the installed app on a
+    // Gradle-managed emulator and writes the profile the app module consumes.
+    include(":apps:baselineprofile")
+
     // Features
     include(":features:home")
     include(":features:home:impl")

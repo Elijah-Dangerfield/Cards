@@ -1,6 +1,8 @@
 package com.dangerfield.cards.features.home.impl
 
 import app.cash.turbine.test
+import com.dangerfield.cards.libraries.cards.AppUpdateSource
+import com.dangerfield.cards.libraries.cards.AppVersion
 import com.dangerfield.cards.libraries.cards.AchievementHandContext
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AchievementProgress
@@ -1039,6 +1041,9 @@ class HomeViewModelTest : CoroutineTest() {
         clock = clock,
         appCache = appCache,
         appScope = AppCoroutineScope(dispatchers),
+        appUpdateSource = object : AppUpdateSource {
+            override suspend fun latestAvailableVersion(): AppVersion? = null
+        },
         socialEnabledConfig = SocialEnabled.forTest(socialEnabled),
     )
 

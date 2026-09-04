@@ -16,6 +16,7 @@ class CardsRuleSetProvider : RuleSetProvider {
         ruleSetId,
         listOf(
             ::VerifyStrings,
+            ::AnimatedStateReadInComposition,
         ),
     )
 }

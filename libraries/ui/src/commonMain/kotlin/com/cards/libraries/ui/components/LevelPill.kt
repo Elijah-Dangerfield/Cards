@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -147,15 +149,17 @@ fun XpBadge(
     // Skip the animation in previews so @Preview pins render at the
     // requested fraction instead of catching the ring mid-fill at 0.
     val target = fraction.coerceIn(0f, 1f)
-    val animatedFraction = if (LocalInspectionMode.current) {
-        target
+    // State, read inside the Canvas lambda below. See RingedAvatar for why:
+    // unwrapping here recomposes the pill on every frame of the 600ms fill, and
+    // the pill sits in the play screen's top bar carrying the level number.
+    val animatedFraction: State<Float> = if (LocalInspectionMode.current) {
+        rememberUpdatedState(target)
     } else {
-        val anim by animateFloatAsState(
+        animateFloatAsState(
             targetValue = target,
             animationSpec = tween(durationMillis = 600),
             label = "level-ring-fraction",
         )
-        anim
     }
     val ringColor = RING_HUE
     val trackColor = AppTheme.colors.surfaceHigh.color
@@ -184,11 +188,12 @@ fun XpBadge(
                 size = arcSize,
                 style = Stroke(width = strokePx, cap = StrokeCap.Round),
             )
-            if (animatedFraction > 0f) {
+            val fill = animatedFraction.value
+            if (fill > 0f) {
                 drawArc(
                     color = ringColor,
                     startAngle = -90f,
-                    sweepAngle = 360f * animatedFraction,
+                    sweepAngle = 360f * fill,
                     useCenter = false,
                     topLeft = topLeft,
                     size = arcSize,

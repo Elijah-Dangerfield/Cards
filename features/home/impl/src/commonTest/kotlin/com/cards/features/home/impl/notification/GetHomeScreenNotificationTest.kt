@@ -394,6 +394,62 @@ class GetHomeScreenNotificationTest {
         pendingAchievementIds = emptyList(),
     )
 
+    // ── update prompt (lowest priority of the blocking band) ────────────────
+
+    @Test
+    fun updatePrompt_surfacesOnAFeatureRelease() {
+        val result = GetHomeScreenNotification(
+            base().copy(installedVersion = "0.2.0", latestStoreVersion = "0.3.0"),
+        )
+        assertEquals(HomeNotification.UpdateAvailable("0.3.0"), result)
+    }
+
+    @Test
+    fun updatePrompt_staysSilentOnAPatchRelease() {
+        val result = GetHomeScreenNotification(
+            base().copy(installedVersion = "0.2.0", latestStoreVersion = "0.2.3"),
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun updatePrompt_staysSilentOnceAskedAboutThatVersion() {
+        val result = GetHomeScreenNotification(
+            base().copy(
+                installedVersion = "0.2.0",
+                latestStoreVersion = "0.3.0",
+                lastPromptedUpdateVersion = "0.3.0",
+            ),
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun updatePrompt_staysSilentWhenTheStoreCheckHasNoAnswer() {
+        // Offline, API failure, or a sideload: null must mean "don't prompt",
+        // never "up to date".
+        val result = GetHomeScreenNotification(
+            base().copy(installedVersion = "0.2.0", latestStoreVersion = null),
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun updatePrompt_yieldsToEveryOtherBlockingNotification() {
+        // It is the lowest priority in the band: an out-of-chips shortfall, the
+        // least urgent of the others, still wins the slot.
+        val result = GetHomeScreenNotification(
+            base().copy(
+                installedVersion = "0.2.0",
+                latestStoreVersion = "0.3.0",
+                chipBalance = 10,
+                casualBuyIn = 1_000,
+                outOfChipsSeen = false,
+            ),
+        )
+        assertTrue(result is HomeNotification.OutOfChips, "got $result")
+    }
+
     private fun identity() = HomeNotificationSnapshot.WelcomeIdentity(
         displayName = "Ada",
         avatarEmoji = "🂡",

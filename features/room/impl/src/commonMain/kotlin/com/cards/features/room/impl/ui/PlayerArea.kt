@@ -44,10 +44,12 @@ import cards.libraries.resources.generated.resources.room_player_odds_dial_win_l
 import cards.libraries.resources.generated.resources.room_player_odds_flip_a11y
 import cards.libraries.resources.generated.resources.room_player_odds_heading
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.State
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -76,6 +78,8 @@ import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
+import com.dangerfield.cards.libraries.ui.components.rememberLoopingFloat
+import com.dangerfield.cards.libraries.ui.components.pulsingBorder
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.cutout
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
@@ -134,12 +138,19 @@ internal fun PlayerArea(
     val winAmount = humanWin?.amount ?: 0L
     // Pulse the band around the whole player area when it's the human's turn.
     // This replaces the dropped "Your turn" text banner.
-    val pulseAlpha = if (human.isActing) pulseAlpha(low = 0.30f, high = 0.85f) else 0f
-    val borderColor = when {
-        isWinner -> AppTheme.colors.poker.chipGold.color
-        human.isActing -> AppTheme.colors.poker.seatActive.color.copy(alpha = pulseAlpha)
-        else -> Color.Transparent
-    }
+    //
+    // The alpha is deliberately kept as State and never unwrapped here. Reading
+    // an animated value during composition recomposes every caller on every
+    // animation frame, and this sits at the top of PlayerArea — so the whole
+    // subtree, including the name/chip/hand-label text in PlayerInfoTile, was
+    // recomposing ~60 times a second for the entire time it was your turn. That
+    // rebuilt a text blob per frame, thrashed Skia's glyph cache, and wedged the
+    // RenderThread hard enough to ANR (ENG-49; four production traces sit in
+    // docs/agent/feedback-cases/anr-traces/). [pulsingBorder] reads it at draw
+    // time instead, so the pulse animates without recomposing anything.
+    val pulseAlpha = if (human.isActing) rememberPulseAlpha(low = 0.30f, high = 0.85f) else null
+    val winnerColor = AppTheme.colors.poker.chipGold.color
+    val activeColor = AppTheme.colors.poker.seatActive.color
     val borderWidth = if (isWinner || human.isActing) 2.dp else 0.dp
     val swipeFoldEnabled = table.isHumanTurn &&
         table.humanLegalActions != null &&
@@ -172,13 +183,25 @@ internal fun PlayerArea(
     // with the swipe-up-to-fold drag, so we use a tap detector below
     // that fires only on release without movement — a real drag past
     // touch slop cancels the tap automatically.
-    var manuallyFacedown by remember(human.holeCards) { mutableStateOf(false) }
+    // Deliberately NOT `remember(human.holeCards)`. Keying it mints a fresh
+    // MutableState each hand, while the tap detector below is `pointerInput(Unit)`
+    // and so is never restarted — from the second hand on it held the state
+    // object from the first, and every tap wrote somewhere nothing read. That is
+    // why tap-to-flip worked on hand one and silently died afterwards.
+    // One stable state object, reset by the new-hand effect below, so nothing
+    // can capture a stale one.
+    var manuallyFacedown by remember { mutableStateOf(false) }
     // 0..1 progress used to drive the in-flight visual response.
     // Visual progress saturates at the commit threshold so the
     // tilt/fade lands at a clear "ready to fold" peak when the user
     // is at the commit line — and doesn't keep growing if they
     // overshoot.
-    val dragProgress = (abs(dragOffsetY.value) / foldCommitPx).coerceIn(0f, 1f)
+    // Deliberately NOT read here. Its only consumers are the graphicsLayer
+    // lambda below and the swipe-fold gesture, both of which can read
+    // dragOffsetY at draw/gesture time. Computing it in composition subscribes
+    // the whole player area to a value that changes at pointer-sample rate,
+    // which is the same mistake the turn pulse made a few lines above (ENG-49).
+    fun dragProgress(offset: Float) = (abs(offset) / foldCommitPx).coerceIn(0f, 1f)
     // Reset the offset whenever the gate flips back open (e.g. new hand),
     // so we never start with a stale residual translation from a prior
     // commit. Using a Compose effect keyed on `swipeFoldEnabled` keeps the
@@ -193,12 +216,21 @@ internal fun PlayerArea(
     // leaves them there; the gate-keyed reset above only fires once it's the
     // human's turn again, so between the fold and the next turn the freshly
     // dealt cards render stuck up top in a "ghost" placement (GAME-10). Snap
-    // back on every new deal — keyed on the hole cards, which change identity
-    // each hand — so the next hand always starts at rest regardless of turn.
-    LaunchedEffect(human.holeCards) {
+    // back on every new deal so the next hand always starts at rest.
+    //
+    // Keyed on the hand number, not just the cards. `Card` is a data class, so
+    // being dealt the identical pair on a later hand leaves `holeCards` equal
+    // and the effect never restarts — which carried a face-down hand into a
+    // fresh deal and left a swipe-folded card stuck off-screen. Rare (~1/2652
+    // heads-up) but permanent for that hand, and a Compose test that repeats a
+    // hand caught it after the `key(card)` fix next door had already missed it.
+    LaunchedEffect(table.handNumber, human.holeCards) {
         if (dragOffsetY.value != 0f) {
             dragOffsetY.snapTo(0f)
         }
+        // A fresh deal always starts face-up; you wouldn't carry "hidden" from a
+        // hand you already saw into a new one.
+        manuallyFacedown = false
     }
     // Fixed row height — children inside use `fillMaxHeight()`, so this MUST
     // be bounded. `heightIn(min)` would let `fillMaxHeight` expand to the
@@ -213,7 +245,13 @@ internal fun PlayerArea(
         // renders rounded without a clip.
         modifier = Modifier
             .fillMaxWidth()
-            .border(borderWidth, borderColor, Radii.R800.shape)
+            .pulsingBorder(borderWidth, Radii.R800.shape) {
+                when {
+                    isWinner -> winnerColor
+                    human.isActing -> activeColor.copy(alpha = pulseAlpha?.value ?: 0f)
+                    else -> Color.Transparent
+                }
+            }
             .padding(horizontal = 8.dp, vertical = 8.dp)
             .height(PlayingCardSize.Hole.height),
         verticalAlignment = Alignment.CenterVertically,
@@ -339,8 +377,9 @@ internal fun PlayerArea(
                     // Light tilt + fade tied to drag progress so the cards
                     // physically respond to the toss. Capped at small
                     // values — we want a flick, not a tumble.
-                    rotationZ = -6f * dragProgress
-                    alpha = 1f - 0.25f * dragProgress
+                    val progress = dragProgress(dragOffsetY.value)
+                    rotationZ = -6f * progress
+                    alpha = 1f - 0.25f * progress
                 },
             ) {
                 val humanAvatarOverlay = AvatarBackOverlay(
@@ -349,6 +388,7 @@ internal fun PlayerArea(
                 )
                 HoleCardSlot(
                     card = human.holeCards.getOrNull(0),
+                    handNumber = table.handNumber,
                     dealDelayMs = 0,
                     size = PlayingCardSize.Hole,
                     avatarOverlay = humanAvatarOverlay,
@@ -356,6 +396,7 @@ internal fun PlayerArea(
                 )
                 HoleCardSlot(
                     card = human.holeCards.getOrNull(1),
+                    handNumber = table.handNumber,
                     dealDelayMs = 150,
                     size = PlayingCardSize.Hole,
                     avatarOverlay = humanAvatarOverlay,
@@ -414,23 +455,34 @@ internal fun PlayerArea(
  * doesn't fit a shared component's API.
  */
 @Composable
-private fun pulseAlpha(low: Float = 0.32f, high: Float = 0.78f): Float {
-    val transition = rememberInfiniteTransition(label = "active-pulse")
-    val alpha by transition.animateFloat(
+private fun rememberPulseAlpha(low: Float = 0.32f, high: Float = 0.78f): State<Float> {
+    // Pinned at its brightest under `@Preview` and in screenshot tests. An
+    // animation that never ends never lets the Compose clock go idle, so any
+    // capture that waits for idle hangs on it — and even if it didn't, it would
+    // sample a different alpha every run, which no golden image can match.
+    // Same reason `BoardSlot` and `XpBadge` skip their animations in previews.
+
+    // Returns the State rather than its value on purpose. `by`-delegating here,
+    // or returning `alpha`, subscribes the *caller's* composition to a value
+    // that changes every frame. Handing back the State lets the read happen
+    // wherever it is cheapest — for us, inside a draw lambda.
+    return rememberLoopingFloat(
         initialValue = low,
         targetValue = high,
         animationSpec = infiniteRepeatable(
             animation = tween(1100, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse,
         ),
-        label = "alpha",
+        label = "active-pulse",
     )
-    return alpha
 }
+
+
 
 @Composable
 private fun HoleCardSlot(
     card: Card?,
+    handNumber: Int,
     dealDelayMs: Int,
     size: PlayingCardSize,
     avatarOverlay: AvatarBackOverlay? = null,
@@ -443,7 +495,12 @@ private fun HoleCardSlot(
     // Compose previews don't drive animations to completion, so jump straight
     // to the settled face-up state there.
     val skip = LocalInspectionMode.current
-    key(card) {
+    // Keyed on the hand, not the card. `Card` is a data class, so `key(card)`
+    // reuses the composition group whenever the same card is dealt into the same
+    // slot on a later hand — leaving `settled` true, so that card renders
+    // instantly face-up while its partner flies in. ~3.8%, about one hand in 26.
+    // BoardArea does the same thing correctly with key(table.handNumber).
+    key(handNumber, card) {
         var arrived by remember { mutableStateOf(skip) }
         var revealed by remember { mutableStateOf(skip) }
         var settled by remember { mutableStateOf(skip) }
@@ -470,21 +527,26 @@ private fun HoleCardSlot(
             // instead of pinching at 90°. Both branches render inside
             // an identical centered Box so the rectangle the flip
             // occupies never shifts shape between front and back.
-            val flipRotation by animateFloatAsState(
+            // State, not `by` — the angle is a draw-phase input. Composition
+            // only needs to know which face is toward the viewer, which changes
+            // once, so `derivedStateOf` collapses the 380ms sweep into a single
+            // invalidation rather than one per frame.
+            val flipRotation = animateFloatAsState(
                 targetValue = if (manuallyFacedown) 180f else 0f,
                 animationSpec = tween(380),
                 label = "hole-manual-flip",
             )
+            val frontTowardViewer by remember { derivedStateOf { flipRotation.value <= 90f } }
             Box(
                 modifier = Modifier
                     .size(width = size.width, height = size.height)
                     .graphicsLayer {
-                        rotationY = flipRotation
+                        rotationY = flipRotation.value
                         cameraDistance = 48f * density
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                if (flipRotation <= 90f) {
+                if (frontTowardViewer) {
                     PlayingCard(card = card, size = size)
                 } else {
                     Box(modifier = Modifier.graphicsLayer { rotationY = 180f }) {
@@ -495,26 +557,32 @@ private fun HoleCardSlot(
         } else {
             val flightDp = -260f
             val flightPx = with(LocalDensity.current) { flightDp.dp.toPx() }
-            val translationY by animateFloatAsState(
+            // The deal-in. This slot was the top *measured* recomposer left on
+            // the screen (~298 per the ENG-49 trace) precisely because both of
+            // these were unwrapped here: two cards each recomposing through a
+            // 360ms flight and a 380ms flip, every hand. Both are draw-phase
+            // inputs, and the only thing composition needs is which face is up.
+            val flight = animateFloatAsState(
                 targetValue = if (arrived) 0f else flightPx,
                 animationSpec = tween(360, easing = FastOutSlowInEasing),
                 label = "hole-fly",
             )
-            val rotation by animateFloatAsState(
+            val rotation = animateFloatAsState(
                 targetValue = if (revealed) 180f else 0f,
                 animationSpec = tween(380),
                 label = "hole-flip",
             )
+            val backTowardViewer by remember { derivedStateOf { rotation.value <= 90f } }
             Box(
                 modifier = Modifier
                     .size(width = size.width, height = size.height)
                     .graphicsLayer {
-                        this.translationY = translationY
-                        rotationY = rotation
+                        translationY = flight.value
+                        rotationY = rotation.value
                         cameraDistance = 12f * density
                     },
             ) {
-                if (rotation <= 90f) {
+                if (backTowardViewer) {
                     PlayingCardBack(size = size, avatarOverlay = avatarOverlay)
                 } else {
                     Box(
@@ -776,11 +844,15 @@ private fun FlippablePlayerInfoTile(
     LaunchedEffect(canFlip) {
         if (!canFlip) flipped = false
     }
-    val rotation by animateFloatAsState(
+    // State, not `by`: this tile carries the stack and win-odds text, so a
+    // per-frame recomposition here rebuilds text blobs through the whole 520ms
+    // flip — the exact path the ENG-49 traces ended in.
+    val rotation = animateFloatAsState(
         targetValue = if (flipped) 180f else 0f,
         animationSpec = tween(durationMillis = 520),
         label = "info-tile-flip",
     )
+    val frontTowardViewer by remember { derivedStateOf { rotation.value <= 90f } }
 
     // Discoverability wiggle — fires once per session when the user owns
     // the tool AND has never flipped the tile before (persisted via
@@ -815,7 +887,7 @@ private fun FlippablePlayerInfoTile(
     Box(
         modifier = modifier
             .graphicsLayer {
-                rotationY = rotation + hintRotation.value
+                rotationY = rotation.value + hintRotation.value
                 cameraDistance = 14f * density
             }
             .pointerInput(canFlip, swipeCommitPx) {
@@ -830,7 +902,7 @@ private fun FlippablePlayerInfoTile(
                 )
             },
     ) {
-        if (rotation <= 90f) {
+        if (frontTowardViewer) {
             PlayerInfoTile(
                 seat = seat,
                 handLabel = handLabel,

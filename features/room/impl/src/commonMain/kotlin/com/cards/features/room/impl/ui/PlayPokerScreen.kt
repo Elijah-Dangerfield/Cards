@@ -17,6 +17,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -147,7 +150,17 @@ fun PlayPokerScreen(
     var practiceTierExplainerAutoShown by remember { mutableStateOf(false) }
     var leaveConfirmOpen by remember { mutableStateOf(false) }
     var swipeFoldConfirmOpen by remember { mutableStateOf(false) }
-    var profileSheetSeat by remember { mutableStateOf<SeatView?>(null) }
+    // The *index* of the tapped seat, not the SeatView itself. The sheet shows
+    // live figures — stack, hands-at-this-table, last move — so holding the
+    // value would freeze them at the instant of the tap and still read "1 hand
+    // at this table" six hands later. Index is the seat's stable identity, so
+    // we re-resolve off `active.seats` on every projection, exactly as the self
+    // card already does.
+    var profileSheetSeatIndex by remember { mutableStateOf<Int?>(null) }
+    // Deliberately the opposite: report *is* a frozen snapshot. You're
+    // reporting what someone did, and they may well leave the table between
+    // the tap and the submit — resolving live would yank the sheet out from
+    // under a report in progress the moment their seat cleared.
     var reportSheetSeat by remember { mutableStateOf<SeatView?>(null) }
     var selfCardOpen by remember { mutableStateOf(false) }
     // A badge/title chip tapped on the player-profile sheet — opens its
@@ -258,10 +271,16 @@ fun PlayPokerScreen(
         wasXpFrozen = xpFrozen
     }
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
-    LaunchedEffect(active?.isHumanTurn) {
-        if (active?.isHumanTurn != true) {
-            actionSheetOpen = false
-        } else {
+    // Keyed on the hand as well as the turn, and closes the sheet
+    // unconditionally when either changes. The sheet is bound to *this* hand's
+    // LegalActions, and both keys moving means those actions are stale — so a
+    // new hand closes it even when the turn never flips false across the deal,
+    // which would otherwise ride hand 1's bet presets into hand 2 against a
+    // different stack. Re-firing the turn cue on a new hand that opens on your
+    // action is correct, not a side effect to suppress.
+    LaunchedEffect(active?.handNumber, active?.isHumanTurn) {
+        actionSheetOpen = false
+        if (active?.isHumanTurn == true) {
             // Fire the configured "your turn" cue. Both Vibrate and the
             // legacy Sound value perform haptics — Sound is hidden from
             // the picker until the KMP audio path lands (docs/backlog.md),
@@ -406,7 +425,7 @@ fun PlayPokerScreen(
                             }
                         },
                         onOpponentTap = { seat ->
-                            seatMuteKey(seat)?.let { profileSheetSeat = seat }
+                            seatMuteKey(seat)?.let { profileSheetSeatIndex = seat.index }
                         },
                         onSelfTap = { selfCardOpen = true },
                         availableEmojis = state.availableEmojis,
@@ -489,7 +508,16 @@ fun PlayPokerScreen(
         // lands on a bot-stacked MP table, so they understand the halved-XP /
         // no-MP-achievement cost before they play. Keyed off the flag's first
         // true, not per hand — the remembered guard survives across hands.
-        if (active?.practiceTierBotsPresent == true && !practiceTierExplainerAutoShown) {
+        //
+        // Waits for a hand-result-free projection. A mid-game joiner (or a
+        // re-entry after process death) can arrive on a table that is both new
+        // to us and already showing a result, and two stacked modal scrims is
+        // not a first impression. The guard is only set once we actually open,
+        // so the explainer still fires on the next result-free projection.
+        if (active?.practiceTierBotsPresent == true &&
+            active.handResult == null &&
+            !practiceTierExplainerAutoShown
+        ) {
             LaunchedEffect(Unit) {
                 practiceTierExplainerAutoShown = true
                 practiceTierExplainerOpen = true
@@ -570,7 +598,9 @@ fun PlayPokerScreen(
             )
         }
 
-        profileSheetSeat?.let { seat ->
+        profileSheetSeatIndex
+            ?.let { index -> active?.seats?.firstOrNull { it.index == index } }
+            ?.let { seat ->
             // Fetch the human opponent's public style on open, once, when the
             // Opponent Style Reader is owned. Bots / empty seats never fetch.
             if (!seat.isBot && seat.userId != null && state.ownsOpponentStyleReader) {
@@ -586,7 +616,7 @@ fun PlayPokerScreen(
                         onAction(PlayPokerAction.ToggleMutePlayer(key))
                     }
                 },
-                onDismiss = { profileSheetSeat = null },
+                onDismiss = { profileSheetSeatIndex = null },
                 // Resolve the opponent's equipped badge ids (off their Seat) to
                 // display metadata from our catalog — no earned-at for opponents,
                 // so the sheet shows what it is, not when they earned it.
@@ -606,7 +636,7 @@ fun PlayPokerScreen(
                 // opponent regardless of the social flag, unlike add-friend.
                 onReport = seat.userId
                     ?.takeIf { !seat.isBot && !seat.seatEmpty }
-                    ?.let { { reportSheetSeat = seat; profileSheetSeat = null } },
+                    ?.let { { reportSheetSeat = seat; profileSheetSeatIndex = null } },
                 reportSent = seat.userId in state.reportedUserIds,
             )
         }
@@ -979,7 +1009,7 @@ private fun NextHandCountdownBar(
     // client needing to know the configured beat length.
     val totalMs = remember(countdown.deadlineEpochMs) { remainingMs.coerceAtLeast(1L) }
     val targetFraction = (remainingMs.toFloat() / totalMs).coerceIn(0f, 1f)
-    val fraction by animateFloatAsState(
+    val fraction = animateFloatAsState(
         targetValue = targetFraction,
         animationSpec = tween(durationMillis = 1_000, easing = LinearEasing),
         label = "next-hand-drain",
@@ -1005,21 +1035,32 @@ private fun NextHandCountdownBar(
         }
         // Draining fill — empties as the next deal nears, so "how long do I have"
         // reads at a glance without parsing the digits.
+        //
+        // Painted rather than laid out. The obvious spelling is a child Box with
+        // `fillMaxWidth(fraction)`, but `fillMaxWidth` takes a Float, so the
+        // fraction has to be unwrapped during composition and the bar then
+        // recomposes *and* re-lays-out every frame for a second. Reading it
+        // inside `drawBehind` keeps the whole drain in the draw phase. This bar
+        // runs at hand end, alongside the pot ship and the chip odometer — the
+        // exact moment the ENG-49 traces caught the RenderThread wedged.
+        val fillColor = AppTheme.colors.poker.chipGold.color
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
                 .clip(Radii.Round.shape)
-                .background(AppTheme.colors.surfaceRaised.color),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(fraction)
-                    .height(6.dp)
-                    .clip(Radii.Round.shape)
-                    .background(AppTheme.colors.poker.chipGold.color),
-            )
-        }
+                .background(AppTheme.colors.surfaceRaised.color)
+                .drawBehind {
+                    val filled = size.width * fraction.value
+                    if (filled > 0f) {
+                        drawRoundRect(
+                            color = fillColor,
+                            size = Size(filled, size.height),
+                            cornerRadius = CornerRadius(size.height / 2f),
+                        )
+                    }
+                },
+        )
     }
 }
 

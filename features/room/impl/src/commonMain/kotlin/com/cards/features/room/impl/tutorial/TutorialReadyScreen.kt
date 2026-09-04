@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import com.dangerfield.cards.libraries.ui.components.rememberLoopingFloat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -262,8 +263,7 @@ private fun Sparkle(
     size: androidx.compose.ui.unit.Dp = 14.dp,
     phaseOffsetMs: Int = 0,
 ) {
-    val transition = rememberInfiniteTransition(label = "sparkle")
-    val alpha by transition.animateFloat(
+    val alpha = rememberLoopingFloat(
         initialValue = 0.35f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
@@ -273,7 +273,7 @@ private fun Sparkle(
         ),
         label = "sparkle-alpha",
     )
-    val scale by transition.animateFloat(
+    val scale = rememberLoopingFloat(
         initialValue = 0.7f,
         targetValue = 1.1f,
         animationSpec = infiniteRepeatable(
@@ -287,9 +287,10 @@ private fun Sparkle(
         modifier = modifier
             .size(size)
             .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                this.alpha = alpha
+                val s = scale.value
+                scaleX = s
+                scaleY = s
+                this.alpha = alpha.value
             },
     ) {
         val color = ColorResource.PokerSparkleGold.color

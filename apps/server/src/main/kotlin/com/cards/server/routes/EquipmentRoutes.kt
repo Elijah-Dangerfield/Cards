@@ -1,7 +1,7 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.domain.EquipmentRepository
-import com.dangerfield.cards.server.plugins.PROFILE_WRITE_LIMIT
+import com.dangerfield.cards.server.plugins.PROGRESSION_WRITE_LIMIT
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
@@ -27,8 +27,14 @@ import kotlin.time.Instant
  *
  * Mirrors `POST /v1/inventory/sync`'s shape so the client can use the
  * same retry / single-flight loop. Reuses the existing PROFILE_WRITE
- * rate-limit bucket — equipment changes are profile-style writes from
- * a load-shaping perspective (30/hour/IP is plenty).
+ * rate-limit bucket. It sits on [PROGRESSION_WRITE_LIMIT] (480/hour/IP), not
+ * the 30/hour profile bucket it used to share with `PATCH /v1/me`. That was the
+ * wrong shape: this is a background syncer on exactly the cadence of the wallet
+ * and progression syncs — cold boot, every foreground, and every equip tap —
+ * and it had one sixteenth of their budget. It exhausted the bucket and the
+ * client surfaced the 429 as an unhandled error (Sentry CARDS-BX). Sharing with
+ * `PATCH /v1/me` also meant a sync storm could lock a user out of renaming
+ * themselves.
  *
  * Requires a valid Supabase JWT. The `userId` comes from the `sub`
  * claim — clients never pass it in the body.
@@ -36,7 +42,7 @@ import kotlin.time.Instant
 @OptIn(ExperimentalTime::class)
 fun Route.equipmentRoutes(repository: EquipmentRepository, clock: Clock = Clock.System) {
     authenticate(SUPABASE_JWT_AUTH) {
-        rateLimit(RateLimitName(PROFILE_WRITE_LIMIT)) {
+        rateLimit(RateLimitName(PROGRESSION_WRITE_LIMIT)) {
             post("/v1/equipment/sync") {
                 val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
                 val request = call.receive<EquipmentSyncRequest>()

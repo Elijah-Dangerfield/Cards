@@ -15,6 +15,7 @@ green, close the tab.**
 | Downcard — Business | Revenue (`dc-revenue`) | Real money only: $, % payers, per-pack breakdowns (pinned prod) |
 | Downcard — Engineering | Infra (`dc-infra`) | Backend/DB health: Fly machine, Supabase, RED, memory/OOM |
 | Downcard — Engineering | Game Server Pipeline (`cards-gameplay`) | Turn-processing internals from Tempo traces |
+| Downcard — Engineering | Performance (`dc-perf`) | Is the app smooth, how fast does it start, and which screen is at fault? Jank rate and worst frame per screen from `app.jank` (JankStats); cold-start p50/p90 from `app.startup`, measured from OS process creation; abnormal exits as the outcome both predict. **Android only** — iOS has neither a frame-timing API nor a readable process-start clock, and reports nothing here. **Empty until a build carrying them reaches prod**; the "Screens reporting" and "Cold starts recorded" stats are the tell (0 = no such build yet, not a fast, smooth app) |
 | Downcard — Engineering | Billing Health (`dc-billing-health`) | Chip-purchase recovery pipeline: stuck purchases with age, mismatch rate, grant-on-replay, refunds, wedged escalations, retry distribution, sliceable by reason |
 
 ## Conventions
@@ -29,6 +30,12 @@ green, close the tab.**
 - **Crash-free rates** come from the `previous_exit` attribute on `app.launched` (next-launch
   marking) — not Sentry; the Grafana Sentry datasource can only chart issues/events/usage. Sentry
   stays the stack-trace tool. iOS reports `previous_exit=unknown` until MetricKit lands (ENG-25).
+- **Crash and ANR are separate numbers** (Pulse → Stability, split 2026-09-03). Crash-free counts
+  `crash` + `oom`: the app died. ANR-free counts `anr` on its own: the app froze on the main thread
+  and the OS offered to kill it. They have different causes, different fixes and different bars —
+  Play demotes an app above a 0.47% user-perceived ANR rate, so ANR-free goes amber at 99.7% while
+  crash-free goes amber at 98%. Averaging them together hid a 2-ANR week behind an OOM spike.
+  "Abnormal exits per day by kind" charts the raw counts so you can see which one you have.
 - **Warn+ client logs** land in Loki behind `telemetry.klogForwardingEnabled` (default on):
   `{service_name="cards-client"} | detected_level=~"warn|error"`.
 - **Platform split:** every client event carries a `platform` structured-metadata value
@@ -125,6 +132,14 @@ identifier and Postgres rejects the whole query (`SQLSTATE 42601`), taking the p
 save are not valid after it. Re-read `$.panels[*].title` immediately before every patch, or you
 will edit a different panel than you meant to.
 
+**An unwrapped Loki range aggregation keeps every structured-metadata label, so it must carry an
+explicit `by (...)`.** `quantile_over_time(0.5, {...} | unwrap startup_ms [7d])` looks like it
+returns one number and returns one series *per `session_id` and `install_id`* — 255 of them on a
+week of real traffic. A `stat` panel then reduces whichever series Grafana happens to pick and shows
+a plausible, meaningless value, which is far worse than an error. Add `by (service_name)` for a
+single overall figure, or `by (device_class)` / `by (screen)` for a real breakdown. This does not
+apply to the `sum(sum_over_time(...))` form, where the outer `sum` already collapses the labels.
+
 ## Durable vs ephemeral panels
 
 **Loki is capped at 31 days and fails loudly past it.** A 90-day query returns
@@ -184,6 +199,12 @@ population. *Fixed 2026-09-01: OOM now counts as a crash.* The iOS half is still
 `previous_exit=unknown` is ~45% of all launches until MetricKit lands (ENG-25), and those sit in
 the denominator but can never reach the numerator, so the number reads **higher than reality**.
 Treat crash-free as an Android figure with an optimistic bias.
+
+**ANRs hid inside crash-free.** Once OOM joined the numerator it dominated it (7 OOM vs 2 ANR over
+the 7 days to 2026-09-03), so a freeze and a death produced the same single percentage and neither
+was legible. *Fixed 2026-09-03: crash-free is `crash` + `oom`, ANR-free is its own stat, and
+"Abnormal exits per day by kind" charts the three separately.* Both still carry the iOS blind spot
+above.
 
 **Metrics that do not exist.** These are scraped by nothing, so their panels/queries are
 permanently dead rather than reporting zero. A `0` from any of them means "no data", not "no

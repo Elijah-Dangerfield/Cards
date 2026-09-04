@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Daily sweep of acked + expired user_messages rows (dev).
+# Daily sweep of acked + expired user_messages rows (PRODUCTION).
 #
 # Calls POST /v1/admin/sweep-expired-messages once a day. The endpoint
 # drops:
@@ -7,18 +7,30 @@
 #   - Unacked rows whose `expires_at` has passed — the unread-fetch
 #     filter already hides these client-side, so deletion is cleanup.
 #
+# This ran against **dev** until 2026-09-04, which was backwards. Dev's
+# user_messages table is a handful of rows written by hand while testing the
+# admin workflows — nothing accumulates there, so the sweep had nothing to do
+# and its result told us nothing. Prod is where real players ack real messages
+# and where expired rows actually pile up, and it had no sweep at all. Same job,
+# pointed at the environment that needed it.
+#
 # A spike in `expiredUnackedPurged` is worth investigating: it means
 # users weren't seeing their notices in time (TTL too short, or app
 # engagement dropped). The endpoint returns counts in the response;
 # the workflow surfaces them in the run summary.
 #
+# No `confirm` gate, unlike the other prod admin workflows. Those write to a
+# real player's account on a human's say-so, so they make you type PROD. This
+# only deletes rows the client already treats as gone, and a cron cannot type
+# anything into a box.
+#
 # Cadence: once a day at an odd minute (storage hygiene doesn't need
 # tight scheduling, and odd minutes dodge the top-of-hour cron stampede).
 #
-# Auth: shares ADMIN_API_TOKEN with the other admin endpoints.
+# Auth: shares CARDS_ADMIN_API_TOKEN_PROD with the other prod admin endpoints.
 # ─────────────────────────────────────────────────────────────────────────────
 
-name: Sweep expired messages (dev)
+name: Sweep expired messages (prod)
 
 on:
   schedule:
@@ -26,7 +38,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: sweep-messages-dev
+  group: sweep-messages-prod
   cancel-in-progress: false
 
 jobs:
@@ -36,12 +48,12 @@ jobs:
     steps:
       - name: Call admin sweep endpoint
         env:
-          ADMIN_TOKEN: ${{ secrets.CARDS_ADMIN_API_TOKEN_DEV }}
+          ADMIN_TOKEN: ${{ secrets.CARDS_ADMIN_API_TOKEN_PROD }}
         run: |
           set -euo pipefail
 
           if [ -z "$ADMIN_TOKEN" ]; then
-            echo "::error::CARDS_ADMIN_API_TOKEN_DEV secret is not set"
+            echo "::error::CARDS_ADMIN_API_TOKEN_PROD secret is not set"
             exit 1
           fi
 
@@ -50,7 +62,7 @@ jobs:
             -o "$response_file" -w "%{http_code}" \
             -X POST \
             -H "X-Admin-Token: $ADMIN_TOKEN" \
-            https://cards-server-dev.fly.dev/v1/admin/sweep-expired-messages)
+            https://cards-server-prod.fly.dev/v1/admin/sweep-expired-messages)
 
           echo "HTTP $status"
           cat "$response_file"

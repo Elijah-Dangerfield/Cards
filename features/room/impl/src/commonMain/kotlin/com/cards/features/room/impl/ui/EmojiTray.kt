@@ -83,7 +83,11 @@ internal fun SeatEmoteBadge(
     val ownsAnyPack = emojis.isNotEmpty()
     var expanded by remember { mutableStateOf(false) }
 
-    val now = rememberSecondTicker(active = cooldownEndsAtEpochMs > 0L)
+    // Gate on the cooldown being *live*, not on it ever having been set. The
+    // field is only ever written forward (never back to 0), so `> 0L` latched
+    // true on the first emote and left the ticker writing snapshot state 4x/sec
+    // for the rest of the session — eight seconds of which were useful.
+    val now = rememberSecondTicker(untilEpochMs = cooldownEndsAtEpochMs)
     val cooling = now < cooldownEndsAtEpochMs
     val remainingSeconds = if (cooling) {
         ((cooldownEndsAtEpochMs - now) / 1000L + 1L).coerceAtLeast(1L)
@@ -302,14 +306,18 @@ private fun EmojiPickerRow(
  * TopBar isn't recomposing for nothing.
  */
 @Composable
-private fun rememberSecondTicker(active: Boolean): Long {
+private fun rememberSecondTicker(untilEpochMs: Long): Long {
     var now by remember { mutableStateOf(Clock.System.now().toEpochMilliseconds()) }
-    LaunchedEffect(active) {
-        if (!active) return@LaunchedEffect
-        while (true) {
+    LaunchedEffect(untilEpochMs) {
+        // Stop at the deadline rather than looping forever. Keyed on the
+        // deadline so a fresh cooldown restarts it.
+        while (Clock.System.now().toEpochMilliseconds() < untilEpochMs) {
             now = Clock.System.now().toEpochMilliseconds()
             delay(250L)
         }
+        // Final write so the last tick lands on "cooldown over" rather than
+        // leaving the chip showing 1s.
+        now = Clock.System.now().toEpochMilliseconds()
     }
     return now
 }

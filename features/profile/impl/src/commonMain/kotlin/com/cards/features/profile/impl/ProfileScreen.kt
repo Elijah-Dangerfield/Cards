@@ -77,6 +77,7 @@ import cards.libraries.resources.generated.resources.profile_stats_banner_title
 import cards.libraries.resources.generated.resources.profile_achievements_count_see_all
 import cards.libraries.resources.generated.resources.profile_achievements_title
 import cards.libraries.resources.generated.resources.ui_achievement_medallion_locked_label
+import com.dangerfield.cards.libraries.ui.components.pulsingBorder
 import com.dangerfield.cards.libraries.ui.components.poker.BuyableCosmetic
 import com.dangerfield.cards.features.profile.impl.items.CosmeticDetailSheet
 import com.dangerfield.cards.features.profile.impl.items.KnownEarnedItems
@@ -936,11 +937,16 @@ private fun OwnedCosmeticTile(
     // Equipped tiles read from the corner badge alone — no persistent ring,
     // which the owner found heavy-handed; the pulse is the only thing that
     // ever draws the border now.
-    val pulseAlpha by animateFloatAsState(
+    // State, drawn through `pulsingBorder` — the shared primitive the table uses
+    // for the same job. `Modifier.border` takes a resolved Color, so unwrapping
+    // the alpha here would recompose this whole tile, including the cosmetic
+    // preview inside it, on every frame of the 600ms pulse.
+    val pulseAlpha = animateFloatAsState(
         targetValue = if (isPulsing) 1f else 0f,
         animationSpec = tween(durationMillis = 600, easing = LinearEasing),
         label = "OwnedCosmeticTilePulse",
     )
+    val pulseColor = AppTheme.colors.accentPrimary.color
     // Only genuinely equippable cosmetics (card backs / felts / titles) get the
     // equipped badge — packs (emotes, avatars) are owned, not "equipped".
     val showEquippedBadge = item.isEquipped && item.isEquippable
@@ -948,7 +954,7 @@ private fun OwnedCosmeticTile(
         Box(
             modifier = Modifier
                 .clip(Radii.R600.shape)
-                .border(2.dp, AppTheme.colors.accentPrimary.color.copy(alpha = pulseAlpha), Radii.R600.shape)
+                .pulsingBorder(2.dp, Radii.R600.shape) { pulseColor.copy(alpha = pulseAlpha.value) }
                 .clickable(onClick = onClick),
         ) {
             CosmeticPreview(

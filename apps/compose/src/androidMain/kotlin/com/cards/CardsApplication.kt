@@ -1,6 +1,7 @@
 package com.dangerfield.cards
 
 import android.app.Application
+import com.dangerfield.cards.debug.AndroidStrictModeLog
 
 class CardsApplication : Application() {
     
@@ -10,6 +11,10 @@ class CardsApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         appComponent = AndroidAppComponent::class.create(this)
+        // Armed straight after the graph exists and before any warm-up work, so
+        // it also watches the initialization below — exactly where main-thread
+        // disk reads like to hide.
+        (appComponent.strictModeLog as? AndroidStrictModeLog)?.install()
         appComponent.telemetry.initialize()
         // Construct every @AutoInit singleton up front (products
         // catalog, profile + avatar warm, AppEventDispatcher's

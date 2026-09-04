@@ -1,5 +1,6 @@
 package com.dangerfield.cards
 
+import com.dangerfield.cards.libraries.telemetry.impl.JankMonitor
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -304,6 +305,7 @@ fun App(appComponent: AppComponent) {
                             shopBadgeStateRepository = appComponent.shopBadgeStateRepository,
                             xpBoostRepository = appComponent.xpBoostRepository,
                             telemetry = appComponent.telemetry,
+                            jankMonitor = appComponent.jankMonitor,
                         )
                     } else {
                         BootLoadingScreen()
@@ -404,6 +406,7 @@ private fun AppNavigation(
     shopBadgeStateRepository: com.dangerfield.cards.libraries.products.ShopBadgeStateRepository,
     xpBoostRepository: com.dangerfield.cards.libraries.cards.XpBoostRepository,
     telemetry: Telemetry,
+    jankMonitor: JankMonitor,
     topBar: @Composable () -> Unit = {},
 ) {
 
@@ -416,7 +419,12 @@ private fun AppNavigation(
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRouteName = currentBackStackEntry?.destination?.routeClassNameOrNull()
     LaunchedEffect(currentRouteName) {
-        currentRouteName?.let { telemetry.setCurrentRoute(it) }
+        currentRouteName?.let {
+            telemetry.setCurrentRoute(it)
+            // Same route name to the same instant, so a jank report and a crash
+            // report can never disagree about which screen the user was on.
+            jankMonitor.onRouteChanged(it)
+        }
     }
 
     Screen(
