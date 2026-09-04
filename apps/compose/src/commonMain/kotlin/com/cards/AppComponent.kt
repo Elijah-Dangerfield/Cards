@@ -1,5 +1,6 @@
 package com.dangerfield.cards
 
+import com.dangerfield.cards.libraries.telemetry.impl.JankMonitor
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.InAppMessageManager
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
@@ -34,6 +35,12 @@ interface AppComponent {
     val appViewModel: AppViewModel  // Singleton, shared between MainActivity and App
     val delegatingRouter: DelegatingRouter
     val telemetry: Telemetry
+
+    /**
+     * Real-user frame timing, reported per screen. Android binds JankStats; iOS
+     * binds a no-op (see [JankMonitor]).
+     */
+    val jankMonitor: JankMonitor
     val shakeHandler: ShakeHandler
     val deepLinkBridge: DeepLinkBridge
     val appConfigFlow: AppConfigFlow

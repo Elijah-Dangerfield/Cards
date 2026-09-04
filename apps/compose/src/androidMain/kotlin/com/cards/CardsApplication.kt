@@ -9,6 +9,9 @@ class CardsApplication : Application() {
     
     override fun onCreate() {
         super.onCreate()
+        // First thing, so it also watches the initialization below — which is
+        // exactly where main-thread disk reads like to hide.
+        enableStrictModeForDebugBuilds()
         appComponent = AndroidAppComponent::class.create(this)
         appComponent.telemetry.initialize()
         // Construct every @AutoInit singleton up front (products

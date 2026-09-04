@@ -51,6 +51,9 @@ kotlin {
 
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
+            // JankStats — real-user frame timing. Android-only by nature, so it
+            // is declared here rather than in commonMain; iOS binds a no-op.
+            implementation(libs.androidx.metrics.performance)
         }
 
         iosMain.dependencies {

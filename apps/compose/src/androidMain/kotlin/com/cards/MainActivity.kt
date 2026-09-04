@@ -7,6 +7,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.dangerfield.cards.libraries.telemetry.impl.AndroidJankMonitor
 
 class MainActivity : ComponentActivity() {
 
@@ -33,10 +34,30 @@ class MainActivity : ComponentActivity() {
             !appComponent.appViewModel.isReady.value
         }
 
+        // JankStats needs a Window, so it can only be armed once the Activity
+        // has one. Attaching after setContent would miss the first frames,
+        // which are the ones most likely to be janky.
+        (appComponent.jankMonitor as? AndroidJankMonitor)?.attach(window)
+
         setContent {
             App(appComponent)
         }
     }
+
+    override fun onStop() {
+        super.onStop()
+        // Flush whatever this screen accumulated before the process can be
+        // killed in the background. A session that never returns still reports
+        // the screen it was on, which is the one worth knowing about.
+        appComponent.jankMonitor.onBackground()
+    }
+
+    override fun onDestroy() {
+        (appComponent.jankMonitor as? AndroidJankMonitor)?.detach()
+        super.onDestroy()
+    }
+
+    private val appComponent get() = (application as CardsApplication).appComponent
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
