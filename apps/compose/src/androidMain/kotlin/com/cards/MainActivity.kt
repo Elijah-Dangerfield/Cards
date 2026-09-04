@@ -1,5 +1,10 @@
 package com.dangerfield.cards
 
+import android.widget.Toast
+import androidx.lifecycle.lifecycleScope
+import com.dangerfield.cards.libraries.core.BuildInfo
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -39,6 +44,12 @@ class MainActivity : ComponentActivity() {
         // which are the ones most likely to be janky.
         (appComponent.jankMonitor as? AndroidJankMonitor)?.attach(window)
 
+        // One toast per launch when this build has produced a violation that no
+        // previous run ever did. Not per violation — StrictMode fires constantly
+        // and a toast you learn to dismiss reflexively is worse than silence.
+        // The shake menu's badge and the log screen carry the detail.
+        warnOnNewPerformanceIssues()
+
         setContent {
             App(appComponent)
         }
@@ -58,6 +69,27 @@ class MainActivity : ComponentActivity() {
     }
 
     private val appComponent get() = (application as CardsApplication).appComponent
+
+    private fun warnOnNewPerformanceIssues() {
+        if (!BuildInfo.isDebug) return
+        lifecycleScope.launch {
+            // Violations land during startup, so give the app a beat to produce
+            // them rather than reading a count that is still zero.
+            delay(NEW_ISSUE_TOAST_DELAY_MS)
+            val count = appComponent.strictModeLog.newViolationCount.value
+            if (count > 0) {
+                Toast.makeText(
+                    this@MainActivity,
+                    "This build has $count new performance issue(s). Shake to view.",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
+
+    private companion object {
+        const val NEW_ISSUE_TOAST_DELAY_MS = 3_000L
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

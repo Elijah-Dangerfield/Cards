@@ -1,6 +1,5 @@
 plugins {
     id("cards.feature")
-    alias(libs.plugins.roborazzi)
 }
 
 android {
@@ -13,12 +12,6 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
-}
-
-// Golden screenshots live in the source tree, not build/, so they are
-// reviewable in a diff and travel with the code that produced them.
-roborazzi {
-    outputDir.set(file("screenshots"))
 }
 
 kotlin {
@@ -101,15 +94,6 @@ kotlin {
             // launches; without it Robolectric can't resolve the activity.
             implementation(libs.compose.uiTestManifest)
             implementation(libs.robolectric)
-            // Screenshot testing. The preview scanner walks the module's
-            // @Preview functions so goldens are generated from previews that
-            // already exist, rather than from tests someone has to remember to
-            // write. Record with `recordRoborazziDebug`, check with
-            // `verifyRoborazziDebug`.
-            implementation(libs.roborazzi)
-            implementation(libs.roborazzi.compose)
-            implementation(libs.roborazzi.previewScannerSupport)
-            implementation(libs.composablePreviewScanner)
         }
     }
 }

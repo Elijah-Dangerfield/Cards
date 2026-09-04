@@ -33,6 +33,11 @@ fun ShakeDialog(
     // Debug-only: when non-null, an extra action opens the on-device network
     // inspector. Release callers leave this null so the button never shows.
     onOpenNetworkInspector: (() -> Unit)? = null,
+    // Debug-only: opens the StrictMode violation log. Null in release.
+    onOpenPerformanceLog: (() -> Unit)? = null,
+    // Distinct violations never seen in a previous run. Non-zero puts a count
+    // on the button, which is the whole signal — it means this build did it.
+    newPerformanceIssueCount: Int = 0,
 ) {
     Dialog(
         state = state,
@@ -79,6 +84,27 @@ fun ShakeDialog(
                         type = ButtonType.Secondary,
                     ) {
                         Text(stringResource(Res.string.ui_shake_dialog_inspect_network_cta))
+                    }
+                }
+                if (onOpenPerformanceLog != null) {
+                    Spacer(modifier = Modifier.height(Dimension.D500))
+                    Button(
+                        onClick = {
+                            state.dismiss()
+                            onOpenPerformanceLog()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        size = ButtonSize.Medium,
+                        type = ButtonType.Secondary,
+                    ) {
+                        @Suppress("VerifyStrings") // Debug-only affordance; see PerformanceLogScreen.
+                        Text(
+                            if (newPerformanceIssueCount > 0) {
+                                "Performance log ($newPerformanceIssueCount new)"
+                            } else {
+                                "Performance log"
+                            },
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(Dimension.D500))

@@ -69,11 +69,6 @@ opentelemetryInstrumentation = "2.11.0-alpha"
 opentelemetryKotlin = "0.5.0"
 okio = "3.9.1"
 robolectric = "4.14.1"
-# Screenshot testing. Roborazzi renders through the Robolectric setup already in
-# place; the preview scanner (JitPack-only — see settings.gradle.kts) discovers
-# every @Preview so goldens come for free rather than being hand-written.
-roborazzi = "1.43.1"
-composablePreviewScanner = "0.9.1"
 androidxComposeUiTestManifest = "1.9.4"
 
 [libraries]
@@ -97,10 +92,6 @@ compose-backhandler = { module = "org.jetbrains.compose.ui:ui-backhandler", vers
 compose-uiTest = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "composeMultiplatform" }
 compose-uiTestManifest = { module = "androidx.compose.ui:ui-test-manifest", version.ref = "androidxComposeUiTestManifest" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
-roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
-roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
-roborazzi-previewScannerSupport = { module = "io.github.takahirom.roborazzi:roborazzi-compose-preview-scanner-support", version.ref = "roborazzi" }
-composablePreviewScanner = { module = "com.github.sergio-sastre.ComposablePreviewScanner:android", version.ref = "composablePreviewScanner" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
 androidx-compose-runtimeTracing = { module = "androidx.compose.runtime:runtime-tracing", version.ref = "androidx-composeRuntimeTracing" }
 androidx-tracing-perfetto = { module = "androidx.tracing:tracing-perfetto", version.ref = "androidx-tracingPerfetto" }
@@ -242,7 +233,6 @@ composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMul
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 detekt = { id = "dev.detekt", version.ref = "detekt" }
-roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ktor = { id = "io.ktor.plugin", version.ref = "ktor" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

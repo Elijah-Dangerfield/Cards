@@ -1,5 +1,6 @@
 package com.dangerfield.cards
 
+import com.dangerfield.cards.debug.StrictModeLog
 import com.dangerfield.cards.libraries.telemetry.impl.JankMonitor
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.InAppMessageManager
@@ -41,6 +42,9 @@ interface AppComponent {
      * binds a no-op (see [JankMonitor]).
      */
     val jankMonitor: JankMonitor
+
+    /** Debug-only StrictMode violation log, surfaced through the shake menu. */
+    val strictModeLog: StrictModeLog
     val shakeHandler: ShakeHandler
     val deepLinkBridge: DeepLinkBridge
     val appConfigFlow: AppConfigFlow

@@ -1,5 +1,10 @@
 package com.dangerfield.cards
 
+import androidx.compose.runtime.collectAsState
+import com.dangerfield.cards.debug.PerformanceLogScreen
+import com.dangerfield.cards.debug.StrictModeLog
+import com.dangerfield.cards.libraries.navigation.PerformanceLogRoute
+import com.dangerfield.cards.libraries.navigation.screen
 import androidx.compose.runtime.DisposableEffect
 import androidx.navigation.NavGraphBuilder
 import com.dangerfield.cards.features.profile.FeedbackRoute
@@ -21,6 +26,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class ShakeDialogEntryPoint(
     private val shakeHandler: ShakeHandler,
     private val networkInspector: NetworkInspector,
+    private val strictModeLog: StrictModeLog,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -50,6 +56,26 @@ class ShakeDialogEntryPoint(
                 } else {
                     null
                 },
+                // Debug-only: the StrictMode violation log. The count is the
+                // number never seen in a previous run, so a non-zero badge
+                // means *this* build introduced something.
+                onOpenPerformanceLog = if (BuildInfo.isDebug) {
+                    {
+                        router.goBack()
+                        router.navigate(PerformanceLogRoute())
+                    }
+                } else {
+                    null
+                },
+                newPerformanceIssueCount = strictModeLog.newViolationCount.collectAsState().value,
+            )
+        }
+
+        screen<PerformanceLogRoute> { _ ->
+            PerformanceLogScreen(
+                violations = strictModeLog.violations.collectAsState().value,
+                onSeen = strictModeLog::markAllSeen,
+                onBack = { router.goBack() },
             )
         }
     }

@@ -40,18 +40,6 @@ dependencyResolutionManagement {
         }
         google()
         mavenCentral()
-        // ComposablePreviewScanner is the one dependency we need that isn't on
-        // Maven Central. It's what turns every `@Preview` into a screenshot test
-        // without anyone hand-writing one.
-        //
-        // JitPack builds artifacts from GitHub on demand, which is a weaker
-        // supply-chain guarantee than Central, and this repo is public. So the
-        // content filter is load-bearing, not decoration: JitPack is only ever
-        // consulted for this one group, and every other dependency in the build
-        // still has to come from Central or Google. Do not widen it.
-        maven("https://jitpack.io") {
-            content { includeGroup("com.github.sergio-sastre.ComposablePreviewScanner") }
-        }
     }
 }
 
