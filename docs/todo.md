@@ -109,14 +109,6 @@ So a stability config file or a move to `kotlinx.collections.immutable` would ha
 - `ComposeStabilityTest` (`:features:room:impl`) asserts the behaviour directly — an unchanged seat and an unchanged table skip, a changed one does not. Behavioural, so it survives a change in comparison semantics, unlike an assertion about compiler metadata.
 - `-Pcards.composeReports=true` generates the compiler's stability/skippability reports into `build/compose-reports/`. See `build-logic/.../ComposeCompiler.kt` for how to read them, **including the warning not to treat "unstable" in that report as a cost.** Reading it that way is what produced this ticket.
 
-## ENG-62 [P2] — Nothing tests app-root navigation wiring
-
-**Problem:** Two multiplayer leave bugs (2026-06-24) lived *between* the ViewModel and the navigator and slipped past every test. That gap is still open: `apps/compose` has no `androidUnitTest` source set and there is no `TestAppComponent`, so no test boots the real app with real screens and a real navigator. Per-feature Compose tests exist (`features/room/impl`, `features/onboarding/impl`) but each renders one screen in isolation, so nav wiring is untested by construction.
-
-**Acceptance:** A test drives a real navigation flow end to end — leave a multiplayer table and assert where you land — against the real graph, not a stub. Stubbing the screens is what made the earlier spike's first attempt worthless.
-
-**Hints:** Design already written in `docs/plans/compose-ui-testing-spike.md` (Option 3, "full app"), including which external boundaries to substitute. **That doc's status line was stale for three months and propagated a false "no Compose UI test infrastructure" claim into two other docs — treat its framing with suspicion and verify before quoting it.** Orthogonal to ENG-61: this catches nav wiring, that catches intra-screen state binding. Neither would have caught the other's bugs.
-
 ## ENG-61 — Compose tests that cross a hand boundary — DONE 2026-09-03
 
 The play screen went from 14 single-state tests to **106 across five suites**, every one of which drives at least one hand boundary. Suites: table projection and felt rendering, end-of-hand disposition, modal surfaces and the leave flow, multi-hand transitions, and skippability.
