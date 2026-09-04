@@ -164,15 +164,37 @@ object BenchmarkJourney {
      * costs a full emulator run each time.
      */
     fun UiDevice.describeScreen(): String {
-        val visible = findObjects(By.textContains(""))
-            .mapNotNull { it.text?.trim() }
-            .filter { it.isNotEmpty() }
+        // `By.textContains("")` matches nothing, which is why this reported an
+        // empty screen on every failure and told us less than no diagnostic at
+        // all — it looked like evidence of a blank window. `.+` is the selector
+        // that actually matches any non-empty text.
+        val visible = findObjects(By.text(Pattern.compile(".+")))
+            .mapNotNull { runCatchingStale { it.text?.trim() } }
+            .filter { !it.isNullOrEmpty() }
             .distinct()
             .take(MAX_REPORTED_LINES)
-        return if (visible.isEmpty()) {
-            "Nothing with text on screen — a blank or still-loading window."
-        } else {
-            "On screen:\n" + visible.joinToString("\n") { "  - $it" }
+
+        // Which app is actually in front. Distinguishes "our screen is wrong"
+        // from "we are not even in the app any more" — a crash, a system
+        // dialog, or a launch that never landed all look identical otherwise.
+        val foreground = runCatchingStale { currentPackageName } ?: "unknown"
+
+        return buildString {
+            append("Foreground package: $foreground")
+            if (visible.isEmpty()) {
+                append("\nNo readable text on screen — blank, still loading, or crashed.")
+            } else {
+                append("\nOn screen:\n")
+                append(visible.joinToString("\n") { "  - $it" })
+            }
         }
     }
+
+    /** UiAutomator throws if a node vanishes mid-read; a diagnostic must not. */
+    private fun <T> runCatchingStale(block: () -> T): T? =
+        try {
+            block()
+        } catch (_: StaleObjectException) {
+            null
+        }
 }
