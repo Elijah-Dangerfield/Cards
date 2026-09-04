@@ -179,12 +179,26 @@ fun Project.loadServerMetadata(): ServerMetadata {
     if (targetEnv !in setOf("", "dev", "prod")) {
         error("cards.targetEnv must be unset, 'dev', or 'prod' (got '$targetEnv').")
     }
-    if (targetEnv.isNotEmpty() && isCi) {
+    // Baseline profile generation is the one CI job that legitimately needs the
+    // override. It runs a *release* variant — which would otherwise point at
+    // prod — against an emulator that walks real onboarding, so without this it
+    // would mint accounts in production and spray synthetic telemetry over the
+    // prod dashboards. It happened once locally; the flag exists so it cannot
+    // happen in CI.
+    //
+    // Narrow on purpose: the guard below protects *shippable* artifacts, and
+    // this job produces a profile text file that is reviewed in a PR. Anything
+    // that builds an APK or AAB for a human must not set this.
+    val isProfileGeneration =
+        System.getenv("CARDS_PROFILE_GEN")?.equals("true", ignoreCase = true) == true
+
+    if (targetEnv.isNotEmpty() && isCi && !isProfileGeneration) {
         error(
             "cards.targetEnv=$targetEnv is set but the build is running in CI " +
                 "(CI=true). Env overrides must never land on a shared branch — a " +
                 "release build already picks prod by build type. Unset " +
-                "cards.targetEnv and rerun."
+                "cards.targetEnv and rerun. (Baseline profile generation is the " +
+                "one exception and sets CARDS_PROFILE_GEN=true.)"
         )
     }
 

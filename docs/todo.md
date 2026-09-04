@@ -109,14 +109,6 @@ So a stability config file or a move to `kotlinx.collections.immutable` would ha
 - A `ComposeStabilityTest` was written to assert the skipping behaviour directly, then deleted: it exercised Compose's own comparison semantics rather than any of our code, so it could not fail from a change we made. Guarding a framework guarantee is maintenance, not coverage.
 - `-Pcards.composeReports=true` generates the compiler's stability/skippability reports into `build/compose-reports/`. See `build-logic/.../ComposeCompiler.kt` for how to read them, **including the warning not to treat "unstable" in that report as a cost.** Reading it that way is what produced this ticket.
 
-## ENG-65 [P2] — Baseline Profile for app startup
-
-**Problem:** No baseline profile ships, so every install runs interpreted until JIT warms up. That is real first-run jank on exactly the cold starts a new player judges the app on.
-
-**Acceptance:** A generated `baseline-prof.txt` ships in the release build and startup improves measurably against the same journey without it.
-
-**Hints:** `androidx.baselineprofile` plugin + a `com.android.test` module. **A physical device is not needed** — a Gradle Managed Device spins up an emulator as part of the build. Emulator noise does not matter here the way it does for frame timing, because a profile records *which* code ran, not how long it took (which is why ENG-66 was dropped and this was not). Do startup-only first: driving UiAutomator past onboarding and auth to reach the play screen is where the effort goes, and startup alone is most of the win.
-
 ## ENG-66 — Macrobenchmark frame timing — NOT DOING, 2026-09-04
 
 Recorded so it does not get re-proposed. `FrameTimingMetric` is the standard tool for "run a UI journey, diff P95 frame times," and it is the right shape for catching jank regressions. It needs a real device to produce a usable signal: emulator frame timing on a shared CI runner has run-to-run variance larger than the regressions worth catching, so a per-PR threshold produces flaky red and gets disabled. CI here is macOS + ubuntu runners with no device, and the owner is not standing up a device farm or Firebase Test Lab for this.
@@ -147,13 +139,13 @@ The prime suspect was right: it was the alpha. Bumping detekt `2.0.0-alpha.5` ->
 
 It found **19 instances** on its first run, seven of them in files that had just been swept by hand for exactly this pattern. All 19 are cleared — see `3ff898ba`. One deliberate suppression remains, in `Header.elevateOnScroll`, with its reason in the code: `Modifier.shadow` has no lambda form.
 
-## ENG-53 [P2] — Turn on R8 obfuscation before Play's Feb 2027 deadline
+## ENG-53 — Turn on R8 obfuscation — DONE 2026-09-04, needs a device check before release
 
-**Problem:** Android vitals reports obfuscation at **1%** (the 1% is pre-obfuscated dependencies; none of our code is), against Play's 25% threshold, with a stated deadline of Feb 2027 and "may impact your visibility and publishing capabilities". Release builds set `isMinifyEnabled = false` and there is no `proguard-rules.pro`, so they are neither shrunk nor obfuscated and emit no `mapping.txt`.
+`isMinifyEnabled` and `isShrinkResources` are on for release, with rules in `apps/compose/proguard-rules.pro`. Play's "Obfuscation (1%)" warning and its Feb 2027 deadline were the trigger; shrinking and optimisation come along with it.
 
-**Acceptance:** Release builds obfuscate, `mapping.txt` reaches Sentry, and the smoke checklist passes against the installed release artifact. Staged per `docs/plans/r8-obfuscation.md` so a failure names its own cause: shrink-only first, then renaming, then optimization.
+**Not yet verified on a device.** The minified APK builds (31.9MB), but R8 breaks things that are found *by name at runtime*, and that only shows up when the app runs. The three at risk here are `@Serializable` models, `@Serializable` nav routes, and the DI entry point — all have keep rules, none have been exercised minified. Run `./gradlew :apps:baselineprofile:pixel6Api34BenchmarkReleaseAndroidTest -Pcards.targetEnv=dev` (CARDS_PROFILE_GEN=true if in CI): `benchmarkRelease` *is* minified, so the profile journey doubles as an R8 smoke test through onboarding, Home and a hand.
 
-**Hints:** Full plan and risk inventory in `docs/plans/r8-obfuscation.md`. **No test we have can catch R8 breakage** — every test we have runs on the JVM against unminified classes, including the Robolectric `compose-uiTest` suites — so verification is the device smoke run, not a test suite. Top risk is type-safe nav routes: `androidx.navigation` keys destinations on the qualified class name and ours are `@Serializable` classes. Fix `KLog.kt:256-258` first — it filters stack frames by `::class.qualifiedName`, so obfuscation would silently misattribute every log line to the logger instead of the call site. Rollback is one line.
+**Known noise:** R8 logs "An error occurred when parsing kotlin metadata" repeatedly. Its metadata parser is older than Kotlin 2.4.0 — an AGP/Kotlin version skew, not a correctness problem. It can reduce obfuscation quality, so re-check Play's percentage after the first minified release.
 
 ## ENG-52 [P1] — Give the update prompt a real version source
 

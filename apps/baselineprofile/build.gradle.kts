@@ -47,8 +47,15 @@ android {
         // committed: this repository is public. Absent is fine — the app then
         // makes a guest account, which profiles just as well.
         listOf("cards.benchmark.email", "cards.benchmark.password").forEach { key ->
-            (localProperty(key) ?: providers.gradleProperty(key).orNull)
-                ?.takeIf { it.isNotBlank() }
+            // Both spellings. `ORG_GRADLE_PROJECT_<name>` is how CI passes a
+            // secret without putting it on the command line, and that mechanism
+            // cannot express dots — so the underscore form is what a GitHub
+            // Actions env var actually lands as.
+            val underscored = key.replace('.', '_')
+            val value = localProperty(key)
+                ?: providers.gradleProperty(key).orNull
+                ?: providers.gradleProperty(underscored).orNull
+            value?.takeIf { it.isNotBlank() }
                 ?.let { testInstrumentationRunnerArguments[key] = it }
         }
     }

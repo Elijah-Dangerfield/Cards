@@ -95,7 +95,20 @@ class ApplicationConventionPlugin : Plugin<Project> {
                         applicationIdSuffix = ".debug"
                     }
                     release {
-                        isMinifyEnabled = false
+                        // R8: shrink, optimise and obfuscate. Play flags an app
+                        // under 25% obfuscation as below its bar with a Feb 2027
+                        // deadline (ENG-53), and the app shipped unminified until
+                        // now, so this is also the first size and startup win.
+                        //
+                        // Rules live in apps/compose/proguard-rules.pro rather
+                        // than here: they are about *this app's* serializable
+                        // models and nav routes, not about being an Android app.
+                        isMinifyEnabled = true
+                        isShrinkResources = true
+                        proguardFiles(
+                            getDefaultProguardFile("proguard-android-optimize.txt"),
+                            "proguard-rules.pro",
+                        )
                         signingConfig = releaseSigning ?: signingConfigs.getByName("debug")
                     }
                 }
