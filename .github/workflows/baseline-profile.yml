@@ -69,11 +69,23 @@ jobs:
       # is the failure mode this whole job exists to avoid.
       - name: Sanity-check the profile
         run: |
-          PROFILE=apps/compose/src/androidRelease/generated/baselineProfiles/baseline-prof.txt
+          DIR=apps/compose/src/androidRelease/generated/baselineProfiles
+          PROFILE=$DIR/baseline-prof.txt
+          STARTUP=$DIR/startup-prof.txt
           RULES=$(wc -l < "$PROFILE")
-          echo "Captured $RULES rules."
+          STARTUP_RULES=$(wc -l < "$STARTUP")
+          echo "baseline: $RULES rules, startup: $STARTUP_RULES rules."
           if [ "$RULES" -lt 20000 ]; then
             echo "::error::Only $RULES rules — the journey probably broke. Expected >20000."
+            exit 1
+          fi
+          # The startup profile must be a launch path, not the whole app. When
+          # both generators shared one deep journey these files came out
+          # byte-identical, and an oversized startup profile spills into later
+          # DEX files and slows the very launch it is meant to speed up.
+          if [ "$STARTUP_RULES" -ge "$RULES" ]; then
+            echo "::error::startup-prof ($STARTUP_RULES) is not smaller than baseline-prof ($RULES)."
+            echo "::error::Check includeInStartupProfile — only StartupProfileGenerator should set it."
             exit 1
           fi
           for PKG in "features/home" "features/room"; do
