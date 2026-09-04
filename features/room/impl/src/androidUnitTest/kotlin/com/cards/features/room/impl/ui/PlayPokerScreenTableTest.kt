@@ -8,6 +8,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.dangerfield.cards.features.room.impl.HandResultView
@@ -81,6 +82,27 @@ class PlayPokerScreenTableTest {
      * slot's card before its street shows the player cards nobody has been dealt
      * yet — the worst thing that can happen on a poker felt.
      */
+    /**
+     * Before any table projection arrives the screen still has to be a screen:
+     * something that explains the wait, and a way out of it. Folded in from the
+     * original `PlayPokerScreenTest`, whose other cases this suite and its
+     * siblings had already grown past.
+     */
+    @Test
+    fun loadingTable_showsDealingInPlaceholder() = runComposeUiTest {
+        renderScreen(PlayPokerState(table = TableUiState.Loading))
+
+        onNodeWithText(LOADING_PLACEHOLDER).assertIsDisplayed()
+    }
+
+    /** A player who opens a table that never loads must not be trapped there. */
+    @Test
+    fun loadingTable_showsBackAffordance() = runComposeUiTest {
+        renderScreen(PlayPokerState(table = TableUiState.Loading))
+
+        onNodeWithContentDescription(BACK_A11Y).assertIsDisplayed()
+    }
+
     @Test
     fun preflop_showsNoBoardCardFaces() = runComposeUiTest {
         renderScreen(PlayPokerState(table = activeTable(communityCards = emptyList())))
@@ -845,6 +867,8 @@ class PlayPokerScreenTableTest {
 
     private companion object {
         const val HUMAN_SEAT = 0
+        const val LOADING_PLACEHOLDER = "Dealing in…"
+        const val BACK_A11Y = "Back"
 
         /** Board cascade + hole-card deal-in + overlay transitions, with slack. */
         const val SETTLE_MS = 2_500L

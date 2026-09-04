@@ -106,7 +106,7 @@ So a stability config file or a move to `kotlinx.collections.immutable` would ha
 
 **What came out of it anyway:**
 
-- `ComposeStabilityTest` (`:features:room:impl`) asserts the behaviour directly — an unchanged seat and an unchanged table skip, a changed one does not. Behavioural, so it survives a change in comparison semantics, unlike an assertion about compiler metadata.
+- A `ComposeStabilityTest` was written to assert the skipping behaviour directly, then deleted: it exercised Compose's own comparison semantics rather than any of our code, so it could not fail from a change we made. Guarding a framework guarantee is maintenance, not coverage.
 - `-Pcards.composeReports=true` generates the compiler's stability/skippability reports into `build/compose-reports/`. See `build-logic/.../ComposeCompiler.kt` for how to read them, **including the warning not to treat "unstable" in that report as a cost.** Reading it that way is what produced this ticket.
 
 ## ENG-63 [P1] — Report real-user jank to Grafana with JankStats

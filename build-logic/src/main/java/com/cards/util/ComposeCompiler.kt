@@ -23,10 +23,11 @@ import org.jetbrains.kotlin.compose.compiler.gradle.ComposeCompilerGradlePluginE
  *
  * **Read the report as a diagnostic, not a verdict.** Under strong skipping
  * (default since Kotlin 2.0.20) an "unstable" parameter is still skipped when
- * an equal instance is passed, so a wall of `unstable` in this report does not
- * by itself mean anything is recomposing more than it should — we measured
- * exactly that and found no cost. `ComposeStabilityTest` in `:features:room:impl`
- * asserts the behaviour the report only hints at, and is the thing to trust.
+ * an equal instance is passed. So a wall of `unstable` here does not by itself
+ * mean anything recomposes more than it should. That was measured, including
+ * against a class with a public `var`, and there was no cost — the conclusion
+ * that closed ENG-60. Treat this report as a place to start looking, never as
+ * evidence on its own.
  *
  * Opt-in because it adds a compiler pass and writes a file per module: worth
  * minutes while hunting a recomposition, worth nothing the rest of the time.
