@@ -49,10 +49,22 @@ import com.dangerfield.cards.server.routes.roomSocketRoutes
 import com.dangerfield.cards.server.routes.walletRoutes
 import com.dangerfield.cards.libraries.core.Catching
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationStopPreparing
 import io.ktor.server.auth.authenticate
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.slf4j.LoggerFactory
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * How long shutdown will wait for pending room snapshots to reach Postgres.
+ * Bounded so a wedged database can't hold the process open past the platform's
+ * own kill deadline — losing the last few seconds of table state beats a hung
+ * redeploy, since the single-writer lock is what a slow exit really blocks.
+ */
+private val SNAPSHOT_FLUSH_TIMEOUT = 5.seconds
 
 /**
  * Single source of truth for how the app boots. Stays small on purpose —
@@ -89,6 +101,17 @@ fun Application.module(config: ServerConfig) {
     Runtime.getRuntime().addShutdownHook(Thread(singleWriter::release, "single-writer-release"))
 
     val component = ServerComponent::class.create(database, config.supabase, config.billing)
+
+    // Room snapshots are written by a background writer so no player action
+    // waits on Supabase, which leaves the newest table state in RAM briefly
+    // before it reaches disk. Harmless while we're up; at shutdown it means a
+    // restart would hydrate stale state, so drain the writers on the way out.
+    monitor.subscribe(ApplicationStopPreparing) {
+        runBlocking {
+            Catching { withTimeout(SNAPSHOT_FLUSH_TIMEOUT) { component.gameSessionRegistry.flushSnapshots() } }
+                .onFailure { logger.warn("Snapshot flush on shutdown did not complete", it) }
+        }
+    }
 
     installApp(
         component = component,

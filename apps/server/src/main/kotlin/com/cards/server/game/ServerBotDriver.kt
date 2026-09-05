@@ -10,6 +10,8 @@ import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.StakeTier
 import com.dangerfield.cards.server.domain.BotSeat
+import com.dangerfield.cards.server.plugins.SpanAttrs
+import com.dangerfield.cards.server.plugins.withRootSpan
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -158,7 +160,19 @@ class ServerBotDriver(
         delay(thinkDelay(botSeat.personality, decision.thought, random))
 
         val nonce = "bot:${session.id}:${state.handNumber}:$acting:${state.street}"
-        val result = session.applyIntent(playerId, decision.intent, nonce)
+        // Rooted: a bot's turn is its own unit of work, exactly like a human's
+        // submit_intent. Without this the stages underneath it inherit whatever
+        // context happens to be on the shared driver dispatcher, or none at all,
+        // and surface in Tempo as parentless orphans.
+        val result = withRootSpan(
+            name = "bot_action",
+            configure = {
+                setAttribute(SpanAttrs.IntentType, decision.intent::class.simpleName ?: "Unknown")
+                setAttribute(SpanAttrs.SessionId, session.id.toString())
+            },
+        ) {
+            session.applyIntent(playerId, decision.intent, nonce)
+        }
         if (result is IntentResult.Rejected) {
             // Expected only on a benign race (state already advanced). Log at
             // debug so a genuinely wedged bot is still discoverable.
@@ -211,7 +225,12 @@ class ServerBotDriver(
         delay(nextHandBeatMs)
 
         nextHandArmed = false
-        val result = session.requestNextHand(advancer.playerId!!, "next:${session.id}:${state.handNumber}")
+        val result = withRootSpan(
+            name = "bot_next_hand",
+            configure = { setAttribute(SpanAttrs.SessionId, session.id.toString()) },
+        ) {
+            session.requestNextHand(advancer.playerId!!, "next:${session.id}:${state.handNumber}")
+        }
         // A rejection here means the deal didn't happen and no fresh hand snapshot
         // will arrive to clear the client countdown (e.g. a race emptied the table).
         // Announce the cancellation so the felt countdown doesn't hang at 0:00.

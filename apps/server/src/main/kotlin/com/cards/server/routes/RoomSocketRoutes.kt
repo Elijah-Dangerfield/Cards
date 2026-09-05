@@ -28,6 +28,7 @@ import com.dangerfield.cards.server.game.settleLeaver
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.SpanAttrs
 import com.dangerfield.cards.server.plugins.userId
+import com.dangerfield.cards.server.plugins.withRootSpan
 import com.dangerfield.cards.server.plugins.withSpan
 import io.ktor.server.auth.authenticate
 import io.ktor.server.routing.Route
@@ -176,7 +177,7 @@ fun Route.roomSocketRoutes(
             // was ready but couldn't fund) is logged instead of vanishing — the
             // silent failure that stranded tables in Lobby.
             Catching {
-                withSpan(
+                withRootSpan(
                     name = "matchmaking_auto_deal",
                     configure = {
                         setAttribute(SpanAttrs.RoomCode, code)
@@ -646,9 +647,17 @@ private suspend fun handleClientFrame(
     wallets: WalletRepository,
 ): RoomSocketEventDto.IntentAck {
     val result: IntentResult = when (frame) {
-        is RoomClientFrame.StartHand ->
+        is RoomClientFrame.StartHand -> withRootSpan(
+            name = "start_hand_frame",
+            configure = {
+                setAttribute(SpanAttrs.FrameType, "start_hand")
+                setAttribute(SpanAttrs.RoomCode, code)
+                setAttribute(SpanAttrs.UserId, userId.value.toString())
+            },
+        ) {
             handleStartHand(code, userId, rooms, gameSessions, tableSessions, equipmentRepository, progressionRepository)
-        is RoomClientFrame.SubmitIntent -> withSpan(
+        }
+        is RoomClientFrame.SubmitIntent -> withRootSpan(
             name = "submit_intent",
             configure = {
                 setAttribute(SpanAttrs.FrameType, "submit_intent")
@@ -665,12 +674,22 @@ private suspend fun handleClientFrame(
                 clientNonce = frame.clientNonce,
             ).also { recordIntentOutcome(it) }
         }
-        is RoomClientFrame.RequestNextHand -> gameSessions.requestNextHand(
-            code = code,
-            actorUserId = userId.value.toString(),
-            clientNonce = frame.clientNonce,
-        )
-        is RoomClientFrame.Rebuy -> withSpan(
+        is RoomClientFrame.RequestNextHand -> withRootSpan(
+            name = "request_next_hand_frame",
+            configure = {
+                setAttribute(SpanAttrs.FrameType, "request_next_hand")
+                setAttribute(SpanAttrs.RoomCode, code)
+                setAttribute(SpanAttrs.UserId, userId.value.toString())
+                setAttribute(SpanAttrs.ClientNonce, frame.clientNonce)
+            },
+        ) {
+            gameSessions.requestNextHand(
+                code = code,
+                actorUserId = userId.value.toString(),
+                clientNonce = frame.clientNonce,
+            )
+        }
+        is RoomClientFrame.Rebuy -> withRootSpan(
             name = "rebuy",
             configure = {
                 setAttribute(SpanAttrs.FrameType, "rebuy")
@@ -1208,7 +1227,7 @@ private suspend fun WebSocketServerSession.sendTraced(
     code: String,
     recipient: String,
     link: SpanContext? = null,
-) = withSpan(
+) = withRootSpan(
     name = "ws_send",
     configure = {
         setAttribute(SpanAttrs.FrameType, event::class.simpleName ?: "Unknown")

@@ -84,17 +84,21 @@ class GameSession internal constructor(
      */
     val id: UUID = UUID.randomUUID(),
     /**
-     * Called inside the per-session mutex after every state mutation
-     * (start hand, apply intent, request next hand, hydrate). The
-     * registry wires this to the snapshot store so durable state stays
-     * in step with the in-memory cache. Carries the current
+     * Called inside the per-session mutex at each durable checkpoint — a hand
+     * opening, a hand resolving, a rebuy — and on [persistNow] at shutdown.
+     * **Not** on every mutation: see [persistCheckpoint] for why mid-hand
+     * actions deliberately skip it.
+     *
+     * The registry wires this to the snapshot store. Carries the current
      * [lastKnownStacks] alongside the [GameState] so the durable snapshot
      * mirrors the in-memory cash-out fallback — the crash-recovery sweep
      * reads it for a busted-and-dropped player who has no live seat
-     * (MP-13). Suspends with the mutex held — the snapshot write must
-     * complete (or fail loudly) before the mutation returns, so a
-     * concurrent intent can't observe out-of-order durable state.
-     * Defaults to no-op for tests / unit code that doesn't need persistence.
+     * (MP-13).
+     *
+     * Runs with the mutex held and is allowed to block: a checkpoint is a
+     * point where the table is between actions anyway, and writing there
+     * keeps ordering and durability trivially correct. Defaults to no-op for
+     * tests / unit code that doesn't need persistence.
      */
     private val onStateChange: suspend (state: GameState, lastKnownStacks: Map<String, Long>) -> Unit = { _, _ -> },
     /**
@@ -105,8 +109,12 @@ class GameSession internal constructor(
      * this to the `HandsFinishedRepository` (finished-hand count) and
      * `ServerWitnessedAchievements` (count + per-hand achievement grants).
      * Fires exactly once per hand — once `Complete`, further intents are
-     * rejected, so the transition can't re-fire. Defaults to no-op for
-     * tests / unit code that doesn't need the counter.
+     * rejected, so the transition can't re-fire.
+     *
+     * **Must not block**, for the same reason as [onStateChange]: the
+     * registry dispatches the bookkeeping onto its own scope rather than
+     * making the table wait on a chain of Supabase writes. Defaults to
+     * no-op for tests / unit code that doesn't need the counter.
      */
     private val onHandFinished: suspend (outcome: HandOutcome) -> Unit = { },
 ) {
@@ -369,14 +377,10 @@ class GameSession internal constructor(
                 return@withLock IntentResult.Rejected(resolved.reason)
             }
             is EngineResolution.Resolved -> {
-                // The state-mutate span covers the durable side-effects:
-                // emit the new state, persist via `onStateChange` (which
-                // hits the snapshot store — the meaningful I/O latency on
-                // this path), fan events, record the nonce. Wrapping
-                // these in their own span lets Tempo show "persist
-                // latency" as a child of the parent submit_intent root
-                // instead of folding into engine.apply_intent's wall
-                // time, which would be misleading.
+                // The state-mutate span covers applying the resolved hand:
+                // publish the new state, fan events, record the nonce, and —
+                // only at a hand boundary — persist. Mid-hand actions do not
+                // touch the snapshot store at all; see [persistCheckpoint].
                 withSpan(
                     name = "state_mutate",
                     configure = {
@@ -391,13 +395,13 @@ class GameSession internal constructor(
                         newState.street == BettingRound.Complete
                     _state.value = newState
                     _tracedState.value = TracedState(newState, origin)
-                    // Record before persist so the snapshot the sweep reads carries
-                    // this hand's final stacks — a seat busted to 0 here is dropped
-                    // from the next deal, and its persisted last-known 0 is what
-                    // keeps the crash-recovery sweep from minting (MP-13).
-                    if (handJustFinished) recordLastKnownStacks(newState)
-                    onStateChange(newState, lastKnownStacks.toMap())
                     if (handJustFinished) {
+                        // Record before persist so the snapshot the sweep reads carries
+                        // this hand's final stacks — a seat busted to 0 here is dropped
+                        // from the next deal, and its persisted last-known 0 is what
+                        // keeps the crash-recovery sweep from minting (MP-13).
+                        recordLastKnownStacks(newState)
+                        persistCheckpoint(newState)
                         // Info: hand completion is a session milestone — bounds a
                         // hand in Loki and confirms settlement actually ran.
                         log.info("Hand ${current.handNumber} finished — session=$id")
@@ -470,6 +474,41 @@ class GameSession internal constructor(
         _state.value = state
         _tracedState.value = TracedState(state, Span.current().spanContext)
         lastKnownStacks.putAll(persistedLastKnownStacks)
+    }
+
+    /**
+     * Write [state] and the current [lastKnownStacks] to durable storage.
+     * Callers hold the mutex.
+     *
+     * Only hand boundaries call this: a hand opening, a hand resolving, and a
+     * rebuy (which lands between hands). Mid-hand actions deliberately do not
+     * persist. Writing on every action put a full Supabase round-trip inside
+     * the room's mutex roughly thirty times a hand, which serialises the table
+     * behind it and was measurably the slowest thing on the gameplay path.
+     *
+     * A hand boundary is also the only state worth recovering to. Chips are
+     * exact there — nothing is committed to a pot mid-flight — so a crash
+     * rewinds to a clean position with the deck and hole cards intact rather
+     * than to an arbitrary point in a betting round where a seat's stack
+     * excludes chips it has already put in. That property is what the cash-out
+     * and recovery paths read (see `stackFor`), so checkpointing on the
+     * boundary is both cheaper and safer than checkpointing continuously.
+     */
+    private suspend fun persistCheckpoint(state: GameState) {
+        onStateChange(state, lastKnownStacks.toMap())
+    }
+
+    /**
+     * Persist whatever the table looks like right now, mid-hand included.
+     *
+     * The one caller is shutdown. Normal play only checkpoints at hand
+     * boundaries, which is right for a crash but would silently rewind a live
+     * hand on every ordinary redeploy — so on a graceful stop we take the
+     * extra write and keep the in-flight hand exactly as players left it.
+     */
+    suspend fun persistNow() = mutex.withLock {
+        val current = _state.value ?: return@withLock
+        persistCheckpoint(current)
     }
 
     /**
@@ -623,9 +662,9 @@ class GameSession internal constructor(
             newState.street == BettingRound.Complete
         _state.value = newState
         _tracedState.value = TracedState(newState, origin)
-        if (handJustFinished) recordLastKnownStacks(newState)
-        onStateChange(newState, lastKnownStacks.toMap())
         if (handJustFinished) {
+            recordLastKnownStacks(newState)
+            persistCheckpoint(newState)
             log.info("Hand ${current.handNumber} finished (seat $actorUserId forfeited) — session=$id")
             drainPendingSettlements(newState)
             onHandFinished(buildHandOutcome(newState, step.events))
@@ -651,9 +690,12 @@ class GameSession internal constructor(
      * because the compensation worked (MP-38). Now the second caller is refused
      * at the `stack > 0` check without its money ever moving.
      *
-     * The cost is holding the session mutex across the debit's round-trip. Rebuy
-     * only happens between hands, so nothing is waiting to act, and paying for
-     * it here is much cheaper than reasoning about a compensated double-debit.
+     * The cost is holding the session mutex across the debit's round-trip, and
+     * it is a real one: this is now the only place a gameplay call blocks the
+     * room on Supabase, and prod put that round-trip in the hundreds of
+     * milliseconds. It stays because rebuy only happens between hands, so
+     * nothing is waiting to act, and serialising here is still the cheaper
+     * problem than reasoning about a compensated double-debit (MP-38).
      *
      * Idempotent via the nonce ring: a retried [clientNonce] returns
      * `Accepted` without re-refilling (the refill is a `set`, not an `add`, so
@@ -699,7 +741,7 @@ class GameSession internal constructor(
             _state.value = refilled
             _tracedState.value = TracedState(refilled, origin)
             recordLastKnownStacks(refilled)
-            onStateChange(refilled, lastKnownStacks.toMap())
+            persistCheckpoint(refilled)
             log.info("Seat $actorUserId rebought for ${settings.startingStack} — session=$id")
             IntentResult.Accepted
         }
@@ -778,7 +820,7 @@ class GameSession internal constructor(
             .filter { it.playerId != null }
             .associate { it.playerId!! to it.stack }
         recordLastKnownStacks(result.state)
-        onStateChange(result.state, lastKnownStacks.toMap())
+        persistCheckpoint(result.state)
         result.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
         return IntentResult.Accepted
     }
