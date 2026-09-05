@@ -672,3 +672,41 @@ ENG-49 rewritten around the RenderThread. Plan in docs/plans/renderthread-text-s
 hypothesis is text rastered under animated transforms (card flips), unproven and explicitly
 flagged as such this time. -->
 - 2026-09-02 · CARDS-C1 · CORRECTED: not a bottom-sheet bug. RenderThread wedged drawing text with the glyph cache thrashing; the sheet was the victim thread. Diagnosis had been drawn from a waiting stack without reading the other 54 threads. ENG-49 rewritten; skill hardened · https://elijah-dangerfield.sentry.io/issues/CARDS-C1 · plan docs/plans/renderthread-text-stall.md
+
+<!-- 2026-09-05 unattended observability triage — SWEEP BLOCKED, no signals reviewed, no
+todos filed, no Sentry writes. Every intake channel was unreachable from this session's sandbox:
+
+- **Sentry (channel 1).** No Sentry MCP tools were loaded, and `security find-generic-password
+  -s cards-sentry-auth-token -w` was refused by the harness so the REST-API fallback that runs
+  since 2026-08-11 (see the 08-11 / 08-19 / 08-20 / 08-28 entries above) could not read the
+  keychain. Also tried the Grafana → Sentry datasource proxy via `mcp__grafana__grafana_api_request`
+  — permission not granted this session. Zero unresolved-issue queries executed. Known-unresolved
+  from the ledger heading into this run: CARDS-3 (ENG-42), CARDS-8V (ASC developer-todo item),
+  CARDS-BS (no-action, watch for retail recurrence), CARDS-BW (ENG-45 shipped, awaiting Sentry
+  auto-resolve on next-launch marking), CARDS-BY (ENG-45 dup), CARDS-BZ (ENG-49), CARDS-C1 (ENG-49
+  rewritten), CARDS-9Q (ENG-50). All left as-is.
+
+- **Grafana (channel 2).** `mcp__grafana__alerting_manage_rules`, `list_alert_groups`,
+  `query_loki_stats`, `query_loki_logs`, `query_prometheus`, `grafana_api_request` all denied
+  ("Claude requested permissions to use X, but you haven't granted it yet") — the only granted
+  Grafana tools this session were `list_datasources`, `search_dashboards`,
+  `get_dashboard_summary`, `list_prometheus_metric_names`, none of which can answer alert state,
+  slow-successful requests, or the server/client warn+ stream. So the A1-A8 firing sweep, the
+  dc-pulse anomaly skim, the "Slowest requests (server logs)" panel check, and the client
+  reliability panel check were all skipped. Dashboards confirmed present and unchanged
+  (`search_dashboards Downcard` returned the same 10 boards).
+
+- **Store inbox (channel 3).** No Gmail MCP tool loaded and no CLI mail client accessible from
+  this sandbox; the Apple/Google store-mail sweep (`from:(googleplay-noreply@google.com OR
+  no_reply@email.apple.com OR appstoreconnect@apple.com …) newer_than:14d`) did not run.
+
+Judgement call, unattended: did NOT send an owner text. The step-7 bar is a lapsing deadline,
+blocked shipping, or stuck money — a missed nightly sweep is none of those, and paging on
+tooling-degraded runs would train the text to be ignored. Silence is the correct outcome here.
+For a human: this session's `.claude/settings.local.json` allowlist is missing the Grafana
+query/alert tools + the `security` command that every ledger entry since 2026-08-11 relies on.
+The next attended run should either add them there (`fewer-permission-prompts` skill exists for
+this) or reconnect the Sentry MCP. No engineering signal from this run — treat as "not scanned",
+not "clean".
+-->
+- 2026-09-05 · sweep:2026-09-05-blocked · no-action: sweep did not run — Sentry / Grafana query tools / inbox all unreachable from this session's sandbox; see run-log block above. No signals reviewed, nothing filed, no Sentry writes. Prior dispositions unchanged.
