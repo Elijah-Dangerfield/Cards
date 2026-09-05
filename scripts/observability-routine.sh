@@ -83,8 +83,28 @@ echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) finished, exit $STATUS ==="
 # A sweep that cannot run is itself a finding: silence would otherwise be
 # indistinguishable from "nothing was wrong", which is the exact failure mode
 # this whole routine exists to avoid.
-if [ $STATUS -ne 0 ]; then
-  "$REPO/scripts/notify-owner.sh" "Downcard: the observability sweep failed (exit $STATUS). Nothing was triaged tonight. Log: $LOG" || true
+#
+# But only on the transition into failure, never on every failing run. The
+# common causes here — an expired CLI login, a revoked MCP token — stay broken
+# until a human fixes them, and a daily text saying so would be ignored inside a
+# week, taking the useful texts with it. One message when it breaks, one when it
+# recovers, nothing in between.
+STATE_FILE="$LOG_DIR/.last-status"
+LAST_STATUS="$(cat "$STATE_FILE" 2>/dev/null || echo 0)"
+echo "$STATUS" > "$STATE_FILE"
+
+if [ "$STATUS" -ne 0 ] && [ "$LAST_STATUS" -eq 0 ]; then
+  # Name the likeliest cause rather than just the exit code. An expired login is
+  # by far the most common way this dies, and "re-run claude and /login" is
+  # actionable in a way that "exit 1" is not.
+  HINT=""
+  if grep -q "OAuth access token has expired\|authentication_error" "$LOG" 2>/dev/null; then
+    HINT=" The CLI login has expired — run 'claude' and /login to fix."
+  fi
+  "$REPO/scripts/notify-owner.sh" \
+    "Downcard: the observability sweep stopped working (exit $STATUS). Nothing is being triaged.$HINT" || true
+elif [ "$STATUS" -eq 0 ] && [ "$LAST_STATUS" -ne 0 ]; then
+  "$REPO/scripts/notify-owner.sh" "Downcard: the observability sweep is running again." || true
 fi
 
 exit $STATUS
