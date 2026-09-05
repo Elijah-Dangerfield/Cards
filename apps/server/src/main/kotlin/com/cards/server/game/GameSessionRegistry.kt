@@ -14,6 +14,9 @@ import com.dangerfield.cards.server.domain.NoOpServerWitnessedAchievements
 import com.dangerfield.cards.server.domain.RecentOpponentsRepository
 import com.dangerfield.cards.server.domain.ServerWitnessedAchievements
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.plugins.SpanAttrs
+import com.dangerfield.cards.server.plugins.withRootSpan
+import com.dangerfield.cards.server.plugins.withSpan
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,6 +25,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.tatarka.inject.annotations.Inject
@@ -54,8 +61,9 @@ import kotlin.time.ExperimentalTime
  * serialized by a Mutex inside [GameSession] itself. The two layers
  * handle different concerns — don't merge.
  *
- * Persistence: every state mutation inside a session writes through to
- * [SessionSnapshotStore] (the B0 `room_sessions` table). On a request
+ * Persistence: a session writes through to [SessionSnapshotStore] (the B0
+ * `room_sessions` table) at hand boundaries — not on every action; see
+ * [GameSession.persistCheckpoint]. On a request
  * for a code that isn't in memory, the registry first asks the store
  * whether a snapshot exists and hydrates a fresh session from it — that
  * is the server-restart-mid-hand recovery path. Tests that don't want
@@ -175,6 +183,17 @@ interface GameSessionRegistry {
      * lookup doesn't resurrect the dead session.
      */
     suspend fun end(code: String)
+
+    /**
+     * Persist every live room's current state, mid-hand included.
+     *
+     * Normal play only checkpoints at hand boundaries, which is the right
+     * recovery point for a crash but would rewind any hand in progress on an
+     * ordinary redeploy. Call this on a graceful stop so in-flight hands
+     * survive it. Best-effort: an individual room's write failing is logged,
+     * not raised.
+     */
+    suspend fun flushSnapshots()
 }
 
 @SingleIn(ServerScope::class)
@@ -318,6 +337,44 @@ class DefaultGameSessionRegistry(
             .onFailure { log.warn("Failed to delete snapshot for room {} during end()", code, it) }
     }
 
+    override suspend fun flushSnapshots() {
+        // Read the map under the registry mutex, then write outside it: each
+        // persist is a Supabase round-trip, and holding the registry lock
+        // across all of them would block every room lookup on the way down.
+        // Concurrent so one slow room can't eat the caller's whole budget.
+        val live = mutex.withLock { sessions.value.values.toList() }
+        coroutineScope {
+            live.map { session -> async { session.persistNow() } }.awaitAll()
+        }
+    }
+
+    private suspend fun persist(
+        code: String,
+        sessionId: UUID,
+        state: GameState,
+        lastKnownStacks: Map<String, Long>,
+    ) {
+        withSpan(
+            name = "persist_snapshot",
+            configure = {
+                setAttribute(SpanAttrs.SessionId, sessionId.toString())
+                setAttribute(SpanAttrs.RoomCode, code)
+            },
+        ) {
+            Catching {
+                snapshotStore.upsert(
+                    SessionSnapshot(
+                        sessionId = sessionId,
+                        code = code,
+                        state = state,
+                        lastKnownStacks = lastKnownStacks,
+                        updatedAt = clock.now(),
+                    ),
+                )
+            }.onFailure { log.warn("Snapshot persist failed for room {} session {}", code, sessionId, it) }
+        }
+    }
+
     private fun peekDriver(code: String): ServerBotDriver? = botDrivers[code]
 
     private suspend fun obtain(code: String): GameSession {
@@ -347,7 +404,26 @@ class DefaultGameSessionRegistry(
             onStateChange = { state, lastKnownStacks ->
                 persist(code = code, sessionId = sessionId, state = state, lastKnownStacks = lastKnownStacks)
             },
-            onHandFinished = { outcome -> recordHandsFinished(sessionId = sessionId, outcome = outcome) },
+            // Counters, achievement grants and the recently-played-with shelf are
+            // best-effort bookkeeping (every write below is already wrapped in
+            // Catching and logged rather than surfaced). Running them inline made
+            // every hand boundary cost a serial chain of Supabase round-trips —
+            // ~1.7s in prod for a two-human table — with the room mutex held, so
+            // nobody at the table could act until the last grant returned.
+            onHandFinished = { outcome ->
+                botDriverScope.launch {
+                    withRootSpan(
+                        name = "hand_finished",
+                        configure = {
+                            setAttribute(SpanAttrs.SessionId, sessionId.toString())
+                            setAttribute(SpanAttrs.RoomCode, code)
+                            setAttribute(SpanAttrs.HandNumber, outcome.handNumber.toLong())
+                        },
+                    ) {
+                        recordHandsFinished(sessionId = sessionId, outcome = outcome)
+                    }
+                }
+            },
         )
         botDrivers.remove(code)?.cancel()
         botDrivers[code] = ServerBotDriver(
@@ -430,25 +506,6 @@ class DefaultGameSessionRegistry(
                     .onFailure { log.warn("recently-played-with record failed for {} vs {} hand {}", viewer, opponent, handNumber, it) }
             }
         }
-    }
-
-    private suspend fun persist(
-        code: String,
-        sessionId: UUID,
-        state: GameState,
-        lastKnownStacks: Map<String, Long>,
-    ) {
-        Catching {
-            snapshotStore.upsert(
-                SessionSnapshot(
-                    sessionId = sessionId,
-                    code = code,
-                    state = state,
-                    lastKnownStacks = lastKnownStacks,
-                    updatedAt = clock.now(),
-                ),
-            )
-        }.onFailure { log.warn("Snapshot persist failed for room {} session {}", code, sessionId, it) }
     }
 
     private companion object {
