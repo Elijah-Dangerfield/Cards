@@ -62,7 +62,23 @@ fi
 git checkout develop --quiet 2>/dev/null
 git pull --ff-only --quiet 2>/dev/null || echo "warn: could not fast-forward develop; sweeping against local state"
 
-claude --permission-mode acceptEdits -p "$(cat <<'PROMPT'
+# Hard ceiling on a run. Without one a wedged sweep sits forever, launchd
+# starts another tomorrow on top of it, and the failure text never fires
+# because the script never reaches its exit path — the routine would look alive
+# while doing nothing, which is the exact thing it exists to prevent.
+#
+# A shell watchdog rather than timeout(1): that is GNU coreutils and is not on a
+# stock macOS. 25 minutes is roughly four times the observed run.
+MAX_RUNTIME_SECONDS=1500
+
+# `-p` buffers everything until the run ends, so a log that is empty for ten
+# minutes is indistinguishable from a hang. stream-json narrates tool calls as
+# they happen, which is the difference between "stuck" and "on channel 2 of 3".
+# stdin is closed explicitly; without it the CLI waits 3s for piped input and
+# warns, which is noise in every single log.
+claude --permission-mode acceptEdits \
+  --output-format stream-json --verbose \
+  -p "$(cat <<'PROMPT'
 You are running the Cards observability sweep, unattended, in /Users/elijahdangerfield/Workspace/Cards on branch develop.
 
 Invoke the `observability-triage` skill with the Skill tool and follow it exactly, end to end: all three intake channels (Sentry, the eight Grafana boards, the store inbox), then dispositions, the ledger, and the run summary.
@@ -75,9 +91,25 @@ Rules for this unattended run:
 
 End with the run summary from step 8.
 PROMPT
-)"
+)" < /dev/null &
 
+CLAUDE_PID=$!
+
+# Kill the run if it outlives the ceiling, then get out of the way so a normal
+# finish is not reported as a timeout.
+( sleep "$MAX_RUNTIME_SECONDS"
+  if kill -0 "$CLAUDE_PID" 2>/dev/null; then
+    echo "!!! exceeded ${MAX_RUNTIME_SECONDS}s, killing sweep"
+    kill -TERM "$CLAUDE_PID" 2>/dev/null
+    sleep 10
+    kill -KILL "$CLAUDE_PID" 2>/dev/null
+  fi
+) &
+WATCHDOG_PID=$!
+
+wait "$CLAUDE_PID"
 STATUS=$?
+kill "$WATCHDOG_PID" 2>/dev/null
 echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) finished, exit $STATUS ==="
 
 # A sweep that cannot run is itself a finding: silence would otherwise be
