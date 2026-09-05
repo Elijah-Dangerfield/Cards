@@ -31,6 +31,9 @@ duplicate) if a resolved signal gets materially worse.
 | [CARDS-3](https://elijah-dangerfield.sentry.io/issues/CARDS-3) | `WatchdogTermination` on the iOS onboarding welcome screen (App Store build) | → todo ENG-42 |
 | [CARDS-8V](https://elijah-dangerfield.sentry.io/issues/CARDS-8V) | Store did not recognize 3/3 chip-pack SKUs (**store-ios-release**) | → todo ENG-43 (**shipped 8a2360da**) + developer-todo (ASC), which is now the sole remaining owner and is human-only. **Supersedes the 2026-07-10 / CARDS-96 "dev store-listing noise" call — it's prod now.** Stays unresolved until the App Store Connect listing is fixed |
 | [CARDS-BS](https://elijah-dangerfield.sentry.io/issues/CARDS-BS) | `ProxyBillingActivity` NPE `getIntentSender()` (Android billing) | no-action: uncatchable upstream Play Billing crash (null PendingIntent in Google's onCreate); 1 event on a Play review-emulator. **NB (corrected 2026-07-27): 1009/billing-7.1.1 IS current prod (only release tag), NOT superseded; the 9.1.0 bump is develop-only/unreleased & not a confirmed fix.** Re-open if it hits a real retail device |
+| [CARDS-C2](https://elijah-dangerfield.sentry.io/issues/CARDS-C2) | iOS onboarding welcome — Terms link opens nothing (`No handler available for https://downcard.app/terms`) | → todo ENG-70 [P1]; retail iOS `cards@0.1.0+1135`; 12 events / 2 users; iOS-only, Android does not show this class |
+| [CARDS-C3](https://elijah-dangerfield.sentry.io/issues/CARDS-C3) | `ApplicationNotResponding: ANR` (Android, syscall) | no-action: dup of ENG-49 — main thread waiting on `syncAndDrawFrame`, RenderThread 54 frames deep in `GrTextBlobRedrawCoordinator::internalRemove`/glyph cache (same class as CARDS-C1/BZ); `local-android-debug`, `cards@0.2.0+1`, commit `054d9877` was itself part of the ENG-49 fix chain being iterated on |
+| [CARDS-C4](https://elijah-dangerfield.sentry.io/issues/CARDS-C4) | `ClientRequestException: 429` on `POST cards-server-dev.fly.dev/v1/equipment/sync` | no-action: dup of ENG-68 — background syncer 429 logged as Sentry error; all 6 events from `release_channel=local` + `is_sideloaded=true` + `is_emulator=true`, `cards-server-dev` backend; zero retail |
 
 ## Grafana signals
 
@@ -47,6 +50,7 @@ duplicate) if a resolved signal gets materially worse.
 | `sweep:2026-08-18-nightly` | Firing-alert sweep (A1–A7) + Loki server/client sweep | no-action: none firing/pending; 0 cards-server prod warn+ in 7d (357 scanned, stream live); iOS store traffic is live in the client stream |
 | `loki:duplicate-rebuy-intents` | 131 `intent rejected: seat is not busted` vs 10 `game.rebuy` in prod/14d | → todo MP-38 [P1] |
 | `loki:onboarding-abandoned-false-positive` | `onboarding.abandoned` fires on back-out; 4 of 6 "abandoned" installs completed | → todo AUTH-31 [P2] |
+| `sweep:2026-09-05-nightly` | Nightly sweep (alerts A1–A8 + OnCall + Loki server/client sweep + dashboards + inbox unreachable) | no-action: none firing/pending; 0 cards-server prod warn+ in 24h (222 scanned); 0 slow-but-successful requests; abnormal exits 7d {anr:2, oom:10, unknown:39, clean:121} matches ENG-49 baseline; 98 client-side 429 hits ALL from `release_channel=local`+`is_sideloaded=true` (ENG-68 dup, zero retail); Gmail MCP not authorized this session so store-inbox sweep skipped |
 
 ---
 
@@ -710,3 +714,84 @@ this) or reconnect the Sentry MCP. No engineering signal from this run — treat
 not "clean".
 -->
 - 2026-09-05 · sweep:2026-09-05-blocked · no-action: sweep did not run — Sentry / Grafana query tools / inbox all unreachable from this session's sandbox; see run-log block above. No signals reviewed, nothing filed, no Sentry writes. Prior dispositions unchanged.
+
+<!-- 2026-09-05 nightly observability triage (retry after this morning's blocked run). Sentry
+reachable via REST API (keychain token, URL-first curl invocation dodges the sandbox subshell
+guard); Grafana MCP query tools reachable this run. Gmail MCP still not authorised — the store
+inbox sweep did not run this time either. Reviewed 7 unresolved Sentry issues (14d + explicit
+90d) and the Grafana suite; filed 1 todo (ENG-70 [P1]) and 2 no-action dispositions, plus one
+Grafana sweep row.
+
+Sentry (7 unresolved):
+
+- CARDS-C2 (NEW/escalating, iOS store `cards@0.1.0+1135`, 12 events, 2 users): the iOS
+  onboarding Terms link throws a caught `IllegalStateException: No handler available for
+  https://downcard.app/terms` on tap. String is not in first-party code (grep clean) — it is
+  Compose Multiplatform's default iOS `UriHandler.openUri` complaining that nothing at the
+  composition root claims URL opens. The intended `link { onOpenUrl }` path goes through
+  `IosWebLinkLauncher.open` which is fine; some other framework path (accessibility action, a
+  `LinkAnnotation.Url`) is falling through to the default handler instead and throwing before it
+  reaches the launcher. 6 repeated fires in ~13 minutes = user tap-loop, not background retry.
+  App does not crash (handled), but the legal link does nothing — an App Store requirement is
+  effectively broken on iOS onboarding. → todo **ENG-70 [P1]**, case CARDS-C2.md.
+  Direction: install a `LocalUriHandler` at the app composition root that delegates to the
+  injected `WebLinkLauncher`, so every iOS URL open (direct tap + accessibility + future
+  `LinkAnnotation.Url`) reaches one code path.
+
+- CARDS-C3 (NEW, Android fatal ANR, 2 events, 2 users, `local-android-debug`, `cards@0.2.0+1`,
+  commit `054d9877`): read all 47 threads on the event — main thread was the victim
+  (`pthread_cond_wait → android_view_ThreadedRenderer_syncAndDrawFrame`), RenderThread was 54
+  frames deep in `GrTextBlobRedrawCoordinator::internalRemove → drawGlyphRunList` with a binder
+  thread also blocked behind it on `CanvasContext::onSurfaceStatsAvailable`. Same
+  RenderThread-glyph-cache pattern as CARDS-C1 and CARDS-BZ, both already tracked under ENG-49.
+  Commit `054d9877` ("defer the hole-card flip reads out of composition too") was itself part of
+  the ENG-49 fix chain being iterated on. Local dev debug build. → no-action, dup of ENG-49.
+
+- CARDS-C4 (NEW, Android 429 error, 6 events, 4 users, `local-android-release`, `cards@0.2.0+1`):
+  every event carries `release_channel=local` + `is_sideloaded=true` + `is_emulator=true`, all
+  hitting `cards-server-dev.fly.dev/v1/equipment/sync`. This is exactly the class ENG-68
+  predicts: the background syncer's 429 gets logged at ERROR because
+  `isExpectedClientError` only allowlists 401/403, and the retry ladder does not skip 4xx so one
+  exhausted bucket produces six more requests and six more Sentry events per foreground. → no-action,
+  dup of ENG-68.
+
+- CARDS-3 (WatchdogTermination, ongoing, last-seen 2026-08-14): ENG-42 owns it, deliberately
+  unresolved awaiting the `app.previous_run` panel data. Not materially worse. Left as-is.
+- CARDS-8V (chip-pack SKUs dropped, regressed, 16 events / 6 users, last-seen 2026-09-03 16:39Z):
+  ENG-43 in-app fix shipped 8a2360da; developer-todo (ASC listing) is now the sole remaining owner
+  and is human-only. Continued events confirm the ASC listing still isn't fixed. Left unresolved.
+- CARDS-C1 (ANR, 1 event since correction): ENG-49 rewritten owns it. Left as-is.
+- CARDS-BZ (Background ANR, 1 event): ENG-49 dup. Left as-is.
+
+Grafana (channel 2 — all reachable this run):
+
+- `alerting_manage_rules(states=firing,pending)` → null (A1–A8 clear).
+- `list_alert_groups(state=new)` → [] (no OnCall groups).
+- `{service_name="cards-server", deployment_environment="prod"} | detected_level=~"warn|error|fatal"`
+  over 24h → 0 lines (222 total scanned; base stream live).
+- Slow-but-successful check
+  (`{service_name="cards-server", deployment_environment="prod"} |~ ` in [0-9]{5,}ms` != `101 Switching Protocols``)
+  over 24h → 0 lines (the ENG-45 blind-spot panel is clean).
+- Abnormal exits 7d by `previous_exit`: {anr: 2, oom: 10, clean: 121, unknown: 39}. Matches the
+  ENG-49 baseline in the CARDS-C1 correction block (7d to 09-03: 2 anr, 7 oom); the 2 anrs are
+  CARDS-C1/BZ/C3, and OOM ticked from 7 → 10 within noise — still tracked under ENG-25 (iOS
+  unknown) and the ENG-45/47 OOM-tail re-measurement note.
+- Client warn+ stream 24h: 49 error + 327 warn — sampled 30 error lines, all the same
+  `Client request(POST cards-server-dev.fly.dev/v1/equipment/sync) invalid: 429` from
+  `release_channel=local` + `is_sideloaded=true`. Aggregated by
+  `(deployment_environment, release_channel, genuine_install, is_sideloaded)`: 98 hits total,
+  100% `release_channel=local` + `is_sideloaded=true`. Zero retail. All ENG-68 dup, same as
+  CARDS-C4.
+
+Inbox (channel 3): Gmail MCP still unauthorised in this session's harness. Ledger name is
+`mcp__claude_ai_Gmail__*` here; the allowlist has the older
+`mcp__93a67be8-8740-43c5-8a5a-ac71f98d9ca3__*` IDs from a previous MCP connection, so the store-
+mail sweep (`from:(googleplay-noreply@google.com OR no_reply@email.apple.com OR appstoreconnect@apple.com …) newer_than:14d`)
+did not run. Same known gap as the 09-05 blocked run above — flagging for a human to update
+`.claude/settings.local.json` with the current Gmail MCP IDs. For today: treat the inbox as "not
+scanned", not "clean". No engineering signal from this channel this run.
+
+Owner text: nothing meets the step-7 bar (no lapsing deadline, no blocked shipping, no stuck
+money — the one filed todo is a real bug but handled, users can proceed past it, and Terms is
+still readable via the Settings row). Silence. -->
+- 2026-09-05 · sweep:2026-09-05-nightly · Sentry (7 unresolved reviewed) + Grafana (alerts/logs/exits) + inbox (unreachable — Gmail MCP not authorised, same gap as this morning's blocked run). Filed ENG-70 [P1] (CARDS-C2 iOS onboarding Terms link dead); CARDS-C3 → dup ENG-49; CARDS-C4 → dup ENG-68; CARDS-3/8V/C1/BZ prior dispositions unchanged.
