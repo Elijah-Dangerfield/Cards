@@ -436,6 +436,20 @@ Top-edge emoji bubbles attach to both — dialogs via `emoji = dialogEmoji("🎉
 - **Run the `unslop-text` skill against every piece of user-facing copy you write or change** (strings, snackbars, dialog/empty-state text, onboarding, notifications) before committing it. It strips the tells that make copy read as AI-written and pins a deliberate voice. Match the app's existing voice: warm, plain, casual, contractions ("we'll fix it"), no marketing filler. e.g. "Thanks for your feedback!" not "Thank you, we read every note."
 - Check `ComposeApp.h` for Swift names of Kotlin types before using in Swift.
 
+## Porting back to the template
+
+This app was generated from **[KMPTemplate](https://github.com/Elijah-Dangerfield/KMPTemplate)** (`~/Workspace/KMPTemplate`). Most of what makes it work on day one — the convention plugins, the DI wiring, `SEAViewModel`, the navigation and telemetry libraries — came from there rather than from this repo. That relationship only pays off if it runs both ways.
+
+**Ask the question whenever you finish something structural.** Not every change, and not as a separate chore at the end of a project: at the moment you finish a piece of work, ask whether the next app built from the template would want it on day one. If the answer is yes, it belongs upstream, and the cost of saying so is one line in `KMPTemplate/docs/PORT-CANDIDATES.md`. The cost of not saying so is the next project rediscovering it from scratch, which is exactly how this app spent a day re-deriving R8 keep rules that any KMP app using kotlinx.serialization needs.
+
+**The test is "would a brand-new app want this before it has any features?"**
+
+- **Yes, port it:** build and CI infrastructure (R8 rules, baseline profiles, release automation), reusable `:libraries` primitives, custom detekt rules, telemetry that answers a universal question ("is it fast", "did it crash", "how did the last run end"), and agent/ops tooling that isn't about poker.
+- **No, leave it here:** anything that knows what a hand, a chip, a seat or a room is. Product decisions. Copy. Dashboards built on this app's events.
+- **The most valuable ports are usually not code.** A landmine costs the next project a day and a doc line costs you a minute: Compose Multiplatform's iOS klib only ships the JetBrains `Preview` annotation, `data object` routes SIGSEGV on iOS, `canOpenURL` silently blocks every outbound link. Those belong in the template's AGENTS.md even when no code moves with them.
+
+**How to log one.** Add a bullet to `docs/PORT-CANDIDATES.md` in the template repo — what it is, why a generic app wants it, and the path here to copy from. Do not port speculatively in the moment: a candidate that has not survived contact with production here is not yet worth another repo's maintenance. Ported items get deleted from that file, not ticked off, so the list stays a queue rather than a changelog.
+
 ## iOS Notes
 
 - iOS framework compiled from `apps/compose`, embedded as `ComposeApp.xcframework`.
