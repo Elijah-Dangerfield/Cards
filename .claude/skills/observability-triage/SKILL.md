@@ -1,11 +1,13 @@
 ---
 name: observability-triage
-description: Triage proactive telemetry for Cards — unresolved Sentry crashes/errors that have NO user feedback attached, plus Grafana firing alerts and dashboard anomalies — into docs/todo.md items or no-action. The machine-side complement to feedback-triage. Use when asked to "triage sentry", "check crashes", "triage errors", "check the alerts", "check the dashboards", "observability triage", or on a nightly schedule.
+description: Triage everything Cards can tell you that nobody reported — unresolved Sentry crashes/errors with no user feedback, Grafana firing alerts and dashboard anomalies across 8 boards, and store/vendor mail (Apple, Google) that has no telemetry at all — into docs/todo.md items or no-action, texting the owner only for deadlines, blocked shipping or stuck money. The machine-side complement to feedback-triage. Use when asked to "triage sentry", "check crashes", "triage errors", "check the alerts", "check the dashboards", "check the inbox", "observability triage", or on a schedule.
 ---
 
 # Observability triage
 
-Turn what the app's telemetry is saying into either a worker-pickable todo or a closed no-action item, with the root cause already investigated. Where `feedback-triage` starts from a human pressing "send feedback", this starts from the signals themselves: **Sentry** crashes/errors nobody reported, and **Grafana** alerts/dashboards. Designed to run unattended nightly, but works interactively too.
+Turn what the app's telemetry is saying into either a worker-pickable todo or a closed no-action item, with the root cause already investigated. Where `feedback-triage` starts from a human pressing "send feedback", this starts from the signals themselves: **Sentry** crashes/errors nobody reported, **Grafana** alerts and dashboards, and the **inbox** where Apple and Google send the things that never reach telemetry. Designed to run unattended on a schedule, but works interactively too.
+
+The normal output is todos and case files. A text to the owner is the exception, reserved for the set in step 7 — a lapsing deadline, blocked shipping, stuck money.
 
 This skill and `feedback-triage` split the same telemetry cleanly: **feedback-triage owns the feedback carrier/twin issues; you own everything else.** Never double-handle a feedback issue here.
 
@@ -16,16 +18,19 @@ Stable for this repo — don't rediscover them every run, but reconfirm if a cal
 - **Sentry:** org `elijah-dangerfield`, project `cards`, region `https://us.sentry.io`.
 - **Grafana datasources:** Prometheus `grafanacloud-prom`, Tempo `grafanacloud-traces`, Loki `grafanacloud-logs`, Fly metrics `dfrewa7ebtkhsc`, Sentry-in-Grafana `dfrt33501quwwe`, Postgres prod `ffrewas5byf40d` / dev `dfrex4f7bg7b4b`.
 - **Correlation key:** `session_id` (a per-session UUID) ties a session across Sentry, the server Loki stream (`{service_name="cards-server"}`), and the client stream (`{service_name="cards-client"}`). Also `install_id`, `user.id`. Same mechanics `feedback-triage` uses in its steps 3–4 — lean on that skill's queries rather than re-deriving them.
-- **Alerts** (folder `downcard-engineering`): A1 ledger drift `ffrtc58ufemf4f` · A2 Fly prod down `dfrtc5hgmsoaod` · A3 Supabase down `afrtc618qul1ce` · A4 clients can't reach backend `ffrtc70x74xz4c` · A5 purchase failures `bfrtc7fm94qgwb` · A6 server OOM `afrtc69uy8mwwe` · A7 server silent `ffrtc7l6fzs3ke` (**paused until launch**).
-- **Dashboards:** `dc-pulse` (org home), `dc-infra`, `cards-economy`, `dc-gameplay`, `dc-funnel`, `cards-gameplay`, `dc-revenue`. **The question→dashboard map is `docs/wiki/observability.md` — read it before sweeping; it also lists the alerts, the known-empty panels, and the "Known-benign client signals" (banned-403 `CARDS-BG`, user-cancellations, one-off `net.backend_unreachable`) that must NOT be filed as bugs.**
-- **Todo destination:** `docs/todo.md` (worker-pickable; strict format — see step 5). Larger/blurrier work → one-liner in `docs/backlog.md`.
+- **Alerts** (folder `downcard-engineering`): A1 ledger drift `ffrtc58ufemf4f` · A2 Fly prod down `dfrtc5hgmsoaod` · A3 Supabase down `afrtc618qul1ce` · A4 clients can't reach backend `ffrtc70x74xz4c` · A5 purchase failures `bfrtc7fm94qgwb` · A6 server OOM `afrtc69uy8mwwe` · A7 server silent `ffrtc7l6fzs3ke` · A8 store dropped chip-pack SKUs `ffvj3s6ax0h6oe`. All eight evaluate live; none is paused.
+- **Dashboards (10 Downcard boards; you sweep 8):** `dc-pulse` (org home), `dc-infra`, `dc-billing-health`, `dc-perf`, `cards-economy`, `dc-revenue`, `dc-gameplay`, `cards-gameplay`, `dc-funnel`. Deliberately **not** swept: `dc-users` (population/engagement — trend, not defect; "DAU dipped" is explicitly not a todo) and `dc-user` (one player at a time behind a dropdown, nothing to sweep). **The question→dashboard map is `docs/wiki/observability.md` — read it before sweeping; it also lists the alerts, the known-empty panels, and the "Known-benign client signals" (banned-403 `CARDS-BG`, user-cancellations, one-off `net.backend_unreachable`) that must NOT be filed as bugs.**
+- **Owner escalation:** `scripts/notify-owner.sh "text"` sends an iMessage. Reserved for step 7's urgent set — see it for the bar. The number lives in the login keychain, never in the repo.
+- **Inbox:** the connected Gmail is `elijahdangerfield111@gmail.com`. **Apple and Google both send store mail there**, roughly 200 threads a quarter. `admin@nightjarlabs.llc` is NOT the store contact and is not connected — it receives only Workspace onboarding, visible here only because it is CC'd. Do not "check the work email"; this is the mailbox.
+- **Todo destination:** `docs/todo.md` (worker-pickable; strict format — see step 6). Larger/blurrier work → one-liner in `docs/backlog.md`.
 - **Processed ledger:** `docs/agent/observability-log.md` — append-only record of every signal already handled (Sentry issues keyed by short-id, Grafana signals by a stable slug), so reruns skip it. Create it if missing.
 - **Case files:** `docs/agent/feedback-cases/<sentry-short-id>.md` — same directory and template `feedback-triage` uses, so a worker reads one bundle regardless of which triage filed the item. Write one for any Sentry issue you turn into a todo.
 
-## Two intake channels
+## Three intake channels
 
 1. **Sentry issues** — unresolved crashes/errors with **no feedback attached**. Crashes (fatal/unhandled) outrank caught errors; a money-touching message outranks a cosmetic one; a noisy warning firing thousands of times matters (real bug or log spam worth silencing) but ranks below anything that ends a session.
 2. **Grafana** — a **firing alert** is the strongest machine signal (treat like a crash); then **dashboard anomalies** the alerts don't cover.
+3. **The inbox** — Apple, Google and other vendors mail things that no dashboard and no alert can ever see: a policy deadline, a rejected build, a signing-key requirement, a billing-library deprecation. These are frequently the highest-consequence items in a run and they have no telemetry at all. See step 5.
 
 ## Procedure
 
@@ -132,7 +137,25 @@ panels may claim "all time" (`docs/wiki/observability.md` → "Durable vs epheme
 
 **Know the expected-empty panels so you don't file phantom bugs** (all documented in the wiki's "Known gaps"): matchmaking/MP/Tempo/RED panels read empty (or health-check-only) until real play resumes post-wipe; iOS crash-free shows `previous_exit=unknown` until MetricKit (ENG-25); offline-emitted events drop by design. **Query gotchas:** Loki stream labels are only `service_name` + `deployment_environment` (everything else is structured metadata — pipe filters); gameplay spans are INTERNAL-kind so they're not in `traces_spanmetrics_*` Prom metrics (use TraceQL metrics on Tempo); count users/sessions from `app.foregrounded`, never `app.launched`; prod is the default env.
 
-### 5. Determine root cause and decide
+### 5. The inbox — what Apple and Google are telling you
+
+**The channel with no telemetry.** A store policy deadline, a rejected build, a deprecated library, an expiring certificate: none of it produces a log line, a metric or a Sentry issue, and every dashboard stays green right up to the day the app stops shipping. In practice this is often the highest-consequence part of a run.
+
+Search the connected Gmail (`elijahdangerfield111@gmail.com` — **not** `admin@nightjarlabs.llc`, see Fixed coordinates), last 14 days, widening to 90 if the ledger shows you have not run in a while:
+
+```
+search_threads(query='from:(googleplay-noreply@google.com OR noreply@google.com OR no_reply@email.apple.com OR appstoreconnect@apple.com OR developer@apple.com) newer_than:14d')
+```
+
+Also sweep for the words that carry a deadline regardless of sender — `subject:(deadline OR "action required" OR rejected OR deprecated OR expiring OR suspended OR violation) newer_than:14d`.
+
+**What earns a todo:** anything with a date attached, anything that blocks shipping, anything naming a policy the app has to meet. Routine status churn does not — "Waiting for Review", "completed processing" and "Ready for Review" are the pipeline working, and filing those would bury the one mail that matters.
+
+**Read-only.** Never reply, never archive, never label. You are reading a signal, not managing an inbox.
+
+Two traps worth knowing. A **deadline that has already passed** is more urgent than one approaching, not less, and it will not look urgent in a subject line written weeks ago — check the date against today before deciding. And an item can be **already fixed in the repo but still open in the mail**: the Play Billing 9.x deprecation notice stayed in the inbox for six weeks after the bump had shipped. Confirm against the repo before filing, and if it is already handled, log it as no-action with the commit that did it.
+
+### 6. Determine root cause and decide
 
 Synthesize the evidence into a concrete root cause. For any **Sentry issue** you turn into a todo — and any **Grafana signal** substantial enough to warrant investigation notes — write a **case file** at `docs/agent/feedback-cases/<id>.md` (`<id>` = Sentry short-id, or your Grafana signal slug). `mkdir -p docs/agent/feedback-cases` is cheap; skip the existence check. Use `feedback-triage`'s case template, trimmed to what applies (a Grafana signal has no user comment — lead with the dashboard/alert, the query, and the window). The point is one bundle a worker can pick up cold.
 
@@ -158,13 +181,32 @@ Query the specific prefix you're filing under — a blanket all-prefix grep sort
 
 **(b) No action → resolve.** Dev-only noise (only reachable from a debug build or dev backend), already fixed on `develop` but not yet resolved in Sentry, a known expected-empty panel, or genuinely benign. Still write the case file for a Sentry issue so a rerun has the reasoning; record the *why* in its "Working theory" section.
 
-### 6. Close the loop
+### 7. Close the loop
 
 For **every** signal handled, append to `docs/agent/observability-log.md`:
 
 ```
 - <date> · <short-id | signal-slug> · <"todo: <title>" | "no-action: <reason>" | "backlog"> · <Sentry URL | dashboard/alert link> · case docs/agent/feedback-cases/<id>.md
 ```
+
+#### Escalate the rare thing, by text
+
+Default output is a todo, read whenever. A handful of findings cannot wait that long, and for those only, send one message:
+
+```
+scripts/notify-owner.sh "<one line: what, and what it costs if ignored>"
+```
+
+**Send only for these.** The bar is *irreversible or expensive if it waits until the next time someone opens the todo list*:
+
+- A **dated obligation** that could lapse — a store policy deadline, an expiring certificate or key, an account action with a cutoff. Already-passed deadlines included.
+- **Shipping is blocked** — a rejected build, a suspended listing, a broken release path.
+- **Money is stuck or leaking** — the billing pipeline wedged, ledger drift, purchases failing on a path A5/A8 can't see.
+- **Users are broken and no alert covers it** — a crash-loop or a dead flow the thresholds missed.
+
+**Do not send for** a normal bug, a perf regression, a trend, a noisy warning, or anything an alert already pages for. Those are todos. The alerts own real-time incidents and reach the phone through OnCall on their own; duplicating them here trains the text to be ignored, which costs more than the one time it would have helped.
+
+**One message per run, not one per finding.** If several qualify, combine them. Lead with the deadline or the amount, name the todo id, and keep it to something readable on a lock screen. If nothing qualifies, send nothing — silence is the normal outcome and the whole reason a text still means something.
 
 Then close the loop in Sentry (Grafana is read-only — see guardrails). **Do not resolve an issue you filed a todo for** — it isn't fixed yet; leave it unresolved and only comment that it's triaged, and the worker that ships the fix resolves it then (the `work-item` skill). Only **no-action** dispositions resolve here. Record the Sentry issue id in the todo's Hints so the worker can find it. Resolve the token from env, falling back to the macOS Keychain so unattended runs work without a plaintext token on disk:
 
@@ -177,7 +219,7 @@ TOKEN="${SENTRY_AUTH_TOKEN:-$(security find-generic-password -s cards-sentry-aut
   - **No-action → resolve:** `curl -sS -X PUT "https://us.sentry.io/api/0/organizations/elijah-dangerfield/issues/<issueId>/" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"status":"resolved"}'`
 - **`$TOKEN` empty** → the ledger is the source of truth; note in the summary that Sentry status wasn't flipped (store the token in keychain item `cards-sentry-auth-token` to enable it).
 
-### 7. Run summary
+### 8. Run summary
 
 Short summary: N Sentry issues + M Grafana signals reviewed, K todos filed (with titles + priorities), L resolved no-action, anything that needs a human (ambiguous, product decision, a threshold that looks miscalibrated).
 
