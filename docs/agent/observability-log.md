@@ -795,3 +795,52 @@ Owner text: nothing meets the step-7 bar (no lapsing deadline, no blocked shippi
 money — the one filed todo is a real bug but handled, users can proceed past it, and Terms is
 still readable via the Settings row). Silence. -->
 - 2026-09-05 · sweep:2026-09-05-nightly · Sentry (7 unresolved reviewed) + Grafana (alerts/logs/exits) + inbox (unreachable — Gmail MCP not authorised, same gap as this morning's blocked run). Filed ENG-70 [P1] (CARDS-C2 iOS onboarding Terms link dead); CARDS-C3 → dup ENG-49; CARDS-C4 → dup ENG-68; CARDS-3/8V/C1/BZ prior dispositions unchanged.
+
+<!-- 2026-09-06 unattended observability triage. Channels 1 and 2 unreachable this session (same
+class of gap as the 2026-09-05 blocked run, different cause): no Sentry MCP tool and no
+`SENTRY_AUTH_TOKEN` in the environment, so the REST-API fallback that's covered every run since
+2026-08-11 has nothing to authenticate with; no Grafana MCP tool either. Both prior fallbacks
+(`security find-generic-password`) don't apply — this session's sandbox is Linux, not the macOS
+box the skill's keychain fallback assumes, and no `security` binary exists here. Confirmed by
+`env | grep -i sentry/grafana` (empty) and `which security` (not found) before giving up rather
+than assuming. All prior Sentry/Grafana dispositions in this ledger are unchanged and left as-is;
+none re-queried this run.
+
+Channel 3 (inbox) WAS reachable — Gmail MCP is authorised this session, closing the gap the two
+2026-09-05 runs both hit. Swept `from:(googleplay-noreply@google.com OR no_reply@email.apple.com OR
+appstoreconnect@apple.com OR developer@apple.com) newer_than:30d` (widened past the usual 14d since
+the last successful inbox sweep predates both blocked 09-05 runs) plus the deadline/rejected/
+expiring keyword sweep. One new, real finding:
+
+- **Google Play developer verification "[Final reminder]"** (2026-08-31, googleplay-noreply@google.com):
+  every Play app + signing key must be registered by **2026-09-30** or it's removed from Google
+  Play globally; from that date, unregistered package/key pairs also stop installing on
+  participating-store certified devices in select regions. Google claims >99% of apps were
+  auto-registered but the mail doesn't say *this* app was, and confirming requires opening Play
+  Console — nothing in the repo can check it. Dated obligation, blocks continued distribution if
+  missed → developer-todo.md (human-only, Play Console account action; no engineering todo, no
+  case file — there's no code-side fix). Meets the step-7 bar (lapsing deadline that blocks
+  shipping) → owner text sent, see below.
+
+- Apple: a `Developer Rejected` → `Prepare for Submission` → `Ready For Review` → `Waiting for
+  Review` cycle fired twice within 14 minutes on 2026-09-03 16:19-16:35Z, immediately after a new
+  build (202609031510) finished processing at 15:17Z. Read as the developer resolving the 08-27
+  "issue with your submission" email (Aug 11 submission) by pulling the version back and
+  resubmitting with the new build. Terminal state as of 09-03 16:35Z, still current as of this run
+  (no Apple mail since) — three days in "Waiting for Review" is unremarkable queue time, not a
+  deadline. `Developer Rejected` is self-service (the developer withdrawing their own submission,
+  not Apple rejecting it) and the cycle ends at the routine "Waiting for Review" state the skill
+  already treats as pipeline noise. No action.
+- Google Play "New app quality requirements" (2026-08-26, memory/bitmap/code-optimization
+  thresholds + a device-migration onboarding standard): informational, rolling enforcement with no
+  stated compliance date in the mail. No action; worth a read if/when Google publishes an
+  enforcement date.
+- North Macedonia Play tax-policy notice (2026-08-12): billing/tax administration, not
+  engineering- or shipping-relevant. No action.
+
+Owner text sent via `scripts/notify-owner.sh` for the Play verification deadline (see run summary
+for delivery outcome — the script targets macOS Messages via osascript + Keychain, neither of
+which exist in this Linux sandbox, so delivery itself was expected to fail even though the
+decision to send was correct).
+-->
+- 2026-09-06 · sweep:2026-09-06-unattended · Sentry + Grafana unreachable (no MCP tool, no auth token, no keychain in this session's Linux sandbox — same class of gap as 09-05, different cause); prior dispositions unchanged, none re-queried. Inbox reachable (Gmail MCP authorised) and swept 30d: filed a developer-todo.md item for the Google Play developer-verification deadline (register by 2026-09-30 or removed from Play globally) + sent the owner a text; Apple Developer-Rejected/resubmit cycle on 09-03 read as routine (ends at Waiting for Review); two other Play vendor mails read as no-action.
