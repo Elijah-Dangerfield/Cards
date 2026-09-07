@@ -925,3 +925,12 @@ observability half of the nightly pipeline is running blind. -->
   that job's entrypoint. No more unattended runs; entries above are the last of them. The
   `observability-triage` skill and `scripts/notify-owner.sh` are both kept, so the sweep can still
   be run by hand. The weekly `janitor` scheduled task is unaffected.
+- 2026-09-07 · escalation channel swapped, notify-owner.sh deleted · Owner is going cloud-only for
+  this sweep (a scheduled task on the claude.ai account, not this repo's launchd agent — that's
+  the one retired above). `scripts/notify-owner.sh` sends an iMessage via macOS `osascript` +
+  Messages.app, which doesn't exist in a cloud sandbox; every cloud run's call to it has been
+  silently failing all along (see the 09-05/09-06/09-07 entries above). Step 7 of the skill now
+  sends one email via the Gmail MCP to the same inbox already read for store mail, so the
+  escalation path actually works unattended. With nothing left calling it, `notify-owner.sh` is
+  deleted too — superseding the "both are kept" note two entries up, which assumed the skill would
+  keep calling it.
