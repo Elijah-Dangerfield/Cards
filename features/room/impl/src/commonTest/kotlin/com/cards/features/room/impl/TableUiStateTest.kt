@@ -4,6 +4,8 @@ import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
+import com.dangerfield.cards.libraries.gameplay.GameEngine
+import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Rank
@@ -12,6 +14,7 @@ import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.gameplay.GameState
+import com.dangerfield.cards.libraries.gameplay.deterministicDeck
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -70,6 +73,44 @@ class TableUiStateTest {
         )
         assertEquals("All in 12k", PlayerAction.AllIn(amount = 12_000L).shortLabel())
         assertEquals("Called 1M", PlayerAction.Call(amount = 1_000_000L).shortLabel())
+    }
+
+    @Test
+    fun headsUpWithButtonOnSatOutSeat_blindBadgesMatchTheSeatsTheEngineCharged() {
+        val seats = listOf(
+            seat(index = 0, stack = 0, participation = HandParticipation.NotDealt),
+            seat(index = 1, stack = 1_000, participation = HandParticipation.InHand),
+            seat(index = 2, stack = 1_000, participation = HandParticipation.InHand),
+        )
+        val dealt = GameEngine.startHand(
+            settings = RoomSettings.Default,
+            seats = seats,
+            handNumber = 1,
+            buttonSeatIndex = 0,
+            deck = deterministicDeck(seed = 1),
+        )
+        val posted = dealt.events.filterIsInstance<GameEvent.BlindPosted>()
+        val chargedSmall = posted.single { it.isSmall }.seatIndex
+        val chargedBig = posted.single { !it.isSmall }.seatIndex
+
+        val table = TableUiState.fromGameState(
+            gameState = dealt.state,
+            humanSeatIndex = 1,
+            personalitiesBySeat = emptyMap(),
+            lastWinners = null,
+            lastActionBySeat = emptyMap(),
+        )
+
+        assertEquals(
+            chargedSmall,
+            table.smallBlindSeatIndex,
+            "Small-blind badge must sit on the seat the engine actually charged",
+        )
+        assertEquals(
+            chargedBig,
+            table.bigBlindSeatIndex,
+            "Big-blind badge must sit on the seat the engine actually charged",
+        )
     }
 
     @Test
@@ -443,11 +484,12 @@ class TableUiStateTest {
     private fun activeFromSeats(
         street: BettingRound,
         seats: List<Seat>,
+        buttonSeatIndex: Int = 0,
     ): TableUiState.Active {
         val state = GameState(
             settings = RoomSettings.Default,
             handNumber = 1,
-            buttonSeatIndex = 0,
+            buttonSeatIndex = buttonSeatIndex,
             seats = seats,
             community = emptyList(),
             street = street,
