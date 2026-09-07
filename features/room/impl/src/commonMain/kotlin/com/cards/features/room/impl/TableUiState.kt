@@ -601,7 +601,7 @@ private fun synthesizeHandResult(gameState: GameState, handComplete: Boolean): H
     if (winnerSeats.isEmpty()) return null
     val potTotal = gameState.pots.sumOf { it.amount }
     val byFold = contenders.size <= 1
-    val perWinner = if (winnerSeats.isEmpty()) 0L else potTotal / winnerSeats.size
+    val perWinner = potTotal / winnerSeats.size
     return HandResultView(
         winners = winnerSeats.map { seatIndex ->
             HandWinner(
