@@ -844,3 +844,44 @@ which exist in this Linux sandbox, so delivery itself was expected to fail even 
 decision to send was correct).
 -->
 - 2026-09-06 · sweep:2026-09-06-unattended · Sentry + Grafana unreachable (no MCP tool, no auth token, no keychain in this session's Linux sandbox — same class of gap as 09-05, different cause); prior dispositions unchanged, none re-queried. Inbox reachable (Gmail MCP authorised) and swept 30d: filed a developer-todo.md item for the Google Play developer-verification deadline (register by 2026-09-30 or removed from Play globally) + sent the owner a text; Apple Developer-Rejected/resubmit cycle on 09-03 read as routine (ends at Waiting for Review); two other Play vendor mails read as no-action.
+
+<!-- 2026-09-07 unattended observability triage. Channels 1 and 2 unreachable again — same class of
+gap as 09-05/09-06, third night running. This time confirmed precisely rather than assumed:
+`ListConnectors` shows Sentry as `installState: needs_reconnect`, `connected: false`
+(Grafana isn't even in the installed-connector list); `env | grep -i sentry/grafana` is empty; and
+a direct `curl` to `https://us.sentry.io/api/0/organizations/.../issues/` was rejected by the
+outbound proxy with a 403 (`connect_rejected`, `us.sentry.io:443` not on the egress allowlist for
+this session) before it ever reached Sentry's auth. So the REST-API fallback that covered prior
+runs isn't just missing a token here — it's blocked at the network layer regardless. All prior
+Sentry/Grafana dispositions in this ledger are unchanged and left as-is; none re-queried. Filed a
+developer-todo.md item asking a human to reconnect the Sentry connector (or set
+`SENTRY_AUTH_TOKEN` in this environment) since two consecutive unattended runs now have zero
+crash/alert visibility — everything this run knows about the app came from the inbox alone.
+
+Channel 3 (inbox) was reachable. Swept `from:(googleplay-noreply@google.com OR
+no_reply@email.apple.com OR appstoreconnect@apple.com OR developer@apple.com) newer_than:14d`
+(14d sufficient — the last successful inbox sweep was yesterday) plus the deadline/rejected/
+expiring keyword sweep. One new finding, everything else re-confirms 09-06:
+
+- **Apple "Complete the process of updating your developer information"** (2026-08-26,
+  no_reply@email.apple.com): a developer-info/legal-entity update was requested and has open
+  tasks left in App Store Connect → Business before the agreement is reprocessed. No date given,
+  and the "we've received your request" framing reads as self-initiated (plausibly the tail of the
+  LLC move logged 2026-07-24 in `decisions.md`) rather than an Apple-imposed action — so this is
+  not read as a lapsing deadline. Filed to developer-todo.md (human-only, App Store Connect
+  account action; no engineering todo, no case file) rather than texted.
+- Google Play developer-verification "[Final reminder]" (2026-08-31, due 2026-09-30): unchanged,
+  already in developer-todo.md and already texted 09-06 — no new information this run (still 23
+  days out), so not re-texted. `scripts/notify-owner.sh`'s one-message-per-run bar is for new or
+  worsened findings, not a nightly repeat of an unchanged item already on the human's list.
+- Apple Developer-Rejected/resubmit cycle (09-03, terminal at Waiting for Review): unchanged, no
+  Apple app-status mail since 09-03 (only a 09-06 personal purchase receipt, irrelevant to the
+  app). Confirms 09-06's "routine, not a deadline" call.
+- Google Play "New app quality requirements" (08-26) and the North Macedonia tax notice (08-12):
+  unchanged, still no-action.
+
+No engineering todos filed this run — nothing in scope surfaced a code-level signal, and the two
+inbox items needing action are both human-only. Owner text: nothing new meets the step-7 bar (the
+one dated deadline is unchanged from an already-texted, already-filed item; the new inbox item
+carries no date and doesn't block shipping) — silence. -->
+- 2026-09-07 · sweep:2026-09-07-unattended · Sentry + Grafana unreachable (Sentry connector `needs_reconnect`, no auth token, direct REST API blocked by egress proxy policy; Grafana has no connector at all in this session) — third consecutive night with zero Sentry/Grafana visibility; filed a developer-todo.md item asking a human to reconnect Sentry. Prior Sentry/Grafana dispositions unchanged, none re-queried. Inbox reachable (Gmail MCP authorised), swept 14d: filed a developer-todo.md item for Apple's open "developer information" business-entity update (no date, self-initiated, human-only); Play verification deadline and Apple resubmit cycle unchanged from 09-06, not re-texted; two other Play vendor mails still no-action.
