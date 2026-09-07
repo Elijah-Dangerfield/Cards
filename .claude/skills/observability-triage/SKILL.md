@@ -1,13 +1,13 @@
 ---
 name: observability-triage
-description: Triage everything Cards can tell you that nobody reported — unresolved Sentry crashes/errors with no user feedback, Grafana firing alerts and dashboard anomalies across 8 boards, and store/vendor mail (Apple, Google) that has no telemetry at all — into docs/todo.md items or no-action, texting the owner only for deadlines, blocked shipping or stuck money. The machine-side complement to feedback-triage. Use when asked to "triage sentry", "check crashes", "triage errors", "check the alerts", "check the dashboards", "check the inbox", "observability triage", or on a schedule.
+description: Triage everything Cards can tell you that nobody reported — unresolved Sentry crashes/errors with no user feedback, Grafana firing alerts and dashboard anomalies across 8 boards, and store/vendor mail (Apple, Google) that has no telemetry at all — into docs/todo.md items or no-action, emailing the owner only for deadlines, blocked shipping or stuck money. The machine-side complement to feedback-triage. Use when asked to "triage sentry", "check crashes", "triage errors", "check the alerts", "check the dashboards", "check the inbox", "observability triage", or on a schedule.
 ---
 
 # Observability triage
 
 Turn what the app's telemetry is saying into either a worker-pickable todo or a closed no-action item, with the root cause already investigated. Where `feedback-triage` starts from a human pressing "send feedback", this starts from the signals themselves: **Sentry** crashes/errors nobody reported, **Grafana** alerts and dashboards, and the **inbox** where Apple and Google send the things that never reach telemetry. Designed to run unattended on a schedule, but works interactively too.
 
-The normal output is todos and case files. A text to the owner is the exception, reserved for the set in step 7 — a lapsing deadline, blocked shipping, stuck money.
+The normal output is todos and case files. An email to the owner is the exception, reserved for the set in step 7 — a lapsing deadline, blocked shipping, stuck money.
 
 This skill and `feedback-triage` split the same telemetry cleanly: **feedback-triage owns the feedback carrier/twin issues; you own everything else.** Never double-handle a feedback issue here.
 
@@ -20,7 +20,7 @@ Stable for this repo — don't rediscover them every run, but reconfirm if a cal
 - **Correlation key:** `session_id` (a per-session UUID) ties a session across Sentry, the server Loki stream (`{service_name="cards-server"}`), and the client stream (`{service_name="cards-client"}`). Also `install_id`, `user.id`. Same mechanics `feedback-triage` uses in its steps 3–4 — lean on that skill's queries rather than re-deriving them.
 - **Alerts** (folder `downcard-engineering`): A1 ledger drift `ffrtc58ufemf4f` · A2 Fly prod down `dfrtc5hgmsoaod` · A3 Supabase down `afrtc618qul1ce` · A4 clients can't reach backend `ffrtc70x74xz4c` · A5 purchase failures `bfrtc7fm94qgwb` · A6 server OOM `afrtc69uy8mwwe` · A7 server silent `ffrtc7l6fzs3ke` · A8 store dropped chip-pack SKUs `ffvj3s6ax0h6oe`. All eight evaluate live; none is paused.
 - **Dashboards (10 Downcard boards; you sweep 8):** `dc-pulse` (org home), `dc-infra`, `dc-billing-health`, `dc-perf`, `cards-economy`, `dc-revenue`, `dc-gameplay`, `cards-gameplay`, `dc-funnel`. Deliberately **not** swept: `dc-users` (population/engagement — trend, not defect; "DAU dipped" is explicitly not a todo) and `dc-user` (one player at a time behind a dropdown, nothing to sweep). **The question→dashboard map is `docs/wiki/observability.md` — read it before sweeping; it also lists the alerts, the known-empty panels, and the "Known-benign client signals" (banned-403 `CARDS-BG`, user-cancellations, one-off `net.backend_unreachable`) that must NOT be filed as bugs.**
-- **Owner escalation:** `scripts/notify-owner.sh "text"` sends an iMessage. Reserved for step 7's urgent set — see it for the bar. The number lives in the login keychain, never in the repo.
+- **Owner escalation:** send an email via the Gmail MCP (`mcp__Gmail__send_message`) to `elijahdangerfield111@gmail.com` — the same inbox this skill already reads store mail from. Reserved for step 7's urgent set — see it for the bar. This runs cloud-only now; there is no phone/iMessage path.
 - **Inbox:** the connected Gmail is `elijahdangerfield111@gmail.com`. **Apple and Google both send store mail there**, roughly 200 threads a quarter. `admin@nightjarlabs.llc` is NOT the store contact and is not connected — it receives only Workspace onboarding, visible here only because it is CC'd. Do not "check the work email"; this is the mailbox.
 - **Todo destination:** `docs/todo.md` (worker-pickable; strict format — see step 6). Larger/blurrier work → one-liner in `docs/backlog.md`.
 - **Processed ledger:** `docs/agent/observability-log.md` — append-only record of every signal already handled (Sentry issues keyed by short-id, Grafana signals by a stable slug), so reruns skip it. Create it if missing.
@@ -189,12 +189,16 @@ For **every** signal handled, append to `docs/agent/observability-log.md`:
 - <date> · <short-id | signal-slug> · <"todo: <title>" | "no-action: <reason>" | "backlog"> · <Sentry URL | dashboard/alert link> · case docs/agent/feedback-cases/<id>.md
 ```
 
-#### Escalate the rare thing, by text
+#### Escalate the rare thing, by email
 
-Default output is a todo, read whenever. A handful of findings cannot wait that long, and for those only, send one message:
+Default output is a todo, read whenever. A handful of findings cannot wait that long, and for those only, send one email:
 
 ```
-scripts/notify-owner.sh "<one line: what, and what it costs if ignored>"
+mcp__Gmail__send_message(
+  to=["elijahdangerfield111@gmail.com"],
+  subject="Downcard: <what, in a few words>",
+  body="<what happened, what it costs if ignored, and the todo/developer-todo id if one was filed>",
+)
 ```
 
 **Send only for these.** The bar is *irreversible or expensive if it waits until the next time someone opens the todo list*:
@@ -204,9 +208,9 @@ scripts/notify-owner.sh "<one line: what, and what it costs if ignored>"
 - **Money is stuck or leaking** — the billing pipeline wedged, ledger drift, purchases failing on a path A5/A8 can't see.
 - **Users are broken and no alert covers it** — a crash-loop or a dead flow the thresholds missed.
 
-**Do not send for** a normal bug, a perf regression, a trend, a noisy warning, or anything an alert already pages for. Those are todos. The alerts own real-time incidents and reach the phone through OnCall on their own; duplicating them here trains the text to be ignored, which costs more than the one time it would have helped.
+**Do not send for** a normal bug, a perf regression, a trend, a noisy warning, or anything an alert already pages for. Those are todos. The alerts own real-time incidents and page through OnCall on their own; duplicating them here trains the email to be ignored, which costs more than the one time it would have helped. Nor for a finding that's unchanged from an already-sent, still-open email (e.g. the same lapsing deadline, re-swept the next run with no new information) — re-sending an unchanged item just trains it to be ignored the same way a duplicate would.
 
-**One message per run, not one per finding.** If several qualify, combine them. Lead with the deadline or the amount, name the todo id, and keep it to something readable on a lock screen. If nothing qualifies, send nothing — silence is the normal outcome and the whole reason a text still means something.
+**One message per run, not one per finding.** If several qualify, combine them. Lead with the deadline or the amount, name the todo id, and write a subject line specific enough to act on from the inbox list alone — not "Downcard: alert" but "Downcard: Play store removal Sep 30 unless registered". If nothing qualifies, send nothing — silence is the normal outcome and the whole reason an email still means something.
 
 Then close the loop in Sentry (Grafana is read-only — see guardrails). **Do not resolve an issue you filed a todo for** — it isn't fixed yet; leave it unresolved and only comment that it's triaged, and the worker that ships the fix resolves it then (the `work-item` skill). Only **no-action** dispositions resolve here. Record the Sentry issue id in the todo's Hints so the worker can find it. Resolve the token from env, falling back to the macOS Keychain so unattended runs work without a plaintext token on disk:
 
