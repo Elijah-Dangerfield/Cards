@@ -919,3 +919,9 @@ token doesn't land in git. The one thing worth flagging: this is now a pattern, 
 09-07 developer-todo entry to reconnect Sentry is the load-bearing one — until it's done, the
 observability half of the nightly pipeline is running blind. -->
 - 2026-09-07 · sweep:2026-09-07-unattended-2 · Second launch same day; Sentry unreachable one layer up from this morning (keychain token present but sandbox blocks bearer-auth curl and WebFetch requires interactive approval), Grafana + inbox unreachable in this session's MCP scope; no new signals on any channel and no duplicate filings — pointer entry to the earlier 09-07 run and its developer-todo asks.
+- 2026-09-07 · schedule retired · Owner asked for the automated sweep to be removed. Deleted the
+  `com.nightjarlabs.cards.observability` launchd agent (08:20 daily), its logs under
+  `~/Library/Logs/cards-routine/`, and `scripts/observability-routine.sh`, which existed only as
+  that job's entrypoint. No more unattended runs; entries above are the last of them. The
+  `observability-triage` skill and `scripts/notify-owner.sh` are both kept, so the sweep can still
+  be run by hand. The weekly `janitor` scheduled task is unaffected.
