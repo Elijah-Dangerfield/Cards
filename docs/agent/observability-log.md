@@ -934,3 +934,65 @@ observability half of the nightly pipeline is running blind. -->
   escalation path actually works unattended. With nothing left calling it, `notify-owner.sh` is
   deleted too — superseding the "both are kept" note two entries up, which assumed the skill would
   keep calling it.
+
+<!-- 2026-09-08 sweep, first fully-connected cloud run since the schedule went cloud-only. Sentry
+MCP, Grafana MCP and the Gmail MCP were all reachable this session — no blocked channels, unlike
+every run since 09-05.
+
+Sentry: 7 unresolved issues in `is:unresolved` (30d, sort=freq). Two are feedback carriers
+(CARDS-C7, CARDS-C5, both 1 day old) — feedback-triage's, skipped. The other five are all already
+in this ledger with an owning todo and unchanged counts/last-seen versus their last entry: CARDS-C2
+(12 events/2 users, ENG-70), CARDS-8V (12 events/6 users, ENG-43 shipped + developer-todo ASC item),
+CARDS-3 (2 events/1 user, ENG-42), CARDS-C1 (1 event, ENG-49), CARDS-BZ (1 event, ENG-49). None
+materially worse — no re-opens, no Sentry writes needed.
+
+Grafana: `alerting_manage_rules(states=[firing,pending])` returned `null` — nothing firing or
+pending. Swept all 8 boards (Pulse, Users, Infra, Economy, Gameplay & Matchmaking, Funnel &
+Progression, Revenue, Billing Health), biased to 24h/7d:
+- Pulse row 1 clean: 0 purchase failures, server up, ledger drift 0, ~1 client-error event/24h,
+  no new non-feedback Sentry issues in 24h. Stability row unchanged from the 09-03 baseline (6-10
+  crash+OOM sessions/7d, 1 ANR/7d, 1-4 OOM/day) — no new spike.
+- The two ENG-45-lesson checks: the slow-but-successful Loki query (`in [0-9]{5,}ms`, excl.
+  websocket upgrades) returned empty over 24h, and warn/error/fatal server logs returned empty
+  over 24h with `totalLinesScanned: 805` confirming the stream is live, not silent — genuinely
+  clean, not a phantom "no data".
+- Infra: 0 restarts/24h on cards-server-prod, memory 52%, 5xx rate `NaN` (no traffic in the 1h
+  window — the panel's own documented "idle" state, not an error), 0 deadlocks/1h, cache hit 100%.
+- Economy: total chip supply ~1.03M, 0% of wallets at zero, 0% under the Casual buy-in, 0
+  bust-protection fires in 7d, ledger drift 0 (same query as Pulse).
+- Gameplay: 515 MP hands + 1,278 bot hands in 7d — consistent with known population size, no
+  anomaly.
+- Funnel: 8 onboarding abandons in 7d, all at the `welcome` step — same shape as the already-filed
+  CARDS-C2/ENG-70 (dead Terms link on iOS welcome), not a new drop-off. Auth/onboarding warn+error
+  counts (AuthUnready ×3, ClientRequestException ×5, TimeoutCancellationException ×4, bare
+  AuthRepository ×15, InventorySync ×1 over 7d) are low-count and match already-tracked categories
+  (AUTH-19/ENG-30/AUTH-20 lineage) — no new pattern, not filed.
+- Billing Health: 0 stuck purchases, no oldest-stuck age, mismatch rate empty (no attempts in
+  range). One `purchase.failed` in 7d: `store_unavailable`, Android, `chip_pack_small` — a single
+  event, not a pattern; noted, not filed.
+- Users: no negative wallet balances (smallest is 1,050 — ledger is clean), zero rows in `player
+  reports` — no moderation signal.
+- Revenue: unchanged from the known CARDS-8V state (iOS shop empty, tracked in developer-todo.md);
+  didn't re-derive the dollar figures since nothing upstream of them changed.
+
+Store inbox: reachable via Gmail MCP, swept `newer_than:5d` (last successful sweep was 09-07's
+14d window, so 5d has full overlap) for Apple/Google store senders plus a deadline/rejected/
+expiring/suspended keyword sweep. Downcard mail: only the 09-03 Apple Developer-Rejected →
+resubmit cycle already logged 09-05/09-06/09-07 (Prepare for Submission → Developer Rejected →
+Ready for Review → Waiting for Review, all timestamped 09-03, no new activity since) — unchanged,
+still terminal at Waiting for Review, still no-action. Zero Google Play mail in the window. One
+new unrelated thread: Apple Store Connect processing/review-status mail for "Moving Eyes for
+Paintings" (Nightjar Labs LLC) — a different app under the same developer account, out of scope
+for this repo's triage, not actioned. Keyword sweep surfaced only unrelated personal mail
+(political fundraising spam, newsletters) — nothing store/deadline-shaped beyond what's above.
+
+Net: no new Sentry signal, no firing/pending alerts, no dashboard anomaly past what's already
+owned, no new inbox item. Nothing filed, nothing resolved, nothing re-opened. Owner email: none of
+the step-7 bar (lapsing deadline, blocked shipping, stuck money) — everything found this run is
+either already tracked unchanged or below the filing bar — silence. -->
+- 2026-09-08 · sweep:2026-09-08 · Fully-connected run (Sentry + Grafana + Gmail all reachable).
+  Sentry: 5 non-feedback unresolved issues (CARDS-C2/8V/3/C1/BZ), all already owned and unchanged —
+  no re-opens. Grafana: no firing/pending alerts; swept all 8 boards, all healthy, no new anomaly
+  (one-off Android `store_unavailable` purchase failure noted, not filed). Inbox: no new Downcard
+  mail since the already-logged 09-03 Apple rejection/resubmit cycle; no Play mail. No todos filed,
+  no Sentry writes, no owner email (nothing met the step-7 bar).
