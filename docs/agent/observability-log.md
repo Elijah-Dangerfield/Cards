@@ -996,3 +996,61 @@ either already tracked unchanged or below the filing bar — silence. -->
   (one-off Android `store_unavailable` purchase failure noted, not filed). Inbox: no new Downcard
   mail since the already-logged 09-03 Apple rejection/resubmit cycle; no Play mail. No todos filed,
   no Sentry writes, no owner email (nothing met the step-7 bar).
+
+<!-- 2026-09-09 sweep. Sentry MCP, Grafana MCP and Gmail MCP all reachable — no blocked channels.
+
+Sentry: `is:unresolved` (30d, sort=freq) → 7 issues. Two are "User feedback" carriers (CARDS-C7,
+CARDS-C5, 1 day old) — feedback-triage's, skipped. The other five are byte-identical to the 09-08
+baseline (CARDS-C2 12/2, CARDS-8V 12/6, CARDS-3 2/1, CARDS-C1 1, CARDS-BZ 1) — none materially
+worse, no re-opens, no Sentry writes.
+
+Grafana: `alerting_manage_rules(states=[firing,pending])` → null; `list_alert_groups(state=new)` →
+[]. Server: `{service_name="cards-server", deployment_environment="prod"}` 47 entries/24h (stream
+live), 0 warn/error/fatal, 0 slow-but-successful requests (the ENG-45-lesson query). Infra: 0
+restarts/24h on the surviving instance, memory flat at ~52% (matches 09-08). Abnormal exits 7d by
+`previous_exit`: {anr:1, oom:7, unknown:37, clean:115} — in line with the ENG-49 baseline, not
+worse. Billing: `dc-billing-health` stuck=0, oldest-stuck=null (nothing pending); Pulse ledger-sane
+query (`SUM(wallets.balance) − SUM(wallet_events.delta)`) = 0.
+
+Client warn+ 24h: 12 lines. Investigated two patterns rather than taking them at face value:
+- `[LocalBotsSession] Bot decision for seat N is stale … Skipping apply` ×4, one install,
+  `is_offline=true`. Read the source (`LocalBotsSession.kt:333-345`): a documented defensive
+  re-check after a suspension point, explicitly there so the engine doesn't throw on a stale
+  decision. Working as designed, not filed.
+- `stranded_fallback_online_onboarded … identity self-heal should have recovered this`
+  (`StrandedIdentityDetector`, tag `StrandedIdentity`) fired once, install `c2d9d189` (Android
+  store, `cards@0.1.0 (1135)`). This canary's own KDoc says it should read **zero** post-heal.
+  Widened to 30d: 17 total fires, ~11 a single 09-01 dev/emulator/sideload burst (out of scope,
+  ENG-68-class noise) but **6 are real** — spread across three separate production releases
+  (968/1026/1135) over the last month, not a one-off. Traced today's hit end to end (session
+  `29e58c53`): cold launch → 6× `AuthUnready: FinishingSetup` in ~20ms → canary fires at t+1073ms →
+  `game.started` (bots) at t+5701ms — the user reached a playable game 5.6s later. Read
+  `AppEventDispatcher.kt:76-82` (fires both `ColdBoot` and `OnForeground(isColdBoot=true)` on the
+  same launch) against the detector's two siblings: `GuestSessionHealer.kt:79` and
+  `AuthReResolver.kt:46` both skip the cold-boot echo of foreground; `StrandedIdentityDetector`
+  doesn't, so it can sample the profile while the `ColdBoot`-triggered heal coroutine is still in
+  flight. Proven from the dispatcher + the two siblings' guards; not proven that this race
+  explains all 6 real hits (no second event on any of the other 5 installs to confirm they
+  self-recovered). → **todo AUTH-32 [P2]**, case
+  `docs/agent/feedback-cases/2026-09-09-stranded-identity-false-positive.md`. Not P1/P0: no user
+  harm observed, and the canary's value (not the product) is what's degraded — same class of
+  argument as ENG-44/ENG-34.
+
+Store inbox: `from:(googleplay-noreply@google.com OR no_reply@email.apple.com OR
+appstoreconnect@apple.com OR developer@apple.com) newer_than:5d` → 12 threads, all Apple, all for
+**"Moving Eyes for Paintings"** (the other Nightjar Labs LLC app) — out of scope, not actioned. Zero
+Google Play mail. Keyword sweep (`deadline|action required|rejected|deprecated|expiring|suspended|
+violation`, 5d) → the same Moving Eyes "Developer Rejected" thread plus one unrelated personal
+mail (hims.com). No Downcard/Cards mail in the window at all — the open developer-todo items (Play
+developer-verification deadline, due 2026-09-30; Apple developer-info update) are unchanged, not
+re-texted (same items, already texted/filed, no new information).
+
+Owner email: nothing met the step-7 bar (no new lapsing deadline, no blocked shipping, no stuck
+money — AUTH-32 is real but not user-facing and not urgent) — silence. -->
+- 2026-09-09 · sweep:2026-09-09 · Fully-connected run. Sentry: 5 non-feedback unresolved issues,
+  byte-identical to 09-08, no re-opens. Grafana: no firing/pending alerts; server/infra/billing/
+  ledger all clean and in line with the 09-08 baseline; investigated two client warn+ patterns —
+  bot-decision-stale confirmed working-as-designed (source read), stranded-identity canary
+  confirmed to be false-firing on a cold-boot race (dispatcher + sibling-guard read) → filed
+  AUTH-32 [P2]. Inbox: 12 Apple threads, all for the unrelated "Moving Eyes for Paintings" app; no
+  Play mail; no new Downcard signal. No owner email (nothing met the step-7 bar).

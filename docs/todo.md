@@ -215,6 +215,14 @@ Two things are deliberately dropped at the source rather than charted. Launches 
 
 **Hints:** Read `docs/wiki/app-events.md` → "Reading `app.previous_run` honestly" first — `foreground_termination` is a candidate set, not a verdict, and Android is the calibration (it carries the same marker plus `ApplicationExitInfo` ground truth in `previous_exit`). Instrumentation is `RunOutcome*` in `:libraries:telemetry:impl`. Case `docs/agent/feedback-cases/CARDS-3.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-3.
 
+## AUTH-32 [P2] — StrandedIdentity canary false-fires on the cold-boot foreground echo
+
+**Problem:** `StrandedIdentityDetector` warns `stranded_fallback_online_onboarded` and is documented to read zero post-heal. It has fired on 6 real production/store installs across three separate releases (968/1026/1135) over the last month. `AppEventDispatcher` fires both `ColdBoot` and `OnForeground(isColdBoot=true)` on the same launch, and the detector's two siblings (`GuestSessionHealer`, `AuthReResolver`) both skip that duplicate foreground — the detector doesn't, so it can sample the profile while the `ColdBoot`-triggered heal is still in flight. Traced one hit end to end: fired 1s after cold launch, user reached a playable game 5.6s later.
+
+**Acceptance:** The canary reads zero on a healthy population again, or — if a real stranding case turns up — it's distinguishable from this race. Confirm whether bots mode needs a resolved server profile at all; if not, that's a separate reason today's traced session isn't proof of recovery.
+
+**Hints:** `libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/auth/StrandedIdentityDetector.kt` — add the same `if (event.isColdBoot) return` guard as `GuestSessionHealer.kt:79` / `AuthReResolver.kt:46`. Case `docs/agent/feedback-cases/2026-09-09-stranded-identity-false-positive.md`.
+
 ## ENG-70 [P1] — iOS Terms/Privacy links dead on the onboarding welcome screen
 
 **Problem:** A retail iOS user on `cards@0.1.0+1135` tapped the Terms link on the onboarding welcome step and it did nothing — six repeated taps in ~13 minutes, each producing a caught `kotlin.IllegalStateException: No handler available for https://downcard.app/terms` (12 events, 2 users, Sentry escalating). The string is Compose Multiplatform's default iOS `UriHandler` complaining that nothing at the composition root claims URL opens, so any framework path (accessibility, `LinkAnnotation.Url`, future auto-linked spans) throws before it reaches `IosWebLinkLauncher`. Legal links are an App Store requirement; on iOS onboarding, they are unreachable.
