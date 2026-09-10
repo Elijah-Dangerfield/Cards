@@ -1054,3 +1054,62 @@ money — AUTH-32 is real but not user-facing and not urgent) — silence. -->
   confirmed to be false-firing on a cold-boot race (dispatcher + sibling-guard read) → filed
   AUTH-32 [P2]. Inbox: 12 Apple threads, all for the unrelated "Moving Eyes for Paintings" app; no
   Play mail; no new Downcard signal. No owner email (nothing met the step-7 bar).
+
+<!-- 2026-09-10 sweep. Sentry MCP, Grafana MCP and Gmail MCP all reachable — no blocked channels.
+
+Sentry: `is:unresolved` (30d then 90d, both identical) → **1** issue, CARDS-3 (2 events/1 user,
+first=last seen 27 days ago) — unchanged from every prior baseline back to 08-18, already owned by
+ENG-42, not re-opened. The other four issues this ledger has been carrying as open (CARDS-C2/ENG-70,
+CARDS-8V/ENG-43, CARDS-C1 + CARDS-BZ/ENG-49) have all flipped to Sentry **status: resolved** since
+the 09-09 run (checked each via get_sentry_resource) — but their owning todos are all still open in
+docs/todo.md, i.e. the underlying fixes have not shipped. Nobody on this triage resolved them (the
+skill's own rule is never resolve an issue with an open todo), so either a human closed them by hand
+in the Sentry UI or something else did. Not re-opening: the issues are out of `is:unresolved` scope,
+their todos remain the source of truth for the actual work, and Sentry auto-flips a resolved issue
+back to unresolved/regressed the moment a new matching event lands — so a real recurrence will still
+surface on its own. FOR A HUMAN: worth a glance if you didn't resolve these four yourself.
+
+Grafana: `alerting_manage_rules(states=[firing,pending])` → null; `list_alert_groups(state=new)` →
+[]. Server: `{service_name="cards-server", deployment_environment="prod"}` 111 entries/24h (stream
+live), 0 warn/error/fatal, 0 slow-but-successful requests. Infra: Fly + Postgres both up throughout
+the last hour, 0 restarts on the surviving instance, memory flat at ~52% (matches 09-08/09-09), 5xx
+"idle" (no traffic in the 1h window). Billing: stuck=0, oldest-stuck=null, escalations=0, mismatch
+rate null (no attempts); 0 purchase.completed/failed in 7d — prod is quiet, not broken (same read as
+the 08-11 "genuinely idle" finding). Economy: 0% players at zero, 0% under Casual buy-in, ledger
+drift 0, 0 bust-protection fires/7d. Gameplay: 163 MP + 804 bot hands in 7d (lower than 09-08's
+515+1278 but no anomaly shape — a quieter week, not a broken pipeline), win% 34.3% (healthy 15-45%
+band). Funnel: 48 welcome-step views / 1 abandon (welcome) in 7d; auth/onboarding warn+error counts
+(ClientRequestException ×5, TimeoutCancellationException ×4, bare AuthRepository ×15, InventorySync
+×1) byte-identical to the 09-08 baseline — already-tracked categories, not filed.
+
+Client warn+ 24h: 11 lines, two patterns, both investigated rather than taken at face value:
+- `Bot decision for seat N is stale … Skipping apply` ×6, one install, `is_offline=true` — same
+  documented defensive re-check as 09-09 (`LocalBotsSession.kt:333-345`). Not filed.
+- `accessToken: no session — request will go unauthed` ×4 (3 from a genuine retail Android install,
+  `genuine_install=true`/`play_store`/build 1135; 1 from the known stale-beta iOS dogfood install
+  91628081/build 968) and `App recomposed (this should be rare)` ×1 (same build-968 install — the
+  initial-composition false positive already fixed on develop by `f7b67e11`; build 968 predates it,
+  so this is expected on that install and not new). Both lines are extensively documented as benign
+  across six-plus prior case files (deferred session creation on cold launch); not filed.
+
+Store inbox: `from:(googleplay-noreply@google.com OR no_reply@email.apple.com OR
+appstoreconnect@apple.com OR developer@apple.com) newer_than:5d` → 12 threads, all Apple, all for
+**"Moving Eyes for Paintings"** (the other Nightjar Labs LLC app) or an unrelated personal Apple
+receipt — out of scope. Zero Google Play mail. Keyword sweep (`deadline|action required|rejected|
+deprecated|expiring|suspended|violation`, 5d) → the same Moving Eyes "Developer Rejected" thread plus
+one unrelated personal mail (hims.com). No Downcard/Cards mail in the window. The two open
+developer-todo.md items (Play developer-verification deadline, due 2026-09-30 — 20 days out; Apple
+developer-info update) are unchanged, not re-texted/re-emailed (same items, no new information).
+
+Owner email: nothing met the step-7 bar (no new lapsing deadline, no blocked shipping, no stuck
+money) — silence. -->
+- 2026-09-10 · sweep:2026-09-10 · Fully-connected run. Sentry: only CARDS-3 unresolved (unchanged,
+  owned by ENG-42); CARDS-C2/8V/C1/BZ all flipped to resolved outside this run despite open todos —
+  flagged for a human, not re-opened (todos are the source of truth; Sentry will re-flag a real
+  recurrence on its own). Grafana: no firing/pending alerts; server/infra/billing/economy/gameplay/
+  funnel all clean and in line with the 09-08/09-09 baseline (gameplay volume down but no anomaly
+  shape); investigated two client warn+ patterns, both confirmed known-benign (bot-decision-stale,
+  and accessToken-no-session/App-recomposed on a genuine retail install + the known stale-beta
+  dogfood device) — neither filed. Inbox: 12 Apple threads, all for the unrelated "Moving Eyes for
+  Paintings" app or a personal receipt; no Play mail; no new Downcard signal; standing deadlines
+  unchanged. No todos filed, no Sentry writes, no owner email (nothing met the step-7 bar).
