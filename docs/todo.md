@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-08-28 (observability-triage + ENG-45 review) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-09-11 (observability-triage) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -214,3 +214,11 @@ Two things are deliberately dropped at the source rather than charted. Launches 
 **Acceptance:** A panel charts `foreground_termination` net of Sentry-reported crashes, split by platform, once a build carrying the events ships. Then either reproduce and fix the welcome-step hang, or show these were force-quits and drop this to P1.
 
 **Hints:** Read `docs/wiki/app-events.md` → "Reading `app.previous_run` honestly" first — `foreground_termination` is a candidate set, not a verdict, and Android is the calibration (it carries the same marker plus `ApplicationExitInfo` ground truth in `previous_exit`). Instrumentation is `RunOutcome*` in `:libraries:telemetry:impl`. Case `docs/agent/feedback-cases/CARDS-3.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-3.
+
+## AUTH-32 [P2] — `StrandedIdentityDetector` fires a false positive on cold boot
+
+**Problem:** The "should read zero" stranded-identity canary fired on 3 genuine prod installs (build 1135) in the last 8 days — none previously seen. One is fully traced: the warning logs 78ms after a cold-boot foreground, before the async cold-boot heal could plausibly have finished minting, then the same session starts a bots game cleanly 5.6s later — the user was never stuck. `GuestSessionHealer.onForeground` explicitly skips cold-boot foreground (`if (event.isColdBoot) return`, since `onColdBoot` already heals it); `StrandedIdentityDetector.onForeground` has no such guard, so it can sample the profile mid-heal and log a false positive.
+
+**Acceptance:** The canary doesn't fire on a normal cold boot while the heal is still in flight. Give it the same cold-boot skip `GuestSessionHealer` already has (or gate on the heal's own completion rather than a fixed trigger set).
+
+**Hints:** `libraries/identity/impl/.../auth/StrandedIdentityDetector.kt` (compare its `onForeground` to `GuestSessionHealer.onForeground` in the same package). Case `docs/agent/feedback-cases/sweep-stranded-fallback-canary-2026-09-11.md` — also flags two same-second hits (installs `bdf966c3…`/`c3ba45f6…`) whose cause is *not* this cold-boot race (the foreground was 62s after a completed onboarding); read the case before assuming this fix covers them too.

@@ -672,3 +672,54 @@ ENG-49 rewritten around the RenderThread. Plan in docs/plans/renderthread-text-s
 hypothesis is text rastered under animated transforms (card flips), unproven and explicitly
 flagged as such this time. -->
 - 2026-09-02 · CARDS-C1 · CORRECTED: not a bottom-sheet bug. RenderThread wedged drawing text with the glyph cache thrashing; the sheet was the victim thread. Diagnosis had been drawn from a waiting stack without reading the other 54 threads. ENG-49 rewritten; skill hardened · https://elijah-dangerfield.sentry.io/issues/CARDS-C1 · plan docs/plans/renderthread-text-stall.md
+
+<!-- 2026-09-11 nightly observability triage (stacked directly on develop HEAD; no feedback-triage
+run immediately before this one to stack on — feedback-log.md's newest entry is still 2026-08-20).
+9 days since the last observability sweep (2026-09-02). Reviewed 2 unresolved Sentry issues +
+Grafana alert/OnCall/dashboard/Loki sweep. Filed 1 todo (AUTH-32 P2). No P0, no outage.
+
+Sentry (30d window): only 2 unresolved issues project-wide, both already ledgered, neither
+materially worse enough to re-open —
+- CARDS-8V (chip-pack SKUs unrecognized, iOS App Store Connect listing): now 7 users / 14 events
+  (was 3 users on 08-28), last seen 9h ago. Growing but not order-of-magnitude; still owned solely
+  by the developer-todo.md ASC item (human-only, App Store Connect config) — no engineering-side
+  action changes. Noting the growth here so the next run has the trend.
+- CARDS-3 (iOS WatchdogTermination on onboarding welcome): unchanged, 1 user / 2 events, still
+  owned by ENG-42 (open). No re-open.
+
+Grafana: alerting_manage_rules(states=firing,pending) → null; list_alert_groups(state=new) → [].
+No alerts firing, no OnCall groups. dc-pulse row 1 all green (client errors 0, purchase failures
+0, server up, ledger drift 0). cards-server prod warn/error/fatal 7d → 2 lines (1 single WS "died
+reading" disconnect, 1 self-healed Postgres 40001 serialization retry on room_sessions — same
+low-volume shape already deliberately not filed on 08-28; still 1 occurrence, still self-heals, not
+re-flagged). dc-billing-health: 0 stuck purchases, no purchase attempts in the recent window (not a
+failure — no traffic). The two "green dashboards aren't evidence" checks from the skill: no
+slow-but-successful requests (empty = healthy), abnormal exits 7d = 101 clean / 5 oom / 25 unknown /
+0 anr / 0 crash — OOM rate (5/7d) is higher than the 29d baseline noted 09-02 (9/29d) but spread
+across 4 distinct installs, no single-device wedge pattern re ENG-45/47; not filed, flagged for a
+human glance if it keeps climbing next run.
+
+New signal, not on any dashboard (found via direct Loki digging per the skill's "also scan the
+logs directly"): `stranded_fallback_online_onboarded`, a client canary explicitly documented to
+"read zero" post-heal. 17 hits in 30d; 14 are dev/emulator/sideload noise (as before), but 3 are
+genuine prod installs (build 1135) in the last 8 days — zero previously ledgered. One is a fully
+traced cold-boot race: `StrandedIdentityDetector.onForeground` lacks the cold-boot skip its sibling
+`GuestSessionHealer.onForeground` already has, so it can sample the profile mid-heal and log a
+false positive (confirmed: the same session started a bots game cleanly 5.6s later — user never
+stuck). Two more hits share an identical same-second onboarding script and a shared display-name
+conflict — flagged as unresolved (real coincident devices vs. crawler traffic) rather than forced
+into the same theory. → **todo AUTH-32 [P2]**, case
+docs/agent/feedback-cases/sweep-stranded-fallback-canary-2026-09-11.md.
+
+Sentry writes: SENTRY_AUTH_TOKEN not present in env and no macOS Keychain available in this
+container (headless Linux sandbox) — `security` has no equivalent here. Neither Sentry issue's
+status was flipped (todo filed for AUTH-32 has no Sentry issue to comment on; CARDS-8V/CARDS-3 stay
+unresolved as before, no disposition changed that would need a resolve). Ledger is the source of
+truth per the skill's fallback rule.
+
+FOR A HUMAN: nothing urgent. iOS still selling nothing (CARDS-8V/developer-todo, now 7 affected
+users) remains the standing highest-value fix available. -->
+- 2026-09-11 · CARDS-8V · no-action: re-checked, not re-opened — 3→7 users since 08-28, still solely an App Store Connect fix, owned by developer-todo.md · https://elijah-dangerfield.sentry.io/issues/CARDS-8V · case docs/agent/feedback-cases/CARDS-8V.md
+- 2026-09-11 · CARDS-3 · no-action: re-checked, unchanged (1 user / 2 events), still owned by ENG-42 · https://elijah-dangerfield.sentry.io/issues/CARDS-3 · case docs/agent/feedback-cases/CARDS-3.md
+- 2026-09-11 · sweep:stranded-fallback-canary-2026-09-11 · todo: AUTH-32 [P2] `StrandedIdentityDetector` false-positives on cold boot (races the in-flight heal); 3 genuine prod installs hit it in 8 days, none previously ledgered · grafanacloud-logs `{service_name="cards-client"} |= "stranded_fallback_online_onboarded"` · case docs/agent/feedback-cases/sweep-stranded-fallback-canary-2026-09-11.md
+- 2026-09-11 · sweep:2026-09-11-nightly · no-action: A1–A8 none firing/pending, no OnCall groups; dc-pulse row 1 all green; cards-server prod warn/error/fatal 2 lines/7d (both known low-volume self-healing shapes); dc-billing-health 0 stuck; abnormal exits 7d 5 oom/4 installs/0 anr/0 crash (watch, not filed) · dc-pulse / dc-billing-health / grafanacloud-logs
