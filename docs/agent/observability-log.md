@@ -672,3 +672,23 @@ ENG-49 rewritten around the RenderThread. Plan in docs/plans/renderthread-text-s
 hypothesis is text rastered under animated transforms (card flips), unproven and explicitly
 flagged as such this time. -->
 - 2026-09-02 · CARDS-C1 · CORRECTED: not a bottom-sheet bug. RenderThread wedged drawing text with the glyph cache thrashing; the sheet was the victim thread. Diagnosis had been drawn from a waiting stack without reading the other 54 threads. ENG-49 rewritten; skill hardened · https://elijah-dangerfield.sentry.io/issues/CARDS-C1 · plan docs/plans/renderthread-text-stall.md
+
+<!-- 2026-09-12 nightly triage. Sentry MCP connected. `is:unresolved`/30d returns exactly the same
+two issues as every run since 08-20: CARDS-8V and CARDS-3. No new Sentry signals, no feedback
+carriers waiting (feedback-triage's lane, not checked here beyond the cross-reference). A1-A8 all
+`state: normal`, `alerting_manage_rules(states:[firing,pending])` returned null. dc-pulse row 1
+clean (server up, ledger drift 0, client errors flat at the known baseline-3, zero purchase
+failures). Slow-but-successful-request check (ENG-46's query) returned zero rows — no repeat of
+ENG-45/47/CARDS-C0. Abnormal exits 7d: 26 clean / 4 oom / 0 anr / 22 unknown(iOS) — oom down from
+7/7d on 09-02 (ENG-47 landing) and zero anr since ENG-49 shipped 09-03, both encouraging but inside
+ENG-49's own 4-week observation window, not yet a close. Fly prod memory 484MiB available, no
+creep. cards-economy ledger drift 0 (same query as dc-pulse). dc-billing-health: 0 stuck, 0
+escalations, mismatch rate null (zero purchase attempts in 30d — consistent with CARDS-8V, not a
+new problem). Server warn/error/fatal 24h: 4 lines, all `could not serialize access due to
+concurrent update` (table_sessions.markClosing x1, room_sessions upsert x1, each with its
+`Suspended.kt` retry-wait companion line) — same self-healing Exposed-retry-and-win class already
+dispositioned benign on 08-28; attempt #0 fails, no later "exhausted"/fatal line, so not re-filed.
+CARDS-3 unchanged since 08-14 (still owned by ENG-42, open in todo.md) — not re-logged individually
+this run to avoid ledger churn on a no-op re-verify. -->
+- 2026-09-12 · CARDS-8V · no-action: re-opened — materially worse again (7 users/14 events vs 3 on 08-28, still climbing, last seen 1d ago); ENG-43's visibility work already shipped, sole remaining owner is the `developer-todo.md` App Store Connect line (stuck money, human-only, ~8 weeks open) · https://elijah-dangerfield.sentry.io/issues/CARDS-8V · case docs/agent/feedback-cases/CARDS-8V.md
+- 2026-09-12 · sweep:2026-09-12-nightly · no-action: A1-A8 none firing/pending; dc-pulse/dc-infra/cards-economy/dc-billing-health/dc-funnel/dc-gameplay swept, nothing beyond known/owned issues; 4 self-healing Exposed serialization-retry warn lines (table_sessions/room_sessions), consistent with the already-dispositioned benign class · dc-pulse / dc-infra / cards-economy / dc-billing-health / dc-funnel / dc-gameplay / grafanacloud-logs

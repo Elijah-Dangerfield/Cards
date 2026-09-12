@@ -76,3 +76,14 @@ ASC half. Sentry issue left **unresolved** (nothing is fixed yet) with a triage 
 `CARDS-96` / 2026-07-10 "dev noise" disposition is superseded by this file. P1 rather than P0
 because the money unblock is the human ASC item; ENG-43 is the visibility work so this can't sit
 invisible for three weeks a second time.
+
+## 2026-09-12 re-verify — worse, still ASC-only
+
+7 users / 14 events now (was 3 users on 2026-08-28), last seen 1 day ago — still climbing, 8 weeks
+after first seen and 7 weeks since the App Store release it affects. `dc-billing-health` confirms
+zero purchase attempts of any kind in the last 30d (mismatch rate `null`, stuck `0`) — consistent
+with a shop that has nothing to sell on iOS, not with healthy quiet. ENG-43's visibility work has
+already shipped (A8 alert + `shop.catalog_skus_dropped` event, both `docs/wiki/observability.md` §
+Alerts), so the only remaining owner is the `developer-todo.md` App Store Connect line. No new
+engineering action exists to take. Left unresolved in Sentry; ledger repointed with the current
+count.
