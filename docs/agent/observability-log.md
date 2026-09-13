@@ -1113,3 +1113,70 @@ money) — silence. -->
   dogfood device) — neither filed. Inbox: 12 Apple threads, all for the unrelated "Moving Eyes for
   Paintings" app or a personal receipt; no Play mail; no new Downcard signal; standing deadlines
   unchanged. No todos filed, no Sentry writes, no owner email (nothing met the step-7 bar).
+
+<!-- 2026-09-13 sweep. Sentry MCP, Grafana MCP and Gmail MCP all reachable — no blocked channels
+this run.
+
+Sentry: `is:unresolved` (30d) → **1** issue, CARDS-8V (20 occurrences/7 users, last seen
+2026-09-11T02:30:20Z, `store-ios-release` build 0.1.0+1135) — Sentry re-flagged it unresolved again
+(as predicted 09-10, once a new event landed), but the count is not materially worse than the
+08-28/09-05 baseline (12-16 events/6-7 users), so not treated as a fresh escalation. Still owned by
+ENG-43 (shipped 8a2360da) + the `developer-todo.md` App Store Connect line; both unchanged and
+open. Commented on the Sentry issue via `update_issue` (no `SENTRY_AUTH_TOKEN`/keychain entry in
+this sandbox, so used the MCP write path instead of the REST fallback) and left it unresolved.
+CARDS-3 stayed out of `is:unresolved` (resolved outside this triage, as already flagged 09-10 —
+still unconfirmed whether a human closed it or something else did; ENG-42 remains the todo of
+record either way).
+
+Grafana: `alerting_manage_rules(states=[firing,pending])` → null (no firing/pending across all 8
+rules incl. A8); `list_incidents(status=active)` → none. Swept all 8 boards: server Loki stream
+live (68 entries/24h), 0 warn/error/fatal server-side, 0 slow-but-successful requests, 0 restarts
+on the surviving instance, memory flat ~52%, 5xx reads NaN (no traffic in the query window, not
+broken — matches the recurring "idle" baseline). Billing Health: stuck=0, oldest-stuck=null
+(nothing pending). Economy: 0% at zero / 0% under Casual buy-in, ledger drift 0 (matches Pulse's
+own ledger-sane panel), one historical bust-protection day (2 fires, 08-29) inside the 30d window,
+nothing new. Revenue: $0 this month (consistent with the known CARDS-8V empty-iOS-shop state; no
+purchase attempts to compute a failure rate against). Gameplay: matchmaking-matched events trickling
+at 1-2 per rolling window (post-wipe quiet, expected), hand win% 27.9% (healthy 15-45% band).
+Perf: jank rate/worst-frame both low (11 janky frames, 74ms worst, 10 screens reporting) and
+trailing to 0 at the window's edge; cold-start panels empty — expected, ENG-69 shipped 09-04 and no
+build since has reached prod carrying `app.startup` yet (Sentry's most recent device dist on
+CARDS-8V, 202609031510, predates the ship). Funnel: onboarding/completion panels returned empty at
+the query ranges used; cross-checked against the known low-but-nonzero baseline (48 welcome views/
+7d on 09-10) rather than treated as a new gap.
+
+Client warn+ 24h: 6 lines. 3× `accessToken: no session — request will go unauthed` — the
+documented deferred-session-on-cold-launch pattern, benign per prior runs. 2× StoreKit catalog
+lines (`queryProducts failed: An internal error occurred.` / `Store query failed during catalog
+refresh (...); using cached snapshot`), both from `ProductsRepository` — folded into CARDS-8V as
+corroborating evidence (same SKU-recognition root cause), not a new signal; noted in the case file's
+2026-09-13 addendum rather than filed separately.
+
+Store inbox: `from:(...google.com OR ...apple.com) newer_than:14d` → 31 threads, mostly "Moving Eyes
+for Paintings" build/status churn (out of scope, different app) plus a personal Apple receipt. One
+new pattern this run: **Downcard itself** (not just the sibling app) went In Review → "There's an
+issue with your Downcard: Poker with friends (iOS) submission." (2026-09-10 22:59) → Ready For
+Review → Waiting for Review, all within about 3.5 hours (2026-09-11 02:26) — the rejection email
+carries no itemized reason in its body (Apple puts specifics only in App Store Connect), and the
+fast resubmission suggests the owner already handled it directly. As of this run (2 days later,
+normal review latency) it is back in Apple's queue, not currently blocked — no todo/email, but
+flagged here for a human to glance at in case the resubmission silently stalls. Keyword sweep
+(`deadline|action required|rejected|deprecated|expiring|suspended|violation`, 14d) surfaced the same
+two Apple "Developer Rejected" threads (Downcard 09-03, Moving Eyes 09-08) plus unrelated personal
+mail (tax reminders, hims.com, NYU Stern, a Democrats fundraising mail) — nothing new for Cards. The
+two open developer-todo.md items (Play developer-verification deadline, due 2026-09-30 — 17 days
+out; Apple developer-info update) are unchanged, not re-emailed.
+
+Owner email: nothing met the step-7 bar — the Downcard resubmission is mid-flight, not a confirmed
+block; the Play deadline is unchanged from the last time it was surfaced. Silence. -->
+- 2026-09-13 · sweep:2026-09-13 · Fully-connected run. Sentry: only CARDS-8V unresolved (re-flagged
+  as predicted, not materially worse — 20 events/7 users vs 12-16 baseline); commented via MCP
+  `update_issue` (no Sentry token in this sandbox), left unresolved; still owned by ENG-43 (shipped)
+  + developer-todo ASC line. CARDS-3 stayed resolved (unconfirmed why, flagged since 09-10; ENG-42
+  still the todo of record). Grafana: no firing/pending alerts, no active incidents, all 8 boards
+  swept and in line with recent baselines (billing/economy/revenue quiet, gameplay/perf healthy,
+  cold-start panels empty as expected pre-ENG-69-build). Two client warn+ StoreKit lines folded into
+  CARDS-8V as corroboration, not filed separately. Inbox: Downcard itself hit an actual App Store
+  rejection 09-10 and was resubmitted within 3.5h — currently back in review, not blocked; flagged
+  for a human glance, no todo/email (not yet a confirmed block). No todos filed, one Sentry comment,
+  no owner email (nothing met the step-7 bar).
