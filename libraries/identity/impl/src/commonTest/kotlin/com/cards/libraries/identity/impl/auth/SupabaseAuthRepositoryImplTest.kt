@@ -18,6 +18,7 @@ import com.dangerfield.cards.libraries.identity.impl.AvatarPackResponseDto
 import com.dangerfield.cards.libraries.identity.impl.MeDto
 import com.dangerfield.cards.libraries.identity.impl.PatchMeRequest
 import com.dangerfield.cards.libraries.identity.impl.ProfileApi
+import com.dangerfield.cards.libraries.networking.AuthTokenInvalidator
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.statement.HttpResponse
 import kotlinx.coroutines.CompletableDeferred
@@ -919,8 +920,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         }
     }
 
-    private object NoOpTokenInvalidator :
-        com.dangerfield.cards.libraries.networking.AuthTokenInvalidator {
+    private object NoOpTokenInvalidator : AuthTokenInvalidator {
         override fun invalidate() = Unit
     }
 
