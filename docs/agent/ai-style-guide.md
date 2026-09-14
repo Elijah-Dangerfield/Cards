@@ -15,6 +15,9 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 - Fix KDoc that describes code that no longer exists (renamed actions, removed flows, "used to render here" history) — a wrong doc misleads worse than none.
 - Re-check docs that claim something is unused ("not called anywhere yet", "reserved for a later phase") — they rot the moment it gets wired. Grep for callers before believing one.
 - Check numbers quoted in comments against the constant they describe (an alphabet documented as 32 chars was 31).
+- Don't leave `// ---- Section ----` banners; if a file needs them it's too big.
+- A doc claiming something is untestable ("needs a real HttpResponse") goes stale when the dep lands — check the test classpath before believing it.
+- KDoc on a public interface must not `[link]` a private field of some impl — the reader can't see it.
 
 ## Compose & previews
 - Import `Preview` from `org.jetbrains.compose.ui.tooling.preview.Preview` — never write the fully-qualified `@org.jetbrains…Preview` inline.
@@ -38,6 +41,7 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 - Consume a queue/buffer only on the path that succeeded — clearing it before the operation can still be refused silently drops the work nothing will re-queue.
 - If a read path falls back to durable storage on a cache miss, every entry point that can be *first to touch* the key needs the same fallback — `find` hydrating but `join` 404-ing is a restart bug.
 - Record an idempotency nonce only once the mutation is committed; burning it on a refused path makes the client's retry a silent no-op.
+- When two stores must stay in step, give them **one** write function — a second path that writes only the primary (a legacy-store migration skipping the session mirror) breaks the invariant silently.
 
 ## Naming & clarity
 - Don't shadow an outer `val` with an inner one of the same name — rename the inner (e.g. `previousHumans` → `priorHumans`) so each read is unambiguous.
@@ -48,9 +52,12 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 - Don't smuggle `updateState` past the SEA invariant via a no-op "carrier" action — a helper only called from a handler should be an extension on the action (`private suspend fun MyAction.resetToIdle()`).
 - Pull list-building/formatting logic out of composables into internal pure functions (`achievementHighlights()`) so it's unit-testable without a compose harness.
 - Don't re-stub a whole interface in every fake — one abstract `StubX` base that `error`s on all methods, then each fake overrides only the calls its test exercises. Unexpected calls fail loudly.
+- Test the destructive branch first. Coverage that only pins the safe paths (transient-failure keeps the session) leaves the one that boots a user untested.
+- Declare test deps from the version catalog (`libs.ktor.client.mock`), never a hardcoded `"group:art:1.2.3"` — it drifts off the shared version ref.
 
 ## Misdirection
 - No passthrough re-exports *or* private re-implementations of a shared util (a local `formatChips` that re-does `formatThousands`) — grep `libraries/` first, call the real one.
+- A caller that hand-rolls what a helper beside it already does will drift — inline it back. The resolve path rebuilt `Authenticated` itself and lost the helper's `invalidate()`.
 - Don't clone a private composable into a sibling file under a dodge-the-clash rename (`SheetInfoCard` == `InfoCard`) — share one internal impl in the package.
 - Kill enum params whose branches all resolve to the same value (`IconTone.Gold` == `IconTone.Accent`) — a distinction the renderer ignores is a lie.
 - User-facing strings go in `:libraries:resources`, even inside enums (`ShopSection("Card backs")` was a violation) — no inline English.
