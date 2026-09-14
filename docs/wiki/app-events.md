@@ -84,6 +84,16 @@ Deliberate calls from the considered pass over the setup, so nobody re-litigates
   iOS, they'd read as fake OOMs next to Android's user-perceived `REASON_LOW_MEMORY`. MetricKit
   never delivers on the simulator; only real devices produce non-unknown values.
 
+### `app.exit_detail` (2026-09-14)
+
+`previous_exit=oom` alone can't tell a real in-use memory blowup from the OS reclaiming a process
+that had sat backgrounded for hours — both land as the same string. `ApplicationExitInfo` already
+carries the process importance and memory footprint at the moment of death alongside the exit
+reason; `AndroidPreviousExitProvider` was only reading `.reason`. `previousExitDetail()` reads the
+same cached record and `AppLaunchedEmitter` emits it as a sibling event when present. iOS's
+MetricKit has no per-process memory-at-death equivalent, so this stays Android-only — same shape as
+`app.exit_metrics` being iOS-only for the reverse reason.
+
 **Rules for adding events:** emit through the `logEvent` extension only (never a raw
 `EXTRA_APP_EVENT` extra), fire on user actions / state transitions — never per-frame, per-poll, or
 per-flow-emission — and add the event here in the same change. Client events answer
@@ -97,6 +107,7 @@ and anything already in a ledger.
 | `app.launched` | `cold_start` (always true), `previous_exit` (clean/crash/anr/oom/unknown) | Once per cold start, on the boot foreground (`GrafanaAppEvents.onForeground`) — after the session tracker rolls session #1, so it shares the boot's `session_id` with every other event (ENG-24; it used to fire at DI init and land orphaned on a pre-rollover id). Doubles as the pipeline smoke test. `previous_exit` comes from Android's historical exit reasons (API 30+; older devices report `unknown`); **iOS derives it from MetricKit** (`MXAppExitMetric` foreground exits), which is day-granular and lags up to 24h — each report is surfaced by exactly one launch then cleared, so most iOS launches say `unknown` and non-unknown values are daily samples, not per-run truth. Always segment by platform before reading exit rates |
 | `app.previous_run` | `outcome` (foreground_termination/background_exit/unknown), `previous_session_id`, `previous_run_age_sec` | Once per cold start, next to `app.launched` (`RunOutcomeReporter`). The per-run counterpart to `previous_exit`: a marker written synchronously on every foreground/background transition says where the app *was* when it stopped checking in, so a run that vanished on screen (`foreground_termination`) reads differently from one the user swiped out of the app switcher — swiping backgrounds the app first, so that lands as `background_exit`. `previous_session_id` joins to everything the dead run emitted. See the caveats below before reading a rate |
 | `app.exit_metrics` | `exit_normal`, `exit_abnormal`, `exit_watchdog`, `exit_memory_limit`, `exit_bad_access`, `exit_illegal_instruction`, `classified_as` | **iOS only**, once per MetricKit payload delivery (roughly daily). The raw `MXAppExitMetric` foreground counts that `previous_exit` reduces to one string — the only source for an actual iOS watchdog *rate*. Counts are cumulative within the payload's ~24h window, so chart them per delivery, never as a running total |
+| `app.exit_detail` | `previous_exit_importance` (raw `ActivityManager.RunningAppProcessInfo.IMPORTANCE_*` int), `previous_exit_pss_kb`, `previous_exit_rss_kb`, `previous_exit_description` | **Android only** (API 30+), once per cold start, right next to `app.launched` — but only when `ApplicationExitInfo` has something to say (`PreviousExitProvider.previousExitDetail`), so most launches carry no event. Answers what `previous_exit=oom` alone can't: was the process actually on screen when the OS killed it (`previous_exit_importance<=100`, `IMPORTANCE_FOREGROUND`/`IMPORTANCE_VISIBLE`) or reclaimed while backgrounded/cached (`>=300`)? Join on `session_id` to `app.launched` before reading it |
 | `app.foregrounded` | `cold_start` | Every foreground (`LifecycleAppEventLogger`); `cold_start=true` on the boot foreground |
 | `app.backgrounded` | `session_duration_sec` | Every background; `session_duration_sec` = whole seconds since the matching foreground (monotonic clock), so session length is a direct query — no span join needed. Omitted in the (shouldn't-happen) case of a background with no prior foreground |
 | `game.started` | `mode` (bots/multiplayer), `difficulty` | `PlayPokerViewModel` init |
