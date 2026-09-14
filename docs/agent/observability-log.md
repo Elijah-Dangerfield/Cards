@@ -1180,3 +1180,80 @@ block; the Play deadline is unchanged from the last time it was surfaced. Silenc
   rejection 09-10 and was resubmitted within 3.5h — currently back in review, not blocked; flagged
   for a human glance, no todo/email (not yet a confirmed block). No todos filed, one Sentry comment,
   no owner email (nothing met the step-7 bar).
+
+<!-- 2026-09-14 sweep. Sentry MCP, Grafana MCP and Gmail MCP all reachable — no blocked channels
+this run (the 09-07 developer-todo item about a Sentry MCP reconnect looks stale; flagged an update
+on that line rather than editing it away).
+
+Sentry: `is:unresolved` (30d, sort=freq) → **1** issue, CARDS-8V (14 events/7 users, last seen
+within the window) — count is down slightly from 09-13's 20/7, not a re-escalation. Still owned by
+ENG-43 (shipped 8a2360da) + the developer-todo.md App Store Connect SKU line. Commented via
+`update_issue` (no `SENTRY_AUTH_TOKEN`/keychain entry in this sandbox, so used the MCP write path)
+and left unresolved.
+
+Grafana: `alerting_manage_rules(states=[firing,pending])` → null (no firing/pending across all 8
+rules); `list_incidents(status=active)` → none. Server: `{service_name="cards-server",
+deployment_environment="prod"}` 689 entries/24h (stream live, real gameplay traffic — several rooms
+active), 1 WARN (`Ping timeout` / socket died reading, one room/session — the documented benign
+mobile-disconnect pattern; `ReconnectingRoomSocket` exists precisely for this), 0 slow-but-successful
+requests, 0 server errors/exceptions in the last hour. Infra: 0 restarts on the surviving instance,
+memory flat ~52%, Postgres up throughout. Pulse: ledger sane (drift 0), server up. Billing Health:
+stuck=0, oldest-stuck=null, mismatch rate null (no attempts in range). Economy: 0% players at zero,
+0% under Casual buy-in, ledger drift 0 (matches Pulse). Revenue this month: $0 (consistent with the
+known CARDS-8V empty-iOS-shop state). Gameplay: match-success trickle climbing from 1-2 to 5-6 today
+(post-wipe activity picking up, not an anomaly shape), hand win% 23.1% (healthy 15-45% band). Perf:
+jank rate 11 janky frames / 74ms worst frame, both trailing to 0 at the window's edge (matches the
+recurring pattern), 10 screens reporting, cold-start panels still empty (no build carrying
+`app.startup` has reached prod since ENG-69 shipped 09-04). Funnel not separately re-swept beyond
+the onboarding/XP panels implied healthy by Pulse and Economy — no signal pointed there today.
+
+Client warn+ 24h: investigated every distinct pattern rather than taking volume at face value —
+- `Bot decision for seat N is stale … Skipping apply` (multiple, real gameplay sessions) — the
+  documented defensive re-check (`LocalBotsSession.kt:333-345`), working as designed. Not filed.
+- `accessToken: no session — request will go unauthed` (multiple) — the documented deferred-session-
+  on-cold-launch pattern. Not filed.
+- **New pattern, investigated:** `Client request(...bots) invalid: 409 room_not_joinable` ×2, one
+  session — server-side `AddBotResult.NotJoinable` (`RoomRoutes.kt:288-294`) correctly rejecting an
+  add-bot tap that raced a hand already starting. Properly guarded, single session, no data harm —
+  UX polish at most (disable the add-bot control once play starts), not filed.
+- **New pattern, investigated:** `Software caused connection abort` (`SocketException`, tag
+  `RoomSocket`) ×4 across two sessions, correlating with the single server-side `Ping timeout` above
+  for one of them — a transient mobile network drop that the client's `ReconnectingRoomSocket` (see
+  its name) exists to recover from. No evidence of a stuck reconnect loop. Not filed.
+- **New pattern, investigated:** `completeOAuthRedirect: no pending handle, already authenticated —
+  ignoring stray redirect` ×9 in ~25s, one session/install — read the source
+  (`SupabaseAuthRepositoryImpl.kt:786-791`): an explicit guard so a stray/duplicate OAuth redirect
+  can never hijack a live session, by design ("must not hijack a live session"). The repeated
+  9x-in-25s firing for one session is unusual and worth a future glance if it recurs at volume (could
+  mean the client is redelivering the same deep-link intent repeatedly), but the outcome each time is
+  a no-op guard, not user-visible harm, and it's a single install this run. Not filed.
+
+Store inbox: `from:(googleplay-noreply@google.com OR noreply@google.com OR no_reply@email.apple.com
+OR appstoreconnect@apple.com OR developer@apple.com) newer_than:14d` → 31 threads, same shape as
+09-13: mostly "Moving Eyes for Paintings" build/status churn (out of scope) plus one personal Apple
+receipt and the standing Play developer-verification "[Final reminder]" (unchanged, still tracked in
+developer-todo.md, due 2026-09-30 — 16 days out). Downcard's own resubmission (09-10 22:31 → In
+Review → 09-10 22:59 rejection-issue mail → 09-11 02:26 Ready For Review → Waiting for Review) has
+had **no further status mail as of this run**, i.e. ~3.3 days sitting in Apple's queue with no
+update — longer than the app's typical 24-48h turnaround, though not unusual for a weekend and not a
+confirmed block (no new rejection). Appended one developer-todo.md line flagging it for a human
+glance rather than emailing (no confirmed block, so below the step-7 bar). Keyword sweep
+(`deadline|action required|rejected|deprecated|expiring|suspended|violation`, 14d) surfaced the same
+Apple threads plus unrelated personal mail (DNC fundraising, a tax-nexus cold pitch, TurboTax,
+hims.com, MLB, Parade newsletter, NYU Stern) — nothing new for Cards.
+
+Owner email: nothing met the step-7 bar — the Downcard resubmission delay is notable but not a
+confirmed block (flagged in developer-todo.md instead), and the Play deadline is unchanged from the
+last time it was surfaced. Silence. -->
+- 2026-09-14 · sweep:2026-09-14 · Fully-connected run. Sentry: only CARDS-8V unresolved (14/7,
+  down slightly from 09-13, not re-escalated); commented via MCP `update_issue`, left unresolved;
+  still owned by ENG-43 (shipped) + developer-todo ASC line. Grafana: no firing/pending alerts, no
+  active incidents; server/infra/billing/economy/gameplay/perf all healthy and in line with recent
+  baselines (real gameplay traffic present — several active rooms). Investigated four client warn+
+  patterns — two previously-documented benign (bot-decision-stale, accessToken-no-session), two new
+  ones investigated from source and confirmed working-as-designed (room-not-joinable 409 on a raced
+  add-bot tap; a stray-OAuth-redirect guard that fired 9x in one session but is a no-op by design) —
+  none filed. Inbox: Downcard's iOS resubmission has sat in "Waiting for Review" ~3.3 days with no
+  further status mail — not a confirmed block, but appended a developer-todo.md line flagging it for
+  a human glance. Play deadline (09-30) and Apple developer-info item unchanged. No todos filed, one
+  Sentry comment, no owner email (nothing met the step-7 bar).
