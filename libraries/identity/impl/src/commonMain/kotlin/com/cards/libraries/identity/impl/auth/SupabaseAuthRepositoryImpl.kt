@@ -24,7 +24,9 @@ import com.dangerfield.cards.libraries.networking.AuthTokenInvalidator
 import com.dangerfield.cards.libraries.networking.SessionRejectionBus
 import io.github.jan.supabase.exceptions.HttpRequestException
 import io.github.jan.supabase.exceptions.RestException
+import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.ServerResponseException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
@@ -135,11 +137,8 @@ class SupabaseAuthRepositoryImpl(
         }
     }
 
-    override suspend fun current(): AuthState =
-        // .first() on a SharedFlow(replay=1) returns the latest value if
-        // one has been emitted, or suspends until the first emission.
-        // No log — this is the hot read path.
-        state.first()
+    // Deliberately unlogged — the hot read path, called on every authed request.
+    override suspend fun current(): AuthState = state.first()
 
     override fun observe(): Flow<AuthState> = state
 
@@ -168,41 +167,27 @@ class SupabaseAuthRepositoryImpl(
             gateway.awaitInitialization()
             when (gateway.currentStatus()) {
                 AuthGatewayStatus.Authenticated -> {
-                    val session = gateway.currentSession()
-                    if (session == null) {
-                        // Authenticated tokens are present but the session has no
-                        // user yet — a tokens-only state from an OAuth import or a
-                        // storage load. Fetch the user and re-poll rather than
-                        // crash; the user must never get stuck on a transient
-                        // hydration gap. If hydration keeps failing we fall through
-                        // to settle Unauthenticated below.
+                    if (gateway.currentSession() == null) {
+                        // Tokens are present but the session has no user yet — a
+                        // tokens-only state from an OAuth import or a storage
+                        // load. Fetch the user and re-poll rather than crash; the
+                        // user must never get stuck on a transient hydration gap.
                         logger.w { "Authenticated but session not hydrated — fetching user, then retrying" }
                         Catching { gateway.hydrateCurrentUser() }
                             .logOnFailure { "User hydration during resolve failed; will retry" }
                         return@repeat
                     }
-                    val next = AuthState.Authenticated(
-                        userId = session.userId,
-                        isAnonymous = session.isAnonymous,
-                        email = session.email,
-                    )
-                    emitLocked(next)
-                    logger.i {
-                        "Emitted Authenticated(userId=${next.userId}, isAnonymous=${next.isAnonymous}, hasEmail=${next.email != null})"
-                    }
-                    return next
+                    return emitAuthenticatedFromGatewayLocked()
                 }
-                // No session and we no longer auto-create one — settle.
                 AuthGatewayStatus.NotAuthenticated -> return settleUnauthenticatedLocked()
-                // Mid-hydration / transient refresh failure — re-poll.
                 AuthGatewayStatus.Initializing,
                 is AuthGatewayStatus.RefreshFailure -> Unit
             }
         }
-        // Only reachable when every attempt saw a *transient* status
-        // (Initializing / RefreshFailure) — a server NotAuthenticated returns
-        // above. So exhaustion is definitionally "backend unreachable, session
-        // unverified", not a confirmed-dead session (AUTH-30).
+        // A server NotAuthenticated returns above, so exhaustion only happens on
+        // supabase's transient statuses or a user-hydration that kept failing —
+        // either way "backend unreachable, session unverified", never a
+        // confirmed-dead session (AUTH-30).
         logger.w { "Resolve exhausted $MaxResolveAttempts attempts without settling — backend unreachable" }
         return settleUnauthenticatedLocked(transient = true)
     }
@@ -245,8 +230,9 @@ class SupabaseAuthRepositoryImpl(
     }
 
     /**
-     * Helper: read the gateway session, build an [AuthState.Authenticated],
-     * publish it. Assumes the lock is held + a valid session exists.
+     * The one place an [AuthState.Authenticated] is built and published, so
+     * every path that establishes a session drops the stale bearer with it.
+     * Assumes the lock is held + a valid session exists.
      */
     private suspend fun emitAuthenticatedFromGatewayLocked(): AuthState.Authenticated {
         val session = gateway.currentSession()
@@ -254,8 +240,6 @@ class SupabaseAuthRepositoryImpl(
         val next = AuthState.Authenticated(
             userId = session.userId,
             isAnonymous = session.isAnonymous,
-            // Anonymous users don't have a real email for our purposes; the
-            // gateway already nulls supabase's placeholder address.
             email = session.email,
         )
         // Drop the cached bearer before anyone observing this emission fires a
@@ -263,8 +247,6 @@ class SupabaseAuthRepositoryImpl(
         // leaves the old token valid, so Ktor would otherwise keep sending it.
         tokenInvalidator.invalidate()
         emitLocked(next)
-        // Info-level so this lands in production diagnostic dumps — auth
-        // state transitions are the load-bearing observability moment.
         logger.i {
             "Emitted Authenticated(userId=${next.userId}, isAnonymous=${next.isAnonymous}, hasEmail=${next.email != null})"
         }
@@ -370,8 +352,6 @@ class SupabaseAuthRepositoryImpl(
     }
 
     private fun lastEmittedOrNull(): AuthState? = state.replayCache.firstOrNull()
-
-    // ---------- Auth operations ----------
 
     override suspend fun createGuestSession(): SignInOutcome = mutex.withLock {
         logger.d { "createGuestSession: signing in anonymously" }
@@ -547,11 +527,6 @@ class SupabaseAuthRepositoryImpl(
         logger.i { "signOut: tearing down session" }
         Catching { gateway.signOut() }
             .logOnFailure { "Supabase signOut failed; clearing local state anyway" }
-        // No session is created in its place — the user lands on the
-        // logged-out landing page and must pick a method (guest / sign-in)
-        // again. A later retry() just re-resolves (still Unauthenticated).
-        // emitUnauthenticatedLocked → emitLocked dumps the prior user's local
-        // data and dispatches UserChanged(prev, null); no explicit dispatch here.
         // Reason.SignedOut so identity self-heal doesn't resurrect this
         // deliberate sign-out as a fresh anonymous guest.
         emitUnauthenticatedLocked(
@@ -562,8 +537,7 @@ class SupabaseAuthRepositoryImpl(
 
     override suspend fun deleteAccount(): DeleteAccountOutcome = mutex.withLock {
         logger.d { "deleteAccount: attempting" }
-        val session = gateway.currentSession()
-        if (session == null) {
+        if (gateway.currentSession() == null) {
             logger.w { "deleteAccount: NotSignedIn (no supabase session)" }
             return@withLock DeleteAccountOutcome.NotSignedIn
         }
@@ -583,11 +557,11 @@ class SupabaseAuthRepositoryImpl(
             },
             onFailure = { e ->
                 when (e) {
-                    is io.ktor.client.plugins.ClientRequestException -> when (e.response.status.value) {
+                    is ClientRequestException -> when (e.response.status.value) {
                         401 -> DeleteAccountOutcome.NotSignedIn
                         else -> DeleteAccountOutcome.Unknown(e)
                     }
-                    is io.ktor.client.plugins.ServerResponseException ->
+                    is ServerResponseException ->
                         if (e.response.status.value == 503) DeleteAccountOutcome.NotConfigured
                         else DeleteAccountOutcome.Unknown(e)
                     else -> DeleteAccountOutcome.NetworkError(e)
@@ -599,10 +573,8 @@ class SupabaseAuthRepositoryImpl(
             logger.i { "deleteAccount: Success — signing out + clearing user-scoped data" }
             Catching { gateway.signOut() }
                 .logOnFailure { "Supabase signOut after delete failed; clearing local state anyway" }
-            // emitUnauthenticatedLocked → emitLocked dumps this user's local
-            // data and dispatches UserChanged(prev, null). Reason.SignedOut so
-            // identity self-heal treats a delete like a sign-out and doesn't
-            // mint a fresh guest in its place.
+            // Reason.SignedOut so identity self-heal treats a delete like a
+            // sign-out and doesn't mint a fresh guest in its place.
             emitUnauthenticatedLocked(
                 cause = null,
                 reason = AuthState.Unauthenticated.Reason.SignedOut,
@@ -968,8 +940,6 @@ class SupabaseAuthRepositoryImpl(
             },
         )
     }
-
-    // ---------- Mappers ----------
 
     private fun mapSignInRestException(e: RestException, email: String): SignInOutcome {
         val msg = (e.message ?: "").lowercase()

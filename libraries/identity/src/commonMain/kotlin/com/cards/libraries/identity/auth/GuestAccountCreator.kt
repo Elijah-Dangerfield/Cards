@@ -34,9 +34,9 @@ interface GuestAccountCreator {
      * Single, serialized entry point for "make sure this device has a real
      * session." Used by the identity self-heal path to recover a user who
      * onboarded but was stranded session-less (the durable pending record was
-     * lost, or creation never landed). Resolves against the same [healMutex] as
-     * every other mint trigger ([start] / init-resume / offline-flip retry) so
-     * concurrent triggers collapse to a single account:
+     * lost, or creation never landed). Serialized against every other mint
+     * trigger ([start] / init-resume / offline-flip retry) so concurrent
+     * triggers collapse to a single account:
      *
      *  - a session already exists → clears any owed record and returns
      *    [AccountCreationState.Succeeded] (no second account minted);

@@ -133,8 +133,10 @@ interface AuthRepository {
     suspend fun markSessionUnrecoverable(wasAnonymous: Boolean) {}
 
     /**
-     * Tear down the current Supabase session. The next [current] call
-     * will trigger a fresh anonymous sign-in.
+     * Tear down the current Supabase session. Nothing is created in its place —
+     * the user lands on the logged-out landing page and picks a method again.
+     * Settles [AuthState.Unauthenticated.Reason.SignedOut] so identity self-heal
+     * doesn't resurrect a deliberate sign-out as a fresh guest.
      */
     suspend fun signOut()
 
