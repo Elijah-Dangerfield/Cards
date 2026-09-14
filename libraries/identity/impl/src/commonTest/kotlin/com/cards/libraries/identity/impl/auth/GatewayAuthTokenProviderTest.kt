@@ -3,8 +3,10 @@ package com.dangerfield.cards.libraries.identity.impl.auth
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import io.github.jan.supabase.exceptions.HttpRequestException
 import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.http.HttpStatusCode
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -99,6 +101,60 @@ class GatewayAuthTokenProviderTest : CoroutineTest() {
 
         assertNull(provider.refreshAccessToken())
         assertTrue(bus.signaled.isEmpty(), "transient failures must not signal a session rejection")
+    }
+
+    @Test
+    fun refreshAccessToken_whenAuthServerRejects_signalsRejection_carryingAnonymity() = runUnitTest {
+        // The one branch that tears a session down. `wasAnonymous` has to be the
+        // session we held *before* the refresh, because it picks the recovery
+        // copy: a guest is told to start fresh, a claimed account to sign in.
+        for (wasAnonymous in listOf(true, false)) {
+            val gateway = FakeSupabaseAuthGateway(
+                initialStatus = AuthGatewayStatus.Authenticated,
+                session = sampleSession(accessToken = "tok-dead", isAnonymous = wasAnonymous),
+            )
+            gateway.onRefreshSession = { throw restException(HttpStatusCode.Unauthorized) }
+            val bus = FakeSessionRejectionBus()
+
+            assertNull(GatewayAuthTokenProvider(gateway, bus).refreshAccessToken())
+            assertEquals(listOf(wasAnonymous), bus.signaled)
+        }
+    }
+
+    @Test
+    fun refreshAccessToken_onServerError_keepsTheSession() = runUnitTest {
+        // A 5xx is the backend having a bad day, not a verdict on our token.
+        // Booting here would strand a guest permanently, so it stays transient.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = sampleSession(accessToken = "tok-old", isAnonymous = true),
+        )
+        gateway.onRefreshSession = { throw restException(HttpStatusCode.InternalServerError) }
+        val bus = FakeSessionRejectionBus()
+
+        assertNull(GatewayAuthTokenProvider(gateway, bus).refreshAccessToken())
+        assertTrue(bus.signaled.isEmpty(), "a 5xx must never boot a session")
+    }
+
+    @Test
+    fun isAnonymousSession_readsTheCurrentSession_andIsFalseWithoutOne() = runUnitTest {
+        val guest = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = sampleSession(isAnonymous = true),
+        )
+        assertTrue(GatewayAuthTokenProvider(guest, FakeSessionRejectionBus()).isAnonymousSession())
+
+        val claimed = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = sampleSession(isAnonymous = false),
+        )
+        assertFalse(GatewayAuthTokenProvider(claimed, FakeSessionRejectionBus()).isAnonymousSession())
+
+        val none = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+        )
+        assertFalse(GatewayAuthTokenProvider(none, FakeSessionRejectionBus()).isAnonymousSession())
     }
 
     @Test
