@@ -1257,3 +1257,41 @@ last time it was surfaced. Silence. -->
   further status mail — not a confirmed block, but appended a developer-todo.md line flagging it for
   a human glance. Play deadline (09-30) and Apple developer-info item unchanged. No todos filed, one
   Sentry comment, no owner email (nothing met the step-7 bar).
+- 2026-09-15 · sweep:2026-09-15 · Fully-connected run. Sentry: only CARDS-8V unresolved (14/7,
+  unchanged from 09-14) — already owned by ENG-43 + developer-todo ASC line, not re-escalated, no
+  comment needed (disposition unchanged). Grafana: no firing/pending alerts. Infra healthy (Fly up,
+  Postgres up, 0 restarts, memory flat ~52%, 0 server warn/error/fatal in 24h, no slow-but-successful
+  requests). Billing Health: 0 stuck, 0 escalations, 0 billing_events rows in 30d (no purchase
+  attempts at all — consistent with the standing CARDS-8V/ENG-43 empty-shop state, not new). Revenue
+  this month: $0 (matches 09-14). Economy: 0% at zero, 0% under Casual buy-in, ledger drift 0 (matches
+  Pulse). Gameplay: match-success trickle 1-7 (post-wipe activity, matches recent shape). Perf: all
+  panels empty (no build carrying app.jank/app.startup has reached prod yet — expected-empty, per
+  dc-perf's own gating stat). Funnel: low-traffic welcome-step views, nothing anomalous; 43 distinct
+  achievements ever earned.
+
+  One signal investigated and closed as no-action: 2 `previous_exit=oom` launches in the trailing 24h
+  (Pulse "Abnormal exits per day by kind"; 7d crash+OOM total 4, 3 distinct installs) — traced both
+  events to session_id ce840a27.../1d758c3f... on the SAME install_id (ce7701e4-d342-4eae-9873-
+  999f1362f472), a rooted (`is_rooted=true`), non-genuine (`genuine_install=false`) Android device.
+  The same install/session also produced the run's only "Resolve exhausted 5 attempts — backend
+  unreachable" + "Unable to resolve host ...supabase.co" warn lines (DNS resolution failure on that
+  one device, not a backend outage — 1 install, well under A4's 3-install bar). This is exactly the
+  noise class ENG-38 (open, unfiled today) already exists to filter from the Pulse health panels —
+  no new todo; noted here so a rerun doesn't re-investigate the same install from scratch. Other
+  client warn+ 24h: `accessToken: no session` (documented deferred-session pattern) and one
+  `room_not_found` 404 pair (mistyped/stale room code, correct behavior) — both previously-documented
+  benign, not filed.
+
+  Inbox: swept both queries (store-sender + deadline-keyword), 32 + 9 threads. All "Moving Eyes for
+  Paintings" mail is the unrelated app (out of scope, same as every prior run). Downcard's own iOS
+  resubmission is still "Waiting for Review" as of 09-11T02:26 with zero further status mail — now
+  ~4.4 days (was ~3.3 at 09-14), still no new rejection so still not a confirmed block. Updated the
+  existing developer-todo.md line in place with a dated append noting the extended wait rather than
+  adding a duplicate entry. Play developer-verification deadline (09-30, ~15 days out) and the Apple
+  developer-info item are both unchanged from prior runs — no new mail on either. Keyword sweep
+  surfaced only unrelated personal mail (DNC, tax-nexus pitch, TurboTax, hims.com, MLB, Parade) —
+  nothing new for Cards.
+
+  No todos filed, no case files written, no Sentry writes (nothing changed), no owner email (nothing
+  met the step-7 bar — the resubmission delay is notable but still not a confirmed block, and is
+  unchanged in kind from the item already flagged yesterday).
