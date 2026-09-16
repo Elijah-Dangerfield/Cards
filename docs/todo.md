@@ -230,3 +230,11 @@ Two things are deliberately dropped at the source rather than charted. Launches 
 **Acceptance:** Tapping any legal link on the iOS onboarding welcome screen opens the URL in the system browser and emits no `No handler available` events in Sentry/Loki across two consecutive store releases. A test covers the wiring so a future refactor cannot silently drop it.
 
 **Hints:** Install a `LocalUriHandler` at the app composition root that delegates to the injected `WebLinkLauncher` — one override closes the direct tap and every accessibility/link-annotation path in one place. `IosWebLinkLauncher` already knows how to hand `NSURL` to `UIApplication.openURL` (`libraries/navigation/impl/src/iosMain/.../IosWebLinkLauncher.kt:34-43`); this is about routing every iOS URL open through it, not rewriting it. Consent line: `features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt:426`. Case `docs/agent/feedback-cases/CARDS-C2.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-C2.
+
+## GAME-35 [P2] — Stale Call button silently no-ops in a local-bots hand
+
+**Problem:** A retail Android install tapped "Call" in a local-bots game and it silently failed — `GameEngine.resolveAction` threw `IllegalArgumentException("Nothing to call")` (toCall was already 0), caught in `PlayPokerViewModel`'s Submit handler, but `IllegalArgumentException` isn't one of the branches that surfaces player feedback (only `IntentTimeoutException`/`IntentRejectedException` are), so the tap's haptic/chip-click fired but nothing else happened. One occurrence, immediately after two "Bot decision is stale, skipping apply" log lines in the same session.
+
+**Acceptance:** A stale/no-longer-legal Call either can't be tapped (button disabled before the state changes) or fails with the same user-visible feedback as a rejected intent. Repro ideally reduces the race rather than just widening the catch.
+
+**Hints:** `GameEngine.kt:331` (the throw); `PlayPokerViewModel.kt:982-999` (the catch with the `else -> Unit` gap); `LocalBotsSession.kt:409-425` (`isHumanIntentLegal`, the legality check the race slips past). Case `docs/agent/feedback-cases/2026-09-16-stale-call-button-local-bots.md`.

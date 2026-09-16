@@ -1295,3 +1295,65 @@ last time it was surfaced. Silence. -->
   No todos filed, no case files written, no Sentry writes (nothing changed), no owner email (nothing
   met the step-7 bar — the resubmission delay is notable but still not a confirmed block, and is
   unchanged in kind from the item already flagged yesterday).
+
+<!-- 2026-09-16 sweep. Sentry MCP, Grafana MCP and Gmail MCP all reachable — no blocked channels this
+run.
+
+Sentry: `is:unresolved` (30d, sort=freq) → **1** issue, CARDS-8V (14 events/7 users, last seen 5 days
+ago) — unchanged from 09-14/09-15's 14/7, not re-escalated. Still owned by ENG-43 (shipped 8a2360da)
++ the developer-todo.md App Store Connect SKU line. Disposition unchanged from the last run, so no
+new Sentry comment (matching 09-15's practice of only commenting when something changed).
+
+Grafana: `alerting_manage_rules(states=[firing,pending])` → null (no firing/pending across all 8
+rules); `list_incidents(status=active)` → none. Server: `{service_name="cards-server",
+deployment_environment="prod"}` 144 entries/24h (stream live), 0 warn/error/fatal, 0
+slow-but-successful requests. Billing: 0 `billing_events` rows in 30d (still zero purchase attempts —
+consistent with the standing CARDS-8V/ENG-43 empty-iOS-shop state). Revenue this month: 0 purchases /
+0 chips granted (matches CARDS-8V baseline). Economy: only 1 `wallet_events` row in 24h (a single
+10,000-chip grant, almost certainly one onboarding starter grant) — consistent with the
+near-silent-prod baseline; A1 (ledger drift) not firing is the authoritative drift signal, so no
+separate drift math attempted here. Abnormal exits 7d: clean=25, oom=4, unknown=13, anr=0 — in the
+normal range, no alert threshold crossed, not investigated further (ENG-38 already owns
+genuine-install filtering for this class of panel).
+
+Client warn+ 24h: 18 lines. 15 are the two already-documented benign patterns (bot-decision-stale
+`LocalBotsSession`, `accessToken: no session` deferred-cold-launch). **New pattern, investigated from
+source:** one `IllegalArgumentException: Nothing to call` (tag `PlayPokerViewModel`), single
+occurrence, immediately following two stale-bot-decision warnings in the same local-bots session on a
+genuine retail Android install. Read `GameEngine.kt:331` (the `require(toCall > 0)` that throws) and
+`PlayPokerViewModel.kt:982-999` (the catch: `IllegalArgumentException` isn't one of the branches that
+surfaces player feedback, so the tap's haptic fired but the player saw nothing). Never reached Sentry
+(WARN-level; `SentryLogTree` only forwards ERROR+, the standing ENG-29 finding) — Loki-only signal.
+One occurrence, non-crashing, but a real correctness/UX gap (a tap the player believes worked,
+silently no-ops) → **todo GAME-35 [P2]**, case
+`docs/agent/feedback-cases/2026-09-16-stale-call-button-local-bots.md`. Said plainly what's proven
+(the exception, the catch gap) vs inferred (the staleness-race theory, unconfirmed from one log line).
+
+Store inbox: `from:(...google.com OR ...apple.com) newer_than:14d` → 32 threads, same shape as every
+recent run: almost all "Moving Eyes for Paintings" build/status churn (unrelated sibling app, out of
+scope) plus the same two already-seen Apple "Developer Rejected" threads for that app. Zero new Google
+Play mail. Downcard's own iOS resubmission — "Waiting for Review" since 2026-09-11T02:26 — has now
+gone **~5.4 days with zero further status mail** (was ~4.4 at 09-15, ~3.3 at 09-14), continuing the
+trend the last two runs flagged; still no rejection or suspension notice, so still short of a
+confirmed block, but the silence is now the notable part on its own. Updated the existing
+developer-todo.md line in place with a dated append rather than a duplicate entry. Keyword sweep
+(`deadline|action required|rejected|deprecated|expiring|suspended|violation`, 14d) surfaced only the
+same two stale Apple threads plus unrelated personal mail (interviewing.io, DNC, tax-nexus pitch,
+TurboTax, hims.com, MLB, Parade) — nothing new for Cards. Play developer-verification deadline
+(2026-09-30, ~14 days out) and the Apple developer-info item are both unchanged, no new mail on
+either.
+
+No Sentry writes (CARDS-8V disposition unchanged). One todo filed (GAME-35), one case file written,
+one developer-todo.md line updated in place. No owner email — nothing met the step-7 bar: the
+resubmission delay is now more pronounced but still not a confirmed block (no rejection/suspension),
+and GAME-35 is a normal single-occurrence bug, not a crash-loop or a dead flow. Silence. -->
+- 2026-09-16 · sweep:2026-09-16 · Fully-connected run. Sentry: only CARDS-8V unresolved (14/7,
+  unchanged from 09-14/09-15) — no new comment (disposition unchanged). Grafana: no firing/pending
+  alerts, no active incidents; server/billing/economy/revenue all matching the standing quiet
+  baseline; abnormal exits 7d in normal range. One new client-side signal investigated from source —
+  a single caught `IllegalArgumentException: Nothing to call` in a local-bots session that silently
+  swallowed player feedback (Sentry never saw it, WARN-level) → todo GAME-35 [P2] + case file. Inbox:
+  Downcard's iOS resubmission now ~5.4 days in "Waiting for Review" with zero further status mail
+  (extending the trend flagged 09-14/09-15) — still not a confirmed block, developer-todo.md line
+  updated in place; Play deadline (09-30) and Apple developer-info item unchanged. One todo filed, one
+  case file, no Sentry writes, no owner email (nothing met the step-7 bar).
