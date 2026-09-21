@@ -123,15 +123,23 @@ They paid for themselves immediately, finding a latent crash (`BoardArea`'s `car
 
 Note for anyone extending them: Robolectric's default viewport is 320x470px, shorter than any shipping phone, which measures some felt elements to zero height. `PlayPokerScreenTableTest` sets `qualifiers = "w411dp-h891dp-xhdpi"`; the others should be brought in line.
 
-## ENG-49 [P2] — Confirm the RenderThread text stall is actually gone in production
+## ENG-71 [P1] — Nothing notices when a deploy stalls, so prod ran 17-day-old code unseen
 
-**Problem:** Fixed 2026-09-03, unverified in production. Three infinite animations read their value during composition, recomposing their whole subtree every frame: `PlayerArea`'s turn pulse (471 -> 16), and `GoldSeatRing` on every opponent seat (57 -> 3). All fed text, which thrashed Skia's glyph cache and wedged the RenderThread — worst draw 127.1ms -> 49.6ms. Whether that is enough to stop the ANRs only production can say.
+**Problem:** `server-deploy-prod` runs for PR #152 (2026-09-04) and #155 (2026-09-05) are still `waiting` and `pending` on the `production` environment gate, so prod has not deployed since 2026-09-02. No alert covers this: A7 checks whether the server is *silent*, and it is not — it is serving happily, just from old code. The cost is real and was invisible: the OTel trace-root fix (`ac58b1ba`) has been on `main` for over two weeks while poisoned `trace_id=57f45c70...` keeps appearing in prod logs through 2026-09-21.
 
-**Acceptance:** No new ANR with a `GrTextBlobRedrawCoordinator` RenderThread stack for four weeks, and Play vitals ANR rate flat or down. If one appears, capture a trace with `scripts/compose-trace.sh` and look for the next composable recomposing per frame.
+**Acceptance:** A deploy left unapproved or failed for more than ~24h produces a signal somebody sees. Simplest honest version: a panel or alert comparing the commit prod reports against `origin/main`'s tip. A `/health` endpoint that returns the build SHA would make that a one-line check — it currently returns nothing.
 
-**Hints:** Full write-up and step-by-step plan in `docs/plans/renderthread-text-stall.md`. Case: `docs/agent/feedback-cases/CARDS-C1.md`. Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-C1 and https://elijah-dangerfield.sentry.io/issues/CARDS-BZ.
+**Hints:** Gate is `environment: production` in `.github/workflows/server-deploy-prod.yml:53`. Stuck runs: 33922369090 (`waiting`), 33975509833 (`pending`). Related evidence in `docs/agent/feedback-cases/CARDS-C9.md`. Decide deliberately whether the gate earns its keep — it is correct to want one, and a gate nobody is reminded of is the same as no deploy at all.
 
-If it recurs, the shape to look for is an animation whose value is read during composition (`val x by animateFloatAsState(...)`), which recomposes its whole subtree every frame. Three instances of that caused this. `AnimatedStateReadInComposition` in `:detekt-rules` is meant to catch them and does not run yet — see ENG-54.
+## ENG-49 [P1] — Ship the RenderThread text-stall fix; the verification clock has not started
+
+**Problem:** The fix merged to `main` on 2026-09-04 and **no release has been cut since 2026-09-03**, so it has reached nobody. Real Play users are still on `cards@0.1.0+1135`, built from `main` hours before the first fix commit. CARDS-C9 (2026-09-20, retail, `PlayMultiplayerRoute`) is that bug still happening: `main` blocked in `RenderProxy::destroy` while `RenderThread` churned `TextBlobRedrawCoordinator::internalRemove` — the same stack as CARDS-C1. Raised to P1 from P2: this is no longer "verify a fix", it is "a known fatal fix is sitting unshipped."
+
+**Acceptance:** A release containing `a5a634a2` / `d5bc323c` / `68cfb53b` is live, **then** four weeks with no new ANR carrying a `TextBlobRedrawCoordinator` RenderThread stack, and Play vitals ANR rate flat or down. Until step one happens the four weeks cannot begin, and any ANR on 1135 says nothing about whether the fix worked.
+
+**Hints:** Chronology proving 1135 predates the fix is in `docs/agent/feedback-cases/CARDS-C9.md`. Original diagnosis: `docs/plans/renderthread-text-stall.md`, case `CARDS-C1.md`. Sentry: [CARDS-C9](https://elijah-dangerfield.sentry.io/issues/7744693593/), CARDS-C1, CARDS-BZ. 72 commits sit on `main` unshipped, including R8, baseline profiles and the Sentry mapping upload.
+
+If it recurs **on a post-fix build**, the shape to look for is an animation whose value is read during composition (`val x by animateFloatAsState(...)`), which recomposes its whole subtree every frame. Three instances caused this. `AnimatedStateReadInComposition` in `:detekt-rules` now runs (ENG-54) and cleared 19 instances, but it only matches the `by animateFloatAsState(...)` shape — a clean lint is not proof that nothing recomposes per frame. Capture a trace with `scripts/compose-trace.sh`.
 
 ## ENG-54 — Make the AnimatedStateReadInComposition detekt rule run — DONE 2026-09-03
 
