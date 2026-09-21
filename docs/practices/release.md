@@ -77,6 +77,19 @@ Edit the release PR body to add `Release-As: 2.0.0` on its own line. The bot rew
 
 Actions → **Release** → Run workflow → pick the tag, tick **skip_play_store** or **skip_app_store**.
 
+### What if iOS is stuck and I want to keep shipping Android?
+
+Set the repository variable **`RELEASE_SKIP_IOS=true`** (Settings → Secrets and variables → Actions → Variables). Every release from then on ships Android alone, automatically, until you unset it. No per-release babysitting.
+
+This exists because merging the release PR dispatches the release itself, and a dispatch fired by a merge takes no interactive input. Before the variable, the only way to ship one platform was to catch the dispatched run within seconds and cancel it.
+
+**Nothing drifts while it is set.** Both platforms take their version from the tag and their build number from `git rev-list --count` at that tag, so when iOS unblocks it ships from the same tag with identical numbers. What differs is only what each store has live, which is normal.
+
+**Two things to remember when you set it:**
+
+- The run summary on every skipped release says loudly that iOS was skipped, because the real hazard here is forgetting the variable is on and quietly never shipping to Apple again.
+- To send an already-released tag to Apple later: Actions → **Release** → Run workflow → that tag, with **skip_play_store** ticked so Android is not re-uploaded.
+
 ### What if a release run failed halfway?
 
 Actions → **Release** → Run workflow → pick the same tag. It re-runs idempotently (each store tolerates duplicate uploads of the same build).
