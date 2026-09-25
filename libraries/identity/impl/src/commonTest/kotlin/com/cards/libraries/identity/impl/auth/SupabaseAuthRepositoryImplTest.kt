@@ -7,14 +7,18 @@ import com.dangerfield.cards.libraries.cards.UserScopedDataReset
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
 import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
+import com.dangerfield.cards.libraries.identity.impl.AvatarPackResponseDto
 import com.dangerfield.cards.libraries.identity.impl.MeDto
 import com.dangerfield.cards.libraries.identity.impl.PatchMeRequest
 import com.dangerfield.cards.libraries.identity.impl.ProfileApi
-import com.dangerfield.cards.libraries.identity.impl.AvatarPackResponseDto
+import com.dangerfield.cards.libraries.networking.AuthTokenInvalidator
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.statement.HttpResponse
 import kotlinx.coroutines.CompletableDeferred
@@ -198,7 +202,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         assertIs<AuthState.Unauthenticated>(repo.current())
 
         val outcome = repo.createGuestSession()
-        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Success>(outcome)
+        assertIs<SignInOutcome.Success>(outcome)
         val state = assertIs<AuthState.Authenticated>(repo.current())
         assertEquals(true, state.isAnonymous)
         assertNull(state.email)
@@ -216,7 +220,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         advanceUntilIdle()
 
         val outcome = repo.createGuestSession()
-        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Unknown>(outcome)
+        assertIs<SignInOutcome.Unknown>(outcome)
         assertIs<AuthState.Unauthenticated>(repo.current())
     }
 
@@ -429,7 +433,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         val signIn = async { repo.signInWithOAuth(OAuthProvider.Google) }
         runCurrent()
         repo.completeOAuthRedirect("cards://login-callback#access_token=t")
-        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Success>(signIn.await())
+        assertIs<SignInOutcome.Success>(signIn.await())
 
         val state = assertIs<AuthState.Authenticated>(repo.current())
         assertEquals("real-2", state.userId)
@@ -470,7 +474,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         val link = async { repo.linkOAuthIdentity(OAuthProvider.Google) }
         runCurrent()
         repo.completeOAuthRedirect("cards://login-callback")
-        assertIs<com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome.Success>(link.await())
+        assertIs<LinkIdentityOutcome.Success>(link.await())
 
         val state = assertIs<AuthState.Authenticated>(repo.current())
         assertEquals("guest-1", state.userId)
@@ -543,7 +547,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
 
         // The redirect lands → the link resolves Success, now non-anonymous.
         repo.completeOAuthRedirect("cards://login-callback")
-        assertIs<com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome.Success>(link.await())
+        assertIs<LinkIdentityOutcome.Success>(link.await())
         assertEquals(false, assertIs<AuthState.Authenticated>(repo.current()).isAnonymous)
     }
 
@@ -578,7 +582,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
             val link = async { repo.linkOAuthIdentity(OAuthProvider.Google) }
             runCurrent()
             repo.completeOAuthRedirect("cards://login-callback")
-            assertIs<com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome.Success>(
+            assertIs<LinkIdentityOutcome.Success>(
                 link.await(),
             )
 
@@ -611,7 +615,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
 
         repo.completeOAuthRedirect("cards://login-callback#access_token=t&refresh_token=r")
 
-        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Success>(signIn.await())
+        assertIs<SignInOutcome.Success>(signIn.await())
         assertEquals(1, gateway.completeOAuthRedirectCalls, "sign-in imports the session from the URL")
         assertEquals(0, gateway.hydrateCurrentUserCalls, "sign-in does not use the link refresh path")
         val state = assertIs<AuthState.Authenticated>(repo.current())
@@ -638,7 +642,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         // Does not throw out of the redirect path.
         repo.completeOAuthRedirect("cards://login-callback#error=access_denied")
 
-        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Cancelled>(signIn.await())
+        assertIs<SignInOutcome.Cancelled>(signIn.await())
         assertIs<AuthState.Unauthenticated>(repo.current())
     }
 
@@ -660,7 +664,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
 
         val outcome = repo.completeOAuthRedirect("cards://login-callback#access_token=t&refresh_token=r")
 
-        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Success>(outcome)
+        assertIs<SignInOutcome.Success>(outcome)
         assertEquals(1, gateway.completeOAuthRedirectCalls, "cold-launch confirm link must import the session")
         val state = assertIs<AuthState.Authenticated>(repo.current())
         assertEquals("confirmed-1", state.userId)
@@ -681,7 +685,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
 
         val outcome = repo.completeOAuthRedirect("cards://login-callback")
 
-        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Cancelled>(outcome)
+        assertIs<SignInOutcome.Cancelled>(outcome)
         assertIs<AuthState.Unauthenticated>(repo.current())
     }
 
@@ -699,7 +703,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
 
         val outcome = repo.completeOAuthRedirect("cards://login-callback#access_token=t")
 
-        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Cancelled>(outcome)
+        assertIs<SignInOutcome.Cancelled>(outcome)
         assertEquals(0, gateway.completeOAuthRedirectCalls, "already authenticated → the gateway is never touched")
         val state = assertIs<AuthState.Authenticated>(repo.current())
         assertEquals("live-1", state.userId)
@@ -784,7 +788,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         advanceUntilIdle()
 
         val outcome = repo.deleteAccount()
-        assertIs<com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome.NotSignedIn>(outcome)
+        assertIs<DeleteAccountOutcome.NotSignedIn>(outcome)
     }
 
     @Test
@@ -916,8 +920,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         }
     }
 
-    private object NoOpTokenInvalidator :
-        com.dangerfield.cards.libraries.networking.AuthTokenInvalidator {
+    private object NoOpTokenInvalidator : AuthTokenInvalidator {
         override fun invalidate() = Unit
     }
 

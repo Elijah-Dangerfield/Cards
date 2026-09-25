@@ -44,16 +44,14 @@ class SecureSessionManager(
     private val logger = KLog.withTag("SecureSessionManager")
 
     override suspend fun saveSession(session: UserSession) = withContext(dispatchers.io) {
-        val encoded = json.encodeToString(session)
-        storage.write(key, encoded)
-        if (session.isAnonymous()) mirror.write(key, encoded) else mirror.clear()
+        persist(session)
     }
 
     override suspend fun loadSession(): UserSession = withContext(dispatchers.io) {
         storage.read(key)?.let { return@withContext json.decodeFromString<UserSession>(it) }
 
         legacy?.loadSessionOrNull()?.let { migrated ->
-            storage.write(key, json.encodeToString(migrated))
+            persist(migrated)
             legacy.deleteSession()
             return@withContext migrated
         }
@@ -71,6 +69,17 @@ class SecureSessionManager(
         storage.delete(key)
         legacy?.deleteSession()
         mirror.clear()
+    }
+
+    /**
+     * The one way a session enters the secure store, so the mirror invariant
+     * ("an anonymous session always has a file-backed copy") can't be missed by
+     * a path that writes the store directly.
+     */
+    private suspend fun persist(session: UserSession) {
+        val encoded = json.encodeToString(session)
+        storage.write(key, encoded)
+        if (session.isAnonymous()) mirror.write(key, encoded) else mirror.clear()
     }
 
     /**
