@@ -123,6 +123,14 @@ They paid for themselves immediately, finding a latent crash (`BoardArea`'s `car
 
 Note for anyone extending them: Robolectric's default viewport is 320x470px, shorter than any shipping phone, which measures some felt elements to zero height. `PlayPokerScreenTableTest` sets `qualifiers = "w411dp-h891dp-xhdpi"`; the others should be brought in line.
 
+## MP-39 [P0] — Bots freeze the table forever when betting re-opens on the same street
+
+**Problem:** `ServerBotDriver`'s nonce is `bot:<session>:<hand>:<seat>:<street>` — nothing distinguishes one action from the next. A raise re-opens betting, the bot must act twice on the same street, the second nonce is identical, and `GameSession.applyIntent` (`GameSession.kt:316`) swallows it as a replay returning `Accepted`. The driver believes it acted; nothing mutated; `state` is a conflated `StateFlow` so it never re-emits; `collectLatest` never re-runs `drive()`. The table sits on the bot's turn permanently and cannot self-heal. Hit in prod at least 3 times in 7 days, including the owner's own game (room `SWGEUH`, 75s frozen, both players watching).
+
+**Acceptance:** A bot that must act twice on one street acts both times — cover it with a test that raises into a bot after it has already called on that street. Plus a watchdog: if the acting seat has not changed a few seconds after a bot submits, log at **error** and re-drive, so any *other* freeze path is loud instead of silent.
+
+**Hints:** Add a per-seat action counter to the nonce (deterministic, no clock/RNG — the nonce ring's legitimate retry case depends on that). The dedupe returning `Accepted` rather than a distinct `Duplicate` is what made this invisible; the driver's only diagnostic checks `is IntentResult.Rejected` and is at `debug`. Full evidence, span-level proof and proposed telemetry: `docs/agent/feedback-cases/2026-09-24-bot-freeze-nonce-collision.md`.
+
 ## ENG-71 [P1] — Nothing notices when a deploy stalls, so prod ran 17-day-old code unseen
 
 **Problem:** `server-deploy-prod` runs for PR #152 (2026-09-04) and #155 (2026-09-05) are still `waiting` and `pending` on the `production` environment gate, so prod has not deployed since 2026-09-02. No alert covers this: A7 checks whether the server is *silent*, and it is not — it is serving happily, just from old code. The cost is real and was invisible: the OTel trace-root fix (`ac58b1ba`) has been on `main` for over two weeks while poisoned `trace_id=57f45c70...` keeps appearing in prod logs through 2026-09-21.
