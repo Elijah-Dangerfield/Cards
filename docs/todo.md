@@ -123,15 +123,47 @@ They paid for themselves immediately, finding a latent crash (`BoardArea`'s `car
 
 Note for anyone extending them: Robolectric's default viewport is 320x470px, shorter than any shipping phone, which measures some felt elements to zero height. `PlayPokerScreenTableTest` sets `qualifiers = "w411dp-h891dp-xhdpi"`; the others should be brought in line.
 
-## ENG-49 [P2] — Confirm the RenderThread text stall is actually gone in production
+## ENG-72 — DONE 2026-09-28, shipping in the next release
 
-**Problem:** Fixed 2026-09-03, unverified in production. Three infinite animations read their value during composition, recomposing their whole subtree every frame: `PlayerArea`'s turn pulse (471 -> 16), and `GoldSeatRing` on every opponent seat (57 -> 3). All fed text, which thrashed Skia's glyph cache and wedged the RenderThread — worst draw 127.1ms -> 49.6ms. Whether that is enough to stop the ANRs only production can say.
+Android now hands Room a `FallbackSQLiteDriver`: bundled when its native lib loads, `AndroidSQLiteDriver` (platform SQLite, no `.so`) when it does not. iOS keeps the bundled driver.
 
-**Acceptance:** No new ANR with a `GrTextBlobRedrawCoordinator` RenderThread stack for four weeks, and Play vitals ANR rate flat or down. If one appears, capture a trace with `scripts/compose-trace.sh` and look for the next composable recomposing per frame.
+The non-obvious part, worth keeping: the decision latches on a `:memory:` probe at first touch of **either** `open()` or `hasConnectionPool`, not inside the first real `open()`. Room reads `hasConnectionPool` once at connection-manager construction and the two drivers disagree (`Bundled=false`, `Android=true`), so a fallback that fired later would leave Room running its own pool over a driver that already has one. The probe is also what forces `NativeLibraryObject.<clinit>`, which is the only thing that makes the fallback fire at all — the native library does not load at driver construction.
 
-**Hints:** Full write-up and step-by-step plan in `docs/plans/renderthread-text-stall.md`. Case: `docs/agent/feedback-cases/CARDS-C1.md`. Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-C1 and https://elijah-dangerfield.sentry.io/issues/CARDS-BZ.
+Emits `db.driver_fallback` so the rate is visible; a silent fallback would have replaced a loud crash with nothing. Verification gap: tests use fake drivers, not a real Room database on a device.
 
-If it recurs, the shape to look for is an animation whose value is read during composition (`val x by animateFloatAsState(...)`), which recomposes its whole subtree every frame. Three instances of that caused this. `AnimatedStateReadInComposition` in `:detekt-rules` is meant to catch them and does not run yet — see ENG-54.
+## ENG-73 [P2] — An empty request body 500s instead of 400ing, and pages as an error
+
+**Problem:** A client whose upload dies mid-request sends no body; `ContentNegotiation` throws `BadRequestException` wrapping `JsonDecodingException: Expected start of the object '{', but had 'EOF'`, and `StatusPages` logs it as **"Unhandled error"** at ERROR with a full stack, which reaches Sentry (CARDS-CB). Seen twice from one install on `/v1/me/player-stats/sync` and `/v1/me/wallet/sync`, 12s apart — the stats one after the server had waited **39.5 seconds** and then returned 500. A truncated upload is a client-side network condition, not a server fault: it deserves a 400 and a breadcrumb.
+
+**Acceptance:** An empty or truncated body returns 400 and does not create a Sentry error event. The 39.5s wait before EOF also wants a request-body read timeout — that request occupied a connection for 40 seconds to learn nothing.
+
+**Hints:** `ErrorsKt.installStatusPages` maps this; `BadRequestException` should be in the expected-client-error set. Same family as ENG-68 (429 as backpressure, not error) — consider doing them together, since both are "an expected client condition logged as a server failure". This is also the only entry the dc-infra slow-request panel caught this week, so fixing it clears that signal for real findings.
+
+## MP-39 — DONE 2026-09-28, needs a server deploy to reach anyone
+
+Bot nonce is now `bot:<session>:<hand>:<seat>:<street>:<lastSequence>`, so a bot acting twice on one street after a raise no longer collides with itself. `lastSequence` already existed and `TurnTimerDriver` already used it for this same collision.
+
+Two things beyond the nonce. `IntentResult.Duplicate` distinguishes a swallowed replay from real work, which is what made this invisible — the ack still reports `accepted` for a retrying client, so the wire contract is unchanged. And a stalled-turn watchdog re-reads the table 5s after every submit, logging at ERROR and re-driving if nothing moved, so any *other* freeze path is loud instead of silent.
+
+**Server-only**, so it reaches players on deploy with no app update.
+
+## ENG-71 [P1] — Nothing notices when a deploy stalls, so prod ran 17-day-old code unseen
+
+**Problem:** `server-deploy-prod` runs for PR #152 (2026-09-04) and #155 (2026-09-05) are still `waiting` and `pending` on the `production` environment gate, so prod has not deployed since 2026-09-02. No alert covers this: A7 checks whether the server is *silent*, and it is not — it is serving happily, just from old code. The cost is real and was invisible: the OTel trace-root fix (`ac58b1ba`) has been on `main` for over two weeks while poisoned `trace_id=57f45c70...` keeps appearing in prod logs through 2026-09-21.
+
+**Acceptance:** A deploy left unapproved or failed for more than ~24h produces a signal somebody sees. Simplest honest version: a panel or alert comparing the commit prod reports against `origin/main`'s tip. A `/health` endpoint that returns the build SHA would make that a one-line check — it currently returns nothing.
+
+**Hints:** Gate is `environment: production` in `.github/workflows/server-deploy-prod.yml:53`. Stuck runs: 33922369090 (`waiting`), 33975509833 (`pending`). Related evidence in `docs/agent/feedback-cases/CARDS-C9.md`. Decide deliberately whether the gate earns its keep — it is correct to want one, and a gate nobody is reminded of is the same as no deploy at all.
+
+## ENG-49 [P2] — Confirm the RenderThread text-stall fix held, now that it is finally live
+
+**Problem:** Shipped in `v0.3.0` / build 1209 on 2026-09-21 (Android, 10% staged), so the four-week clock finally started. Early read at 7 days: **every abnormal exit in prod is on the old 1135 build — 1 ANR and 5 OOM there, zero of either on 1209.** Far too few 1209 sessions (25 foregrounds vs 746) to call it, but nothing contradicts the fix yet.
+
+**Acceptance:** Four weeks from 2026-09-21 with no new ANR carrying a `TextBlobRedrawCoordinator` RenderThread stack, on 1209 or later, and Play vitals flat or down. Needs the rollout past 10% before the sample means anything.
+
+**Hints:** Chronology proving 1135 predates the fix is in `docs/agent/feedback-cases/CARDS-C9.md`. Original diagnosis: `docs/plans/renderthread-text-stall.md`, case `CARDS-C1.md`. Sentry: [CARDS-C9](https://elijah-dangerfield.sentry.io/issues/7744693593/), CARDS-C1, CARDS-BZ. 72 commits sit on `main` unshipped, including R8, baseline profiles and the Sentry mapping upload.
+
+If it recurs **on a post-fix build**, the shape to look for is an animation whose value is read during composition (`val x by animateFloatAsState(...)`), which recomposes its whole subtree every frame. Three instances caused this. `AnimatedStateReadInComposition` in `:detekt-rules` now runs (ENG-54) and cleared 19 instances, but it only matches the `by animateFloatAsState(...)` shape — a clean lint is not proof that nothing recomposes per frame. Capture a trace with `scripts/compose-trace.sh`.
 
 ## ENG-54 — Make the AnimatedStateReadInComposition detekt rule run — DONE 2026-09-03
 
@@ -223,10 +255,18 @@ Two things are deliberately dropped at the source rather than charted. Launches 
 
 **Hints:** `libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/auth/StrandedIdentityDetector.kt` — add the same `if (event.isColdBoot) return` guard as `GuestSessionHealer.kt:79` / `AuthReResolver.kt:46`. Case `docs/agent/feedback-cases/2026-09-09-stranded-identity-false-positive.md`.
 
-## ENG-70 [P1] — iOS Terms/Privacy links dead on the onboarding welcome screen
+## ENG-70 — CLOSED 2026-09-28, misdiagnosed; the fix already shipped
 
-**Problem:** A retail iOS user on `cards@0.1.0+1135` tapped the Terms link on the onboarding welcome step and it did nothing — six repeated taps in ~13 minutes, each producing a caught `kotlin.IllegalStateException: No handler available for https://downcard.app/terms` (12 events, 2 users, Sentry escalating). The string is Compose Multiplatform's default iOS `UriHandler` complaining that nothing at the composition root claims URL opens, so any framework path (accessibility, `LinkAnnotation.Url`, future auto-linked spans) throws before it reaches `IosWebLinkLauncher`. Legal links are an App Store requirement; on iOS onboarding, they are unreachable.
+Not a Compose Multiplatform `UriHandler` problem. `No handler available for <url>` was **our own string**: `IosWebLinkLauncher` gated every open on `check(application.canOpenURL(targetUrl))`, and since iOS 9 that call returns false for any scheme not declared in `LSApplicationQueriesSchemes`, so it blocked every outbound link. `ca77c1af` removed the gate on 2026-09-03, about 2.5 hours after the last event, and added `IosWebLinkLauncherTest` to guard it.
 
-**Acceptance:** Tapping any legal link on the iOS onboarding welcome screen opens the URL in the system browser and emits no `No handler available` events in Sentry/Loki across two consecutive store releases. A test covers the wiring so a future refactor cannot silently drop it.
+The ticket was filed on 09-05 by grepping a tree the string had already been deleted from, and the Compose theory was invented to explain that absence. Sentry has CARDS-C2 resolved, last seen 2026-09-03 16:42Z.
 
-**Hints:** Install a `LocalUriHandler` at the app composition root that delegates to the injected `WebLinkLauncher` — one override closes the direct tap and every accessibility/link-annotation path in one place. `IosWebLinkLauncher` already knows how to hand `NSURL` to `UIApplication.openURL` (`libraries/navigation/impl/src/iosMain/.../IosWebLinkLauncher.kt:34-43`); this is about routing every iOS URL open through it, not rewriting it. Consent line: `features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt:426`. Case `docs/agent/feedback-cases/CARDS-C2.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-C2.
+**Nothing to build.** `ca77c1af` is in `v0.3.0`. iOS store users are still on `0.1.0+1135` because the 09-21 release ran with the iOS job skipped, so the remaining work is shipping iOS, tracked in `developer-todo.md`.
+
+## GAME-35 [P2] — Stale Call button silently no-ops in a local-bots hand
+
+**Problem:** A retail Android install tapped "Call" in a local-bots game and it silently failed — `GameEngine.resolveAction` threw `IllegalArgumentException("Nothing to call")` (toCall was already 0), caught in `PlayPokerViewModel`'s Submit handler, but `IllegalArgumentException` isn't one of the branches that surfaces player feedback (only `IntentTimeoutException`/`IntentRejectedException` are), so the tap's haptic/chip-click fired but nothing else happened. One occurrence, immediately after two "Bot decision is stale, skipping apply" log lines in the same session.
+
+**Acceptance:** A stale/no-longer-legal Call either can't be tapped (button disabled before the state changes) or fails with the same user-visible feedback as a rejected intent. Repro ideally reduces the race rather than just widening the catch.
+
+**Hints:** `GameEngine.kt:331` (the throw); `PlayPokerViewModel.kt:982-999` (the catch with the `else -> Unit` gap); `LocalBotsSession.kt:409-425` (`isHumanIntentLegal`, the legality check the race slips past). Case `docs/agent/feedback-cases/2026-09-16-stale-call-button-local-bots.md`.

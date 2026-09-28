@@ -554,9 +554,10 @@ class GameSessionTest {
             intent = PlayerIntent.Fold(seatIndex = acting),
             clientNonce = "dup",
         )
-        // Hand is now Complete. Resubmit same nonce — should be a
-        // silent Accepted, NOT a "no active hand" or "current hand not
-        // complete" reject. Dedupe wins.
+        // Hand is now Complete. Resubmit same nonce — the dedupe wins over
+        // the "no active hand" / "current hand not complete" rejects, and
+        // reports itself as a Duplicate so a server-internal caller can tell
+        // a swallowed replay from real work (MP-39).
         val second = session.applyIntent(
             actorUserId = actor.playerId!!,
             intent = PlayerIntent.Fold(seatIndex = acting),
@@ -564,7 +565,7 @@ class GameSessionTest {
         )
 
         assertIs<IntentResult.Accepted>(first)
-        assertIs<IntentResult.Accepted>(second)
+        assertIs<IntentResult.Duplicate>(second)
     }
 
     @Test

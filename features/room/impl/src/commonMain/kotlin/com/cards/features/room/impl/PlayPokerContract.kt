@@ -6,6 +6,7 @@ import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
 import com.dangerfield.cards.features.room.impl.usecase.EmoteGate
 import com.dangerfield.cards.features.room.impl.usecase.WinOddsEngine
 
+import com.dangerfield.cards.libraries.billing.IapPurchaseOutcome
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.EmojiBlast
@@ -18,13 +19,12 @@ import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import com.dangerfield.cards.libraries.products.Product
+import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.ui.components.PlayerBadge
+import com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle
 import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
-
-// MVI contract for the play-poker screen: the [PlayPokerState] the VM exposes,
-// the [PlayPokerAction]s it reduces, and the one-off [PlayPokerEvent]s it emits.
-// Extracted from PlayPokerViewModel so the VM file is just behaviour.
 
 data class PlayPokerState(
     /** UI-projected table the screen renders, produced by [PokerSessionFactory.tableFor]. */
@@ -57,8 +57,7 @@ data class PlayPokerState(
     /** Equipped felt; drives the background paint via [feltSurfaceColor]. */
     val equippedFelt: EquippedFelt = EquippedFelt.Default,
     /** Equipped card-back; pushed into the composition via `LocalCardBackStyle`. */
-    val equippedCardBack: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle =
-        com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default,
+    val equippedCardBack: CardBackStyle = CardBackStyle.Default,
     /** Whether the Win-Odds tool is equipped — gates [humanWinOdds] so non-owners pay nothing. */
     val winOddsToolEquipped: Boolean = false,
     /**
@@ -72,8 +71,7 @@ data class PlayPokerState(
     /** Equipped badges + titles (catalog-resolved) for the profile-sheet chips. */
     val equippedBadges: List<PlayerBadge> = emptyList(),
     /** Product catalog — resolves an opponent's equipped badge ids for their sheet. */
-    val catalog: com.dangerfield.cards.libraries.products.ProductCatalog =
-        com.dangerfield.cards.libraries.products.ProductCatalog.Empty,
+    val catalog: ProductCatalog = ProductCatalog.Empty,
     /** AppData mirror: true = swipe-to-fold skips the confirmation dialog. */
     val swipeFoldGestureAck: Boolean = false,
     /** AppData mirror: true once the user has flipped the win-odds tile (suppresses the wiggle hint). */
@@ -248,7 +246,6 @@ sealed interface PlayPokerAction {
 
     // Local UI
     data object ToggleCheatSheet : PlayPokerAction
-    data object DismissEarnedToast : PlayPokerAction
     data object CelebrationDismissed : PlayPokerAction
 
     // Settings mirrors (cache flow → state)
@@ -273,7 +270,7 @@ sealed interface PlayPokerAction {
 
     /** Fired by the equipment subscription; flips the ambient card back style. */
     data class EquippedCardBackChanged(
-        val style: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle,
+        val style: CardBackStyle,
     ) : PlayPokerAction
 
     /** Fired by the equipment subscription; gates win-odds computation. */
@@ -291,7 +288,7 @@ sealed interface PlayPokerAction {
 
     /** Catalog snapshot — lets the screen resolve an opponent's badge ids. */
     data class CatalogChanged(
-        val catalog: com.dangerfield.cards.libraries.products.ProductCatalog,
+        val catalog: ProductCatalog,
     ) : PlayPokerAction
 
     /** Fired by the session's connection-state subscription. */
@@ -302,7 +299,7 @@ sealed interface PlayPokerAction {
      * clears the on-table countdown banner (rebuy landed); non-null opens it.
      */
     data class MatchOverCountdownChanged(
-        val countdown: com.dangerfield.cards.features.room.impl.session.MatchOverCountdown?,
+        val countdown: MatchOverCountdown?,
     ) : PlayPokerAction
 
     /**
@@ -338,7 +335,7 @@ sealed interface PlayPokerAction {
 
     /** Confirm a chip-pack purchase from the quick-buy sheet — drives the IAP use case. */
     data class ConfirmQuickBuy(
-        val pack: com.dangerfield.cards.libraries.products.Product.ChipPack,
+        val pack: Product.ChipPack,
     ) : PlayPokerAction
 
     /** Fired by the chip-balance subscription. */
@@ -431,7 +428,7 @@ sealed interface PlayPokerEvent {
      * Mirrors the shop's `PurchaseFinished` feedback, in-game.
      */
     data class QuickBuyFinished(
-        val outcome: com.dangerfield.cards.libraries.billing.IapPurchaseOutcome,
+        val outcome: IapPurchaseOutcome,
     ) : PlayPokerEvent
 
     /** Anonymous user tapped buy; the entry point routes to the account-claim flow. */

@@ -1257,3 +1257,178 @@ last time it was surfaced. Silence. -->
   further status mail — not a confirmed block, but appended a developer-todo.md line flagging it for
   a human glance. Play deadline (09-30) and Apple developer-info item unchanged. No todos filed, one
   Sentry comment, no owner email (nothing met the step-7 bar).
+- 2026-09-15 · sweep:2026-09-15 · Fully-connected run. Sentry: only CARDS-8V unresolved (14/7,
+  unchanged from 09-14) — already owned by ENG-43 + developer-todo ASC line, not re-escalated, no
+  comment needed (disposition unchanged). Grafana: no firing/pending alerts. Infra healthy (Fly up,
+  Postgres up, 0 restarts, memory flat ~52%, 0 server warn/error/fatal in 24h, no slow-but-successful
+  requests). Billing Health: 0 stuck, 0 escalations, 0 billing_events rows in 30d (no purchase
+  attempts at all — consistent with the standing CARDS-8V/ENG-43 empty-shop state, not new). Revenue
+  this month: $0 (matches 09-14). Economy: 0% at zero, 0% under Casual buy-in, ledger drift 0 (matches
+  Pulse). Gameplay: match-success trickle 1-7 (post-wipe activity, matches recent shape). Perf: all
+  panels empty (no build carrying app.jank/app.startup has reached prod yet — expected-empty, per
+  dc-perf's own gating stat). Funnel: low-traffic welcome-step views, nothing anomalous; 43 distinct
+  achievements ever earned.
+
+  One signal investigated and closed as no-action: 2 `previous_exit=oom` launches in the trailing 24h
+  (Pulse "Abnormal exits per day by kind"; 7d crash+OOM total 4, 3 distinct installs) — traced both
+  events to session_id ce840a27.../1d758c3f... on the SAME install_id (ce7701e4-d342-4eae-9873-
+  999f1362f472), a rooted (`is_rooted=true`), non-genuine (`genuine_install=false`) Android device.
+  The same install/session also produced the run's only "Resolve exhausted 5 attempts — backend
+  unreachable" + "Unable to resolve host ...supabase.co" warn lines (DNS resolution failure on that
+  one device, not a backend outage — 1 install, well under A4's 3-install bar). This is exactly the
+  noise class ENG-38 (open, unfiled today) already exists to filter from the Pulse health panels —
+  no new todo; noted here so a rerun doesn't re-investigate the same install from scratch. Other
+  client warn+ 24h: `accessToken: no session` (documented deferred-session pattern) and one
+  `room_not_found` 404 pair (mistyped/stale room code, correct behavior) — both previously-documented
+  benign, not filed.
+
+  Inbox: swept both queries (store-sender + deadline-keyword), 32 + 9 threads. All "Moving Eyes for
+  Paintings" mail is the unrelated app (out of scope, same as every prior run). Downcard's own iOS
+  resubmission is still "Waiting for Review" as of 09-11T02:26 with zero further status mail — now
+  ~4.4 days (was ~3.3 at 09-14), still no new rejection so still not a confirmed block. Updated the
+  existing developer-todo.md line in place with a dated append noting the extended wait rather than
+  adding a duplicate entry. Play developer-verification deadline (09-30, ~15 days out) and the Apple
+  developer-info item are both unchanged from prior runs — no new mail on either. Keyword sweep
+  surfaced only unrelated personal mail (DNC, tax-nexus pitch, TurboTax, hims.com, MLB, Parade) —
+  nothing new for Cards.
+
+  No todos filed, no case files written, no Sentry writes (nothing changed), no owner email (nothing
+  met the step-7 bar — the resubmission delay is notable but still not a confirmed block, and is
+  unchanged in kind from the item already flagged yesterday).
+
+<!-- 2026-09-16 sweep. Sentry MCP, Grafana MCP and Gmail MCP all reachable — no blocked channels this
+run.
+
+Sentry: `is:unresolved` (30d, sort=freq) → **1** issue, CARDS-8V (14 events/7 users, last seen 5 days
+ago) — unchanged from 09-14/09-15's 14/7, not re-escalated. Still owned by ENG-43 (shipped 8a2360da)
++ the developer-todo.md App Store Connect SKU line. Disposition unchanged from the last run, so no
+new Sentry comment (matching 09-15's practice of only commenting when something changed).
+
+Grafana: `alerting_manage_rules(states=[firing,pending])` → null (no firing/pending across all 8
+rules); `list_incidents(status=active)` → none. Server: `{service_name="cards-server",
+deployment_environment="prod"}` 144 entries/24h (stream live), 0 warn/error/fatal, 0
+slow-but-successful requests. Billing: 0 `billing_events` rows in 30d (still zero purchase attempts —
+consistent with the standing CARDS-8V/ENG-43 empty-iOS-shop state). Revenue this month: 0 purchases /
+0 chips granted (matches CARDS-8V baseline). Economy: only 1 `wallet_events` row in 24h (a single
+10,000-chip grant, almost certainly one onboarding starter grant) — consistent with the
+near-silent-prod baseline; A1 (ledger drift) not firing is the authoritative drift signal, so no
+separate drift math attempted here. Abnormal exits 7d: clean=25, oom=4, unknown=13, anr=0 — in the
+normal range, no alert threshold crossed, not investigated further (ENG-38 already owns
+genuine-install filtering for this class of panel).
+
+Client warn+ 24h: 18 lines. 15 are the two already-documented benign patterns (bot-decision-stale
+`LocalBotsSession`, `accessToken: no session` deferred-cold-launch). **New pattern, investigated from
+source:** one `IllegalArgumentException: Nothing to call` (tag `PlayPokerViewModel`), single
+occurrence, immediately following two stale-bot-decision warnings in the same local-bots session on a
+genuine retail Android install. Read `GameEngine.kt:331` (the `require(toCall > 0)` that throws) and
+`PlayPokerViewModel.kt:982-999` (the catch: `IllegalArgumentException` isn't one of the branches that
+surfaces player feedback, so the tap's haptic fired but the player saw nothing). Never reached Sentry
+(WARN-level; `SentryLogTree` only forwards ERROR+, the standing ENG-29 finding) — Loki-only signal.
+One occurrence, non-crashing, but a real correctness/UX gap (a tap the player believes worked,
+silently no-ops) → **todo GAME-35 [P2]**, case
+`docs/agent/feedback-cases/2026-09-16-stale-call-button-local-bots.md`. Said plainly what's proven
+(the exception, the catch gap) vs inferred (the staleness-race theory, unconfirmed from one log line).
+
+Store inbox: `from:(...google.com OR ...apple.com) newer_than:14d` → 32 threads, same shape as every
+recent run: almost all "Moving Eyes for Paintings" build/status churn (unrelated sibling app, out of
+scope) plus the same two already-seen Apple "Developer Rejected" threads for that app. Zero new Google
+Play mail. Downcard's own iOS resubmission — "Waiting for Review" since 2026-09-11T02:26 — has now
+gone **~5.4 days with zero further status mail** (was ~4.4 at 09-15, ~3.3 at 09-14), continuing the
+trend the last two runs flagged; still no rejection or suspension notice, so still short of a
+confirmed block, but the silence is now the notable part on its own. Updated the existing
+developer-todo.md line in place with a dated append rather than a duplicate entry. Keyword sweep
+(`deadline|action required|rejected|deprecated|expiring|suspended|violation`, 14d) surfaced only the
+same two stale Apple threads plus unrelated personal mail (interviewing.io, DNC, tax-nexus pitch,
+TurboTax, hims.com, MLB, Parade) — nothing new for Cards. Play developer-verification deadline
+(2026-09-30, ~14 days out) and the Apple developer-info item are both unchanged, no new mail on
+either.
+
+No Sentry writes (CARDS-8V disposition unchanged). One todo filed (GAME-35), one case file written,
+one developer-todo.md line updated in place. No owner email — nothing met the step-7 bar: the
+resubmission delay is now more pronounced but still not a confirmed block (no rejection/suspension),
+and GAME-35 is a normal single-occurrence bug, not a crash-loop or a dead flow. Silence. -->
+- 2026-09-16 · sweep:2026-09-16 · Fully-connected run. Sentry: only CARDS-8V unresolved (14/7,
+  unchanged from 09-14/09-15) — no new comment (disposition unchanged). Grafana: no firing/pending
+  alerts, no active incidents; server/billing/economy/revenue all matching the standing quiet
+  baseline; abnormal exits 7d in normal range. One new client-side signal investigated from source —
+  a single caught `IllegalArgumentException: Nothing to call` in a local-bots session that silently
+  swallowed player feedback (Sentry never saw it, WARN-level) → todo GAME-35 [P2] + case file. Inbox:
+  Downcard's iOS resubmission now ~5.4 days in "Waiting for Review" with zero further status mail
+  (extending the trend flagged 09-14/09-15) — still not a confirmed block, developer-todo.md line
+  updated in place; Play deadline (09-30) and Apple developer-info item unchanged. One todo filed, one
+  case file, no Sentry writes, no owner email (nothing met the step-7 bar).
+
+<!-- 2026-09-17 sweep. Sentry MCP, Grafana MCP and Gmail MCP all reachable — no blocked channels this
+run.
+
+Sentry: `is:unresolved` (30d, sort=freq) → **1** issue, CARDS-8V (14 events / 7 users, unchanged from
+09-14 through 09-16) — still owned by ENG-43 (shipped 8a2360da) + the developer-todo.md App Store
+Connect SKU line. Disposition unchanged, so no new comment (matching the practice since 09-15 of only
+commenting when something changed).
+
+Grafana: `alerting_manage_rules(states=[firing,pending])` → null (no firing/pending across all eight
+rules); `list_incidents(status=active)` → none. Server: `{service_name="cards-server",
+deployment_environment="prod"}` 286 entries/24h (stream live), 1 WARN (`Socket … died reading`, one
+room/session — the documented benign mobile-disconnect pattern), 0 slow-but-successful requests
+(the `in [0-9]{5,}ms` sweep returned nothing). Infra: Fly up, Postgres up, 0 restarts on the surviving
+instance in 24h, memory flat ~52%. Billing Health: stuck=0, oldest-stuck=null, mismatch rate null (no
+attempts in range), purchase success rate no-data (no purchase attempts — consistent with the standing
+CARDS-8V/ENG-43 empty-iOS-shop state). Pulse row 1: ledger drift 0, server up, client-errors/purchase-
+failures panels both empty (no data = 0 over 24h). Abnormal exits 7d: clean=31, oom=4, unknown=16,
+anr=0 — in the normal range, no threshold crossed, not investigated further (ENG-38 already owns
+genuine-install filtering for this class of panel).
+
+Client warn+ 24h: 23 lines, all previously-documented benign or trivially expected — `accessToken: no
+session` (deferred-cold-launch pattern, majority of the lines), `Bot decision … is stale … Skipping
+apply` (`LocalBotsSession`'s documented defensive re-check), one `Software caused connection abort`
+(matches the single server-side `Ping timeout`/socket-died line — transient mobile drop,
+`ReconnectingRoomSocket` handles it), one `intent rejected: not your turn` (correct rejection, not a
+bug), and two `409 display_name_taken` (expected validation response to a taken name, not a defect).
+No new pattern this run.
+
+Store inbox: `from:(...google.com OR ...apple.com) newer_than:14d` → 32 threads, same shape as every
+recent run — almost all "Moving Eyes for Paintings" build/status churn (unrelated sibling app, out of
+scope) plus one personal Apple receipt. Zero new Google Play mail. Downcard's own iOS resubmission —
+"Waiting for Review" since 2026-09-11T02:26 — has now gone **~6.2 days with zero further status mail**
+(was ~5.4 at 09-16, ~4.4 at 09-15, ~3.3 at 09-14), the longest wait yet and nearly triple the app's
+typical 24-48h turnaround. Still no rejection or suspension notice, so still short of the step-7
+"shipping is blocked" bar — no new information this run, just one more day of the same silence, so per
+the skill's guidance against re-flagging an unchanged finding this stays a developer-todo.md update in
+place rather than an email. Keyword sweep
+(`deadline|action required|rejected|deprecated|expiring|suspended|violation`, 14d) surfaced only
+unrelated personal mail (Verizon spam, interviewing.io, DNC, a tax-nexus cold pitch, TurboTax,
+hims.com, MLB) plus the same two stale Apple "Developer Rejected" threads for the sibling app — nothing
+new for Cards. Play developer-verification deadline (2026-09-30, ~13 days out) and the Apple
+developer-info item are both unchanged, no new mail on either.
+
+No Sentry writes (CARDS-8V disposition unchanged). No todos filed, no case files written. One
+developer-todo.md line updated in place (iOS resubmission wait, now ~6.2 days). No owner email —
+nothing met the step-7 bar: the resubmission delay is now the most extended yet but is unchanged in
+kind (still no rejection/suspension) from what was already flagged the last three nights, and
+everything else (Sentry, alerts, infra, billing, client logs) matches the standing healthy baseline.
+Silence. -->
+- 2026-09-17 · sweep:2026-09-17 · Fully-connected run. Sentry: only CARDS-8V unresolved (14/7,
+  unchanged from 09-14 through 09-16) — no new comment (disposition unchanged). Grafana: no
+  firing/pending alerts, no active incidents; server/infra/billing all healthy (0 restarts, memory
+  flat ~52%, ledger drift 0, 0 stuck purchases); abnormal exits 7d in normal range; 23 client warn+
+  lines, all previously-documented benign or trivially expected, no new pattern. Inbox: Downcard's
+  iOS resubmission now ~6.2 days in "Waiting for Review" with zero further status mail (longest wait
+  yet, extending the trend flagged 09-14 through 09-16) — still not a confirmed block, developer-todo.md
+  line updated in place; Play deadline (09-30) and Apple developer-info item unchanged. No todos filed,
+  no case files, no Sentry writes, no owner email (nothing met the step-7 bar).
+
+- 2026-09-21 · CARDS-C9 · todo: rolled into ENG-49 (raised P2→P1) — ANR on `PlayMultiplayerRoute`, retail `cards@0.1.0+1135`. `main` is the victim (blocked in `RenderProxy::destroy` dismissing a Compose dialog); `RenderThread` is the cause, 77 frames deep in `TextBlobRedrawCoordinator::internalRemove`. Same signature as CARDS-C1/BZ/C3. NOT a regression: build 1135 was created 2026-09-03T15:37Z, hours before the three fix commits (17:50/19:07/20:22Z), and `PlayerArea.kt` on main at that point was last touched 2026-07-18. Left unresolved, commented. · https://elijah-dangerfield.sentry.io/issues/7744693593/ · case docs/agent/feedback-cases/CARDS-C9.md
+- 2026-09-21 · deploy:prod-stalled-since-0902 · todo: ENG-71 + 2 developer-todo actions — `server-deploy-prod` runs 33922369090 (`waiting`) and 33975509833 (`pending`) stuck on the `production` environment gate since 2026-09-04/05; prod last deployed 2026-09-02. Poisoned `trace_id=57f45c70...` still in prod logs 09-16→09-21, confirming `ac58b1ba` is merged but not running. No alert covers this — A7 checks for a *silent* server, and this one is healthy, just stale. · https://github.com/Elijah-Dangerfield/Cards/actions/runs/33922369090
+- 2026-09-21 · release:none-since-0903 · developer-todo — 72 commits on `main` since `v0.2.0`, last `release.yml` run 2026-09-03T14:40, before PR #152 merged 09-04T21:43. Users still on 1135. Blocks ENG-49's verification clock.
+- 2026-09-21 · grafana:sweep · no-action — A1–A8 all normal (`alerting_manage_rules` returned null). 7d abnormal exits `{anr:1, clean:32, unknown:21}`, the single anr being CARDS-C9; zero oom. Slow-but-successful query empty against a live stream (3310 lines scanned). 11 server warns in 7d: Postgres `could not serialize access due to concurrent update` on `room_sessions`/`wallets`, all "attempt #0" then retried — same class as ENG-48, no escalation to error; plus 3 WebSocket `Ping timeout` socket drops, normal for mobile.
+- 2026-09-21 · inbox:sweep · no-action — nothing new for Downcard. The Apple "Developer Rejected" mails in range are for *Moving Eyes*, a different app. The Play developer-verification deadline (Sep 30, now 9 days out) is already tracked in developer-todo.md since 2026-09-06 and was deliberately not re-filed; still unchecked, no completion mail seen.
+
+- 2026-09-25 · bot-freeze-nonce-collision · todo: MP-39 [P0] — Bots stop acting permanently when betting re-opens on the same street. Nonce `bot:<session>:<hand>:<seat>:<street>` carries no action identity, so a bot's second action on one street (after a raise) replays an identical nonce and `applyIntent` swallows it as `Accepted` (GameSession.kt:316). Nothing mutates → conflated `StateFlow` never re-emits → `collectLatest` never re-runs `drive()` → permanent, self-sustaining freeze. Proven by two consecutive prod spans in session 884507e9 (healthy 4-span `Call` at 1790240725, then a childless 55µs `Call` at 1790240726 missing `hand.number`), followed by 75s of silence until the human left. Same 1-span signature ends bot activity in 2 other prod sessions this week. Owner-reported from his own game. · room SWGEUH 2026-09-24T09:05Z · case docs/agent/feedback-cases/2026-09-24-bot-freeze-nonce-collision.md
+- 2026-09-25 · CARDS-CA · no-action: resolved — single iOS TLS handshake failure (`NSURLErrorDomain -1200`, `_kCFStreamErrorCodeKey=-9816`), 1 event / 1 user, `handled=yes`, iPhone15,4 on iOS 26.6.2. Same class as the wiki's known-benign one-off `net.backend_unreachable`: a transient network/captive-portal condition the app already caught. Re-open if it recurs across installs. · https://elijah-dangerfield.sentry.io/issues/7752200331/
+- 2026-09-25 · grafana:sweep · no-action — A1–A8 all normal (`alerting_manage_rules` returned null). 7d abnormal exits `{anr:1, oom:1, clean:24, unknown:68}`, the anr being CARDS-C9 already filed. Slow-but-successful query empty against a live stream (8663 lines scanned). 3d server logs: 3390 info, 7 warn, **zero error/fatal** — which is itself the finding, since a table was frozen for 75s inside that window and produced no signal at all.
+- 2026-09-25 · inbox:ios-approved · developer-todo — **Apple approved Downcard 2026-09-22**: In Review 00:07Z → "Review complete, eligible for distribution" 01:15Z → "Pending Developer Release" → "Ready for Distribution" 13:17Z. The six-week bounce loop is over. Approved version is 0.1.0 while Android now ships 0.3.0.
+
+- 2026-09-28 · CARDS-CD + CARDS-CE + CARDS-CC · todo: ENG-72 [P0] — `UnsatisfiedLinkError: dlopen failed: library "libsqliteJni.so" not found` in `BundledSQLiteDriver`, fatal/unhandled, app dies with no fallback. 3 events / 2 users (Pixel 6 Pro + x86_64 emulator), Android 12, `0.1.0+1135`, first seen 09-27. CE is the same fault re-thrown as `NoClassDefFoundError` after the erroneous `<clinit>`, not a separate bug — one todo, all three left unresolved. NOT an R8 regression: 1135 predates the R8 build and had run clean since 09-03. No `abiFilters`/`extractNativeLibs`/`jniLibs` config exists, so a missing ABI split has no fallback. · case docs/agent/feedback-cases/2026-09-28-sqlite-native-lib-missing.md
+- 2026-09-28 · CARDS-CB · todo: ENG-73 [P2] — empty/truncated request body → `BadRequestException` logged as "Unhandled error" at ERROR and sent to Sentry. Both server errors this week are this, from one install, on `/v1/me/player-stats/sync` and `/v1/me/wallet/sync` 12s apart; the stats one returned 500 after **39.5s** waiting for a body that never arrived. Should be a 400 + breadcrumb, plus a request-body read timeout. Left unresolved. · https://elijah-dangerfield.sentry.io/issues/7755281985/
+- 2026-09-28 · perf:first-real-data · no-action, informs ENG-55/56/59 — `dc-perf` has data for the first time (0.3.0 shipped the instrumentation): 25 `app.jank`, 4 `app.startup`. Jank by screen: **Onboarding 11.7%** (worst frame 645ms), PlayBots 8.5% (113ms), SignIn 3.0% but **835ms worst frame**, Shop 1.3%/598ms, Profile 1.2%/439ms, Home 2.2%/346ms. Cold start p50 2140ms, **p90 5260ms — past Play's 5s "excessive" line**, though on only 4 samples. Rate and worst-frame disagree exactly as the wiki warns: Shop and Profile look healthy by rate and hide ~0.5s stalls.
+- 2026-09-28 · grafana:sweep · no-action — A1–A8 normal (`alerting_manage_rules` null). 7d abnormal exits `{anr:1, oom:5, clean:19, unknown:99}`, **all on 1135, none on 1209**. Server 7d: 14 warn, 2 error (both = CARDS-CB). Slow-request panel caught one entry, also CARDS-CB's 39.5s sync.
