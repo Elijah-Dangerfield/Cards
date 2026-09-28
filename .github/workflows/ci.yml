@@ -36,6 +36,18 @@ on:
       - '**.md'
       - 'docs/**'
       - 'CHANGELOG.md'
+  # Keep the Actions caches alive. GitHub evicts any cache not *accessed* for
+  # 7 days, and this repo ships in bursts — nothing ran between 2026-09-21 and
+  # 09-28, so every entry was evicted and the next macOS build started from
+  # nothing. Twice weekly, not weekly, because a 7-day job against a 7-day
+  # eviction window has no margin: Monday and Thursday means at most four days
+  # of silence. Runs on `main`, and PR runs restore from the default branch, so
+  # warming it here warms every PR. macOS minutes are free on a public repo.
+  schedule:
+    - cron: '37 4 * * 1,4'
+  # Manual recovery. If the cache is ever cold again, this is the button that
+  # reseeds it without waiting for a release or inventing a dummy commit.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -60,7 +72,17 @@ jobs:
       !startsWith(github.event.head_commit.message, 'chore: release') &&
       !contains(github.event.head_commit.message, 'release-please--branches')
     runs-on: macos-26
-    timeout-minutes: 45
+    # 90, not 45. A timeout exists to kill a *hung* job, and a cold build is
+    # slow rather than hung: warm it is ~16 min, cold it is 22 min of compile
+    # plus 17 of assemble plus tests, which does not fit in 45.
+    #
+    # The old ceiling did not just fail those runs, it made the failure
+    # permanent. A cancelled job never reaches "Post Set up Gradle", so it
+    # never saves the cache it would have warmed — cold begets timeout begets
+    # cold. On 2026-09-28 that deadlock had PRs #157 and #158 red for two weeks
+    # with nothing actually broken in them, and the release PR passed with 35
+    # seconds to spare. Give a cold build room to finish and seed the cache.
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -86,7 +108,18 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          cache-read-only: ${{ github.event_name == 'pull_request' }}
+          # Feature-branch PRs read the cache but must not write it, so one
+          # branch's odd dependency set can't poison everyone else's builds.
+          # `develop` is the exception: the develop -> main release PR is the
+          # most expensive and most timeout-prone run we have, and letting it
+          # write means every release leaves the macOS cache freshly warm
+          # instead of relying on the push-to-main run that follows it.
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.head_ref != 'develop' }}
+          # Prune unused files before saving. The repo cache sits around 7GB of
+          # a 10GB cap across ~44 entries, and when it overflows GitHub evicts
+          # least-recently-used — which is exactly how the macOS entry went
+          # missing while the smaller Linux ones survived.
+          gradle-home-cache-cleanup: true
 
       - name: Cache Kotlin/Native (~/.konan)
         uses: actions/cache@v4
