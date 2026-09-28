@@ -8,7 +8,7 @@
 # Jobs (in order):
 #   resolve-tag           — normalizes tag + version from trigger input.
 #   android               — signs AAB, renders release notes, uploads to
-#                           Play Console production track (10% staged),
+#                           Play Console production track (full rollout),
 #                           creates Sentry release + uploads mappings.
 #                           Uploads AAB/APK artifacts to the GitHub Release.
 #   ios                   — builds IPA, uploads to TestFlight external group
@@ -233,9 +233,13 @@ jobs:
           curl -fsS -X DELETE -H "Authorization: Bearer $TOKEN" "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PKG/edits/$EDIT_ID" || true
           rm -f "$SA_JSON"
           if [ "$HAS_RELEASE" = "yes" ]; then
-            echo "Existing production track found — using production (staged 10%)"
+            echo "Existing production track found — using production (full rollout)"
             echo "track=production" >> "$GITHUB_OUTPUT"
-            echo "status=inProgress" >> "$GITHUB_OUTPUT"
+            # `completed`, not `inProgress`. The two are a pair: `inProgress`
+            # is a staged rollout and requires a userFraction, so leaving it
+            # here after dropping the fraction would either be rejected by the
+            # Play API or ship to nobody.
+            echo "status=completed" >> "$GITHUB_OUTPUT"
             echo "is_first_release=false" >> "$GITHUB_OUTPUT"
           else
             echo "::warning::No production release found on Play — first release. Routing to internal track. Manually promote in Play Console before the next release."
@@ -274,7 +278,7 @@ jobs:
       - name: Submit to Play Console
         # Track + status are resolved above: `internal` + `completed` on the
         # very first release (Play won't accept an automated production upload
-        # without a pre-existing draft); `production` + `inProgress` (10% staged)
+        # without a pre-existing draft); `production` + `completed` (full rollout)
         # on subsequent releases.
         if: ${{ !inputs.skip_play_store && env.PLAY_SERVICE_ACCOUNT_JSON != '' }}
         uses: r0adkll/upload-google-play@v1
@@ -286,7 +290,15 @@ jobs:
           releaseFiles: ${{ steps.aab.outputs.path }}
           track: ${{ steps.play_track.outputs.track || 'internal' }}
           status: ${{ steps.play_track.outputs.status || 'completed' }}
-          userFraction: ${{ steps.play_track.outputs.track == 'production' && '0.10' || '' }}
+          # Full rollout, not staged. A 10% rollout only pays for itself if
+          # someone is watching the dashboards during the window and will halt
+          # on a bad signal; nobody was, so all it did was leave 90% of players
+          # on the old build indefinitely — v0.3.0 sat at 10% for a week while
+          # the fixes in it reached almost nobody. Play still allows halting a
+          # 100% release, so the safety net that was actually being used is
+          # unchanged. Revisit if releases ever become frequent enough to
+          # warrant a real soak.
+          userFraction: ''
           whatsNewDirectory: apps/compose/build/play-release-notes
           mappingFile: ${{ steps.mapping.outputs.path }}
           # debugSymbols omitted — no native (.so) libraries are shipped.
