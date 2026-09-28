@@ -4,6 +4,16 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-09-28 — The update prompt asks the store for availability and config for the name (ENG-52)
+
+**Problem:** The "there's a newer Downcard" prompt was bound to `NoUpdateSource`, which always answered null, so it could never fire. Any working source needs an external truth: a purely local cache can only ever hold the running app's own version, so "is the cached version newer than mine" is never true. The two stores answer different questions. Play's In-App Updates API says whether an update is installable by *this* install but reports only an integer `availableVersionCode`, and the rule (`isWorthPromptingFrom`) needs `major.minor.patch` to tell a feature release from a patch. Apple has no availability API at all.
+
+**Decision:** Android binds `PlayAppUpdateSource`: Play for availability, then two remote-config values (`upgrade.latestVersionCode`, `upgrade.latestVersionName`) that `release.yml` writes right after the Play upload, for the name. The name is used only when Play's code equals the published code. Every other pairing (config not yet written, Play still offering the previous release, two releases in quick succession) resolves to null, which the rule reads as "don't prompt". iOS binds `ITunesAppUpdateSource`, the public iTunes lookup keyed on the running bundle id; it lags the store but never leads it, and phased release still allows a manual update, so a version it reports is always installable.
+
+**Why not remote config alone, now that Play rolls out to 100%.** The old objection (a 10% staged rollout prompting the other 90%) no longer holds, and the KDoc on `AppUpdateSource` has been rewritten so it stops claiming it does. A smaller gap remains: the config write happens when Play *accepts* the upload, and Play then processes and sometimes reviews the build for hours before anyone can install it. A config-only prompt would point at an update the store does not have yet for exactly that window. The Play call closes it for free.
+
+**Alternatives rejected:** encoding the semver in Play's `inAppUpdatePriority` (loses the label and bypasses the rule); a server endpoint mapping code to name (a new table and route for two integers that config already carries); reading the GitHub release for the name (public today, but couples the client to the repo's visibility); deriving the name from `versionCode` (impossible, it is a commit count).
+
 ## 2026-08-28 — XP sync is a batch write on the server and a paged flush on the client (ENG-45)
 
 **Problem:** `POST /v1/me/progression/sync` cost one DB transaction and roughly four statements *per event*, and the client posted its entire unsynced outbox in one request with no cap. Those two compose into a trap with no exit: one player's backlog reached 2,703 rows, the request took 501 seconds server-side, the client gave up at 30 seconds, nothing got marked synced, and the next flush sent everything again plus a week of new hands.
