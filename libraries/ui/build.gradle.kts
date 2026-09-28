@@ -5,6 +5,13 @@ plugins {
 
 android {
     namespace = "com.dangerfield.cards.libraries.ui"
+
+    // Compose UI tests run as JVM unit tests under Robolectric, so they need
+    // the merged Android resources (theme attrs, the test-manifest activity) on
+    // the unit-test classpath.
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 kotlin {
@@ -63,6 +70,14 @@ kotlin {
             // resolvePlayerBadges joins inventory (cards) × catalog (products).
             implementation(projects.libraries.cards)
             implementation(projects.libraries.products)
+        }
+        // Component Compose tests. Compose-MP's host-side harness
+        // (`runComposeUiTest`) only runs on the Android target via Robolectric,
+        // so these live in androidUnitTest rather than commonTest.
+        androidUnitTest.dependencies {
+            implementation(libs.compose.uiTest)
+            implementation(libs.compose.uiTestManifest)
+            implementation(libs.robolectric)
         }
     }
 }

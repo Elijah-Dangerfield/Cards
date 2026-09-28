@@ -203,6 +203,7 @@ supabase-auth = { module = "io.github.jan-tennert.supabase:auth-kt", version.ref
 
 google-play-review = { module = "com.google.android.play:review", version = "2.0.2" }
 google-play-review-ktx = { module = "com.google.android.play:review-ktx", version = "2.0.2" }
+google-play-app-update = { module = "com.google.android.play:app-update", version = "2.1.0" }
 google-play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version = "9.1.0" }
 
 
@@ -214,6 +215,7 @@ androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 androidx-room-gradlePlugin = { group = "androidx.room", name = "room-gradle-plugin", version.ref = "roomGradlePlugin" }
 androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }
+androidx-sqlite-framework = { module = "androidx.sqlite:sqlite-framework", version.ref = "sqlite" }
 buildconfig-gradlePlugin = { module = "com.github.gmazzo.buildconfig:plugin", version.ref = "buildconfig" }
 
 android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }

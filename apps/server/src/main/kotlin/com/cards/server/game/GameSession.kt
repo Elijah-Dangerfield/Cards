@@ -57,9 +57,9 @@ import kotlin.random.Random
  *
  * Idempotency: every public mutation accepts a `clientNonce`. A
  * 64-entry ring buffer per session dedupes retries — re-submitting the
- * same nonce within that window returns `Accepted` with no side
- * effects. The buffer is intentionally small (idempotency is only
- * needed across single-digit retries during a network blip).
+ * same nonce within that window returns [IntentResult.Duplicate] with
+ * no side effects. The buffer is intentionally small (idempotency is
+ * only needed across single-digit retries during a network blip).
  *
  * Threading: the session is safe to call from any coroutine. All
  * public mutations suspend on the mutex; subscribers observe via the
@@ -241,9 +241,10 @@ class GameSession internal constructor(
     private var handStartStacks: Map<String, Long> = emptyMap()
 
     // Bounded ring of nonces we've already processed. New nonce → record
-    // and proceed; seen nonce → swallow as idempotent Accepted. Capacity
-    // is generous enough for "a few retries across a flaky moment" but
-    // not infinite — we don't want to grow unbounded.
+    // and proceed; seen nonce → swallow as Duplicate. Capacity is generous
+    // enough for "a few retries across a flaky moment" but not infinite —
+    // we don't want to grow unbounded. In-memory only: a hydrated session
+    // starts with an empty ring.
     private val processedNonces = ArrayDeque<String>()
 
     // Players who joined the room mid-hand and are waiting to be dealt in.
@@ -313,7 +314,7 @@ class GameSession internal constructor(
     ): IntentResult = mutex.withLock {
         val current = _state.value
             ?: return@withLock IntentResult.Rejected("no active hand")
-        if (clientNonce in processedNonces) return@withLock IntentResult.Accepted
+        if (clientNonce in processedNonces) return@withLock IntentResult.Duplicate
 
         // Bots and turn-timeout auto-acts route through here too; their
         // rejections are usually expected races, so log those at debug and keep
@@ -529,7 +530,7 @@ class GameSession internal constructor(
         if (current.street != BettingRound.Complete) {
             return@withLock IntentResult.Rejected("current hand not complete")
         }
-        if (clientNonce in processedNonces) return@withLock IntentResult.Accepted
+        if (clientNonce in processedNonces) return@withLock IntentResult.Duplicate
 
         val isSeated = current.seats.any { it.playerId == actorUserId }
         if (!isSeated) return@withLock IntentResult.Rejected("not seated in this room")
@@ -698,7 +699,7 @@ class GameSession internal constructor(
      * problem than reasoning about a compensated double-debit (MP-38).
      *
      * Idempotent via the nonce ring: a retried [clientNonce] returns
-     * `Accepted` without re-refilling (the refill is a `set`, not an `add`, so
+     * `Duplicate` without re-refilling (the refill is a `set`, not an `add`, so
      * it's harmless anyway — the guard mainly mirrors the other mutations). The
      * nonce is recorded only once [authorizeBuyIn] approves, so a refused buy-in
      * doesn't burn the nonce and block the retry.
@@ -716,7 +717,7 @@ class GameSession internal constructor(
         if (current.street != BettingRound.Complete) {
             return@withLock IntentResult.Rejected("current hand not complete")
         }
-        if (clientNonce in processedNonces) return@withLock IntentResult.Accepted
+        if (clientNonce in processedNonces) return@withLock IntentResult.Duplicate
         val seat = current.seats.firstOrNull { it.playerId == actorUserId }
             ?: return@withLock IntentResult.Rejected("not seated in this room")
         if (seat.stack > 0) return@withLock IntentResult.Rejected("seat is not busted")
