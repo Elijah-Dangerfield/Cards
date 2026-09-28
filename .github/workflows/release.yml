@@ -340,6 +340,40 @@ jobs:
           if-no-files-found: warn
           retention-days: 90
 
+      # Tell the in-app update prompt what shipped. Play's In-App Updates API
+      # reports only an integer versionCode, so the client pairs it with these
+      # two config values to get the `major.minor.patch` the prompt needs
+      # (PlayAppUpdateSource / ENG-52). Production track only: an internal-track
+      # build isn't installable by the public. Best-effort like the manifest
+      # upload: a failure here leaves the prompt silent, never wrong.
+      - name: Publish shipped version to remote config
+        if: ${{ steps.play_track.outputs.track == 'production' }}
+        env:
+          ADMIN_TOKEN: ${{ secrets.CARDS_ADMIN_API_TOKEN_PROD }}
+          VERSION_CODE: ${{ needs.build-number.outputs.value }}
+          VERSION_NAME: ${{ needs.resolve-tag.outputs.version }}
+        run: |
+          if [ -z "$ADMIN_TOKEN" ]; then
+            echo "::warning::CARDS_ADMIN_API_TOKEN_PROD not set, skipping latest-version publish"
+            exit 0
+          fi
+          put_flag() {
+            status=$(curl --silent --show-error --max-time 30 \
+              -o /tmp/flag-response.json -w "%{http_code}" \
+              -X PUT "https://cards-server-prod.fly.dev/v1/admin/config/flags/$1" \
+              -H "X-Admin-Token: $ADMIN_TOKEN" \
+              -H "X-Admin-Actor: release.yml" \
+              -H "Content-Type: application/json" \
+              --data "{\"value\": $2}")
+            echo "$1 → HTTP $status"
+            cat /tmp/flag-response.json; echo
+            if [ "$status" != "200" ]; then
+              echo "::warning::Publishing $1 failed (HTTP $status). The update prompt stays silent until it is set by hand."
+            fi
+          }
+          put_flag upgrade.latestVersionCode "$VERSION_CODE"
+          put_flag upgrade.latestVersionName "\"$VERSION_NAME\""
+
   ios:
     name: iOS TestFlight external + App Store submit
     needs: [resolve-tag, build-number]
