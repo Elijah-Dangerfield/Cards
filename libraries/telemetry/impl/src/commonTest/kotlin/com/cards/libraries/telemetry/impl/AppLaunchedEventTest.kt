@@ -65,7 +65,7 @@ class AppLaunchedEventTest {
 
         val record = processor.records.single()
         assertEquals("app.exit_detail", record.eventName)
-        assertEquals(100, record.attributes["previous_exit_importance"])
+        assertEquals(100L, record.attributes["previous_exit_importance"])
         assertEquals(234_567L, record.attributes["previous_exit_pss_kb"])
         assertEquals(345_678L, record.attributes["previous_exit_rss_kb"])
         assertEquals("lmkd", record.attributes["previous_exit_description"])

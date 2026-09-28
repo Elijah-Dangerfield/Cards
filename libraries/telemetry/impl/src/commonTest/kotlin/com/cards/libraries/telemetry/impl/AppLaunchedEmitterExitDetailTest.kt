@@ -55,7 +55,7 @@ class AppLaunchedEmitterExitDetailTest {
             processor.records.map { it.eventName },
         )
         val detailRecord = processor.records.single { it.eventName == "app.exit_detail" }
-        assertEquals(400, detailRecord.attributes["previous_exit_importance"])
+        assertEquals(400L, detailRecord.attributes["previous_exit_importance"])
         assertEquals(111_222L, detailRecord.attributes["previous_exit_pss_kb"])
     }
 
