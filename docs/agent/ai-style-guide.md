@@ -38,9 +38,11 @@ per tip, imperative, grouped. Tighten or merge before growing. Read alongside `A
 - Consume a queue/buffer only on the path that succeeded — clearing it before the operation can still be refused silently drops the work nothing will re-queue.
 - If a read path falls back to durable storage on a cache miss, every entry point that can be *first to touch* the key needs the same fallback — `find` hydrating but `join` 404-ing is a restart bug.
 - Record an idempotency nonce only once the mutation is committed; burning it on a refused path makes the client's retry a silent no-op.
+- A UI projection that re-derives an engine decision must copy the engine's fallbacks too — assert it against the events the engine actually emitted, not against your reading of the rule (the heads-up blind pick skipped the not-in-hand-button fallback and badged an empty seat).
 
 ## Naming & clarity
 - Don't shadow an outer `val` with an inner one of the same name — rename the inner (e.g. `previousHumans` → `priorHumans`) so each read is unambiguous.
+- Collapsing an inline FQN to a short name? Skip the `import` line — a blind find/replace rewrites it to `import CardBackStyle` and the file still compiles nowhere near where you looked.
 
 ## Wiring & testability
 - Never ship an empty-lambda callback stub (`onClaimAccount = {}`) at an entry point — it renders a dead button. Wire it, or leave a WHY comment if it truly can't be wired yet.

@@ -49,6 +49,7 @@ import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.products.ProductsRepository
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.ui.components.resolvePlayerBadges
+import com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle
 import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import com.dangerfield.cards.libraries.ui.components.poker.badgeEmojiForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.cardBackForProductId
@@ -208,7 +209,6 @@ class PlayPokerViewModel @Inject constructor(
             "mode" to sessionFactory.xpMode.name.lowercase(),
             "difficulty" to sessionFactory.difficultyName,
         )
-        // Engine state → SEA pipeline
         viewModelScope.launch {
             session.gameStateFlow.collect { gs ->
                 takeAction(PlayPokerAction.GameStateUpdated(gs))
@@ -318,13 +318,11 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.NextHandCountdownChanged(countdown))
             }
         }
-        // XP mirror
         viewModelScope.launch {
             progressionRepository.observeProgression().collect { progression ->
                 takeAction(PlayPokerAction.XpChanged(progression.totalXp))
             }
         }
-        // Settings mirrors
         viewModelScope.launch {
             appCache.updates.collect { data ->
                 latestGameSpeed = data.gameSpeed
@@ -389,8 +387,8 @@ class PlayPokerViewModel @Inject constructor(
                     ?: EquippedFelt.Default
                 val ownCardBack = entries
                     .map { cardBackForProductId(it.productId) }
-                    .firstOrNull { it != com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default }
-                    ?: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default
+                    .firstOrNull { it != CardBackStyle.Default }
+                    ?: CardBackStyle.Default
                 val felt = table?.feltProductId?.let { feltForProductId(it) } ?: ownFelt
                 val cardBack = table?.cardBackProductId?.let { cardBackForProductId(it) } ?: ownCardBack
                 ResolvedCosmetics(
@@ -572,11 +570,11 @@ class PlayPokerViewModel @Inject constructor(
         lastCreditedHand = state.handNumber
         // Resolve the human's seat from live state (MP seats vary) so the hand
         // is attributed to the right player.
-        val humanSeatIndex = sessionFactory.humanSeatIndex(state)
+        val humanIdx = sessionFactory.humanSeatIndex(state)
         val summary = HandResultSummaryBuilder.build(
             event = event,
             state = state,
-            humanSeatIndex = humanSeatIndex,
+            humanSeatIndex = humanIdx,
             mode = sessionFactory.xpMode,
         )
         // Session win-loss tally for the overflow sheet. Count only hands the human
@@ -597,11 +595,11 @@ class PlayPokerViewModel @Inject constructor(
         }
         // One-off audio/haptic feedback for the hand result (pure derivation —
         // empty when the human isn't seated, so no other seat's outcome leaks).
-        HandEndProgression.feedbackEvents(event, state, humanSeatIndex)
+        HandEndProgression.feedbackEvents(event, state, humanIdx)
             .forEach { sendEvent(it) }
         val context = HandEndProgression.achievementContext(
             state = state,
-            humanSeatIndex = humanSeatIndex,
+            humanSeatIndex = humanIdx,
             humanStartingStack = humanStartingStack,
             difficultyName = sessionFactory.difficultyName,
         )
@@ -1025,9 +1023,6 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.ToggleCheatSheet -> action.updateState {
                 it.copy(cheatSheetOpen = !it.cheatSheetOpen)
             }
-            is PlayPokerAction.DismissEarnedToast -> action.updateState {
-                it.copy(recentlyEarned = emptyList())
-            }
             is PlayPokerAction.CelebrationDismissed -> {
                 pendingReviewTrigger?.let { trigger ->
                     pendingReviewTrigger = null
@@ -1424,7 +1419,7 @@ class PlayPokerViewModel @Inject constructor(
  */
 private data class ResolvedCosmetics(
     val felt: EquippedFelt,
-    val cardBack: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle,
+    val cardBack: CardBackStyle,
     val winOddsTool: Boolean,
     val badgeEmoji: String?,
 )
