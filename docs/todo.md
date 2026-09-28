@@ -135,6 +135,14 @@ Two things beyond the nonce. `IntentResult.Duplicate` distinguishes a swallowed 
 
 **Server-only**, so it reaches players on deploy with no app update.
 
+## ENG-74 [P1] — A cold Gradle cache pushes the macOS CI job past its 45-minute timeout
+
+**Problem:** `Build + test` has `timeout-minutes: 45` and the macOS job now runs fully cold: the repo's Actions cache holds konan and Linux entries but no `gradle-home` for macOS, so compile + assemble went from ~11 min (09-05) to ~36-44 min. Two PRs were red purely from being cancelled at the limit with no test failure — #157 at 45m22s and #158 at 45m56s, the latter masking two genuine assertion bugs that only surfaced once the tests could actually run. Today's release PR passed with **35 seconds** to spare. It is a coin flip, and a cancelled job reads as a failing one.
+
+**Acceptance:** A cold PR run finishes with real headroom, and a timeout is distinguishable from a test failure at a glance.
+
+**Hints:** The deadlock is that `setup-gradle` is `cache-read-only` on `pull_request` events, so PR runs can never reseed what they need, and only a `push`-event run to `main` can. No CI ran 09-21 → 09-28, so GitHub evicted everything for inactivity. Options: raise the timeout, let `main` pushes write the macOS gradle-home cache, or split compile and assemble into separate jobs. Found independently by two agents triaging #157 and #158.
+
 ## ENG-71 [P1] — Nothing notices when a deploy stalls, so prod ran 17-day-old code unseen
 
 **Problem:** `server-deploy-prod` runs for PR #152 (2026-09-04) and #155 (2026-09-05) are still `waiting` and `pending` on the `production` environment gate, so prod has not deployed since 2026-09-02. No alert covers this: A7 checks whether the server is *silent*, and it is not — it is serving happily, just from old code. The cost is real and was invisible: the OTel trace-root fix (`ac58b1ba`) has been on `main` for over two weeks while poisoned `trace_id=57f45c70...` keeps appearing in prod logs through 2026-09-21.
