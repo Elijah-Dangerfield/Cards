@@ -707,9 +707,11 @@ private suspend fun handleClientFrame(
             emoji = frame.emoji,
         )
     }
+    // A deduped replay is a success to the retrying client: its earlier
+    // submit landed, so the ack says so.
     return RoomSocketEventDto.IntentAck(
         clientNonce = frame.clientNonce,
-        accepted = result is IntentResult.Accepted,
+        accepted = result !is IntentResult.Rejected,
         error = (result as? IntentResult.Rejected)?.reason,
     )
 }
@@ -722,7 +724,8 @@ private suspend fun handleClientFrame(
  */
 private fun recordIntentOutcome(result: IntentResult) {
     val span = Span.current()
-    span.setAttribute(SpanAttrs.Accepted, result is IntentResult.Accepted)
+    span.setAttribute(SpanAttrs.Accepted, result !is IntentResult.Rejected)
+    span.setAttribute(SpanAttrs.Duplicate, result is IntentResult.Duplicate)
     if (result is IntentResult.Rejected) {
         span.setAttribute(SpanAttrs.RejectionReason, result.reason)
     }

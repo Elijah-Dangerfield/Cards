@@ -121,6 +121,13 @@ internal object SpanAttrs {
     val FrameType: AttributeKey<String> = AttributeKey.stringKey("frame.type")
     val ClientNonce: AttributeKey<String> = AttributeKey.stringKey("client.nonce")
     val Accepted: AttributeKey<Boolean> = AttributeKey.booleanKey("intent.accepted")
+
+    /**
+     * True when the nonce ring swallowed the submit as a replay. Accepted stays
+     * true for these, so this is the only way to tell a no-op apart from real
+     * work in Tempo — the shape that hid MP-39 for a week.
+     */
+    val Duplicate: AttributeKey<Boolean> = AttributeKey.booleanKey("intent.duplicate")
     val RejectionReason: AttributeKey<String> = AttributeKey.stringKey("intent.rejection_reason")
     val OccupantsCount: AttributeKey<Long> = AttributeKey.longKey("occupants.count")
 
