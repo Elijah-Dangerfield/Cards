@@ -15,6 +15,7 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.typography.TypographyResource
 import kotlin.time.TimeSource
+import kotlinx.coroutines.delay
 
 /**
  * A text that animates between numeric values via a count-up tween — the
@@ -62,22 +63,38 @@ fun AnimatedNumberText(
     // Track the last [revealKey] we acted on so the trigger fires on a CHANGE, not
     // on first composition (where it would replay every time the screen mounts).
     var seenRevealKey by remember { mutableStateOf(revealKey) }
+
+    // Quantized, not per-frame. Writing the raw animated value renders a
+    // different string every frame, and a different string is a new Skia glyph
+    // blob — the churn behind four production ANRs (ENG-49). Snapping to a
+    // bounded number of steps still reads as counting and lands exactly on the
+    // target. Both roll paths go through here so neither can drift back.
+    suspend fun rollTo(from: Long, to: Long) {
+        tint = when {
+            to > from -> gainColor
+            to < from -> lossColor
+            else -> null
+        }
+        animated.animateTo(
+            targetValue = to.toFloat(),
+            animationSpec = tween(durationMillis, easing = FastOutSlowInEasing),
+        ) {
+            displayed = quantizeRollingNumber(this.value.toLong(), from, to)
+        }
+        // Hold the tint a beat past the roll so the win/loss registers, then
+        // settle back to the base color.
+        delay(TINT_HOLD_MS)
+        tint = null
+    }
+
     LaunchedEffect(revealKey) {
         if (revealKey == seenRevealKey) return@LaunchedEffect
         seenRevealKey = revealKey
         val from = revealFrom ?: return@LaunchedEffect
         if (from == value) return@LaunchedEffect
-        tint = if (value > from) gainColor else lossColor
         animated.snapTo(from.toFloat())
         displayed = from
-        animated.animateTo(
-            targetValue = value.toFloat(),
-            animationSpec = tween(durationMillis, easing = FastOutSlowInEasing),
-        ) {
-            displayed = this.value.toLong()
-        }
-        kotlinx.coroutines.delay(TINT_HOLD_MS)
-        tint = null
+        rollTo(from = from, to = value)
     }
     // Warm-up window: snap silently for the first MOUNT_SETTLE_MS so the
     // common "ViewModel emits its default 0, then emits the real value" path
@@ -91,28 +108,7 @@ fun AnimatedNumberText(
             displayed = value
             tint = null
         } else {
-            val previous = displayed
-            tint = when {
-                value > previous -> gainColor
-                value < previous -> lossColor
-                else -> null
-            }
-            val rollFrom = previous
-            animated.animateTo(
-                targetValue = value.toFloat(),
-                animationSpec = tween(durationMillis, easing = FastOutSlowInEasing),
-            ) {
-                // Quantized, not per-frame. Writing the raw value here renders a
-                // different string every frame, and a different string is a new
-                // Skia glyph blob — the churn behind four production ANRs
-                // (ENG-49). Snapping to a bounded number of steps still reads as
-                // counting and lands exactly on the target.
-                displayed = quantizeRollingNumber(this.value.toLong(), rollFrom, value)
-            }
-            // Hold the tint a beat past the roll so the win/loss registers, then
-            // settle back to the base color.
-            kotlinx.coroutines.delay(TINT_HOLD_MS)
-            tint = null
+            rollTo(from = displayed, to = value)
         }
     }
     Text(
