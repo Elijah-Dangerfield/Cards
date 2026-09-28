@@ -1,6 +1,5 @@
 package com.dangerfield.cards.libraries.storage.impl.db
 
-import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -11,6 +10,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @ContributesBinding(AppScope::class)
 class RealAppDatabaseProvider @Inject constructor(
     private val builderFactory: AppDatabaseBuilderFactory,
+    private val driverFactory: SQLiteDriverFactory,
     private val dispatcherProvider: DispatcherProvider
 ) : AppDatabaseProvider {
 
@@ -27,7 +27,7 @@ class RealAppDatabaseProvider @Inject constructor(
         // converter again, re-add it here.
         builderFactory
             .create()
-            .setDriver(BundledSQLiteDriver())
+            .setDriver(driverFactory.create())
             .setQueryCoroutineContext(dispatcherProvider.io)
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
