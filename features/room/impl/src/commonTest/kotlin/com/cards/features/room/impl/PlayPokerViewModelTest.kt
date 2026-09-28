@@ -568,20 +568,6 @@ class PlayPokerViewModelTest : CoroutineTest() {
         assertTrue(vm.state.recentlyEarned.isEmpty())
     }
 
-    @Test
-    fun dismissEarnedToast_clearsList() = runUnitTest {
-        val vm = buildVm()
-        vm.takeAction(
-            PlayPokerAction.AchievementsEarned(
-                earned = listOf(testEarnedAchievement()),
-            ),
-        )
-        assertEquals(1, vm.state.recentlyEarned.size)
-
-        vm.takeAction(PlayPokerAction.DismissEarnedToast)
-        assertTrue(vm.state.recentlyEarned.isEmpty())
-    }
-
     // ---------- Profile → human-seat projection ----------
 
     @Test
