@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -46,12 +47,13 @@ import com.dangerfield.cards.libraries.ui.components.icon.iconSize
 import com.dangerfield.cards.libraries.ui.components.icon.padding
 import com.dangerfield.cards.libraries.ui.components.poker.LocalFeltAccentSurface
 import com.dangerfield.cards.libraries.ui.components.poker.LocalTableSurface
+import com.dangerfield.cards.libraries.ui.components.rememberLoopingFloat
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.system.LocalClock
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD300
-import kotlin.time.Clock
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -83,15 +85,8 @@ internal fun SeatEmoteBadge(
     val ownsAnyPack = emojis.isNotEmpty()
     var expanded by remember { mutableStateOf(false) }
 
-    // Gate on the cooldown being *live*, not on it ever having been set. The
-    // field is only ever written forward (never back to 0), so `> 0L` latched
-    // true on the first emote and left the ticker writing snapshot state 4x/sec
-    // for the rest of the session — eight seconds of which were useful.
-    val now = rememberSecondTicker(untilEpochMs = cooldownEndsAtEpochMs)
-    val cooling = now < cooldownEndsAtEpochMs
-    val remainingSeconds = if (cooling) {
-        ((cooldownEndsAtEpochMs - now) / 1000L + 1L).coerceAtLeast(1L)
-    } else 0L
+    val remainingSeconds = rememberSecondsUntil(cooldownEndsAtEpochMs)
+    val cooling = remainingSeconds > 0L
 
     LaunchedEffect(cooling) {
         if (cooling) expanded = false
@@ -301,25 +296,39 @@ private fun EmojiPickerRow(
 }
 
 /**
- * Wall-clock epoch-ms, refreshed every 250ms while [active] so the
- * countdown chip ticks down smoothly. Inactive otherwise so the
- * TopBar isn't recomposing for nothing.
+ * Whole seconds left until [untilEpochMs], rounded up, polled four times a
+ * second so the chip's digit flips within a quarter-second of the real
+ * boundary. Zero once the deadline has passed.
+ *
+ * Bounded by the deadline and keyed on it: a fresh cooldown restarts the loop
+ * and an elapsed one leaves nothing running. The previous version gated on the
+ * deadline ever having been set, which nothing writes back to zero, so one
+ * emote left a 4Hz snapshot write running for the rest of the session (ENG-55).
+ * Only a change in the whole-second count invalidates the caller; the polls in
+ * between write an equal value, which the snapshot ignores.
+ *
+ * Reads [LocalClock] so a test can pin time. Under `@Preview` the count is
+ * snapped once rather than ticked, matching [rememberLoopingFloat].
  */
 @Composable
-private fun rememberSecondTicker(untilEpochMs: Long): Long {
-    var now by remember { mutableStateOf(Clock.System.now().toEpochMilliseconds()) }
-    LaunchedEffect(untilEpochMs) {
-        // Stop at the deadline rather than looping forever. Keyed on the
-        // deadline so a fresh cooldown restarts it.
-        while (Clock.System.now().toEpochMilliseconds() < untilEpochMs) {
-            now = Clock.System.now().toEpochMilliseconds()
-            delay(250L)
-        }
-        // Final write so the last tick lands on "cooldown over" rather than
-        // leaving the chip showing 1s.
-        now = Clock.System.now().toEpochMilliseconds()
+private fun rememberSecondsUntil(untilEpochMs: Long): Long {
+    val clock = LocalClock.current
+    fun secondsLeft(): Long {
+        val remainingMs = untilEpochMs - clock.now().toEpochMilliseconds()
+        return if (remainingMs <= 0L) 0L else (remainingMs + 999L) / 1000L
     }
-    return now
+    if (LocalInspectionMode.current) {
+        return remember(untilEpochMs) { secondsLeft() }
+    }
+    var secondsLeft by remember { mutableStateOf(secondsLeft()) }
+    LaunchedEffect(untilEpochMs, clock) {
+        secondsLeft = secondsLeft()
+        while (secondsLeft > 0L) {
+            delay(250L)
+            secondsLeft = secondsLeft()
+        }
+    }
+    return secondsLeft
 }
 
 private val TriggerSize = IconButton.Size.Small
@@ -354,7 +363,7 @@ private fun SeatEmoteBadgePreview_Cooldown() {
     PreviewContent {
         SeatEmoteBadge(
             emojis = PreviewEmojis,
-            cooldownEndsAtEpochMs = Clock.System.now().toEpochMilliseconds() + 5_000L,
+            cooldownEndsAtEpochMs = LocalClock.current.now().toEpochMilliseconds() + 5_000L,
             onBlast = {},
         )
     }

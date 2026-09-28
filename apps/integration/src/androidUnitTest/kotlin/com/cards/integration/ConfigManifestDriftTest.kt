@@ -4,6 +4,8 @@ import com.dangerfield.cards.features.upgrade.MaintenanceMessage
 import com.dangerfield.cards.features.upgrade.MaintenanceMode
 import com.dangerfield.cards.features.upgrade.MinSupportedVersionCode
 import com.dangerfield.cards.libraries.billing.RealPurchasesEnabled
+import com.dangerfield.cards.libraries.cards.LatestReleaseVersionCode
+import com.dangerfield.cards.libraries.cards.LatestReleaseVersionName
 import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.config.ConfiguredValue
 import com.dangerfield.cards.libraries.config.DoubleConfigValue
@@ -52,6 +54,8 @@ class ConfigManifestDriftTest {
         MinSupportedVersionCode(stubConfig),
         MaintenanceMode(stubConfig),
         MaintenanceMessage(stubConfig),
+        LatestReleaseVersionCode(stubConfig),
+        LatestReleaseVersionName(stubConfig),
         OnboardingStarterGrant(stubConfig),
         OnboardingSuggestedName(stubConfig),
         WelcomeFoundingMemberUntil(stubConfig),

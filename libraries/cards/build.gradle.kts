@@ -16,6 +16,7 @@ kotlin {
         commonMain.dependencies {
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
+            implementation(projects.libraries.config)
             api(projects.libraries.storage)
             implementation(libs.configuration.annotations)
             implementation(libs.kotlinx.serialization.json)

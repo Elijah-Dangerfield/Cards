@@ -53,6 +53,7 @@ kotlin {
 
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.google.play.app.update)
         }
 
         iosMain.dependencies {
