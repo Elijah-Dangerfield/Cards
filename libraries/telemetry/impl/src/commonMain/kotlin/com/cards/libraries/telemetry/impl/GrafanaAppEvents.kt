@@ -108,6 +108,7 @@ class AppLaunchedEmitter(
     override fun onForeground(event: AppEvent.OnForeground) {
         if (event.isColdBoot) {
             logAppLaunched(previousExitProvider.previousExit())
+            previousExitProvider.previousExitDetail()?.let(::logPreviousExitDetail)
         }
     }
 }
@@ -123,6 +124,26 @@ internal fun logAppLaunched(previousExit: PreviousExit) {
         "app.launched",
         "cold_start" to true,
         "previous_exit" to previousExit.value,
+    )
+}
+
+/**
+ * `app.exit_detail` — once per cold start, right alongside `app.launched`,
+ * and only when [PreviousExitProvider.previousExitDetail] has something to
+ * say. Android-only in practice: this is what turns a Pulse-dashboard OOM
+ * count into an answerable question — join on `session_id` to `app.launched`
+ * and filter `previous_exit_importance<=100` for "died while actually on
+ * screen" versus `>=300` for "the OS reclaimed a backgrounded process,"
+ * rather than treating every `previous_exit=oom` launch as the same kind of
+ * event. See [PreviousExitDetail] for what each field means.
+ */
+internal fun logPreviousExitDetail(detail: PreviousExitDetail) {
+    KLog.logEvent(
+        "app.exit_detail",
+        "previous_exit_importance" to detail.importance,
+        "previous_exit_pss_kb" to detail.pssKb,
+        "previous_exit_rss_kb" to detail.rssKb,
+        "previous_exit_description" to detail.description,
     )
 }
 

@@ -60,6 +60,29 @@ class SecureSessionManagerTest : CoroutineTest() {
     }
 
     @Test
+    fun load_migratingAnAnonymousLegacySession_alsoSeedsTheMirror() = runUnitTest {
+        // The migration writes the secure store directly, so it has to seed the
+        // mirror the same way saveSession does. Without it an anonymous user who
+        // upgraded off the plaintext store has no mirror until supabase happens
+        // to refresh, and the next Keychain loss strands them (AUTH-19).
+        val legacy = FakeSessionManager(session(refreshToken = "legacy-anon"))
+        manager(legacy).loadSession()
+
+        storage.values.clear()
+
+        assertEquals("legacy-anon", manager().loadSession().refreshToken)
+    }
+
+    @Test
+    fun load_migratingAClaimedLegacySession_leavesNoMirrorBehind() = runUnitTest {
+        val legacy = FakeSessionManager(session(refreshToken = "legacy-claimed", accessToken = claimedJwt()))
+
+        manager(legacy).loadSession()
+
+        assertNull(mirror.stored, "a claimed account recovers via its credential, not a plaintext mirror")
+    }
+
+    @Test
     fun load_prefersSecureStore_overALingeringLegacyEntry() = runUnitTest {
         val legacy = FakeSessionManager(session(refreshToken = "stale-legacy"))
         val manager = manager(legacy)
