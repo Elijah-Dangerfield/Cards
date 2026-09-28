@@ -106,17 +106,25 @@ class TurnTimerDriver(
         ) {
             session.applyIntent(playerId, intent, nonce)
         }
-        if (result is IntentResult.Rejected) {
+        when (result) {
             // Expected only on a benign race (the player acted just as the timer
             // fired). Debug so a genuinely wedged seat is still discoverable.
-            log.debug(
+            is IntentResult.Rejected -> log.debug(
                 "turn-timeout intent rejected for seat {} in hand {}: {}",
                 acting,
                 state.handNumber,
                 result.reason,
             )
-        } else {
-            log.info("auto-acted seat {} ({}) on turn-timeout in hand {}", acting, intent::class.simpleName, state.handNumber)
+            // The sequence in the nonce should make this unreachable; if it fires
+            // the same decision point was armed twice and the table may be stuck.
+            IntentResult.Duplicate -> log.warn(
+                "turn-timeout intent deduped as a replay for seat {} in hand {} nonce={}",
+                acting,
+                state.handNumber,
+                nonce,
+            )
+            IntentResult.Accepted ->
+                log.info("auto-acted seat {} ({}) on turn-timeout in hand {}", acting, intent::class.simpleName, state.handNumber)
         }
     }
 
