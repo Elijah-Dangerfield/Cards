@@ -56,21 +56,13 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-9Q is this, `level=fatal`, `handled=no`, escalating — previously mis-ledgered as dev-only, it is prod. `SingleWriterGuard.acquire` logs "Single-writer lock held by another instance; retrying (attempt N)" then gives up and exits. `apps/server/fly.prod.toml` explains why the strategy is `rolling` and never blue-green: in-memory room state plus the advisory lock. Rolling avoids the deadlock it was chosen to avoid; it does not avoid this thrash. Evidence: dc-infra → Restarts (24h), broken out per instance.
 
-## ENG-55 [P1] — The emote ticker never stops
+## ENG-55 — DONE 2026-09-28
 
-**Problem:** `EmojiTray.kt:86` gates a 4Hz ticker on `cooldownEndsAtEpochMs > 0L`, which means "has ever sent an emote", not "is still cooling down". The only writer (`PlayPokerViewModel.kt:1264`) sets `now + EMOJI_COOLDOWN_MS` and nothing ever writes 0 back, so `LaunchedEffect(active)` never re-keys and `while(true){ …; delay(250) }` writes snapshot state for the rest of the session. Eight seconds of it are useful. This is a **fourth** infinite composition-scope read that the ENG-49 sweep missed, and unlike the others it costs the user nothing to trigger.
+The gate fix itself had already landed in `d5bc323c` and the todo was stale. What was genuinely missing is now in: the ticker reads `LocalClock` so it can be driven, returns whole seconds so the badge invalidates once a second rather than per 250ms poll, and snaps under `@Preview`. Three tests prove it stops — zero clock reads across 60 virtual seconds after the deadline — which is what the acceptance actually asked for.
 
-**Acceptance:** The ticker stops when the cooldown expires. Verify with a composition trace (`scripts/compose-trace.sh`): `SeatEmoteBadge` should stop recomposing a few seconds after an emote, not keep going.
+## ENG-56 — CLOSED 2026-09-28, already fixed; the entry was stale
 
-**Hints:** Gate on `cooldownEndsAtEpochMs > now` and exit the loop once it passes. Invalidation is contained to `SeatEmoteBadge` (a Box, a cutout, an emoji Text), not all of `PlayerArea` — `rememberSecondTicker` returns a value so it has no restart scope of its own. Full context: `docs/plans/playpokerscreen-review.md`.
-
-## ENG-56 [P1] — Three one-line animation reads still in composition
-
-**Problem:** The ENG-49 sweep fixed three; these three remain, all the same shape (`by` on an animated value whose only consumer is already a draw-phase lambda). `TurnCountdownRing.kt:82` costs ~1800 recompositions per 30s multiplayer turn, on essentially every turn of every MP hand. `OpponentSeat.kt:123` fires on every turn change for every seat. `PlayerArea.kt:196` (`dragProgress`) is the same anti-pattern as the measured 471→16 fix, in the same file, one screenful below the comment explaining why not to do it.
-
-**Acceptance:** All three read `.value` inside their draw lambda. Re-trace and confirm the counts drop.
-
-**Hints:** `docs/plans/playpokerscreen-review.md` items 2, 3, 5. **Expect `OpponentSeat` not to move the RenderThread number** — its text is still drawn under a per-frame-changing scale, and Skia's glyph reuse does not survive a scale change. Fix it for the recomposition, not for the glyph cache.
+All three sites already read `.value` inside their draw lambda (`TurnCountdownRing.kt:100`, `OpponentSeat.kt:151`, `PlayerArea.kt:380`), landed in `d5bc323c` / `0dcbe48d`. No code change was needed. `AnimatedStateReadInComposition` passing on every build is the standing guard.
 
 ## ENG-57 [P2] — Hole cards keyed on Card identity skip their deal-in
 
@@ -84,13 +76,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Acceptance:** The bust dialog never shows another hand's number. Clear `lastHandXpAwarded` in `HandEndAchievementsPending`, alongside `recentlyEarned`.
 
-## ENG-59 [P2] — Two places still rebuild a text blob every frame
+## ENG-59 — DONE 2026-09-28
 
-**Problem:** `BoardArea.kt:124` (pot ship, 800ms) and `AnimatedNumberText.kt:77,113` (chip odometer, 700ms) each feed a **new String every frame** into large text, and they overlap at hand end. This is the exact `GrTextBlobRedrawCoordinator` path the four ANR traces end in, and the last known instance of text *content* changing per frame.
-
-**Acceptance:** Neither produces a new string per frame; quantize to the steps a human can read. Confirm with a trace at hand end.
-
-**Hints:** Do both together or neither — they fire at the same moment on the same screen, so fixing one leaves the stall. The odometer's per-frame string is inherent to an odometer, so this is about step count, not removing the animation.
+`AnimatedNumberText` was only half fixed in `2629c5232`: the live roll was quantized but the `revealKey` replay path — the wallet's "balance changed while you were away" roll on Home and Shop — still wrote the raw animated value every frame. Both paths now share one quantizing helper. Measured by test at 13 text changes per roll against ~44 per-frame.
 
 ## ENG-60 — Make TableUiState skippable — CLOSED 2026-09-03, premise was wrong
 
@@ -213,13 +201,15 @@ Two things are deliberately dropped at the source rather than charted. Launches 
 
 **Known noise:** R8 logs "An error occurred when parsing kotlin metadata" repeatedly. Its metadata parser is older than Kotlin 2.4.0 — an AGP/Kotlin version skew, not a correctness problem. It can reduce obfuscation quality, so re-check Play's percentage after the first minified release.
 
-## ENG-52 [P1] — Give the update prompt a real version source
+## ENG-52 — DONE 2026-09-28
 
-**Problem:** The "there's a newer Downcard" prompt is wired end to end (rule, arbiter slot, sheet, persistence) but bound to `NoUpdateSource`, which never reports an update, so it can never fire. The two stores answer different questions and neither alone is enough. **Play's In-App Updates API** correctly answers "is an update available to *this* install", staged rollouts included, but returns an `availableVersionCode` integer and never a version *name* — and the prompt rule needs `major.minor.patch` to tell a feature release from a patch. **Apple ships no equivalent API at all**, though its public iTunes lookup does return a real version string.
+`NoUpdateSource` is gone. Android asks Play In-App Updates whether an update is actually installable, and gets the `major.minor.patch` label from two remote-config values `release.yml` now publishes after a successful production upload. The name is used only when Play's `availableVersionCode` matches the published one, so a stale or racing config resolves to null rather than a wrong label. iOS uses the public iTunes lookup.
 
-**Acceptance:** A device one feature release behind sees the prompt once; a device one patch behind never does; a device on a staged rollout it hasn't reached yet never does. Swap the `@ContributesBinding` off `NoUpdateSource` — no call-site changes.
+The 10%-rollout argument in `AppUpdateSource`'s KDoc is dead and was removed. What still justifies asking the store rather than trusting config alone is the window between "Play accepted the upload" and "installable to this user" — config alone would prompt into it.
 
-**Hints:** The shape that satisfies both stores is Play for *availability* plus our own version-name source for the *label*. `release.yml` already publishes a config manifest at release time (`PUT /v1/admin/config/manifest`), so the server already knows the shipped version name; exposing it is the smaller half. iOS can use the iTunes lookup alone. Don't drive this from remote config on its own: it answers "what we shipped", not "what this user can install", so it would prompt everyone during a 10% rollout. Reasoning is in the `NoUpdateSource` KDoc; rule and its tests are `AppVersion.isWorthPromptingFrom`.
+Worth recording: a purely **local** cache cannot work here, because the app only ever writes its own version, so "is current older than cached?" is never true. Any working design needs an external source.
+
+Silent until the next production release writes the config pair; set the two flags by hand in the admin console to light it up sooner.
 
 ## ENG-48 [P2] — Sustained concurrent flushes for one user 500 instead of queueing
 
