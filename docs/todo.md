@@ -123,6 +123,22 @@ They paid for themselves immediately, finding a latent crash (`BoardArea`'s `car
 
 Note for anyone extending them: Robolectric's default viewport is 320x470px, shorter than any shipping phone, which measures some felt elements to zero height. `PlayPokerScreenTableTest` sets `qualifiers = "w411dp-h891dp-xhdpi"`; the others should be brought in line.
 
+## ENG-72 [P0] — A missing SQLite native lib bricks the app with no fallback
+
+**Problem:** `RealAppDatabaseProvider` uses `BundledSQLiteDriver()`, which needs a per-ABI `libsqliteJni.so` from the app bundle. When that split is absent `dlopen` fails, `<clinit>` throws, Room has no database and the app dies unhandled on launch — no fallback, no message, reinstall is the only escape. 3 fatal events / 2 users (Pixel 6 Pro + an x86_64 emulator), both Android 12, first seen 2026-09-27 on `0.1.0+1135` — a build live since 09-03, so the app code did not change underneath it. There is no `abiFilters`, `extractNativeLibs` or `jniLibs` config anywhere: the app trusts Play's split delivery completely and has no answer when that fails.
+
+**Acceptance:** An install with no `libsqliteJni.so` still opens the app. Catch `UnsatisfiedLinkError`/`NoClassDefFoundError` around driver construction and fall back to `AndroidSQLiteDriver` (`androidx.sqlite:sqlite-framework`, platform SQLite, no native lib), **and emit an event when it fires** — otherwise the fallback replaces a loud crash with total silence and the fallback rate is what tells you whether this is two unlucky installs or systemic.
+
+**Hints:** Sentry CARDS-CD / CARDS-CE / CARDS-CC — CE is the same fault one step later (an erroneous class re-thrown as `NoClassDefFoundError`), not a separate bug. The bundled driver exists to pin a SQLite version across OS levels, so the fallback is a real trade, not a free win. Cause of the missing split is unproven and outside our control; blast radius is not. Case: `docs/agent/feedback-cases/2026-09-28-sqlite-native-lib-missing.md`.
+
+## ENG-73 [P2] — An empty request body 500s instead of 400ing, and pages as an error
+
+**Problem:** A client whose upload dies mid-request sends no body; `ContentNegotiation` throws `BadRequestException` wrapping `JsonDecodingException: Expected start of the object '{', but had 'EOF'`, and `StatusPages` logs it as **"Unhandled error"** at ERROR with a full stack, which reaches Sentry (CARDS-CB). Seen twice from one install on `/v1/me/player-stats/sync` and `/v1/me/wallet/sync`, 12s apart — the stats one after the server had waited **39.5 seconds** and then returned 500. A truncated upload is a client-side network condition, not a server fault: it deserves a 400 and a breadcrumb.
+
+**Acceptance:** An empty or truncated body returns 400 and does not create a Sentry error event. The 39.5s wait before EOF also wants a request-body read timeout — that request occupied a connection for 40 seconds to learn nothing.
+
+**Hints:** `ErrorsKt.installStatusPages` maps this; `BadRequestException` should be in the expected-client-error set. Same family as ENG-68 (429 as backpressure, not error) — consider doing them together, since both are "an expected client condition logged as a server failure". This is also the only entry the dc-infra slow-request panel caught this week, so fixing it clears that signal for real findings.
+
 ## MP-39 [P0] — Bots freeze the table forever when betting re-opens on the same street
 
 **Problem:** `ServerBotDriver`'s nonce is `bot:<session>:<hand>:<seat>:<street>` — nothing distinguishes one action from the next. A raise re-opens betting, the bot must act twice on the same street, the second nonce is identical, and `GameSession.applyIntent` (`GameSession.kt:316`) swallows it as a replay returning `Accepted`. The driver believes it acted; nothing mutated; `state` is a conflated `StateFlow` so it never re-emits; `collectLatest` never re-runs `drive()`. The table sits on the bot's turn permanently and cannot self-heal. Hit in prod at least 3 times in 7 days, including the owner's own game (room `SWGEUH`, 75s frozen, both players watching).
@@ -139,11 +155,11 @@ Note for anyone extending them: Robolectric's default viewport is 320x470px, sho
 
 **Hints:** Gate is `environment: production` in `.github/workflows/server-deploy-prod.yml:53`. Stuck runs: 33922369090 (`waiting`), 33975509833 (`pending`). Related evidence in `docs/agent/feedback-cases/CARDS-C9.md`. Decide deliberately whether the gate earns its keep — it is correct to want one, and a gate nobody is reminded of is the same as no deploy at all.
 
-## ENG-49 [P1] — Ship the RenderThread text-stall fix; the verification clock has not started
+## ENG-49 [P2] — Confirm the RenderThread text-stall fix held, now that it is finally live
 
-**Problem:** The fix merged to `main` on 2026-09-04 and **no release has been cut since 2026-09-03**, so it has reached nobody. Real Play users are still on `cards@0.1.0+1135`, built from `main` hours before the first fix commit. CARDS-C9 (2026-09-20, retail, `PlayMultiplayerRoute`) is that bug still happening: `main` blocked in `RenderProxy::destroy` while `RenderThread` churned `TextBlobRedrawCoordinator::internalRemove` — the same stack as CARDS-C1. Raised to P1 from P2: this is no longer "verify a fix", it is "a known fatal fix is sitting unshipped."
+**Problem:** Shipped in `v0.3.0` / build 1209 on 2026-09-21 (Android, 10% staged), so the four-week clock finally started. Early read at 7 days: **every abnormal exit in prod is on the old 1135 build — 1 ANR and 5 OOM there, zero of either on 1209.** Far too few 1209 sessions (25 foregrounds vs 746) to call it, but nothing contradicts the fix yet.
 
-**Acceptance:** A release containing `a5a634a2` / `d5bc323c` / `68cfb53b` is live, **then** four weeks with no new ANR carrying a `TextBlobRedrawCoordinator` RenderThread stack, and Play vitals ANR rate flat or down. Until step one happens the four weeks cannot begin, and any ANR on 1135 says nothing about whether the fix worked.
+**Acceptance:** Four weeks from 2026-09-21 with no new ANR carrying a `TextBlobRedrawCoordinator` RenderThread stack, on 1209 or later, and Play vitals flat or down. Needs the rollout past 10% before the sample means anything.
 
 **Hints:** Chronology proving 1135 predates the fix is in `docs/agent/feedback-cases/CARDS-C9.md`. Original diagnosis: `docs/plans/renderthread-text-stall.md`, case `CARDS-C1.md`. Sentry: [CARDS-C9](https://elijah-dangerfield.sentry.io/issues/7744693593/), CARDS-C1, CARDS-BZ. 72 commits sit on `main` unshipped, including R8, baseline profiles and the Sentry mapping upload.
 
