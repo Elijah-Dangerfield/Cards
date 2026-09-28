@@ -14,6 +14,11 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Reads the most recent [ApplicationExitInfo] for our package — which at
  * launch time is how the *previous* run ended, since the current process
  * hasn't exited yet. API 30+ only; older devices report Unknown.
+ *
+ * [previousExit] and [previousExitDetail] both answer from the same cached
+ * record ([exitInfo]) rather than two separate OS calls: the platform only
+ * keeps a short history per package, so a second call could in principle
+ * return a different record than the first and disagree with itself.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
@@ -22,16 +27,28 @@ class AndroidPreviousExitProvider(
     private val context: Context,
 ) : PreviousExitProvider {
 
-    override fun previousExit(): PreviousExit {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return PreviousExit.Unknown
+    private val exitInfo: ApplicationExitInfo? by lazy { readLatestExitInfo() }
+
+    override fun previousExit(): PreviousExit =
+        exitInfo?.let { previousExitForReason(it.reason) } ?: PreviousExit.Unknown
+
+    override fun previousExitDetail(): PreviousExitDetail? = exitInfo?.let {
+        PreviousExitDetail(
+            importance = it.importance,
+            pssKb = it.pss,
+            rssKb = it.rss,
+            description = it.description,
+        )
+    }
+
+    private fun readLatestExitInfo(): ApplicationExitInfo? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
         return Catching {
             val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
             activityManager
                 .getHistoricalProcessExitReasons(context.packageName, NO_PID_FILTER, 1)
                 .firstOrNull()
-                ?.let { previousExitForReason(it.reason) }
-                ?: PreviousExit.Unknown
-        }.getOrDefault(PreviousExit.Unknown)
+        }.getOrNull()
     }
 
     private companion object {
