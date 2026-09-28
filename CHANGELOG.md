@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.4.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.3.0...v0.4.0) (2026-09-28)
+
+
+### Features
+
+* **cards:** give the update prompt real store-backed sources (ENG-52) ([9abda0a](https://github.com/Elijah-Dangerfield/Cards/commit/9abda0a85b3e4d6d67bc1747dbc81cde9e16f8a2))
+* **telemetry:** capture process importance + memory at previous OOM exit ([#158](https://github.com/Elijah-Dangerfield/Cards/issues/158)) ([6f16a5b](https://github.com/Elijah-Dangerfield/Cards/commit/6f16a5ba480ad981a2ff10bd98f6a033355b0495))
+
+
+### Bug Fixes
+
+* bot turn freeze, SQLite fallback, and this week's triage ([25d0046](https://github.com/Elijah-Dangerfield/Cards/commit/25d00461f6e893d91bfd4ecb724edd4b2b0ab316))
+* identity auth cleanup, OOM exit detail, and the CI timeout writeup ([4752080](https://github.com/Elijah-Dangerfield/Cards/commit/47520805f719dbeb46c70dba860f707536f554f4))
+* **server:** give bot actions a per-decision nonce and a stalled-turn watchdog ([5c7668e](https://github.com/Elijah-Dangerfield/Cards/commit/5c7668edd88efe329d430bcf743857d10b361038))
+* **storage:** fall back to the platform SQLite driver when libsqliteJni.so is missing (ENG-72) ([81ae90c](https://github.com/Elijah-Dangerfield/Cards/commit/81ae90c45419cf52a7b3198ad8ee490282f8d4af))
+
+
+### Performance Improvements
+
+* **room:** drive the emote cooldown ticker off LocalClock and prove it stops (ENG-55) ([d934b19](https://github.com/Elijah-Dangerfield/Cards/commit/d934b197021e0986d3c8d1afcd3b2a1971b6a72c))
+* **ui:** quantize the odometer's reveal roll too, and test both roll paths (ENG-59) ([371cc83](https://github.com/Elijah-Dangerfield/Cards/commit/371cc83742bce486d6ed5fa116d40e87ee13f7f1))
+
 ## [0.3.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.2.0...v0.3.0) (2026-09-05)
 
 
