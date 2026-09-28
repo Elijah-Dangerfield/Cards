@@ -27,6 +27,7 @@ import com.dangerfield.cards.libraries.cards.xpAtStartOfLevel
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.config.AppConfigMap
+import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.fixed
 import com.dangerfield.cards.libraries.identity.OnboardingStarterGrant
 import com.dangerfield.cards.libraries.identity.WelcomeFoundingMemberUntil
@@ -529,6 +530,71 @@ class HomeViewModelTest : CoroutineTest() {
         )
     }
 
+    // ---------- update prompt ----------
+
+    /** The build under test's own version; the fixtures are bumps relative to it. */
+    private val installed = AppVersion.parseOrNull(BuildInfo.versionName)
+        ?: error("BuildInfo.versionName must parse: ${BuildInfo.versionName}")
+
+    @Test
+    fun updatePrompt_featureReleaseAvailable_firesOnceOnSettledHome_andMarksVersion() = runUnitTest {
+        val next = AppVersion(installed.major, installed.minor + 1, 0)
+        val appCache = FakeAppCache()
+        val vm = buildVm(appCache = appCache, appUpdateSource = updateSource { next })
+        vm.takeAction(HomeAction.ScreenResumed)
+
+        vm.eventFlow.test {
+            assertEquals(HomeEvent.OpenUpdateAvailable(next.toString()), awaitItem())
+            // Leaving and coming back to Home must not re-ask about the same release.
+            vm.takeAction(HomeAction.ScreenPaused)
+            vm.takeAction(HomeAction.ScreenResumed)
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(next.toString(), appCache.get().lastPromptedUpdateVersion)
+    }
+
+    @Test
+    fun updatePrompt_patchReleaseAvailable_staysSilent() = runUnitTest {
+        val patch = AppVersion(installed.major, installed.minor, installed.patch + 1)
+        val appCache = FakeAppCache()
+        val vm = buildVm(appCache = appCache, appUpdateSource = updateSource { patch })
+        vm.takeAction(HomeAction.ScreenResumed)
+
+        vm.eventFlow.test {
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals("", appCache.get().lastPromptedUpdateVersion)
+    }
+
+    @Test
+    fun updatePrompt_sourceHasNoAnswer_staysSilent() = runUnitTest {
+        // Offline, sideload, store API down: null is "don't prompt", not "up to date".
+        val vm = buildVm(appUpdateSource = updateSource { null })
+        vm.takeAction(HomeAction.ScreenResumed)
+
+        vm.eventFlow.test {
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun updatePrompt_sourceThrows_degradesToSilence_andHomeStillHydrates() = runUnitTest {
+        val chips = FakeChipsRepository()
+        val vm = buildVm(chips = chips, appUpdateSource = updateSource { error("Play Services exploded") })
+        vm.takeAction(HomeAction.ScreenResumed)
+
+        vm.eventFlow.test {
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+        chips.balance.value = 4_200L
+        advanceUntilIdle()
+        assertEquals(4_200L, vm.stateFlow.value.chips)
+    }
+
     @Test
     fun activeRooms_success_populatesState() = runUnitTest {
         val room = sampleRoom(code = "WXYZ12")
@@ -1026,6 +1092,7 @@ class HomeViewModelTest : CoroutineTest() {
         ),
         clock: Clock = Clock.fixed(Instant.fromEpochMilliseconds(0)),
         socialEnabled: Boolean = true,
+        appUpdateSource: AppUpdateSource = updateSource { null },
     ): HomeViewModel = HomeViewModel(
         progressionRepository = progression,
         achievementRepository = achievements,
@@ -1041,11 +1108,13 @@ class HomeViewModelTest : CoroutineTest() {
         clock = clock,
         appCache = appCache,
         appScope = AppCoroutineScope(dispatchers),
-        appUpdateSource = object : AppUpdateSource {
-            override suspend fun latestAvailableVersion(): AppVersion? = null
-        },
+        appUpdateSource = appUpdateSource,
         socialEnabledConfig = SocialEnabled.forTest(socialEnabled),
     )
+
+    private fun updateSource(latest: suspend () -> AppVersion?): AppUpdateSource = object : AppUpdateSource {
+        override suspend fun latestAvailableVersion(): AppVersion? = latest()
+    }
 
     private fun recentProfile(
         id: String,
