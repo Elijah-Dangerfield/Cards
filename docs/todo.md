@@ -123,13 +123,13 @@ They paid for themselves immediately, finding a latent crash (`BoardArea`'s `car
 
 Note for anyone extending them: Robolectric's default viewport is 320x470px, shorter than any shipping phone, which measures some felt elements to zero height. `PlayPokerScreenTableTest` sets `qualifiers = "w411dp-h891dp-xhdpi"`; the others should be brought in line.
 
-## ENG-72 [P0] — A missing SQLite native lib bricks the app with no fallback
+## ENG-72 — DONE 2026-09-28, shipping in the next release
 
-**Problem:** `RealAppDatabaseProvider` uses `BundledSQLiteDriver()`, which needs a per-ABI `libsqliteJni.so` from the app bundle. When that split is absent `dlopen` fails, `<clinit>` throws, Room has no database and the app dies unhandled on launch — no fallback, no message, reinstall is the only escape. 3 fatal events / 2 users (Pixel 6 Pro + an x86_64 emulator), both Android 12, first seen 2026-09-27 on `0.1.0+1135` — a build live since 09-03, so the app code did not change underneath it. There is no `abiFilters`, `extractNativeLibs` or `jniLibs` config anywhere: the app trusts Play's split delivery completely and has no answer when that fails.
+Android now hands Room a `FallbackSQLiteDriver`: bundled when its native lib loads, `AndroidSQLiteDriver` (platform SQLite, no `.so`) when it does not. iOS keeps the bundled driver.
 
-**Acceptance:** An install with no `libsqliteJni.so` still opens the app. Catch `UnsatisfiedLinkError`/`NoClassDefFoundError` around driver construction and fall back to `AndroidSQLiteDriver` (`androidx.sqlite:sqlite-framework`, platform SQLite, no native lib), **and emit an event when it fires** — otherwise the fallback replaces a loud crash with total silence and the fallback rate is what tells you whether this is two unlucky installs or systemic.
+The non-obvious part, worth keeping: the decision latches on a `:memory:` probe at first touch of **either** `open()` or `hasConnectionPool`, not inside the first real `open()`. Room reads `hasConnectionPool` once at connection-manager construction and the two drivers disagree (`Bundled=false`, `Android=true`), so a fallback that fired later would leave Room running its own pool over a driver that already has one. The probe is also what forces `NativeLibraryObject.<clinit>`, which is the only thing that makes the fallback fire at all — the native library does not load at driver construction.
 
-**Hints:** Sentry CARDS-CD / CARDS-CE / CARDS-CC — CE is the same fault one step later (an erroneous class re-thrown as `NoClassDefFoundError`), not a separate bug. The bundled driver exists to pin a SQLite version across OS levels, so the fallback is a real trade, not a free win. Cause of the missing split is unproven and outside our control; blast radius is not. Case: `docs/agent/feedback-cases/2026-09-28-sqlite-native-lib-missing.md`.
+Emits `db.driver_fallback` so the rate is visible; a silent fallback would have replaced a loud crash with nothing. Verification gap: tests use fake drivers, not a real Room database on a device.
 
 ## ENG-73 [P2] — An empty request body 500s instead of 400ing, and pages as an error
 
@@ -139,13 +139,13 @@ Note for anyone extending them: Robolectric's default viewport is 320x470px, sho
 
 **Hints:** `ErrorsKt.installStatusPages` maps this; `BadRequestException` should be in the expected-client-error set. Same family as ENG-68 (429 as backpressure, not error) — consider doing them together, since both are "an expected client condition logged as a server failure". This is also the only entry the dc-infra slow-request panel caught this week, so fixing it clears that signal for real findings.
 
-## MP-39 [P0] — Bots freeze the table forever when betting re-opens on the same street
+## MP-39 — DONE 2026-09-28, needs a server deploy to reach anyone
 
-**Problem:** `ServerBotDriver`'s nonce is `bot:<session>:<hand>:<seat>:<street>` — nothing distinguishes one action from the next. A raise re-opens betting, the bot must act twice on the same street, the second nonce is identical, and `GameSession.applyIntent` (`GameSession.kt:316`) swallows it as a replay returning `Accepted`. The driver believes it acted; nothing mutated; `state` is a conflated `StateFlow` so it never re-emits; `collectLatest` never re-runs `drive()`. The table sits on the bot's turn permanently and cannot self-heal. Hit in prod at least 3 times in 7 days, including the owner's own game (room `SWGEUH`, 75s frozen, both players watching).
+Bot nonce is now `bot:<session>:<hand>:<seat>:<street>:<lastSequence>`, so a bot acting twice on one street after a raise no longer collides with itself. `lastSequence` already existed and `TurnTimerDriver` already used it for this same collision.
 
-**Acceptance:** A bot that must act twice on one street acts both times — cover it with a test that raises into a bot after it has already called on that street. Plus a watchdog: if the acting seat has not changed a few seconds after a bot submits, log at **error** and re-drive, so any *other* freeze path is loud instead of silent.
+Two things beyond the nonce. `IntentResult.Duplicate` distinguishes a swallowed replay from real work, which is what made this invisible — the ack still reports `accepted` for a retrying client, so the wire contract is unchanged. And a stalled-turn watchdog re-reads the table 5s after every submit, logging at ERROR and re-driving if nothing moved, so any *other* freeze path is loud instead of silent.
 
-**Hints:** Add a per-seat action counter to the nonce (deterministic, no clock/RNG — the nonce ring's legitimate retry case depends on that). The dedupe returning `Accepted` rather than a distinct `Duplicate` is what made this invisible; the driver's only diagnostic checks `is IntentResult.Rejected` and is at `debug`. Full evidence, span-level proof and proposed telemetry: `docs/agent/feedback-cases/2026-09-24-bot-freeze-nonce-collision.md`.
+**Server-only**, so it reaches players on deploy with no app update.
 
 ## ENG-71 [P1] — Nothing notices when a deploy stalls, so prod ran 17-day-old code unseen
 
@@ -255,13 +255,13 @@ Two things are deliberately dropped at the source rather than charted. Launches 
 
 **Hints:** `libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/auth/StrandedIdentityDetector.kt` — add the same `if (event.isColdBoot) return` guard as `GuestSessionHealer.kt:79` / `AuthReResolver.kt:46`. Case `docs/agent/feedback-cases/2026-09-09-stranded-identity-false-positive.md`.
 
-## ENG-70 [P1] — iOS Terms/Privacy links dead on the onboarding welcome screen
+## ENG-70 — CLOSED 2026-09-28, misdiagnosed; the fix already shipped
 
-**Problem:** A retail iOS user on `cards@0.1.0+1135` tapped the Terms link on the onboarding welcome step and it did nothing — six repeated taps in ~13 minutes, each producing a caught `kotlin.IllegalStateException: No handler available for https://downcard.app/terms` (12 events, 2 users, Sentry escalating). The string is Compose Multiplatform's default iOS `UriHandler` complaining that nothing at the composition root claims URL opens, so any framework path (accessibility, `LinkAnnotation.Url`, future auto-linked spans) throws before it reaches `IosWebLinkLauncher`. Legal links are an App Store requirement; on iOS onboarding, they are unreachable.
+Not a Compose Multiplatform `UriHandler` problem. `No handler available for <url>` was **our own string**: `IosWebLinkLauncher` gated every open on `check(application.canOpenURL(targetUrl))`, and since iOS 9 that call returns false for any scheme not declared in `LSApplicationQueriesSchemes`, so it blocked every outbound link. `ca77c1af` removed the gate on 2026-09-03, about 2.5 hours after the last event, and added `IosWebLinkLauncherTest` to guard it.
 
-**Acceptance:** Tapping any legal link on the iOS onboarding welcome screen opens the URL in the system browser and emits no `No handler available` events in Sentry/Loki across two consecutive store releases. A test covers the wiring so a future refactor cannot silently drop it.
+The ticket was filed on 09-05 by grepping a tree the string had already been deleted from, and the Compose theory was invented to explain that absence. Sentry has CARDS-C2 resolved, last seen 2026-09-03 16:42Z.
 
-**Hints:** Install a `LocalUriHandler` at the app composition root that delegates to the injected `WebLinkLauncher` — one override closes the direct tap and every accessibility/link-annotation path in one place. `IosWebLinkLauncher` already knows how to hand `NSURL` to `UIApplication.openURL` (`libraries/navigation/impl/src/iosMain/.../IosWebLinkLauncher.kt:34-43`); this is about routing every iOS URL open through it, not rewriting it. Consent line: `features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt:426`. Case `docs/agent/feedback-cases/CARDS-C2.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-C2.
+**Nothing to build.** `ca77c1af` is in `v0.3.0`. iOS store users are still on `0.1.0+1135` because the 09-21 release ran with the iOS job skipped, so the remaining work is shipping iOS, tracked in `developer-todo.md`.
 
 ## GAME-35 [P2] — Stale Call button silently no-ops in a local-bots hand
 
