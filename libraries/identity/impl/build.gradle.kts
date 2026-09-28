@@ -55,7 +55,7 @@ kotlin {
             // ClientRequestException with a given HTTP status — the impl's
             // outcome mapping branches on status codes, so we need real
             // exception shapes (not hand-rolled ones).
-            implementation("io.ktor:ktor-client-mock:3.3.3")
+            implementation(libs.ktor.client.mock)
         }
         androidMain.dependencies {
             // EncryptedSharedPreferences for the OS-encrypted Supabase
