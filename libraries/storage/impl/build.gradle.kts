@@ -20,7 +20,12 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
         }
 
+        androidMain.dependencies {
+            implementation(libs.androidx.sqlite.framework)
+        }
+
         commonTest.dependencies {
+            implementation(projects.libraries.core)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.cards.storage)
             implementation(projects.libraries.flowroutines)

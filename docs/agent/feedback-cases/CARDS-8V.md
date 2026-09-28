@@ -76,3 +76,14 @@ ASC half. Sentry issue left **unresolved** (nothing is fixed yet) with a triage 
 `CARDS-96` / 2026-07-10 "dev noise" disposition is superseded by this file. P1 rather than P0
 because the money unblock is the human ASC item; ENG-43 is the visibility work so this can't sit
 invisible for three weeks a second time.
+
+## 2026-09-13 re-check
+
+Still unresolved (20 occurrences / 7 users, last seen 2026-09-11T02:30:20Z, `store-ios-release`
+build `0.1.0+1135`) — not materially worse than the 08-28/09-05 baseline (12-16 events / 6-7
+users), so not re-opened as a fresh escalation. Corroborating client warn+ lines the same day (24h
+window): `queryProducts failed: An internal error occurred.` and `Store query failed during
+catalog refresh (...); using cached snapshot`, both from `ProductsRepository` — consistent with
+StoreKit failing to resolve the same three chip-pack SKUs, not a new symptom. No change to either
+owner: ENG-43 (shipped) and the `developer-todo.md` App Store Connect line remain the sole
+disposition.

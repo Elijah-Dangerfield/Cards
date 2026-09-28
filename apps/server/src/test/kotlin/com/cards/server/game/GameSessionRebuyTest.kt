@@ -222,7 +222,7 @@ class GameSessionRebuyTest {
         val second = session.rebuy("alice", clientNonce = "dup")
 
         assertIs<IntentResult.Accepted>(first)
-        assertIs<IntentResult.Accepted>(second)
+        assertIs<IntentResult.Duplicate>(second)
         assertEquals(
             0,
             session.state.value!!.seats.first { it.playerId == "alice" }.stack,

@@ -182,6 +182,109 @@ class ServerBotDriverTest {
     }
 
     /**
+     * MP-39 regression. The bot nonce was `bot:<session>:<hand>:<seat>:<street>`,
+     * so a bot that had to act twice on one street (a human raise re-opened the
+     * betting) produced the same nonce twice and the session swallowed the second
+     * as a replay. Nothing mutated, `state` never re-emitted, and the table sat on
+     * the bot's turn forever. Drives only with `runCurrent` so no virtual time
+     * passes: the stall watchdog can't paper over a bad nonce here.
+     */
+    @Test
+    fun bot_actsAgain_whenAHumanRaiseReopensBettingOnTheSameStreet() = runTest {
+        val session = GameSession(random = Random(seed = 7))
+        val driver = unconfinedDriver(session)
+        driver.updateRoster(listOf(human, bot))
+        driver.start()
+        session.startHand(listOf(human, bot), settings)
+
+        var reopens = 0
+        var guard = 0
+        while (guard++ < 200 && reopens < 3) {
+            runCurrent()
+            val state = session.state.value!!
+            if (state.street == BettingRound.Complete) continue
+            assertEquals(
+                0,
+                state.actingSeatIndex,
+                "bot left on the clock in hand ${state.handNumber} on the ${state.street} after $reopens re-open(s)",
+            )
+            val me = state.seatAt(0)
+            val botSeat = state.seatAt(1)
+            val reopening = botSeat.hasActedThisStreet && botSeat.canAct
+            if (reopening) reopens++
+            val intent = if (reopening) reopeningIntent(state, me) else passiveIntent(state, me)
+            session.applyIntent("human-1", intent, "human-$guard")
+        }
+
+        assertTrue(reopens >= 1, "the scenario must re-open betting on a street the bot already acted on")
+    }
+
+    /**
+     * The watchdog half of MP-39. A bot's submit that leaves the table exactly
+     * where it was must not be trusted: after [stallTimeoutMs] the driver re-reads
+     * the table, logs at ERROR, and re-drives on a fresh nonce. The only way left
+     * to make a submit a silent no-op is to burn its nonce first, so the test lets
+     * the bot act once and then rewinds the session to that same decision point
+     * via [GameSession.hydrate]: same hand, street, seat and sequence, so the
+     * driver rebuilds the identical nonce and the ring swallows it.
+     */
+    @Test
+    fun watchdog_redrivesABotWhoseSubmitLeftTheTableUnchanged() = runTest {
+        val session = GameSession(random = Random(seed = 7))
+        val observed = mutableListOf<GameState>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            session.state.collect { it?.let(observed::add) }
+        }
+        val driver = unconfinedDriver(session, stallTimeoutMs = 5_000)
+        driver.updateRoster(listOf(human, bot))
+        driver.start()
+        session.startHand(listOf(human, bot), settings)
+        runCurrent()
+
+        // Preflop heads-up the human (button, SB) acts first; the call hands the
+        // bot its first decision, which the driver plays immediately.
+        session.applyIntent("human-1", PlayerIntent.Call(0), "human-call")
+        runCurrent()
+        val burned = observed.last { it.actingSeatIndex == 1 && it.street != BettingRound.Complete }
+        assertTrue(session.state.value!!.lastSequence > burned.lastSequence, "the bot acted from the captured point")
+
+        session.hydrate(burned)
+        runCurrent()
+        assertEquals(
+            burned.lastSequence,
+            session.state.value!!.lastSequence,
+            "the replayed decision point is swallowed by the nonce ring and the table sits",
+        )
+
+        advanceTimeBy(5_001)
+        runCurrent()
+        assertTrue(
+            session.state.value!!.lastSequence > burned.lastSequence,
+            "the watchdog re-drives the stalled bot on a fresh nonce",
+        )
+    }
+
+    private fun reopeningIntent(state: GameState, me: Seat): PlayerIntent {
+        val minRaise = maxOf(state.lastFullRaiseSize, settings.bigBlind.toLong())
+        val currentBet = state.currentBetThisStreet
+        return when {
+            currentBet == 0L && me.stack <= minRaise -> PlayerIntent.AllIn(0)
+            currentBet == 0L -> PlayerIntent.Bet(0, minRaise)
+            me.contributedThisStreet + me.stack <= currentBet + minRaise -> PlayerIntent.AllIn(0)
+            else -> PlayerIntent.Raise(0, currentBet + minRaise)
+        }
+    }
+
+    private fun passiveIntent(state: GameState, me: Seat): PlayerIntent {
+        val toCall = state.currentBetThisStreet - me.contributedThisStreet
+        return when {
+            toCall <= 0 -> PlayerIntent.Check(0)
+            toCall >= me.stack -> PlayerIntent.AllIn(0)
+            else -> PlayerIntent.Call(0)
+        }
+    }
+
+    /**
      * CARDS-16 regression. A `1 human + N bots` table used to freeze at hand end:
      * the all-bot advance gate skipped it and the lone human stopped tapping
      * "next hand". The driver now advances any bot-occupied table, so consecutive
@@ -423,7 +526,7 @@ class ServerBotDriverTest {
      * but hides the cross-hand advance these tests exercise. Delays are zeroed so
      * the table advances without burning virtual time.
      */
-    private fun TestScope.unconfinedDriver(session: GameSession): ServerBotDriver =
+    private fun TestScope.unconfinedDriver(session: GameSession, stallTimeoutMs: Long = 5_000): ServerBotDriver =
         ServerBotDriver(
             session = session,
             scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
@@ -432,5 +535,6 @@ class ServerBotDriverTest {
             equityIterations = 20,
             thinkDelay = { _, _, _ -> 0 },
             nextHandBeatMs = 0,
+            stallTimeoutMs = stallTimeoutMs,
         )
 }

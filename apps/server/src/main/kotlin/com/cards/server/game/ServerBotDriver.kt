@@ -8,6 +8,8 @@ import com.dangerfield.cards.libraries.bots.buildHandContextFromState
 import com.dangerfield.cards.libraries.bots.toBotDifficulty
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameState
+import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.StakeTier
 import com.dangerfield.cards.server.domain.BotSeat
 import com.dangerfield.cards.server.plugins.SpanAttrs
@@ -43,9 +45,20 @@ import kotlin.time.ExperimentalTime
  *    instant a newer state arrives, and [GameSession.applyIntent] independently
  *    re-checks `actingSeatIndex` and dedupes by nonce — so a stale apply is a
  *    no-op even in the unlikely race.
- *  - **Deterministic nonces** (no clock / RNG): `bot:<session>:<hand>:<seat>:<street>`.
- *    A re-emission of the same decision point produces the same nonce, which the
- *    session's nonce ring swallows.
+ *  - **Deterministic, per-decision nonces** (no clock / RNG):
+ *    `bot:<session>:<hand>:<seat>:<street>:<sequence>`. The engine's `lastSequence`
+ *    advances on every applied action, so a bot that acts twice on one street
+ *    (a raise re-opened the betting) gets a distinct nonce each time. Without it
+ *    the second action collided with the first, the nonce ring swallowed it as a
+ *    replay, nothing mutated, `state` never re-emitted, and the table sat on the
+ *    bot's turn forever (MP-39). A re-emission of the *same* decision point still
+ *    dedupes, which is the legitimate-retry case the ring exists for.
+ *  - **Stalled-turn watchdog.** After every submit the driver waits
+ *    [stallTimeoutMs] and re-reads the table. If the decision point has not
+ *    moved it logs at ERROR (session, hand, seat, street, nonce, result) and
+ *    re-drives on a fresh nonce — an engine rejection escalates to the safe
+ *    check-or-fold. Any freeze path, known or not, becomes a loud, recovered
+ *    hiccup instead of a silent dead table.
  *  - **Restart survival.** After a hydrate the roster is empty (personalities
  *    aren't part of [GameState]); the driver lazily assigns a deterministic
  *    fallback personality to any bot seat it doesn't recognize, so bots keep
@@ -82,6 +95,10 @@ class ServerBotDriver(
     // same adaptive layer solo already had (MP-32). Injectable so a test can assert
     // the read the driver built up.
     private val opponentTracker: OpponentTracker = OpponentTracker(),
+    // How long after a submit the table may sit on the same decision point before
+    // the driver calls it stalled and re-drives. Generous next to the sub-second
+    // engine apply so a slow persist never trips it; tests shrink it.
+    private val stallTimeoutMs: Long = 5_000,
 ) {
     // playerId -> bot truth. Mutated only from the single collector coroutine
     // (drive loop) and from updateRoster; updateRoster runs before/around
@@ -131,35 +148,76 @@ class ServerBotDriver(
         // next hand already dealt, or the table un-completed). Clear it so a stale
         // "Next hand in 0:0X" never lingers on the felt.
         clearNextHandCountdownIfArmed()
-        val acting = state.actingSeatIndex ?: return
-        val seat = state.seats.firstOrNull { it.index == acting } ?: return
-        if (!seat.isBot || !seat.canAct) return
-        val playerId = seat.playerId ?: return
-        if (seat.holeCards.size != 2) return // pre-deal / odd state — let the engine settle.
+
+        // A successful submit mutates state, which re-emits and cancels this block
+        // via collectLatest before the wait below elapses. Reaching the re-read
+        // with the same decision point still live means the table did not move.
+        var attempt = 0
+        var previous: IntentResult? = null
+        while (true) {
+            val submission = actIfBotOnTheClock(state, attempt, previous) ?: return
+            delay(stallTimeoutMs)
+            val live = session.state.value ?: return
+            if (live.handNumber != state.handNumber || live.lastSequence != state.lastSequence) return
+            attempt++
+            log.error(
+                "bot turn stalled: table unchanged {}ms after submit — session={} hand={} seat={} street={} " +
+                    "nonce={} result={} attempt={}",
+                stallTimeoutMs,
+                session.id,
+                state.handNumber,
+                submission.seatIndex,
+                state.street,
+                submission.nonce,
+                submission.result,
+                attempt,
+            )
+            previous = submission.result
+        }
+    }
+
+    private class Submission(val seatIndex: Int, val nonce: String, val result: IntentResult)
+
+    /**
+     * Submit one bot action for [state] if a bot is on the clock; null when there
+     * is nothing for the driver to do. Retries ([attempt] > 0) skip the think
+     * delay (the watchdog already waited) and, when the engine rejected the
+     * previous try, fall back to the always-legal check-or-fold rather than
+     * re-asking the decision engine for the same illegal move.
+     */
+    private suspend fun actIfBotOnTheClock(state: GameState, attempt: Int, previous: IntentResult?): Submission? {
+        val acting = state.actingSeatIndex ?: return null
+        val seat = state.seats.firstOrNull { it.index == acting } ?: return null
+        if (!seat.isBot || !seat.canAct) return null
+        val playerId = seat.playerId ?: return null
+        if (seat.holeCards.size != 2) return null // pre-deal / odd state — let the engine settle.
 
         val botSeat = roster[playerId] ?: fallbackBotSeat(playerId, acting, state).also {
             roster = roster + (playerId to it)
         }
 
-        val handContext = buildHandContextFromState(state, acting)
-        val decision = withContext(cpuDispatcher) {
-            BotDecision.choose(
-                state = state,
-                seatIndex = acting,
-                personality = botSeat.personality,
-                difficulty = botSeat.difficulty,
-                opponentTracker = opponentTracker,
-                random = random,
-                equityIterations = equityIterations,
-                handContext = handContext,
-            )
+        val intent = if (previous is IntentResult.Rejected) {
+            safeIntent(state, seat)
+        } else {
+            val decision = withContext(cpuDispatcher) {
+                BotDecision.choose(
+                    state = state,
+                    seatIndex = acting,
+                    personality = botSeat.personality,
+                    difficulty = botSeat.difficulty,
+                    opponentTracker = opponentTracker,
+                    random = random,
+                    equityIterations = equityIterations,
+                    handContext = buildHandContextFromState(state, acting),
+                )
+            }
+            // Humanlike pause. collectLatest cancels this the moment the table state
+            // moves on, so a stale timer never fires an outdated action.
+            if (attempt == 0) delay(thinkDelay(botSeat.personality, decision.thought, random))
+            decision.intent
         }
 
-        // Humanlike pause. collectLatest cancels this the moment the table state
-        // moves on, so a stale timer never fires an outdated action.
-        delay(thinkDelay(botSeat.personality, decision.thought, random))
-
-        val nonce = "bot:${session.id}:${state.handNumber}:$acting:${state.street}"
+        val nonce = nonceFor(state, acting, attempt)
         // Rooted: a bot's turn is its own unit of work, exactly like a human's
         // submit_intent. Without this the stages underneath it inherit whatever
         // context happens to be on the shared driver dispatcher, or none at all,
@@ -167,18 +225,33 @@ class ServerBotDriver(
         val result = withRootSpan(
             name = "bot_action",
             configure = {
-                setAttribute(SpanAttrs.IntentType, decision.intent::class.simpleName ?: "Unknown")
+                setAttribute(SpanAttrs.IntentType, intent::class.simpleName ?: "Unknown")
                 setAttribute(SpanAttrs.SessionId, session.id.toString())
+                setAttribute(SpanAttrs.ClientNonce, nonce)
             },
         ) {
-            session.applyIntent(playerId, decision.intent, nonce)
+            session.applyIntent(playerId, intent, nonce)
         }
         if (result is IntentResult.Rejected) {
-            // Expected only on a benign race (state already advanced). Log at
-            // debug so a genuinely wedged bot is still discoverable.
+            // Usually a benign race (state already advanced, and collectLatest is
+            // about to cancel us). A rejection that leaves the table sitting here
+            // is the watchdog's to report.
             log.debug("bot intent rejected for seat {} in hand {}: {}", acting, state.handNumber, result.reason)
         }
+        return Submission(seatIndex = acting, nonce = nonce, result = result)
     }
+
+    private fun nonceFor(state: GameState, seatIndex: Int, attempt: Int): String {
+        val decisionPoint = "bot:${session.id}:${state.handNumber}:$seatIndex:${state.street}:${state.lastSequence}"
+        return if (attempt == 0) decisionPoint else "$decisionPoint:retry$attempt"
+    }
+
+    private fun safeIntent(state: GameState, seat: Seat): PlayerIntent =
+        if (seat.contributedThisStreet >= state.currentBetThisStreet) {
+            PlayerIntent.Check(seat.index)
+        } else {
+            PlayerIntent.Fold(seat.index)
+        }
 
     /**
      * Universal between-hands beat. When a hand completes and the table can deal

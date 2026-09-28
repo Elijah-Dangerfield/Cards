@@ -10,23 +10,21 @@ import org.jetbrains.kotlin.psi.KtProperty
 import org.jetbrains.kotlin.psi.KtPropertyDelegate
 
 /**
- * > **This rule does not currently execute.** It is registered in
- * > [CardsRuleSetProvider], configured active in `config/detekt/detekt.yml`, and
- * > compiles into the ruleset jar — and detekt 2.0.0-alpha.5 still never
- * > dispatches to it. Verified by making it report unconditionally on every call
- * > expression: zero findings, while `VerifyStrings` fires normally on the same
- * > file in the same run. Rule order, config-cache staleness, jar freshness,
- * > YAML shape and the baseline were each ruled out.
+ * > **Runs since detekt `2.0.0-alpha.6`.** For a while it did not, and the cause
+ * > is worth keeping: on `2.0.0-alpha.5` this rule was registered in
+ * > [CardsRuleSetProvider], configured active, and compiled into the ruleset jar,
+ * > and detekt simply never dispatched to it. The build passed and detekt
+ * > reported success the whole time, which is exactly what a working rule that
+ * > finds nothing looks like. Rule order, config-cache staleness, jar freshness,
+ * > YAML shape and the baseline were each ruled out first; the version alone was
+ * > the cause, and `alpha.6` made it dispatch with no change to the logic below.
  * >
- * > The prime suspect is the alpha itself. `detekt-rules/build.gradle.kts`
- * > already documents one packaging defect in this exact version (its
- * > `detekt-test` fixtures 404 on Maven Central), and a second rule in a
- * > provider going undispatched fits that pattern. **Try again after moving off
- * > `2.0.0-alpha.5`** before debugging the rule itself — the logic below is
- * > believed correct but has never been observed running. See ENG-54.
+ * > It then found **19 violations on its first real run**, seven of them in files
+ * > that had just been swept by hand for this exact pattern. See ENG-54.
  * >
- * > Kept rather than deleted because the analysis is the valuable part, and
- * > because the day detekt is upgraded this should start working unchanged.
+ * > The lesson generalises: if a custom detekt rule appears to do nothing,
+ * > suspect the detekt version before the rule, and verify by making it report
+ * > unconditionally rather than by trusting a clean run.
  *
  * Flags `val x by animateFloatAsState(...)`, and its siblings, inside a
  * composable.

@@ -182,6 +182,7 @@ The events that motivated shipping direct-to-Grafana: what never reaches the bac
 | `room.closed_unexpectedly` | `reason` (rejected/reconnect_failed/room_deleted/incompatible_version) | Terminal socket close, excluding the normal match-over path |
 | `net.offline_banner` | `visible`, `os_online`, `backend_reachable` | Each edge of the app-wide offline banner (`AppStateImpl`), carrying which signal drove it — added after ROOM-16, where a reported banner had no explaining event in the trail |
 | `game.intent_timeout` / `game.intent_rejected` | `intent_type` | Submit failure branches in `PlayPokerViewModel` |
+| `db.driver_fallback` | `cause` (UnsatisfiedLinkError / NoClassDefFoundError) | **Android only**, at most once per process: the bundled SQLite driver could not load `libsqliteJni.so`, so Room was handed the platform driver instead (`FallbackSQLiteDriver`). Before ENG-72 this was a fatal crash on launch with reinstall as the only exit; the rate here is now the only signal that Play delivered an install without its ABI split, so a rise that tracks a rollout is a packaging problem, not a database one. The same moment also logs at Warn with the stack, so Sentry keeps a handled event |
 
 ## Feature usage
 
