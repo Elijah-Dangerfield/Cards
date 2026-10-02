@@ -566,20 +566,37 @@ jobs:
           PY
           )
           rm -f "$KEY_PATH"
-          RESP=$(curl -fsS -H "Authorization: Bearer $TOKEN" "https://api.appstoreconnect.apple.com/v1/apps?filter[bundleId]=$BUNDLE_ID&limit=1" || echo '{"data":[]}')
-          APP_COUNT=$(echo "$RESP" | python3 -c 'import json,sys;print(len(json.load(sys.stdin).get("data",[])))' 2>/dev/null || echo "0")
+
+          # `-g` is load-bearing. curl treats [ and ] as URL-glob range syntax,
+          # so `filter[bundleId]=...` aborts with "bad range in URL" before the
+          # request is ever sent. From v0.1.0 to v0.4.0 that error fell into the
+          # `|| echo '{"data":[]}'` below and read as "no such app" — every iOS
+          # release since has silently resolved to the TestFlight-only lane and
+          # still reported success. --globoff turns the globbing off.
+          ASC_APPS_URL="https://api.appstoreconnect.apple.com/v1/apps?filter[bundleId]=$BUNDLE_ID&limit=1"
+          if ! RESP=$(curl -g -fsS -H "Authorization: Bearer $TOKEN" "$ASC_APPS_URL"); then
+            echo "::error::Could not reach App Store Connect to look up $BUNDLE_ID."
+            echo "::error::Refusing to guess. A failed lookup is not the same as a missing app —"
+            echo "::error::treating it as one is what kept iOS on 0.1.0 for three releases."
+            echo "::error::Re-run once ASC is reachable, or pass skip_app_store=true to ship TestFlight only."
+            exit 1
+          fi
+          APP_COUNT=$(echo "$RESP" | python3 -c 'import json,sys;print(len(json.load(sys.stdin).get("data",[])))')
           if [ "$APP_COUNT" = "0" ]; then
             echo "::warning::No app record found on App Store Connect for $BUNDLE_ID — first release. TestFlight internal only; skipping App Store submission."
             echo "is_first_release=true" >> "$GITHUB_OUTPUT"
           else
             APP_ID=$(echo "$RESP" | python3 -c 'import json,sys;print(json.load(sys.stdin)["data"][0]["id"])')
-            BUILDS=$(curl -fsS -H "Authorization: Bearer $TOKEN" "https://api.appstoreconnect.apple.com/v1/apps/$APP_ID/builds?limit=1" || echo '{"data":[]}')
-            BUILD_COUNT=$(echo "$BUILDS" | python3 -c 'import json,sys;print(len(json.load(sys.stdin).get("data",[])))' 2>/dev/null || echo "0")
+            if ! BUILDS=$(curl -g -fsS -H "Authorization: Bearer $TOKEN" "https://api.appstoreconnect.apple.com/v1/apps/$APP_ID/builds?limit=1"); then
+              echo "::error::Found app $APP_ID on App Store Connect but could not list its builds. Refusing to guess."
+              exit 1
+            fi
+            BUILD_COUNT=$(echo "$BUILDS" | python3 -c 'import json,sys;print(len(json.load(sys.stdin).get("data",[])))')
             if [ "$BUILD_COUNT" = "0" ]; then
               echo "::warning::App exists on ASC but has zero builds — first release. TestFlight internal only; skipping App Store submission."
               echo "is_first_release=true" >> "$GITHUB_OUTPUT"
             else
-              echo "Existing builds found on ASC — full release lane"
+              echo "Existing builds found on ASC (app $APP_ID) — full release lane, submitting to App Store review"
               echo "is_first_release=false" >> "$GITHUB_OUTPUT"
             fi
           fi

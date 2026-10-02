@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-08-28 (observability-triage + ENG-45 review) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-10-02 (observability-triage; ENG-75/76 filed, ENG-49 reopened) · **Companion to:** [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 The live punch list of actionable engineering work. Every item is something a worker can pick up and ship.
 
@@ -151,11 +151,11 @@ Two things beyond the nonce. `IntentResult.Duplicate` distinguishes a swallowed 
 
 **Hints:** Gate is `environment: production` in `.github/workflows/server-deploy-prod.yml:53`. Stuck runs: 33922369090 (`waiting`), 33975509833 (`pending`). Related evidence in `docs/agent/feedback-cases/CARDS-C9.md`. Decide deliberately whether the gate earns its keep — it is correct to want one, and a gate nobody is reminded of is the same as no deploy at all.
 
-## ENG-49 [P2] — Confirm the RenderThread text-stall fix held, now that it is finally live
+## ENG-49 [P1] — The RenderThread text-stall fix did NOT hold on low-end devices
 
-**Problem:** Shipped in `v0.3.0` / build 1209 on 2026-09-21 (Android, 10% staged), so the four-week clock finally started. Early read at 7 days: **every abnormal exit in prod is on the old 1135 build — 1 ANR and 5 OOM there, zero of either on 1209.** Far too few 1209 sessions (25 foregrounds vs 746) to call it, but nothing contradicts the fix yet.
+**Problem:** Shipped in `v0.3.0` / build 1209 on 2026-09-21. **Contradicted on 2026-10-01: CARDS-CF (4 events / 2 users) and CARDS-CG (1 event) are both ANRs on 1209 with the same `GrTextBlobRedrawCoordinator::internalRemove` RenderThread stack**, from one vivo V2135 (`device.class: low`, Android 13, 3.8GB) in multiplayer room 434U5F, hands 9 and 23. 7d abnormal exits moved to `{anr: 6, oom: 7}` from `{anr: 1}`. So the fix did not hold on low-end hardware — but 1209 does **not** carry the ENG-55/56/59 perf work, which is sitting unpublished in 0.4.0 (ENG-76), so this is not yet a verdict on the full fix set.
 
-**Acceptance:** Four weeks from 2026-09-21 with no new ANR carrying a `TextBlobRedrawCoordinator` RenderThread stack, on 1209 or later, and Play vitals flat or down. Needs the rollout past 10% before the sample means anything.
+**Acceptance:** Four weeks of a *published* build carrying the perf trio with no new ANR on a `TextBlobRedrawCoordinator` stack, and Play vitals flat or down. Re-read specifically on low-end devices — every confirmed instance so far is one. The clock cannot start until ENG-76 is resolved.
 
 **Hints:** Chronology proving 1135 predates the fix is in `docs/agent/feedback-cases/CARDS-C9.md`. Original diagnosis: `docs/plans/renderthread-text-stall.md`, case `CARDS-C1.md`. Sentry: [CARDS-C9](https://elijah-dangerfield.sentry.io/issues/7744693593/), CARDS-C1, CARDS-BZ. 72 commits sit on `main` unshipped, including R8, baseline profiles and the Sentry mapping upload.
 
@@ -268,3 +268,26 @@ The ticket was filed on 09-05 by grepping a tree the string had already been del
 **Acceptance:** A stale/no-longer-legal Call either can't be tapped (button disabled before the state changes) or fails with the same user-visible feedback as a rejected intent. Repro ideally reduces the race rather than just widening the catch.
 
 **Hints:** `GameEngine.kt:331` (the throw); `PlayPokerViewModel.kt:982-999` (the catch with the `else -> Unit` gap); `LocalBotsSession.kt:409-425` (`isHumanIntentLegal`, the legality check the race slips past). Case `docs/agent/feedback-cases/2026-09-16-stale-call-button-local-bots.md`.
+
+## ENG-75 — DONE 2026-10-02, needs the next release to prove it
+
+`curl` treats `[` and `]` as URL-glob range syntax, so `filter[bundleId]=...` aborted with
+`bad range in URL position 54` before the request was ever sent. That error fell into
+`|| echo '{"data":[]}'`, which read as "no such app", which resolved to `is_first_release=true`
+and the TestFlight-only lane — on every release since v0.1.0, each one reporting success.
+Nothing to do with credentials or the bundle ID; both were correct all along.
+
+Fixed with `-g` (`--globoff`) on both ASC calls, and a failed lookup now fails the step instead
+of silently downgrading the lane. Verified locally: without `-g` curl exits 3 without contacting
+Apple; with it the request reaches ASC.
+
+**Still open:** the first release after this lands must be checked for
+`Existing builds found on ASC (app …) — full release lane` in the iOS job log.
+
+## ENG-76 [P1] — Nothing tells us a shipped release is still sitting unpublished
+
+**Problem:** Play has **managed publishing on**, so the release workflow's `Successfully committed` only queues the release — it does not publish it. `v0.4.0` has been approved by Google and parked under "Changes ready to publish → Production → 0.4.0 → Start full rollout" since 2026-09-28. Prod telemetry over 3 days: `0.1.0 (1135)` 32 launches, `0.3.0 (1209)` 35, **`0.4.0 (1262)` 1**. Every fix in the release — the bot-freeze nonce collision, the SQLite fallback, the perf trio — has reached essentially nobody, and no alert, dashboard or workflow step says so.
+
+**Acceptance:** A release that is committed but unpublished is visible without opening Play Console — either the workflow polls the edit's publishing status and fails/warns, or a dashboard panel compares the latest released version against the top `service_version` in prod launches. Decide separately whether managed publishing should stay on at all.
+
+**Hints:** Play Console → Publishing overview shows the pending change and the "Managed publishing on" toggle. The `service_version` breakdown is `sum by (service_version) (count_over_time({service_name="cards-client", deployment_environment="prod"} | event_name="app.launched" [3d]))`. Related: ENG-52 shipped the update prompt in the same unpublished build.
