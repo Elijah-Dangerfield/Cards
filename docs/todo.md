@@ -269,13 +269,20 @@ The ticket was filed on 09-05 by grepping a tree the string had already been del
 
 **Hints:** `GameEngine.kt:331` (the throw); `PlayPokerViewModel.kt:982-999` (the catch with the `else -> Unit` gap); `LocalBotsSession.kt:409-425` (`isHumanIntentLegal`, the legality check the race slips past). Case `docs/agent/feedback-cases/2026-09-16-stale-call-button-local-bots.md`.
 
-## ENG-75 [P0] — The iOS release silently downgrades to TestFlight-only, and reports success
+## ENG-75 — DONE 2026-10-02, needs the next release to prove it
 
-**Problem:** Every iOS release since `v0.1.0` has stopped at TestFlight. `release.yml`'s "Detect first-release vs subsequent" step queries App Store Connect for the app record and, on a miss, sets `is_first_release=true` → `lane=beta` → no App Store submission. On the `v0.4.0` run (36472695361) it logged `No app record found on App Store Connect for com.dangerfield.cards.Cards — first release`, yet that **is** the real bundle ID on ASC (Apple ID 6788423648, builds present). So the lookup failed, not the app. `curl -fsS ... || echo '{"data":[]}'` collapses every failure — auth, permissions, rate limit, network — into "the app does not exist", and the job still goes green.
+`curl` treats `[` and `]` as URL-glob range syntax, so `filter[bundleId]=...` aborted with
+`bad range in URL position 54` before the request was ever sent. That error fell into
+`|| echo '{"data":[]}'`, which read as "no such app", which resolved to `is_first_release=true`
+and the TestFlight-only lane — on every release since v0.1.0, each one reporting success.
+Nothing to do with credentials or the bundle ID; both were correct all along.
 
-**Acceptance:** A failed ASC lookup fails the job (or at minimum does not resolve to the beta lane); only a genuine zero-apps/zero-builds response counts as a first release. Verify the key can actually read `/v1/apps` — likely an ASC key role/scope problem — and re-run so build 1262 reaches App Store review.
+Fixed with `-g` (`--globoff`) on both ASC calls, and a failed lookup now fails the step instead
+of silently downgrading the lane. Verified locally: without `-g` curl exits 3 without contacting
+Apple; with it the request reaches ASC.
 
-**Hints:** `.github/workflows/release.yml:540` (`BUNDLE_ID` from `apps/ios/fastlane/Appfile`) and `:569-585` (the swallowed curl + first-release branch). The `release` lane already does `upload_to_app_store(submit_for_review: true, automatic_release: true)` — it just never runs. TestFlight build `202609281954` (0.4.0) is sitting "Ready to Submit".
+**Still open:** the first release after this lands must be checked for
+`Existing builds found on ASC (app …) — full release lane` in the iOS job log.
 
 ## ENG-76 [P1] — Nothing tells us a shipped release is still sitting unpublished
 
