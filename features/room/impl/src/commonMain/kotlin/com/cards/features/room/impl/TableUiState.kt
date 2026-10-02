@@ -15,6 +15,7 @@ import com.dangerfield.cards.libraries.gameplay.HandEvaluator
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
+import com.dangerfield.cards.libraries.gameplay.Pot
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
 import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
@@ -586,33 +587,87 @@ sealed class SeatBadge {
  * `Complete` snapshot — no `ActionTaken(Fold)`, no `HandEnded`, no `PotAwarded` —
  * so without this the table sits dead with no winner banner and no Next Hand path.
  *
- * The pot's [Pot.eligibleSeatIndexes] pin who took it; when the snapshot already
- * scrubbed the pots (awarded), fall back to the seats still in the hand. `byFold`
- * is inferred from whether a single contender remained (an uncontested win) versus
- * a showdown that reached [BettingRound.Complete] with multiple seats live.
+ * One contender left is an uncontested win: there is no hand to compare, so the
+ * pot goes to whoever is still in and `byFold` is true.
+ *
+ * A *contested* showdown must be evaluated, not inferred. [Pot.eligibleSeatIndexes]
+ * is who **could** win the pot, which at a showdown is every seat that reached the
+ * river — reading it as who **did** win badged all of them and split the pot
+ * between them, which is what a player saw as "a hand won when it shouldn't have".
+ * The snapshot still carries each in-hand seat's hole cards at
+ * [BettingRound.Complete] (`scrubbedFor` keeps them for the reveal), so run the
+ * same per-pot comparison [GameEngine] does, including the odd chip. That also
+ * fills in [HandWinner.handRank], which the inferred result had to leave null.
+ *
+ * Only a view with no cards to evaluate (fully scrubbed) falls back to eligibility
+ * — a wrong-looking banner still beats a dead table with no Next Hand path.
  */
 private fun synthesizeHandResult(gameState: GameState, handComplete: Boolean): HandResultView? {
     if (!handComplete) return null
     val contenders = gameState.seats.filter { it.isInHand }
-    val winnerSeats = gameState.pots
-        .flatMap { it.eligibleSeatIndexes }
-        .distinct()
-        .ifEmpty { contenders.map { it.index } }
-    if (winnerSeats.isEmpty()) return null
+    val board = gameState.community
     val potTotal = gameState.pots.sumOf { it.amount }
-    val byFold = contenders.size <= 1
-    val perWinner = potTotal / winnerSeats.size
-    return HandResultView(
-        winners = winnerSeats.map { seatIndex ->
-            HandWinner(
+
+    if (contenders.size <= 1) {
+        val seatIndex = contenders.firstOrNull()?.index
+            ?: gameState.pots.flatMap { it.eligibleSeatIndexes }.distinct().singleOrNull()
+            ?: return null
+        return HandResultView(
+            winners = listOf(HandWinner(seatIndex, potTotal, handRank = null, byFold = true)),
+            board = board,
+        )
+    }
+
+    val ranks = contenders.mapNotNull { seat ->
+        HandEvaluator.evaluateOrNull(seat.holeCards + board)?.let { seat.index to it }
+    }.toMap()
+
+    if (ranks.isEmpty()) {
+        val eligible = gameState.pots
+            .flatMap { it.eligibleSeatIndexes }
+            .distinct()
+            .ifEmpty { contenders.map { it.index } }
+        if (eligible.isEmpty()) return null
+        val perWinner = potTotal / eligible.size
+        return HandResultView(
+            winners = eligible.map { HandWinner(it, perWinner, handRank = null, byFold = false) },
+            board = board,
+        )
+    }
+
+    // An awarded snapshot can arrive with its pots already cleared; still name the
+    // winner off the cards so the banner and the Next Hand path work.
+    val pots = gameState.pots.ifEmpty {
+        listOf(Pot(amount = 0, eligibleSeatIndexes = ranks.keys.sorted()))
+    }
+
+    val winners = mutableListOf<HandWinner>()
+    for (pot in pots) {
+        val eligible = pot.eligibleSeatIndexes
+            .filter { ranks.containsKey(it) }
+            .ifEmpty { ranks.keys.sorted() }
+        val best = eligible.mapNotNull { ranks[it] }.maxOrNull() ?: continue
+        val tied = eligible.filter { ranks.getValue(it).compareTo(best) == 0 }
+        val share = pot.amount / tied.size
+        val remainder = pot.amount - share * tied.size
+        // Odd chips go to the first tied seat left of the button, same as the engine.
+        for ((i, seatIndex) in orderedFromButton(tied, gameState.buttonSeatIndex).withIndex()) {
+            winners += HandWinner(
                 seatIndex = seatIndex,
-                amount = perWinner,
-                handRank = null,
-                byFold = byFold,
+                amount = share + if (i < remainder) 1L else 0L,
+                handRank = ranks[seatIndex],
+                byFold = false,
             )
-        },
-        board = gameState.community,
-    )
+        }
+    }
+    if (winners.isEmpty()) return null
+    return HandResultView(winners = winners, board = board)
+}
+
+private fun orderedFromButton(seatIndexes: List<Int>, buttonSeatIndex: Int): List<Int> {
+    val sorted = seatIndexes.sorted()
+    val firstIdx = sorted.indexOfFirst { it > buttonSeatIndex }.let { if (it < 0) 0 else it }
+    return sorted.drop(firstIdx) + sorted.take(firstIdx)
 }
 
 private fun previewHandLabel(holeCards: List<Card>, community: List<Card>): String? {
