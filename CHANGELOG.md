@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.4.0...v0.5.0) (2026-10-02)
+
+
+### Bug Fixes
+
+* **ci:** stop curl URL-globbing from silently downgrading every iOS release ([765264d](https://github.com/Elijah-Dangerfield/Cards/commit/765264dee8e634018076a8be75be945cf4599676))
+* cut 0.5.0 with the showdown winner fix and a working iOS pipeline ([912c223](https://github.com/Elijah-Dangerfield/Cards/commit/912c2237af65836eaa82ea2510a22d7c33d07287))
+* **room:** name the real winner when HandEnded goes missing ([ed33a74](https://github.com/Elijah-Dangerfield/Cards/commit/ed33a74c119e369fbb6ba85df06eadaaa5a402c5))
+
+
+### Miscellaneous Chores
+
+* pin the next release to 0.5.0 ([2f29573](https://github.com/Elijah-Dangerfield/Cards/commit/2f29573d85c6be5e7f5910451e5e6a4f1b7ff7b0))
+
 ## [0.4.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.3.0...v0.4.0) (2026-09-28)
 
 
