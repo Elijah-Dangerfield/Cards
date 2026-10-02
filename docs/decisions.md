@@ -264,7 +264,7 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 **Alternatives considered:** **Production-first with Sandbox fallback** (Apple's documented pattern; what larger shops run so QA can purchase through TestFlight after launch) — rejected for now: it reopens the free-mint path and is only safe with tester allowlisting + per-grant environment ledgering, which is real work with no current payoff. The trigger to build it is missing TestFlight purchase testing post-launch.
 
-**Status:** Locked (revisit trigger above).
+**Status:** **Superseded 2026-10-02 by the code.** The "Production-first with Sandbox fallback" alternative rejected above is what `AppStoreReceiptValidator` actually does now, and has for some time — `buildDecoders()` builds verifiers for both environments (`PRODUCTION -> [PRODUCTION, SANDBOX]`, `SANDBOX -> [SANDBOX, PRODUCTION]`) and retries the sibling on `INVALID_ENVIRONMENT`. The safety this entry was protecting is provided differently than predicted: it is not tester allowlisting, it is that `ReceiptValidation.Valid` reports which environment verified, so a sandbox mint is ledgered `iap_sandbox.` and excluded from revenue rather than refused. So there is no launch-day cutover, `APPLE_STORE_ENVIRONMENT` is only an ordering hint, and a TestFlight tester can still mint free (sandbox-tagged, non-revenue) chips — the risk this entry named, now accepted rather than avoided. Confirmed against prod `billing_transactions`: one `apple`/`production` redemption 2026-09-22T18:42Z and one `apple`/`sandbox` 17 hours earlier, each correctly tagged.
 
 ## 2026-07-07 — `billing.realPurchasesEnabled` defaults ON; the flag also selects fake vs real store client (BILL-5 amendment)
 
