@@ -241,9 +241,12 @@ def play_state(package: str) -> str:
             "**internal** track. Promote it to production by hand in Play Console."
         )
 
+    # Full rollout since 2026-09-28: release.yml sends status=completed with no
+    # userFraction. The 10% staged wording outlived that change and was still
+    # here on the v0.5.0 PR, telling the reader the opposite of what ships.
     line = (
         "- **Android**: uploads to the Play **production** track at a "
-        "**10% staged rollout**."
+        "**full (100%) rollout**."
     )
     rolling = [r for r in releases if r.get("status") == "inProgress"]
     if rolling:
@@ -432,6 +435,14 @@ def version_file_drift(expected: str) -> str | None:
     `x-release-please-*` marker. When those markers went missing it said
     nothing, the job went green, and v0.2.0 shipped to both stores labelled
     0.1.0. This is the check that would have caught it before the merge.
+
+    The files must be read **from the release branch**, not from the checkout.
+    The workflow runs on `main`, where these files still carry the *previous*
+    version by definition until this PR merges — so reading them locally made
+    the warning fire on every single release, including correct ones. A guard
+    that cries wolf every time is the same as no guard, which is how it would
+    have missed a real v0.2.0 repeat. Falls back to the local read only when
+    the branch is unknown, and says so rather than asserting.
     """
     if not expected:
         return None
@@ -439,16 +450,38 @@ def version_file_drift(expected: str) -> str | None:
         "versions.properties": r"^versionName=(.+)$",
         "apps/ios/Configuration/Config.xcconfig": r"^MARKETING_VERSION=(.+)$",
     }
+    branch = os.environ.get("RELEASE_HEAD_BRANCH", "").strip()
     stale = []
+    unreadable = []
     for path, pattern in files.items():
-        try:
-            with open(path) as f:
-                m = re.search(pattern, f.read(), re.MULTILINE)
-        except OSError:
-            continue
+        text = None
+        if branch:
+            try:
+                blob = gh_api(f"/contents/{urllib.parse.quote(path)}?ref={urllib.parse.quote(branch)}")
+                text = base64.b64decode(blob.get("content", "")).decode("utf-8", "replace")
+            except Exception:
+                text = None
+        if text is None:
+            try:
+                with open(path) as f:
+                    text = f.read()
+                # Only trust a local read when there is no branch to read from;
+                # otherwise the checkout is the wrong ref and proves nothing.
+                if branch:
+                    unreadable.append(f"`{path}`")
+                    continue
+            except OSError:
+                continue
+        m = re.search(pattern, text, re.MULTILINE)
         found = m.group(1).strip() if m else None
         if found != expected:
             stale.append(f"`{path}` says **{found or 'nothing'}**")
+    if unreadable and not stale:
+        return (
+            "> ⚠️ Could not read " + ", ".join(unreadable) + f" from `{branch}` to confirm "
+            f"they say {expected}. Not a failure, just unverified — check them by hand if "
+            "this release matters."
+        )
     if not stale:
         return None
     return (

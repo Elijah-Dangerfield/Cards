@@ -102,6 +102,12 @@ jobs:
             --jq '.content' | base64 -d | jq -r '."."' || echo "")
           export RELEASE_VERSION
 
+          # The version-file drift check must read those files from the release
+          # branch too. This job runs on `main`, where they still say the old
+          # version until this PR merges, so a local read made the warning fire
+          # on every release and taught everyone to scroll past it.
+          export RELEASE_HEAD_BRANCH="$HEAD_BRANCH"
+
           python3 .github/scripts/release_pr_context.py > /tmp/context.md
           gh pr view "$PR_NUMBER" --json body -q .body > /tmp/body.md
 
