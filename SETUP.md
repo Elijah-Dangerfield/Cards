@@ -83,7 +83,7 @@ Before `release.yml` can ship:
 1. **Play Console** → Create app → fill out store listing, data-safety form, content rating, pricing/distribution. Create at least one internal track tester.
 2. **App Store Connect** → My Apps → New App → pick the bundle ID that matches `apps/ios/fastlane/Appfile`. Fill out app info, pricing, privacy details.
 3. **TestFlight** external group: create a group named `External Testers` (or change `TESTFLIGHT_EXTERNAL_GROUP` in `release.yml`).
-4. Privacy policy + terms of service URLs — the `pages/` folder generates these; once Pages is enabled they're at `https://<you>.github.io/<repo>/privacy.html` etc. Paste the URLs into both store listings.
+4. Privacy policy + terms of service URLs — the Astro site in `website/` serves these, published to GitHub Pages by `.github/workflows/pages.yml`. **Extensionless routes, no `.html`:** `/privacy`, `/terms`, `/support` (this repo serves them at `https://downcard.app/...`). Paste the URLs into both store listings, and open each one before you do: a privacy URL that 404s is a standard App Store rejection under Guideline 5.1.1, and `deliver`'s precheck only warns about it.
 
 ---
 

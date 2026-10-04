@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.os.StrictMode
 import android.os.strictmode.Violation
+import androidx.annotation.RequiresApi
 import com.dangerfield.cards.libraries.core.BuildInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -57,7 +58,7 @@ class AndroidStrictModeLog(private val context: Context) : StrictModeLog {
                 .detectDiskWrites()
                 .detectNetwork()
                 .penaltyLog()
-                .penaltyListener(executor) { record(it) }
+                .penaltyListener(executor) { record(ViolationReader.describe(it)) }
                 .build(),
         )
         StrictMode.setVmPolicy(
@@ -66,17 +67,22 @@ class AndroidStrictModeLog(private val context: Context) : StrictModeLog {
                 .detectLeakedSqlLiteObjects()
                 .detectActivityLeaks()
                 .penaltyLog()
-                .penaltyListener(executor) { record(it) }
+                .penaltyListener(executor) { record(ViolationReader.describe(it)) }
                 .build(),
         )
     }
 
-    private fun record(violation: Violation) {
-        val kind = violation::class.java.simpleName
-        val origin = violation.stackTrace
-            .firstOrNull { it.className.startsWith(APP_PACKAGE) }
-            ?.let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
-            ?: return // Framework-only trace: nothing here we could act on.
+    /**
+     * Takes plain strings, never a [Violation]. A type in a method signature is
+     * resolved by ART before the method can run, so an `SDK_INT` guard around
+     * the *call* does not protect the *signature* — that is exactly how
+     * CARDS-CK silently disabled telemetry below API 30. Here the reachable
+     * path is narrower (debug builds only), but the shape is identical, so it
+     * gets the same treatment: the platform type lives only inside
+     * [ViolationReader], past the guard.
+     */
+    private fun record(described: DescribedViolation?) {
+        val (kind, origin) = described ?: return
 
         val signature = "$kind@$origin"
         synchronized(byLine) {
@@ -121,5 +127,22 @@ class AndroidStrictModeLog(private val context: Context) : StrictModeLog {
         const val PREFS = "strict_mode_log"
         const val KEY_SEEN = "seen_signatures"
         const val APP_PACKAGE = "com.dangerfield.cards"
+    }
+}
+
+/** The two strings we keep off a violation, so [Violation] stays out of signatures. */
+private data class DescribedViolation(val kind: String, val origin: String)
+
+@RequiresApi(Build.VERSION_CODES.P)
+private object ViolationReader {
+    private const val APP_PACKAGE = "com.dangerfield.cards"
+
+    /** Null for a framework-only trace: nothing there we could act on. */
+    fun describe(violation: Violation): DescribedViolation? {
+        val origin = violation.stackTrace
+            .firstOrNull { it.className.startsWith(APP_PACKAGE) }
+            ?.let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
+            ?: return null
+        return DescribedViolation(kind = violation::class.java.simpleName, origin = origin)
     }
 }

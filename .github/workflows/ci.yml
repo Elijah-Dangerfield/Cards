@@ -224,6 +224,53 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  lint:
+    name: Android lint
+    # Android Lint had never run in this repo. The first pass found four real
+    # errors across three modules: two NewApi (a StrictMode Violation in a
+    # method signature, and windowSplashScreenBackground outside a -v31 folder)
+    # and three MissingPermission on ACCESS_NETWORK_STATE, which the app only
+    # had because androidx.work happened to declare it. All four were fixed
+    # rather than baselined, so this job starts from a clean report and any
+    # failure here is new. Ubuntu: lint needs the Android SDK, not Xcode.
+    #
+    # Worth knowing what this does NOT catch: lint saw nothing wrong with the
+    # code behind CARDS-CK, because it understands the SDK_INT guard around the
+    # API *call* and does not model the signature resolution that actually
+    # broke. Verified by running lint against that exact commit. The gate is
+    # still worth having; it is just not the thing that would have caught it.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      - name: Run Android lint
+        run: ./gradlew lintRelease
+
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          path: |
+            **/build/reports/lint-results-*.html
+            **/build/intermediates/lint_intermediate_text_report/**/*.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
   integration-test:
     name: Integration tests
     # End-to-end multiplayer tests: a real client (+ real view models) driven

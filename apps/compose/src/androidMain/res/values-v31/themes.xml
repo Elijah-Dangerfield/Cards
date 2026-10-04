@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      `android:windowSplashScreenBackground` is API 31. It was previously set in
+      values/, where it is inert below 31 and lint flags it as NewApi. The risk
+      is not only the lint error: some manufacturers have shipped custom
+      attribute ids that collide with ones Google later added, so an attribute
+      set outside its own -vNN folder can mean something else entirely on a
+      device that predates it. This app already sees plenty of vendor-skinned
+      Android, so the split is worth the extra file.
+
+      Everything else lives on Theme.Cards.Base in values/themes.xml.
+    -->
+    <style name="Theme.Cards" parent="Theme.Cards.Base">
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+    </style>
+</resources>

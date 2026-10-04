@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base app theme with SplashScreen API support -->
-    <style name="Theme.Cards" parent="android:Theme.Material.NoActionBar">
-        <!-- Splash screen background -->
-        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+    <!--
+      Everything that applies on every API level we support (min 24).
+      `Theme.Cards` itself is split so the API-31 splash attribute can live in
+      values-v31 instead of being set here and ignored below 31 — see the note
+      in values-v31/themes.xml.
+    -->
+    <style name="Theme.Cards.Base" parent="android:Theme.Material.NoActionBar">
         <!-- Status bar and nav bar colors -->
         <item name="android:statusBarColor">@color/splash_background</item>
         <item name="android:navigationBarColor">@color/splash_background</item>
@@ -12,6 +15,8 @@
         <!-- Light icons on dark background -->
         <item name="android:windowLightStatusBar">false</item>
     </style>
+
+    <style name="Theme.Cards" parent="Theme.Cards.Base" />
 
     <!-- Splash background matches the app's dark theme -->
     <color name="splash_background">#000000</color>

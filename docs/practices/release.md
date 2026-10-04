@@ -296,7 +296,9 @@ The pipeline ships only the binary + release notes (`skip_metadata: true`, `skip
 
 ### One-time GitHub Pages source
 
-Marketing/landing pages (`index.html`, `privacy.html`, `terms.html`, `style.css`) live in [pages/](../pages/) so that `docs/` can stay developer-focused. Set **Settings → Pages → Source** to `main` / `/pages` so the site serves at `https://<user>.github.io/<repo>/` without any path change. The URLs referenced from the app (`/privacy.html`, `/terms.html`) stay the same.
+The marketing/landing site is the Astro project in [website/](../../website/), built and deployed by [`pages.yml`](../../.github/workflows/pages.yml) on push to `main`, and served at the custom domain **downcard.app**. The repo's Pages source must be set to **GitHub Actions**, not a branch folder.
+
+Routes are **extensionless**: `/privacy`, `/terms`, `/support` — there is no `privacy.html`. The app links to them through `LegalUrls`, which is the single update point. This mattered on 2026-10-02: App Store Connect still carried the old `https://elijah-dangerfield.github.io/Cards/privacy.html`, which 404s, and `deliver`'s precheck flagged it as a warning that does not block submission. Check the store-listing URLs resolve whenever the site moves.
 
 ## Runbook: something broke
 

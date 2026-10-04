@@ -291,3 +291,27 @@ Apple; with it the request reaches ASC.
 **Acceptance:** A release that is committed but unpublished is visible without opening Play Console — either the workflow polls the edit's publishing status and fails/warns, or a dashboard panel compares the latest released version against the top `service_version` in prod launches. Decide separately whether managed publishing should stay on at all.
 
 **Hints:** Play Console → Publishing overview shows the pending change and the "Managed publishing on" toggle. The `service_version` breakdown is `sum by (service_version) (count_over_time({service_name="cards-client", deployment_environment="prod"} | event_name="app.launched" [3d]))`. Related: ENG-52 shipped the update prompt in the same unpublished build.
+
+## ENG-77 — DONE 2026-10-04; the premise was wrong and the gate was still worth it
+
+Filed claiming lint "would have caught CARDS-CK". **It would not.** Verified by running
+`lintRelease` against that exact commit: clean. Lint sees the `SDK_INT` guard around the API
+*call* and is satisfied; it does not model the signature resolution that actually broke. A
+deliberately unguarded `getHistoricalProcessExitReasons` call in the same file *does* trip
+`NewApi`, so the check is active — it simply cannot see this variant. The reflection test in
+`AndroidPreviousExitProviderApiLevelTest` remains the only guard for it.
+
+Turned lint on anyway, because the first full run found four real errors for roughly nine
+seconds of CI:
+
+- `AndroidStrictModeLog.record(violation: Violation)` — API 28 type in a method signature, the
+  same shape as CARDS-CK, fixed the same way.
+- `windowSplashScreenBackground` (API 31) set in `values/` — moved to `values-v31/` behind a
+  `Theme.Cards.Base` split.
+- Three `MissingPermission` on `ACCESS_NETWORK_STATE` in `libraries/networking/impl`. The app
+  only had that permission because `androidx.work` declares it; nothing in this repo did.
+  Declared it in the module whose code needs it.
+
+Fixed rather than baselined, so there is no `lint-baseline.xml` and the report starts empty.
+Config lives in `build-logic/.../AndroidConfiguration.kt`; the `lint` job is in `ci.yml`.
+`NewerVersionAvailable` is disabled — it hits the network on every run.
