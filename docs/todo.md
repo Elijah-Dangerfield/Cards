@@ -292,10 +292,26 @@ Apple; with it the request reaches ASC.
 
 **Hints:** Play Console → Publishing overview shows the pending change and the "Managed publishing on" toggle. The `service_version` breakdown is `sum by (service_version) (count_over_time({service_name="cards-client", deployment_environment="prod"} | event_name="app.launched" [3d]))`. Related: ENG-52 shipped the update prompt in the same unpublished build.
 
-## ENG-77 [P1] — Android Lint never runs, and it would have caught CARDS-CK
+## ENG-77 — DONE 2026-10-04; the premise was wrong and the gate was still worth it
 
-**Problem:** No workflow runs `lint`. `minSdk` is 24 and CARDS-CK was `ApplicationExitInfo` (API 30) used as a field/return type in `AndroidPreviousExitProvider` — textbook `NewApi`, which lint flags by default. It shipped in 0.4.0, reached users in 0.5.0, and silently killed `app.launched` on every device below API 30 for two days. The structural test added with the fix guards that one class; nothing guards the next one.
+Filed claiming lint "would have caught CARDS-CK". **It would not.** Verified by running
+`lintRelease` against that exact commit: clean. Lint sees the `SDK_INT` guard around the API
+*call* and is satisfied; it does not model the signature resolution that actually broke. A
+deliberately unguarded `getHistoricalProcessExitReasons` call in the same file *does* trip
+`NewApi`, so the check is active — it simply cannot see this variant. The reflection test in
+`AndroidPreviousExitProviderApiLevelTest` remains the only guard for it.
 
-**Acceptance:** `lintRelease` (or equivalent) runs in CI and fails on `NewApi` at minimum. Expect a backlog of pre-existing warnings — baseline them rather than fixing everything, so the gate starts clean and only new violations block. Keep it off the macOS job; a Linux runner is enough.
+Turned lint on anyway, because the first full run found four real errors for roughly nine
+seconds of CI:
 
-**Hints:** `.github/workflows/ci.yml` has the Ubuntu `server-test` / `integration-test` jobs to copy. `build-logic/src/main/java/com/cards/util/AndroidConfiguration.kt` is where a `lint { }` block goes. Case: `docs/agent/feedback-cases/2026-10-04-applicationexitinfo-api-guard.md`.
+- `AndroidStrictModeLog.record(violation: Violation)` — API 28 type in a method signature, the
+  same shape as CARDS-CK, fixed the same way.
+- `windowSplashScreenBackground` (API 31) set in `values/` — moved to `values-v31/` behind a
+  `Theme.Cards.Base` split.
+- Three `MissingPermission` on `ACCESS_NETWORK_STATE` in `libraries/networking/impl`. The app
+  only had that permission because `androidx.work` declares it; nothing in this repo did.
+  Declared it in the module whose code needs it.
+
+Fixed rather than baselined, so there is no `lint-baseline.xml` and the report starts empty.
+Config lives in `build-logic/.../AndroidConfiguration.kt`; the `lint` job is in `ci.yml`.
+`NewerVersionAvailable` is disabled — it hits the network on every run.

@@ -71,10 +71,21 @@ passes.
 
 ## The actual lesson
 
-**Android Lint has never run in this repo.** `NewApi` flags this pattern by default and would have
-caught it before it was ever committed. The structural test guards this one class; nothing guards
-the next one. Filed as **ENG-77**.
+This section first said Android Lint "would have caught it before it was ever committed." **That
+was wrong, and checking took one command.** `lintRelease` run against the exact buggy commit comes
+back clean.
 
-Worth noting what did and did not find this: not a test, not a review, not an alert. It surfaced
-because someone read a Sentry issue list two days after release. The dashboards stayed green the
-whole time — they were green *because* the telemetry had stopped.
+Lint understands the `SDK_INT` guard wrapped around the API *call* and is satisfied by it. What
+broke was the *signature* — the synthetic getter's return type — and lint does not model class
+resolution at that level. A deliberately unguarded `getHistoricalProcessExitReasons` call in the
+same file does trip `NewApi`, so the check is live and working; this variant is simply invisible to
+it. That is worth knowing precisely, because "lint will catch the next one" is a comfortable belief
+that would have left the real gap unguarded. The reflection test is the only thing watching it.
+
+Lint went into CI anyway (ENG-77) and immediately paid for itself with four unrelated real errors,
+including an `ACCESS_NETWORK_STATE` permission the app only had because `androidx.work` happened to
+declare it. Just not this one.
+
+Worth noting what did and did not find this: not a test, not a review, not an alert, and not lint.
+It surfaced because someone read a Sentry issue list two days after release. The dashboards stayed
+green the whole time — they were green *because* the telemetry had stopped.

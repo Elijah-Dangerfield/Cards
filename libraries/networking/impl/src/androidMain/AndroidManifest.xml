@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AndroidConnectivityObserver calls registerNetworkCallback, getActiveNetwork
+  and getNetworkCapabilities, all of which need ACCESS_NETWORK_STATE.
+
+  The app has had the permission all along, but only by accident: the manifest
+  merger report shows it ADDED from androidx.work:work-runtime, a transitive
+  dependency that has nothing to do with connectivity. Nothing in this repo
+  declared it. Drop or swap WorkManager and every launch starts throwing
+  SecurityException from a module that never mentioned a permission.
+
+  Declaring it here, in the module whose code actually requires it, makes it
+  explicit and merges into any consumer. Found by the first Android Lint run
+  (MissingPermission) after lint was wired into CI — ENG-77.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+</manifest>
