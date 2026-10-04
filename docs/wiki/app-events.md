@@ -139,7 +139,7 @@ All in `PublicSearchingViewModel` unless noted; `wait_ms` counts from the search
 | `matchmaking.wait_started` | — | Find opened a fresh table to genuinely wait in |
 | `matchmaking.real_player_arrived` | `during` (wait/bot_offer), `wait_ms` | First other connected human, once per episode |
 | `matchmaking.bot_offer_shown` | `wait_ms` | The 60s window elapsed alone |
-| `matchmaking.bot_offer_accepted` | `wait_ms` | "Play bots" tapped |
+| `matchmaking.bot_offer_accepted` | `trigger` (early_button/timeout), `wait_ms` | "Play bots now" on the radar (`early_button`) or "Play bots" on the 60s offer (`timeout`) |
 | `matchmaking.bot_offer_declined` | `next` (keep_waiting/leave) | Either decline affordance |
 | `matchmaking.abandoned` | `phase` (searching/joined/bot_offer/joining_bots), `wait_ms` | User backed out (cancel / try-again-later) |
 | `room.joined` / `room.left` | — | `RoomRepositoryImpl` join/leave success |

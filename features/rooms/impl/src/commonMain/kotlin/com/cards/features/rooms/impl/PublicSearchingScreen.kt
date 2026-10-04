@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.rooms.impl
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,6 +28,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.public_searching_bots_now
+import cards.libraries.resources.generated.resources.public_searching_bots_now_hint
 import cards.libraries.resources.generated.resources.public_searching_buyin_label
 import cards.libraries.resources.generated.resources.public_searching_cancel
 import cards.libraries.resources.generated.resources.public_searching_error_body
@@ -88,6 +91,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * Faces, driven entirely by [PublicSearchingState.phase]:
  *  - **Searching:** the radar, a found-count, and reassuring copy that rotates
  *    every few seconds so the wait feels alive (we genuinely look for people).
+ *    While we wait alone, a disclosed "play bots now" option sits under the
+ *    buy-in card so nobody has to sit out the whole window to get a game.
  *  - **Joined:** the pre-deal lobby — the find matched us onto a table with
  *    players already there, so show the seat grid until the server deals.
  *  - **BotFallbackOffer:** the honest "we couldn't find anyone — that's on us"
@@ -154,15 +159,46 @@ private fun ColumnScope.SearchingContent(
     Spacer(Modifier.weight(1f))
 
     BuyInRangeCard(state.minBuyIn, state.maxBuyIn)
-    Spacer(Modifier.height(Dimension.D500))
-    ButtonSecondary(
+    AnimatedVisibility(visible = state.canPlayBotsNow) {
+        PlayBotsNowContent(state.subsidyNotice, onAction)
+    }
+    Spacer(Modifier.height(Dimension.D400))
+    ButtonGhost(
         onClick = { onAction(PublicSearchingAction.Cancel) },
-        style = ButtonStyle.Outlined,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(stringResource(Res.string.public_searching_cancel))
     }
     Spacer(Modifier.height(Dimension.D800))
+}
+
+@Composable
+private fun PlayBotsNowContent(
+    subsidyNotice: SubsidyNotice?,
+    onAction: (PublicSearchingAction) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Spacer(Modifier.height(Dimension.D600))
+        Text(
+            text = stringResource(Res.string.public_searching_bots_now_hint),
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (subsidyNotice != null) {
+            Spacer(Modifier.height(Dimension.D400))
+            SubsidyNoticeCard(subsidyNotice)
+        }
+        Spacer(Modifier.height(Dimension.D400))
+        ButtonSecondary(
+            onClick = { onAction(PublicSearchingAction.PlayBotsNow) },
+            style = ButtonStyle.Outlined,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(Res.string.public_searching_bots_now))
+        }
+    }
 }
 
 @Composable
@@ -452,6 +488,33 @@ private fun PublicSearchingScreenPreview() {
     PreviewContent {
         PublicSearchingScreen(
             state = PublicSearchingState(minBuyIn = 1_000, maxBuyIn = 25_000),
+            onAction = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PublicSearchingBotsNowPreview() {
+    PreviewContent {
+        PublicSearchingScreen(
+            state = PublicSearchingState(minBuyIn = 1_000, maxBuyIn = 25_000, waitingTableReady = true),
+            onAction = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PublicSearchingBotsNowNearCapPreview() {
+    PreviewContent {
+        PublicSearchingScreen(
+            state = PublicSearchingState(
+                minBuyIn = 1_000,
+                maxBuyIn = 25_000,
+                waitingTableReady = true,
+                subsidyNotice = SubsidyNotice(remaining = 1_500, cap = 10_000),
+            ),
             onAction = {},
         )
     }
