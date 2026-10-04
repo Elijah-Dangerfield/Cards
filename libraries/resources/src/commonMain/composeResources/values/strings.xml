@@ -320,6 +320,9 @@
     <string name="public_searching_rotate_4">Got friends who play? Tables fill faster together.</string>
     <string name="public_searching_rotate_5">Still searching. Thanks for your patience.</string>
     <string name="public_searching_rotate_6">Every seat here is a real person, no bots in the mix.</string>
+    <!-- Disclosed bots offered from the start of a lonely wait, so nobody has to sit out the full search window. -->
+    <string name="public_searching_bots_now_hint">Rather not wait? Bots are ready now. You play for real chips, and they step aside when a real player joins.</string>
+    <string name="public_searching_bots_now">Play bots now</string>
     <!-- Honest disclosed-bot fallback after a fruitless search. -->
     <string name="public_searching_offer_title">We couldn't find anyone right now</string>
     <string name="public_searching_offer_body">Play bots for real chips while you wait. You keep what you win, up to a daily limit, and they step aside the moment a real player joins.</string>

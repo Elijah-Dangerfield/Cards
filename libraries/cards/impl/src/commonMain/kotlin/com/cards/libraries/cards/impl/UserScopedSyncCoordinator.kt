@@ -6,11 +6,20 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.RunWhenRetry
 import com.dangerfield.cards.libraries.flowroutines.runWhen
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onEach
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Single owner of the "when do user-scoped stores reconcile with the server"
@@ -18,6 +27,12 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * account is active (including already-active at subscribe — the lost-edge
  * boot race can't happen against a level), re-sync on warm foreground and on
  * connectivity returning, retry failures with backoff while the account holds.
+ *
+ * A store's own [UserScopedSyncer.localWrites] also refire its loop: at most
+ * once per [LOCAL_WRITE_FLUSH_INTERVAL] with a trailing flush, plus once when
+ * the app backgrounds with writes still unsent. Before this, hands queued
+ * during a session waited for the next app open, and a player who never came
+ * back never reached the server at all.
  *
  * Per-syncer loops are independent: a failing wallet sync retries alone
  * without re-running the other stores, and each loop is single-flight with
@@ -46,9 +61,17 @@ class UserScopedSyncCoordinator(
 
     init {
         syncers.forEach { syncer ->
+            val unsentWrites = MutableStateFlow(false)
+            val flushWrites = merge(
+                syncer.localWrites
+                    .onEach { unsentWrites.value = true }
+                    .throttleLatest(LOCAL_WRITE_FLUSH_INTERVAL),
+                triggers.backgrounded,
+            ).filter { unsentWrites.value }
+
             appScope.runWhen(
                 key = triggers.activeAccount,
-                refireOn = merge(triggers.warmForeground, triggers.cameOnline),
+                refireOn = merge(triggers.warmForeground, triggers.cameOnline, flushWrites),
                 retry = RunWhenRetry.exponential(),
             ) { account ->
                 if (triggers.isOffline.value) {
@@ -60,12 +83,34 @@ class UserScopedSyncCoordinator(
                     logger.i { "${syncer::class.simpleName} sync deferred: device offline" }
                     Result.success(Unit)
                 } else {
+                    unsentWrites.value = false
                     registry.tracked(account.userId) {
                         syncer.sync()
+                            .onFailure { unsentWrites.value = true }
                             .logOnFailure { "${syncer::class.simpleName} sync failed for ${account.userId}" }
                     }
                 }
             }
         }
+    }
+
+    companion object {
+        /**
+         * One write-driven flush a minute per store keeps a long session well
+         * inside the server's 480/hour/IP progression-write bucket, which the
+         * stats, XP and play-style syncs share.
+         */
+        val LOCAL_WRITE_FLUSH_INTERVAL = 60.seconds
+    }
+}
+
+/**
+ * Emits the first value straight away, then at most the latest value per
+ * [period], so a burst ends in a trailing emission instead of being dropped.
+ */
+private fun <T> Flow<T>.throttleLatest(period: Duration): Flow<T> = flow {
+    conflate().collect { value ->
+        emit(value)
+        delay(period)
     }
 }

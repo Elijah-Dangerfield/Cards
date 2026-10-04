@@ -264,6 +264,71 @@ class UserScopedSyncCoordinatorTest : CoroutineTest() {
         assertEquals(listOf("u2-data"), store, "the new user's sync still runs after the clear")
     }
 
+    @Test
+    fun handRecordedMidSession_flushesWithoutWaitingForTheNextAppOpen() = runUnitTest {
+        // Prod 2026-10-04: 33 players finished one multiplayer session and never
+        // reopened the app, so their outboxed hands never reached the server and
+        // their stats read zero. A local write has to drive its own flush.
+        val f = fixture()
+        f.auth.emit(authenticated("u1"))
+        runCurrent()
+        assertEquals(1, f.a.syncs)
+
+        f.a.recordWrite()
+        runCurrent()
+        assertEquals(2, f.a.syncs, "the recorded hand flushed on its own")
+        assertEquals(1, f.b.syncs, "a syncer with nothing written stays put")
+    }
+
+    @Test
+    fun steadyStreamOfHands_flushesOncePerWindow_withATrailingFlushForTheLastHand() = runUnitTest {
+        val f = fixture()
+        f.auth.emit(authenticated("u1"))
+        runCurrent()
+        assertEquals(1, f.a.syncs)
+
+        f.a.recordWrite()
+        runCurrent()
+        assertEquals(2, f.a.syncs, "the first hand flushes straight away")
+
+        repeat(5) {
+            advanceTimeBy(5.seconds)
+            f.a.recordWrite()
+        }
+        runCurrent()
+        assertEquals(2, f.a.syncs, "hands inside the window wait instead of each costing a request")
+
+        advanceTimeBy(UserScopedSyncCoordinator.LOCAL_WRITE_FLUSH_INTERVAL)
+        runCurrent()
+        assertEquals(3, f.a.syncs, "the window closing flushes the hands it held back")
+
+        advanceTimeBy(UserScopedSyncCoordinator.LOCAL_WRITE_FLUSH_INTERVAL * 3)
+        assertEquals(3, f.a.syncs, "nothing new written, nothing more sent")
+    }
+
+    @Test
+    fun backgroundingWithUnflushedHands_flushesBeforeTheAppCanBeKilled() = runUnitTest {
+        val f = fixture()
+        f.auth.emit(authenticated("u1"))
+        runCurrent()
+        f.a.recordWrite()
+        runCurrent()
+        assertEquals(2, f.a.syncs)
+
+        advanceTimeBy(5.seconds)
+        f.a.recordWrite()
+        runCurrent()
+        assertEquals(2, f.a.syncs, "held back by the window")
+
+        f.bus.dispatch(AppEvent.OnBackground)
+        runCurrent()
+        assertEquals(3, f.a.syncs, "backgrounding flushed the held-back hand")
+        assertEquals(1, f.b.syncs, "backgrounding with nothing written costs nothing")
+
+        advanceTimeBy(UserScopedSyncCoordinator.LOCAL_WRITE_FLUSH_INTERVAL * 2)
+        assertEquals(3, f.a.syncs, "the window's trailing edge has nothing left to send")
+    }
+
     // ---------- scaffolding ----------
 
     private fun TestScope.fixture(construct: Boolean = true): Fixture {
@@ -343,6 +408,13 @@ class UserScopedSyncCoordinatorTest : CoroutineTest() {
     }
 
     private class RecordingSyncer : UserScopedSyncer {
+        private val writes = MutableSharedFlow<Unit>(extraBufferCapacity = 64)
+        override val localWrites: Flow<Unit> = writes
+
+        fun recordWrite() {
+            writes.tryEmit(Unit)
+        }
+
         var syncs = 0
             private set
         var completedSyncs = 0

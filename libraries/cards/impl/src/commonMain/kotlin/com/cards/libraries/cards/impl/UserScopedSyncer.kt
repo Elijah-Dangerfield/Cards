@@ -1,5 +1,8 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+
 /**
  * A user-scoped store whose server state should be (re)reconciled whenever an
  * account is active — on becoming active (sign-in, cold-boot session resolve,
@@ -15,4 +18,13 @@ package com.dangerfield.cards.libraries.cards.impl
  */
 interface UserScopedSyncer {
     suspend fun sync(): Result<Unit>
+
+    /**
+     * Emits whenever this store queues something the server hasn't seen yet
+     * (an outboxed hand, an XP award). The coordinator turns these into
+     * throttled flushes plus one on backgrounding, so a player who plays a
+     * session and never reopens the app still lands on the server. Stores
+     * that only pull leave this empty.
+     */
+    val localWrites: Flow<Unit> get() = emptyFlow()
 }

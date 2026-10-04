@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
+import app.cash.turbine.test
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -47,6 +48,16 @@ import kotlin.time.Instant
  *    later fetch retries and can succeed.
  */
 class PlayStyleRepositoryImplSyncTest : CoroutineTest() {
+
+    @Test
+    fun recordHand_signalsALocalWrite() = runUnitTest {
+        val repo = build { error("no network in this test") }
+
+        repo.localWrites.test {
+            repo.recordHand(handSummary(handId = "7", vpip = true))
+            awaitItem()
+        }
+    }
 
     @Test
     fun recordHand_appendsOneUnsyncedRow() = runUnitTest {

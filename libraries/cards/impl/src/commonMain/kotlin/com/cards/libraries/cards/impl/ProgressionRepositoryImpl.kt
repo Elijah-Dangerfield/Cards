@@ -29,7 +29,10 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -69,6 +72,8 @@ class ProgressionRepositoryImpl(
     private val logger = KLog.withTag("ProgressionRepository")
     private val syncLogger = KLog.withTag("ProgressionSync")
     private val syncMutex = Mutex()
+    private val writes = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val localWrites: Flow<Unit> = writes.asSharedFlow()
 
     override fun observeProgression(): Flow<Progression> =
         progressionDao.observeProgression().map { it?.toDomain() ?: Progression.Empty }
@@ -116,6 +121,7 @@ class ProgressionRepositoryImpl(
         }
         if (ledgerRows.isNotEmpty()) {
             xpEventDao.insertAll(ledgerRows)
+            writes.tryEmit(Unit)
         }
 
         logger.d {
@@ -156,6 +162,7 @@ class ProgressionRepositoryImpl(
             createdAtEpochMs = now,
         )
         xpEventDao.insertAll(listOf(entity))
+        writes.tryEmit(Unit)
         return XpEvent(
             id = 0L,
             deltaXp = delta,

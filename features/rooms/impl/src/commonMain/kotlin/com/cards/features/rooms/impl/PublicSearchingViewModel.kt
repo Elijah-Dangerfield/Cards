@@ -46,10 +46,12 @@ import kotlin.time.TimeSource
  *     counts *other connected humans*, so the screen can honestly say "still
  *     looking" vs "someone joined". The instant the server deals the first hand
  *     (room flips to Playing) we hand off to the live table.
- *  4. If the long search window ([SEARCH_WINDOW]) elapses with nobody else here,
- *     we surface the honest disclosed-bot offer rather than force it: "we
- *     couldn't find anyone — play bots for real, and they'll step aside the
- *     moment a real player shows up."
+ *  4. While genuinely waiting alone the player can choose disclosed bots right
+ *     away ([PublicSearchingState.canPlayBotsNow]); most people leave long
+ *     before a minute is up. If the long search window ([SEARCH_WINDOW]) elapses
+ *     with nobody else here, we also surface the honest disclosed-bot offer
+ *     rather than force it: "we couldn't find anyone — play bots for real, and
+ *     they'll step aside the moment a real player shows up."
  *
  * Resilience: if the table is GC'd mid-search (e.g. a server restart), the old
  * room code is dead, so we silently re-find rather than trying to reconnect to a
@@ -102,6 +104,9 @@ class PublicSearchingViewModel(
     /** One `matchmaking.real_player_arrived` per search episode, not per snapshot. */
     private var realPlayerArrivalLogged = false
 
+    /** Set once a subsidy-budget read succeeds this episode, so seat-time and timeout don't both fetch it. */
+    private var subsidyBudgetLoaded = false
+
     /**
      * Consecutive auto re-finds (table vanished under us) with no healthy
      * connection in between. Capped so a server flapping mid-search can't spin us
@@ -121,9 +126,16 @@ class PublicSearchingViewModel(
                 reFindAttempts = 0
                 searchStartedAt = TimeSource.Monotonic.markNow()
                 realPlayerArrivalLogged = false
+                subsidyBudgetLoaded = false
                 logger.logEvent("matchmaking.search_started", "entry" to "public")
                 updateState {
-                    it.copy(phase = SearchPhase.Searching, error = null, realPlayersFound = 0)
+                    it.copy(
+                        phase = SearchPhase.Searching,
+                        error = null,
+                        realPlayersFound = 0,
+                        waitingTableReady = false,
+                        subsidyNotice = null,
+                    )
                 }
                 beginSearch()
             }
@@ -152,7 +164,8 @@ class PublicSearchingViewModel(
                         )
                     }
                 } else {
-                    updateState { it.copy(phase = SearchPhase.Searching) }
+                    updateState { it.copy(phase = SearchPhase.Searching, waitingTableReady = true) }
+                    loadSubsidyBudget()
                 }
             }
 
@@ -207,7 +220,14 @@ class PublicSearchingViewModel(
                                 updateState { it.copy(error = SearchError.Network) }
                             } else {
                                 reFindAttempts++
-                                updateState { it.copy(phase = SearchPhase.Searching, error = null, joinedRoom = null) }
+                                updateState {
+                                    it.copy(
+                                        phase = SearchPhase.Searching,
+                                        error = null,
+                                        joinedRoom = null,
+                                        waitingTableReady = false,
+                                    )
+                                }
                                 beginSearch(backoff = true)
                             }
                         // IncompatibleVersion (ENG-7): the table sent a frame this
@@ -236,18 +256,13 @@ class PublicSearchingViewModel(
                 if (state.phase == SearchPhase.Searching && state.realPlayersFound == 0) {
                     logger.logEvent("matchmaking.bot_offer_shown", "wait_ms" to waitMs())
                     updateState { it.copy(phase = SearchPhase.BotFallbackOffer) }
-                    // Read the disclosed-bot subsidy headroom so a near-cap player
-                    // learns the limit before sitting rather than from a surprising
-                    // balance afterward (MP-6). Best-effort: a failed read just omits
-                    // the disclosure, the offer still stands.
-                    viewModelScope.launch {
-                        takeAction(PublicSearchingAction.SubsidyBudgetLoaded(matchmaking.subsidyBudget()))
-                    }
+                    loadSubsidyBudget()
                 }
             }
 
             is PublicSearchingAction.SubsidyBudgetLoaded -> action.run {
                 val budget = (action.outcome as? SubsidyBudgetOutcome.Success) ?: return@run
+                subsidyBudgetLoaded = true
                 if (budget.remaining < budget.cap) {
                     updateState {
                         it.copy(subsidyNotice = SubsidyNotice(remaining = budget.remaining, cap = budget.cap))
@@ -259,13 +274,13 @@ class PublicSearchingViewModel(
                 it.copy(error = action.error)
             }
 
-            PublicSearchingAction.PlayBots -> action.run {
-                val code = currentRoomCode ?: return@run
-                logger.logEvent("matchmaking.bot_offer_accepted", "wait_ms" to waitMs())
-                updateState { it.copy(phase = SearchPhase.JoiningBots, error = null) }
-                viewModelScope.launch {
-                    takeAction(PublicSearchingAction.PlayBotsResult(matchmaking.playBots(code)))
-                }
+            PublicSearchingAction.PlayBots -> action.acceptBots(trigger = "timeout")
+
+            PublicSearchingAction.PlayBotsNow -> action.run {
+                // The button can race a real player's arrival; a stale tap must
+                // never trade a human game for bots.
+                if (!state.canPlayBotsNow) return@run
+                acceptBots(trigger = "early_button")
             }
 
             is PublicSearchingAction.PlayBotsResult -> action.run {
@@ -293,7 +308,7 @@ class PublicSearchingViewModel(
 
             PublicSearchingAction.KeepWaiting -> action.run {
                 logger.logEvent("matchmaking.bot_offer_declined", "next" to "keep_waiting")
-                updateState { it.copy(phase = SearchPhase.Searching, error = null, subsidyNotice = null) }
+                updateState { it.copy(phase = SearchPhase.Searching, error = null) }
                 armTimeout()
             }
 
@@ -303,6 +318,33 @@ class PublicSearchingViewModel(
             }
 
             PublicSearchingAction.Cancel -> leaveAndExit()
+        }
+    }
+
+    /**
+     * Accept disclosed bots, from the timeout offer or the early button. Both
+     * share this path so the server call, the hand-off and the funnel event stay
+     * identical; only `trigger` tells them apart on the dashboards.
+     */
+    private suspend fun PublicSearchingAction.acceptBots(trigger: String) {
+        val code = currentRoomCode ?: return
+        logger.logEvent("matchmaking.bot_offer_accepted", "trigger" to trigger, "wait_ms" to waitMs())
+        updateState { it.copy(phase = SearchPhase.JoiningBots, error = null) }
+        viewModelScope.launch {
+            takeAction(PublicSearchingAction.PlayBotsResult(matchmaking.playBots(code)))
+        }
+    }
+
+    /**
+     * Read the disclosed-bot subsidy headroom so a near-cap player learns the
+     * limit before sitting rather than from a surprising balance afterward
+     * (MP-6). Best-effort: a failed read just omits the disclosure, and a later
+     * trigger (the timeout offer) tries again.
+     */
+    private fun loadSubsidyBudget() {
+        if (subsidyBudgetLoaded) return
+        viewModelScope.launch {
+            takeAction(PublicSearchingAction.SubsidyBudgetLoaded(matchmaking.subsidyBudget()))
         }
     }
 
@@ -426,6 +468,7 @@ class PublicSearchingViewModel(
                     if (outcome.created) {
                         ownWaitingRoom = outcome.room
                         logger.logEvent("matchmaking.wait_started")
+                        takeAction(PublicSearchingAction.Seated(outcome.room, intoJoinedLobby = false))
                         // ROOM-12: keep browsing /candidates while we genuinely
                         // wait, so a table created moments after ours is still
                         // discovered and we consolidate into it.
@@ -554,12 +597,19 @@ data class PublicSearchingState(
     /** This device's user id, so the joined-lobby seat grid can mark "you". */
     val localUserId: String? = null,
     /**
-     * Set on the bot-fallback offer when the player has already drawn down some of
-     * their daily disclosed-bot subsidy, so the offer can disclose the limit up
-     * front. Null when full headroom remains (no need to caveat) or unread.
+     * Set when the player has already drawn down some of their daily disclosed-bot
+     * subsidy, so both bot entry points (the early button and the timeout offer)
+     * can disclose the limit up front. Null when full headroom remains (no need to
+     * caveat) or unread.
      */
     val subsidyNotice: SubsidyNotice? = null,
-)
+    /** We hold a seat at a table we're genuinely waiting in, so bots have somewhere to sit. */
+    val waitingTableReady: Boolean = false,
+) {
+    /** Offer disclosed bots right away: only while waiting alone at our table, never once a human is here. */
+    val canPlayBotsNow: Boolean
+        get() = phase == SearchPhase.Searching && waitingTableReady && realPlayersFound == 0 && error == null
+}
 
 /** The near-cap disclosure shown alongside the disclosed-bot offer. */
 data class SubsidyNotice(
@@ -622,6 +672,9 @@ sealed interface PublicSearchingAction {
 
     /** Accept the disclosed-bot fallback. */
     data object PlayBots : PublicSearchingAction
+
+    /** Choose disclosed bots from the radar before the search window elapses. */
+    data object PlayBotsNow : PublicSearchingAction
 
     /** Decline bots and leave. */
     data object TryAgainLater : PublicSearchingAction

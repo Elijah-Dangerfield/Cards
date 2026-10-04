@@ -369,7 +369,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun keepWaiting_clearsTheSubsidyNotice() = runUnitTest {
+    fun keepWaiting_keepsTheSubsidyNotice_forTheEarlyBotsButton() = runUnitTest {
         val mm = FakeMatchmakingRepository(
             subsidyBudget = SubsidyBudgetOutcome.Success(grantedToday = 8_500, cap = 10_000, remaining = 1_500),
         )
@@ -382,7 +382,126 @@ class PublicSearchingViewModelTest : CoroutineTest() {
         vm.takeAction(PublicSearchingAction.KeepWaiting)
         runCurrent()
 
-        assertNull(vm.state.subsidyNotice, "leaving the offer drops the disclosure")
+        assertEquals(SearchPhase.Searching, vm.state.phase)
+        assertEquals(true, vm.state.canPlayBotsNow)
+        assertEquals(
+            SubsidyNotice(remaining = 1_500, cap = 10_000),
+            vm.state.subsidyNotice,
+            "the early bots button still sits on the radar, so its disclosure stays",
+        )
+    }
+
+    // ---------- Play bots now, before the window elapses ----------
+
+    @Test
+    fun waitingAlone_offersBotsNow_andAcceptingSeatsDisclosedBots() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            find = FindTableOutcome.Success(roomOf(), created = true),
+            playBots = PlayBotsOutcome.Success(roomOf()),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+        assertEquals(SearchPhase.Searching, vm.state.phase)
+        assertEquals(true, vm.state.canPlayBotsNow, "bots are on the table from the first second of a lonely wait")
+
+        vm.takeAction(PublicSearchingAction.PlayBotsNow)
+        runCurrent()
+
+        assertEquals(1, mm.playBotsCalls, "same server path as accepting the timeout offer")
+        assertEquals(SearchPhase.JoiningBots, vm.state.phase)
+    }
+
+    @Test
+    fun waitingAlone_readsSubsidyHeadroom_beforeTheWindowElapses() = runUnitTest {
+        val mm = FakeMatchmakingRepository(
+            find = FindTableOutcome.Success(roomOf(), created = true),
+            subsidyBudget = SubsidyBudgetOutcome.Success(grantedToday = 8_500, cap = 10_000, remaining = 1_500),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+
+        assertEquals(SearchPhase.Searching, vm.state.phase)
+        assertEquals(
+            SubsidyNotice(remaining = 1_500, cap = 10_000),
+            vm.state.subsidyNotice,
+            "a near-cap player learns the limit before tapping play bots now",
+        )
+    }
+
+    @Test
+    fun playBotsNow_logsAcceptanceWithEarlyButtonTrigger() = runUnitTest {
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            val mm = FakeMatchmakingRepository(find = FindTableOutcome.Success(roomOf(), created = true))
+            val vm = buildVm(matchmaking = mm)
+            runCurrent()
+
+            vm.takeAction(PublicSearchingAction.PlayBotsNow)
+            runCurrent()
+
+            assertEquals(
+                listOf(
+                    "matchmaking.search_started",
+                    "matchmaking.wait_started",
+                    "matchmaking.bot_offer_accepted",
+                ),
+                tree.eventNames(),
+                "no offer was shown, the player chose bots on their own",
+            )
+            assertEquals("early_button", tree.eventExtras("matchmaking.bot_offer_accepted")["trigger"])
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    @Test
+    fun realPlayerArrives_botsNowGoesAway_andAStaleTapIsIgnored() = runUnitTest {
+        val conn = MutableSharedFlow<RoomConnection>(extraBufferCapacity = 8)
+        val mm = FakeMatchmakingRepository(find = FindTableOutcome.Success(roomOf(), created = true))
+        val vm = buildVm(matchmaking = mm, rooms = FakeRoomRepository(connection = conn))
+        runCurrent()
+        assertEquals(true, vm.state.canPlayBotsNow)
+
+        conn.emit(
+            RoomConnection.Connected(
+                roomOf(
+                    members = listOf(
+                        member(LOCAL_USER, "You", isConnected = true),
+                        member("peer", "Peer", isConnected = true, seatIndex = 1),
+                    ),
+                ),
+            ),
+        )
+        runCurrent()
+        assertEquals(false, vm.state.canPlayBotsNow, "a real player is here, bots would be the wrong offer")
+
+        vm.takeAction(PublicSearchingAction.PlayBotsNow)
+        runCurrent()
+
+        assertEquals(0, mm.playBotsCalls, "a tap that raced the arrival never seats bots")
+        assertEquals(SearchPhase.Searching, vm.state.phase)
+    }
+
+    @Test
+    fun matchedIntoExistingTable_neverOffersBotsNow() = runUnitTest {
+        val mm = FakeMatchmakingRepository(find = FindTableOutcome.Success(roomOf(code = "AAA111"), created = false))
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+
+        assertEquals(SearchPhase.Joined, vm.state.phase)
+        assertEquals(false, vm.state.canPlayBotsNow)
+    }
+
+    @Test
+    fun offerShowing_hidesTheEarlyButton() = runUnitTest {
+        val vm = buildVm()
+        runCurrent()
+        testScheduler.advanceTimeBy(61.seconds)
+        testScheduler.runCurrent()
+
+        assertEquals(SearchPhase.BotFallbackOffer, vm.state.phase)
+        assertEquals(false, vm.state.canPlayBotsNow, "the offer carries its own play-bots action")
     }
 
     @Test
@@ -691,6 +810,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
                 ),
                 tree.eventNames(),
             )
+            assertEquals("timeout", tree.eventExtras("matchmaking.bot_offer_accepted")["trigger"])
         } finally {
             KLog.uproot(tree)
         }

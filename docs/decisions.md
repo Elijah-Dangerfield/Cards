@@ -4,6 +4,13 @@
 
 Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
+## 2026-10-04 — Disclosed bots are offered from the start of a public search, not only after 60s
+
+**Problem:** The only way into bots from public matchmaking was the offer after a 60-second lonely wait. Over 30 days of prod telemetry, 102 of 186 public searches were abandoned, 101 of them before 100s and 40 under 10s; the offer was shown 16 times. People left before the rescue existed.
+
+**Decision:** While the player waits alone at their own fresh table, the radar shows "Play bots now" with a one-line disclosure (real chips, labeled bots, they step aside when a real player joins) and the same near-cap subsidy heads-up as the offer. It hides the moment another human connects, and a tap that races an arrival is dropped. It runs the exact accept path of the timeout offer, and `matchmaking.bot_offer_accepted` gains `trigger` (`early_button` / `timeout`). The 60s offer is unchanged. The subsidy budget is now read when the wait starts so the disclosure can sit next to the early button; "Keep waiting" no longer clears it.
+
+**Why this stays honest:** the bots are still opt-in, still disclosed before sitting, and the copy never says we are still looking for people once they're chosen. "Real players first" is preserved by the wait itself; the change only stops making people earn the alternative.
 ## 2026-10-04 — `main` is the only long-lived branch; `develop` deleted
 
 **Decision:** Deleted `develop`, locally and on the remote, along with ~17 stale branches. `main` is

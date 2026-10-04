@@ -25,7 +25,10 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -68,6 +71,8 @@ class PlayerStatsRepositoryImpl(
 
     private val logger = KLog.withTag("PlayerStatsRepository")
     private val syncMutex = Mutex()
+    private val writes = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val localWrites: Flow<Unit> = writes.asSharedFlow()
 
     override fun observeStats(): Flow<PlayerStats?> =
         playerStatsDao.observe().map { it?.toDomain() }
@@ -147,6 +152,7 @@ class PlayerStatsRepositoryImpl(
                 ),
             ),
         )
+        writes.tryEmit(Unit)
         logger.d {
             "Recorded stat hand ${summary.handId} (${summary.mode}, won=${summary.won}, " +
                 "folded=${summary.folded}, vsBot=${summary.vsBot}, streak=${summary.noBustStreak})"
