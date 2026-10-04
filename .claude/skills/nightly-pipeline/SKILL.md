@@ -16,28 +16,46 @@ The iteration loop — the autonomous dev pipeline, **not** a CI app build. You 
 - **`intake: off`** — skip Phase 1 entirely; work only what's already in `docs/todo.md` (the old "execute-only" mode). Use when you want to burn down the list without re-scanning feedback/Sentry/Grafana.
 
 ## Branch discipline (inject into every subagent)
-Working branch is `develop`. The human also commits here (often via worktrees merged separately), so it is **not** disposable. **Never reset or rebase `develop`** — every phase only adds commits on top of current HEAD. The intake commits must survive until the reviewer opens the PR. Sanity-check after prep that `git log --oneline <last in-flight-clear>..develop` still holds the intake commits.
+
+**`develop` was deleted on 2026-10-04. `main` is the only long-lived branch.** Autonomous runs do
+**not** commit to `main` — it is the release branch, and a push to it is what release-please reacts
+to. Nothing unreviewed belongs there.
+
+So the run creates **one dated working branch** and every phase stacks on it:
+
+```bash
+RUN_BRANCH="agent/nightly-$(date +%Y%m%d)"
+git fetch origin && git checkout main && git pull --rebase origin main
+git checkout -B "$RUN_BRANCH"      # resume the same branch if the run is retried same-day
+```
+
+Pass `$RUN_BRANCH` to every subagent. **Never reset or rebase it** — every phase only adds commits
+on top of current HEAD, and the intake commits must survive until the reviewer opens the PR.
+Sanity-check after prep that `git log --oneline main..$RUN_BRANCH` still holds the intake commits.
+
+The branch is disposable in a way `develop` never was (it dies with the PR), but it is still shared
+by the phases of this run, so the no-reset rule stands.
 
 ## Phase 1 — Intake (skip if `intake: off`)
-Two subagents, sequentially. **The two triage skills _are_ the intake — each subagent invokes its skill and lets it drive. Do not hand-roll triage** (no ad-hoc Sentry/Grafana querying): the skills already encode the queries, correlation, ledgers, case-file format, and todo house style. Both file into `docs/todo.md`, commit directly to `develop`, and open no PR.
+Two subagents, sequentially. **The two triage skills _are_ the intake — each subagent invokes its skill and lets it drive. Do not hand-roll triage** (no ad-hoc Sentry/Grafana querying): the skills already encode the queries, correlation, ledgers, case-file format, and todo house style. Both file into `docs/todo.md`, commit directly to `$RUN_BRANCH`, and open no PR.
 
 **1a. Feedback triage.** Spawn a subagent:
-> "Invoke the `feedback-triage` skill and let it drive — don't hand-roll it. It reads every unresolved in-app feedback report, traces each across Sentry + Grafana by `session_id`, files a `docs/todo.md` item or resolves it no-action, and records every disposition in `docs/agent/feedback-log.md`. Honor its post-launch routing (dev/beta = directive; prod = user signal; good actionable product asks become todos, big/ambiguous ones go to backlog for the brief). Commit, no PR, clean tree. **Do not reset or rebase `develop`.**"
+> "Invoke the `feedback-triage` skill and let it drive — don't hand-roll it. It reads every unresolved in-app feedback report, traces each across Sentry + Grafana by `session_id`, files a `docs/todo.md` item or resolves it no-action, and records every disposition in `docs/agent/feedback-log.md`. Honor its post-launch routing (dev/beta = directive; prod = user signal; good actionable product asks become todos, big/ambiguous ones go to backlog for the brief). Commit, no PR, clean tree. **Do not reset or rebase `$RUN_BRANCH`.**"
 
 **1b. Observability triage.** Spawn a subagent:
-> "Invoke the `observability-triage` skill and let it drive. It reads unresolved Sentry crashes/errors (org `elijah-dangerfield`, project `cards`) and Grafana alerts/dashboards and files `docs/todo.md` items, keeping the ledger at `docs/agent/observability-log.md`. Commit, no PR, clean tree. **Do not reset or rebase `develop`; stack on the feedback-triage commit.**"
+> "Invoke the `observability-triage` skill and let it drive. It reads unresolved Sentry crashes/errors (org `elijah-dangerfield`, project `cards`) and Grafana alerts/dashboards and files `docs/todo.md` items, keeping the ledger at `docs/agent/observability-log.md`. Commit, no PR, clean tree. **Do not reset or rebase `$RUN_BRANCH`; stack on the feedback-triage commit.**"
 
 If either finds nothing new it commits nothing — fine and expected. Continue regardless.
 
 ## Phase 2 — Prep (reconcile the list)
 One subagent:
-> "Invoke the `curate-todos` skill: reconcile `docs/todo.md` against the repo — drop shipped/stale items, trim bloat, top up only if thin. The intake phase just committed fresh triage items + case files to `develop` this same run — do **not** reset or rebase; treat those as valid and only add commits on top of HEAD. Commit, no PR, clean tree."
+> "Invoke the `curate-todos` skill: reconcile `docs/todo.md` against the repo — drop shipped/stale items, trim bloat, top up only if thin. The intake phase just committed fresh triage items + case files to `$RUN_BRANCH` this same run — do **not** reset or rebase; treat those as valid and only add commits on top of HEAD. Commit, no PR, clean tree."
 
 ## Phase 3 — Execute (workers, or janitor if the list is empty)
 Look at `docs/todo.md`:
 
 **If there is any actionable, worker-pickable work** → run workers. Spawn **one at a time** (up to ~4–5 this run), each:
-> "Invoke the `work-item` skill in orchestrated mode: pick the top actionable todo, ship it as commits on `develop`, log to `docs/agent/in-flight.md` for the reviewer. Build + tests green before every commit. **Do not reset or rebase `develop`.**"
+> "Invoke the `work-item` skill in orchestrated mode: pick the top actionable todo, ship it as commits on `$RUN_BRANCH`, log to `docs/agent/in-flight.md` for the reviewer. Build + tests green before every commit. **Do not reset or rebase `$RUN_BRANCH`.**"
 
 Wait for each to finish before spawning the next (they stack commits + log to in-flight.md). Then go to Phase 4.
 
@@ -48,7 +66,7 @@ The janitor works in an isolated worktree, cleans a coherent slice, and **opens 
 
 ## Phase 4 — Review (workers branch only)
 One subagent:
-> "Invoke the `review-and-pr` skill exactly. Review this run's worker commits, fix what you'd flag, clear `docs/agent/in-flight.md`, and open (or append a cycle block to) the develop → main PR. If in-flight.md is missing, fall back to the commit-scope anchor. Don't merge."
+> "Invoke the `review-and-pr` skill exactly. Review this run's worker commits, fix what you'd flag, clear `docs/agent/in-flight.md`, and open (or append a cycle block to) the `$RUN_BRANCH` → `main` PR. If in-flight.md is missing, fall back to the commit-scope anchor. Don't merge."
 
 Only the reviewer opens the PR on the worker path.
 
@@ -60,7 +78,7 @@ This flow **opens** a PR; it does not ship. Post-launch, shipping is deliberate:
 - **Continue past any phase that no-ops.** Empty intake, a clean list, an empty worker cycle — all normal. Only stop early on a real error you can't hand past.
 - **Only the reviewer (worker path) or the janitor (empty-list path) opens a PR.**
 - **Never commit broken code**; build + tests green before any commit (each action skill enforces this).
-- **Never reset or rebase `develop`.** Inject that into every subagent.
+- **Never reset or rebase the run branch.** Inject that into every subagent, along with its name.
 - **Don't use the scheduled-task tools.** The whole run lives in this one session.
 
 ## End of run

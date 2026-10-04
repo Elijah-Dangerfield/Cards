@@ -1,6 +1,6 @@
 ---
 name: ship-release
-description: Use to merge the release PR and cut/watch a release; the ship step of the flow or invoked ad hoc. Merge the nightly develop → main PR (green only), then handle the release-please "chore: release main" PR that actually cuts the App Store + Play release, and watch release.yml to green. Optional tail: approve the prod server-deploy gate and ship the TestFlight beta.
+description: Use to merge the release PR and cut/watch a release; the ship step of the flow or invoked ad hoc. Merge the nightly run's PR into main (green only), then handle the release-please "chore: release main" PR that actually cuts the App Store + Play release, and watch release.yml to green. Optional tail: approve the prod server-deploy gate and ship the TestFlight beta.
 ---
 
 # Ship release
@@ -17,22 +17,22 @@ When done, report **one tight line** (format at the bottom).
 
 Two PRs, two merges, in order:
 
-1. The nightly work lands as a **`develop → main` PR**. Merging it to `main` triggers `release-please`, which opens or updates a **`chore: release main` PR**, and (if the diff touched the server) the prod deploy.
+1. The nightly work lands as a PR from the run's dated branch (`agent/nightly-YYYYMMDD`) into **`main`**. `develop` was deleted 2026-10-04. Merging to `main` triggers `release-please`, which opens or updates a **`chore: release main` PR**, and (if the diff touched the server) the prod deploy.
 2. Merging the **`chore: release main` PR** is what actually cuts the App Store + Play production release, via **`release.yml`**. That's the release. Watch it to green.
 
 There's also an **`ai-autofix`** GitHub label the owner uses to auto-merge a PR once its checks pass — the configured hands-off path for step 2 below, and usable for step 1.
 
-**Repo:** `/Users/elijahdangerfield/Workspace/Cards` (slug `Elijah-Dangerfield/Cards`). You work across `develop` (to fix CI) and `main` (to ship).
+**Repo:** `/Users/elijahdangerfield/Workspace/Cards` (slug `Elijah-Dangerfield/Cards`). You work on the run branch (to fix CI) and `main` (to ship).
 
 ## 1. Find the nightly PR and get it green
 
 ```
-gh pr list --base main --head develop --state open --json number,url,title,headRefName
+gh pr list --base main --state open --json number,url,title,headRefName
 ```
 
-- **Exactly one `develop → main` PR** → that's your target.
-- **None** → nothing to promote (e.g. only the janitor ran — its PRs target `develop`, not `main`). **Report that and stop.** Don't invent a release. A green janitor / `ai-autofix` PR into `develop` merges on its own path; leave it, just note it.
-- **More than one** → pick the `develop → main` one; mention the others in your report.
+- **Exactly one agent/nightly PR into `main`** → that's your target.
+- **None** → nothing to promote. **Report that and stop.** Don't invent a release. A green janitor / `ai-autofix` PR merges on its own path; leave it, just note it.
+- **More than one** → pick the `agent/nightly-*` one; mention the others in your report. Never pick a PR you cannot identify as this run's.
 
 Required checks on `main`: **Build + test**, **Server tests**, **Validate PR title**.
 
@@ -43,7 +43,7 @@ gh pr checks <n>
 - **Green** → step 2.
 - **Red** → fix it, don't wait it out:
   - `gh run view <run-id> --log-failed` to see the failure.
-  - **Fix at the source on `develop`** (commit + push). A commitlint / title failure is a title edit (`gh pr edit <n> --title "..."`); a real build/test failure is a code fix. An obvious flake (Konan cache, network, runner hiccup) → `gh run rerun <run-id>` **once**.
+  - **Fix at the source on the run branch** (commit + push). A commitlint / title failure is a title edit (`gh pr edit <n> --title "..."`); a real build/test failure is a code fix. An obvious flake (Konan cache, network, runner hiccup) → `gh run rerun <run-id>` **once**.
   - Re-poll every ~1–2 minutes (short polls, not long sleeps) until every required check passes.
 - **Can't get it green** after honest effort → **stop and report. Never merge a red PR.**
 
@@ -55,7 +55,7 @@ Only once every required check is green. Two paths:
   ```
   gh pr merge <n> --merge
   ```
-  **`--merge` (a real merge commit), not squash or rebase** — owner preference for the nightly PR. **Do not delete `develop`** (it's permanent; never pass `--delete-branch`). Confirm `gh pr view <n> --json state,mergedAt` shows `MERGED`.
+  **`--merge` (a real merge commit), not squash or rebase** — owner preference for the nightly PR. The run branch *is* disposable, so `--delete-branch` is fine here; never delete `main`. Confirm `gh pr view <n> --json state,mergedAt` shows `MERGED`.
 - **Automerge label (hands-off path):** if the owner wants it queued rather than merged now, apply the label instead — GitHub merges it once checks pass:
   ```
   gh pr edit <n> --add-label ai-autofix
@@ -118,8 +118,8 @@ cd apps/ios && bundle exec fastlane beta
 ## Guardrails
 
 - **Never merge a red PR.** Green required checks are the only gate to any merge — the nightly PR *and* the release PR.
-- **Only ever touch the intended PRs** — the nightly `develop → main` PR and (when cutting the release) the `chore: release main` PR. Leave unrelated human PRs alone.
-- **Merge commit, not squash.** Do not delete `develop`.
+- **Only ever touch the intended PRs** — this run's `agent/nightly-*` PR and (when cutting the release) the `chore: release main` PR. Leave unrelated human PRs alone.
+- **Merge commit, not squash.** Never delete `main`.
 - **Respect the approval preference** on the release PR — it cuts a production App Store + Play release. When standalone and not clearly authorized, surface it instead of merging.
 - **Approve prod only after dev is confirmed healthy**, and only if the diff changed the server.
 - **Leave a clean working tree.**

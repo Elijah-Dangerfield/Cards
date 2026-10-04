@@ -97,6 +97,26 @@ Every commit and PR title (PRs squash-merge) must follow [Conventional Commits](
 
 `.githooks/commit-msg` enforces this locally. Gradle fails with an install-hooks message if the hook isn't wired — run `./scripts/install_hooks.sh`.
 
+## Branching: `main` only
+
+**`main` is the only long-lived branch.** `develop` was deleted on 2026-10-04 along with ~17 stale
+branches; there is no integration branch and no `develop → main` train any more.
+
+- **A human working interactively commits straight to `main`.** That is the owner's stated
+  preference — don't spin up a feature branch and a PR unless they ask, or unless the change is
+  large enough to genuinely want isolated review.
+- **An autonomous run never commits to `main`.** It cuts a dated branch (`agent/nightly-YYYYMMDD`,
+  `chore/janitor-YYYYMMDD`), stacks every phase there, and opens one PR into `main` for a human to
+  merge. See the `nightly-pipeline`, `work-item` and `janitor` skills.
+- **Pushing to `main` is one step from a release.** release-please watches `main` and opens a
+  `chore: release main` PR; merging *that* is what tags and ships both stores. So landing on `main`
+  is not itself a release, but it is closer to one than `develop` ever was. Worth a beat of thought
+  before pushing something half-finished.
+
+Why the change: the old model bought review isolation nobody used, and charged a back-merge after
+every release, because release-please commits land on `main` and left `develop` behind. It drifted
+3-5 commits behind more than once. See `docs/decisions.md` (2026-10-04).
+
 ## Convention Plugins
 
 | Plugin | Use |

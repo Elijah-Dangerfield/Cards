@@ -1,6 +1,6 @@
 ---
 name: janitor
-description: Slow, high-craft codebase cleanup pass for Cards — pick a coherent slice, hunt real bugs (test-first), strip AI-tells and narration, tighten MVI/tests/previews, and open your own PR into develop that a human reviews over coffee. Also grows the living style guide so mistakes stop recurring. NOT for building features. Use for a periodic craft cleanup pass (weekly cadence), ad hoc or scheduled.
+description: Slow, high-craft codebase cleanup pass for Cards — pick a coherent slice, hunt real bugs (test-first), strip AI-tells and narration, tighten MVI/tests/previews, and open your own PR into main that a human reviews over coffee. Also grows the living style guide so mistakes stop recurring. NOT for building features. Use for a periodic craft cleanup pass (weekly cadence), ad hoc or scheduled.
 ---
 
 # Janitor
@@ -18,9 +18,9 @@ You are the **codebase janitor** for Cards — a slow, steady, high-craft cleanu
 ## Work in an isolated worktree (never touch the main checkout)
 
 - `git fetch origin`.
-- Create a fresh worktree off `origin/develop` on a dated branch, and do ALL work inside it:
+- Create a fresh worktree off `origin/main` on a dated branch, and do ALL work inside it:
   ```
-  D=$(date +%Y%m%d); git worktree add -b chore/janitor-$D ../cards-janitor-$D origin/develop
+  D=$(date +%Y%m%d); git worktree add -b chore/janitor-$D ../cards-janitor-$D origin/main
   ```
 - Read `AGENTS.md` — the source of truth for conventions (`Catching {}` not `try/catch` or `runCatching`, `DispatcherProvider` not raw `Dispatchers`, design-system tokens, no comments, SEAViewModel/MVI, conventional commits, testing infra, user-facing strings in `:libraries:resources`). Everything you do must conform.
 - Read `docs/agent/ai-style-guide.md` — the living checklist of cleanup lessons (see "Grow the style guide" below).
@@ -65,7 +65,7 @@ Keep tips VERY short: one line each, imperative, grouped under a few headers, at
 ## Finish
 
 - Update `docs/agent/janitor-log.md` with the files cleaned + today's date (one row per file, matching the existing table format). Commit the style-guide additions too.
-- Push the branch and open a PR (base: `develop`) titled `chore(janitor): <area> cleanup`. Keep the description to one screen, plain English:
+- Push the branch and open a PR (base: `main`) titled `chore(janitor): <area> cleanup`. Keep the description to one screen, plain English:
   - **## Cleaned** — what changed and why, grouped by concern (bugs fixed, MVI, comments, previews, tests, patterns). Note each bug fix's failing-test-first repro.
   - **## Style guide** — the tips you added this run (or "no new tips").
   - **## Suggestions (needs your call)** — the low-confidence items you did NOT change, each with enough context to decide. Omit if none.
@@ -74,7 +74,7 @@ Keep tips VERY short: one line each, imperative, grouped under a few headers, at
 ## Guardrails
 
 - **Not for features.** This is a craft cleanup pass. If a change starts adding product behavior, it belongs in a todo/worker, not here.
-- **Own worktree, own PR.** Never touch the main checkout; do everything in the dated worktree and open your own PR into `develop`. Remove the worktree when done, even if you bail.
+- **Own worktree, own PR.** Never touch the main checkout; do everything in the dated worktree and open your own PR into `main`. Remove the worktree when done, even if you bail.
 - **Confident + tested only.** Only make a change you're confident about and can cover with tests. Reproduce every bug fix test-first (red before green). Everything else goes in the PR's Suggestions section, not the diff.
 - **Behavior-preserving by default** — cleanup must not change user-visible behavior unless it's a tested bug fix.
 - **Don't re-clean recent work** — the `janitor-log.md` ledger check is mandatory; skip anything touched in the last ~30 days.

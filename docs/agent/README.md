@@ -24,7 +24,7 @@ Post-launch operating setup (Android live, iOS not yet). Two kinds of thing:
 | `feedback-triage` | In-app feedback → routed outcome (channel-aware; see routing). |
 | `observability-triage` | Sentry crashes + Grafana signals nobody reported → todo / no-action. |
 | `curate-todos` | Sole curator of `docs/todo.md` — reconcile + top up. |
-| `work-item` | Ship one todo as commits on `develop`. |
+| `work-item` | Ship one todo as commits on the run branch. |
 | `review-and-pr` | Review a branch, fix what it'd flag, open/update the PR. |
 | `hotfix` | Incident action — rollback-first; auto-handle safe classes, escalate the rest. |
 | `write-brief` | Compose the since-last-run digest. |

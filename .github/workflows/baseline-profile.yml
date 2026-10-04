@@ -101,7 +101,7 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           branch: chore/baseline-profile
-          base: develop
+          base: main
           commit-message: "chore(perf): regenerate the baseline profile"
           title: "chore(perf): regenerate the baseline profile"
           delete-branch: true

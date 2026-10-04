@@ -18,7 +18,7 @@ Keep it tight and decisive. One-line report when done.
 
 Stable for this repo — reconfirm only if a call 404s.
 
-- **Repo:** `/Users/elijahdangerfield/Workspace/Cards`, slug `Elijah-Dangerfield/Cards`. `main` is release/prod; `develop` is integration (see the `ship-release` skill).
+- **Repo:** `/Users/elijahdangerfield/Workspace/Cards`, slug `Elijah-Dangerfield/Cards`. `main` is the only long-lived branch — release, prod, and where the human works (`develop` was deleted 2026-10-04). See the `ship-release` skill.
 - **Prod server:** Fly app `cards-server-prod` (`apps/server/fly.prod.toml`), health `https://cards-server-prod.fly.dev/_health`. Dev is `cards-server` (debug builds). Deploy workflow `server-deploy-prod.yml` pauses at the `production` GitHub Environment (id `17290466540`) for approval.
 - **Sentry:** org `elijah-dangerfield`, project `cards`, region `https://us.sentry.io`.
 - **Grafana:** datasources per `observability-triage`; **alerts** in folder `downcard-engineering` (A1 ledger drift · A2 Fly prod down · A3 Supabase down · A4 clients can't reach backend · A5 purchase failures · A6 server OOM · A7 server silent). Question→dashboard map + **known-benign signals** live in `docs/wiki/observability.md`.
@@ -90,7 +90,7 @@ For a forward-fix, reproduce **test-first** per repo convention: write the faili
 
 Fast-track a hotfix; reuse the `ship-release` skill's CI-green + prod-approval mechanics.
 
-1. **Branch + commit.** Branch off `main` for a true hotfix (fastest path to prod), or off `develop` per repo norm if the fix can wait for the normal train. Push a `fix:` commit.
+1. **Branch + commit.** Branch off `main`. For a true hotfix, PR it straight back into `main` (fastest path to prod); if it can wait for the normal train, it still goes to `main`, just without the urgency. Push a `fix:` commit.
 2. **Open the PR into `main`** (hotfix) with a tight body: signal, root cause, action. In the **auto-handle** lane, apply the `ai-autofix` label — `auto-merge.yml` enables squash auto-merge and lands it once required checks (**Build + test**, **Server tests**, **Validate PR title**) go green. **Never merge red**; if a check fails, fix at the source and re-poll every 1–2 min (see the `ship-release` skill). In the **escalate** lane, leave the label off.
 3. **release-please** opens/updates a `chore: release main` PR that cuts a **PATCH**. Merging that PR is the app-store release — the **owner's call**; don't touch it unless the hotfix must reach the stores (then escalate that decision explicitly).
 4. **Server prod deploy.** If the diff touched `apps/server/**` (or the other server-affecting paths in `server-deploy-prod.yml`), the merge queues a prod deploy that **auto-deploys dev, then pauses at the `production` gate**. Confirm **dev is healthy first**, then — auto-handle lane only — approve:
@@ -102,7 +102,7 @@ Fast-track a hotfix; reuse the `ship-release` skill's CI-green + prod-approval m
      -f comment="Hotfix <ref>: dev healthy, promoting fix to prod."
    ```
    Then `gh run watch $RUN_ID` and confirm green + `/_health` OK. In the escalate lane, leave the gate for the owner.
-5. **Back-merge to `develop`.** A hotfix landed straight on `main` must be merged back into `develop` (or cherry-picked) so it isn't clobbered by the next `develop → main` train. Don't skip this — a lost revert re-ships the bug.
+5. **No back-merge needed.** With `main` the only long-lived branch there is nowhere for a hotfix to get clobbered — this step used to exist because a fix on `main` could be lost to the next `develop → main` train. If any long-lived branch is ever reintroduced, this step comes back with it.
 
 ## 6. Log it — always
 
@@ -149,6 +149,6 @@ TOKEN="${SENTRY_AUTH_TOKEN:-$(security find-generic-password -s cards-sentry-aut
 - **Prefer the reversible action.** Rollback / flag revert beats a forward-fix when the version correlates. A clever forward-fix under fire is how you turn one incident into two.
 - **Never merge red**, never approve prod before dev is confirmed healthy, never merge in the escalate lane.
 - **A machine (Fly) rollback isn't done until the git revert lands** — reconcile `main` with what's running or the next deploy re-ships the bug.
-- **Back-merge hotfixes to `develop`.** A fix that only lives on `main` gets clobbered.
+- **No back-merge step.** `main` is the only long-lived branch, so a fix that lands there stays landed.
 - **Don't touch the release-please `chore: release main` PR** — cutting the store release is the owner's call.
 - **Log every run**, including "assessed, not an incident." The brief depends on it. Leave a clean working tree.
