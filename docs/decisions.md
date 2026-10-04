@@ -11,6 +11,39 @@ Decisions made about Cards' product direction and architecture. Append new decis
 **Decision:** While the player waits alone at their own fresh table, the radar shows "Play bots now" with a one-line disclosure (real chips, labeled bots, they step aside when a real player joins) and the same near-cap subsidy heads-up as the offer. It hides the moment another human connects, and a tap that races an arrival is dropped. It runs the exact accept path of the timeout offer, and `matchmaking.bot_offer_accepted` gains `trigger` (`early_button` / `timeout`). The 60s offer is unchanged. The subsidy budget is now read when the wait starts so the disclosure can sit next to the early button; "Keep waiting" no longer clears it.
 
 **Why this stays honest:** the bots are still opt-in, still disclosed before sitting, and the copy never says we are still looking for people once they're chosen. "Real players first" is preserved by the wait itself; the change only stops making people earn the alternative.
+## 2026-10-04 — `main` is the only long-lived branch; `develop` deleted
+
+**Decision:** Deleted `develop`, locally and on the remote, along with ~17 stale branches. `main` is
+now the single long-lived branch. A human commits to it directly; an autonomous run cuts a dated
+branch (`agent/nightly-YYYYMMDD`, `chore/janitor-YYYYMMDD`) and opens one PR into `main`. There is
+no integration branch and no `develop → main` train.
+
+**Why:** The 2026-07-23 model made `develop` the integration branch and `main` release-only, with
+the invariant that `develop` must always be *ahead* of `main`. In practice the invariant inverted
+constantly: release-please commits the version bump and CHANGELOG to `main`, so every release left
+`develop` behind and needed a back-merge. This history shows it 3-5 commits behind on several
+occasions, and at least one session where work was done against a `develop` that was stale. The
+review isolation it was supposed to buy went unused — the owner's standing preference since
+2026-08-03 was to commit directly to `develop` anyway, which made it a second name for `main` plus
+a merge step.
+
+**What this costs.** A push to `main` is now one click from a release, because release-please reacts
+to it by opening the `chore: release main` PR. The buffer `develop` provided is gone. That is
+acceptable because merging the release PR is still a deliberate, separate, human action — but it
+does mean "pushed" and "nearly shipped" are closer together than they were, and the agent skills say
+so explicitly rather than leaving it implicit.
+
+**Alternatives considered:** (1) **Keep `develop`, automate the back-merge.** Rejected: it fixes the
+symptom and keeps the ceremony, for a branch nobody was using as a review gate. (2) **Keep
+`develop`, move release-please onto it.** Rejected: release-please wants the branch it tags, and
+pointing it at an integration branch means tagging code that has not reached the release branch.
+(3) **Protect `main` and require PRs for everything.** Rejected for now: the owner works solo and
+asked for the opposite; autonomous runs already go through a PR, which is where the gate actually
+matters.
+
+**Also removed:** the `cache-read-only` exception that let `develop` PRs write the macOS Gradle
+cache. Cache warmth now rests on push-to-main plus the twice-weekly schedule — the first thing to
+revisit if cold-cache CI timeouts come back (see ENG-74).
 
 ## 2026-09-28 — The update prompt asks the store for availability and config for the name (ENG-52)
 

@@ -16,8 +16,8 @@
 #
 # Fires on:     workflow_dispatch only. This is a maintenance button, not
 #               something that should run on every push.
-# Side effects: pushes a branch and opens a PR into develop. Never commits to
-#               develop or main directly — a dependency lock is exactly the
+# Side effects: pushes a branch and opens a PR into main. Never commits to
+#               main directly — a dependency lock is exactly the
 #               file you want a human to glance at before it lands.
 # No-ops when:  the lock is already correct for Linux, which is the healthy
 #               steady state. The run says so and exits green.
@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: main
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -95,7 +95,7 @@ jobs:
           git push origin "$branch"
 
           gh pr create \
-            --base develop \
+            --base main \
             --head "$branch" \
             --title "chore(build): regenerate yarn.lock on Linux" \
             --body "Unblocks the server deploy.
@@ -111,7 +111,7 @@ jobs:
           {
             echo "### Opened a PR with the regenerated lock"
             echo
-            echo "Branch \`$branch\` → \`develop\`."
+            echo "Branch \`$branch\` → \`main\`."
             echo
             echo '```diff'
             git diff HEAD~1 -- kotlin-js-store/yarn.lock | head -100

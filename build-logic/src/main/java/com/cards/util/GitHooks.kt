@@ -14,7 +14,7 @@ fun Project.verifyGitHooksInstalled() {
     val configFile = File(gitDir, "config").takeIf { it.exists() } ?: return
     val configured = readHooksPath(configFile)
 
-    if (configured == EXPECTED_HOOKS_PATH) return
+    if (pointsAtOurHooks(configured, rootProject.projectDir)) return
 
     throw GradleException(
         """
@@ -31,6 +31,31 @@ fun Project.verifyGitHooksInstalled() {
 
         """.trimIndent()
     )
+}
+
+/**
+ * Whether [configured] names this repo's hooks directory, however it is spelled.
+ *
+ * Deliberately not `configured == ".githooks"`. A git worktree has no config of
+ * its own, so anything that runs `git config core.hooksPath` from inside one
+ * writes an **absolute** path into the main checkout's config. The hooks still
+ * work; only a string comparison notices. It surfaces as a Gradle failure at
+ * plugin application and, through `pre-push`, as a message about detekt findings
+ * that do not exist — which sends you reading your own code instead of your git
+ * config. It cost time repeatedly in this repo, most recently while removing the
+ * agent worktrees during the 2026-10-04 develop retirement.
+ *
+ * Git resolves a relative `core.hooksPath` against the top of the working tree,
+ * so that is what [projectDir] is for. Comparing canonical paths accepts both
+ * spellings and still rejects a hooks directory that is genuinely elsewhere.
+ *
+ * Ported from KMPTemplate `1ffa2cf`, which fixed this on 2026-09-28.
+ */
+private fun pointsAtOurHooks(configured: String?, projectDir: File): Boolean {
+    if (configured.isNullOrBlank()) return false
+    val expected = File(projectDir, EXPECTED_HOOKS_PATH)
+    val actual = File(configured).let { if (it.isAbsolute) it else File(projectDir, configured) }
+    return runCatching { actual.canonicalFile == expected.canonicalFile }.getOrDefault(false)
 }
 
 private fun resolveGitDir(projectDir: File): File? {

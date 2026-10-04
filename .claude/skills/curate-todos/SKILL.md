@@ -11,10 +11,10 @@ You are **not** a worker. You don't pick features, write code, or refactor. You 
 
 ## Two modes
 
-- **Standalone** — a human runs you any time to tidy the list on the **current branch**. Skip the `develop`-alignment dance; work against whatever branch is checked out, reconcile against `origin/main` (or the branch's own history if that's the point of reference), top up if thin, commit only docs. If the list is already clean and accurate, **do nothing** and say so.
-- **Orchestrated** — you run **once, nightly, immediately before** the workers in the nightly-pipeline flow, on `develop`. Follow the start-of-run branch discipline below.
+- **Standalone** — a human runs you any time to tidy the list on the **current branch**. Skip the branch-alignment dance; work against whatever branch is checked out, reconcile against `origin/main` (or the branch's own history if that's the point of reference), top up if thin, commit only docs. If the list is already clean and accurate, **do nothing** and say so.
+- **Orchestrated** — you run **once, nightly, immediately before** the workers in the nightly-pipeline flow, on the run's dated branch (`agent/nightly-YYYYMMDD`). Follow the start-of-run branch discipline below.
 
-**Don't assume a prior intake phase ran.** In the orchestrated flow an intake/triage phase may have just committed fresh items to `develop` this run — treat those as valid and stack on top of them; never reset them away. But the intake may also not have run at all, or produced nothing. Either way: if the list is already clean, do nothing.
+**Don't assume a prior intake phase ran.** In the orchestrated flow an intake/triage phase may have just committed fresh items to the run branch this run — treat those as valid and stack on top of them; never reset them away. But the intake may also not have run at all, or produced nothing. Either way: if the list is already clean, do nothing.
 
 ## The two failure modes you exist to prevent
 
@@ -56,12 +56,12 @@ Query the specific prefix — a blanket all-prefix grep sorts lexically (`BILL-1
 ## Start of run
 
 1. `git fetch origin`.
-2. **Orchestrated mode only:** `gh pr list --head develop --state open --json number,url`. **If a PR exists, switch to top-up-only mode** (don't exit). A PR open against `develop` means an earlier cycle this night already opened it and more pipelines are stacking onto it. You must NOT reset `develop` and must NOT reconcile against `main` — this cycle's shipped items live in the open PR, not `main` yet, so reconciling would mis-flag them as un-shipped. Skip step 3's reconcile prep, skip Pass 1 entirely, go straight to Pass 2 to refill for the next wave, committing on top of the current `develop`. **No open PR → full run** (reconcile + top-up).
+2. **Orchestrated mode only:** `gh pr list --head "$RUN_BRANCH" --state open --json number,url`. **If a PR exists, switch to top-up-only mode** (don't exit). An open PR means an earlier cycle this night already opened it and more pipelines are stacking onto it. You must NOT reset the run branch and must NOT reconcile against `main` — this cycle's shipped items live in the open PR, not `main` yet, so reconciling would mis-flag them as un-shipped. Skip step 3's reconcile prep, skip Pass 1 entirely, go straight to Pass 2 to refill for the next wave, committing on top of the current run branch. **No open PR → full run** (reconcile + top-up).
 3. Align the branch:
    - **Standalone mode** → stay on the current branch. Just `git pull --rebase` if it tracks a remote; otherwise work as-is. Reconcile against `origin/main`.
-   - **Orchestrated, top-up-only (open PR)** → `git checkout develop && git pull --rebase origin develop`. Do not reset, do not force-push — you're refilling on top of the in-review cycle's commits.
-   - **Orchestrated, `docs/agent/in-flight.md` exists on `origin/develop`** → a worker is already mid-cycle. Exit; you should have run before workers, not during.
-   - **Orchestrated, else** → `git checkout develop && git pull --rebase origin develop` and stack on top. **Never reset `develop`** (never `reset --hard`, never force-push it). `develop` is the human's long-lived rolling branch: they edit on it and squash-merge to `main` when ready. It is expected to sit ahead of `main` between merges, and that drift is normal, not something to clear. Anchor "what's new this cycle" on the previous cycle's `chore: clear nightly in-flight log` marker (as the reviewer does), not on `main`. Fresh items an intake phase committed this run are valid — stack on top of them, don't reconcile them away.
+   - **Orchestrated, top-up-only (open PR)** → `git checkout "$RUN_BRANCH" && git pull --rebase origin "$RUN_BRANCH"`. Do not reset, do not force-push — you're refilling on top of the in-review cycle's commits.
+   - **Orchestrated, `docs/agent/in-flight.md` exists on `origin/$RUN_BRANCH`** → a worker is already mid-cycle. Exit; you should have run before workers, not during.
+   - **Orchestrated, else** → `git checkout "$RUN_BRANCH" && git pull --rebase origin "$RUN_BRANCH"` and stack on top. **Never reset it** (never `reset --hard`, never force-push). The branch is cut from `main` and carries this run's work until the reviewer opens the PR. Anchor "what's new this cycle" on the previous cycle's `chore: clear nightly in-flight log` marker (as the reviewer does), not on `main`. Fresh items an intake phase committed this run are valid — stack on top of them, don't reconcile them away.
 4. Read `AGENTS.md` (architecture + conventions).
 5. Read `docs/todo.md` (everything in it is in scope), `docs/backlog.md`, `docs/developer-todo.md` (**never edit**), and `docs/decisions.md`.
 
@@ -126,13 +126,13 @@ Otherwise:
    - "Per-turn MP timer" — no turn deadline exists; rg'd `turnDeadline` across :libraries:rooms, empty.
    ```
    No citation → don't make the change.
-4. Push to the branch you're on (`git push origin develop` in orchestrated mode). If a hook fails, fix the root cause — no `--no-verify`.
+4. Push to the branch you're on (`git push origin "$RUN_BRANCH"` in orchestrated mode). If a hook fails, fix the root cause — no `--no-verify`.
 
 ## Hard rules
 
 - Never commit code, only docs.
 - Never edit `docs/developer-todo.md` or `docs/agent/in-flight.md`.
-- Never commit to `main`, open a PR, or rewrite history. **Never reset or force-push `develop`** — it's the human's long-lived branch; the intake phase's fresh commits this run are valid, stack on top of them.
+- Never commit to `main`, open a PR, or rewrite history. **Never reset or force-push the run branch** — the intake phase's fresh commits this run are valid, stack on top of them.
 - Never remove, rewrite, or add an item without a citation in the commit body.
 - Never add an item that needs design judgment — one-line it into `docs/backlog.md` instead.
 - When uncertain, leave the item alone.

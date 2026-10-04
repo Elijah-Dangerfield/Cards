@@ -1,6 +1,6 @@
 ---
 name: work-item
-description: Ship one docs/todo.md item end-to-end as an incremental commit — implement per house standards, add tests, get build + tests green, remove the todo bullet in the same commit, log to docs/agent/in-flight.md, and push to develop. Use to pick up and ship a todo item, whether invoked ad hoc by a human on the current branch or as one of N workers driven by the nightly-pipeline flow.
+description: Ship one docs/todo.md item end-to-end as an incremental commit — implement per house standards, add tests, get build + tests green, remove the todo bullet in the same commit, log to docs/agent/in-flight.md, and push to the run branch. Use to pick up and ship a todo item, whether invoked ad hoc by a human on the current branch or as one of N workers driven by the nightly-pipeline flow.
 ---
 
 # Work item
@@ -11,29 +11,29 @@ Take a single `docs/todo.md` item from "open bullet" to "pushed commit" — the 
 
 Decide which you're in before you start; the difference is only in branch handling and how you pick.
 
-- **Standalone (a human ran this on the current branch).** Respect the branch you're on — it may not be `develop`, and it may already carry uncommitted or unpushed work. Do **not** checkout/pull/reset to `develop`, and do not force anything. Ship on top of what's here. Pick the todo the user named, or the top actionable item if they didn't name one. `docs/agent/in-flight.md` may not exist — that's fine; create/append it if you want a record, but never fail on its absence. You may talk to the user here (the silence convention below is for orchestrated runs).
-- **Orchestrated (the nightly-pipeline flow spawned you as one of N workers).** Exact worker behavior: you stack on `develop` alongside peer workers, a reviewer later reads your `in-flight.md` blocks and opens/updates the PR. Follow the branch discipline and silence convention below to the letter.
+- **Standalone (a human ran this on the current branch).** Respect the branch you're on — often `main` itself, since that is where the human works now — and it may already carry uncommitted or unpushed work. Do **not** checkout/pull/reset to any other branch, and do not force anything. Ship on top of what's here. Pick the todo the user named, or the top actionable item if they didn't name one. `docs/agent/in-flight.md` may not exist — that's fine; create/append it if you want a record, but never fail on its absence. You may talk to the user here (the silence convention below is for orchestrated runs).
+- **Orchestrated (the nightly-pipeline flow spawned you as one of N workers).** Exact worker behavior: you stack on the run's dated branch (`agent/nightly-YYYYMMDD`, handed to you by the flow) alongside peer workers, a reviewer later reads your `in-flight.md` blocks and opens/updates the PR. Follow the branch discipline and silence convention below to the letter.
 
-When it's not stated which mode you're in: if you were handed a specific item and a branch that isn't `develop`, treat it as standalone; if you were spawned with no human in the loop, treat it as orchestrated.
+When it's not stated which mode you're in: if you were handed a specific item and no run branch, treat it as standalone; if you were spawned with no human in the loop, treat it as orchestrated.
 
 ## Branch discipline
 
-- **Orchestrated working branch is `develop`.** The human also works here (often via worktrees merged separately), so it is **not** disposable — never assume it only holds bot commits. Your commits **stack** on whatever's already there.
-- **Never reset `develop`.** No `reset --hard`, no force-push, ever. It's the human's long-lived rolling branch — they edit on it and squash-merge to `main` when ready — so it sits ahead of `main` between merges. That drift is normal and not yours to clear.
+- **Orchestrated working branch is the run branch** the flow handed you (`agent/nightly-YYYYMMDD`), cut from `main`. Peer workers and the earlier intake phase commit there too, so never assume it only holds your commits. Your commits **stack** on whatever's already there.
+- **Never reset it.** No `reset --hard`, no force-push, ever. `develop` was deleted on 2026-10-04 and `main` is now the only long-lived branch — **autonomous runs never commit to `main`**, because a push there is what release-please reacts to.
 - **Never rewrite history** (`rebase -i`, `--amend`). If a pushed commit was broken, push a `fix:` on top or `git revert` — never rewrite.
 - **Never commit to `main` or open a PR.** The reviewer opens the PR in the orchestrated flow.
-- **Standalone stays on the current branch.** No checkout to `develop`, no `pull --rebase` onto it. Same no-reset / no-history-rewrite / no-`main` rules apply.
+- **Standalone stays on the current branch.** No checkout elsewhere, no `pull --rebase` onto another branch. Same no-reset / no-history-rewrite / no-`main` rules apply.
 
 ## Start of run (orchestrated)
 
 1. `git fetch origin`.
-2. `gh pr list --head develop --state open --json number,url`. A PR already open is fine — keep working; multiple cycles stack onto the same PR. Don't open a new one.
-3. Align `develop`: `git checkout develop && git pull --rebase origin develop`, then stack on top. Never reset it.
+2. `gh pr list --head "$RUN_BRANCH" --state open --json number,url`. A PR already open is fine — keep working; multiple cycles stack onto the same PR. Don't open a new one.
+3. Align the run branch: `git checkout "$RUN_BRANCH" && git pull --rebase origin "$RUN_BRANCH"`, then stack on top. Never reset it.
 4. Read `AGENTS.md` for the house standards (see below).
 5. Read `docs/todo.md`. All of it is worker-pickable. `docs/developer-todo.md` is off-limits.
 6. Before claiming an item, check `git log origin/main..HEAD` and existing `docs/agent/in-flight.md` blocks so you don't double-pick something a peer already took.
 
-**Standalone start** is lighter: read `AGENTS.md` for standards, read `docs/todo.md`, pick the named item (or the top actionable one), and confirm no local WIP already covers it. Skip the fetch/PR/develop-align steps.
+**Standalone start** is lighter: read `AGENTS.md` for standards, read `docs/todo.md`, pick the named item (or the top actionable one), and confirm no local WIP already covers it. Skip the fetch/PR/branch-align steps.
 
 ## House coding standards — enforce, don't skim
 
@@ -93,7 +93,7 @@ The `todo-maintainer` runs right before the workers and tops the list up, so you
    **Reviewer notes:** <surprising/untested/needs-second-eyes about THIS commit. "None." is fine.>
    **Deferred:** <related items you didn't do — one bullet each, with where you put it (backlog / inline comment / nothing yet). Omit if nothing applies.>
    ```
-9. **Push** (`git push origin develop` in the orchestrated flow; push the current branch's upstream in standalone). If a hook fails, fix the root cause — no `--no-verify`, no `--no-gpg-sign`. If a pushed commit was broken, push a `fix:` on top or `git revert`.
+9. **Push** (`git push origin "$RUN_BRANCH"` in the orchestrated flow; push the current branch's upstream in standalone). If a hook fails, fix the root cause — no `--no-verify`, no `--no-gpg-sign`. If a pushed commit was broken, push a `fix:` on top or `git revert`.
 
 ## Scope boundaries
 
@@ -114,7 +114,7 @@ Both platforms are live — there **is** a production population on Android (Pla
 
 - **Never** touch `docs/developer-todo.md`.
 - **Never** commit to `main` or open a PR.
-- **Never** reset or force-push `develop`; **never** rewrite history (`rebase -i`, `--amend`).
+- **Never** reset or force-push the run branch; **never** commit to `main` in orchestrated mode; **never** rewrite history (`rebase -i`, `--amend`).
 - **Never** commit red — build + tests must pass first.
 - No `--no-verify` / `--no-gpg-sign`.
 - If a task is half-done when you stop, **revert its in-progress changes.** No partial commits.
@@ -122,7 +122,7 @@ Both platforms are live — there **is** a production population on Android (Pla
 
 ## End of run
 
-- All commits pushed (to `origin/develop` orchestrated; to the current branch's upstream standalone).
+- All commits pushed (to `origin/$RUN_BRANCH` orchestrated; to the current branch's upstream standalone).
 - `docs/todo.md` reflects every removal/slice. **Re-scan every item you shipped this cycle — if any bullet is still there, that's a bug; push a follow-up commit that deletes it.**
 - `docs/agent/in-flight.md` has one block per commit you added.
 - Working tree is clean. Stray modifications mean you left work behind — resolve before stopping.

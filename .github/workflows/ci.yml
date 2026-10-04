@@ -24,7 +24,6 @@ on:
   pull_request:
     branches:
       - main
-      - develop
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -108,13 +107,15 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          # Feature-branch PRs read the cache but must not write it, so one
-          # branch's odd dependency set can't poison everyone else's builds.
-          # `develop` is the exception: the develop -> main release PR is the
-          # most expensive and most timeout-prone run we have, and letting it
-          # write means every release leaves the macOS cache freshly warm
-          # instead of relying on the push-to-main run that follows it.
-          cache-read-only: ${{ github.event_name == 'pull_request' && github.head_ref != 'develop' }}
+          # PRs read the cache but must not write it, so one branch's odd
+          # dependency set can't poison everyone else's builds. `develop` used
+          # to be the exception, because the develop -> main release PR was the
+          # most expensive run we had and writing from it kept the macOS cache
+          # warm. With develop gone (2026-10-04) every PR is a feature branch,
+          # so the push-to-main run and the twice-weekly schedule below are what
+          # keep the cache alive. If cold-cache timeouts come back, that is the
+          # first thing to revisit.
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
           # Prune unused files before saving. The repo cache sits around 7GB of
           # a 10GB cap across ~44 entries, and when it overflows GitHub evicts
           # least-recently-used — which is exactly how the macOS entry went
