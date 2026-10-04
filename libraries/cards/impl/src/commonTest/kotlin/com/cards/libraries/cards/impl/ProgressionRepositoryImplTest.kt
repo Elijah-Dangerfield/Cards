@@ -17,6 +17,7 @@ import io.ktor.client.engine.mock.MockEngine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import app.cash.turbine.test
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -271,6 +272,18 @@ class ProgressionRepositoryImplTest : CoroutineTest() {
     }
 
     // ---------- Scaffolding ----------
+
+    @Test
+    fun awardForHand_andAchievementXp_eachSignalALocalWrite() = runUnitTest {
+        val repo = build()
+
+        repo.localWrites.test {
+            repo.awardForHand(summary(wonPot = true, reachedShowdown = true))
+            awaitItem()
+            repo.applyAchievementXp(delta = 10)
+            awaitItem()
+        }
+    }
 
     private fun summary(
         handId: String = "h",

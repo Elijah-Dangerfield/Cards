@@ -43,6 +43,8 @@ data class ActiveAccount(val userId: String, val isAnonymous: Boolean)
  *   [AppState.isOffline] level (not the replayed [AppEvent.ConnectivityRegained]
  *   edge, which could spuriously refire at boot from the bus's replay slot).
  *   Initial value dropped, flaps debounced.
+ * - [backgrounded] — edge; the app left the foreground, the last moment a
+ *   store can flush before the OS may kill the process.
  */
 @SingleIn(AppScope::class)
 @Inject
@@ -71,6 +73,14 @@ class SyncTriggers(
             appEvents.live()
                 .filterIsInstance<AppEvent.OnForeground>()
                 .filter { !it.isColdBoot }
+                .map { },
+        )
+    }
+
+    val backgrounded: Flow<Unit> = flow {
+        emitAll(
+            appEvents.live()
+                .filterIsInstance<AppEvent.OnBackground>()
                 .map { },
         )
     }

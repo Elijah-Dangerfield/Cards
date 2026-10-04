@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
+import app.cash.turbine.test
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -59,6 +60,16 @@ class PlayerStatsRepositoryImplSyncTest : CoroutineTest() {
         assertEquals("Jane", rows.single().beatenBotId)
         assertEquals(3L, rows.single().noBustStreak)
         assertFalse(rows.single().synced)
+    }
+
+    @Test
+    fun recordHand_signalsALocalWrite_soTheHandFlushesWithoutAnAppReopen() = runUnitTest {
+        val repo = build { error("no network in this test") }
+
+        repo.localWrites.test {
+            repo.recordHand(handSummary(handId = "7", won = true, vsBot = false, beatenBotId = null, noBustStreak = 1))
+            awaitItem()
+        }
     }
 
     @Test
