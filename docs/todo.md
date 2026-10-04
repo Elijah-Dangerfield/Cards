@@ -291,3 +291,11 @@ Apple; with it the request reaches ASC.
 **Acceptance:** A release that is committed but unpublished is visible without opening Play Console — either the workflow polls the edit's publishing status and fails/warns, or a dashboard panel compares the latest released version against the top `service_version` in prod launches. Decide separately whether managed publishing should stay on at all.
 
 **Hints:** Play Console → Publishing overview shows the pending change and the "Managed publishing on" toggle. The `service_version` breakdown is `sum by (service_version) (count_over_time({service_name="cards-client", deployment_environment="prod"} | event_name="app.launched" [3d]))`. Related: ENG-52 shipped the update prompt in the same unpublished build.
+
+## ENG-77 [P1] — Android Lint never runs, and it would have caught CARDS-CK
+
+**Problem:** No workflow runs `lint`. `minSdk` is 24 and CARDS-CK was `ApplicationExitInfo` (API 30) used as a field/return type in `AndroidPreviousExitProvider` — textbook `NewApi`, which lint flags by default. It shipped in 0.4.0, reached users in 0.5.0, and silently killed `app.launched` on every device below API 30 for two days. The structural test added with the fix guards that one class; nothing guards the next one.
+
+**Acceptance:** `lintRelease` (or equivalent) runs in CI and fails on `NewApi` at minimum. Expect a backlog of pre-existing warnings — baseline them rather than fixing everything, so the gate starts clean and only new violations block. Keep it off the macOS job; a Linux runner is enough.
+
+**Hints:** `.github/workflows/ci.yml` has the Ubuntu `server-test` / `integration-test` jobs to copy. `build-logic/src/main/java/com/cards/util/AndroidConfiguration.kt` is where a `lint { }` block goes. Case: `docs/agent/feedback-cases/2026-10-04-applicationexitinfo-api-guard.md`.
