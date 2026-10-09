@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.onboarding.OnboardingRoute
+import com.dangerfield.cards.features.onboarding.SignInRoute
 import com.dangerfield.cards.features.profile.BugReportRoute
 import com.dangerfield.cards.libraries.navigation.AccessDeniedRoute
 import com.dangerfield.cards.libraries.navigation.BlockingErrorRoute
@@ -33,14 +34,15 @@ import kotlin.reflect.typeOf
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
 class ErrorEntryPoints(
-    private val sessionExpiredViewModelFactory: () -> SessionExpiredViewModel,
+    private val sessionExpiredViewModelFactory: (wasAnonymous: Boolean) -> SessionExpiredViewModel,
     private val accessDeniedViewModelFactory: () -> AccessDeniedViewModel,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<SessionExpiredRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<SessionExpiredRoute>()
-            val viewModel: SessionExpiredViewModel = viewModel { sessionExpiredViewModelFactory() }
+            val viewModel: SessionExpiredViewModel =
+                viewModel { sessionExpiredViewModelFactory(route.wasAnonymous) }
             val state by viewModel.stateFlow.collectAsStateWithLifecycle()
 
             LaunchedEffect(viewModel) {
@@ -49,8 +51,9 @@ class ErrorEntryPoints(
                         // Token refresh recovered the session in place — pop the
                         // blocking screen and the user is back where they were.
                         SessionExpiredViewModel.Event.SessionRestored -> router.goBack()
-                        // Explicit logout — tear down to onboarding.
-                        SessionExpiredViewModel.Event.LoggedOut -> router.navigate(
+                        // The user chose a fresh guest account over the one they
+                        // have — tear down to onboarding.
+                        SessionExpiredViewModel.Event.Abandoned -> router.navigate(
                             OnboardingRoute(),
                             NavigationOptions(launchSingleTop = true, clearBackStack = true),
                         )
@@ -59,11 +62,15 @@ class ErrorEntryPoints(
             }
 
             SessionExpiredScreen(
-                wasAnonymous = route.wasAnonymous,
+                recovery = state.recovery,
                 retrying = state.retrying,
                 retryFailed = state.retryFailed,
                 onRetry = { viewModel.takeAction(SessionExpiredViewModel.Action.Retry) },
-                onLogout = { viewModel.takeAction(SessionExpiredViewModel.Action.Logout) },
+                // A successful sign-in pops the whole stack (`enterTab`), so
+                // this screen goes with it; backing out of sign-in returns here
+                // with the account still named and still waiting.
+                onSignIn = { router.navigate(SignInRoute()) },
+                onAbandon = { viewModel.takeAction(SessionExpiredViewModel.Action.Abandon) },
             )
         }
 
