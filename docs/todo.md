@@ -316,18 +316,41 @@ Fixed rather than baselined, so there is no `lint-baseline.xml` and the report s
 Config lives in `build-logic/.../AndroidConfiguration.kt`; the `lint` job is in `ci.yml`.
 `NewerVersionAvailable` is disabled — it hits the network on every run.
 
-## AUTH-33 [P1] — The welcome screen reveals the previous account's balance as the starter grant
+## AUTH-33 — DONE 2026-10-09
 
-**Problem:** `GetHomeScreenNotification` falls back to `chipBalance > 0 -> Exact(chipBalance)` with the comment "A fresh account's balance equals its grant before they've played." That holds for a fresh install and breaks on a device that still has a prior account's balance cached. The owner's new guest was welcomed with **14,020** — the old account's balance — while its wallet correctly held 10,000. Reads as chip inflation; it is a wrong number on a dialog. Ledger verified clean: one `starter_grant` of exactly 10,000 per user, every balance equal to its event sum.
+Two commits. `d4eafca0` stops the welcome dialog inferring a grant from the cached balance —
+the figure now comes only from `onboarding.starterGrant` (V89 seeds it at 10,000 and it is live
+in prod; it was null during the incident because app-config had not hydrated). Unknown now waits
+rather than spending the once-per-account dialog on a promise.
 
-**Acceptance:** The reveal shows the grant or nothing. Prefer the explicit server grant; if that is absent, do not substitute a balance that could belong to a different account — hold for hydration or show `Pending`. A balance is only usable as a proxy when it provably belongs to the account being welcomed (compare the user id the balance was cached under).
+`2a2706a4` is the root: `SupabaseAuthRepositoryImpl` keyed the user-scoped wipe off the
+in-memory auth state, which is empty at process start, so an account switch across a launch
+wiped nothing. `UserScopedDataReset.ensureOwnedBy` now compares against a durably recorded owner
+(`AppData.lastActiveUserId`, device-scoped). That also closes the unsynced `wallet_events`
+outbox crossing accounts, which was the same bug costing real chips rather than a wrong label.
 
-**Hints:** `features/home/impl/.../notification/GetHomeScreenNotification.kt:197-212`. Test the case directly: cached balance from account A, `accountJustCreated` for account B. Case: `docs/agent/feedback-cases/2026-10-08-ios-upgrade-session-loss-and-14020.md`.
+## AUTH-34 [P1] — Tell the user their account is recoverable (UI half; prevention has landed)
 
-## AUTH-34 [P0] — A recoverable account can be abandoned silently after a lost session
+**Prevention is done** in `a75f90b1`: a durable `StrandedAccount` record is written in
+`GuestSessionHealer.stopForRecovery` *before* `markSessionUnrecoverable` (the mark is what makes
+`ProfileRepositoryImpl` delete the cached profile the healer depended on), and the healer refuses
+to mint while it exists. That closes the silent second account on relaunch, which was quieter
+than the reported path. Authenticating clears the record so the refusal cannot become a lockout.
 
-**Problem:** When the iOS Keychain loses a claimed session across an app update, `GuestSessionHealer` correctly refuses to mint over the real account (AUTH-19) and routes to recovery. Twelve seconds later the owner was in ordinary onboarding picking "continue as guest", tagged `returning=false`, and a second account was created on the same `install_id`. The old account, `e8226cac…` with 14,020 chips, is still there and still signable-into — nothing told him that. The mint was refused and the account got stranded anyway.
+**What remains is communication.** The account can no longer be lost silently, but nothing yet
+tells the user it is sitting there. `SessionExpiredScreen` receives only `wasAnonymous`, so it
+cannot name the account; its Logout action routes to generic onboarding where "continue as guest"
+is a peer option with no warning.
 
-**Acceptance:** After a `Session unrecoverable` decision with a cached `Profile.Authenticated`, the user cannot reach new-account onboarding without being shown what they are leaving: the display name, and that signing in with the original provider restores it. Continuing as guest stays possible, but as a deliberate choice. Emit an event for the choice so the rate is visible.
+**Acceptance:** after a session loss the user is told whose account it is and that signing in
+restores it, with sign-in primary for a claimed account. Guest stays reachable, as a deliberate
+choice that names what is being left. Branch on `isAnonymous` — an anonymous account has no
+credential, so sign-in-primary is a dead end for it.
 
-**Hints:** `GuestSessionHealer.stopForRecovery` / `markSessionUnrecoverable`; the onboarding entry that logged `onboarding.auth_selected method=guest returning=false`. The keychain loss itself is **not** the bug to fix — `SessionMirrorStore` is anonymous-only on purpose (decisions.md 2026-07-11), and sign-in is the designed recovery for a claimed account. **Urgency:** 88% of iOS users are still on 0.1.0 (57 launches vs 8 over 7 days), so the exposed population has not taken the update yet. Case: `docs/agent/feedback-cases/2026-10-08-ios-upgrade-session-loss-and-14020.md`.
+**Hints:** render from `StrandedAccountStore`, not from a route argument — the name is user data,
+it would go into saved state, and it is stale the moment the record changes. `OnboardingRoute` is
+a bare `class` with no properties and six call sites that compare by identity; adding a parameter
+without care changes `launchSingleTop` and `ErrorDialogAction.Navigate` behaviour, and it must
+stay a `class` (AGENTS.md:469 — `data object` routes SIGSEGV on iOS). Offline is a distinct
+state: the healer skips while offline so no record is written, and a sign-in-primary screen with
+no network is a trap. Case: `docs/agent/feedback-cases/2026-10-08-ios-upgrade-session-loss-and-14020.md`.
