@@ -315,3 +315,19 @@ seconds of CI:
 Fixed rather than baselined, so there is no `lint-baseline.xml` and the report starts empty.
 Config lives in `build-logic/.../AndroidConfiguration.kt`; the `lint` job is in `ci.yml`.
 `NewerVersionAvailable` is disabled — it hits the network on every run.
+
+## AUTH-33 [P1] — The welcome screen reveals the previous account's balance as the starter grant
+
+**Problem:** `GetHomeScreenNotification` falls back to `chipBalance > 0 -> Exact(chipBalance)` with the comment "A fresh account's balance equals its grant before they've played." That holds for a fresh install and breaks on a device that still has a prior account's balance cached. The owner's new guest was welcomed with **14,020** — the old account's balance — while its wallet correctly held 10,000. Reads as chip inflation; it is a wrong number on a dialog. Ledger verified clean: one `starter_grant` of exactly 10,000 per user, every balance equal to its event sum.
+
+**Acceptance:** The reveal shows the grant or nothing. Prefer the explicit server grant; if that is absent, do not substitute a balance that could belong to a different account — hold for hydration or show `Pending`. A balance is only usable as a proxy when it provably belongs to the account being welcomed (compare the user id the balance was cached under).
+
+**Hints:** `features/home/impl/.../notification/GetHomeScreenNotification.kt:197-212`. Test the case directly: cached balance from account A, `accountJustCreated` for account B. Case: `docs/agent/feedback-cases/2026-10-08-ios-upgrade-session-loss-and-14020.md`.
+
+## AUTH-34 [P0] — A recoverable account can be abandoned silently after a lost session
+
+**Problem:** When the iOS Keychain loses a claimed session across an app update, `GuestSessionHealer` correctly refuses to mint over the real account (AUTH-19) and routes to recovery. Twelve seconds later the owner was in ordinary onboarding picking "continue as guest", tagged `returning=false`, and a second account was created on the same `install_id`. The old account, `e8226cac…` with 14,020 chips, is still there and still signable-into — nothing told him that. The mint was refused and the account got stranded anyway.
+
+**Acceptance:** After a `Session unrecoverable` decision with a cached `Profile.Authenticated`, the user cannot reach new-account onboarding without being shown what they are leaving: the display name, and that signing in with the original provider restores it. Continuing as guest stays possible, but as a deliberate choice. Emit an event for the choice so the rate is visible.
+
+**Hints:** `GuestSessionHealer.stopForRecovery` / `markSessionUnrecoverable`; the onboarding entry that logged `onboarding.auth_selected method=guest returning=false`. The keychain loss itself is **not** the bug to fix — `SessionMirrorStore` is anonymous-only on purpose (decisions.md 2026-07-11), and sign-in is the designed recovery for a claimed account. **Urgency:** 88% of iOS users are still on 0.1.0 (57 launches vs 8 over 7 days), so the exposed population has not taken the update yet. Case: `docs/agent/feedback-cases/2026-10-08-ios-upgrade-session-loss-and-14020.md`.
