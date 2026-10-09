@@ -196,15 +196,25 @@ private fun HomeNotificationSnapshot.welcome(): HomeNotification.Welcome? {
 
     val grantReveal = if (owesBackupReveal) {
         when {
-            // Prefer the explicit server grant.
+            // The only figure this dialog can stand behind.
             starterGrant != null -> HomeNotification.Welcome.GrantReveal.Exact(starterGrant)
             // Still hydrating — wait for the real number rather than flash "landing
             // soon" and never correct it (the dialog shows exactly once).
             chipBalance == null -> return null
-            // A fresh account's balance equals its grant before they've played.
-            chipBalance > 0 -> HomeNotification.Welcome.GrantReveal.Exact(chipBalance)
+            // A positive balance is NOT evidence of a grant. It used to be read as
+            // one, on the assumption that "a fresh account's balance equals its
+            // grant before they've played" — true of a fresh install, false on a
+            // device that still holds a previous account's number. On 2026-10-08 an
+            // iOS upgrade lost a session, the user continued as guest, and this
+            // line animated 14,020 (the old account's balance) over a wallet the
+            // server had seeded with exactly 10,000 (AUTH-33).
+            //
+            // Wait instead of promising. The dialog fires once per account, so
+            // spending it on "chips are on the way" when the real figure was a
+            // second behind is a worse trade than showing it on the next boot.
+            chipBalance > 0 -> return null
             // Hydrated to zero with no grant config — offline / the grant hasn't
-            // posted. Promise the chips instead of revealing a wrong or zero number.
+            // posted. Here the promise is the honest answer: there is no number yet.
             else -> HomeNotification.Welcome.GrantReveal.Pending
         }
     } else {

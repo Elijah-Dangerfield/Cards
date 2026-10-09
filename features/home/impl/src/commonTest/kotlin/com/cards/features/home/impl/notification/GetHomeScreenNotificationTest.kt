@@ -60,6 +60,7 @@ class GetHomeScreenNotificationTest {
             accountJustCreated = true,
             didSeeInitialGrantInOnboarding = false,
             welcomeIdentity = identity(),
+            starterGrant = 10_000,
             chipBalance = 10_000,
         )
 
@@ -111,6 +112,30 @@ class GetHomeScreenNotificationTest {
         assertEquals(
             HomeNotification.Welcome.GrantReveal.Pending,
             (result as HomeNotification.Welcome).grantReveal,
+        )
+    }
+
+    @Test
+    fun `welcome never reveals a balance it cannot attribute to this account (AUTH-33)`() {
+        // The 2026-10-08 incident. An iOS upgrade lost the session, the user
+        // continued as guest, and the new account's welcome animated 14,020 —
+        // the *previous* account's balance, still cached on the device. The
+        // server had granted exactly 10,000.
+        //
+        // With no explicit grant there is no figure this dialog can stand
+        // behind, so it must not invent one from a balance whose owner it
+        // cannot name. Waiting is correct: the dialog fires once per account,
+        // and a grant that is merely late is worth waiting for.
+        val snapshot = base().copy(
+            accountJustCreated = true,
+            welcomeIdentity = identity(),
+            starterGrant = null,
+            chipBalance = 14_020,
+        )
+
+        assertNull(
+            GetHomeScreenNotification(snapshot),
+            "a positive balance with no grant config must not be revealed as the grant",
         )
     }
 
@@ -238,6 +263,7 @@ class GetHomeScreenNotificationTest {
         val snapshot = base().copy(
             accountJustCreated = true,
             welcomeIdentity = identity(),
+            starterGrant = 10_000,
             chipBalance = 10_000,
             pendingAchievementIds = listOf("HANDS_10"),
         )
