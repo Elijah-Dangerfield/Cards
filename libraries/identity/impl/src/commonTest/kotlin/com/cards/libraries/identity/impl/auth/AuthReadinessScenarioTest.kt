@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.identity.impl.auth
 
+import com.dangerfield.cards.libraries.identity.auth.StrandedAccount
+import com.dangerfield.cards.libraries.identity.auth.StrandedAccountStore
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.core.AppState
@@ -124,6 +126,7 @@ class AuthReadinessScenarioTest : CoroutineTest() {
         val appState = FakeAppState(offlineFlow)
         val scope = AppCoroutineScope(dispatchers)
         val healer = GuestSessionHealer(
+            strandedAccounts = NoStrandedAccounts,
             authRepositoryProvider = { auth },
             guestAccountCreatorProvider = { creator },
             profileRepositoryProvider = { FakeProfileRepository() },
@@ -225,5 +228,11 @@ class AuthReadinessScenarioTest : CoroutineTest() {
         override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome = error("unused")
         override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome = error("unused")
         override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome = error("unused")
+    }
+
+    private object NoStrandedAccounts : StrandedAccountStore {
+        override suspend fun read(): StrandedAccount? = null
+        override suspend fun write(account: StrandedAccount) = Unit
+        override suspend fun clear() = Unit
     }
 }

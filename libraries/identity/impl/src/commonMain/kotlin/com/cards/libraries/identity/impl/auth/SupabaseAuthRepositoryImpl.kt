@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.identity.auth.AppleSignInCredential
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.StrandedAccountStore
 import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
 import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
@@ -76,6 +77,7 @@ class SupabaseAuthRepositoryImpl(
     private val profileApi: ProfileApi,
     private val appEventBus: AppEventBus,
     private val userScopedDataReset: UserScopedDataReset,
+    private val strandedAccounts: StrandedAccountStore,
     private val tokenInvalidator: AuthTokenInvalidator,
     private val sessionRejectionBus: SessionRejectionBus,
     appScope: AppCoroutineScope,
@@ -353,6 +355,13 @@ class SupabaseAuthRepositoryImpl(
         if (nextUserId != null) {
             Catching { userScopedDataReset.ensureOwnedBy(nextUserId) }
                 .logOnFailure { "Ownership check for $nextUserId failed; continuing with transition" }
+
+            // A working session ends the stranded state, however it was reached:
+            // the user recovered the account, or deliberately started a new one.
+            // Without this the healer's refusal to mint (AUTH-34) would never
+            // lift and the device could never heal itself again.
+            Catching { strandedAccounts.clear() }
+                .logOnFailure { "Clearing the stranded-account record failed; heal may stay blocked" }
         }
 
         state.emit(next)

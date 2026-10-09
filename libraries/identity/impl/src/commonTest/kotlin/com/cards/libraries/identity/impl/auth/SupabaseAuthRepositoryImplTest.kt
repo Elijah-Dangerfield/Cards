@@ -7,6 +7,8 @@ import com.dangerfield.cards.libraries.cards.UserScopedDataReset
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.StrandedAccount
+import com.dangerfield.cards.libraries.identity.auth.StrandedAccountStore
 import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
 import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
@@ -419,6 +421,32 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         advanceUntilIdle()
 
         assertEquals(emptyList(), reset.clearedFor, "the device's own owner must never be dumped")
+    }
+
+    @Test
+    fun authenticating_clearsTheStrandedRecord_soTheHealerIsNotBlockedForever() = runUnitTest {
+        // AUTH-34's refusal to mint is keyed off the stranded record, so a
+        // working session has to lift it — whether the user recovered the
+        // account or deliberately started a new one. Otherwise the device can
+        // never heal itself again.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+        )
+        val stranded = RecordingStrandedAccountStore(
+            StrandedAccount(userId = "old-user", displayName = "LuckyJack66"),
+        )
+        val repo = build(gateway = gateway, strandedAccounts = stranded)
+        advanceUntilIdle()
+
+        assertEquals(0, stranded.clearCalls, "session-less: the record must survive")
+
+        gateway.replaceSession(claimedSession())
+        gateway.setStatus(AuthGatewayStatus.Authenticated)
+        repo.retry()
+        advanceUntilIdle()
+
+        assertEquals(null, stranded.read(), "a working session ends the stranded state")
     }
 
     // ---------- signOut ----------
@@ -955,6 +983,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         gateway: FakeSupabaseAuthGateway,
         appEventBus: AppEventBus = NoOpEventBus,
         userScopedDataReset: UserScopedDataReset = NoOpUserScopedDataReset,
+        strandedAccounts: StrandedAccountStore = RecordingStrandedAccountStore(),
         sessionRejectionBus: com.dangerfield.cards.libraries.networking.SessionRejectionBus =
             FakeSessionRejectionBus(),
     ): SupabaseAuthRepositoryImpl = SupabaseAuthRepositoryImpl(
@@ -962,10 +991,22 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         profileApi = UnusedProfileApi,
         appEventBus = appEventBus,
         userScopedDataReset = userScopedDataReset,
+        strandedAccounts = strandedAccounts,
         tokenInvalidator = NoOpTokenInvalidator,
         sessionRejectionBus = sessionRejectionBus,
         appScope = AppCoroutineScope(dispatchers),
     )
+
+    private class RecordingStrandedAccountStore(
+        private var account: StrandedAccount? = null,
+    ) : StrandedAccountStore {
+        var clearCalls: Int = 0
+            private set
+
+        override suspend fun read(): StrandedAccount? = account
+        override suspend fun write(account: StrandedAccount) { this.account = account }
+        override suspend fun clear() { clearCalls++; account = null }
+    }
 
     private object NoOpUserScopedDataReset : UserScopedDataReset {
         override suspend fun clearFor(previousUserId: String) = Unit
