@@ -1104,3 +1104,19 @@ Sequence: (1) makes deploys painless at current scale; (2) is the real scale-out
 **Idea (2026-08-20):** ENG-44's `isExpectedClientError()` matches `401`/`403` by status alone, with no endpoint or code carve-out, and every telemetry sink consults it. That is right for the banned-client refusals it was built for, but it also means AUTH-29's `401 account_not_found` — landed the same night — never reaches Sentry. A stranded session is a real defect class, and the reason we found it at all was that it was loud. Grafana still ships these at DEBUG so they're recoverable by query, but the error panel no longer shows them. Worth a carve-out keyed on the problem code rather than the status. Found in review of `44f62fa3` + `2cfef3cf`.
 
 **Status:** Backlog. Deliberate trade, not an oversight — flagging because the two commits were written hours apart and nobody weighed them together.
+
+## Home needs a "restore your account" affordance for the user who already walked away
+
+**Idea (2026-10-09):** AUTH-34 tells the user their account is recoverable on the blocking
+recovery screen, which covers the process the session was lost in. It does not cover the user who
+force-quits on that screen, or who takes the guest path and regrets it a day later. On the next
+launch `GuestSessionHealer`'s second-process branch only logs its refusal, so auth never re-enters
+`SessionExpired` and the recovery screen is never pushed again; the user lands on Home with the
+auth-gate sheet's generic "sign in again to keep playing" and no account name. The durable
+`StrandedAccount` record is sitting right there with the name in it. A dismissible Home banner
+reading it ("LuckyJack66 is waiting, sign in to pick it back up") would close the gap for anyone
+who still has a record. Someone who deliberately chose to start over does not: abandoning clears
+it on purpose, so that case stays a support conversation.
+
+**Status:** Backlog. Deliberately out of scope on AUTH-34, which fixed the moment of loss. Pull
+with any other pass on Home notifications.

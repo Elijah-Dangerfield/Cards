@@ -329,28 +329,21 @@ wiped nothing. `UserScopedDataReset.ensureOwnedBy` now compares against a durabl
 (`AppData.lastActiveUserId`, device-scoped). That also closes the unsynced `wallet_events`
 outbox crossing accounts, which was the same bug costing real chips rather than a wrong label.
 
-## AUTH-34 [P1] — Tell the user their account is recoverable (UI half; prevention has landed)
+## AUTH-34 — DONE 2026-10-09
 
-**Prevention is done** in `a75f90b1`: a durable `StrandedAccount` record is written in
-`GuestSessionHealer.stopForRecovery` *before* `markSessionUnrecoverable` (the mark is what makes
-`ProfileRepositoryImpl` delete the cached profile the healer depended on), and the healer refuses
-to mint while it exists. That closes the silent second account on relaunch, which was quieter
-than the reported path. Authenticating clears the record so the refusal cannot become a lockout.
+Prevention landed in `a75f90b1` (durable `StrandedAccount` record, healer refuses to mint while
+it exists). The UI half is the recovery screen itself: `SessionExpiredViewModel` now reads
+`StrandedAccountStore` and resolves one of three honest offers — `SignInToRestore` names the
+account and leads with signing in, `GuestOnly` keeps the old guest copy because an anonymous
+account has no credential to return with, and `Offline` says nothing is lost and offers only
+retry, since a sign-in form you cannot submit is a trap. The record is read in the ViewModel
+rather than carried on the route: a display name is user data that would land in saved nav state.
 
-**What remains is communication.** The account can no longer be lost silently, but nothing yet
-tells the user it is sitting there. `SessionExpiredScreen` receives only `wasAnonymous`, so it
-cannot name the account; its Logout action routes to generic onboarding where "continue as guest"
-is a peer option with no warning.
+Starting over is still reachable, behind a dialog that names the account being left, and it
+clears the record so the healer stops refusing and onboarding can mint. `auth.recovery_offered`
+and `auth.stranded_account_abandoned` give the abandon rate a numerator and a denominator.
 
-**Acceptance:** after a session loss the user is told whose account it is and that signing in
-restores it, with sign-in primary for a claimed account. Guest stays reachable, as a deliberate
-choice that names what is being left. Branch on `isAnonymous` — an anonymous account has no
-credential, so sign-in-primary is a dead end for it.
-
-**Hints:** render from `StrandedAccountStore`, not from a route argument — the name is user data,
-it would go into saved state, and it is stale the moment the record changes. `OnboardingRoute` is
-a bare `class` with no properties and six call sites that compare by identity; adding a parameter
-without care changes `launchSingleTop` and `ErrorDialogAction.Navigate` behaviour, and it must
-stay a `class` (AGENTS.md:469 — `data object` routes SIGSEGV on iOS). Offline is a distinct
-state: the healer skips while offline so no record is written, and a sign-in-primary screen with
-no network is a trap. Case: `docs/agent/feedback-cases/2026-10-08-ios-upgrade-session-loss-and-14020.md`.
+Still open: a user who force-quits on that screen gets no second telling. The healer's
+second-process branch only logs, so the next launch lands on Home with the auth-gate sheet ("sign
+in again to keep playing") and no account name. The Home restore affordance in
+`docs/backlog.md` is what closes it.
