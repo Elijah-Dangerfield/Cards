@@ -363,6 +363,64 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         assertIs<AuthState.Authenticated>(result)
     }
 
+    @Test
+    fun signIn_dumpsTheDurablyRecordedOwner_evenWhenThisProcessNeverMetThem() = runUnitTest {
+        // AUTH-33. The wipe keyed off the in-memory state flow, which is empty at
+        // process start, so an account switch across a launch dumped nothing: the
+        // app boots session-less (previous = none), a different account signs in,
+        // and the departing user's chips row, wallet outbox and progression all
+        // carry over. That is the 2026-10-08 iOS incident — an upgrade lost the
+        // session, the next launch minted a guest, and it inherited 14,020 chips.
+        //
+        // Here the process has emitted nothing, exactly like a cold boot, but the
+        // device durably remembers it belongs to `stranded-user`.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+        )
+        val reset = RecordingUserScopedDataReset(owner = "stranded-user")
+        val repo = build(gateway = gateway, userScopedDataReset = reset)
+        advanceUntilIdle()
+
+        assertIs<AuthState.Unauthenticated>(repo.current())
+        assertEquals(
+            emptyList(), reset.clearedFor,
+            "a session-less boot is not a handover — nothing to dump yet",
+        )
+
+        // A different account takes the device.
+        gateway.replaceSession(claimedSession())
+        gateway.setStatus(AuthGatewayStatus.Authenticated)
+        val signedIn = repo.retry()
+        advanceUntilIdle()
+
+        assertIs<AuthState.Authenticated>(signedIn)
+        assertEquals(
+            listOf("stranded-user"), reset.clearedFor,
+            "the previous owner must be dumped even though this process never saw them authenticated",
+        )
+    }
+
+    @Test
+    fun signIn_asTheSameUserThatAlreadyOwnsTheDevice_dumpsNothing() = runUnitTest {
+        // The common case: relaunching as yourself must not wipe your own data.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+        )
+        val session = claimedSession()
+        val reset = RecordingUserScopedDataReset(owner = session.userId)
+        val repo = build(gateway = gateway, userScopedDataReset = reset)
+        advanceUntilIdle()
+
+        gateway.replaceSession(session)
+        gateway.setStatus(AuthGatewayStatus.Authenticated)
+        repo.retry()
+        advanceUntilIdle()
+
+        assertEquals(emptyList(), reset.clearedFor, "the device's own owner must never be dumped")
+    }
+
     // ---------- signOut ----------
 
     @Test
@@ -911,12 +969,24 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
 
     private object NoOpUserScopedDataReset : UserScopedDataReset {
         override suspend fun clearFor(previousUserId: String) = Unit
+        override suspend fun ensureOwnedBy(userId: String) = Unit
     }
 
-    private class RecordingUserScopedDataReset : UserScopedDataReset {
+    private class RecordingUserScopedDataReset(
+        /** The durably-recorded owner of device-local data, as a real impl would persist it. */
+        private var owner: String? = null,
+    ) : UserScopedDataReset {
         val clearedFor: MutableList<String> = mutableListOf()
+
         override suspend fun clearFor(previousUserId: String) {
             clearedFor += previousUserId
+            owner = null
+        }
+
+        override suspend fun ensureOwnedBy(userId: String) {
+            if (owner == userId) return
+            owner?.let { clearFor(it) }
+            owner = userId
         }
     }
 

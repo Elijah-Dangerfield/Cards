@@ -57,4 +57,27 @@ interface UserScopedWorkStopper {
  */
 interface UserScopedDataReset {
     suspend fun clearFor(previousUserId: String)
+
+    /**
+     * Declares that device-local user data now belongs to [userId], clearing the
+     * previous owner's first if it was someone else.
+     *
+     * [clearFor] is only as good as the caller's memory of who the previous user
+     * was, and the auth layer's memory is the in-memory state flow — which is
+     * empty at process start. So an account switch that spans a process boundary
+     * ran no wipe at all: the app boots session-less (previous = none), mints or
+     * signs in a different account, and the departing user's chips row, wallet
+     * outbox, progression tables and account-scoped settings all carry over.
+     *
+     * That is not hypothetical. On 2026-10-08 an iOS upgrade lost a claimed
+     * session; the next launch minted a guest and inherited the old account's
+     * 14,020-chip balance, which the welcome dialog then announced as a starter
+     * grant (AUTH-33). The unsynced `wallet_events` outbox carried over too,
+     * which is the same bug costing real chips rather than a wrong label.
+     *
+     * Implementations persist the owner, so the comparison survives process
+     * death. Call it on every transition into an authenticated user, before that
+     * user is announced.
+     */
+    suspend fun ensureOwnedBy(userId: String)
 }

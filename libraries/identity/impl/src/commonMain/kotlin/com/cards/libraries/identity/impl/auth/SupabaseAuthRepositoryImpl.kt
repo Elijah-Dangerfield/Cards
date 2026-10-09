@@ -344,6 +344,17 @@ class SupabaseAuthRepositoryImpl(
                 .logOnFailure { "User-scoped data dump for $previousUserId failed; continuing with transition" }
         }
 
+        // The check above can only see a user this process already emitted, and
+        // at launch that is nobody. An account switch across a process boundary
+        // therefore ran no wipe at all — boot session-less, mint or sign in
+        // someone else, inherit the previous owner's data (AUTH-33). This asks
+        // the durable record instead, so the handover is caught whether or not
+        // this process ever met the departing user.
+        if (nextUserId != null) {
+            Catching { userScopedDataReset.ensureOwnedBy(nextUserId) }
+                .logOnFailure { "Ownership check for $nextUserId failed; continuing with transition" }
+        }
+
         state.emit(next)
 
         if (userChanged) {
