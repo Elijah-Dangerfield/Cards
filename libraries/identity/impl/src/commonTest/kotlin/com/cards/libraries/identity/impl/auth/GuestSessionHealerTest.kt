@@ -9,6 +9,8 @@ import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.StrandedAccount
+import com.dangerfield.cards.libraries.identity.auth.StrandedAccountStore
 import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
 import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
 import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
@@ -325,10 +327,12 @@ class GuestSessionHealerTest : CoroutineTest() {
         onboarded: Boolean = true,
         offline: Boolean = false,
         profile: Profile = Profile.Fallback(id = "local"),
+        strandedAccounts: StrandedAccountStore = FakeStrandedAccountStore(),
     ) = GuestSessionHealer(
         authRepositoryProvider = { auth },
         guestAccountCreatorProvider = { creator },
         profileRepositoryProvider = { FakeProfile(profile) },
+        strandedAccounts = strandedAccounts,
         appCache = FakeAppCache(onboarded),
         appState = FakeAppState(MutableStateFlow(offline)),
         appScope = AppCoroutineScope(dispatchers),
@@ -404,5 +408,94 @@ class GuestSessionHealerTest : CoroutineTest() {
         override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome = error("unused")
         override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome = error("unused")
         override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome = error("unused")
+    }
+
+    // ---------- AUTH-34: the record that outlives the cached profile ----------
+
+    @Test
+    fun refusesToMint_whenTheDeviceHasAStrandedAccount_evenWithNoCachedProfile() = runUnitTest {
+        // The relaunch after a session loss. Marking the session unrecoverable
+        // moves auth to SessionExpired, and ProfileRepositoryImpl clears the
+        // cached profile on exactly that reason — so the next boot has no
+        // cached profile, is onboarded, is online, and used to walk straight
+        // into mint(). A second account, silently, with no screen: quieter than
+        // the path actually reported on 2026-10-08.
+        val auth = FakeAuth(current = AuthState.Unauthenticated(), retryResult = AuthState.Unauthenticated())
+        val creator = FakeGuestAccountCreator(result = AccountCreationState.Succeeded)
+        val stranded = FakeStrandedAccountStore(
+            StrandedAccount(userId = "u1", displayName = "LuckyJack66", email = "a@b.com"),
+        )
+        val healer = build(
+            auth = auth,
+            creator = creator,
+            onboarded = true,
+            profile = Profile.Fallback(id = "local"), // cached profile already destroyed
+            strandedAccounts = stranded,
+        )
+
+        healer.onColdBoot(AppEvent.ColdBoot)
+        advanceUntilIdle()
+
+        assertEquals(
+            0, creator.ensureCalls,
+            "a stranded account on this device must never be minted over, however many launches later",
+        )
+    }
+
+    @Test
+    fun stillMints_whenNoAccountIsStranded() = runUnitTest {
+        // The guard must not strand genuinely fresh devices: with no record and
+        // no cached profile, minting is still the right answer.
+        val auth = FakeAuth(current = AuthState.Unauthenticated(), retryResult = AuthState.Unauthenticated())
+        val creator = FakeGuestAccountCreator(result = AccountCreationState.Succeeded)
+        val healer = build(auth = auth, creator = creator, onboarded = true)
+
+        healer.onColdBoot(AppEvent.ColdBoot)
+        advanceUntilIdle()
+
+        assertEquals(1, creator.ensureCalls, "no stranded account means the usual heal still mints")
+    }
+
+    @Test
+    fun recordsTheStrandedAccount_beforeDeclaringTheSessionUnrecoverable() = runUnitTest {
+        // Ordering is the whole point: the mark is what deletes the evidence,
+        // so the record has to exist first.
+        val auth = FakeAuth(current = AuthState.Unauthenticated(), retryResult = AuthState.Unauthenticated())
+        val creator = FakeGuestAccountCreator(result = AccountCreationState.Succeeded)
+        val stranded = FakeStrandedAccountStore()
+        val healer = build(
+            auth = auth,
+            creator = creator,
+            onboarded = true,
+            profile = cachedGuest(),
+            strandedAccounts = stranded,
+        )
+
+        healer.onColdBoot(AppEvent.ColdBoot)
+        advanceUntilIdle()
+
+        val recorded = stranded.read()
+        assertEquals("u1", recorded?.userId)
+        assertEquals("Foxy", recorded?.displayName, "recovery needs a name to offer")
+        assertEquals(
+            true, stranded.writtenBeforeMark,
+            "the record must be written before markSessionUnrecoverable destroys the cached profile",
+        )
+    }
+
+    private class FakeStrandedAccountStore(
+        initial: StrandedAccount? = null,
+    ) : StrandedAccountStore {
+        private var account: StrandedAccount? = initial
+        var writtenBeforeMark: Boolean = false
+            private set
+        var markSeen: Boolean = false
+
+        override suspend fun read(): StrandedAccount? = account
+        override suspend fun write(account: StrandedAccount) {
+            if (!markSeen) writtenBeforeMark = true
+            this.account = account
+        }
+        override suspend fun clear() { account = null }
     }
 }

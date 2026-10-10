@@ -57,13 +57,23 @@
     <string name="shop_purchase_error_store_unavailable_title">Store unavailable</string>
     <string name="shop_purchase_error_store_unavailable_message">We couldn't reach the store, so nothing was purchased. Check your connection and try again.</string>
     <!-- App - session-expiry boot (the auth server rejected our token mid-run). -->
-    <string name="session_expired_title">Session expired</string>
-    <string name="session_expired_message">We lost your session. Try again to pick up where you left off, or log out to start over.</string>
+    <string name="session_expired_recover_title">Your account is still here</string>
+    <string name="session_expired_recover_message_named">%1$s is safe on our end, chips and stats and all. Sign back in and we'll put you right where you left off.</string>
+    <string name="session_expired_recover_message">Your account is safe on our end, chips and stats and all. Sign back in and we'll put you right where you left off.</string>
+    <string name="session_expired_recover_sign_in">Sign in</string>
+    <string name="session_expired_recover_start_over">Start over as a guest</string>
+    <string name="session_expired_abandon_title_named">Leave %1$s behind?</string>
+    <string name="session_expired_abandon_title">Leave your account behind?</string>
+    <string name="session_expired_abandon_message">Starting over gives you a brand new guest account. Your chips, XP and stats stay with the old one, and signing in is the only way back to them.</string>
+    <string name="session_expired_abandon_sign_in_instead">Sign in instead</string>
+    <string name="session_expired_abandon_start_over">Start over</string>
+    <string name="session_expired_offline_title">You're offline</string>
+    <string name="session_expired_offline_message">We can't reach our servers right now, so we don't know if your session is really gone. Nothing is lost either way. Get back on a connection and try again.</string>
     <string name="session_expired_guest_title">Guest session ended</string>
     <string name="session_expired_guest_message">We lost your guest session. Try again to get back in, or log out to start a new game.</string>
     <string name="session_expired_retry">Try again</string>
     <string name="session_expired_logout">Log out</string>
-    <string name="session_expired_retry_failed">Still cannot reach your session. Check your connection and try again.</string>
+    <string name="session_expired_retry_failed">Still can't reach your session. Check your connection and try again.</string>
     <string name="session_expired_guest_logout_confirm_title">Lose your progress?</string>
     <string name="session_expired_guest_logout_confirm_message">Guest progress is not saved anywhere. Logging out clears your chips, XP, and history for good.</string>
     <string name="session_expired_guest_logout_keep_playing">Keep trying</string>

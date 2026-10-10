@@ -11,6 +11,8 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.StrandedAccount
+import com.dangerfield.cards.libraries.identity.auth.StrandedAccountStore
 import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
 import com.dangerfield.cards.libraries.identity.auth.PendingIdentity
 import com.dangerfield.cards.libraries.identity.profile.Profile
@@ -59,6 +61,7 @@ class GuestSessionHealer(
     authRepositoryProvider: () -> AuthRepository,
     guestAccountCreatorProvider: () -> GuestAccountCreator,
     profileRepositoryProvider: () -> ProfileRepository,
+    private val strandedAccounts: StrandedAccountStore,
     private val appCache: AppCache,
     private val appState: AppState,
     private val appScope: AppCoroutineScope,
@@ -148,6 +151,11 @@ class GuestSessionHealer(
             }
             else -> {
                 val stranded = cachedServerProfile()
+                // The durable record outlives the cached profile, which the
+                // SessionExpired transition deletes. Without it the refusal
+                // below lasted exactly one process: the next launch found no
+                // cached profile and minted silently (AUTH-34).
+                val strandedRecord = strandedAccountOrNull()
                 when {
                     // A server account demonstrably exists on this device but
                     // its session is gone and retry couldn't revive it. Minting
@@ -155,6 +163,16 @@ class GuestSessionHealer(
                     // real account's chips/XP get silently stranded behind a
                     // brand-new empty one. Stop and route to recovery instead.
                     stranded != null -> stopForRecovery(source, stranded)
+                    strandedRecord != null -> {
+                        // Same refusal, one process later. The cached profile is
+                        // gone but the device still belongs to someone.
+                        log(source, HealAction.STOP_FOR_RECOVERY)
+                        logger.w {
+                            "Account ${strandedRecord.userId} is stranded on this device " +
+                                "(isAnonymous=${strandedRecord.isAnonymous}) — refusing to mint over it; " +
+                                "recovery owns this from here"
+                        }
+                    }
                     !hasUserOnboarded() -> {
                         // Pre-onboarding: the user hasn't committed to playing
                         // yet, so there's no identity owed. Onboarding's own
@@ -185,9 +203,28 @@ class GuestSessionHealer(
                 "(isAnonymous=${stranded.isAnonymous}) has no session and retry could not revive it — " +
                 "routing to recovery instead of minting over the account"
         }
+        // Before the mark, never after: marking moves auth to SessionExpired,
+        // and ProfileRepositoryImpl clears the cached profile on exactly that
+        // reason — the evidence this record replaces.
+        Catching {
+            strandedAccounts.write(
+                StrandedAccount(
+                    userId = stranded.id,
+                    displayName = stranded.displayName,
+                    email = stranded.email,
+                    isAnonymous = stranded.isAnonymous,
+                ),
+            )
+        }.logOnFailure { "Recording the stranded account failed; recovery will have no name to offer" }
+
         Catching { authRepository.markSessionUnrecoverable(wasAnonymous = stranded.isAnonymous) }
             .logOnFailure { "Marking session unrecoverable failed; will re-decide on the next trigger" }
     }
+
+    private suspend fun strandedAccountOrNull(): StrandedAccount? =
+        Catching { strandedAccounts.read() }
+            .logOnFailure { "Reading the stranded-account record failed; assuming none" }
+            .getOrNull()
 
     private suspend fun mint(source: String) {
         log(source, HealAction.MINT)

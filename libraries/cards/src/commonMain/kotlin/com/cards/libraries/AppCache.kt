@@ -212,6 +212,24 @@ data class AppData(
     val shopSeenProductIds: Set<String> = emptySet(),
 
     /**
+     * The user id device-local data currently belongs to, or null before any
+     * account has owned it.
+     *
+     * **Device-scoped on purpose** — it must survive [resetAccountScoped] and
+     * process death, because its whole job is to answer "whose data is this?"
+     * at a moment when nothing in memory knows. The auth layer's in-memory
+     * state flow is empty at process start, so an account switch across a
+     * launch used to run no wipe at all (AUTH-33): boot session-less, mint a
+     * different account, inherit the previous user's chips, wallet outbox and
+     * progression. `UserScopedDataReset.ensureOwnedBy` compares against this
+     * and clears the old owner first.
+     *
+     * Holds an id, never a token — see `SessionMirrorStore` for why a refresh
+     * token is a different question with a different answer.
+     */
+    val lastActiveUserId: String? = null,
+
+    /**
      * Per-install identifier generated on first launch and sent as the
      * `X-Install-Id` header on every authenticated request. Null until
      * the install-id provider seeds it (one-shot, persistent). Used by

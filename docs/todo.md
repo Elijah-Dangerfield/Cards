@@ -315,3 +315,35 @@ seconds of CI:
 Fixed rather than baselined, so there is no `lint-baseline.xml` and the report starts empty.
 Config lives in `build-logic/.../AndroidConfiguration.kt`; the `lint` job is in `ci.yml`.
 `NewerVersionAvailable` is disabled — it hits the network on every run.
+
+## AUTH-33 — DONE 2026-10-09
+
+Two commits. `d4eafca0` stops the welcome dialog inferring a grant from the cached balance —
+the figure now comes only from `onboarding.starterGrant` (V89 seeds it at 10,000 and it is live
+in prod; it was null during the incident because app-config had not hydrated). Unknown now waits
+rather than spending the once-per-account dialog on a promise.
+
+`2a2706a4` is the root: `SupabaseAuthRepositoryImpl` keyed the user-scoped wipe off the
+in-memory auth state, which is empty at process start, so an account switch across a launch
+wiped nothing. `UserScopedDataReset.ensureOwnedBy` now compares against a durably recorded owner
+(`AppData.lastActiveUserId`, device-scoped). That also closes the unsynced `wallet_events`
+outbox crossing accounts, which was the same bug costing real chips rather than a wrong label.
+
+## AUTH-34 — DONE 2026-10-09
+
+Prevention landed in `a75f90b1` (durable `StrandedAccount` record, healer refuses to mint while
+it exists). The UI half is the recovery screen itself: `SessionExpiredViewModel` now reads
+`StrandedAccountStore` and resolves one of three honest offers — `SignInToRestore` names the
+account and leads with signing in, `GuestOnly` keeps the old guest copy because an anonymous
+account has no credential to return with, and `Offline` says nothing is lost and offers only
+retry, since a sign-in form you cannot submit is a trap. The record is read in the ViewModel
+rather than carried on the route: a display name is user data that would land in saved nav state.
+
+Starting over is still reachable, behind a dialog that names the account being left, and it
+clears the record so the healer stops refusing and onboarding can mint. `auth.recovery_offered`
+and `auth.stranded_account_abandoned` give the abandon rate a numerator and a denominator.
+
+Still open: a user who force-quits on that screen gets no second telling. The healer's
+second-process branch only logs, so the next launch lands on Home with the auth-gate sheet ("sign
+in again to keep playing") and no account name. The Home restore affordance in
+`docs/backlog.md` is what closes it.

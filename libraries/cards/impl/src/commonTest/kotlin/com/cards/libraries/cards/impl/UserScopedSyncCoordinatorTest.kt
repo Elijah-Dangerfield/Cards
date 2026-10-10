@@ -235,6 +235,7 @@ class UserScopedSyncCoordinatorTest : CoroutineTest() {
         val syncer = StoreWritingSyncer(store)
         f.construct(syncers = setOf(syncer))
         val reset = DefaultUserScopedDataReset(
+            appCache = TestAppCache(),
             clearers = setOf(
                 object : UserScopedClearer {
                     override suspend fun clear(previousUserId: String) {

@@ -725,33 +725,42 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun welcomeGate_accountJustCreated_waitsForChips_thenFires() = runUnitTest {
-        // accountJustCreated=true + Profile.Authenticated, but chips not yet
-        // hydrated and no starter-grant config → fall back to the balance, so the
-        // gate waits for the balance before firing (reveals the real number).
+    fun welcomeGate_accountJustCreated_withoutGrantConfig_doesNotRevealTheBalance() = runUnitTest {
+        // AUTH-33. This used to assert the opposite: with no grant config the gate
+        // waited for chips and then revealed the balance as the grant. That is how
+        // a new account on an upgraded device announced 14,020 — the *previous*
+        // account's cached balance — over a wallet the server had seeded with
+        // 10,000. A balance is never evidence of a grant.
+        //
+        // With the figure unknown the gate now waits rather than spending the
+        // once-per-account dialog, and it stays silent even once chips hydrate.
         val profile = FakeProfileRepository(
             initial = authenticatedProfile(displayName = "FreshInstall", isAnonymous = true),
             accountJustCreatedInitial = true,
         )
         val chips = FakeChipsRepository(initial = null)
         val appCache = FakeAppCache() // didSeeInitialGrantInOnboarding = false
-        val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
-        // A blocking notification only presents once Home is settled (PROG-5).
+        val vm = buildVm(
+            profile = profile,
+            chips = chips,
+            appCache = appCache,
+            // Pre-hydration: app-config hasn't landed, so the grant is unknown.
+            onboardingStarterGrant = OnboardingStarterGrant(
+                object : AppConfigMap() { override val map = emptyMap<String, Any>() },
+            ),
+        )
         vm.takeAction(HomeAction.ScreenResumed)
 
         vm.eventFlow.test {
             expectNoEvents()
-            // Wallet sync lands with the authoritative balance.
+            // A balance lands, and it is NOT this account's grant.
             chips.balance.value = 10_500L
-            val event = awaitItem()
-            assertTrue(event is HomeEvent.OpenWelcomeDialog)
-            assertEquals(10_500L, event.payload.grantChips)
-            assertEquals("FreshInstall", event.payload.displayName)
+            expectNoEvents()
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(
-            true, appCache.get().welcomeSeen,
-            "gate must mark the dialog seen at emit time so it doesn't re-fire",
+            false, appCache.get().welcomeSeen,
+            "the dialog fires once per account — a grant we cannot name must not burn it",
         )
     }
 
@@ -1080,10 +1089,13 @@ class HomeViewModelTest : CoroutineTest() {
         playStyle: FakePlayStyleRepository = FakePlayStyleRepository(),
         appCache: FakeAppCache = FakeAppCache(),
         progressionConfig: ProgressionConfig = FakeProgressionConfig(),
-        // Empty config → the starter-grant amount is unknown, so the welcome
-        // falls back to the fresh account's balance (what these tests assert).
+        // Matches production: V89 seeds `onboarding.starterGrant = 10000` into
+        // app-config, so a hydrated client knows the real figure. Tests that want
+        // the pre-hydration window pass an empty map explicitly.
         onboardingStarterGrant: OnboardingStarterGrant = OnboardingStarterGrant(
-            object : AppConfigMap() { override val map = emptyMap<String, Any>() },
+            object : AppConfigMap() {
+                override val map = mapOf<String, Any>("onboarding" to mapOf("starterGrant" to 10_000L))
+            },
         ),
         // Default: no founding window (config sentinel 0), so the welcome wears its
         // plain new-account copy unless a test opts into the window.
