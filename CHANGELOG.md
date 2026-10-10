@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.6.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.5.0...v0.6.0) (2026-10-10)
+
+
+### Features
+
+* **auth:** offer the stranded account back after a session loss ([7998719](https://github.com/Elijah-Dangerfield/Cards/commit/799871933a069aa59eb4ae3a8068a19c33d5ad7f))
+* **identity:** record the stranded account so the healer keeps refusing (AUTH-34) ([a75f90b](https://github.com/Elijah-Dangerfield/Cards/commit/a75f90b1a39fefa6e48ae3fea11edc5cd5fad4b5))
+* **identity:** tell the user their account is recoverable after a session loss ([5df1c5f](https://github.com/Elijah-Dangerfield/Cards/commit/5df1c5f3bd3d001dea37c72e6a308bfc8475d707))
+* **matchmaking:** offer disclosed bots from the start of a public search ([816e9c5](https://github.com/Elijah-Dangerfield/Cards/commit/816e9c5baca3eded15a6863be11031bc68a00fc6))
+
+
+### Bug Fixes
+
+* **home:** never reveal the wallet balance as the starter grant (AUTH-33) ([d4eafca](https://github.com/Elijah-Dangerfield/Cards/commit/d4eafca0e52b5a4a6444690efa38489f247d74b5))
+* **identity:** dump the departing user across a process boundary (AUTH-33) ([2a2706a](https://github.com/Elijah-Dangerfield/Cards/commit/2a2706a4be569287e9c182be3d770a844f520b60))
+* **sync:** flush hands, XP and play style during play, not only on the next app open ([438d871](https://github.com/Elijah-Dangerfield/Cards/commit/438d8710ecfb6cd3cedb16ef7e239fee1cfd5b1d))
+* **telemetry:** keep ApplicationExitInfo out of signatures reachable below API 30 ([d2484d8](https://github.com/Elijah-Dangerfield/Cards/commit/d2484d808520d1882f6238bbdba922a6152247ad))
+* the API-level bug that silenced telemetry, and the lint that will not catch the next one ([8257332](https://github.com/Elijah-Dangerfield/Cards/commit/82573322fed2ce54f70b008568a34bbad1a9891b))
+
 ## [0.5.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.4.0...v0.5.0) (2026-10-02)
 
 
