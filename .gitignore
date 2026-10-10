@@ -6,6 +6,8 @@
 .claude/*
 !.claude/skills/
 !.claude/commands/
+# Shared hooks (PR-title check). Everything else under .claude/ stays local.
+!.claude/settings.json
 **/build/
 xcuserdata
 !src/**/build/
