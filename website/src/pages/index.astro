@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { APP_STORE_URL, PLAY_STORE_URL } from '../consts';
 
 const features = [
   {
@@ -72,11 +73,11 @@ const playIcon = '<svg width="24" height="26" viewBox="0 0 24 24"><path d="M3.6 
         <div class="hero-title" style="font:900 clamp(52px,13vw,104px)/0.98 Poppins;color:#1c1a18;letter-spacing:-0.04em">Fun.<br />Simple.<br />Poker.</div>
         <div style="font:500 clamp(17px,4.5vw,24px)/1.5 Poppins;color:rgba(28,26,24,.66);margin-top:28px;max-width:460px">Downcard is poker for the group chat. Spin up a table, share a code, and play. No chips at stake, no house taking a cut.</div>
         <div style="display:flex;gap:16px;margin-top:40px;flex-wrap:wrap">
-          <a href="#" style="display:flex;align-items:center;gap:12px;background:#0d0c0b;color:#F5F0E6;padding:14px 24px;border-radius:16px">
+          <a href={APP_STORE_URL} style="display:flex;align-items:center;gap:12px;background:#0d0c0b;color:#F5F0E6;padding:14px 24px;border-radius:16px">
             <Fragment set:html={appStoreIcon} />
             <div style="text-align:left;line-height:1.1"><div style="font:500 12px Poppins;opacity:.8">Download on the</div><div style="font:700 20px Poppins">App Store</div></div>
           </a>
-          <a href="#" style="display:flex;align-items:center;gap:12px;background:#0d0c0b;color:#F5F0E6;padding:14px 24px;border-radius:16px">
+          <a href={PLAY_STORE_URL} style="display:flex;align-items:center;gap:12px;background:#0d0c0b;color:#F5F0E6;padding:14px 24px;border-radius:16px">
             <Fragment set:html={playIcon} />
             <div style="text-align:left;line-height:1.1"><div style="font:500 12px Poppins;opacity:.8">Get it on</div><div style="font:700 20px Poppins">Google Play</div></div>
           </a>
@@ -131,11 +132,11 @@ const playIcon = '<svg width="24" height="26" viewBox="0 0 24 24"><path d="M3.6 
       <div class="section-title" style="font:800 clamp(30px,6vw,46px)/1.1 Poppins;color:#F5F0E6;letter-spacing:-0.03em">Ready to deal?</div>
       <div style="font:500 clamp(16px,4vw,20px)/1.6 Poppins;color:rgba(245,240,230,.62);margin-top:20px;max-width:520px;margin-left:auto;margin-right:auto">Download Downcard, start a table, and share the code. Your first hand is a minute away.</div>
       <div style="display:flex;gap:16px;justify-content:center;margin-top:40px;flex-wrap:wrap">
-        <a href="#" style="display:flex;align-items:center;gap:12px;background:#F5F0E6;color:#0d0c0b;padding:14px 24px;border-radius:16px">
+        <a href={APP_STORE_URL} style="display:flex;align-items:center;gap:12px;background:#F5F0E6;color:#0d0c0b;padding:14px 24px;border-radius:16px">
           <Fragment set:html={appStoreIcon} />
           <div style="text-align:left;line-height:1.1"><div style="font:500 12px Poppins;opacity:.7">Download on the</div><div style="font:700 20px Poppins">App Store</div></div>
         </a>
-        <a href="#" style="display:flex;align-items:center;gap:12px;background:#F5F0E6;color:#0d0c0b;padding:14px 24px;border-radius:16px">
+        <a href={PLAY_STORE_URL} style="display:flex;align-items:center;gap:12px;background:#F5F0E6;color:#0d0c0b;padding:14px 24px;border-radius:16px">
           <Fragment set:html={playIcon} />
           <div style="text-align:left;line-height:1.1"><div style="font:500 12px Poppins;opacity:.7">Get it on</div><div style="font:700 20px Poppins">Google Play</div></div>
         </a>

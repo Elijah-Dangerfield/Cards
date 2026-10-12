@@ -1,4 +1,5 @@
 ---
+import { APP_STORE_URL, PLAY_STORE_URL } from '../consts';
 const year = new Date().getFullYear();
 ---
 
@@ -16,8 +17,8 @@ const year = new Date().getFullYear();
         <div style="display:flex;flex-direction:column;gap:12px">
           <div style="font:700 14px Poppins;letter-spacing:1px;text-transform:uppercase;color:rgba(245,240,230,.4);margin-bottom:4px">Product</div>
           <a href="/" style="font:500 16px Poppins;color:rgba(245,240,230,.75)">Home</a>
-          <a href="#" style="font:500 16px Poppins;color:rgba(245,240,230,.75)">App Store</a>
-          <a href="#" style="font:500 16px Poppins;color:rgba(245,240,230,.75)">Google Play</a>
+          <a href={APP_STORE_URL} style="font:500 16px Poppins;color:rgba(245,240,230,.75)">App Store</a>
+          <a href={PLAY_STORE_URL} style="font:500 16px Poppins;color:rgba(245,240,230,.75)">Google Play</a>
         </div>
         <div style="display:flex;flex-direction:column;gap:12px">
           <div style="font:700 14px Poppins;letter-spacing:1px;text-transform:uppercase;color:rgba(245,240,230,.4);margin-bottom:4px">Legal & help</div>
