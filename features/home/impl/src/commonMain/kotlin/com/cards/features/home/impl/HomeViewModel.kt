@@ -103,6 +103,13 @@ class HomeViewModel(
     // action loop. See [HomeAction.ScreenResumed] / [HomeAction.ScreenPaused].
     private var homeResumed = false
 
+    /**
+     * The opponent whose head-to-head card has already been counted as seen on
+     * this visit to Home. Reset when Home goes away, so the impression count is
+     * once per visit rather than once per emission or per recomposition.
+     */
+    private var countedRivalryImpression: String? = null
+
     // The most recent notification snapshot the arbiter reasons over. Latched so a
     // notification that resolves while Home is off-screen can be re-presented the
     // instant Home settles again. Mutated only from the action loop.
@@ -357,13 +364,17 @@ class HomeViewModel(
             }
             is HomeAction.ScreenResumed -> {
                 homeResumed = true
+                logRivalryImpression(state.topRivalry)
                 takeAction(HomeAction.ReconcileChipReveal)
                 // Home just settled — flush any blocking notification that was
                 // pending while we were off-screen (the exact case a celebration
                 // used to be swept away in).
                 action.presentPendingBlocking()
             }
-            is HomeAction.ScreenPaused -> homeResumed = false
+            is HomeAction.ScreenPaused -> {
+                homeResumed = false
+                countedRivalryImpression = null
+            }
             is HomeAction.ReconcileChipReveal -> {
                 // Only while Home is the foreground screen — otherwise leave the
                 // baseline frozen at what the user last saw so the accumulated
@@ -391,8 +402,13 @@ class HomeViewModel(
             is HomeAction.RecentUnlocksChanged -> action.updateState {
                 it.copy(recentAchievements = action.items)
             }
-            is HomeAction.RivalriesChanged -> action.updateState {
-                it.copy(topRivalry = action.rivalries.firstOrNull())
+            is HomeAction.RivalriesChanged -> action.run {
+                val top = action.rivalries.firstOrNull()
+                // The refresh lands asynchronously, so on a cold boot the card
+                // usually appears after Home has already resumed. Count it here
+                // too, or every first-launch impression goes unrecorded.
+                logRivalryImpression(top)
+                updateState { it.copy(topRivalry = top) }
             }
             is HomeAction.RematchRivalry -> action.run {
                 homeLogger.logEvent(
@@ -475,6 +491,36 @@ class HomeViewModel(
                 appCache.update { it.copy(pendingHomeAchievementIds = emptyList()) }
             }
         }
+    }
+
+    /**
+     * The denominator for `rivalry.rematch_tapped`.
+     *
+     * Counting taps alone says how many rematches were started and nothing about
+     * whether the card works: at this population a handful of taps could be
+     * every player who saw one, or a tenth of them, and those are opposite
+     * conclusions. This is also the only measure of how many players have a
+     * rivalry at all, which is the prior question of whether the feature applies
+     * to anybody.
+     *
+     * Once per visit to Home, not per state emission: the rivalry refresh and
+     * the chip odometer both re-emit while Home sits open, and an impression
+     * counted per emission would inflate the denominator and make the card look
+     * worse than it is.
+     */
+    private fun logRivalryImpression(rivalry: Rivalry?) {
+        if (!homeResumed) return
+        val opponentId = rivalry?.opponentId ?: return
+        if (opponentId == countedRivalryImpression) return
+        countedRivalryImpression = opponentId
+
+        homeLogger.logEvent(
+            "rivalry.card_shown",
+            "standing" to rivalry.standing.name.lowercase(),
+            "hands_won" to rivalry.handsWon,
+            "opponent_hands_won" to rivalry.opponentHandsWon,
+            "sessions_together" to rivalry.sessionsTogether,
+        )
     }
 
     private fun List<String>.toEarnedAchievements(): List<EarnedAchievement> =

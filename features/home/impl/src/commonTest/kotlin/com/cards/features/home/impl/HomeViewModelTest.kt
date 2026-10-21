@@ -1080,6 +1080,81 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun cardShown_isCountedOncePerVisit_notPerEmission() = runUnitTest {
+        // The denominator for rematch_tapped. Counted per emission it would
+        // inflate every time the rivalry refresh or the chip odometer re-emits
+        // while Home sits open, making the card look worse than it is.
+        val rivalries = FakeRivalryRepository(onRefresh = listOf(rivalry()))
+        val profile = FakeProfileRepository(initial = authenticatedProfile(displayName = "Me", isAnonymous = false))
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            val vm = buildVm(profile = profile, rivalries = rivalries)
+            vm.stateFlow.test {
+                var last = awaitItem()
+                while (last.topRivalry == null) last = awaitItem()
+                cancelAndIgnoreRemainingEvents()
+            }
+            vm.takeAction(HomeAction.ScreenResumed)
+            yield()
+            // Same card re-emitted while Home is still open.
+            rivalries.emit(listOf(rivalry()))
+            yield()
+
+            assertEquals(
+                1,
+                tree.eventNames().count { it == "rivalry.card_shown" },
+                "one impression per visit, however many times the card re-emits",
+            )
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    @Test
+    fun cardShown_countsAgainOnTheNextVisit() = runUnitTest {
+        val rivalries = FakeRivalryRepository(onRefresh = listOf(rivalry()))
+        val profile = FakeProfileRepository(initial = authenticatedProfile(displayName = "Me", isAnonymous = false))
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            val vm = buildVm(profile = profile, rivalries = rivalries)
+            vm.stateFlow.test {
+                var last = awaitItem()
+                while (last.topRivalry == null) last = awaitItem()
+                cancelAndIgnoreRemainingEvents()
+            }
+            vm.takeAction(HomeAction.ScreenResumed)
+            yield()
+            vm.takeAction(HomeAction.ScreenPaused)
+            yield()
+            vm.takeAction(HomeAction.ScreenResumed)
+            yield()
+
+            assertEquals(2, tree.eventNames().count { it == "rivalry.card_shown" })
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    @Test
+    fun noCard_meansNoImpression() = runUnitTest {
+        // A player with no rivalry must not land in the denominator.
+        val profile = FakeProfileRepository(initial = authenticatedProfile(displayName = "Me", isAnonymous = false))
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            val vm = buildVm(profile = profile, rivalries = FakeRivalryRepository())
+            vm.takeAction(HomeAction.ScreenResumed)
+            yield()
+
+            assertEquals(emptyList(), tree.eventNames().filter { it == "rivalry.card_shown" })
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    @Test
     fun rematchTap_emitsStartRematch_andLogsTheStandingItCameFrom() = runUnitTest {
         val record = rivalry(handsWon = 11, opponentHandsWon = 14, sessionsTogether = 4)
         val tree = CapturingLogTree()
