@@ -249,12 +249,22 @@ class GrafanaLogTree(
          * Events worth a network attempt of their own. Rare, and all of them
          * describe money that cannot move — the one condition where learning
          * about it a session late is learning about it too late.
+         *
+         * `purchase.cancelled` and `purchase.blocked` are here despite being
+         * expected outcomes, because the set has to be durable together:
+         * "initiated minus terminal" is how a stuck purchase is spotted, and a
+         * terminal event that can be lost while its `initiated` survives
+         * invents a stuck purchase that never happened. So this is every
+         * terminal outcome of `PurchaseChipPackUseCase.invoke`, not just the
+         * alarming ones. Add to it if that function grows another.
          */
         private val FLUSH_IMMEDIATELY = setOf(
             "shop.catalog_skus_dropped",
             "purchase.initiated",
             "purchase.completed",
             "purchase.failed",
+            "purchase.cancelled",
+            "purchase.blocked",
         )
 
         private const val SESSION_ID_KEY = "session_id"

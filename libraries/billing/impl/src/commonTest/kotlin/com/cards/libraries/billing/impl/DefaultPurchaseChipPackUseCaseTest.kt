@@ -16,6 +16,11 @@ import com.dangerfield.cards.libraries.billing.StoreKitPurchaseResult
 import com.dangerfield.cards.libraries.billing.StoreKitPurchaseStatus
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.config.AppConfigMap
+import com.dangerfield.cards.libraries.core.logging.EXTRA_APP_EVENT
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.LogEntry
+import com.dangerfield.cards.libraries.core.logging.LogId
+import com.dangerfield.cards.libraries.core.logging.LogTree
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
@@ -249,6 +254,122 @@ class DefaultPurchaseChipPackUseCaseTest : CoroutineTest() {
 
         assertEquals(IapPurchaseOutcome.NotSignedIn, useCase(PACK))
         assertEquals(0, billing.purchaseCalls)
+    }
+
+    // ---------- the purchase funnel always closes ----------
+
+    @Test
+    fun everyOutcome_logsExactlyOneTerminalEventAfterInitiated() = runUnitTest {
+        // ENG-80. The terminal event used to be logged at the bottom of invoke(),
+        // which the two auth gates returned past, so an anonymous user tapping
+        // buy produced `initiated` with nothing after it. In Loki that is
+        // indistinguishable from a purchase that started and died, which made
+        // "initiated minus terminal" unusable as a stuck-purchase signal.
+        //
+        // Asserted across every branch rather than the two that were broken: the
+        // point of the fix is that no branch can skip the event, so a new one
+        // added later has to keep that true.
+        val cases: List<Pair<String, suspend () -> Unit>> = listOf(
+            "purchase.completed" to {
+                build(billing = FakeBillingClient(PurchaseResult.Success(TX)))(PACK)
+                Unit
+            },
+            "purchase.cancelled" to {
+                build(billing = FakeBillingClient(PurchaseResult.UserCancelled))(PACK)
+                Unit
+            },
+            "purchase.failed" to {
+                build(billing = FakeBillingClient(PurchaseResult.Failed("boom")))(PACK)
+                Unit
+            },
+            "purchase.failed" to {
+                build(billing = FakeBillingClient(PurchaseResult.NotConnected))(PACK)
+                Unit
+            },
+            "purchase.blocked" to {
+                build(auth = FakeAuthRepository(AuthState.Unauthenticated()))(PACK)
+                Unit
+            },
+            "purchase.blocked" to {
+                build(
+                    auth = FakeAuthRepository(
+                        AuthState.Authenticated(userId = USER_ID, isAnonymous = true, email = null),
+                    ),
+                )(PACK)
+                Unit
+            },
+        )
+
+        cases.forEachIndexed { index, (expectedTerminal, run) ->
+            val tree = CapturingLogTree()
+            KLog.plant(tree)
+            try {
+                run()
+            } finally {
+                KLog.uproot(tree)
+            }
+            assertEquals(
+                listOf("purchase.initiated", expectedTerminal),
+                tree.eventNames(),
+                "case $index: one initiated, then exactly one terminal event",
+            )
+        }
+    }
+
+    @Test
+    fun noSession_andAnonymous_areDistinguishableInTheEvent() = runUnitTest {
+        // Same event name, different reason: one is "sign in", the other is
+        // "claim the account you already have". Collapsing them would hide which
+        // half of the gate people hit.
+        val reasons = listOf(
+            FakeAuthRepository(AuthState.Unauthenticated()),
+            FakeAuthRepository(AuthState.Authenticated(userId = USER_ID, isAnonymous = true, email = null)),
+        ).map { auth ->
+            val tree = CapturingLogTree()
+            KLog.plant(tree)
+            try {
+                build(auth = auth)(PACK)
+            } finally {
+                KLog.uproot(tree)
+            }
+            tree.eventExtras("purchase.blocked")["reason"]
+        }
+
+        assertEquals(listOf("not_signed_in", "claim_account_required"), reasons)
+    }
+
+    @Test
+    fun aBlockedPurchaseIsNotAFailure() = runUnitTest {
+        // A5 pages on purchase.failed. An anonymous user tapping buy is the
+        // product working as designed, so it must never land in that bucket.
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            build(
+                auth = FakeAuthRepository(
+                    AuthState.Authenticated(userId = USER_ID, isAnonymous = true, email = null),
+                ),
+            )(PACK)
+        } finally {
+            KLog.uproot(tree)
+        }
+
+        assertEquals(emptyList(), tree.eventNames().filter { it == "purchase.failed" })
+    }
+
+    private class CapturingLogTree : LogTree() {
+        private val entries = mutableListOf<LogEntry>()
+
+        override fun log(entry: LogEntry): LogId? {
+            entries += entry
+            return null
+        }
+
+        fun eventNames(): List<String> =
+            entries.mapNotNull { it.context.extras[EXTRA_APP_EVENT] as? String }
+
+        fun eventExtras(name: String): Map<String, Any?> =
+            entries.first { it.context.extras[EXTRA_APP_EVENT] == name }.context.extras
     }
 
     // ---------- outstanding-purchase recovery (BILL-7) ----------

@@ -56,19 +56,34 @@ class DefaultPurchaseChipPackUseCase(
 
     private val logger = KLog.withTag("PurchaseChipPackUseCase")
 
+    /**
+     * One `purchase.initiated` in, exactly one terminal event out.
+     *
+     * The terminal event used to be logged at the bottom of this function, which
+     * the two auth gates returned past. An anonymous user tapping buy therefore
+     * produced an `initiated` with nothing after it — indistinguishable in Loki
+     * from a purchase that started and died, which made "initiated minus
+     * terminal" unusable as a stuck-purchase signal and cost a real triage
+     * detour (ENG-80, 2026-10-21). Resolving in [resolve] and logging here means
+     * a future early return cannot escape the event.
+     */
     override suspend fun invoke(pack: Product.ChipPack): IapPurchaseOutcome {
         logger.logEvent("purchase.initiated", "product_id" to pack.id)
+        return resolve(pack).also { outcome -> logPurchaseEvent(pack, outcome) }
+    }
+
+    private suspend fun resolve(pack: Product.ChipPack): IapPurchaseOutcome {
         val authenticated = authRepository.current() as? AuthState.Authenticated
         if (authenticated == null) {
             logger.w { "IAP purchase requested with no signed-in user" }
             return IapPurchaseOutcome.NotSignedIn
         }
         if (authenticated.isAnonymous) {
-            logger.i { "IAP purchase blocked for anonymous user — routing to account claim" }
+            logger.i { "IAP purchase blocked for anonymous user, routing to account claim" }
             return IapPurchaseOutcome.ClaimAccountRequired
         }
         val userId = authenticated.userId
-        val outcome = when (val result = billingClient.purchase(sku = pack.store.sku, userId = userId)) {
+        return when (val result = billingClient.purchase(sku = pack.store.sku, userId = userId)) {
             is PurchaseResult.Success -> grant(pack, result.transaction, alreadyOwned = false)
             is PurchaseResult.AlreadyOwned -> grant(pack, result.transaction, alreadyOwned = true)
             PurchaseResult.UserCancelled -> IapPurchaseOutcome.Cancelled
@@ -85,10 +100,16 @@ class DefaultPurchaseChipPackUseCase(
                 IapPurchaseOutcome.StoreUnavailable
             }
         }
-        logPurchaseEvent(pack, outcome)
-        return outcome
     }
 
+    /**
+     * `purchase.blocked` is deliberately its own name rather than a
+     * `purchase.failed` reason: nothing is broken on these two branches. The
+     * user is not signed in, or is anonymous and gets routed to claim their
+     * account, both of which are the product working as designed (purchases
+     * require a real account). Folding them into `failed` would have made A5
+     * page on expected behaviour.
+     */
     private fun logPurchaseEvent(pack: Product.ChipPack, outcome: IapPurchaseOutcome) {
         when (outcome) {
             is IapPurchaseOutcome.Success, is IapPurchaseOutcome.AlreadyOwned ->
@@ -99,7 +120,10 @@ class DefaultPurchaseChipPackUseCase(
                 logger.logEvent("purchase.cancelled", "product_id" to pack.id)
             IapPurchaseOutcome.StoreUnavailable ->
                 logger.logEvent("purchase.failed", "product_id" to pack.id, "error" to "store_unavailable")
-            IapPurchaseOutcome.NotSignedIn, IapPurchaseOutcome.ClaimAccountRequired -> Unit
+            IapPurchaseOutcome.NotSignedIn ->
+                logger.logEvent("purchase.blocked", "product_id" to pack.id, "reason" to "not_signed_in")
+            IapPurchaseOutcome.ClaimAccountRequired ->
+                logger.logEvent("purchase.blocked", "product_id" to pack.id, "reason" to "claim_account_required")
         }
     }
 

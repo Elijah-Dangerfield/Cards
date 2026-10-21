@@ -432,8 +432,31 @@ the rule edits are a deliberate human change:
   the window well past the gap between observations, or compare shop views against resolvable packs,
   so the signal is a *state* rather than an event burst.
 
-**Also unexplained and worth one look:** a `purchase.initiated` on 2026-10-17 (0.5.0,
-`chip_pack_small`, iOS 27.0.1) with no `completed` and no `failed` after it.
+**The orphaned purchase was not a bug, and the funnel is now closed.** The `purchase.initiated` on
+2026-10-17 (0.5.0, `chip_pack_small`, iOS 27.0.1) with no terminal event after it is the
+anonymous-buyer shape: `DefaultPurchaseChipPackUseCase` logged `initiated` first, and the
+`NotSignedIn` / `ClaimAccountRequired` gates both returned before `logPurchaseEvent` ran. Expected
+behaviour (purchases require a real account) that was indistinguishable in Loki from a purchase
+that started and died.
+
+Fixed structurally rather than at the two gates: `invoke` logs `initiated`, delegates to a private
+`resolve`, and logs the terminal event on the way out, so a future early return cannot escape it.
+The two gates now emit `purchase.blocked` with a `reason` of `not_signed_in` or
+`claim_account_required` — its own event name, not a `purchase.failed` reason, because nothing is
+broken on those branches and folding them in would make A5 page on expected behaviour. Every
+terminal outcome is in the telemetry flush allowlist now (`completed`, `failed`, `cancelled`,
+`blocked`), since a terminal event that can be lost while its `initiated` survives invents a stuck
+purchase that never happened.
+
+**Follow-up, once 0.6.1 is in users' hands:** `initiated` minus the four terminals becomes a real
+stuck-purchase signal and is worth its own rule. Do not build it sooner. Older builds cannot emit
+the terminal events it would count, which is precisely the mistake that made A8 useless.
+
+**A5 and A8 were rewritten on 2026-10-21** (both could never fire; see `docs/decisions.md`). A5 is
+now "any `purchase.failed` in 7 days" rather than an hourly success rate gated to 5 attempts; A8
+counts over 7 days rather than 6 hours and is deliberately sticky. Remaining known gap: both use
+`no_data_state: OK`, so a total Loki outage reads healthy on every event-based rule. A "client
+telemetry has gone quiet" watchdog would cover them all at once, and does not exist.
 
 ## RIV-1 — DONE 2026-10-21; head-to-head records, and the matchmaking screen stops over-promising
 
