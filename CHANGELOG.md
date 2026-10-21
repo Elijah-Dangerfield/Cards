@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.6.0...v0.7.0) (2026-10-21)
+
+
+### Features
+
+* **home:** count how many people see the head-to-head card ([f130cea](https://github.com/Elijah-Dangerfield/Cards/commit/f130cea7cc61ad39e52b07529c0fe01ab4f7083d))
+
+
+### Bug Fixes
+
+* **billing:** close the purchase funnel so a stuck purchase is visible ([7cc7f5f](https://github.com/Elijah-Dangerfield/Cards/commit/7cc7f5f88d364b72c887c2a0c7f757aa24739d75))
+
 ## [0.6.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.5.0...v0.6.0) (2026-10-21)
 
 
