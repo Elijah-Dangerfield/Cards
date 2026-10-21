@@ -75,6 +75,58 @@ Notes and pending confirmations:
 - Frame 4: if the exported art carries an open-source badge/sticker, re-export without it.
 - Frame 6: names your level, so only ship it if the stats screen shows level plus stats and is reachable.
 
+## Custom product page: "Poker night with friends"
+
+The default page sells Downcard to everyone. This one is for people who already want to play with their
+own group, so it leads with the private room and drops the public-table pitch.
+
+**Who lands here**
+- The Reddit "Deal your friends in" ad (`Downcard Assets/5 Ads/Reddit/reddit-friends-*`). Point that ad
+  at this page's URL instead of the default page, so the promise in the ad is the first thing they see.
+- Organic search for the keywords below, once they're assigned to this page.
+
+**Keywords to assign**
+- poker with friends
+- private poker
+- poker night
+- home game
+- friends poker
+
+None of these are in a keyword list in the repo. Add them to the app's keyword field in App Store
+Connect first, since a custom page can only be assigned keywords the app already targets.
+
+**Promotional text** (170 max)
+
+Start a private table, share the 6-character code, and deal your friends in. No real money, no house,
+and bots to fill any empty seat.
+
+**Screenshot order** (all existing art from `Downcard Assets/1 App Store - iOS/`, no new design needed)
+
+Captions are baked into the art, so the caption column is what each image already says.
+
+| # | File | Caption already on it | Why it's here |
+|---|------|-----------------------|---------------|
+| 1 | duo1-left | Your table. Your crew. Your rules. | The friends promise, first thing in search results |
+| 2 | duo1-right | (spread continues: room code card) | Shows how easy the invite is |
+| 3 | 01-hero-left | Fun. Simple. Poker. No real money. No house. No catch. | The honest core, still visible in search |
+| 4 | 02-hero-right | (spread continues: hand in play) | Real cards on the felt |
+| 5 | duo2-left | Play. Win. Level up. | The fun of winning a hand against people you know |
+| 6 | duo2-right | (spread continues: win and achievement) | |
+| 7 | 05-practice-bots | Practice with bots. Build your game. | Answers "what if only two of us are free?" |
+
+Left out on purpose: 03-play-anyone (strangers at public tables is the opposite pitch), 04-poker-night
+(says the same thing as the duo1 spread), and 06/07 (progression matters less to this visitor). Keep
+spreads in adjacent slots so they join up.
+
+**Optional caption change** (needs a re-export from the design project)
+- Slot 7 reads as solo practice. For this page, "Short a player? Add a bot." with the subhead "Five bots,
+  always labeled, and they can't see your cards." fits better. Ship without it if you'd rather not touch
+  the art.
+
+**How to tell if it works**
+Compare this page's conversion rate in App Analytics against the default page, using Reddit ad traffic
+only. Give it a couple of weeks of spend before reading anything into it.
+
 ## Instagram captions
 
 Launch post:
