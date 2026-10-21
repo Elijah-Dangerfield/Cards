@@ -62,7 +62,7 @@ class ComposeMultiplatformConventionPlugin : Plugin<Project> {
             configureComposeTestDependencies()
             
             extensions.configure<LibraryExtension> {
-                configureAndroid()
+                configureAndroid(project)
             }
 
             if (extensions.findByName("moduleConfig") == null) {

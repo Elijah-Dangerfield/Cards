@@ -796,3 +796,14 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 2. Repeat from the **left** edge.
 
 **Expected:** Each edge swipe navigates back / pops the screen, the same as the system back button — it does **not** open the feedback form. (Before ENG-31, a right-edge swipe on a debug/TestFlight build opened feedback instead of going back, so back felt broken.) Feedback is still reachable via shake-to-debug or the Settings entry. On the play screen, back still shows the leave-table confirm by design. (Covers todo ENG-31.)
+
+### `ENG-78` 🚨 🤖 The app runs on Android 7 (API 24/25)
+
+**State:** an Android 7.0, 7.1 or 8.0 device or emulator (`minSdk` is 24; `java.time` only exists from API 26). A release-flavour build, so the dex is the one players get.
+
+1. Launch and finish onboarding.
+2. Open **Profile** and look at the "member since" row.
+3. Join or host a multiplayer table and play a hand through to a showdown, with the seat tenure ("playing since") visible.
+4. Open the shop.
+
+**Expected:** Every screen renders and no screen dies on arrival. Before ENG-78 the multiplayer route crashed outright with `NoClassDefFoundError: java/time/ZoneOffset` the moment a date was formatted, because core library desugaring was off. There is nothing visible to check when it works, which is exactly why this is a device test: a JVM unit test resolves `java.time` from the test classpath at any API level and CI never sees it. (Covers todo ENG-78.)

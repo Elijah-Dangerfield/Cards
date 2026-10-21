@@ -79,7 +79,7 @@ class KotlinMultiplatformConventionPlugin : Plugin<Project> {
                     if (namespace == null) {
                         namespace = "com.dangerfield.cards${path.replace(":", ".")}"
                     }
-                    configureAndroid()
+                    configureAndroid(project)
                 }
             }
 

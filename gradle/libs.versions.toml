@@ -29,6 +29,10 @@ compottie="2.1.0"
 # version in apps/compose/build.gradle.kts.
 configurationAnnotations = "0.10.13"
 buildconfig = "6.0.9"
+# Backports java.time (and friends) to API 24/25. Not optional while minSdk is
+# below 26: kotlinx-datetime delegates to java.time on Android, so without this
+# every date formatting call is a NoClassDefFoundError on an old device.
+desugarJdkLibs = "2.1.5"
 junit = "4.13.2"
 kermit = "2.1.0"
 # 2.4.0 halves linkRelease* memory (KT-80367) and fixes the 2.3.x iOS
@@ -219,6 +223,7 @@ androidx-sqlite-framework = { module = "androidx.sqlite:sqlite-framework", versi
 buildconfig-gradlePlugin = { module = "com.github.gmazzo.buildconfig:plugin", version.ref = "buildconfig" }
 
 android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+desugar-jdkLibs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 kotlin-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 compose-gradlePlugin = { module = "org.jetbrains.compose:compose-gradle-plugin", version.ref = "composeMultiplatform" }
 # The Kotlin 2.x Compose *compiler* plugin, separate from the Compose Multiplatform

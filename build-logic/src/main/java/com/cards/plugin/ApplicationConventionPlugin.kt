@@ -73,7 +73,7 @@ class ApplicationConventionPlugin : Plugin<Project> {
             configureComposeCompiler()
 
             extensions.configure<ApplicationExtension> {
-                configureAndroid()
+                configureAndroid(project)
 
                 defaultConfig {
                     applicationId = versionMetadata.applicationId
