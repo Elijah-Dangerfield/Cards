@@ -51,6 +51,7 @@ import cards.libraries.resources.generated.resources.public_searching_offer_subs
 import cards.libraries.resources.generated.resources.public_searching_offer_subsidy_remaining
 import cards.libraries.resources.generated.resources.public_searching_offer_title
 import cards.libraries.resources.generated.resources.public_searching_offer_try_later
+import cards.libraries.resources.generated.resources.public_searching_nobody_online
 import cards.libraries.resources.generated.resources.public_searching_rotate_1
 import cards.libraries.resources.generated.resources.public_searching_rotate_2
 import cards.libraries.resources.generated.resources.public_searching_rotate_3
@@ -154,7 +155,21 @@ private fun ColumnScope.SearchingContent(
     // A single line carries the wait: it opens on a steady "looking for players"
     // message, then begins rotating the reassurance copy after a beat so the wait
     // feels alive without a second static line repeating the same idea.
-    RotatingReassurance()
+    //
+    // Unless the server has told us the lobby is empty, in which case the
+    // rotation would be asking for patience on a table that is not coming. Say
+    // what is true and stop rotating.
+    if (state.lobbyLooksEmpty) {
+        Text(
+            text = stringResource(Res.string.public_searching_nobody_online),
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    } else {
+        RotatingReassurance()
+    }
 
     Spacer(Modifier.weight(1f))
 
@@ -488,6 +503,22 @@ private fun PublicSearchingScreenPreview() {
     PreviewContent {
         PublicSearchingScreen(
             state = PublicSearchingState(minBuyIn = 1_000, maxBuyIn = 25_000),
+            onAction = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PublicSearchingScreenPreview_NobodyOnline() {
+    PreviewContent {
+        PublicSearchingScreen(
+            state = PublicSearchingState(
+                minBuyIn = 1_000,
+                maxBuyIn = 25_000,
+                waitingTableReady = true,
+                lobbyLooksEmpty = true,
+            ),
             onAction = {},
         )
     }

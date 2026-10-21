@@ -324,6 +324,69 @@ class PublicSearchingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun browseFindsNobodyAnywhere_cutsTheWaitAndSaysSo() = runUnitTest {
+        // 618 searches produced 6 matches over 30 days, and 73% of hours have
+        // nobody playing at all. A flat minute of "a good table is worth the
+        // wait" is a promise the population cannot keep, so an empty browse ends
+        // the wait early and the copy stops asking for patience.
+        val ownTable = roomOf(code = "ABC123", members = listOf(member(LOCAL_USER, "You", isConnected = true)))
+        val mm = FakeMatchmakingRepository(
+            find = FindTableOutcome.Success(ownTable, created = true),
+            candidatesSequence = listOf(candidatesOf(ownTable)),
+        )
+        val vm = buildVm(matchmaking = mm)
+        runCurrent()
+
+        testScheduler.advanceTimeBy(6.seconds)
+        testScheduler.runCurrent()
+        val sawEmptyLobby = vm.state.lobbyLooksEmpty
+        val phaseBeforeShortWindow = vm.state.phase
+
+        testScheduler.advanceTimeBy(6.seconds)
+        testScheduler.runCurrent()
+        val phaseAfter = vm.state.phase
+        vm.takeAction(PublicSearchingAction.Cancel)
+
+        assertEquals(true, sawEmptyLobby, "an empty browse is the server saying nobody is here")
+        assertEquals(SearchPhase.Searching, phaseBeforeShortWindow, "still a beat for a late searcher")
+        assertEquals(SearchPhase.BotFallbackOffer, phaseAfter, "and then the honest offer, nowhere near 60s")
+    }
+
+    @Test
+    fun aHumanTurningUpRestoresTheFullWait() = runUnitTest {
+        val ownTable = roomOf(code = "ABC123", members = listOf(member(LOCAL_USER, "You", isConnected = true)))
+        val withPeer = roomOf(
+            code = "ABC123",
+            members = listOf(
+                member(LOCAL_USER, "You", isConnected = true),
+                member("h1", "H1", isConnected = true, seatIndex = 1),
+            ),
+        )
+        val conn = MutableSharedFlow<RoomConnection>(extraBufferCapacity = 8)
+        val mm = FakeMatchmakingRepository(
+            find = FindTableOutcome.Success(ownTable, created = true),
+            candidatesSequence = listOf(candidatesOf(ownTable)),
+        )
+        val vm = buildVm(matchmaking = mm, rooms = FakeRoomRepository(connection = conn))
+        runCurrent()
+        testScheduler.advanceTimeBy(6.seconds)
+        testScheduler.runCurrent()
+        assertEquals(true, vm.state.lobbyLooksEmpty)
+
+        conn.emit(RoomConnection.Connected(withPeer))
+        testScheduler.runCurrent()
+        val clearedFlag = vm.state.lobbyLooksEmpty
+
+        testScheduler.advanceTimeBy(6.seconds)
+        testScheduler.runCurrent()
+        val phase = vm.state.phase
+        vm.takeAction(PublicSearchingAction.Cancel)
+
+        assertEquals(false, clearedFlag, "somebody is here, so stop saying nobody is")
+        assertEquals(SearchPhase.Searching, phase, "and the short window must not fire behind them")
+    }
+
+    @Test
     fun offerAppears_nearCapBudget_setsSubsidyNotice() = runUnitTest {
         val mm = FakeMatchmakingRepository(
             subsidyBudget = SubsidyBudgetOutcome.Success(grantedToday = 8_500, cap = 10_000, remaining = 1_500),
@@ -794,7 +857,8 @@ class PublicSearchingViewModelTest : CoroutineTest() {
             val vm = buildVm(matchmaking = mm)
             runCurrent()
 
-            // Fresh waiting table → the 60s window elapses alone.
+            // Fresh waiting table, nobody else anywhere → the browse reports the
+            // empty lobby and the shortened window elapses alone.
             testScheduler.advanceTimeBy(61.seconds)
             testScheduler.runCurrent()
 
@@ -805,6 +869,7 @@ class PublicSearchingViewModelTest : CoroutineTest() {
                 listOf(
                     "matchmaking.search_started",
                     "matchmaking.wait_started",
+                    "matchmaking.lobby_empty",
                     "matchmaking.bot_offer_shown",
                     "matchmaking.bot_offer_accepted",
                 ),

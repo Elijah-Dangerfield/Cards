@@ -330,6 +330,9 @@
     <string name="public_searching_rotate_4">Got friends who play? Tables fill faster together.</string>
     <string name="public_searching_rotate_5">Still searching. Thanks for your patience.</string>
     <string name="public_searching_rotate_6">Every seat here is a real person, no bots in the mix.</string>
+    <!-- Shown instead of the rotation once a candidates browse comes back with nobody
+         at any table. The rotation asks for patience, which we have no basis for here. -->
+    <string name="public_searching_nobody_online">Nobody else is playing right now. Give us a second and we'll set you up.</string>
     <!-- Disclosed bots offered from the start of a lonely wait, so nobody has to sit out the full search window. -->
     <string name="public_searching_bots_now_hint">Rather not wait? Bots are ready now. You play for real chips, and they step aside when a real player joins.</string>
     <string name="public_searching_bots_now">Play bots now</string>

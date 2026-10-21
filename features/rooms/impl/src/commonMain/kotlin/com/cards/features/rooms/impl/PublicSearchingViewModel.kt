@@ -12,6 +12,7 @@ import com.dangerfield.cards.libraries.rooms.CandidatesOutcome
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.FindTableOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
+import com.dangerfield.cards.libraries.rooms.MatchmakingCandidate
 import com.dangerfield.cards.libraries.rooms.MatchmakingRepository
 import com.dangerfield.cards.libraries.rooms.PlayBotsOutcome
 import com.dangerfield.cards.libraries.rooms.Room
@@ -114,6 +115,13 @@ class PublicSearchingViewModel(
      */
     private var reFindAttempts = 0
 
+    /**
+     * One empty-lobby verdict per search episode. Re-arming the shorter window on
+     * every poll would keep pushing the deadline out by a poll interval and the
+     * search would never time out.
+     */
+    private var emptyLobbyWindowArmed = false
+
     init {
         takeAction(PublicSearchingAction.Start)
     }
@@ -127,6 +135,7 @@ class PublicSearchingViewModel(
                 searchStartedAt = TimeSource.Monotonic.markNow()
                 realPlayerArrivalLogged = false
                 subsidyBudgetLoaded = false
+                emptyLobbyWindowArmed = false
                 logger.logEvent("matchmaking.search_started", "entry" to "public")
                 updateState {
                     it.copy(
@@ -135,6 +144,7 @@ class PublicSearchingViewModel(
                         realPlayersFound = 0,
                         waitingTableReady = false,
                         subsidyNotice = null,
+                        lobbyLooksEmpty = false,
                     )
                 }
                 beginSearch()
@@ -148,7 +158,11 @@ class PublicSearchingViewModel(
                 val candidates = (action.outcome as? CandidatesOutcome.Success)?.rooms ?: return@run
                 // Only consolidate into a table we could actually be seated at — an
                 // unaffordable one would just bounce us back off the entry bar.
-                val target = migrationTarget(candidates.filter { it.affordable }.map { it.room }) ?: return@run
+                val target = migrationTarget(candidates.filter { it.affordable }.map { it.room })
+                if (target == null) {
+                    noteLobbyPopulation(candidates)
+                    return@run
+                }
                 updateState { it.copy(error = null) }
                 migrateTo(target)
             }
@@ -193,9 +207,13 @@ class PublicSearchingViewModel(
                         // Once the user has explicitly taken a seat (ROOM-11) the
                         // screen shows a pre-deal lobby off this snapshot, so keep
                         // it fresh as members come and go while we wait for the deal.
+                        if (others > 0) {
+                            emptyLobbyWindowArmed = false
+                        }
                         updateState {
                             it.copy(
                                 realPlayersFound = others,
+                                lobbyLooksEmpty = it.lobbyLooksEmpty && others == 0,
                                 joinedRoom = if (it.phase == SearchPhase.Joined) conn.room else it.joinedRoom,
                             )
                         }
@@ -530,6 +548,47 @@ class PublicSearchingViewModel(
         }
     }
 
+    /**
+     * Read the candidates poll as a population count, and stop pretending when it
+     * comes back zero.
+     *
+     * The wait used to be a flat minute with copy that asked for patience
+     * ("A good table is worth the wait"), regardless of whether anyone was
+     * plausibly going to arrive. Over 30 days that produced 618 searches, 6
+     * matches, and 148 abandons: the screen spent a minute of someone's evening
+     * on a promise it kept 1% of the time. Peak concurrency is 5 players an hour
+     * and 73% of hours have nobody playing at all, so most of those minutes were
+     * spent alone by arithmetic, not by bad luck.
+     *
+     * A browse that finds no other human anywhere is the server telling us so.
+     * We still wait [EMPTY_LOBBY_WINDOW] past that verdict, which lands one poll
+     * interval in: long enough to catch someone who started searching seconds
+     * after us, short enough not to cost a minute. Then the honest offer. If a
+     * human does turn up, [PublicSearchingAction.ConnectionUpdated] clears the
+     * flag and the full window is back.
+     */
+    private suspend fun PublicSearchingAction.noteLobbyPopulation(candidates: List<MatchmakingCandidate>) {
+        val othersAnywhere = candidates.sumOf { candidate ->
+            candidate.room.members.count { !it.isBot && it.userId != localUserId }
+        }
+        if (othersAnywhere > 0) return
+        if (emptyLobbyWindowArmed) return
+        emptyLobbyWindowArmed = true
+
+        logger.logEvent(
+            "matchmaking.lobby_empty",
+            "wait_ms" to waitMs(),
+            "tables_browsed" to candidates.size,
+        )
+        updateState { it.copy(lobbyLooksEmpty = true) }
+
+        timeoutJob?.cancel()
+        timeoutJob = viewModelScope.launch {
+            delay(EMPTY_LOBBY_WINDOW)
+            takeAction(PublicSearchingAction.SearchTimedOut)
+        }
+    }
+
     private fun leaveAndExit() {
         logger.logEvent(
             "matchmaking.abandoned",
@@ -568,6 +627,14 @@ class PublicSearchingViewModel(
          */
         val SEARCH_WINDOW = 60.seconds
 
+        /**
+         * What is left of the wait once the server has told us nobody else is
+         * here. Runs from that verdict, which arrives one
+         * [CANDIDATES_POLL_INTERVAL] in, so the whole empty-lobby wait is about
+         * eleven seconds rather than a minute.
+         */
+        val EMPTY_LOBBY_WINDOW = 6.seconds
+
         /** Backoff before an auto re-find when the table vanished, so a flapping server can't spin a tight loop. */
         val REFIND_BACKOFF = 2.seconds
 
@@ -605,6 +672,12 @@ data class PublicSearchingState(
     val subsidyNotice: SubsidyNotice? = null,
     /** We hold a seat at a table we're genuinely waiting in, so bots have somewhere to sit. */
     val waitingTableReady: Boolean = false,
+    /**
+     * A candidates browse came back with no other human at any table, so the
+     * screen says that instead of asking for patience it has no basis for. Clears
+     * the moment somebody shows up.
+     */
+    val lobbyLooksEmpty: Boolean = false,
 ) {
     /** Offer disclosed bots right away: only while waiting alone at our table, never once a human is here. */
     val canPlayBotsNow: Boolean
