@@ -54,6 +54,10 @@ fun Application.installStatusPages() {
                 call.respondAccountNotFound(callerId.toString(), detectedBy = "fk-violation")
                 return@exception
             }
+            if (cause.isAbandonedSocketUpgrade()) {
+                call.logAbandonedSocketUpgrade(callerId?.toString())
+                return@exception
+            }
             logger.error("Unhandled error", cause)
             captureToSentry(cause, context = "status-pages")
             call.respond(
@@ -62,6 +66,39 @@ fun Application.installStatusPages() {
             )
         }
     }
+}
+
+/**
+ * A client that walked away during the WebSocket handshake (ENG-79 / CARDS-CM).
+ *
+ * Netty tears its `RequestBodyHandler` out of the pipeline when the channel
+ * closes; Ktor's `respondUpgrade` then dereferences it and throws a plain NPE
+ * from inside the engine, before our `webSocket { }` block ever runs. There is
+ * nothing to fix in the handshake — the peer is gone — but it reached
+ * [installStatusPages] as an unhandled 500, which both filed a Sentry issue per
+ * occurrence and tried to write a response onto a dead connection.
+ *
+ * Matched on the frame rather than the message: the NPE is the JVM's generated
+ * one, so its text is a Ktor implementation detail that a version bump can
+ * reword, while the method it fails in is the thing we actually mean.
+ */
+internal fun Throwable.isAbandonedSocketUpgrade(): Boolean =
+    this is NullPointerException &&
+        stackTrace.any { it.methodName == "respondUpgrade" }
+
+/**
+ * Logged with the room and the user because the open question is whether this
+ * is a client that closed the tab or a player who could not get into a table
+ * (ENG-79); the path alone cannot tell those apart, and the Sentry issue it
+ * used to file carried neither.
+ */
+private fun ApplicationCall.logAbandonedSocketUpgrade(userId: String?) {
+    logger.warn(
+        "Socket upgrade abandoned before the handshake completed: room={} user={} path={}",
+        parameters["code"] ?: "unknown",
+        userId ?: "anonymous",
+        request.path(),
+    )
 }
 
 /**

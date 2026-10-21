@@ -348,30 +348,89 @@ second-process branch only logs, so the next launch lands on Home with the auth-
 in again to keep playing") and no account name. The Home restore affordance in
 `docs/backlog.md` is what closes it.
 
-## ENG-78 [P0] — Core library desugaring is off, so `java.time` crashes the app below API 26
+## ENG-78 — DONE 2026-10-21; core library desugaring is on, keyed off minSdk
 
-**Problem:** `NoClassDefFoundError: Ljava/time/ZoneOffset;` — **fatal, uncaught, `mechanism=UncaughtExceptionHandler`**, on `PlayMultiplayerRoute` (CARDS-CS, 2026-10-19, `cards@0.5.0+1272`, Android 7.1.2, Redmi Note 5). `java.time` is API 26+; `minSdk` is **24**; and `kotlinx.datetime` — used across `:libraries:ui`, `:features:room`, `:features:profile` and the logging writer — delegates to `java.time` on Android. No `coreLibraryDesugaring` is configured anywhere in `build-logic/` or the app module, so every one of those call sites is a crash waiting on an API 24/25 device. `SeatTenure.playingSinceComponents` (`toLocalDateTime(TimeZone.currentSystemDefault())`) sits on the crashing route.
+`NoClassDefFoundError: Ljava/time/ZoneOffset;` was fatal and uncaught on `PlayMultiplayerRoute`
+(CARDS-CS, `cards@0.5.0+1272`, Android 7.1.2). `kotlinx.datetime` delegates to `java.time` on
+Android, `java.time` is API 26+, and `minSdk` is 24 — so every one of its call sites across
+`:libraries:ui`, `:features:room`, `:features:profile` and the logging writer was a crash waiting
+on an API 24/25 device.
 
-**Acceptance:** `isCoreLibraryDesugaringEnabled = true` plus the `desugar_jdk_libs` dependency in the Android convention plugin, so it covers every module at once rather than the one call site that happened to crash. Verify on an API 24 or 25 emulator that a multiplayer hand and the profile "playing since" row both render. Add the emulator check to `docs/QA.md` — this class of bug is invisible to unit tests and to CI.
+Fixed in `configureAndroid`, which every Android module already runs through, rather than at the
+one call site that happened to crash. `isCoreLibraryDesugaringEnabled` is derived from
+`SharedConstants.minSdk < 26` and the `desugar_jdk_libs` dependency is added under the same
+condition, so raising the floor to 26 later drops the backport in the same move instead of leaving
+it in the dex. Verified by unzipping the assembled APK: `Lj$/time/ZoneOffset;` is in the dex.
 
-**Hints:** `build-logic/src/main/java/com/cards/util/AndroidConfiguration.kt` (where `lint { }` already lives); `minSdk` in `SharedConstants.kt`. Either enable desugaring or raise `minSdk` to 26 — raising it is the cheaper fix but drops supported devices, so it is the owner's call, not a worker's. **Do not "fix" this by rewriting the one call site**; the next `kotlinx.datetime` call reintroduces it. Note Android Lint did **not** catch this: `NewApi` does not model the `kotlinx.datetime` → `java.time` delegation, the same blind spot that missed CARDS-CK (see ENG-77).
+`minSdk` stayed at 24 — raising it is the owner's call, and desugaring costs dex size and nothing
+else.
 
-## ENG-79 [P2] — A failed WebSocket upgrade NPEs instead of returning a clean error
+An `afterEvaluate` check now fails the build if a module script turns desugaring back off while
+minSdk is below 26: the flag the plugin sets is only a default, and nothing downstream notices when
+it is overridden — the build stays green and the crash comes back on hardware nobody here owns.
+`QA.md` ENG-78 is the device check, because this class of bug is invisible to CI (a JVM test
+resolves `java.time` from the test classpath at any API level).
 
-**Problem:** `NullPointerException: Cannot invoke "io.ktor.server.netty.cio.RequestBodyHandler.upgrade()" because "bodyHandler" is null` in `NettyHttp1ApplicationResponse.respondUpgrade` (CARDS-CM, 6 events across 2026-10-11 → 10-19, prod). The socket upgrade is attempted after the Netty body handler is gone — a client that disconnects mid-handshake, or a request that reaches the upgrade path without one. It pages as a server error and tells us nothing about which room or user.
+## ENG-79 — DONE 2026-10-21; an abandoned handshake is a warning with a room on it
 
-**Acceptance:** A dead or half-open upgrade resolves as a logged warning with the room/user attached, not an unhandled NPE. Confirm whether it correlates with a real failure to join (check `room_code` / `session_id` against the gameplay spans) or is only noise from clients that walked away.
+`NullPointerException: Cannot invoke "…RequestBodyHandler.upgrade()" because "bodyHandler" is null`
+in `NettyHttp1ApplicationResponse.respondUpgrade` (CARDS-CM, 6 events 2026-10-11 → 10-19, prod).
+Netty removes its body handler when the channel closes; Ktor then dereferences it. The peer is
+already gone, so there is nothing in the handshake to fix — but it reached `installStatusPages` as
+an unhandled 500, which filed a Sentry issue per occurrence and tried to write a response onto a
+dead socket.
 
-**Hints:** the WebSocket route in `apps/server/src/main/kotlin/com/cards/server/` and its Ktor install block. Same reporting family as ENG-73 (an expected client-side condition logged at ERROR); worth fixing together if someone is in there.
+`Throwable.isAbandonedSocketUpgrade()` in `plugins/Errors.kt` now classifies it: a
+`NullPointerException` with `respondUpgrade` in its stack is logged at warn with the **room code and
+user id**, and is not captured. Matched on the frame, not the NPE's text — the text is the JVM's
+generated message naming a Ktor internal, which a version bump can reword.
 
-## ENG-80 [P1] — The billing alerts cannot fire at the volume we actually have
+The open question (a tab closing, or a player who could not get into a table) is now answerable
+from the log line. It was not answerable retroactively: the six events carry neither field.
 
-**Problem:** Both money-path alerts read `Normal (NoData)` while the conditions they name are true.
+## ENG-80 [P1] — Billing alerts: the client half is fixed, the Grafana rules are still yours
 
-- **A5** gates on `$B >= 5` purchase attempts per hour. Prod had **3 attempts in 30 days**. The guard that stops noise also stops the alert from ever evaluating at our volume.
-- **A8** was built precisely for the gap A5 cannot see, and its own summary says so. But it counts `shop.catalog_skus_dropped` over a **6-hour window** with `no_data_state: OK`, against an event that only emits when an affected user opens the shop. CARDS-8V has been true for three months and A8 has been Normal for nearly all of it.
-- Worse: `shop.catalog_skus_dropped` has **zero occurrences in Loki across 30 days** (91k lines scanned) while Sentry holds 22 events of the sibling `logger.e` from the same function, both past the same guard. The structured event is not reaching Loki at all, so A8 currently watches nothing.
+**What the earlier filing got wrong.** It said `shop.catalog_skus_dropped` "is not reaching Loki at
+all, so A8 currently watches nothing", and put 22 Sentry events against it. Both halves were off,
+and the correction matters because it changes the fix:
 
-**Acceptance:** The condition "a user cannot buy anything" is detectable while it is true, not only in the hours after someone looks. Find the export gap first — an alert over a window that never receives the event is worse than no alert, because it reads green. Then make the signal a *state* rather than an event burst: widen the window well past the gap between observations, or have the alert compare shop views against resolvable packs. Revisit A5's attempt guard for a product with single-digit monthly purchases.
+- CARDS-8V holds **2 events, 1 user**, both on 2026-10-19, iOS 0.5.0 (`substatus: regressed`). Not 22.
+- The structured event is absent from Loki, but so is the `logger.e` beside it — and so is **every
+  other record from that session** (`f79c2178-fdcc-43a3-b53e-0f6208f65128`: nothing in Loki,
+  everything in Sentry). Four other sessions from the same `install_id` exported 554 records fine,
+  and `telemetry.appEventsSampleRate` has no prod override, so it is neither credentials nor
+  sampling. One session's entire export vanished.
 
-**Hints:** `ProductsRepositoryImpl.reportDroppedSkus` emits both lines; the KDoc there already explains why the structured event exists. A8 is `ffvj3s6ax0h6oe`, A5 is `bfrtc7fm94qgwb`. Grafana is read-only for triage, so the rule edits are a deliberate human change. Also unexplained and worth one look: a `purchase.initiated` on 2026-10-17 (0.5.0, `chip_pack_small`, iOS 27.0.1) with no `completed` and no `failed` after it — three attempts, two completions, one that simply stops.
+**The mechanism, and what changed.** The batch stage holds a tick's worth of records in RAM and only
+a *batch* reaches the disk buffer, so a session that ends inside that window exports nothing —
+"durable" starts at the first batch, not the first record. `shop.catalog_skus_dropped` fires on the
+catalog refresh a cold boot kicks off, a second or two in, squarely inside it. Sentry got the error
+because its transport is immediate.
+
+Two client fixes landed:
+
+1. `GrafanaLogTree` flushes immediately after a small allowlist of money-path events
+   (`shop.catalog_skus_dropped`, `purchase.{initiated,completed,failed}`) — all single-digit per
+   month, so a flush per occurrence is affordable. Per-hand and per-action events must never join
+   that list; a flush is a network attempt.
+2. `OtlpJsonLogRecordExporter` logged **nothing** on failure and collapsed every status into
+   `Failure`, which means "keep the batch and retry". A 4xx the gateway will never accept therefore
+   sat at the head of an ordered disk buffer forever and took every later session with it — a
+   candidate for the vanished session that was impossible to confirm precisely because nothing was
+   logged. Failures now log with the status code, and a permanent rejection settles the batch
+   instead of blocking the queue. Those logs are tagged `GrafanaExport`, which
+   `GrafanaLogTree.isLoggable` excludes, so a rejected export cannot produce the record that
+   produces the next one.
+
+**Still yours, and still the part that makes the alerts fire.** Grafana is read-only for triage, so
+the rule edits are a deliberate human change:
+
+- **A5** (`bfrtc7fm94qgwb`) gates on `$B >= 5` purchase attempts per hour. Prod had 3 in 30 days.
+  The guard that stops noise also stops the alert from ever evaluating at our volume.
+- **A8** (`ffvj3s6ax0h6oe`) counts `shop.catalog_skus_dropped` over a **6-hour** window with
+  `no_data_state: OK`, against an event that only emits when an affected user opens the shop. Widen
+  the window well past the gap between observations, or compare shop views against resolvable packs,
+  so the signal is a *state* rather than an event burst.
+
+**Also unexplained and worth one look:** a `purchase.initiated` on 2026-10-17 (0.5.0,
+`chip_pack_small`, iOS 27.0.1) with no `completed` and no `failed` after it.
