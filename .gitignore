@@ -56,3 +56,6 @@ apps/server/admin-web/*
 # Python bytecode from repo scripts
 __pycache__/
 *.pyc
+
+# Scratch explainers written by the explain skill. Not repo content.
+explain-*.md
