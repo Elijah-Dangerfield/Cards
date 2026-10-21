@@ -347,3 +347,19 @@ Still open: a user who force-quits on that screen gets no second telling. The he
 second-process branch only logs, so the next launch lands on Home with the auth-gate sheet ("sign
 in again to keep playing") and no account name. The Home restore affordance in
 `docs/backlog.md` is what closes it.
+
+## ENG-78 [P0] — Core library desugaring is off, so `java.time` crashes the app below API 26
+
+**Problem:** `NoClassDefFoundError: Ljava/time/ZoneOffset;` — **fatal, uncaught, `mechanism=UncaughtExceptionHandler`**, on `PlayMultiplayerRoute` (CARDS-CS, 2026-10-19, `cards@0.5.0+1272`, Android 7.1.2, Redmi Note 5). `java.time` is API 26+; `minSdk` is **24**; and `kotlinx.datetime` — used across `:libraries:ui`, `:features:room`, `:features:profile` and the logging writer — delegates to `java.time` on Android. No `coreLibraryDesugaring` is configured anywhere in `build-logic/` or the app module, so every one of those call sites is a crash waiting on an API 24/25 device. `SeatTenure.playingSinceComponents` (`toLocalDateTime(TimeZone.currentSystemDefault())`) sits on the crashing route.
+
+**Acceptance:** `isCoreLibraryDesugaringEnabled = true` plus the `desugar_jdk_libs` dependency in the Android convention plugin, so it covers every module at once rather than the one call site that happened to crash. Verify on an API 24 or 25 emulator that a multiplayer hand and the profile "playing since" row both render. Add the emulator check to `docs/QA.md` — this class of bug is invisible to unit tests and to CI.
+
+**Hints:** `build-logic/src/main/java/com/cards/util/AndroidConfiguration.kt` (where `lint { }` already lives); `minSdk` in `SharedConstants.kt`. Either enable desugaring or raise `minSdk` to 26 — raising it is the cheaper fix but drops supported devices, so it is the owner's call, not a worker's. **Do not "fix" this by rewriting the one call site**; the next `kotlinx.datetime` call reintroduces it. Note Android Lint did **not** catch this: `NewApi` does not model the `kotlinx.datetime` → `java.time` delegation, the same blind spot that missed CARDS-CK (see ENG-77).
+
+## ENG-79 [P2] — A failed WebSocket upgrade NPEs instead of returning a clean error
+
+**Problem:** `NullPointerException: Cannot invoke "io.ktor.server.netty.cio.RequestBodyHandler.upgrade()" because "bodyHandler" is null` in `NettyHttp1ApplicationResponse.respondUpgrade` (CARDS-CM, 6 events across 2026-10-11 → 10-19, prod). The socket upgrade is attempted after the Netty body handler is gone — a client that disconnects mid-handshake, or a request that reaches the upgrade path without one. It pages as a server error and tells us nothing about which room or user.
+
+**Acceptance:** A dead or half-open upgrade resolves as a logged warning with the room/user attached, not an unhandled NPE. Confirm whether it correlates with a real failure to join (check `room_code` / `session_id` against the gameplay spans) or is only noise from clients that walked away.
+
+**Hints:** the WebSocket route in `apps/server/src/main/kotlin/com/cards/server/` and its Ktor install block. Same reporting family as ENG-73 (an expected client-side condition logged at ERROR); worth fixing together if someone is in there.
