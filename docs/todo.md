@@ -363,3 +363,15 @@ in again to keep playing") and no account name. The Home restore affordance in
 **Acceptance:** A dead or half-open upgrade resolves as a logged warning with the room/user attached, not an unhandled NPE. Confirm whether it correlates with a real failure to join (check `room_code` / `session_id` against the gameplay spans) or is only noise from clients that walked away.
 
 **Hints:** the WebSocket route in `apps/server/src/main/kotlin/com/cards/server/` and its Ktor install block. Same reporting family as ENG-73 (an expected client-side condition logged at ERROR); worth fixing together if someone is in there.
+
+## ENG-80 [P1] — The billing alerts cannot fire at the volume we actually have
+
+**Problem:** Both money-path alerts read `Normal (NoData)` while the conditions they name are true.
+
+- **A5** gates on `$B >= 5` purchase attempts per hour. Prod had **3 attempts in 30 days**. The guard that stops noise also stops the alert from ever evaluating at our volume.
+- **A8** was built precisely for the gap A5 cannot see, and its own summary says so. But it counts `shop.catalog_skus_dropped` over a **6-hour window** with `no_data_state: OK`, against an event that only emits when an affected user opens the shop. CARDS-8V has been true for three months and A8 has been Normal for nearly all of it.
+- Worse: `shop.catalog_skus_dropped` has **zero occurrences in Loki across 30 days** (91k lines scanned) while Sentry holds 22 events of the sibling `logger.e` from the same function, both past the same guard. The structured event is not reaching Loki at all, so A8 currently watches nothing.
+
+**Acceptance:** The condition "a user cannot buy anything" is detectable while it is true, not only in the hours after someone looks. Find the export gap first — an alert over a window that never receives the event is worse than no alert, because it reads green. Then make the signal a *state* rather than an event burst: widen the window well past the gap between observations, or have the alert compare shop views against resolvable packs. Revisit A5's attempt guard for a product with single-digit monthly purchases.
+
+**Hints:** `ProductsRepositoryImpl.reportDroppedSkus` emits both lines; the KDoc there already explains why the structured event exists. A8 is `ffvj3s6ax0h6oe`, A5 is `bfrtc7fm94qgwb`. Grafana is read-only for triage, so the rule edits are a deliberate human change. Also unexplained and worth one look: a `purchase.initiated` on 2026-10-17 (0.5.0, `chip_pack_small`, iOS 27.0.1) with no `completed` and no `failed` after it — three attempts, two completions, one that simply stops.
