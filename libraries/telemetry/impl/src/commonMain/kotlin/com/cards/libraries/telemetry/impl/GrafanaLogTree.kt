@@ -16,6 +16,9 @@ import io.opentelemetry.kotlin.export.TelemetryCloseable
 import io.opentelemetry.kotlin.init.LogExportConfigDsl
 import io.opentelemetry.kotlin.logging.SeverityNumber
 import io.opentelemetry.kotlin.logging.export.LogRecordProcessor
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 
 /**
  * Forwards `logEvent` entries (those carrying [EXTRA_APP_EVENT]) to Grafana
@@ -56,6 +59,7 @@ class GrafanaLogTree(
     private val isOffline: () -> Boolean,
     private val installFacts: () -> InstallFacts,
     private val processorFactory: LogExportConfigDsl.() -> LogRecordProcessor,
+    private val flushScope: CoroutineScope,
 ) : LogTree() {
 
     private val openTelemetryLazy: Lazy<OpenTelemetry> = lazy {
@@ -108,15 +112,49 @@ class GrafanaLogTree(
         Catching { (openTelemetry as? TelemetryCloseable)?.forceFlush() }
     }
 
+    /**
+     * The exporter reports its own failures through KLog, and this tree would
+     * forward those at Warn right back into the batch they describe. One
+     * rejected export would then produce the record that produces the next one.
+     */
+    override fun isLoggable(level: LogLevel, tag: String?): Boolean = tag != EXPORT_TAG
+
     override fun log(entry: LogEntry): LogId? {
         val eventName = entry.context.extras[EXTRA_APP_EVENT] as? String
         val forwardAsPlainLog = eventName == null &&
             entry.level.priority >= LogLevel.Warn.priority &&
             klogForwardingEnabled()
         if (eventName != null || forwardAsPlainLog) {
-            Catching { forward(eventName, entry) }
+            val emitted = Catching { forward(eventName, entry) }.getOrDefault(false)
+            if (emitted && eventName in FLUSH_IMMEDIATELY) flushNow()
         }
         return null
+    }
+
+    /**
+     * Pushes a handful of named events out of RAM the moment they are emitted.
+     *
+     * The batch stage holds a tick's worth of records in memory, and only a
+     * *batch* reaches the disk buffer — so a session that ends inside that
+     * window exports nothing at all, durable buffer or not. The money path
+     * fires in exactly that window: `shop.catalog_skus_dropped` lands on the
+     * catalog refresh a cold boot kicks off, a second or two in. ENG-80 is what
+     * that costs — a shop that sold nothing for weeks, an alert that read green
+     * the whole time, and one session (`f79c2178`, 2026-10-19) whose every
+     * record is in Sentry and none of it in Loki.
+     *
+     * Kept to events that fire single-digit times a month. An event on a user
+     * action or a hand does not belong here: a flush is a network attempt.
+     */
+    private fun flushNow() {
+        if (!flushLock.tryLock()) return
+        flushScope.launch {
+            try {
+                flushExports()
+            } finally {
+                flushLock.unlock()
+            }
+        }
     }
 
     /**
@@ -137,10 +175,10 @@ class GrafanaLogTree(
             entry.level.toSeverityNumber()
         }
 
-    private fun forward(eventName: String?, entry: LogEntry) {
-        if (!exportEnabled()) return
+    private fun forward(eventName: String?, entry: LogEntry): Boolean {
+        if (!exportEnabled()) return false
         val sessionId = currentSessionId()
-        if (!isSessionSampledIn(sessionId)) return
+        if (!isSessionSampledIn(sessionId)) return false
 
         eventLogger.emit(
             body = entry.message ?: entry.throwable?.toString(),
@@ -173,6 +211,7 @@ class GrafanaLogTree(
                 }
             },
         )
+        return true
     }
 
     /**
@@ -198,8 +237,26 @@ class GrafanaLogTree(
         LogLevel.Assert, LogLevel.Fatal -> SeverityNumber.FATAL
     }
 
+    private val flushLock = Mutex()
+
     companion object {
         const val SERVICE_NAME = "cards-client"
+
+        /** Tag the OTLP exporter logs its own failures under. */
+        internal const val EXPORT_TAG = "GrafanaExport"
+
+        /**
+         * Events worth a network attempt of their own. Rare, and all of them
+         * describe money that cannot move — the one condition where learning
+         * about it a session late is learning about it too late.
+         */
+        private val FLUSH_IMMEDIATELY = setOf(
+            "shop.catalog_skus_dropped",
+            "purchase.initiated",
+            "purchase.completed",
+            "purchase.failed",
+        )
+
         private const val SESSION_ID_KEY = "session_id"
         private const val INSTALL_ID_KEY = "install_id"
         private const val IS_OFFLINE_KEY = "is_offline"

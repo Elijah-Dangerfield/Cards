@@ -11,6 +11,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -69,6 +70,7 @@ class OfflineDurabilityTest {
                     scheduleDelayMs = scheduleDelayMs,
                 )
             },
+            flushScope = CoroutineScope(Dispatchers.Default),
         )
         KLog.plant(tree)
         return tree

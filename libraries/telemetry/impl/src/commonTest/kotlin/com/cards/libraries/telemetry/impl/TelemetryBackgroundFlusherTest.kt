@@ -10,6 +10,8 @@ import io.opentelemetry.kotlin.export.OperationResultCode
 import io.opentelemetry.kotlin.logging.export.LogRecordProcessor
 import io.opentelemetry.kotlin.logging.model.ReadWriteLogRecord
 import kotlin.test.AfterTest
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -43,6 +45,7 @@ class TelemetryBackgroundFlusherTest : CoroutineTest() {
             isOffline = { false },
             installFacts = { RetailInstallFacts },
             processorFactory = { processor },
+                flushScope = CoroutineScope(UnconfinedTestDispatcher()),
         )
         KLog.plant(tree)
         return tree

@@ -3,6 +3,8 @@ package com.dangerfield.cards.libraries.telemetry.impl
 import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.core.logging.KLog
 import kotlin.test.AfterTest
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -36,6 +38,7 @@ class AppLaunchedSessionOrderingTest {
                 isOffline = { false },
                 installFacts = { RetailInstallFacts },
                 processorFactory = { processor },
+                flushScope = CoroutineScope(UnconfinedTestDispatcher()),
             ),
         )
         return AppLaunchedEmitter(

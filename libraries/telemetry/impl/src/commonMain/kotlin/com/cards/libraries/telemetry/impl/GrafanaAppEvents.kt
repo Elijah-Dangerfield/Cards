@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.logEvent
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.networking.InstallIdProvider
 import com.dangerfield.cards.libraries.networking.SessionIdProvider
 import com.dangerfield.cards.libraries.networking.platformHttpEngineFactory
@@ -46,6 +47,7 @@ class GrafanaAppEvents(
     appEventsSampleRate: AppEventsSampleRate,
     klogForwardingEnabled: KlogForwardingEnabled,
     appState: AppState,
+    appScope: AppCoroutineScope,
     fileManager: FileManager,
     backgroundFlusher: TelemetryBackgroundFlusher,
     installFactsProvider: InstallFactsProvider,
@@ -69,6 +71,7 @@ class GrafanaAppEvents(
                         bufferDirectory = fileManager.createFile(BUFFER_DIRECTORY),
                     )
                 },
+                flushScope = appScope,
             )
             KLog.plant(tree)
             backgroundFlusher.tree = tree

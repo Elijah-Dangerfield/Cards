@@ -1,10 +1,12 @@
 package com.dangerfield.cards.libraries.telemetry.impl
 
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.logging.KLog
 import io.ktor.client.HttpClient
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.opentelemetry.kotlin.export.OperationResultCode
@@ -36,6 +38,8 @@ internal class OtlpJsonLogRecordExporter(
     private val client: HttpClient,
 ) : LogRecordExporter {
 
+    private val logger = KLog.withTag(GrafanaLogTree.EXPORT_TAG)
+
     override suspend fun export(telemetry: List<ReadableLogRecord>): OperationResultCode {
         if (telemetry.isEmpty()) return OperationResultCode.Success
         return Catching {
@@ -43,9 +47,40 @@ internal class OtlpJsonLogRecordExporter(
                 contentType(ContentType.Application.Json)
                 setBody(payload(telemetry).toString())
             }
-            if (response.status.isSuccess()) OperationResultCode.Success else OperationResultCode.Failure
+            when {
+                response.status.isSuccess() -> OperationResultCode.Success
+                response.status.isPermanentRejection() -> {
+                    logger.e {
+                        "Grafana rejected ${telemetry.size} log record(s) with " +
+                            "${response.status.value}; dropping the batch. Nothing behind it " +
+                            "would ship until it did."
+                    }
+                    // Success means "this batch is settled, delete it". A lie
+                    // about the gateway, but the truthful answer keeps a batch
+                    // Grafana will never accept at the head of the disk buffer
+                    // forever, and takes every later session down with it.
+                    OperationResultCode.Success
+                }
+                else -> {
+                    logger.w {
+                        "Grafana log export failed with ${response.status.value}; " +
+                            "${telemetry.size} record(s) stay buffered for the next attempt."
+                    }
+                    OperationResultCode.Failure
+                }
+            }
         }.getOrElse { OperationResultCode.Failure }
     }
+
+    /**
+     * Retrying will not change the answer: a malformed payload, a revoked
+     * token, or timestamps outside Loki's accepted window. The two exceptions
+     * are the status codes that explicitly mean "ask again later".
+     */
+    private fun HttpStatusCode.isPermanentRejection(): Boolean =
+        value in 400..499 &&
+            this != HttpStatusCode.RequestTimeout &&
+            this != HttpStatusCode.TooManyRequests
 
     override suspend fun forceFlush(): OperationResultCode = OperationResultCode.Success
 

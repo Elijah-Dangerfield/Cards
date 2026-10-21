@@ -32,7 +32,13 @@ internal class RecordingLogRecordProcessor : LogRecordProcessor {
         )
     }
 
-    override suspend fun forceFlush(): OperationResultCode = OperationResultCode.Success
+    var flushes = 0
+        private set
+
+    override suspend fun forceFlush(): OperationResultCode {
+        flushes++
+        return OperationResultCode.Success
+    }
 
     override suspend fun shutdown(): OperationResultCode = OperationResultCode.Success
 }

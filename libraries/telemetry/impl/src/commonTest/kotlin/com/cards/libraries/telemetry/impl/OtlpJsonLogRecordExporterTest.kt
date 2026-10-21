@@ -135,4 +135,35 @@ class OtlpJsonLogRecordExporterTest {
 
         assertEquals(OperationResultCode.Success, exporter(engine).export(emptyList()))
     }
+
+    @Test
+    fun permanentRejection_settlesTheBatchSoItStopsBlockingTheOnesBehindIt() = runTest {
+        // ENG-80. Failure means "keep it and try again", and the disk buffer is
+        // ordered — so a batch Grafana will never accept (malformed payload,
+        // revoked token, timestamps outside Loki's window) sits at the head
+        // forever and nothing after it ever ships. Dropping one batch costs
+        // less than losing every session that follows.
+        listOf(
+            HttpStatusCode.BadRequest,
+            HttpStatusCode.Unauthorized,
+            HttpStatusCode.PayloadTooLarge,
+        ).forEach { status ->
+            val engine = MockEngine { respondError(status) }
+
+            val result = exporter(engine).export(listOf(FakeRecord("app.launched", emptyMap())))
+
+            assertEquals(OperationResultCode.Success, result, "$status should settle the batch")
+        }
+    }
+
+    @Test
+    fun askAgainLater_keepsTheBatchBuffered() = runTest {
+        listOf(HttpStatusCode.TooManyRequests, HttpStatusCode.RequestTimeout).forEach { status ->
+            val engine = MockEngine { respondError(status) }
+
+            val result = exporter(engine).export(listOf(FakeRecord("app.launched", emptyMap())))
+
+            assertEquals(OperationResultCode.Failure, result, "$status should be retried")
+        }
+    }
 }

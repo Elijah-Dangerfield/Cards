@@ -5,6 +5,8 @@ import com.dangerfield.cards.libraries.core.AuthUnready
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.logEvent
 import io.opentelemetry.kotlin.logging.SeverityNumber
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,6 +22,7 @@ class GrafanaLogTreeTest {
     private var sessionId: String? = "session-uuid-1"
     private var installId: String? = "install-uuid-1"
     private var offline = false
+    private val flushScope = CoroutineScope(UnconfinedTestDispatcher())
 
     private fun plantTree() {
         KLog.plant(
@@ -32,6 +35,7 @@ class GrafanaLogTreeTest {
                 isOffline = { offline },
                 installFacts = { RetailInstallFacts },
                 processorFactory = { processor },
+                flushScope = flushScope,
             ),
         )
     }
@@ -276,6 +280,51 @@ class GrafanaLogTreeTest {
         assertEquals(null, record.attributes["product_id"])
         assertEquals(3L, record.attributes["attempt"])
         assertEquals(true, record.attributes["final"])
+    }
+
+    @Test
+    fun moneyPathEvent_isFlushedOutOfRamImmediately() {
+        // ENG-80: the batch stage keeps a tick's worth of records in memory and
+        // only a batch reaches the disk buffer, so a session shorter than the
+        // tick exports nothing. `shop.catalog_skus_dropped` fires on the catalog
+        // refresh a cold boot kicks off — squarely inside that window.
+        plantTree()
+
+        KLog.logEvent("shop.catalog_skus_dropped", "dropped" to 3, "total" to 3)
+
+        assertEquals(1, processor.flushes)
+    }
+
+    @Test
+    fun ordinaryEvent_doesNotFlush() {
+        // A flush is a network attempt. Per-hand and per-action events must
+        // never trigger one.
+        plantTree()
+
+        KLog.logEvent("hand.completed", "won" to true)
+        KLog.logEvent("shop.viewed")
+
+        assertEquals(0, processor.flushes)
+    }
+
+    @Test
+    fun droppedEvent_doesNotFlushEither() {
+        enabled = false
+        plantTree()
+
+        KLog.logEvent("purchase.failed", "reason" to "cancelled")
+
+        assertEquals(0, processor.flushes)
+    }
+
+    @Test
+    fun exporterOwnFailureLog_isNotForwardedBackIntoTheBatchItDescribes() {
+        klogForwardingEnabled = true
+        plantTree()
+
+        KLog.withTag(GrafanaLogTree.EXPORT_TAG).e("Grafana rejected 42 log record(s) with 400")
+
+        assertTrue(processor.records.isEmpty())
     }
 
     private data class CustomError(val reason: String)
