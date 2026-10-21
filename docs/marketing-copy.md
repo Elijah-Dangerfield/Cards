@@ -85,15 +85,13 @@ own group, so it leads with the private room and drops the public-table pitch.
   at this page's URL instead of the default page, so the promise in the ad is the first thing they see.
 - Organic search for the keywords below, once they're assigned to this page.
 
-**Keywords to assign**
-- poker with friends
-- private poker
-- poker night
-- home game
-- friends poker
+**Keywords**
 
-None of these are in a keyword list in the repo. Add them to the app's keyword field in App Store
-Connect first, since a custom page can only be assigned keywords the app already targets.
+Built in App Store Connect on 2026-10-21 as "Poker night with friends" (product page ID
+`1cead2fb-484a-4392-bc69-782d50d1958d`). Keywords are picked one word at a time from the current
+version's keyword field, so it has **friends** and **night**. "poker" stays on the default page on purpose.
+
+Worth adding to the keyword field with the next version, then assigning here: private, home.
 
 **Promotional text** (170 max)
 
@@ -113,6 +111,9 @@ Captions are baked into the art, so the caption column is what each image alread
 | 5 | duo2-left | Play. Win. Level up. | The fun of winning a hand against people you know |
 | 6 | duo2-right | (spread continues: win and achievement) | |
 | 7 | 05-practice-bots | Practice with bots. Build your game. | Answers "what if only two of us are free?" |
+
+Uploaded resized to 1179×2556, the 6.3" slot this page asks for. The iPad slot reuses the three default
+iPad shots, and the search-results asset is `search-result-3840x2560` ("Deal your friends in.").
 
 Left out on purpose: 03-play-anyone (strangers at public tables is the opposite pitch), 04-poker-night
 (says the same thing as the duo1 spread), and 06/07 (progression matters less to this visitor). Keep
