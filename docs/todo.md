@@ -505,3 +505,26 @@ help revenue and make the game worse for the handful of loyal players there are.
 **Treat the first version as a probe.** This is a judgment call on roughly 20 active installs and
 187 pairs. Check `rivalry.rematch_tapped` against `matchmaking.lobby_empty` and the abandon count
 before building anything further on it.
+
+**The telemetry is a funnel, not a counter.** `rivalry.card_shown` fires once per visit to Home when
+a card is present and carries the standing, hand counts and session count; `rivalry.rematch_tapped`
+carries the same shape on the tap. Taps alone cannot answer whether the card works, because at this
+population a handful could be everyone who saw one or a tenth of them. Tap-to-room conversion joins
+on `session_id`: a session with a `rematch_tapped` and a later `room.joined`.
+
+**It reads zero for about two weeks, by design. Do not file that as a bug.** V91 defaulted the
+counters on existing `recently_played_with` rows to zero, and they only increment on hands played
+after the 2026-10-21 deploy. Measured the night it shipped: 372 directed pairs and 170 users with an
+opponent, and **0 rows that would show a card**. The ramp, from a 14-day replay of
+`hand_finished_events`: 114 active pairs, **50 reaching two shared sessions, 32 users who would see
+a card**. So roughly a fortnight to a denominator worth reading.
+
+That replay also re-confirms the premise on fresher data than the original analysis: 50 of 114
+active pairs in 14 days are repeat pairings.
+
+**If the ramp is too slow, the honest shortcut** is to backfill `sessions_together` and
+`hands_together` from `hand_finished_events` (both are exactly derivable from shared
+`hand_session_id`) and gate the card on a non-zero scoreline. That makes a card appear after one
+more shared session instead of two. Do **not** backfill the scoreline itself: `hands_won`,
+`opponent_hands_won` and `biggest_pot_won` are not recoverable from that table, and a card reading
+"dead even, 0 hands each, over 6 tables" is worse than no card.
