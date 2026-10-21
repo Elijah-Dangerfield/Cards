@@ -2,11 +2,13 @@ package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.server.db.DatabaseTest
 import com.dangerfield.cards.server.db.RecentlyPlayedWithTable
+import com.dangerfield.cards.server.domain.HandTogether
 import com.dangerfield.cards.server.domain.UserId
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.deleteAll
 import org.jetbrains.exposed.sql.selectAll
 import org.junit.After
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -151,6 +153,109 @@ class PostgresRecentOpponentsRepositoryTest : DatabaseTest() {
         assertEquals(listOf(c), repo.listRecent(b, limit = 10))
         assertEquals(listOf(b), repo.listRecent(c, limit = 10))
     }
+
+    @Test
+    fun rivalry_accumulatesTheScorelineAcrossHandsAndSessions() = runTest {
+        val repo = newRepo()
+        val me = newUser()
+        val them = newUser()
+        val sessionOne = UUID.randomUUID()
+        val sessionTwo = UUID.randomUUID()
+
+        repo.recordPlayedTogether(me, them, hand(sessionOne, 1, viewerWon = true, pot = 400))
+        repo.recordPlayedTogether(me, them, hand(sessionOne, 2, opponentWon = true, pot = 900))
+        // A chop: the pot moved but neither of them finished the hand up.
+        repo.recordPlayedTogether(me, them, hand(sessionOne, 3, pot = 1_200))
+        repo.recordPlayedTogether(me, them, hand(sessionTwo, 1, viewerWon = true, pot = 2_500))
+
+        val rivalry = repo.listRivalries(me, limit = 10).single()
+
+        assertEquals(them, rivalry.opponentId)
+        assertEquals(4, rivalry.handsTogether)
+        assertEquals(2, rivalry.handsWon)
+        assertEquals(1, rivalry.opponentHandsWon)
+        assertEquals(2, rivalry.sessionsTogether, "two tables, four hands")
+        assertEquals(
+            2_500,
+            rivalry.biggestPotWon,
+            "only pots the viewer actually took count toward their biggest",
+        )
+    }
+
+    @Test
+    fun rivalry_needsASecondTable_beforeItIsOne() = runTest {
+        val repo = newRepo()
+        val me = newUser()
+        val oneNight = newUser()
+        val regular = newUser()
+        val session = UUID.randomUUID()
+
+        repeat(12) { hand ->
+            repo.recordPlayedTogether(me, oneNight, hand(session, hand, viewerWon = true, pot = 100))
+        }
+        repo.recordPlayedTogether(me, regular, hand(UUID.randomUUID(), 1, viewerWon = true, pot = 100))
+        repo.recordPlayedTogether(me, regular, hand(UUID.randomUUID(), 1, viewerWon = true, pot = 100))
+
+        val rivalries = repo.listRivalries(me, limit = 10)
+
+        assertEquals(
+            listOf(regular),
+            rivalries.map { it.opponentId },
+            "a dozen hands at one table is a game; two tables is a rivalry",
+        )
+    }
+
+    @Test
+    fun recordWithoutAnOutcome_bumpsRecencyAndLeavesTheScorelineAlone() = runTest {
+        val repo = newRepo()
+        val me = newUser()
+        val them = newUser()
+
+        repo.recordPlayedTogether(me, them)
+        repo.recordPlayedTogether(me, them)
+
+        assertEquals(listOf(them), repo.listRecent(me, limit = 10))
+        assertTrue(
+            repo.listRivalries(me, limit = 10).isEmpty(),
+            "no hand means no record, not a record of zeroes",
+        )
+    }
+
+    @Test
+    fun preMigrationPair_startsCountingFromItsNextHand() = runTest {
+        // V91 defaults an existing row's counters to zero, so the first hand
+        // recorded against it must look like a first hand rather than inherit a
+        // session count the row never had.
+        val repo = newRepo()
+        val me = newUser()
+        val them = newUser()
+        repo.recordPlayedTogether(me, them)
+
+        repo.recordPlayedTogether(me, them, hand(UUID.randomUUID(), 1, viewerWon = true, pot = 300))
+
+        val row = database.blockingTransaction {
+            RecentlyPlayedWithTable
+                .selectAll()
+                .where { RecentlyPlayedWithTable.userId eq me.value }
+                .single()
+        }
+        assertEquals(1, row[RecentlyPlayedWithTable.handsTogether])
+        assertEquals(1, row[RecentlyPlayedWithTable.sessionsTogether])
+    }
+
+    private fun hand(
+        sessionId: UUID,
+        handNumber: Int,
+        viewerWon: Boolean = false,
+        opponentWon: Boolean = false,
+        pot: Long = 0,
+    ) = HandTogether(
+        sessionId = sessionId,
+        handNumber = handNumber,
+        viewerWon = viewerWon,
+        opponentWon = opponentWon,
+        potTotal = pot,
+    )
 
     private fun newRepo(): PostgresRecentOpponentsRepository =
         PostgresRecentOpponentsRepository(database = database, clock = clock)

@@ -479,6 +479,17 @@ object RecentlyPlayedWithTable : Table("recently_played_with") {
     val userId = uuid("user_id")
     val opponentId = uuid("opponent_id")
     val lastPlayedAt = timestamp("last_played_at")
+    // Head-to-head record (V91). Defaulted so a pair that played before the
+    // migration reads as no record rather than a fabricated one.
+    val handsTogether = integer("hands_together").default(0)
+    val handsWon = integer("hands_won").default(0)
+    val opponentHandsWon = integer("opponent_hands_won").default(0)
+    val biggestPotWon = long("biggest_pot_won").default(0)
+    val sessionsTogether = integer("sessions_together").default(0)
+    // The session the last recorded hand belonged to. A hand whose session id
+    // differs from this is the one that increments sessionsTogether, which is
+    // how distinct shared tables are counted without a second table.
+    val lastSessionId = uuid("last_session_id").nullable()
     override val primaryKey = PrimaryKey(userId, opponentId)
 }
 

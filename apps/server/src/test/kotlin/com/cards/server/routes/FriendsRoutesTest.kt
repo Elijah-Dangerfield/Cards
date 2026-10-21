@@ -248,7 +248,17 @@ class FriendsRoutesTest {
     private class FakeRecentOpponents(
         private val hasPlayed: Boolean = true,
     ) : RecentOpponentsRepository {
-        override suspend fun recordPlayedTogether(userId: UserId, opponentId: UserId) = Unit
+        override suspend fun recordPlayedTogether(
+            userId: UserId,
+            opponentId: UserId,
+            hand: com.dangerfield.cards.server.domain.HandTogether?,
+        ) = Unit
+
+        override suspend fun listRivalries(
+            userId: UserId,
+            limit: Int,
+            minSessionsTogether: Int,
+        ): List<com.dangerfield.cards.server.domain.Rivalry> = emptyList()
         override suspend fun listRecent(userId: UserId, limit: Int): List<UserId> = emptyList()
         override suspend fun countDistinctOpponents(userId: UserId): Long = 0L
         override suspend fun hasPlayedWith(userId: UserId, opponentId: UserId): Boolean = hasPlayed

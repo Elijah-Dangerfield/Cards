@@ -89,7 +89,17 @@ class RecentOpponentsRoutesTest {
     ) : RecentOpponentsRepository {
         var lastLimit = -1
 
-        override suspend fun recordPlayedTogether(userId: UserId, opponentId: UserId) = Unit
+        override suspend fun recordPlayedTogether(
+            userId: UserId,
+            opponentId: UserId,
+            hand: com.dangerfield.cards.server.domain.HandTogether?,
+        ) = Unit
+
+        override suspend fun listRivalries(
+            userId: UserId,
+            limit: Int,
+            minSessionsTogether: Int,
+        ): List<com.dangerfield.cards.server.domain.Rivalry> = emptyList()
 
         override suspend fun listRecent(userId: UserId, limit: Int): List<UserId> {
             lastLimit = limit

@@ -1,5 +1,7 @@
 package com.dangerfield.cards.server.domain
 
+import java.util.UUID
+
 /**
  * Server-of-record for "the humans a user has shared a multiplayer hand with".
  * Backs the Home recently-played-with shelf and the friend-request gate (the
@@ -16,11 +18,31 @@ interface RecentOpponentsRepository {
 
     /**
      * Mark that [userId] and [opponentId] just shared a finished hand, bumping
-     * the pair's recency. Idempotent on the `(user_id, opponent_id)` key — a
-     * replayed hand-completion overwrites the timestamp rather than stacking
-     * rows. Records one direction; the caller records the reverse too.
+     * the pair's recency and their head-to-head record. Records one direction;
+     * the caller records the reverse too.
+     *
+     * The recency bump is idempotent on the `(user_id, opponent_id)` key, but
+     * the counters are not: they are increments, and the same hand counted twice
+     * is a wrong scoreline. [HandTogether.sessionId] plus [HandTogether.handNumber]
+     * identify the hand, and the caller's dedup boundary (the hands-finished
+     * ledger's idempotency key) is what guarantees one call per hand.
+     *
+     * Passing null [hand] records recency only, which is what a caller with no
+     * outcome to hand (a backfill, a test fixture) wants.
      */
-    suspend fun recordPlayedTogether(userId: UserId, opponentId: UserId)
+    suspend fun recordPlayedTogether(userId: UserId, opponentId: UserId, hand: HandTogether? = null)
+
+    /**
+     * The viewer's head-to-head records, most-recently-played first, capped at
+     * [limit]. Only pairs with at least [minSessionsTogether] shared tables: one
+     * table together is a game, not a rivalry, and a card that appears after a
+     * single chance meeting reads as the app over-reading a coincidence.
+     */
+    suspend fun listRivalries(
+        userId: UserId,
+        limit: Int,
+        minSessionsTogether: Int = 2,
+    ): List<Rivalry>
 
     /** The opponents [userId] has most-recently played with, newest-first, capped at [limit]. */
     suspend fun listRecent(userId: UserId, limit: Int): List<UserId>
@@ -52,9 +74,42 @@ interface RecentOpponentsRepository {
  * registry's constructor.
  */
 object NoOpRecentOpponentsRepository : RecentOpponentsRepository {
-    override suspend fun recordPlayedTogether(userId: UserId, opponentId: UserId) = Unit
+    override suspend fun recordPlayedTogether(userId: UserId, opponentId: UserId, hand: HandTogether?) = Unit
+    override suspend fun listRivalries(userId: UserId, limit: Int, minSessionsTogether: Int): List<Rivalry> =
+        emptyList()
     override suspend fun listRecent(userId: UserId, limit: Int): List<UserId> = emptyList()
     override suspend fun countDistinctOpponents(userId: UserId): Long = 0L
     override suspend fun hasPlayedWith(userId: UserId, opponentId: UserId): Boolean = false
     override suspend fun deleteAllForUser(userId: UserId) = Unit
 }
+
+/**
+ * One finished hand, as the head-to-head record needs to see it.
+ *
+ * [viewerWon] / [opponentWon] both come from the hand's own outcome rather than
+ * being inferred from each other: a chop can leave neither of them a winner,
+ * and a multiway pot can leave both up on the hand.
+ */
+data class HandTogether(
+    val sessionId: UUID,
+    val handNumber: Int,
+    val viewerWon: Boolean,
+    val opponentWon: Boolean,
+    /** Total chips contested this hand. Same for every participant. */
+    val potTotal: Long,
+)
+
+/**
+ * The viewer's running record against one opponent. Directed: [handsWon] is
+ * always the viewer's and [opponentHandsWon] always theirs, so a card renders
+ * from this alone without knowing which way round the row was stored.
+ */
+data class Rivalry(
+    val opponentId: UserId,
+    val handsTogether: Int,
+    val handsWon: Int,
+    val opponentHandsWon: Int,
+    val biggestPotWon: Long,
+    val sessionsTogether: Int,
+    val lastPlayedAtEpochMs: Long,
+)

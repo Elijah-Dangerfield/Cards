@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.HandOutcome
+import com.dangerfield.cards.server.domain.HandTogether
 import com.dangerfield.cards.server.domain.HandsFinishedRepository
 import com.dangerfield.cards.server.domain.NoOpHandsFinishedRepository
 import com.dangerfield.cards.server.domain.NoOpRecentOpponentsRepository
@@ -486,24 +487,52 @@ class DefaultGameSessionRegistry(
             Catching { serverWitnessedAchievements.evaluateHand(userId, playerOutcome) }
                 .onFailure { log.warn("server-witnessed per-hand eval failed for user {} hand {}", userIdString, handNumber, it) }
         }
-        recordRecentOpponents(handNumber, outcome.perHuman.keys)
+        recordRecentOpponents(sessionId, outcome)
     }
 
     /**
      * Record every human-vs-human pairing in this finished hand into the
-     * recently-played-with shelf, both directions. [perHumanIds] are Supabase
-     * user-id strings (bots are absent — they never appear in [HandOutcome.perHuman]);
-     * a non-UUID string (a test fixture) is skipped. Best-effort: a write
-     * failing must never break gameplay, so each is wrapped in [Catching].
+     * recently-played-with shelf, both directions, with each pair's head-to-head
+     * record (V91). Bots are absent from [HandOutcome.perHuman] so they never
+     * enter a rivalry; a non-UUID key (a test fixture) is skipped. Best-effort:
+     * a write failing must never break gameplay, so each is wrapped in
+     * [Catching].
+     *
+     * One call per ordered pair, and each call is one increment, so the hand must
+     * reach here exactly once. The dedup boundary upstream is the hands-finished
+     * ledger's `(user, idempotency_key)` primary key; a hand observed twice after
+     * a server restart carries the same session id and hand number, which is what
+     * keeps the session count honest even if the row write is replayed.
      */
-    private suspend fun recordRecentOpponents(handNumber: Int, perHumanIds: Set<String>) {
-        val humanIds = perHumanIds.mapNotNull { Catching { UserId(UUID.fromString(it)) }.getOrNull() }
-        if (humanIds.size < 2) return
-        for (viewer in humanIds) {
-            for (opponent in humanIds) {
+    private suspend fun recordRecentOpponents(sessionId: UUID, outcome: HandOutcome) {
+        val humans = outcome.perHuman.mapNotNull { (id, playerOutcome) ->
+            Catching { UserId(UUID.fromString(id)) }.getOrNull()?.let { it to playerOutcome }
+        }
+        if (humans.size < 2) return
+        for ((viewer, viewerOutcome) in humans) {
+            for ((opponent, opponentOutcome) in humans) {
                 if (viewer == opponent) continue
-                Catching { recentOpponentsRepository.recordPlayedTogether(viewer, opponent) }
-                    .onFailure { log.warn("recently-played-with record failed for {} vs {} hand {}", viewer, opponent, handNumber, it) }
+                Catching {
+                    recentOpponentsRepository.recordPlayedTogether(
+                        userId = viewer,
+                        opponentId = opponent,
+                        hand = HandTogether(
+                            sessionId = sessionId,
+                            handNumber = outcome.handNumber,
+                            viewerWon = viewerOutcome.won,
+                            opponentWon = opponentOutcome.won,
+                            potTotal = viewerOutcome.potTotal,
+                        ),
+                    )
+                }.onFailure {
+                    log.warn(
+                        "recently-played-with record failed for {} vs {} hand {}",
+                        viewer,
+                        opponent,
+                        outcome.handNumber,
+                        it,
+                    )
+                }
             }
         }
     }
