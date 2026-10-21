@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.6.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.5.0...v0.6.0) (2026-10-21)
+
+
+### Features
+
+* **auth:** offer the stranded account back after a session loss ([7998719](https://github.com/Elijah-Dangerfield/Cards/commit/799871933a069aa59eb4ae3a8068a19c33d5ad7f))
+* **home:** put the score against your regular opponent on Home ([12d020b](https://github.com/Elijah-Dangerfield/Cards/commit/12d020bc6d33fd87827675e14a750a5765429a22))
+* **identity:** record the stranded account so the healer keeps refusing (AUTH-34) ([a75f90b](https://github.com/Elijah-Dangerfield/Cards/commit/a75f90b1a39fefa6e48ae3fea11edc5cd5fad4b5))
+* **identity:** tell the user their account is recoverable after a session loss ([5df1c5f](https://github.com/Elijah-Dangerfield/Cards/commit/5df1c5f3bd3d001dea37c72e6a308bfc8475d707))
+* **matchmaking:** offer disclosed bots from the start of a public search ([816e9c5](https://github.com/Elijah-Dangerfield/Cards/commit/816e9c5baca3eded15a6863be11031bc68a00fc6))
+* **matchmaking:** stop asking for patience when nobody is online ([1eb6a89](https://github.com/Elijah-Dangerfield/Cards/commit/1eb6a8983954dbdcdabfb5b37e1999f768a2086c))
+* **server:** keep a head-to-head record for the people you keep playing ([3660716](https://github.com/Elijah-Dangerfield/Cards/commit/366071662c66b3c2ca314bde10ee069b2a26f1bc))
+
+
+### Bug Fixes
+
+* **build:** desugar java.time so the app survives API 24 and 25 ([9fc63eb](https://github.com/Elijah-Dangerfield/Cards/commit/9fc63eb8b7c8f5a52f0567a5ae874cffbf112bd2))
+* **home:** never reveal the wallet balance as the starter grant (AUTH-33) ([d4eafca](https://github.com/Elijah-Dangerfield/Cards/commit/d4eafca0e52b5a4a6444690efa38489f247d74b5))
+* **identity:** dump the departing user across a process boundary (AUTH-33) ([2a2706a](https://github.com/Elijah-Dangerfield/Cards/commit/2a2706a4be569287e9c182be3d770a844f520b60))
+* **server:** stop an abandoned socket upgrade paging as a server error ([daec2e7](https://github.com/Elijah-Dangerfield/Cards/commit/daec2e768dfd89800dcdad7a21a05dbba7404ebf))
+* **sync:** flush hands, XP and play style during play, not only on the next app open ([438d871](https://github.com/Elijah-Dangerfield/Cards/commit/438d8710ecfb6cd3cedb16ef7e239fee1cfd5b1d))
+* **telemetry:** get money-path events out of RAM before the session ends ([a25e350](https://github.com/Elijah-Dangerfield/Cards/commit/a25e3507dfb3a4ded732dbf05755929f2fd0d5c4))
+* **telemetry:** keep ApplicationExitInfo out of signatures reachable below API 30 ([d2484d8](https://github.com/Elijah-Dangerfield/Cards/commit/d2484d808520d1882f6238bbdba922a6152247ad))
+* the API-level bug that silenced telemetry, and the lint that will not catch the next one ([8257332](https://github.com/Elijah-Dangerfield/Cards/commit/82573322fed2ce54f70b008568a34bbad1a9891b))
+* **website:** point store buttons at the live App Store and Play listings ([f3d635f](https://github.com/Elijah-Dangerfield/Cards/commit/f3d635f570e1de7413e3279d9952ab356c739562))
+
 ## [0.5.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.4.0...v0.5.0) (2026-10-02)
 
 
