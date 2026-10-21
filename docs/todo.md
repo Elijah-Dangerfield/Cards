@@ -149,7 +149,19 @@ Two things beyond the nonce. `IntentResult.Duplicate` distinguishes a swallowed 
 
 **Acceptance:** A deploy left unapproved or failed for more than ~24h produces a signal somebody sees. Simplest honest version: a panel or alert comparing the commit prod reports against `origin/main`'s tip. A `/health` endpoint that returns the build SHA would make that a one-line check — it currently returns nothing.
 
-**Hints:** Gate is `environment: production` in `.github/workflows/server-deploy-prod.yml:53`. Stuck runs: 33922369090 (`waiting`), 33975509833 (`pending`). Related evidence in `docs/agent/feedback-cases/CARDS-C9.md`. Decide deliberately whether the gate earns its keep — it is correct to want one, and a gate nobody is reminded of is the same as no deploy at all.
+**Hints:** Gate is `environment: production` in `.github/workflows/server-deploy-prod.yml`. Stuck runs: 33922369090 (`waiting`), 33975509833 (`pending`). Related evidence in `docs/agent/feedback-cases/CARDS-C9.md`. Decide deliberately whether the gate earns its keep — it is correct to want one, and a gate nobody is reminded of is the same as no deploy at all.
+
+**Update 2026-10-21: the blocking half is fixed, the noticing half is not.** It happened a third time
+(a run from 2026-10-04 still parked on 2026-10-21, blocking the v0.6.0 server deploy). Root cause: a
+job in `waiting` **does** hold its concurrency group, so one unapproved run stopped every later run
+from reaching the gate at all. Those later runs sat at `pending` with no `pending_deployment`
+record, which is why there was never anything to approve. The gate is now its own job with no
+concurrency group, and a `supersede` job cancels older still-waiting runs, so a stale run neither
+blocks a deploy nor survives to be approved into a stale rollout.
+
+None of that makes a stalled deploy *visible*, which is what this item is actually about. A deploy
+can still sit unapproved indefinitely with nobody told. The acceptance above stands: compare the
+commit prod reports against `origin/main`, which needs `/_health` to return a build SHA.
 
 ## ENG-49 [P1] — The RenderThread text-stall fix did NOT hold on low-end devices
 
