@@ -39,6 +39,7 @@ import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.social.Rivalry
 import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
@@ -91,6 +92,8 @@ fun HomeScreen(
         chipsRevealKey = state.chipsRevealKey,
         chipsReconciling = state.chipsReconciling,
         activeRooms = state.activeRooms,
+        topRivalry = state.topRivalry,
+        onRematchRivalry = { rivalry -> viewModel.takeAction(HomeAction.RematchRivalry(rivalry)) },
         showTutorialBanner = !state.tutorialBannerDismissed,
         onStartTutorial = onStartTutorial,
         onDismissTutorialBanner = { viewModel.takeAction(HomeAction.DismissTutorialBanner) },
@@ -128,6 +131,10 @@ private fun HomeScreenContent(
     avatarEmoji: String? = "🦊",
     avatarBackgroundColorHex: String? = "#E48A58",
     activeRooms: List<ActiveRoomSummary>,
+    // The head-to-head card. Null is the common case for a solo player and for a
+    // first multiplayer night; it renders nothing then rather than an empty slot.
+    topRivalry: Rivalry? = null,
+    onRematchRivalry: (Rivalry) -> Unit = {},
     showTutorialBanner: Boolean = false,
     onStartTutorial: () -> Unit = {},
     onDismissTutorialBanner: () -> Unit = {},
@@ -208,6 +215,18 @@ private fun HomeScreenContent(
                     code = room.code,
                     onRejoin = { onRejoinRoom(room.code) },
                     onForfeit = { onForfeitRoom(room.code) },
+                )
+            }
+
+            // Above the Play section on purpose: it is a play CTA with a reason
+            // attached, and the reason is what gets read. Below the active-room
+            // banner, because a table you are already sitting at outranks one you
+            // might set up.
+            if (topRivalry != null) {
+                VerticalSpacerD600()
+                RivalryCard(
+                    rivalry = topRivalry,
+                    onRematch = { onRematchRivalry(topRivalry) },
                 )
             }
 
@@ -367,6 +386,45 @@ private fun HomeScreenPreview_FullyHydrated() {
         )
     }
 }
+
+@Preview
+@Composable
+private fun HomeScreenPreview_WithRivalry() {
+    PreviewContent(bottomBar = PreviewBottomBar.Home) {
+        HomeScreenContent(
+            levelProgress = levelProgressFor(totalXp = 1_140),
+            chips = 12_300,
+            activeRooms = emptyList(),
+            topRivalry = previewRivalry(),
+            onRematchRivalry = {},
+            onPlayBots = {},
+            onPublicRooms = {},
+            onPrivateRoom = {},
+            onTournament = {},
+            onTapLevel = {},
+            onTapCash = {},
+            onRejoinRoom = {},
+            onForfeitRoom = {},
+            onTapFriends = {},
+            onTapAchievements = {},
+            onAddRecentOpponent = {},
+            onSeeAllRecentOpponents = {},
+            recentAchievements = previewRecentAchievements(),
+        )
+    }
+}
+
+private fun previewRivalry(): Rivalry = Rivalry(
+    opponentId = "opp-1",
+    displayName = "Mark",
+    avatarEmoji = "🦅",
+    avatarBackgroundColorHex = "#5B8C7A",
+    handsTogether = 31,
+    handsWon = 11,
+    opponentHandsWon = 14,
+    biggestPotWon = 4_200,
+    sessionsTogether = 4,
+)
 
 @Preview
 @Composable

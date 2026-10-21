@@ -6,6 +6,8 @@ package com.dangerfield.cards.libraries.social.impl
  */
 internal class FakeSocialApi(
     var recentIds: List<String> = emptyList(),
+    var rivalries: List<RivalryDto> = emptyList(),
+    var rivalriesError: Throwable? = null,
     var profiles: List<PublicProfileDto> = emptyList(),
     var recentError: Throwable? = null,
     var profilesError: Throwable? = null,
@@ -36,6 +38,15 @@ internal class FakeSocialApi(
         lastLimit = limit
         recentError?.let { throw it }
         return recentIds
+    }
+
+    var lastRivalryLimit: Int? = null
+        private set
+
+    override suspend fun rivalries(limit: Int): List<RivalryDto> {
+        lastRivalryLimit = limit
+        rivalriesError?.let { throw it }
+        return rivalries
     }
 
     override suspend fun resolveProfiles(ids: List<String>): List<PublicProfileDto> {

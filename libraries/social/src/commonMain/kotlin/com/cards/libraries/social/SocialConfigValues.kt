@@ -40,3 +40,34 @@ class SocialEnabled(appConfigMap: AppConfigMap) : FlagConfigValue(appConfigMap) 
             )
     }
 }
+
+/**
+ * Kill switch for the head-to-head card on Home.
+ *
+ * Its own flag, and **not** [SocialEnabled], on purpose. That one is off because
+ * the friend graph, presence and the friend-request inbox need SOC-2 work first.
+ * A rivalry needs none of that: it is the player's own match history against
+ * someone they already sat at a table with, and it grants no visibility they did
+ * not already have. Defaults on, because the whole point is to ship it and watch
+ * whether a scoreline on Home produces a rematch.
+ *
+ * See `docs/decisions.md` (2026-10-21).
+ */
+@Inject
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = QaConfigValue::class, multibinding = true)
+class RivalriesEnabled(appConfigMap: AppConfigMap) : FlagConfigValue(appConfigMap) {
+    override val name = "Head-to-head card enabled"
+    override val path = "rivalries.enabled"
+    override val default = true
+
+    companion object {
+        /** A [RivalriesEnabled] fixed to [enabled], so a test needs no [AppConfigMap]. */
+        fun forTest(enabled: Boolean): RivalriesEnabled =
+            RivalriesEnabled(
+                object : AppConfigMap() {
+                    override val map: Map<String, *> = mapOf("rivalries" to mapOf("enabled" to enabled))
+                },
+            )
+    }
+}

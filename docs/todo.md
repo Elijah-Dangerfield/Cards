@@ -434,3 +434,39 @@ the rule edits are a deliberate human change:
 
 **Also unexplained and worth one look:** a `purchase.initiated` on 2026-10-17 (0.5.0,
 `chip_pack_small`, iOS 27.0.1) with no `completed` and no `failed` after it.
+
+## RIV-1 — DONE 2026-10-21; head-to-head records, and the matchmaking screen stops over-promising
+
+Two product changes out of the 30-day usage read, both shipped. The full reasoning is in
+`docs/decisions.md` (2026-10-21).
+
+**What the data said.** Multiplayer is 64% of games started and 54% of all hands, and almost none
+of it arrives through matchmaking: 618 public searches produced 6 matches, against a peak of 5
+concurrent players an hour and 73% of hours with nobody playing at all. It happens in private rooms
+with people the player already knows, and those people come back: 83 human pairs have shared 2-5
+sessions, 11 have shared 6 or more, and half of all pairings are repeats. The product acknowledged
+none of that. Separately, 1,855 achievement celebrations in 30 days terminated in 16 cosmetic
+equips, because nothing the progression engine grants is visible to another person.
+
+**Rivalries.** `recently_played_with` (V62) already had a directed row per pair, written on every
+finished hand; V91 hangs the scoreline on it. Home shows the top record above the Play section with
+a Rematch button that opens the private-create screen. Own kill switch, `rivalries.enabled`,
+default on, deliberately **not** `social.enabled` (which is off pending SOC-2 and gates a graph a
+rivalry does not need). `rivalry.rematch_tapped` carries the standing it fired from, so whether a
+losing scoreline produces a rematch is measurable.
+
+**Matchmaking honesty.** The search screen spent a flat minute rotating copy that asked for
+patience ("a good table is worth the wait") whether or not anyone was plausibly coming. The
+candidates poll already knows: an empty browse now cuts the wait to about eleven seconds and the
+copy says nobody is online. A human turning up restores the full window, so a real searcher is
+never cut short. `matchmaking.lobby_empty` makes the effect on the 148 monthly abandons measurable.
+
+**Deliberately not done.** A scheduled nightly table to manufacture concurrency, which is the right
+idea and dead without push (there is no FCM or APNs in the app at all, and 1 of 203 players has ever
+opened the in-app inbox). Showing the bot offer sooner, which is already available from the first
+second of every search and was taken 23 times out of 618. Tightening the chip economy, which would
+help revenue and make the game worse for the handful of loyal players there are.
+
+**Treat the first version as a probe.** This is a judgment call on roughly 20 active installs and
+187 pairs. Check `rivalry.rematch_tapped` against `matchmaking.lobby_empty` and the abandon count
+before building anything further on it.

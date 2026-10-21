@@ -52,7 +52,15 @@ import com.dangerfield.cards.libraries.social.FriendProfile
 import com.dangerfield.cards.libraries.social.FriendRepository
 import com.dangerfield.cards.libraries.social.RecentOpponentProfile
 import com.dangerfield.cards.libraries.social.RespondToRequestResult
+import com.dangerfield.cards.libraries.core.logging.EXTRA_APP_EVENT
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.LogEntry
+import com.dangerfield.cards.libraries.core.logging.LogId
+import com.dangerfield.cards.libraries.core.logging.LogTree
 import com.dangerfield.cards.libraries.social.RecentOpponentsRepository
+import com.dangerfield.cards.libraries.social.RivalriesEnabled
+import com.dangerfield.cards.libraries.social.Rivalry
+import com.dangerfield.cards.libraries.social.RivalryRepository
 import com.dangerfield.cards.libraries.social.SendFriendRequestResult
 import com.dangerfield.cards.libraries.social.SocialEnabled
 import kotlinx.coroutines.flow.Flow
@@ -1019,6 +1027,78 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun topRivalry_isTheFirstRecordTheServerSends() = runUnitTest {
+        val rivalries = FakeRivalryRepository(
+            onRefresh = listOf(
+                rivalry(opponentId = "regular", displayName = "Mark"),
+                rivalry(opponentId = "other", displayName = "Dee"),
+            ),
+        )
+        val profile = FakeProfileRepository(initial = authenticatedProfile(displayName = "Me", isAnonymous = false))
+        val vm = buildVm(profile = profile, rivalries = rivalries)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.topRivalry == null) last = awaitItem()
+            assertEquals("Mark", last.topRivalry?.displayName, "the server already ranked them")
+            assertEquals(Rivalry.Standing.Behind, last.topRivalry?.standing)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun rivalriesDisabled_neitherFetchesNorShows() = runUnitTest {
+        // The card has its own kill switch, so a bad scoreline or a surprise in
+        // the copy is a config flip rather than a release.
+        val rivalries = FakeRivalryRepository(onRefresh = listOf(rivalry()))
+        val profile = FakeProfileRepository(initial = authenticatedProfile(displayName = "Me", isAnonymous = false))
+        val vm = buildVm(profile = profile, rivalries = rivalries, rivalriesEnabled = false)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.userName == null) last = awaitItem()
+            yield()
+            assertNull(last.topRivalry)
+            assertEquals(0, rivalries.refreshCalls, "nothing hidden should be fetched")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun rivalriesStayOnWhenSocialIsOff() = runUnitTest {
+        // Deliberate: social.enabled gates the friend graph and presence, which
+        // wait on SOC-2. A rivalry needs no graph and reveals nothing the player
+        // did not already see at the table.
+        val rivalries = FakeRivalryRepository(onRefresh = listOf(rivalry()))
+        val profile = FakeProfileRepository(initial = authenticatedProfile(displayName = "Me", isAnonymous = false))
+        val vm = buildVm(profile = profile, rivalries = rivalries, socialEnabled = false)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.topRivalry == null) last = awaitItem()
+            assertEquals(false, last.socialEnabled)
+            assertEquals("Mark", last.topRivalry?.displayName)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun rematchTap_emitsStartRematch_andLogsTheStandingItCameFrom() = runUnitTest {
+        val record = rivalry(handsWon = 11, opponentHandsWon = 14, sessionsTogether = 4)
+        val tree = CapturingLogTree()
+        KLog.plant(tree)
+        try {
+            val vm = buildVm()
+            vm.eventFlow.test {
+                vm.takeAction(HomeAction.RematchRivalry(record))
+                assertEquals(HomeEvent.StartRematch, awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(listOf("rivalry.rematch_tapped"), tree.eventNames())
+            assertEquals("behind", tree.eventExtras("rivalry.rematch_tapped")["standing"])
+        } finally {
+            KLog.uproot(tree)
+        }
+    }
+
+    @Test
     fun pendingFriendRequests_skipRefreshForAnonymousSession() = runUnitTest {
         // A guest has no friend graph — the inbox refresh must not fire, so the
         // badge stays at zero.
@@ -1104,6 +1184,8 @@ class HomeViewModelTest : CoroutineTest() {
         ),
         clock: Clock = Clock.fixed(Instant.fromEpochMilliseconds(0)),
         socialEnabled: Boolean = true,
+        rivalriesEnabled: Boolean = true,
+        rivalries: FakeRivalryRepository = FakeRivalryRepository(),
         appUpdateSource: AppUpdateSource = updateSource { null },
     ): HomeViewModel = HomeViewModel(
         progressionRepository = progression,
@@ -1112,6 +1194,7 @@ class HomeViewModelTest : CoroutineTest() {
         roomRepository = rooms,
         profileRepository = profile,
         recentOpponentsRepository = recentOpponents,
+        rivalryRepository = rivalries,
         friendRepository = friends,
         playStyleRepository = playStyle,
         progressionConfig = progressionConfig,
@@ -1122,6 +1205,7 @@ class HomeViewModelTest : CoroutineTest() {
         appScope = AppCoroutineScope(dispatchers),
         appUpdateSource = appUpdateSource,
         socialEnabledConfig = SocialEnabled.forTest(socialEnabled),
+        rivalriesEnabledConfig = RivalriesEnabled.forTest(rivalriesEnabled),
     )
 
     private fun updateSource(latest: suspend () -> AppVersion?): AppUpdateSource = object : AppUpdateSource {
@@ -1151,6 +1235,52 @@ class HomeViewModelTest : CoroutineTest() {
         avatarEmoji = avatarEmoji,
         avatarBackgroundColorHex = avatarBackgroundColorHex,
     )
+
+    private fun rivalry(
+        opponentId: String = "opp-1",
+        displayName: String = "Mark",
+        handsWon: Int = 11,
+        opponentHandsWon: Int = 14,
+        sessionsTogether: Int = 4,
+    ): Rivalry = Rivalry(
+        opponentId = opponentId,
+        displayName = displayName,
+        avatarEmoji = "🦅",
+        avatarBackgroundColorHex = null,
+        handsTogether = handsWon + opponentHandsWon,
+        handsWon = handsWon,
+        opponentHandsWon = opponentHandsWon,
+        biggestPotWon = 4_200,
+        sessionsTogether = sessionsTogether,
+    )
+
+    private class CapturingLogTree : LogTree() {
+        val entries = mutableListOf<LogEntry>()
+        override fun log(entry: LogEntry): LogId? {
+            entries += entry
+            return null
+        }
+
+        fun eventNames(): List<String> =
+            entries.mapNotNull { it.context.extras[EXTRA_APP_EVENT] as? String }
+
+        fun eventExtras(name: String): Map<String, Any?> =
+            entries.first { it.context.extras[EXTRA_APP_EVENT] == name }.context.extras
+    }
+
+    private class FakeRivalryRepository(
+        private val onRefresh: List<Rivalry> = emptyList(),
+    ) : RivalryRepository {
+        private val rivalries = MutableStateFlow<List<Rivalry>>(emptyList())
+        var refreshCalls: Int = 0
+            private set
+        fun emit(records: List<Rivalry>) { rivalries.value = records }
+        override fun observe(): Flow<List<Rivalry>> = rivalries
+        override suspend fun refresh(limit: Int) {
+            refreshCalls += 1
+            rivalries.value = onRefresh
+        }
+    }
 
     private class FakeRecentOpponentsRepository(
         private val onRefresh: List<RecentOpponentProfile> = emptyList(),

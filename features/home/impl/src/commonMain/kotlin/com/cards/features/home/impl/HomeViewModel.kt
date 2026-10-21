@@ -44,6 +44,9 @@ import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.social.FriendRepository
 import com.dangerfield.cards.libraries.social.RecentOpponentProfile
 import com.dangerfield.cards.libraries.social.RecentOpponentsRepository
+import com.dangerfield.cards.libraries.social.RivalriesEnabled
+import com.dangerfield.cards.libraries.social.Rivalry
+import com.dangerfield.cards.libraries.social.RivalryRepository
 import com.dangerfield.cards.libraries.social.SendFriendRequestResult
 import com.dangerfield.cards.libraries.social.SocialEnabled
 import com.dangerfield.cards.libraries.ui.system.DialogIntroDelay
@@ -64,6 +67,7 @@ class HomeViewModel(
     private val roomRepository: RoomRepository,
     private val profileRepository: ProfileRepository,
     private val recentOpponentsRepository: RecentOpponentsRepository,
+    private val rivalryRepository: RivalryRepository,
     private val friendRepository: FriendRepository,
     private val playStyleRepository: PlayStyleRepository,
     private val progressionConfig: ProgressionConfig,
@@ -74,6 +78,7 @@ class HomeViewModel(
     private val appUpdateSource: AppUpdateSource,
     private val appScope: AppCoroutineScope,
     socialEnabledConfig: SocialEnabled,
+    rivalriesEnabledConfig: RivalriesEnabled,
 ) : SEAViewModel<HomeState, HomeEvent, HomeAction>(
     initialStateArg = HomeState(socialEnabled = socialEnabledConfig())
 ) {
@@ -81,6 +86,8 @@ class HomeViewModel(
     private val homeLogger = KLog.withTag("HomeViewModel")
 
     private val isSocialEnabled = socialEnabledConfig()
+
+    private val areRivalriesEnabled = rivalriesEnabledConfig()
 
     /**
      * Opponents the user has fired (or had auto-completed) a friend request to
@@ -189,6 +196,7 @@ class HomeViewModel(
                 if (profile is Profile.Authenticated && profile.id != lastFetchedUserId) {
                     lastFetchedUserId = profile.id
                     launch { roomRepository.getActiveRooms() }
+                    if (areRivalriesEnabled) launch { rivalryRepository.refresh() }
                     // Social graph is descoped behind SocialEnabled — don't fetch
                     // recents / the friend inbox when the surfaces are hidden.
                     if (isSocialEnabled) {
@@ -197,6 +205,16 @@ class HomeViewModel(
                         // an inbox, so skip the fetch for an anonymous session.
                         if (!profile.isAnonymous) launch { friendRepository.refreshIncomingRequests() }
                     }
+                }
+            }
+        }
+        if (areRivalriesEnabled) {
+            viewModelScope.launch {
+                // Head-to-head records. The repo resolves opponent ids to public
+                // profiles; Home shows the top one, which is the most recent pair
+                // with enough shared tables to be a rivalry at all.
+                rivalryRepository.observe().collect { rivalries ->
+                    takeAction(HomeAction.RivalriesChanged(rivalries))
                 }
             }
         }
@@ -372,6 +390,19 @@ class HomeViewModel(
             is HomeAction.ProfileChanged -> action.applyProfile(action.profile)
             is HomeAction.RecentUnlocksChanged -> action.updateState {
                 it.copy(recentAchievements = action.items)
+            }
+            is HomeAction.RivalriesChanged -> action.updateState {
+                it.copy(topRivalry = action.rivalries.firstOrNull())
+            }
+            is HomeAction.RematchRivalry -> action.run {
+                homeLogger.logEvent(
+                    "rivalry.rematch_tapped",
+                    "hands_won" to action.rivalry.handsWon,
+                    "opponent_hands_won" to action.rivalry.opponentHandsWon,
+                    "sessions_together" to action.rivalry.sessionsTogether,
+                    "standing" to action.rivalry.standing.name.lowercase(),
+                )
+                sendEvent(HomeEvent.StartRematch)
             }
             is HomeAction.RecentOpponentsChanged -> action.updateState {
                 it.copy(
@@ -730,6 +761,12 @@ data class HomeState(
      *  "N friend requests" badge. The list itself is rendered by the Profile
      *  inbox; Home only needs the count, so the badge tap routes to Profile. */
     val pendingFriendRequests: Int = 0,
+    /**
+     * The head-to-head record Home leads with, or null when the player has no
+     * pair with enough shared tables yet (and when `rivalries.enabled` is off).
+     * The server already filters and orders; Home takes the first.
+     */
+    val topRivalry: Rivalry? = null,
     /** Whether the user has dismissed the tutorial banner. Mirrors
      *  `AppData.tutorialBannerDismissed`; false means the banner shows
      *  above the home header.
@@ -819,6 +856,14 @@ sealed interface HomeEvent {
 
     /** The confirmed Forfeit's leave call failed — the seat is still held, say so. */
     data object ForfeitFailed : HomeEvent
+
+    /**
+     * The head-to-head card's Rematch was tapped: host a private table and land
+     * in its lobby, where the code and the share button already are. There is no
+     * push in the app, so this cannot summon the other player — it sets up the
+     * table and hands over something to send them.
+     */
+    data object StartRematch : HomeEvent
 }
 
 sealed interface HomeAction {
@@ -843,6 +888,12 @@ sealed interface HomeAction {
     data class ProfileChanged(val profile: Profile) : HomeAction
     data class RecentUnlocksChanged(val items: List<RecentAchievement>) : HomeAction
     data class RecentOpponentsChanged(val profiles: List<RecentOpponentProfile>) : HomeAction
+
+    data class RivalriesChanged(val rivalries: List<Rivalry>) : HomeAction
+
+    /** The head-to-head card's Rematch tap. Carries the record so the event it
+     *  logs can answer whether a losing scoreline is what actually moves people. */
+    data class RematchRivalry(val rivalry: Rivalry) : HomeAction
     data class IncomingRequestsChanged(val count: Int) : HomeAction
     data class AddFriend(val opponentId: String) : HomeAction
     data class FriendRequestFailed(val opponentId: String) : HomeAction

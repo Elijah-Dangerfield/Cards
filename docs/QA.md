@@ -807,3 +807,24 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 4. Open the shop.
 
 **Expected:** Every screen renders and no screen dies on arrival. Before ENG-78 the multiplayer route crashed outright with `NoClassDefFoundError: java/time/ZoneOffset` the moment a date was formatted, because core library desugaring was off. There is nothing visible to check when it works, which is exactly why this is a device test: a JVM unit test resolves `java.time` from the test classpath at any API level and CI never sees it. (Covers todo ENG-78.)
+
+### `RIV-1` ⚠️ 📱 The head-to-head card appears after a second table with the same person, and Rematch sets one up
+
+**State:** two accounts on two devices (or one device plus a second account), both signed in. `rivalries.enabled` is on (the default).
+
+1. On account A, host a private room, join from account B, and play a few hands to showdown so each side wins at least one. Leave the table.
+2. Go to Home on account A. **Expected: no card yet** - one table together is a game, not a rivalry.
+3. Host a second private room with the same two accounts and play a few more hands. Leave.
+4. Return to Home on account A.
+
+**Expected:** A card above the Play section, naming account B, showing who is up on hands and how many tables they have shared. The wording follows the score: "You're up 6 hands to 3 on <name>", "<name> is up 6 hands to 3", or "Dead even with <name>". The second line names the biggest pot you have taken off them, or just the table count if you have never taken one.
+
+5. Tap **Set up a rematch**.
+
+**Expected:** The private-create screen opens directly, skipping the create/join sheet. Creating from there lands in a lobby with a room code and a Share button. Nothing notifies account B, by design: there is no push in the app, so the card hands you something to send rather than pretending to invite them.
+
+6. Check Home on account B.
+
+**Expected:** The mirror card, with the score the other way round.
+
+**Also worth one pass:** a solo-only account shows no card at all; flipping `rivalries.enabled` off in the QA menu hides the card and stops the fetch.

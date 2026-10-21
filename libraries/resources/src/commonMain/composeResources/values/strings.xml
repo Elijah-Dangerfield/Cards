@@ -287,6 +287,17 @@
     <string name="home_level_chip">LV %1$d</string>
     <!-- Home - Play section (Public rooms hero + Private room row + Practice / Tournament tiles). -->
     <string name="home_section_play">Play</string>
+    <!-- Head-to-head card. Leads with the score, because the score is the unfinished
+         part. %1$d / %2$d are hand counts, %3$s is the opponent's display name.
+         Rematch sets up a table; it cannot notify them (there is no push), so the
+         copy promises a table and nothing more. -->
+    <string name="home_rivalry_ahead">You're up %1$d hands to %2$d on %3$s</string>
+    <string name="home_rivalry_behind">%1$s is up %2$d hands to %3$d</string>
+    <string name="home_rivalry_even">Dead even with %1$s, %2$d hands each</string>
+    <!-- %1$d is the number of tables they've shared, %2$s the biggest pot taken. -->
+    <string name="home_rivalry_biggest_pot">%1$d tables together. Your best pot off them: %2$s</string>
+    <string name="home_rivalry_sessions">%1$d tables together</string>
+    <string name="home_rivalry_rematch_button">Set up a rematch</string>
     <string name="home_cta_practice_title">Practice</string>
     <string name="home_cta_friend_game_title">Friend Game</string>
     <string name="home_cta_quick_match_title">Quick Match</string>

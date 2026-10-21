@@ -27,6 +27,9 @@ interface SocialApi {
     /** `GET /v1/recent-opponents?limit=N` — bare opponent ids, newest-first. */
     suspend fun recentOpponentIds(limit: Int): List<String>
 
+    /** `GET /v1/rivalries?limit=N` — head-to-head records, most-recently-played first. */
+    suspend fun rivalries(limit: Int): List<RivalryDto>
+
     /** `GET /v1/profiles?ids=a,b,c` — resolve ids to public profiles. */
     suspend fun resolveProfiles(ids: List<String>): List<PublicProfileDto>
 
@@ -55,6 +58,28 @@ interface SocialApi {
 data class RecentOpponentsResponseDto(
     val schemaVersion: Int = 1,
     val opponents: List<String> = emptyList(),
+)
+
+@Serializable
+data class RivalriesResponseDto(
+    val schemaVersion: Int = 1,
+    val rivalries: List<RivalryDto> = emptyList(),
+)
+
+/**
+ * Every field defaulted: the server adds to this shape as the record grows, and
+ * an older client must keep rendering the parts it understands rather than
+ * failing the whole response.
+ */
+@Serializable
+data class RivalryDto(
+    val opponentId: String = "",
+    val handsTogether: Int = 0,
+    val handsWon: Int = 0,
+    val opponentHandsWon: Int = 0,
+    val biggestPotWon: Long = 0,
+    val sessionsTogether: Int = 0,
+    val lastPlayedAtEpochMs: Long = 0,
 )
 
 @Serializable
@@ -114,6 +139,14 @@ class HttpSocialApi(
                 parameter("limit", limit)
             }.body<RecentOpponentsResponseDto>()
         }.getOrThrow().opponents
+
+    // GET is read-only — safe to retry.
+    override suspend fun rivalries(limit: Int): List<RivalryDto> =
+        networkClient.authedCall("rivalries.fetch", retry = RetryPolicy.idempotent()) { client ->
+            client.get("/v1/rivalries") {
+                parameter("limit", limit)
+            }.body<RivalriesResponseDto>()
+        }.getOrThrow().rivalries
 
     override suspend fun resolveProfiles(ids: List<String>): List<PublicProfileDto> {
         if (ids.isEmpty()) return emptyList()

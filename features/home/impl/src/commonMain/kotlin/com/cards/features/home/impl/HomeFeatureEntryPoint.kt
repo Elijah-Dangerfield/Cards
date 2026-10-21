@@ -117,6 +117,14 @@ class HomeFeatureEntryPoint(
                     // seat is still held rather than leaving the tap silent
                     // (ROOM-17). Snackbar over inline: the banner has no error
                     // slot and the failure is transient.
+                    // Straight to the create screen, skipping the create/join
+                    // sheet: the tap already said "private table". It stops
+                    // there rather than auto-creating because the buy-in is a
+                    // real choice for a rematch, and the lobby it lands in is
+                    // where the code and the share button already live. We
+                    // cannot invite them — there is no push in this app — so
+                    // handing the host something to send is the whole mechanism.
+                    is HomeEvent.StartRematch -> router.navigate(PrivateCreateRoute())
                     is HomeEvent.ForfeitFailed -> showSnackBar(
                         message = getString(Res.string.home_active_room_forfeit_error),
                         level = SnackbarLevel.Error,
