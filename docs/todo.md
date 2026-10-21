@@ -24,6 +24,14 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
+## ENG-81 [P0] — The App Store build requires iOS 26.1, shutting out older iPhones
+
+**Problem:** The project-level Release config sets `IPHONEOS_DEPLOYMENT_TARGET = 26.1` while Debug sets 18.2 (both untouched since the initial commit). The live listing says "Requires iOS 26.1 or later", so every iPhone below 26.1 can't install Downcard, and the TikTok campaign can only target iOS 18.7+, so some paid clicks land on phones that can't install.
+
+**Acceptance:** Release matches Debug at 18.2 (or a lower floor if the KMP framework and Swift code allow it). A Release build compiles and launches on an iOS 18 simulator, and the next store release's listing shows the new minimum.
+
+**Hints:** `apps/ios/iosApp.xcodeproj/project.pbxproj`, project-level Release config. App Swift code only gates on `#available(iOS 14.0)`; also check the Kotlin/Native framework's minimum and the Fastfile.
+
 ## ENG-36 [P1] — Diagnose the starter-grant "double-miss" and surface reveal health
 
 **Problem:** A new prod user saw neither the onboarding grant number nor the Home welcome-dialog backup, yet got their 10k chips. Why the Home backup didn't fire is unconfirmed (`accountJustCreated` / `welcomeIdentity` race?).
