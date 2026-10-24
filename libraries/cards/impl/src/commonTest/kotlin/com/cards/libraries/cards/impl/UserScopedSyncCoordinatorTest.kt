@@ -18,6 +18,15 @@ import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
 import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
+import io.ktor.client.call.HttpClientCall
+import io.ktor.client.plugins.ResponseException
+import io.ktor.client.statement.HttpResponse
+import io.ktor.http.Headers
+import io.ktor.http.HttpProtocolVersion
+import io.ktor.http.HttpStatusCode
+import io.ktor.util.date.GMTDate
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.InternalAPI
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -25,6 +34,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
@@ -209,6 +220,43 @@ class UserScopedSyncCoordinatorTest : CoroutineTest() {
     }
 
     @Test
+    fun rateLimitedSyncer_doesNotRetryIntoTheBucketItJustExhausted() = runUnitTest {
+        // ENG-68: a 429 ran the whole exponential ladder, so one empty bucket
+        // cost six more requests the server had already promised to refuse.
+        val f = fixture()
+        f.a.result = Result.failure(rateLimited())
+        f.auth.emit(authenticated("u1"))
+        runCurrent()
+        assertEquals(1, f.a.syncs)
+
+        advanceTimeBy(300.seconds)
+        assertEquals(1, f.a.syncs, "no retry — the server said not now")
+
+        f.a.result = Result.success(Unit)
+        f.bus.dispatch(AppEvent.OnForeground(isColdBoot = false))
+        runCurrent()
+        assertEquals(2, f.a.syncs, "the next trigger edge tries again once the window moved")
+    }
+
+    @Test
+    fun rateLimitedFlush_keepsTheWritesQueuedForTheNextWindow() = runUnitTest {
+        val f = fixture()
+        f.auth.emit(authenticated("u1"))
+        runCurrent()
+        assertEquals(1, f.a.syncs)
+
+        f.a.result = Result.failure(rateLimited())
+        f.a.recordWrite()
+        runCurrent()
+        assertEquals(2, f.a.syncs, "the write drove a flush that got rate limited")
+
+        f.a.result = Result.success(Unit)
+        f.bus.dispatch(AppEvent.OnBackground)
+        runCurrent()
+        assertEquals(3, f.a.syncs, "backgrounding still flushes — the hand was never sent")
+    }
+
+    @Test
     fun foregroundSpamDuringSlowSync_coalescesToOneTrailingRun() = runUnitTest {
         val f = fixture()
         f.a.gateNextSync()
@@ -332,6 +380,16 @@ class UserScopedSyncCoordinatorTest : CoroutineTest() {
 
     // ---------- scaffolding ----------
 
+    /**
+     * Hand-built rather than caught off a `MockEngine` round-trip: a real
+     * client call hands off to Ktor's own threads, and resuming there leaves
+     * the rest of the test body outside the test dispatcher, where everything
+     * the fixture launches afterwards queues on a foreign unconfined event
+     * loop and `runCurrent()` can never reach it. `ExpectedClientErrorsTest`
+     * pins the predicate itself against real responses.
+     */
+    private fun rateLimited(): ResponseException = ResponseException(RateLimitedResponse(), "")
+
     private fun TestScope.fixture(construct: Boolean = true): Fixture {
         val fixture = Fixture(
             bus = FakeBus(),
@@ -406,6 +464,19 @@ class UserScopedSyncCoordinatorTest : CoroutineTest() {
             store.add(data)
             return Result.success(Unit)
         }
+    }
+
+    @OptIn(InternalAPI::class)
+    private class RateLimitedResponse : HttpResponse() {
+        override val status: HttpStatusCode = HttpStatusCode.TooManyRequests
+        override val version: HttpProtocolVersion = HttpProtocolVersion.HTTP_1_1
+        override val requestTime: GMTDate = GMTDate(0L)
+        override val responseTime: GMTDate = GMTDate(0L)
+        override val headers: Headers = Headers.Empty
+        override val rawContent: ByteReadChannel = ByteReadChannel(ByteArray(0))
+        override val coroutineContext: CoroutineContext = EmptyCoroutineContext
+        override val call: HttpClientCall get() = error("the predicate only reads the status")
+        override fun toString(): String = "429 Too Many Requests"
     }
 
     private class RecordingSyncer : UserScopedSyncer {
