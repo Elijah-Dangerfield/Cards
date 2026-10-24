@@ -536,3 +536,84 @@ active pairs in 14 days are repeat pairings.
 more shared session instead of two. Do **not** backfill the scoreline itself: `hands_won`,
 `opponent_hands_won` and `biggest_pot_won` are not recoverable from that table, and a card reading
 "dead even, 0 hands each, over 6 tables" is worse than no card.
+
+## ENG-82 [P1] — Grafana rejects telemetry with 400 and we cannot tell why
+
+**Problem:** CARDS-CZ, five rejections in two seconds on 2026-10-23, iOS 27.0.1, `cards@0.6.0+1308`,
+one install (`f6d7a420`), ~10 records dropped across batches of 1 to 4. The ENG-80 logging added in
+0.6.0 is doing its job: a permanent 4xx now gets logged and the batch settled instead of blocking
+the queue. But it logs **only the status code**, so the reason Grafana refused is unknowable and the
+underlying defect cannot be fixed from the signal. Other records from the same session (`app.launched`,
+`shop.viewed`, `app.backgrounded`) reached Loki fine, so this is a subset of records, not a dead pipe.
+
+**Not yet known, and worth not guessing:** two candidates fit and neither is confirmed. Oversized
+attribute values (iOS `DarwinHttpRequestException` messages are multi-hundred-character NSError
+dumps, and `klogForwardingEnabled` forwards Warn+ logs with `exception_message` attached) or
+out-of-window timestamps on buffer-replayed records. A dropped-SKU correlation was checked and
+**ruled out**: CARDS-8V is a different install on a different OS and build.
+
+**Acceptance:** the log line names what Grafana objected to (status plus a truncated response body),
+and the class of record that caused it stops being rejected. Watch the rate as iOS 0.6.0 phases out:
+it is currently one of only ~5 iOS installs on 0.6.0, so the share is not small.
+
+**Hints:** `OtlpJsonLogRecordExporter.export` in `:libraries:telemetry:impl` logs the status and
+discards `response.bodyAsText()`. Cap attribute values there too while in the file; an unbounded
+user-content-derived string going to a telemetry gateway is a bad idea independent of this bug.
+Reconsider the ERROR level for a routine permanent-rejection drop, which is what put this in Sentry
+and in the owner's inbox. Case `docs/agent/feedback-cases/CARDS-CZ.md`;
+https://elijah-dangerfield.sentry.io/issues/CARDS-CZ/
+
+## ENG-83 [P1] — iOS refuses to open the problem-gambling resource link
+
+**Problem:** CARDS-CY, 2026-10-22, `cards@0.6.0+1308`, iOS 27.0.1, route `ShopProductSheetRoute`:
+`iOS refused to open https://www.ncpgambling.org/`. The responsible-gambling resource is a dead tap
+on iOS. One event so far, but it is deterministic rather than incidental: `canOpenURL` fails the
+same way every time for a scheme the app has not declared, which is a known landmine in this
+codebase's lineage. Compliance-adjacent as well as broken, since problem-gambling resources are the
+kind of thing a store reviewer checks for a poker app.
+
+**Acceptance:** tapping the resource opens the page on a real iOS device, and the failure path does
+not log at ERROR when it is the OS declining rather than a bug.
+
+**Hints:** `Router.openWebLink` and the iOS `WebLinkLauncher` in
+`libraries/navigation/impl/.../IosWebLinkLauncher.kt`. Check `LSApplicationQueriesSchemes` in the
+iOS `Info.plist` and whether `canOpenURL` is being consulted at all for an `https` URL, which does
+not need it. Case `docs/agent/feedback-cases/CARDS-CY.md`;
+https://elijah-dangerfield.sentry.io/issues/CARDS-CY/
+
+## ENG-84 [P1] — Fatal crash launching the Play billing activity on a device without Play Services
+
+**Problem:** CARDS-BS, fatal and unhandled, 2026-10-22, `cards@0.6.0+1308`, Android 11, Huawei
+HRY-LX1T. `RuntimeException: Unable to start activity ComponentInfo{.../ProxyBillingActivity}` with
+a nested `NullPointerException` on an `Intent`. Breadcrumbs show `Minted fresh install_id on first
+launch` immediately before, so this is a **first run**. Huawei devices of this generation ship
+without Google Play Services, which is the most likely reason the billing proxy gets a null Intent.
+Marked `regressed`, so it has been seen before. One event, one user, but a fatal on first launch
+means that user never got into the app at all.
+
+**Acceptance:** a device with no Play Services reaches Home without crashing, and the shop degrades
+to "chip packs unavailable" rather than taking the process down.
+
+**Hints:** `:libraries:billing:impl` and wherever the billing client connects during startup.
+`BillingAvailability` already models an unavailable store; the question is whether anything calls
+into Play Billing before that check. The Huawei build has no emulator equivalent, so reason it
+through rather than trying to reproduce. Case `docs/agent/feedback-cases/CARDS-BS.md`;
+https://elijah-dangerfield.sentry.io/issues/CARDS-BS/
+
+## ENG-85 [P2] — The in-app review prompt throws when no Activity is foregrounded
+
+**Problem:** CARDS-D0, 2026-10-23, `cards@0.6.0+1308`, Android 16, route `PlayMultiplayerRoute`:
+`IllegalStateException: No foreground Activity available for in-app review.` from
+`AndroidReviewLauncher.kt:39`, fired twice in a row right after two achievement celebrations. The
+prompt is requested at a moment when `ActivityProvider.currentActivity()` is null, so the launcher
+`error()`s. Contained by `Catching`, so no crash, but it logs at ERROR and the review ask is
+silently lost at exactly the moment it was best timed.
+
+**Acceptance:** no foreground Activity means the prompt is deferred or skipped quietly, not thrown
+and logged as an error.
+
+**Hints:** `AndroidReviewLauncher.requestReview` and `RealReviewPromptCoordinator.requestPrompt:82`.
+A missing Activity is an expected condition for a prompt fired off a coroutine, so it wants a
+null-return path rather than `error()`. Worth checking whether the coordinator should re-arm so the
+ask survives to the next good moment. Case `docs/agent/feedback-cases/CARDS-D0.md`;
+https://elijah-dangerfield.sentry.io/issues/CARDS-D0/
