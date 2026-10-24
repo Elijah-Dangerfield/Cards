@@ -808,6 +808,16 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Every screen renders and no screen dies on arrival. Before ENG-78 the multiplayer route crashed outright with `NoClassDefFoundError: java/time/ZoneOffset` the moment a date was formatted, because core library desugaring was off. There is nothing visible to check when it works, which is exactly why this is a device test: a JVM unit test resolves `java.time` from the test classpath at any API level and CI never sees it. (Covers todo ENG-78.)
 
+### `ENG-81` 🚨 🍎 The app installs and runs on iOS 18
+
+**State:** an iPhone running iOS 18.x — a real device, since no iOS 18 simulator runtime exists for Xcode 27. Install the TestFlight build, not a local debug build.
+
+1. Install from TestFlight and launch. Check the listing offers the build at all, rather than saying the app needs a newer iOS.
+2. Finish onboarding, then open Home, the shop, and a solo table. Play a hand to showdown.
+3. Open Profile and read a formatted date and the chip balance.
+
+**Expected:** The build installs and every screen renders. Watch text in particular — card ranks, chip counts and formatted dates all go through Skia's ICU text shaping, and ICU is the one part of the Kotlin framework whose simulator slice carries a higher build stamp (18.5) than the deployment floor. Nothing in the shipping device framework needs more than iOS 15, so this should simply work; the test exists because the floor was 26.1 until ENG-81 and no build has ever run below iOS 26 on hardware. (Covers todo ENG-81.)
+
 ### `RIV-1` ⚠️ 📱 The head-to-head card appears after a second table with the same person, and Rematch sets one up
 
 **State:** two accounts on two devices (or one device plus a second account), both signed in. `rivalries.enabled` is on (the default).
