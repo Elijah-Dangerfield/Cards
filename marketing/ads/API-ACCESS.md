@@ -22,18 +22,23 @@ Checked October 2026.
 
 **Drafted answers**
 
-- **App name:** Downcard Ads Reporting
-- **Company:** Nightjar Labs LLC
-- **Website / advertiser redirect URL:** `https://downcard.app/`
-- **Description:**
-  > Internal reporting tool for Nightjar Labs LLC, the developer of Downcard, a free poker app. It reads campaign, ad group and ad performance (spend, impressions, clicks, video view metrics) for our own TikTok ad account only, so we can review results alongside other channels in a private dashboard. It does not create, edit or manage ads, and it does not access any other advertiser's data.
-- **Scopes:** reporting and read-only ad account / campaign data only. Scope names change. Pick whatever the [permission scope page](https://business-api.tiktok.com/portal/docs/permission-scope/v1.3) calls reporting plus ad account and ad management *read*. Skip anything that writes, and skip "TikTok Accounts", which now needs an extra application form.
+| Field | Answer |
+|---|---|
+| App name | Downcard Ads Reporting |
+| Company | Nightjar Labs LLC |
+| Website / advertiser redirect URL | `https://downcard.app/` |
+
+Description:
+
+> Internal reporting tool for Nightjar Labs LLC, the developer of Downcard, a free poker app. It reads campaign, ad group and ad performance (spend, impressions, clicks, video view metrics) for our own TikTok ad account only, so we can review results alongside other channels in a private dashboard. It does not create, edit or manage ads, and it does not access any other advertiser's data.
+
+Scopes: reporting and read-only ad account / campaign data only. Scope names change. Pick whatever the [permission scope page](https://business-api.tiktok.com/portal/docs/permission-scope/v1.3) calls reporting plus ad account and ad management *read*. Skip anything that writes, and skip "TikTok Accounts", which now needs an extra application form.
 
 ## Reddit
 
 There's no form to fill. Reddit's help page says commercial Ads API use starts by contacting them, and access is granted case by case ([Reddit help](https://support.reddithelp.com/hc/en-us/articles/14945211791892-Developer-Platform-Accessing-Reddit-Data), [Unified.to guide](https://unified.to/blog/how_to_get_your_reddit_ads_api_key)). At your spend it's unlikely to be approved, and it isn't needed:
 
-**What to do instead:** Reddit Ads → Reports → lifetime, ad level → Export CSV, and drop the file in `marketing/ads/data/imports/reddit/`. The skill reads it from there. It also has to work this way because the browser extension blocks reddit.com entirely.
+Instead, export a report: Reddit Ads → Reports → lifetime, ad level → Export CSV, and drop the file in `marketing/ads/data/imports/reddit/`. The skill reads it from there. It also has to work this way because the browser extension blocks reddit.com entirely.
 
 If you ever want to ask anyway, this is enough:
 > Hi, I run ads for Downcard (Nightjar Labs LLC) from my own Reddit Ads account. I'd like read-only Ads API access (adsread scope) to pull my own campaign reporting into an internal dashboard. No campaign management or third-party data.

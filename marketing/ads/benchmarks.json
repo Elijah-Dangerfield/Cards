@@ -1,0 +1,123 @@
+{
+  "_note": "Normal ranges for game app ads, gathered from public 2025-2026 industry reports. low/high bound the normal range, typical is the median. Rates are fractions (0.012 = 1.2%), money in USD. Mostly agency figures, so treat them as rough. Refresh every few months.",
+  "checked": "2026-10-24",
+  "metrics": {
+    "instagram": {
+      "ctr": {
+        "low": 0.005, "typical": 0.01, "high": 0.019, "betterIs": "higher",
+        "note": "Gaming on Meta, all countries, median about 1.0%. Reels link CTR can sit near 0.3 to 0.5%. All-industry US traffic campaigns average 1.93%.",
+        "sources": [
+          { "title": "Superads: Facebook Ads CTR Benchmarks for Gaming (2026)", "url": "https://www.superads.ai/facebook-ads-costs/ctr-click-through-rate/gaming", "year": 2026 },
+          { "title": "RocketShip HQ: Meta cost benchmarks for mobile app installs", "url": "https://www.rocketshiphq.com/meta-cost-benchmarks-mobile-app-installs/", "year": 2026 },
+          { "title": "LocaliQ: Facebook Advertising Benchmarks for 2026", "url": "https://localiq.com/blog/facebook-advertising-benchmarks/", "year": 2026 }
+        ]
+      },
+      "cpc": {
+        "low": 0.5, "typical": 1.0, "high": 2.0, "betterIs": "lower",
+        "note": "Gaming median across all countries ran $0.61 to $1.99. US all-industry traffic campaigns average $0.60.",
+        "sources": [
+          { "title": "Superads: Facebook Ads CPC Benchmarks for Gaming (2026)", "url": "https://www.superads.ai/facebook-ads-costs/cpc-cost-per-click/gaming", "year": 2026 },
+          { "title": "LocaliQ: Facebook Advertising Benchmarks for 2026", "url": "https://localiq.com/blog/facebook-advertising-benchmarks/", "year": 2026 }
+        ]
+      },
+      "hookRate": {
+        "low": 0.14, "typical": 0.21, "high": 0.3, "betterIs": "higher",
+        "note": "Meta 3-second plays divided by impressions, US accounts, 2026. Apps median 20%, top 10% reach 36 to 45%.",
+        "sources": [
+          { "title": "Biddyco: Hook Rate and Hold Rate Benchmarks for Meta Ads (2026)", "url": "https://www.biddyco.com/blog-posts/hook-rate-benchmarks-meta", "year": 2026 },
+          { "title": "Adsights: View Rate benchmarks", "url": "https://www.adsights.ai/resources/glossary/metrics/view-rate", "year": 2026 }
+        ]
+      },
+      "clickToInstall": {
+        "low": 0.3, "typical": 0.4, "high": 0.55, "betterIs": "higher",
+        "note": "Meta store visit to install. Casino 32% iOS, 40% Android. Agency estimates, no stated dataset.",
+        "sources": [
+          { "title": "RocketShip HQ: Meta cost benchmarks for mobile app installs", "url": "https://www.rocketshiphq.com/meta-cost-benchmarks-mobile-app-installs/", "year": 2026 }
+        ]
+      }
+    },
+    "tiktok": {
+      "ctr": {
+        "low": 0.005, "typical": 0.012, "high": 0.025, "betterIs": "higher",
+        "note": "Games median 0.48% in one 2025 dataset, 1.24% in another. Sources disagree, so the range is wide.",
+        "sources": [
+          { "title": "TwoMinuteReports: TikTok Ads Benchmarks by Industry", "url": "https://twominutereports.com/tiktok-ads-benchmarks", "year": 2025 },
+          { "title": "Hawky: TikTok Ads Benchmarks by Industry (2026 Data)", "url": "https://hawky.ai/blog/tiktok-ads-benchmarks", "year": 2026 }
+        ]
+      },
+      "cpc": {
+        "low": 0.3, "typical": 0.5, "high": 0.92, "betterIs": "lower",
+        "note": "Games median $0.49 (2025), gaming and entertainment $0.92 (Q1 2026). Not US-specific.",
+        "sources": [
+          { "title": "TwoMinuteReports: TikTok Ads Benchmarks by Industry", "url": "https://twominutereports.com/tiktok-ads-benchmarks", "year": 2025 },
+          { "title": "Hawky: TikTok Ads Benchmarks by Industry (2026 Data)", "url": "https://hawky.ai/blog/tiktok-ads-benchmarks", "year": 2026 }
+        ]
+      },
+      "hookRate": {
+        "low": 0.2, "typical": 0.27, "high": 0.35, "betterIs": "higher",
+        "note": "TikTok 2-second view rate, all industries. Methodology not disclosed.",
+        "sources": [
+          { "title": "Adsights: View Rate benchmarks", "url": "https://www.adsights.ai/resources/glossary/metrics/view-rate", "year": 2026 }
+        ]
+      },
+      "cpiIos": {
+        "low": 1.5, "typical": 2.75, "high": 4.0, "betterIs": "lower",
+        "note": "Casual games on TikTok, global, 2026. No casino or card data, and the source is unaudited.",
+        "sources": [
+          { "title": "TheViralApp: TikTok CPI Benchmarks by App Category (2026)", "url": "https://theviralapp.com/blog/tiktok-cpi-benchmarks-app-category-2026/", "year": 2026 }
+        ]
+      },
+      "cpiAndroid": {
+        "low": 0.8, "typical": 1.65, "high": 2.5, "betterIs": "lower",
+        "note": "Casual games on TikTok, global, 2026. No casino or card data, and the source is unaudited.",
+        "sources": [
+          { "title": "TheViralApp: TikTok CPI Benchmarks by App Category (2026)", "url": "https://theviralapp.com/blog/tiktok-cpi-benchmarks-app-category-2026/", "year": 2026 }
+        ]
+      }
+    },
+    "reddit": {
+      "ctr": {
+        "low": 0.003, "typical": 0.006, "high": 0.011, "betterIs": "higher",
+        "note": "Gaming 0.5 to 1.0%, platform baseline 0.2 to 0.3%. Agency figures only.",
+        "sources": [
+          { "title": "AdBacklog: Reddit Ads Benchmarks Per Industry (2025)", "url": "https://adbacklog.com/blog/reddit-ads-benchmarks-per-industry-2025", "year": 2025 },
+          { "title": "Undecided: Reddit Ads for App Installs case study", "url": "https://www.undecided.agency/post/reddit-ads-app-installs-cpi-case-study", "year": 2026 }
+        ]
+      },
+      "cpc": {
+        "low": 0.3, "typical": 0.8, "high": 1.5, "betterIs": "lower",
+        "note": "Gaming subreddits average $0.90 (range $0.40 to $1.50). Methodology undisclosed.",
+        "sources": [
+          { "title": "Benly: Reddit Ads Cost by Industry (2026)", "url": "https://benly.ai/learn/reddit-ads/reddit-ads-cost-benchmarks", "year": 2026 },
+          { "title": "AdBacklog: Reddit Ads Benchmarks Per Industry (2025)", "url": "https://adbacklog.com/blog/reddit-ads-benchmarks-per-industry-2025", "year": 2025 }
+        ]
+      },
+      "clickToInstall": {
+        "low": 0.1, "typical": 0.15, "high": 0.3, "betterIs": "higher",
+        "note": "Agency rule of thumb is 15 to 30% of clicks. One measured case got 10%.",
+        "sources": [
+          { "title": "Stackmatix: Reddit Ads for Apps", "url": "https://www.stackmatix.com/blog/reddit-ads-for-apps", "year": 2026 },
+          { "title": "Undecided: Reddit Ads for App Installs case study", "url": "https://www.undecided.agency/post/reddit-ads-app-installs-cpi-case-study", "year": 2026 }
+        ]
+      }
+    },
+    "all": {
+      "cpiIos": {
+        "low": 1.41, "typical": 5.6, "high": 21.03, "betterIs": "lower",
+        "note": "Casual games $1.41 worldwide, casino $21.03. Meta social casino in top markets $5.60. Social poker likely sits near the casino end.",
+        "sources": [
+          { "title": "Liftoff: 2025 Casual Gaming Apps Report", "url": "https://liftoff.ai/2025-casual-gaming-apps-report/", "year": 2025 },
+          { "title": "RocketShip HQ: Meta cost benchmarks for mobile app installs", "url": "https://www.rocketshiphq.com/meta-cost-benchmarks-mobile-app-installs/", "year": 2026 }
+        ]
+      },
+      "cpiAndroid": {
+        "low": 0.14, "typical": 1.71, "high": 3.2, "betterIs": "lower",
+        "note": "US all-games CPI $1.71 in 2025 (Adjust). Meta social casino $3.20. Poker likely runs higher.",
+        "sources": [
+          { "title": "Liftoff: 2025 Casual Gaming Apps Report", "url": "https://liftoff.ai/2025-casual-gaming-apps-report/", "year": 2025 },
+          { "title": "Adjust: The gaming app insights report, 2026 edition", "url": "https://investgame.net/wp-content/uploads/2026/03/2026-03-26-gaming-app-insights-report-2026_wp.pdf", "year": 2026 }
+        ]
+      }
+    }
+  }
+}

@@ -6,22 +6,28 @@
   <title>Downcard ads</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-page="results">
   <main class="page">
     <header class="masthead">
       <div>
         <h1>Downcard ads</h1>
         <p class="meta" id="meta"></p>
       </div>
-      <span class="source-badge" id="source-badge" hidden>Example data</span>
+      <nav class="tabs" aria-label="Pages">
+        <a href="./" aria-current="page">Results</a>
+        <a href="links.html" data-keep-query>Links</a>
+      </nav>
     </header>
+    <span class="source-badge" id="source-badge" hidden>Example data</span>
 
     <div id="empty" class="empty" hidden>
       <h2>No data yet</h2>
       <p>Run <code>/ad-report</code> in Claude Code to pull your ad numbers, or open <a href="?example">the example</a> to see what this looks like.</p>
     </div>
 
-    <div id="content" hidden>
+    <div id="content" class="stack" hidden>
+      <p class="headline" id="headline"></p>
+
       <section class="next" id="next">
         <p class="eyebrow">Do next</p>
         <h2 id="next-title"></h2>
@@ -29,65 +35,61 @@
       </section>
 
       <section class="gaps" id="gaps" hidden>
-        <p class="eyebrow">Missing data</p>
+        <p class="eyebrow">Not counted yet</p>
         <ul id="gaps-list"></ul>
       </section>
 
-      <p class="headline" id="headline"></p>
-
       <section class="tiles" id="tiles" aria-label="Totals"></section>
 
-      <section class="charts">
+      <section>
+        <h2 class="section-title">How each ad is doing</h2>
+        <p class="section-sub" id="bench-note"></p>
+        <div class="ad-cards" id="ad-cards"></div>
+      </section>
+
+      <section id="trend-section" hidden>
         <figure class="card chart-card">
           <figcaption>
-            <h3>Spend over time</h3>
-            <p class="sub">Lifetime spend per platform at each pull</p>
+            <h3>Money spent over time</h3>
+            <p class="sub">Total spent on each platform, at each check-in</p>
           </figcaption>
           <div class="legend" id="spend-legend"></div>
           <div class="chart" id="spend-chart"></div>
         </figure>
-        <figure class="card chart-card">
-          <figcaption>
-            <h3>Cost per install</h3>
-            <p class="sub">Spend divided by App Store installs. Lower is better.</p>
-          </figcaption>
-          <div class="legend" id="cpi-legend"></div>
-          <div class="chart" id="cpi-chart"></div>
-        </figure>
       </section>
 
-      <section class="card">
-        <h3>Every ad</h3>
+      <section id="creative-section" hidden>
+        <h2 class="section-title">What the video is doing</h2>
+        <div class="cards" id="creative-notes"></div>
+      </section>
+
+      <section id="experiments-section" hidden>
+        <h2 class="section-title">Ads to try next</h2>
+        <p class="section-sub">Each one tests one change. Copy the prompt into Claude Design.</p>
+        <div class="cards" id="experiments"></div>
+      </section>
+
+      <details class="card raw">
+        <summary>All the numbers</summary>
         <div class="table-wrap">
           <table id="ads-table">
             <thead>
               <tr>
                 <th scope="col">Ad</th>
-                <th scope="col">Verdict</th>
                 <th scope="col" class="num">Spent</th>
-                <th scope="col" class="num">Clicks</th>
-                <th scope="col" class="num">CTR</th>
-                <th scope="col" class="num">Per click</th>
+                <th scope="col" class="num">Seen</th>
+                <th scope="col" class="num">Taps</th>
+                <th scope="col" class="num">Tap rate</th>
+                <th scope="col" class="num">Per tap</th>
+                <th scope="col" class="num">Watched opening</th>
                 <th scope="col" class="num">Installs</th>
                 <th scope="col" class="num">Per install</th>
-                <th scope="col" class="num" title="Share of impressions still watching after the opening (2s on TikTok, 3s on Meta)">Hook</th>
-                <th scope="col" class="num" title="Of those hooked, share still watching at 6 seconds">Hold</th>
               </tr>
             </thead>
             <tbody></tbody>
           </table>
         </div>
-      </section>
-
-      <section id="creative-section" hidden>
-        <h3 class="section-title">What the videos say</h3>
-        <div class="cards" id="creative-notes"></div>
-      </section>
-
-      <section id="experiments-section" hidden>
-        <h3 class="section-title">Try next</h3>
-        <div class="cards" id="experiments"></div>
-      </section>
+      </details>
     </div>
   </main>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>

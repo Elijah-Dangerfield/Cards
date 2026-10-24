@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Downcard links</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="links">
+  <main class="page">
+    <header class="masthead">
+      <div>
+        <h1>Links to use</h1>
+        <p class="meta">Put these wherever you'd put an App Store link.</p>
+      </div>
+      <nav class="tabs" aria-label="Pages">
+        <a href="./" data-keep-query>Results</a>
+        <a href="links.html" aria-current="page">Links</a>
+      </nav>
+    </header>
+    <span class="source-badge" id="source-badge" hidden>Example data</span>
+
+    <section class="card explainer">
+      <p>Every link here does the same three things. iPhones go to the App Store and Android phones go to Google Play. Each store records which link brought the install, so the Results page can tell you what each ad and profile is worth.</p>
+      <p class="sub">Use a different link in each place. If two places share a link, you can't tell them apart later.</p>
+    </section>
+
+    <div id="empty" class="empty" hidden>
+      <h2>No data yet</h2>
+      <p>Run <code>/ad-report</code> first.</p>
+    </div>
+
+    <div id="content" class="stack" hidden>
+      <section>
+        <h2 class="section-title">Ads</h2>
+        <div class="card link-list" id="ad-links"></div>
+      </section>
+
+      <section>
+        <h2 class="section-title">Profiles, posts and messages</h2>
+        <div class="card link-list" id="placement-links"></div>
+      </section>
+
+      <section>
+        <h2 class="section-title">Make a new link</h2>
+        <div class="card builder">
+          <label>
+            <span>Name it after where it goes, like <code>tiktok-poker-night-v2</code></span>
+            <input id="build-name" type="text" maxlength="30" placeholder="tiktok-poker-night-v2" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="check">
+            <input id="build-paid" type="checkbox" checked>
+            <span>It's a paid ad (leave unchecked for bios, posts and messages)</span>
+          </label>
+          <label class="check">
+            <input id="build-friends" type="checkbox" checked>
+            <span>Open the "Poker night with friends" App Store page</span>
+          </label>
+          <div class="link-row" id="build-row">
+            <code class="link" id="build-link">Type a name to make a link</code>
+            <button class="copy" id="build-copy" disabled>Copy</button>
+          </div>
+          <p class="sub" id="build-hint">Letters, numbers and dashes, up to 30 characters. Add the new ad to the ledger with <code>/ad-report</code> so its results show up.</p>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="section-title">Plain store links</h2>
+        <div class="card link-list">
+          <div class="link-row">
+            <div class="link-where"><strong>App Store, untracked</strong><span class="sub">Only where the smart link won't fit. Installs from it aren't credited to anything.</span></div>
+            <code class="link">https://apps.apple.com/us/app/downcard-poker-with-friends/id6788423648</code>
+            <button class="copy" data-copy="https://apps.apple.com/us/app/downcard-poker-with-friends/id6788423648">Copy</button>
+          </div>
+          <div class="link-row">
+            <div class="link-where"><strong>Google Play, untracked</strong><span class="sub">Same, for Android.</span></div>
+            <code class="link">https://play.google.com/store/apps/details?id=com.dangerfield.cards</code>
+            <button class="copy" data-copy="https://play.google.com/store/apps/details?id=com.dangerfield.cards">Copy</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
