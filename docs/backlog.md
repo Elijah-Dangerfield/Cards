@@ -1120,3 +1120,33 @@ it on purpose, so that case stays a support conversation.
 
 **Status:** Backlog. Deliberately out of scope on AUTH-34, which fixed the moment of loss. Pull
 with any other pass on Home notifications.
+
+## Cross-project pulse check
+
+One routine that checks every shipped app, not a Downcard-only sweep. The observability triage
+already does this well for one codebase; the gap is that the other six Sentry projects
+(`movingeyes`, `dangerfield-crossmath`, `phony-games`, `drop-2048`, `sodogku`, `hiit-timer`) have
+nobody looking at them. On 2026-10-24 the unresolved Sentry list read as 40 issues, and 18 of them
+belonged to apps that get no triage at all.
+
+**Shape, as the owner described it:** a routine with a per-project checklist, where each codebase
+stores its checklist in the same agreed path so the routine can discover it rather than hardcode it.
+Per-project steps cover that app's own dashboards, alerts, deploy staleness and store state. Then
+the genuinely shared steps run once for everything, not once per repo.
+
+**Sentry is the obvious shared step.** One org, one token, one query — `is:unresolved` across the
+org returns every project in a single call, and triage can fan out by `project.slug`. Doing that
+per-repo is six times the work for the same answer. The inbox is probably the same: Apple and Google
+mail for every app lands in one mailbox.
+
+**What has to exist first:** a deploy-staleness check needs each service to report the build it is
+running. Downcard's half of that is ENG-71. Any project without an equivalent cannot be checked for
+staleness, so the checklist format needs to let a project declare which checks it supports rather
+than failing the ones it cannot answer.
+
+**Why it is backlog and not a todo:** it spans repositories and changes how the agent routines are
+organised, so it is a design call rather than a worker-pickable item. Downcard's piece (ENG-71) is
+independently useful and should not wait for it.
+
+**Status:** Backlog. Raised 2026-10-24 after a triage where nearly half the noise came from
+untriaged sibling projects.

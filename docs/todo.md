@@ -48,14 +48,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** `OnboardingViewModel.kickOffGrantReveal`; arbiter `GetHomeScreenNotification` + `HomeNotificationSnapshot`; `accountJustCreated` latch from `/v1/me` `isNewAccount` (prime suspect — check it survives the onboarding→Home handoff).
 
-## ENG-38 [P1] — Filter emulator/sideload noise out of the `dc-pulse` health panels
-
-**Problem:** The client now stamps `genuine_install` (+ `is_emulator`, `is_sideloaded`, `is_rooted`, `installer_package`, `device_class`, `os_version`) onto every record as a Loki structured-metadata field, but nothing reads it — the crash-free and DAU panels still count emulators as users.
-
-**Acceptance:** Filter the `dc-pulse` crash-free sessions/users/trend, ANR-free sessions, abnormal-exits-by-kind, DAU-by-device, and Installs-30d panels on `genuine_install="true"` behind a "show all" toggle var. Blocked until a store build carrying the attrs reaches prod: no record has the field yet, so filtering today zeroes row 1. Verify against live data first (`{service_name="cards-client"} | genuine_install="true"` returns rows), and calibrate — if `genuine_install="false"` is a rounding error, close this instead of filtering.
-
-**Hints:** Values are strings, so match `="true"` not a bool. **"Accounts (all-time)" can't be filtered this way** — it's a Postgres count over `profiles`, which has no telemetry attrs; either drop it from scope or join on something server-side. Attribute semantics: `docs/wiki/app-events.md` → "Install and device facts".
-
 ## ENG-50 [P1] — Stop the rolling deploy from restart-storming on the single-writer lock
 
 **Problem:** Every prod deploy briefly runs a second machine that cannot take the Postgres advisory lock the old one still holds. It retries, exits, and Fly restarts it, about ten times. Measured on the 2026-09-01 deploy: 10 restarts on the throwaway instance and a CPU spike to 531% from repeated JVM cold starts, ~20 minutes after the deploy had otherwise finished. It resolves itself, and no data is ever at risk — refusing to boot is the correct behaviour. The cost is that a `fatal` uncaught exception is now the normal outcome of a healthy deploy, which means a genuine split-brain would be indistinguishable from deploy noise. That is what makes this P1 rather than cosmetic.
@@ -92,25 +84,22 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** The deadlock is that `setup-gradle` is `cache-read-only` on `pull_request` events, so PR runs can never reseed what they need, and only a `push`-event run to `main` can. No CI ran 09-21 → 09-28, so GitHub evicted everything for inactivity. Options: raise the timeout, let `main` pushes write the macOS gradle-home cache, or split compile and assemble into separate jobs. Found independently by two agents triaging #157 and #158.
 
-## ENG-71 [P1] — Nothing notices when a deploy stalls, so prod ran 17-day-old code unseen
+## ENG-71 [P1] — `/_health` cannot say what it is running, so nothing can tell prod is stale
 
-**Problem:** `server-deploy-prod` runs for PR #152 (2026-09-04) and #155 (2026-09-05) are still `waiting` and `pending` on the `production` environment gate, so prod has not deployed since 2026-09-02. No alert covers this: A7 checks whether the server is *silent*, and it is not — it is serving happily, just from old code. The cost is real and was invisible: the OTel trace-root fix (`ac58b1ba`) has been on `main` for over two weeks while poisoned `trace_id=57f45c70...` keeps appearing in prod logs through 2026-09-21.
+**Problem:** Prod served 17-day-old code twice this year with every dashboard green, because A7 only
+asks whether the server is *silent* and it was answering happily. The blocking half is fixed (see
+`server-deploy-prod.yml`, 2026-10-21: the approval gate no longer holds the concurrency slot, and
+superseded runs cancel). The noticing half is not: a deploy can still sit unapproved indefinitely
+with nobody told.
 
-**Acceptance:** A deploy left unapproved or failed for more than ~24h produces a signal somebody sees. Simplest honest version: a panel or alert comparing the commit prod reports against `origin/main`'s tip. A `/health` endpoint that returns the build SHA would make that a one-line check — it currently returns nothing.
+**Acceptance:** `GET /_health` returns the build SHA it is running, and something compares it to
+`origin/main`. That endpoint currently returns nothing, and it is the one missing piece that makes
+staleness checkable at all, by a dashboard panel, an alert, or a routine.
 
-**Hints:** Gate is `environment: production` in `.github/workflows/server-deploy-prod.yml`. Stuck runs: 33922369090 (`waiting`), 33975509833 (`pending`). Related evidence in `docs/agent/feedback-cases/CARDS-C9.md`. Decide deliberately whether the gate earns its keep — it is correct to want one, and a gate nobody is reminded of is the same as no deploy at all.
-
-**Update 2026-10-21: the blocking half is fixed, the noticing half is not.** It happened a third time
-(a run from 2026-10-04 still parked on 2026-10-21, blocking the v0.6.0 server deploy). Root cause: a
-job in `waiting` **does** hold its concurrency group, so one unapproved run stopped every later run
-from reaching the gate at all. Those later runs sat at `pending` with no `pending_deployment`
-record, which is why there was never anything to approve. The gate is now its own job with no
-concurrency group, and a `supersede` job cancels older still-waiting runs, so a stale run neither
-blocks a deploy nor survives to be approved into a stale rollout.
-
-None of that makes a stalled deploy *visible*, which is what this item is actually about. A deploy
-can still sit unapproved indefinitely with nobody told. The acceptance above stands: compare the
-commit prod reports against `origin/main`, which needs `/_health` to return a build SHA.
+**Hints:** The SHA is already injected at build time (`CardsBuildConfig.commitSha`, and every client
+record carries `commit_sha`). The server side is the gap. **The cross-project pulse routine this
+belongs to is a separate, larger idea — see `docs/backlog.md` → "Cross-project pulse check".** Do
+not build the routine here; ship the endpoint, which that routine will need regardless.
 
 ## ENG-49 [P1] — The RenderThread text-stall fix did NOT hold on low-end devices
 
@@ -150,13 +139,24 @@ If it recurs **on a post-fix build**, the shape to look for is an animation whos
 
 **Hints:** Server durations are already in Loki (`{service_name="cards-server"}`, the `CallLogging.kt` `... in NNNms` line) — parse there rather than waiting on spanmetrics, since gameplay spans are INTERNAL-kind and never reach `traces_spanmetrics_*` (`docs/wiki/observability.md` → Known gaps). Alerts live in the `downcard-engineering` folder; `severity=critical` pages a phone, so this is a warning. Case `docs/agent/feedback-cases/CARDS-BW.md` → "Why nothing caught it".
 
-## ENG-42 [P0] — Chart the iOS foreground-termination rate, then rule the welcome-screen kills real or not
+## ENG-42 [P2] — Chart the iOS foreground-termination rate so it stays visible
 
-**Problem:** A retail iPad on the App Store build `cards@0.1.0+3` hit two `WatchdogTermination` fatals while foregrounded on the onboarding `welcome` step, then abandoned. The per-run signal to judge it now exists (`app.previous_run` splits `foreground_termination` from `background_exit`; `app.exit_metrics` carries the raw MetricKit watchdog counts), but nothing charts it, so it's still an anecdote instead of a rate.
+**Measured 2026-10-24, and it deflates the original worry.** Over 14 days of prod `app.previous_run`:
+iOS `foreground_termination` is **2 of 163 runs (1.2%)**, Android **15 of 111 (13.5%)**. Android is
+the calibration because it carries `ApplicationExitInfo` ground truth, and Android is the *higher*
+of the two — which is the opposite of what an iOS-specific welcome-screen hang would look like. Read
+with zero ANRs in the last 7 days, the balance of evidence says these are force-quits, not watchdog
+kills. The original signal was two `WatchdogTermination` fatals on `cards@0.1.0+3`, a build three
+releases old.
 
-**Acceptance:** A panel charts `foreground_termination` net of Sentry-reported crashes, split by platform, once a build carrying the events ships. Then either reproduce and fix the welcome-step hang, or show these were force-quits and drop this to P1.
+**Acceptance:** a panel charts `foreground_termination` net of Sentry-reported crashes, split by
+platform, so this stays a rate instead of going back to being an anecdote. No fix is implied unless
+the rate moves.
 
-**Hints:** Read `docs/wiki/app-events.md` → "Reading `app.previous_run` honestly" first — `foreground_termination` is a candidate set, not a verdict, and Android is the calibration (it carries the same marker plus `ApplicationExitInfo` ground truth in `previous_exit`). Instrumentation is `RunOutcome*` in `:libraries:telemetry:impl`. Case `docs/agent/feedback-cases/CARDS-3.md`; Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-3.
+**Hints:** Read `docs/wiki/app-events.md` → "Reading `app.previous_run` honestly" first —
+`foreground_termination` is a candidate set, not a verdict. Instrumentation is `RunOutcome*` in
+`:libraries:telemetry:impl`. Case `docs/agent/feedback-cases/CARDS-3.md`; Sentry
+https://elijah-dangerfield.sentry.io/issues/CARDS-3.
 
 ## AUTH-32 [P2] — StrandedIdentity canary false-fires on the cold-boot foreground echo
 
@@ -173,14 +173,6 @@ If it recurs **on a post-fix build**, the shape to look for is an animation whos
 **Acceptance:** A stale/no-longer-legal Call either can't be tapped (button disabled before the state changes) or fails with the same user-visible feedback as a rejected intent. Repro ideally reduces the race rather than just widening the catch.
 
 **Hints:** `GameEngine.kt:331` (the throw); `PlayPokerViewModel.kt:982-999` (the catch with the `else -> Unit` gap); `LocalBotsSession.kt:409-425` (`isHumanIntentLegal`, the legality check the race slips past). Case `docs/agent/feedback-cases/2026-09-16-stale-call-button-local-bots.md`.
-
-## ENG-76 [P1] — Nothing tells us a shipped release is still sitting unpublished
-
-**Problem:** Play has **managed publishing on**, so the release workflow's `Successfully committed` only queues the release — it does not publish it. `v0.4.0` has been approved by Google and parked under "Changes ready to publish → Production → 0.4.0 → Start full rollout" since 2026-09-28. Prod telemetry over 3 days: `0.1.0 (1135)` 32 launches, `0.3.0 (1209)` 35, **`0.4.0 (1262)` 1**. Every fix in the release — the bot-freeze nonce collision, the SQLite fallback, the perf trio — has reached essentially nobody, and no alert, dashboard or workflow step says so.
-
-**Acceptance:** A release that is committed but unpublished is visible without opening Play Console — either the workflow polls the edit's publishing status and fails/warns, or a dashboard panel compares the latest released version against the top `service_version` in prod launches. Decide separately whether managed publishing should stay on at all.
-
-**Hints:** Play Console → Publishing overview shows the pending change and the "Managed publishing on" toggle. The `service_version` breakdown is `sum by (service_version) (count_over_time({service_name="cards-client", deployment_environment="prod"} | event_name="app.launched" [3d]))`. Related: ENG-52 shipped the update prompt in the same unpublished build.
 
 ## ENG-80 [P1] — Billing alerts: the client half is fixed, the Grafana rules are still yours
 
@@ -296,23 +288,32 @@ iOS `Info.plist` and whether `canOpenURL` is being consulted at all for an `http
 not need it. Case `docs/agent/feedback-cases/CARDS-CY.md`;
 https://elijah-dangerfield.sentry.io/issues/CARDS-CY/
 
-## ENG-84 [P1] — Fatal crash launching the Play billing activity on a device without Play Services
+## ENG-84 [P1] — Fatal crash on first launch in the Play billing proxy activity
 
-**Problem:** CARDS-BS, fatal and unhandled, 2026-10-22, `cards@0.6.0+1308`, Android 11, Huawei
-HRY-LX1T. `RuntimeException: Unable to start activity ComponentInfo{.../ProxyBillingActivity}` with
-a nested `NullPointerException` on an `Intent`. Breadcrumbs show `Minted fresh install_id on first
-launch` immediately before, so this is a **first run**. Huawei devices of this generation ship
-without Google Play Services, which is the most likely reason the billing proxy gets a null Intent.
-Marked `regressed`, so it has been seen before. One event, one user, but a fatal on first launch
-means that user never got into the app at all.
+**Problem:** CARDS-BS, fatal and unhandled, 2026-10-22, `cards@0.6.0+1308`, Android 11, HONOR 20e
+(HRY-LX1T, `device.class: low`). `RuntimeException: Unable to start activity
+ComponentInfo{.../ProxyBillingActivity}` wrapping `NullPointerException: Attempt to invoke
+'PendingIntent.getIntentSender()' on a null object reference`. Breadcrumbs show `Minted fresh
+install_id on first launch` immediately before, so the user never got into the app.
 
-**Acceptance:** a device with no Play Services reaches Home without crashing, and the shop degrades
-to "chip packs unavailable" rather than taking the process down.
+**Two plausible explanations are already ruled out by the event.** It is **not** Play Protect: that
+blocks or warns at install time and cannot throw inside Google's billing activity in our process.
+It is **not** a device without Play Services: `installerStore = com.android.vending` proves the app
+was installed from the Play Store, and `os.rooted = no`, `simulator = false`. (An earlier version of
+this item guessed the Huawei-without-GMS angle. The install provenance kills it.)
 
-**Hints:** `:libraries:billing:impl` and wherever the billing client connects during startup.
-`BillingAvailability` already models an unavailable store; the question is whether anything calls
-into Play Billing before that check. The Huawei build has no emulator equivalent, so reason it
-through rather than trying to reproduce. Case `docs/agent/feedback-cases/CARDS-BS.md`;
+**What is left:** Play Billing's `ProxyBillingActivity` was started without the `PendingIntent`
+extra it dereferences. The usual mechanism is the OS restoring a task containing that activity after
+process death, recreating it with no extras. That fits a first-launch low-end device being killed
+and restored, and it would explain why nothing in our code appears in the stack.
+
+**Acceptance:** the app survives a process-death restore of a task containing the billing activity,
+and the shop degrades rather than taking the process down. Reproduce by launching a purchase flow,
+killing the process from the shell, then relaunching from recents.
+
+**Hints:** `:libraries:billing:impl`. Check the Play Billing Library version against its changelog
+for this exact NPE, which is a known class. `BillingAvailability` already models an unavailable
+store. Case `docs/agent/feedback-cases/CARDS-BS.md`;
 https://elijah-dangerfield.sentry.io/issues/CARDS-BS/
 
 ## ENG-85 [P2] — The in-app review prompt throws when no Activity is foregrounded
