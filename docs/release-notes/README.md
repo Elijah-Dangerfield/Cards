@@ -1,6 +1,6 @@
 # Release notes
 
-One file per version, named for the version: `0.6.1.md`. Whatever is in it becomes the Play
+One file per version, named for the version: `0.7.0.md`. Whatever is in it becomes the Play
 "What's new" and the App Store "What's New" for that release, byte for byte, in both stores.
 
 Both store lanes in [`release.yml`](../../.github/workflows/release.yml) run
@@ -23,14 +23,14 @@ writes in commit-subject voice. Write the file.
 - **Say what a player would notice.** Not the fix, the thing they can now do. Leave out
   telemetry, CI, dashboards and refactors entirely.
 - **A release with nothing user-facing says so.** That is an honest note, not a gap to fill with
-  chores. `0.6.1.md` is the worked example.
+  chores. `0.7.0.md` is the worked example.
 
 ## Checking it before you ship
 
 Renders exactly what the stores will get:
 
 ```shell
-python3 -I .github/scripts/release_notes.py --version 0.6.1 --body-file /dev/null
+python3 -I .github/scripts/release_notes.py --version 0.7.0 --body-file /dev/null
 ```
 
 To see the fallback for a version with no file, pass a real release body:

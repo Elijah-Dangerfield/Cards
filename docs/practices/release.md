@@ -81,7 +81,7 @@ first thing a new player reads. The release logs a `::warning::` naming the file
 Preview either path before you ship:
 
 ```shell
-python3 -I .github/scripts/release_notes.py --version 0.6.1 --body-file /dev/null
+python3 -I .github/scripts/release_notes.py --version 0.7.0 --body-file /dev/null
 gh release view v0.6.0 --json body -q .body \
   | python3 -I .github/scripts/release_notes.py --version 0.6.0
 ```
