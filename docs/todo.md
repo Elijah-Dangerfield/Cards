@@ -64,14 +64,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** Sentry https://elijah-dangerfield.sentry.io/issues/CARDS-9Q is this, `level=fatal`, `handled=no`, escalating — previously mis-ledgered as dev-only, it is prod. `SingleWriterGuard.acquire` logs "Single-writer lock held by another instance; retrying (attempt N)" then gives up and exits. `apps/server/fly.prod.toml` explains why the strategy is `rolling` and never blue-green: in-memory room state plus the advisory lock. Rolling avoids the deadlock it was chosen to avoid; it does not avoid this thrash. Evidence: dc-infra → Restarts (24h), broken out per instance.
 
-## ENG-55 — DONE 2026-09-28
-
-The gate fix itself had already landed in `d5bc323c` and the todo was stale. What was genuinely missing is now in: the ticker reads `LocalClock` so it can be driven, returns whole seconds so the badge invalidates once a second rather than per 250ms poll, and snaps under `@Preview`. Three tests prove it stops — zero clock reads across 60 virtual seconds after the deadline — which is what the acceptance actually asked for.
-
-## ENG-56 — CLOSED 2026-09-28, already fixed; the entry was stale
-
-All three sites already read `.value` inside their draw lambda (`TurnCountdownRing.kt:100`, `OpponentSeat.kt:151`, `PlayerArea.kt:380`), landed in `d5bc323c` / `0dcbe48d`. No code change was needed. `AnimatedStateReadInComposition` passing on every build is the standing guard.
-
 ## ENG-57 [P2] — Hole cards keyed on Card identity skip their deal-in
 
 **Problem:** `PlayerArea.kt:475` uses `key(card)`, and `Card` is a data class. An identical card dealt into the same slot next hand reuses the composition group, so `arrived`/`revealed`/`settled` stay true and that card renders instantly face-up while its partner flies in. 3.8% — about one hand in 26. The same equality assumption underpins the `LaunchedEffect(human.holeCards)` face-up reset, though at 1/2652 that one self-heals the following hand.
@@ -84,49 +76,6 @@ All three sites already read `.value` inside their draw lambda (`TurnCountdownRi
 
 **Acceptance:** The bust dialog never shows another hand's number. Clear `lastHandXpAwarded` in `HandEndAchievementsPending`, alongside `recentlyEarned`.
 
-## ENG-59 — DONE 2026-09-28
-
-`AnimatedNumberText` was only half fixed in `2629c5232`: the live roll was quantized but the `revealKey` replay path — the wallet's "balance changed while you were away" roll on Home and Shop — still wrote the raw animated value every frame. Both paths now share one quantizing helper. Measured by test at 13 text changes per roll against ~44 per-frame.
-
-## ENG-60 — Make TableUiState skippable — CLOSED 2026-09-03, premise was wrong
-
-**What it claimed:** `TableUiState.Active` and `SeatView` are unstable, so every composable taking `table:` is unskippable, and that is why `PlayerInfoTile` could not skip during ENG-49. Billed as the highest-ceiling item on the list.
-
-**What is actually true.** Measured with the Compose compiler's own reports (now wired into the build — see below):
-
-- **Zero** composables in `:features:room:impl` are unskippable. All 222 restartable ones are `skippable`. Strong skipping has been on by default since Kotlin 2.0.20 and this repo is on 2.4.0.
-- `TableUiState.Active` is already reported **stable**. `SeatView` is reported unstable, but only because of `lastAction: PlayerAction?` and `personality: BotPersonality?` — types from `:libraries:gameplay` and `:libraries:bots`, which don't apply the Compose compiler, so there is nothing for it to infer.
-- The remaining worry was that strong skipping compares *unstable* parameters by reference, so an equal-but-new `SeatView` would still recompose. **It doesn't.** A probe class with a public `var` — unambiguously unstable — skipped on an equal-but-new instance just the same. So did `SeatView` and `TableUiState.Active`.
-
-So a stability config file or a move to `kotlinx.collections.immutable` would have bought nothing measurable, and the "amplifier under ENG-56/57/59" framing was wrong: those three were each independently real, and each was fixed on its own merits.
-
-**What came out of it anyway:**
-
-- A `ComposeStabilityTest` was written to assert the skipping behaviour directly, then deleted: it exercised Compose's own comparison semantics rather than any of our code, so it could not fail from a change we made. Guarding a framework guarantee is maintenance, not coverage.
-- `-Pcards.composeReports=true` generates the compiler's stability/skippability reports into `build/compose-reports/`. See `build-logic/.../ComposeCompiler.kt` for how to read them, **including the warning not to treat "unstable" in that report as a cost.** Reading it that way is what produced this ticket.
-
-## ENG-66 — Macrobenchmark frame timing — NOT DOING, 2026-09-04
-
-Recorded so it does not get re-proposed. `FrameTimingMetric` is the standard tool for "run a UI journey, diff P95 frame times," and it is the right shape for catching jank regressions. It needs a real device to produce a usable signal: emulator frame timing on a shared CI runner has run-to-run variance larger than the regressions worth catching, so a per-PR threshold produces flaky red and gets disabled. CI here is macOS + ubuntu runners with no device, and the owner is not standing up a device farm or Firebase Test Lab for this.
-
-What covers the gap instead: `AnimatedStateReadInComposition` catches the *cause* class statically on every PR with zero noise (it found 19 instances on its first run), ENG-63 gives real-user frame data with no device at all, and Play vitals plus the existing `PreviousExit.Anr` telemetry remain the ground truth. Revisit only if a physical device farm appears for another reason.
-
-## ENG-61 — Compose tests that cross a hand boundary — DONE 2026-09-03
-
-The play screen went from 14 single-state tests to **106 across five suites**, every one of which drives at least one hand boundary. Suites: table projection and felt rendering, end-of-hand disposition, modal surfaces and the leave flow, multi-hand transitions, and skippability.
-
-They paid for themselves immediately, finding a latent crash (`BoardArea`'s `card!!`), the stacked practice-tier explainer, the action sheet riding a hand boundary, and the frozen player-profile snapshot. They also caught an ordering flaw in the harness itself: with `autoAdvance` off, a hoisted state write must be pumped before the clock advances.
-
-Note for anyone extending them: Robolectric's default viewport is 320x470px, shorter than any shipping phone, which measures some felt elements to zero height. `PlayPokerScreenTableTest` sets `qualifiers = "w411dp-h891dp-xhdpi"`; the others should be brought in line.
-
-## ENG-72 — DONE 2026-09-28, shipping in the next release
-
-Android now hands Room a `FallbackSQLiteDriver`: bundled when its native lib loads, `AndroidSQLiteDriver` (platform SQLite, no `.so`) when it does not. iOS keeps the bundled driver.
-
-The non-obvious part, worth keeping: the decision latches on a `:memory:` probe at first touch of **either** `open()` or `hasConnectionPool`, not inside the first real `open()`. Room reads `hasConnectionPool` once at connection-manager construction and the two drivers disagree (`Bundled=false`, `Android=true`), so a fallback that fired later would leave Room running its own pool over a driver that already has one. The probe is also what forces `NativeLibraryObject.<clinit>`, which is the only thing that makes the fallback fire at all — the native library does not load at driver construction.
-
-Emits `db.driver_fallback` so the rate is visible; a silent fallback would have replaced a loud crash with nothing. Verification gap: tests use fake drivers, not a real Room database on a device.
-
 ## ENG-73 [P2] — An empty request body 500s instead of 400ing, and pages as an error
 
 **Problem:** A client whose upload dies mid-request sends no body; `ContentNegotiation` throws `BadRequestException` wrapping `JsonDecodingException: Expected start of the object '{', but had 'EOF'`, and `StatusPages` logs it as **"Unhandled error"** at ERROR with a full stack, which reaches Sentry (CARDS-CB). Seen twice from one install on `/v1/me/player-stats/sync` and `/v1/me/wallet/sync`, 12s apart — the stats one after the server had waited **39.5 seconds** and then returned 500. A truncated upload is a client-side network condition, not a server fault: it deserves a 400 and a breadcrumb.
@@ -134,14 +83,6 @@ Emits `db.driver_fallback` so the rate is visible; a silent fallback would have 
 **Acceptance:** An empty or truncated body returns 400 and does not create a Sentry error event. The 39.5s wait before EOF also wants a request-body read timeout — that request occupied a connection for 40 seconds to learn nothing.
 
 **Hints:** `ErrorsKt.installStatusPages` maps this; `BadRequestException` should be in the expected-client-error set. Same family as ENG-68 (429 as backpressure, not error) — consider doing them together, since both are "an expected client condition logged as a server failure". This is also the only entry the dc-infra slow-request panel caught this week, so fixing it clears that signal for real findings.
-
-## MP-39 — DONE 2026-09-28, needs a server deploy to reach anyone
-
-Bot nonce is now `bot:<session>:<hand>:<seat>:<street>:<lastSequence>`, so a bot acting twice on one street after a raise no longer collides with itself. `lastSequence` already existed and `TurnTimerDriver` already used it for this same collision.
-
-Two things beyond the nonce. `IntentResult.Duplicate` distinguishes a swallowed replay from real work, which is what made this invisible — the ack still reports `accepted` for a retrying client, so the wire contract is unchanged. And a stalled-turn watchdog re-reads the table 5s after every submit, logging at ERROR and re-driving if nothing moved, so any *other* freeze path is loud instead of silent.
-
-**Server-only**, so it reaches players on deploy with no app update.
 
 ## ENG-74 [P1] — A cold Gradle cache pushes the macOS CI job past its 45-minute timeout
 
@@ -181,12 +122,6 @@ commit prod reports against `origin/main`, which needs `/_health` to return a bu
 
 If it recurs **on a post-fix build**, the shape to look for is an animation whose value is read during composition (`val x by animateFloatAsState(...)`), which recomposes its whole subtree every frame. Three instances caused this. `AnimatedStateReadInComposition` in `:detekt-rules` now runs (ENG-54) and cleared 19 instances, but it only matches the `by animateFloatAsState(...)` shape — a clean lint is not proof that nothing recomposes per frame. Capture a trace with `scripts/compose-trace.sh`.
 
-## ENG-54 — Make the AnimatedStateReadInComposition detekt rule run — DONE 2026-09-03
-
-The prime suspect was right: it was the alpha. Bumping detekt `2.0.0-alpha.5` -> `2.0.0-alpha.6` made the rule dispatch, with no change to the rule itself. Everything else that had been ruled out (provider ordering, config cache, jar freshness, YAML, baseline) was a red herring.
-
-It found **19 instances** on its first run, seven of them in files that had just been swept by hand for exactly this pattern. All 19 are cleared — see `3ff898ba`. One deliberate suppression remains, in `Header.elevateOnScroll`, with its reason in the code: `Modifier.shadow` has no lambda form.
-
 ## ENG-68 [P2] — Stop treating 429 as an error on background syncers
 
 **Problem:** `isExpectedClientError` allowlists only 401/403 (`ExpectedClientErrors.kt:30`), so a 429 from a background syncer becomes `KLog.e` and a Sentry event. Rate limiting is normal backpressure, not a failure. Worse, `UserScopedSyncCoordinator`'s `RunWhenRetry.exponential()` ladder (`RunWhen.kt:101-108`) does not skip 4xx the way the HTTP retry does (`RetryPolicy.kt:168-173`), so one exhausted bucket costs six more requests and six more Sentry events per foreground — it retries against a bucket it already knows is empty.
@@ -196,48 +131,6 @@ It found **19 instances** on its first run, seven of them in files that had just
 **Hints:** Same argument ENG-34/ENG-35 already made for offline and 403. User-facing routes already map 429 sensibly (`MatchmakingRepositoryImpl.kt:49`, `FriendRepositoryImpl.kt:124`); it is only the background syncers that do not. The bucket mis-assignment that triggered this is fixed (equipment sync moved from the 30/hr profile bucket to the 480/hr progression one), so the symptom is gone — but the handling is still wrong and the next mis-sized bucket will look identical.
 
 **Not user-affecting today:** over Loki's full 30-day retention the server returned 429 twelve times, all `deployment_environment=dev`, zero in prod. Prod served 583 equipment syncs in 14 days cleanly.
-
-## ENG-67 — Sentry mapping upload — DONE 2026-09-04, verify on the first minified release
-
-The Sentry Android Gradle plugin now injects the ProGuard UUID and uploads `mapping.txt`. `autoInstallation` is off — the app already uses the KMP Sentry SDK, and the plugin's default would have added `sentry-android` on top of it.
-
-Verified locally: a release build packages `assets/sentry-debug-meta.properties` carrying `io.sentry.ProguardUuids`, which is what makes a mapping associable. Uploading only happens when `SENTRY_AUTH_TOKEN` is present, so a contributor without one can still build a release.
-
-The hand-rolled `upload-proguard` step in `release.yml` is deleted. It could never have worked: it named a manifest path AGP no longer writes, and the app had no UUID to match, so it associated with nothing and reported success. Dormant behind a minification guard until R8 landed, which is why nobody noticed.
-
-**Still to confirm:** read the frames on a real Sentry issue from the first minified release. An upload that "succeeded" proves nothing on its own — that is exactly how the old step looked healthy for months.
-
-## ENG-69 — Cold-start timing on dc-perf — DONE 2026-09-04, empty until a build ships
-
-`app.startup`, one event per process, carrying `startup_ms` from OS process creation to the first frame a player can act on. Four stats and two timeseries on `dc-perf` under "How fast does it start?".
-
-Measured from process creation rather than from our first line of Kotlin, because a large share of a cold start (process fork, DEX loading, Application init) happens before any of our code runs — and that is exactly the part a Baseline Profile is meant to improve. A timer started later would have reported "no change" after the change that mattered most.
-
-Two things are deliberately dropped at the source rather than charted. Launches over 30s are the system having started our process in the background hours before anyone opened the app; they are real elapsed time and would drag every percentile somewhere meaningless. Repeat calls within a process are Activity recreations (rotation, theme change), which draw a fresh first frame that is not a startup.
-
-`MainActivity` also calls `reportFullyDrawn()` at the same instant, which is a separate win: Play Console grades "fully drawn" startup on that call, and without it Play measures to the splash frame — a number no player experiences.
-
-**Android only.** iOS has no readable process-start clock: `sysctl(KERN_PROC)` is the only source, Kotlin/Native does not expose `kinfo_proc` for Apple targets, and it is a required-reason API besides. The correct iOS source is MetricKit's `MXAppLaunchMetric.histogrammedTimeToFirstDraw`, which we can reach through the existing `MetricKitExitReport` seam. It should land under its own event name — it is a daily histogram, not a single launch. Reasoning is in `IosProcessStartTimeProvider`'s KDoc.
-
-**Still to confirm:** the panels have never rendered against real data. The query shapes were validated against `app.backgrounded`, which proved the Loki `by (...)` gotcha now written up in `docs/wiki/observability.md`, but "the query is valid" is not "the number is right". Check the median against a stopwatch on a real cold start once a build lands.
-
-## ENG-53 — Turn on R8 obfuscation — DONE 2026-09-04, needs a device check before release
-
-`isMinifyEnabled` and `isShrinkResources` are on for release, with rules in `apps/compose/proguard-rules.pro`. Play's "Obfuscation (1%)" warning and its Feb 2027 deadline were the trigger; shrinking and optimisation come along with it.
-
-**Not yet verified on a device.** The minified APK builds (31.9MB), but R8 breaks things that are found *by name at runtime*, and that only shows up when the app runs. The three at risk here are `@Serializable` models, `@Serializable` nav routes, and the DI entry point — all have keep rules, none have been exercised minified. Run `./gradlew :apps:baselineprofile:pixel6Api34BenchmarkReleaseAndroidTest -Pcards.targetEnv=dev` (CARDS_PROFILE_GEN=true if in CI): `benchmarkRelease` *is* minified, so the profile journey doubles as an R8 smoke test through onboarding, Home and a hand.
-
-**Known noise:** R8 logs "An error occurred when parsing kotlin metadata" repeatedly. Its metadata parser is older than Kotlin 2.4.0 — an AGP/Kotlin version skew, not a correctness problem. It can reduce obfuscation quality, so re-check Play's percentage after the first minified release.
-
-## ENG-52 — DONE 2026-09-28
-
-`NoUpdateSource` is gone. Android asks Play In-App Updates whether an update is actually installable, and gets the `major.minor.patch` label from two remote-config values `release.yml` now publishes after a successful production upload. The name is used only when Play's `availableVersionCode` matches the published one, so a stale or racing config resolves to null rather than a wrong label. iOS uses the public iTunes lookup.
-
-The 10%-rollout argument in `AppUpdateSource`'s KDoc is dead and was removed. What still justifies asking the store rather than trusting config alone is the window between "Play accepted the upload" and "installable to this user" — config alone would prompt into it.
-
-Worth recording: a purely **local** cache cannot work here, because the app only ever writes its own version, so "is current older than cached?" is never true. Any working design needs an external source.
-
-Silent until the next production release writes the config pair; set the two flags by hand in the admin console to light it up sooner.
 
 ## ENG-48 [P2] — Sustained concurrent flushes for one user 500 instead of queueing
 
@@ -273,14 +166,6 @@ Silent until the next production release writes the config pair; set the two fla
 
 **Hints:** `libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/auth/StrandedIdentityDetector.kt` — add the same `if (event.isColdBoot) return` guard as `GuestSessionHealer.kt:79` / `AuthReResolver.kt:46`. Case `docs/agent/feedback-cases/2026-09-09-stranded-identity-false-positive.md`.
 
-## ENG-70 — CLOSED 2026-09-28, misdiagnosed; the fix already shipped
-
-Not a Compose Multiplatform `UriHandler` problem. `No handler available for <url>` was **our own string**: `IosWebLinkLauncher` gated every open on `check(application.canOpenURL(targetUrl))`, and since iOS 9 that call returns false for any scheme not declared in `LSApplicationQueriesSchemes`, so it blocked every outbound link. `ca77c1af` removed the gate on 2026-09-03, about 2.5 hours after the last event, and added `IosWebLinkLauncherTest` to guard it.
-
-The ticket was filed on 09-05 by grepping a tree the string had already been deleted from, and the Compose theory was invented to explain that absence. Sentry has CARDS-C2 resolved, last seen 2026-09-03 16:42Z.
-
-**Nothing to build.** `ca77c1af` is in `v0.3.0`. iOS store users are still on `0.1.0+1135` because the 09-21 release ran with the iOS job skipped, so the remaining work is shipping iOS, tracked in `developer-todo.md`.
-
 ## GAME-35 [P2] — Stale Call button silently no-ops in a local-bots hand
 
 **Problem:** A retail Android install tapped "Call" in a local-bots game and it silently failed — `GameEngine.resolveAction` threw `IllegalArgumentException("Nothing to call")` (toCall was already 0), caught in `PlayPokerViewModel`'s Submit handler, but `IllegalArgumentException` isn't one of the branches that surfaces player feedback (only `IntentTimeoutException`/`IntentRejectedException` are), so the tap's haptic/chip-click fired but nothing else happened. One occurrence, immediately after two "Bot decision is stale, skipping apply" log lines in the same session.
@@ -289,21 +174,6 @@ The ticket was filed on 09-05 by grepping a tree the string had already been del
 
 **Hints:** `GameEngine.kt:331` (the throw); `PlayPokerViewModel.kt:982-999` (the catch with the `else -> Unit` gap); `LocalBotsSession.kt:409-425` (`isHumanIntentLegal`, the legality check the race slips past). Case `docs/agent/feedback-cases/2026-09-16-stale-call-button-local-bots.md`.
 
-## ENG-75 — DONE 2026-10-02, needs the next release to prove it
-
-`curl` treats `[` and `]` as URL-glob range syntax, so `filter[bundleId]=...` aborted with
-`bad range in URL position 54` before the request was ever sent. That error fell into
-`|| echo '{"data":[]}'`, which read as "no such app", which resolved to `is_first_release=true`
-and the TestFlight-only lane — on every release since v0.1.0, each one reporting success.
-Nothing to do with credentials or the bundle ID; both were correct all along.
-
-Fixed with `-g` (`--globoff`) on both ASC calls, and a failed lookup now fails the step instead
-of silently downgrading the lane. Verified locally: without `-g` curl exits 3 without contacting
-Apple; with it the request reaches ASC.
-
-**Still open:** the first release after this lands must be checked for
-`Existing builds found on ASC (app …) — full release lane` in the iOS job log.
-
 ## ENG-76 [P1] — Nothing tells us a shipped release is still sitting unpublished
 
 **Problem:** Play has **managed publishing on**, so the release workflow's `Successfully committed` only queues the release — it does not publish it. `v0.4.0` has been approved by Google and parked under "Changes ready to publish → Production → 0.4.0 → Start full rollout" since 2026-09-28. Prod telemetry over 3 days: `0.1.0 (1135)` 32 launches, `0.3.0 (1209)` 35, **`0.4.0 (1262)` 1**. Every fix in the release — the bot-freeze nonce collision, the SQLite fallback, the perf trio — has reached essentially nobody, and no alert, dashboard or workflow step says so.
@@ -311,102 +181,6 @@ Apple; with it the request reaches ASC.
 **Acceptance:** A release that is committed but unpublished is visible without opening Play Console — either the workflow polls the edit's publishing status and fails/warns, or a dashboard panel compares the latest released version against the top `service_version` in prod launches. Decide separately whether managed publishing should stay on at all.
 
 **Hints:** Play Console → Publishing overview shows the pending change and the "Managed publishing on" toggle. The `service_version` breakdown is `sum by (service_version) (count_over_time({service_name="cards-client", deployment_environment="prod"} | event_name="app.launched" [3d]))`. Related: ENG-52 shipped the update prompt in the same unpublished build.
-
-## ENG-77 — DONE 2026-10-04; the premise was wrong and the gate was still worth it
-
-Filed claiming lint "would have caught CARDS-CK". **It would not.** Verified by running
-`lintRelease` against that exact commit: clean. Lint sees the `SDK_INT` guard around the API
-*call* and is satisfied; it does not model the signature resolution that actually broke. A
-deliberately unguarded `getHistoricalProcessExitReasons` call in the same file *does* trip
-`NewApi`, so the check is active — it simply cannot see this variant. The reflection test in
-`AndroidPreviousExitProviderApiLevelTest` remains the only guard for it.
-
-Turned lint on anyway, because the first full run found four real errors for roughly nine
-seconds of CI:
-
-- `AndroidStrictModeLog.record(violation: Violation)` — API 28 type in a method signature, the
-  same shape as CARDS-CK, fixed the same way.
-- `windowSplashScreenBackground` (API 31) set in `values/` — moved to `values-v31/` behind a
-  `Theme.Cards.Base` split.
-- Three `MissingPermission` on `ACCESS_NETWORK_STATE` in `libraries/networking/impl`. The app
-  only had that permission because `androidx.work` declares it; nothing in this repo did.
-  Declared it in the module whose code needs it.
-
-Fixed rather than baselined, so there is no `lint-baseline.xml` and the report starts empty.
-Config lives in `build-logic/.../AndroidConfiguration.kt`; the `lint` job is in `ci.yml`.
-`NewerVersionAvailable` is disabled — it hits the network on every run.
-
-## AUTH-33 — DONE 2026-10-09
-
-Two commits. `d4eafca0` stops the welcome dialog inferring a grant from the cached balance —
-the figure now comes only from `onboarding.starterGrant` (V89 seeds it at 10,000 and it is live
-in prod; it was null during the incident because app-config had not hydrated). Unknown now waits
-rather than spending the once-per-account dialog on a promise.
-
-`2a2706a4` is the root: `SupabaseAuthRepositoryImpl` keyed the user-scoped wipe off the
-in-memory auth state, which is empty at process start, so an account switch across a launch
-wiped nothing. `UserScopedDataReset.ensureOwnedBy` now compares against a durably recorded owner
-(`AppData.lastActiveUserId`, device-scoped). That also closes the unsynced `wallet_events`
-outbox crossing accounts, which was the same bug costing real chips rather than a wrong label.
-
-## AUTH-34 — DONE 2026-10-09
-
-Prevention landed in `a75f90b1` (durable `StrandedAccount` record, healer refuses to mint while
-it exists). The UI half is the recovery screen itself: `SessionExpiredViewModel` now reads
-`StrandedAccountStore` and resolves one of three honest offers — `SignInToRestore` names the
-account and leads with signing in, `GuestOnly` keeps the old guest copy because an anonymous
-account has no credential to return with, and `Offline` says nothing is lost and offers only
-retry, since a sign-in form you cannot submit is a trap. The record is read in the ViewModel
-rather than carried on the route: a display name is user data that would land in saved nav state.
-
-Starting over is still reachable, behind a dialog that names the account being left, and it
-clears the record so the healer stops refusing and onboarding can mint. `auth.recovery_offered`
-and `auth.stranded_account_abandoned` give the abandon rate a numerator and a denominator.
-
-Still open: a user who force-quits on that screen gets no second telling. The healer's
-second-process branch only logs, so the next launch lands on Home with the auth-gate sheet ("sign
-in again to keep playing") and no account name. The Home restore affordance in
-`docs/backlog.md` is what closes it.
-
-## ENG-78 — DONE 2026-10-21; core library desugaring is on, keyed off minSdk
-
-`NoClassDefFoundError: Ljava/time/ZoneOffset;` was fatal and uncaught on `PlayMultiplayerRoute`
-(CARDS-CS, `cards@0.5.0+1272`, Android 7.1.2). `kotlinx.datetime` delegates to `java.time` on
-Android, `java.time` is API 26+, and `minSdk` is 24 — so every one of its call sites across
-`:libraries:ui`, `:features:room`, `:features:profile` and the logging writer was a crash waiting
-on an API 24/25 device.
-
-Fixed in `configureAndroid`, which every Android module already runs through, rather than at the
-one call site that happened to crash. `isCoreLibraryDesugaringEnabled` is derived from
-`SharedConstants.minSdk < 26` and the `desugar_jdk_libs` dependency is added under the same
-condition, so raising the floor to 26 later drops the backport in the same move instead of leaving
-it in the dex. Verified by unzipping the assembled APK: `Lj$/time/ZoneOffset;` is in the dex.
-
-`minSdk` stayed at 24 — raising it is the owner's call, and desugaring costs dex size and nothing
-else.
-
-An `afterEvaluate` check now fails the build if a module script turns desugaring back off while
-minSdk is below 26: the flag the plugin sets is only a default, and nothing downstream notices when
-it is overridden — the build stays green and the crash comes back on hardware nobody here owns.
-`QA.md` ENG-78 is the device check, because this class of bug is invisible to CI (a JVM test
-resolves `java.time` from the test classpath at any API level).
-
-## ENG-79 — DONE 2026-10-21; an abandoned handshake is a warning with a room on it
-
-`NullPointerException: Cannot invoke "…RequestBodyHandler.upgrade()" because "bodyHandler" is null`
-in `NettyHttp1ApplicationResponse.respondUpgrade` (CARDS-CM, 6 events 2026-10-11 → 10-19, prod).
-Netty removes its body handler when the channel closes; Ktor then dereferences it. The peer is
-already gone, so there is nothing in the handshake to fix — but it reached `installStatusPages` as
-an unhandled 500, which filed a Sentry issue per occurrence and tried to write a response onto a
-dead socket.
-
-`Throwable.isAbandonedSocketUpgrade()` in `plugins/Errors.kt` now classifies it: a
-`NullPointerException` with `respondUpgrade` in its stack is logged at warn with the **room code and
-user id**, and is not captured. Matched on the frame, not the NPE's text — the text is the JVM's
-generated message naming a Ktor internal, which a version bump can reword.
-
-The open question (a tab closing, or a player who could not get into a table) is now answerable
-from the log line. It was not answerable retroactively: the six events carry neither field.
 
 ## ENG-80 [P1] — Billing alerts: the client half is fixed, the Grafana rules are still yours
 
@@ -477,65 +251,6 @@ now "any `purchase.failed` in 7 days" rather than an hourly success rate gated t
 counts over 7 days rather than 6 hours and is deliberately sticky. Remaining known gap: both use
 `no_data_state: OK`, so a total Loki outage reads healthy on every event-based rule. A "client
 telemetry has gone quiet" watchdog would cover them all at once, and does not exist.
-
-## RIV-1 — DONE 2026-10-21; head-to-head records, and the matchmaking screen stops over-promising
-
-Two product changes out of the 30-day usage read, both shipped. The full reasoning is in
-`docs/decisions.md` (2026-10-21).
-
-**What the data said.** Multiplayer is 64% of games started and 54% of all hands, and almost none
-of it arrives through matchmaking: 618 public searches produced 6 matches, against a peak of 5
-concurrent players an hour and 73% of hours with nobody playing at all. It happens in private rooms
-with people the player already knows, and those people come back: 83 human pairs have shared 2-5
-sessions, 11 have shared 6 or more, and half of all pairings are repeats. The product acknowledged
-none of that. Separately, 1,855 achievement celebrations in 30 days terminated in 16 cosmetic
-equips, because nothing the progression engine grants is visible to another person.
-
-**Rivalries.** `recently_played_with` (V62) already had a directed row per pair, written on every
-finished hand; V91 hangs the scoreline on it. Home shows the top record above the Play section with
-a Rematch button that opens the private-create screen. Own kill switch, `rivalries.enabled`,
-default on, deliberately **not** `social.enabled` (which is off pending SOC-2 and gates a graph a
-rivalry does not need). `rivalry.rematch_tapped` carries the standing it fired from, so whether a
-losing scoreline produces a rematch is measurable.
-
-**Matchmaking honesty.** The search screen spent a flat minute rotating copy that asked for
-patience ("a good table is worth the wait") whether or not anyone was plausibly coming. The
-candidates poll already knows: an empty browse now cuts the wait to about eleven seconds and the
-copy says nobody is online. A human turning up restores the full window, so a real searcher is
-never cut short. `matchmaking.lobby_empty` makes the effect on the 148 monthly abandons measurable.
-
-**Deliberately not done.** A scheduled nightly table to manufacture concurrency, which is the right
-idea and dead without push (there is no FCM or APNs in the app at all, and 1 of 203 players has ever
-opened the in-app inbox). Showing the bot offer sooner, which is already available from the first
-second of every search and was taken 23 times out of 618. Tightening the chip economy, which would
-help revenue and make the game worse for the handful of loyal players there are.
-
-**Treat the first version as a probe.** This is a judgment call on roughly 20 active installs and
-187 pairs. Check `rivalry.rematch_tapped` against `matchmaking.lobby_empty` and the abandon count
-before building anything further on it.
-
-**The telemetry is a funnel, not a counter.** `rivalry.card_shown` fires once per visit to Home when
-a card is present and carries the standing, hand counts and session count; `rivalry.rematch_tapped`
-carries the same shape on the tap. Taps alone cannot answer whether the card works, because at this
-population a handful could be everyone who saw one or a tenth of them. Tap-to-room conversion joins
-on `session_id`: a session with a `rematch_tapped` and a later `room.joined`.
-
-**It reads zero for about two weeks, by design. Do not file that as a bug.** V91 defaulted the
-counters on existing `recently_played_with` rows to zero, and they only increment on hands played
-after the 2026-10-21 deploy. Measured the night it shipped: 372 directed pairs and 170 users with an
-opponent, and **0 rows that would show a card**. The ramp, from a 14-day replay of
-`hand_finished_events`: 114 active pairs, **50 reaching two shared sessions, 32 users who would see
-a card**. So roughly a fortnight to a denominator worth reading.
-
-That replay also re-confirms the premise on fresher data than the original analysis: 50 of 114
-active pairs in 14 days are repeat pairings.
-
-**If the ramp is too slow, the honest shortcut** is to backfill `sessions_together` and
-`hands_together` from `hand_finished_events` (both are exactly derivable from shared
-`hand_session_id`) and gate the card on a non-zero scoreline. That makes a card appear after one
-more shared session instead of two. Do **not** backfill the scoreline itself: `hands_won`,
-`opponent_hands_won` and `biggest_pot_won` are not recoverable from that table, and a card reading
-"dead even, 0 hands each, over 6 tables" is worse than no card.
 
 ## ENG-82 [P1] — Grafana rejects telemetry with 400 and we cannot tell why
 
@@ -617,3 +332,41 @@ A missing Activity is an expected condition for a prompt fired off a coroutine, 
 null-return path rather than `error()`. Worth checking whether the coordinator should re-arm so the
 ask survives to the next good moment. Case `docs/agent/feedback-cases/CARDS-D0.md`;
 https://elijah-dangerfield.sentry.io/issues/CARDS-D0/
+
+## ENG-86 [P1] — Store release notes are raw changelog markdown, commit links and all
+
+**Problem:** The App Store "What's New" for 0.6.0 literally reads
+`## [0.6.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.5.0...v0.6.0) (2026-10-21)`
+followed by `* **auth:** offer the stranded account back after a session loss ([7998719](https://github.com/...))`.
+Both store lanes take `gh release view --json body` verbatim: `release.yml` → "Render release notes
+for Play" (`head -c 500`) and "Fetch release notes for TestFlight changelog" (`head -c 3000`). So
+players get release-please's internal changelog, including markdown syntax, conventional-commit
+prefixes, bare commit shas, full GitHub URLs and internal ticket ids, mid-word truncated at a byte
+count. Every release since the automation landed looks like this.
+
+**Acceptance:** the store listing shows a few plain sentences a player can read, with no markdown,
+no URLs, no shas, no `feat:`/`fix:` prefixes and no truncation mid-word. Both lanes use the same
+copy, and a release with nothing user-facing says something honest rather than dumping chores.
+
+**Hints:** `release.yml` lines ~251 (Play) and ~613 (iOS). Options, cheapest first: strip and
+reformat the body in the workflow; or keep a hand-written `docs/release-notes/<version>.md` that the
+lane prefers and falls back from; or have release-please emit a separate user-facing section. The
+house voice is in `docs/marketing-copy.md` — warm, plain, no marketing filler — and the
+`unslop-text` skill applies, since this is user-facing copy. Worth fixing before 0.6.1: the listing
+is the first thing a new player reads.
+
+## ENG-87 [P2] — Nothing notices if client telemetry stops arriving at all
+
+**Problem:** Every event-based alert (A4, A5, A8) sets `no_data_state: OK`, which is right on its
+own — no dropped-SKU events means the shop is fine — but it means a total ingest failure reads as
+healthy across all of them simultaneously. If the client stopped reaching Grafana tomorrow, the
+alert page would stay green and the dashboards would empty out with nobody told. ENG-82 is a live
+reminder that records do get refused. Sibling of ENG-71 (nothing notices a stalled deploy) and
+ENG-76 (nothing notices an unpublished release): the same blind spot, a third time.
+
+**Acceptance:** a sustained drop in client event volume against its own recent baseline produces a
+signal. Not an absolute threshold, which would need re-tuning every time the population moves.
+
+**Hints:** `app.foregrounded` is the honest heartbeat (`app.launched` undercounts, see the CARDS-CK
+entry in the observability log). Grafana rule edits are a deliberate human change. Keep it a
+warning, not a page: a quiet hour at this population is normal, a quiet day is not.
