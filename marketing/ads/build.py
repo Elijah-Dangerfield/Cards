@@ -20,7 +20,7 @@ from pathlib import Path
 
 METRIC_KEYS = (
     "spend", "impressions", "clicks", "videoViews",
-    "views2s", "views6s", "completions", "avgWatchSec", "installs",
+    "views2s", "views3s", "views6s", "completions", "avgWatchSec", "installs",
 )
 
 
@@ -56,15 +56,18 @@ def latest_metrics(ad_id, snapshots):
 
 
 def derive(metrics):
+    # Hook rate: share of impressions still watching after the opening.
+    # TikTok reports 2-second views; Meta reports 3-second plays.
+    hooked = metrics["views2s"] if metrics["views2s"] is not None else metrics["views3s"]
     return {
         "ctr": ratio(metrics["clicks"], metrics["impressions"]),
         "cpc": ratio(metrics["spend"], metrics["clicks"]),
         "cpi": ratio(metrics["spend"], metrics["installs"]),
         "installRate": ratio(metrics["installs"], metrics["clicks"]),
-        # Hook rate: share of impressions still watching at 2s.
-        "hookRate": ratio(metrics["views2s"], metrics["impressions"]),
+        "hookRate": ratio(hooked, metrics["impressions"]),
+        "hookSeconds": 2 if metrics["views2s"] is not None else (3 if metrics["views3s"] is not None else None),
         # Hold rate: of those hooked, share still there at 6s.
-        "holdRate": ratio(metrics["views6s"], metrics["views2s"]),
+        "holdRate": ratio(metrics["views6s"], hooked),
     }
 
 
@@ -110,17 +113,22 @@ def build(data_dir):
     spend = sum(ad["metrics"]["spend"] or 0 for ad in ads)
     installs = sum(ad["metrics"]["installs"] or 0 for ad in ads)
     clicks = sum(ad["metrics"]["clicks"] or 0 for ad in ads)
-    budget = sum((ad.get("budget") or {}).get("amount") or 0 for ad in ads)
+    budgets = [(ad.get("budget") or {}).get("amount") for ad in ads]
 
     return {
         "builtAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "lastPull": snapshots[-1]["date"] if snapshots else None,
         "totals": {
             "spend": round(spend, 2),
-            "budget": round(budget, 2),
+            # Only a real total when every ad has a known budget.
+            "budget": round(sum(budgets), 2) if budgets and None not in budgets else None,
             "installs": installs,
             "clicks": clicks,
             "cpi": ratio(spend, installs),
+            # Ads whose spend we couldn't read, so the totals are a floor.
+            "spendUnknown": [ad["name"] for ad in ads if ad["metrics"]["spend"] is None],
+            # Ads whose links carry no campaign token, so installs can't be counted.
+            "untracked": [ad["name"] for ad in ads if not ad.get("campaignToken")],
         },
         "series": spend_series(ads, snapshots),
         "ads": ads,

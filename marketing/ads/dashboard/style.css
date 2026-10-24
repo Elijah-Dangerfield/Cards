@@ -100,6 +100,19 @@ h3 { font-size: 15px; font-weight: 600; }
 .next h2 { font-size: 20px; font-weight: 650; }
 .next p:last-child { color: var(--ink-2); max-width: 70ch; }
 
+.gaps {
+  background: var(--surface);
+  border: 1px solid var(--ring);
+  border-left: 3px solid var(--warning);
+  border-radius: 14px;
+  padding: 16px 20px;
+  display: grid;
+  gap: 8px;
+}
+.gaps .eyebrow { color: var(--warning); }
+.gaps ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--ink-2); }
+.gaps strong { color: var(--ink); font-weight: 600; }
+
 .headline { color: var(--ink-2); font-size: 16px; max-width: 80ch; }
 
 .tiles {

@@ -18,7 +18,7 @@ const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&a
 const fmt = {
   money: (v) => (v == null ? "—" : `$${v.toLocaleString(undefined, { minimumFractionDigits: v < 100 ? 2 : 0, maximumFractionDigits: 2 })}`),
   int: (v) => (v == null ? "—" : Math.round(v).toLocaleString()),
-  pct: (v) => (v == null ? "—" : `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`),
+  pct: (v) => (v == null ? "—" : `${(v * 100).toFixed(v < 0.01 ? 2 : v < 0.1 ? 1 : 0)}%`),
   date: (iso) => (iso ? new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—"),
 };
 
@@ -52,6 +52,7 @@ function render(data) {
   }
   $("headline").textContent = report.headline || "";
 
+  renderGaps(report.gaps || []);
   renderTiles(data.totals);
   renderSpendChart(data);
   renderCpiChart(data.ads);
@@ -60,29 +61,42 @@ function render(data) {
   renderExperiments(report.experiments || []);
 }
 
+// Each gap is { what, fix }: something the totals can't see, and how to close it.
+function renderGaps(gaps) {
+  $("gaps").hidden = gaps.length === 0;
+  $("gaps-list").innerHTML = gaps
+    .map((g) => `<li><strong>${escapeHtml(g.what)}</strong>${g.fix ? ` ${escapeHtml(g.fix)}` : ""}</li>`)
+    .join("");
+}
+
 function renderTiles(t) {
+  const partial = (t.spendUnknown || []).length > 0;
+  const allUntracked = (t.untracked || []).length > 0 && !t.installs;
   const used = t.budget ? Math.min(t.spend / t.budget, 1) : 0;
+  const spentDetail = partial
+    ? `plus unknown spend on ${t.spendUnknown.length} ad${t.spendUnknown.length === 1 ? "" : "s"}`
+    : t.budget != null ? `of ${fmt.money(t.budget)} budgeted` : "budget not known for every ad";
   $("tiles").innerHTML = `
     <div class="tile">
       <span class="label">Spent</span>
-      <span class="value">${fmt.money(t.spend)}</span>
-      <span class="detail">of ${fmt.money(t.budget)} budgeted</span>
-      <div class="meter" role="img" aria-label="${Math.round(used * 100)}% of budget spent"><span style="width:${used * 100}%"></span></div>
+      <span class="value">${fmt.money(t.spend)}${partial ? "+" : ""}</span>
+      <span class="detail">${spentDetail}</span>
+      ${t.budget != null && !partial ? `<div class="meter" role="img" aria-label="${Math.round(used * 100)}% of budget spent"><span style="width:${used * 100}%"></span></div>` : ""}
     </div>
     <div class="tile">
       <span class="label">Installs</span>
-      <span class="value">${fmt.int(t.installs)}</span>
-      <span class="detail">from App Store campaign links</span>
+      <span class="value">${allUntracked ? "—" : fmt.int(t.installs)}</span>
+      <span class="detail">${allUntracked ? "not measurable yet: no ad link carries a campaign token" : "from App Store campaign links"}</span>
     </div>
     <div class="tile">
       <span class="label">Cost per install</span>
       <span class="value">${fmt.money(t.cpi)}</span>
-      <span class="detail">across every platform</span>
+      <span class="detail">${t.cpi == null ? "needs installs first" : "across every platform"}</span>
     </div>
     <div class="tile">
       <span class="label">Clicks</span>
       <span class="value">${fmt.int(t.clicks)}</span>
-      <span class="detail">${t.clicks && t.spend ? `${fmt.money(t.spend / t.clicks)} each` : "&nbsp;"}</span>
+      <span class="detail">${t.clicks && t.spend && !partial ? `${fmt.money(t.spend / t.clicks)} each` : "&nbsp;"}</span>
     </div>`;
 }
 
@@ -224,7 +238,7 @@ function renderTable(ads) {
     return `<tr>
       <td>
         <div class="ad-name">${escapeHtml(a.name)}</div>
-        <div class="ad-sub"><i class="swatch" style="background:${platformColor(a.platform)}"></i>${escapeHtml(platformLabel(a.platform))} · ${escapeHtml(a.status || "")} · ${fmt.date(a.start)}–${fmt.date(a.end)}</div>
+        <div class="ad-sub"><i class="swatch" style="background:${platformColor(a.platform)}"></i>${[platformLabel(a.platform), a.status, a.start || a.end ? `${fmt.date(a.start)}–${fmt.date(a.end)}` : null].filter(Boolean).map(escapeHtml).join(" · ")}</div>
         ${a.verdict?.why ? `<div class="why">${escapeHtml(a.verdict.why)}</div>` : ""}
       </td>
       <td>${verdictChip(a.verdict)}</td>
@@ -234,7 +248,7 @@ function renderTable(ads) {
       <td class="num">${fmt.money(d.cpc)}</td>
       <td class="num">${fmt.int(m.installs)}</td>
       <td class="num">${fmt.money(d.cpi)}</td>
-      <td class="num">${fmt.pct(d.hookRate)}</td>
+      <td class="num">${fmt.pct(d.hookRate)}${d.hookRate != null && d.hookSeconds ? ` <span class="muted">${d.hookSeconds}s</span>` : ""}</td>
       <td class="num">${fmt.pct(d.holdRate)}</td>
     </tr>`;
   }).join("");

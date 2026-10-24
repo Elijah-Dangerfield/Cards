@@ -31,9 +31,11 @@ Read **lifetime** numbers (not "last 7 days") so snapshots stay cumulative. For 
 **TikTok** (Claude in Chrome, account `managerUrl`): Campaigns → Ad tab, date range = lifetime. Destination clicks are the "Clicks (destination)" column. For video metrics add the columns (Custom columns → Video engagement: 2-second views, 6-second views, 100% video views, average play time) or use Video insights.
 - The Ads Manager drops fast typed input. Paste via `pbcopy` + cmd+v.
 
-**Instagram / Meta** (Claude in Chrome, adsmanager.facebook.com): check every ad account in the switcher and the business portfolio. Ads boosted from inside the Instagram app can sit under a different ad account than the owner's personal one. If none are reachable, say so and ask which login or account ran them; don't guess.
+**Instagram / Meta** (Claude in Chrome, adsmanager.facebook.com): check every ad account in the switcher and the business portfolio. The owner's ads so far were **boosted from the @nightjarlabs Instagram account**, which isn't under the Meta login Chrome reaches. For those, ask the owner for the boost's insights from the Instagram app (Ad → View insights): amount spent, dates, views, reach, 3-second plays, website visits. Meta reports 3-second plays, not 2-second views: record them as `views3s`.
 
 **Reddit**: Claude in Chrome blocks reddit.com outright. Ask the owner to export a report (Reddit Ads → Reports → lifetime, ad level → Export CSV) into `marketing/ads/data/imports/reddit/`, then read the CSV.
+
+**Screenshots from the owner** are a fine source too. Record exactly what's visible, note the date range shown (a 7-day view is not lifetime), and put anything missing in the report's `gaps` rather than guessing.
 
 **Any platform as a fallback**: a CSV export dropped in `data/imports/<platform>/` works the same way. Read the newest file; note its date as the snapshot source.
 
@@ -81,6 +83,7 @@ These thresholds are starting points for a small budget. Say so when a call is c
 Then write `marketing/ads/data/report.json`:
 
 - `headline`: one sentence, the state of things in plain words.
+- `gaps`: `[{ "what", "fix" }]` for every hole in the numbers (unknown spend, a non-lifetime date range, links without campaign tokens). The dashboard shows these right under "Do next", so a partial total never reads as the whole story.
 - `nextAction`: **one** action with `title` and `why`. The single highest-value move (shift budget, re-cut an opening, add a campaign token, launch a variant). Not a list.
 - `verdicts`: `{ "<ad id>": { "verdict", "why" } }`
 - `creativeNotes`: `{ "<ad id>": { "strip": "creatives/<id>.jpg", "dropOff", "notes": [...] } }`
