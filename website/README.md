@@ -13,7 +13,8 @@ Marketing site for Downcard, built with [Astro](https://astro.build).
 
 ## Structure
 
-- `src/pages/` — one file per route: `index` (home), `terms`, `privacy`, `contact`, `thanks`
+- `src/pages/` — one file per route: `index` (home), `terms`, `privacy`, `contact`, `thanks`, `get`
+- `src/lib/store-links.ts` — store links that carry an ad campaign through to Apple and Google (`npm test`)
 - `src/layouts/Layout.astro` — shared shell (fonts, theme, nav, footer, meta tags)
 - `src/components/` — `Nav` and `Footer`
 - `src/styles/global.css` — theme variables and responsive rules
@@ -33,3 +34,7 @@ triggers a confirmation email from FormSubmit to that address. Click the link in
 it once to activate delivery. After a successful submit, users are redirected to
 `/thanks` via the form's `_next` field — update that URL if the production domain
 changes.
+
+## Smart link for ads
+
+`https://downcard.app/get/?c=<campaign>&p=<product page>` sends iPhones to the App Store and Android phones to Google Play, tagged with the campaign so both stores count installs per ad. A computer sees both buttons. Any page reached with `?c=` keeps tagging its store buttons for the rest of the visit.

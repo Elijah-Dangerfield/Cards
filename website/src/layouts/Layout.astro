@@ -40,3 +40,25 @@ const {
     <Footer />
   </body>
 </html>
+
+<script>
+  // Someone who arrives from a tagged ad link (?c=...) and then taps a store
+  // button should still be counted for that campaign, on any page they reach.
+  import { APP_STORE_URL, PLAY_STORE_URL, appStoreUrl, playStoreUrl, readCampaign } from '../lib/store-links';
+
+  const KEY = 'downcard.campaign';
+  let search = location.search;
+  try {
+    if (readCampaign(search)) sessionStorage.setItem(KEY, search);
+    else search = sessionStorage.getItem(KEY) ?? '';
+  } catch {
+    // Storage can be off in some in-app browsers; the current URL still works.
+  }
+  const tag = readCampaign(search);
+  if (tag) {
+    for (const link of document.querySelectorAll<HTMLAnchorElement>('a[href]')) {
+      if (link.href.startsWith(APP_STORE_URL)) link.href = appStoreUrl(tag);
+      else if (link.href.startsWith(PLAY_STORE_URL)) link.href = playStoreUrl(tag);
+    }
+  }
+</script>

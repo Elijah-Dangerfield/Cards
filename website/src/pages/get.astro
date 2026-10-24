@@ -1,0 +1,87 @@
+---
+// Smart link for ads: downcard.app/get?c=<campaign>&p=<product page>
+// iPhone goes to the App Store, Android to Google Play, both tagged with the
+// campaign so each store counts installs per ad. Everyone else sees buttons.
+import '../styles/global.css';
+import { APP_STORE_URL, PLAY_STORE_URL } from '../lib/store-links';
+---
+
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="/uploads/app-icon.png" />
+    <title>Get Downcard</title>
+    <meta name="description" content="Downcard is poker for the group chat. No real money, no house, no catch." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <main class="get" id="choose" hidden>
+      <img src="/uploads/app-icon.png" alt="" width="88" height="88" />
+      <h1>Get Downcard</h1>
+      <p>Poker for the group chat. No real money, no house, no catch.</p>
+      <div class="stores">
+        <a id="app-store" href={APP_STORE_URL}>App Store</a>
+        <a id="google-play" href={PLAY_STORE_URL}>Google Play</a>
+      </div>
+      <a class="home" href="/">More about Downcard</a>
+    </main>
+    <noscript>
+      <main class="get">
+        <h1>Get Downcard</h1>
+        <div class="stores">
+          <a href={APP_STORE_URL}>App Store</a>
+          <a href={PLAY_STORE_URL}>Google Play</a>
+        </div>
+      </main>
+    </noscript>
+  </body>
+</html>
+
+<script>
+  import { appStoreUrl, platformOf, playStoreUrl, readCampaign, storeUrlFor } from '../lib/store-links';
+
+  const tag = readCampaign(location.search);
+  const destination = storeUrlFor(platformOf(navigator.userAgent, navigator.maxTouchPoints), tag);
+  if (destination) {
+    location.replace(destination);
+  } else {
+    (document.getElementById('app-store') as HTMLAnchorElement).href = appStoreUrl(tag);
+    (document.getElementById('google-play') as HTMLAnchorElement).href = playStoreUrl(tag);
+    document.getElementById('choose')!.hidden = false;
+  }
+</script>
+
+<style>
+  .get {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 32px;
+    text-align: center;
+    background: linear-gradient(160deg, #ebd277 0%, #9acf9c 52%, #5ac6b4 100%);
+    color: #1c1a18;
+    font-family: Poppins, system-ui, sans-serif;
+  }
+  .get[hidden] { display: none; }
+  .get img { border-radius: 22px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2); }
+  .get h1 { font: 800 clamp(32px, 7vw, 48px) Poppins; letter-spacing: -0.03em; margin: 8px 0 0; }
+  .get p { font: 500 18px/1.5 Poppins; color: rgba(28, 26, 24, 0.7); max-width: 380px; margin: 0; }
+  .stores { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 12px; }
+  .stores a {
+    background: #0d0c0b;
+    color: #f5f0e6;
+    padding: 14px 28px;
+    border-radius: 16px;
+    font: 700 18px Poppins;
+    text-decoration: none;
+  }
+  .home { font: 500 15px Poppins; color: rgba(28, 26, 24, 0.7); margin-top: 8px; }
+</style>
