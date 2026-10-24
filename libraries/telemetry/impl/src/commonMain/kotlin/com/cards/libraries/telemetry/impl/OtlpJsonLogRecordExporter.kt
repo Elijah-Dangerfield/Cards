@@ -2,9 +2,12 @@ package com.dangerfield.cards.libraries.telemetry.impl
 
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.LogLevel
 import io.ktor.client.HttpClient
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
@@ -21,6 +24,9 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import kotlin.concurrent.atomics.AtomicInt
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.concurrent.atomics.incrementAndFetch
 
 /**
  * OTLP/HTTP JSON log exporter backed by our own Ktor client. Replaces the
@@ -33,12 +39,15 @@ import kotlinx.serialization.json.putJsonObject
  * Wire format is the OTLP JSON mapping (proto3 JSON: int64 as string,
  * attribute values as typed one-of objects).
  */
+@OptIn(ExperimentalAtomicApi::class)
 internal class OtlpJsonLogRecordExporter(
     private val baseUrl: String,
     private val client: HttpClient,
 ) : LogRecordExporter {
 
     private val logger = KLog.withTag(GrafanaLogTree.EXPORT_TAG)
+
+    private val permanentRejections = AtomicInt(0)
 
     override suspend fun export(telemetry: List<ReadableLogRecord>): OperationResultCode {
         if (telemetry.isEmpty()) return OperationResultCode.Success
@@ -50,11 +59,7 @@ internal class OtlpJsonLogRecordExporter(
             when {
                 response.status.isSuccess() -> OperationResultCode.Success
                 response.status.isPermanentRejection() -> {
-                    logger.e {
-                        "Grafana rejected ${telemetry.size} log record(s) with " +
-                            "${response.status.value}; dropping the batch. Nothing behind it " +
-                            "would ship until it did."
-                    }
+                    reportPermanentRejection(response, telemetry.size)
                     // Success means "this batch is settled, delete it". A lie
                     // about the gateway, but the truthful answer keeps a batch
                     // Grafana will never accept at the head of the disk buffer
@@ -70,6 +75,40 @@ internal class OtlpJsonLogRecordExporter(
                 }
             }
         }.getOrElse { OperationResultCode.Failure }
+    }
+
+    /**
+     * The response body is the only thing that says *what* Grafana objected
+     * to — which field, which timestamp — so it rides on the line, truncated,
+     * as structured data rather than in the message, where a near-unique
+     * string would split one condition into an issue per occurrence.
+     *
+     * Read inside its own [Catching]: a body read that fails must not turn a
+     * batch we have already decided to drop back into a Failure the disk
+     * buffer replays forever (the ENG-80 deadlock this branch exists to break).
+     *
+     * The first refusal of the process reports at Error, the rest at Warn.
+     * Every cause of a permanent rejection — revoked token, skewed clock,
+     * a record shape the gateway won't take — refuses batch after batch for
+     * as long as the process lives, and that is one condition worth one alert,
+     * not an alert per batch. The Warn lines still breadcrumb, and carry the
+     * running count, so the scale of the drop stays readable.
+     */
+    private suspend fun reportPermanentRejection(response: HttpResponse, records: Int) {
+        val reason = Catching { response.bodyAsText() }
+            .getOrNull()
+            ?.ifBlank { "<empty>" }
+            ?.truncated(MAX_RESPONSE_BODY_CHARS)
+            ?: "<unreadable>"
+        val rejections = permanentRejections.incrementAndFetch()
+        val level = if (rejections == 1) LogLevel.Error else LogLevel.Warn
+        logger.log(level) { scope ->
+            scope.extra("records", records)
+            scope.extra("rejected_batches", rejections)
+            scope.extra("response_body", reason)
+            "Grafana permanently refused a log batch with ${response.status.value}; " +
+                "dropping it. Nothing behind it would ship until it did."
+        }
     }
 
     /**
@@ -138,11 +177,35 @@ internal class OtlpJsonLogRecordExporter(
                             is Long -> put("intValue", value.toString())
                             is Float -> put("doubleValue", value.toDouble())
                             is Double -> put("doubleValue", value)
-                            else -> put("stringValue", value.toString())
+                            else -> put(
+                                "stringValue",
+                                value.toString().truncated(MAX_ATTRIBUTE_VALUE_CHARS),
+                            )
                         }
                     }
                 }
             }
         }
+    }
+
+    private fun String.truncated(max: Int): String =
+        if (length <= max) this else "${take(max)}...[+${length - max} chars]"
+
+    private companion object {
+        /**
+         * Enough of Loki's refusal to name the field or the timestamp it
+         * objected to, short enough to put on a Sentry event.
+         */
+        const val MAX_RESPONSE_BODY_CHARS = 512
+
+        /**
+         * Nothing derived from user content or a platform error string reaches
+         * the gateway unbounded — a single multi-kilobyte value can cost the
+         * whole batch, and the records in it are the ones describing whatever
+         * went wrong. 512 keeps the front of an iOS NSError dump, where the
+         * domain, code and description are; the marker reports what the full
+         * length was, which is itself the answer to "was this too big?".
+         */
+        const val MAX_ATTRIBUTE_VALUE_CHARS = 512
     }
 }

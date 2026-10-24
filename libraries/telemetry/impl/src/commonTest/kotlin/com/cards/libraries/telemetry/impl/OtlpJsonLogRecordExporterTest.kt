@@ -1,5 +1,10 @@
 package com.dangerfield.cards.libraries.telemetry.impl
 
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.LogEntry
+import com.dangerfield.cards.libraries.core.logging.LogId
+import com.dangerfield.cards.libraries.core.logging.LogLevel
+import com.dangerfield.cards.libraries.core.logging.LogTree
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -18,6 +23,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -49,6 +56,18 @@ class OtlpJsonLogRecordExporterTest {
         override val spanContext: SpanContext get() = error("not used by the serializer")
         override val instrumentationScopeInfo: InstrumentationScopeInfo =
             FakeScope("cards-client", "0.1.0")
+    }
+
+    private val logs = CapturingLogTree()
+
+    @BeforeTest
+    fun plantLogTree() {
+        KLog.plant(logs)
+    }
+
+    @AfterTest
+    fun clearLogTrees() {
+        KLog.clearTrees()
     }
 
     private fun exporter(engine: MockEngine) =
@@ -165,5 +184,97 @@ class OtlpJsonLogRecordExporterTest {
 
             assertEquals(OperationResultCode.Failure, result, "$status should be retried")
         }
+    }
+
+    @Test
+    fun permanentRejection_namesWhatGrafanaObjectedTo() = runTest {
+        // ENG-82 (CARDS-CZ): five 400s in two seconds told us only "400". The
+        // objection itself is in the body, so the next occurrence has to carry it.
+        val objection = "entry out of order for stream {service_name=\"cards-client\"}: " +
+            "x".repeat(900)
+        val engine = MockEngine { respond(objection, HttpStatusCode.BadRequest) }
+
+        val result = exporter(engine).export(listOf(FakeRecord("app.launched", emptyMap())))
+
+        assertEquals(OperationResultCode.Success, result)
+        val entry = logs.entries.single()
+        assertTrue("400" in entry.message!!, "the status belongs in the message: ${entry.message}")
+        val body = entry.context.extras["response_body"] as String
+        assertTrue(body.startsWith("entry out of order for stream"), body)
+        assertTrue(body.endsWith("...[+${objection.length - BODY_CAP} chars]"), body)
+        assertEquals(1, entry.context.extras["records"])
+    }
+
+    @Test
+    fun permanentRejection_bodyUnderTheCapIsNotMarkedTruncated() = runTest {
+        val engine = MockEngine { respond("timestamp too old", HttpStatusCode.BadRequest) }
+
+        exporter(engine).export(listOf(FakeRecord("app.launched", emptyMap())))
+
+        assertEquals("timestamp too old", logs.entries.single().context.extras["response_body"])
+    }
+
+    @Test
+    fun permanentRejection_withoutABodySaysSoRatherThanLookingLikeOne() = runTest {
+        // A blank extra reads like "we logged the body and it was fine". It
+        // means the gateway told us nothing, which is a different problem.
+        val engine = MockEngine { respond("", HttpStatusCode.BadRequest) }
+
+        val result = exporter(engine).export(listOf(FakeRecord("app.launched", emptyMap())))
+
+        assertEquals(OperationResultCode.Success, result)
+        assertEquals("<empty>", logs.entries.single().context.extras["response_body"])
+    }
+
+    @Test
+    fun permanentRejection_alertsOnceThenDropsToWarn() = runTest {
+        // A revoked token or a skewed clock refuses every batch for the life of
+        // the process. One condition, one Sentry event; the repeats stay
+        // readable as breadcrumbs carrying the running count.
+        val engine = MockEngine { respondError(HttpStatusCode.BadRequest) }
+        val exporter = exporter(engine)
+
+        repeat(3) { exporter.export(listOf(FakeRecord("app.launched", emptyMap()))) }
+
+        assertEquals(
+            listOf(LogLevel.Error, LogLevel.Warn, LogLevel.Warn),
+            logs.entries.map { it.level },
+        )
+        assertEquals(listOf(1, 2, 3), logs.entries.map { it.context.extras["rejected_batches"] })
+    }
+
+    @Test
+    fun payload_capsOversizedAttributeValues() {
+        // An iOS DarwinHttpRequestException message is an NSError dump running to
+        // many hundreds of characters, and klogForwardingEnabled ships it as
+        // exception_message. Nothing user-content-derived goes to the gateway
+        // unbounded, whatever the gateway happens to accept today.
+        val dump = "Error Domain=NSURLErrorDomain Code=-1001 " + "y".repeat(2_000)
+        val record = FakeRecord("app.launched", mapOf("exception_message" to dump))
+
+        val payload = exporter(MockEngine { respond("") }).payload(listOf(record))
+
+        val attrs = payload["resourceLogs"]!!.jsonArray.single().jsonObject["scopeLogs"]!!
+            .jsonArray.single().jsonObject["logRecords"]!!
+            .jsonArray.single().jsonObject["attributes"]!!.jsonArray
+        val value = attrs.single().jsonObject["value"]!!
+            .jsonObject["stringValue"]!!.jsonPrimitive.content
+        assertTrue(value.startsWith("Error Domain=NSURLErrorDomain Code=-1001"), value)
+        assertTrue(value.endsWith("...[+${dump.length - ATTRIBUTE_CAP} chars]"), value)
+        assertEquals(ATTRIBUTE_CAP, value.substringBefore("...[+").length)
+    }
+
+    private class CapturingLogTree : LogTree() {
+        val entries = mutableListOf<LogEntry>()
+
+        override fun log(entry: LogEntry): LogId? {
+            entries += entry
+            return null
+        }
+    }
+
+    private companion object {
+        const val BODY_CAP = 512
+        const val ATTRIBUTE_CAP = 512
     }
 }
