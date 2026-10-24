@@ -13,12 +13,12 @@ Marketing site for Downcard, built with [Astro](https://astro.build).
 
 ## Structure
 
-- `src/pages/` — one file per route: `index` (home), `terms`, `privacy`, `contact`, `thanks`, `get`
-- `src/lib/store-links.ts` — store links that carry an ad campaign through to Apple and Google (`npm test`)
-- `src/layouts/Layout.astro` — shared shell (fonts, theme, nav, footer, meta tags)
-- `src/components/` — `Nav` and `Footer`
-- `src/styles/global.css` — theme variables and responsive rules
-- `public/uploads/` — images (app icon, hero phone, screenshots)
+- `src/pages/`: one file per route: `index` (home), `terms`, `privacy`, `contact`, `thanks`, `get`
+- `src/lib/store-links.ts`: store links that carry an ad campaign through to Apple and Google (`npm test`)
+- `src/layouts/Layout.astro`: shared shell (fonts, theme, nav, footer, meta tags)
+- `src/components/`: `Nav` and `Footer`
+- `src/styles/global.css`: theme variables and responsive rules
+- `public/uploads/`: images (app icon, hero phone, screenshots)
 
 The site is dark-themed by default. Theme variables for both light and dark live
 in `global.css`; switch by changing `data-theme` on the `<html>` element in the layout.

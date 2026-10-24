@@ -12,6 +12,7 @@ test('reads campaign, source from the prefix, and a known product page', () => {
   assert.deepEqual(readCampaign('?c=tiktok-friends15s-v1&p=friends'), {
     campaign: 'tiktok-friends15s-v1',
     source: 'tiktok',
+    medium: 'paid',
     page: 'friends',
   });
 });
@@ -20,6 +21,7 @@ test('accepts ct and utm_source aliases', () => {
   assert.deepEqual(readCampaign('?ct=ig-boost-v2&utm_source=instagram'), {
     campaign: 'ig-boost-v2',
     source: 'instagram',
+    medium: 'paid',
     page: undefined,
   });
 });
@@ -49,6 +51,13 @@ test('Play link carries the campaign as UTM fields in the referrer', () => {
   assert.equal(referrer.get('utm_source'), 'reddit');
   assert.equal(referrer.get('utm_medium'), 'paid');
   assert.equal(referrer.get('utm_campaign'), 'reddit-friends15s-v1');
+});
+
+test('bio and post links can mark themselves as social, not paid', () => {
+  const url = new URL(playStoreUrl(readCampaign('?c=ig-bio&m=social')));
+  const referrer = new URLSearchParams(url.searchParams.get('referrer') ?? '');
+  assert.equal(referrer.get('utm_medium'), 'social');
+  assert.equal(referrer.get('utm_source'), 'ig');
 });
 
 test('untagged links stay plain', () => {

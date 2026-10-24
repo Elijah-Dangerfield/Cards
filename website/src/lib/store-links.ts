@@ -21,21 +21,25 @@ const CAMPAIGN_PATTERN = /^[a-z0-9][a-z0-9_-]{0,29}$/i;
 export interface Campaign {
   campaign: string;
   source: string;
+  medium: string;
   page?: string;
 }
 
 export type Platform = 'ios' | 'android' | 'other';
 
-/** Reads ?c= (or ?ct=), ?s= (or ?utm_source=) and ?p= from a query string. */
+/** Reads ?c= (or ?ct=), ?s= (or ?utm_source=), ?m= and ?p= from a query string. */
 export function readCampaign(search: string): Campaign | null {
   const params = new URLSearchParams(search);
   const campaign = params.get('c') ?? params.get('ct') ?? '';
   if (!CAMPAIGN_PATTERN.test(campaign)) return null;
   const sourceParam = params.get('s') ?? params.get('utm_source') ?? '';
   const source = CAMPAIGN_PATTERN.test(sourceParam) ? sourceParam : campaign.split(/[-_]/)[0];
+  // Paid ads are the default; bio and post links pass m=social.
+  const mediumParam = params.get('m') ?? '';
+  const medium = CAMPAIGN_PATTERN.test(mediumParam) ? mediumParam : 'paid';
   const pageParam = params.get('p') ?? '';
   const page = pageParam in PRODUCT_PAGES ? pageParam : undefined;
-  return { campaign, source, page };
+  return { campaign, source, medium, page };
 }
 
 export function appStoreUrl(tag: Campaign | null): string {
@@ -52,7 +56,7 @@ export function playStoreUrl(tag: Campaign | null): string {
   if (!tag) return PLAY_STORE_URL;
   const referrer = new URLSearchParams({
     utm_source: tag.source,
-    utm_medium: 'paid',
+    utm_medium: tag.medium,
     utm_campaign: tag.campaign,
   });
   return `${PLAY_STORE_URL}&referrer=${encodeURIComponent(referrer.toString())}`;
