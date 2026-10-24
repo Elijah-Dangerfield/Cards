@@ -27,3 +27,24 @@ a dead link to the national council is worse than no link.
 `Router.openWebLink` → the iOS `WebLinkLauncher`. Check whether `canOpenURL` is consulted at all for
 an `https` URL (it does not need to be) and whether `LSApplicationQueriesSchemes` is declared. The
 OS declining should not log at ERROR.
+
+## What the fix found: the `canOpenURL` theory was wrong
+
+`canOpenURL` was already gone, removed in `ca77c1af` (2026-09-03) for exactly the reason the lineage
+landmine describes, and nothing re-introduced it: `IosWebLinkLauncher` opens unconditionally, and
+`apps/ios/iosApp/Info.plist` declares no `LSApplicationQueriesSchemes` at all. So `0.6.0` had no
+gate. The ERROR line is the honest refusal path, not a self-inflicted one: `openURL` ran, and the
+system itself came back `false`.
+
+That matters because the two problems are different. A gate is ours to delete. A refusal is iOS
+saying no other app would take the URL, and **why** it said no is not in this event. A restricted
+device (Screen Time, Content & Privacy, web content), a wedged or unavailable default browser, or
+the app not being active when the call landed all look identical from here. One event with no device
+in hand cannot separate them.
+
+So the fix stops depending on the answer. `openURL` still goes first, because it is what sends an
+`apps.apple.com` link to the App Store app rather than a web view of the listing, and what lets
+`cards://` and `mailto:` reach their handlers. When it refuses an http(s) URL, the launcher now
+presents `SFSafariViewController` instead, which needs no other app's cooperation. The log drops to
+Warn: `minEventLevel` is Error, so that one level is the whole reason this became a Sentry issue
+rather than a breadcrumb.

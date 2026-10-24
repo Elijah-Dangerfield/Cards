@@ -808,6 +808,16 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 **Expected:** Every screen renders and no screen dies on arrival. Before ENG-78 the multiplayer route crashed outright with `NoClassDefFoundError: java/time/ZoneOffset` the moment a date was formatted, because core library desugaring was off. There is nothing visible to check when it works, which is exactly why this is a device test: a JVM unit test resolves `java.time` from the test classpath at any API level and CI never sees it. (Covers todo ENG-78.)
 
+### `ENG-83` 🚨 🍎 Every outbound link opens on iOS, including the problem-gambling resource
+
+**State:** a real iOS device, online. Run it twice: once with Safari as the default browser, once with a third-party browser (Chrome / Firefox) set as the default under Settings → Apps → Default Browser App, since that is what changes how the system answers us.
+
+1. Open a chip pack in the Shop so the purchase sheet appears, and tap the responsible-play / problem-gambling link on it.
+2. Profile → Settings: tap Help and FAQ, Privacy, Terms, and the responsible-play row in turn.
+3. Trigger the "leave a review" and "a newer version is available" prompts on Home (the QA menu can force the upgrade one).
+
+**Expected:** Every link lands somewhere. The four web pages open in a browser: the default browser if the system accepts the hand-off, otherwise an in-app Safari sheet with a Done button that returns to the app. The two store links open the **App Store app** on the Downcard listing, not a web view of it. Nothing is ever a dead tap. Before ENG-83 the problem-gambling link did nothing on at least one device and only left an error in Sentry (CARDS-CY), and before the September fix every link on this list died the moment a third-party browser was the default. (Covers todo ENG-83.)
+
 ### `RIV-1` ⚠️ 📱 The head-to-head card appears after a second table with the same person, and Rematch sets one up
 
 **State:** two accounts on two devices (or one device plus a second account), both signed in. `rivalries.enabled` is on (the default).
