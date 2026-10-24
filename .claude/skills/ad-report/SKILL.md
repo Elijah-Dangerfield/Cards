@@ -51,9 +51,13 @@ Write `marketing/ads/data/snapshots/<YYYY-MM-DD>.json`:
 
 Same-day reruns overwrite that day's file.
 
+Each ledger ad can carry a ready-made `trackedLink` (and `plannedCampaignToken`) before it goes live. When the live ad switches to it, move the token into `campaignToken`.
+
 **Every new ad's link needs a campaign token**, or its installs can't be counted. Build it as the App Store (or custom product page) URL plus `pt=120164045&ct=<ad id>&mt=8`, e.g. `https://apps.apple.com/us/app/downcard-poker-with-friends/id6788423648?ppid=<page id>&pt=120164045&ct=tiktok-friends15s-v1&mt=8`. `pt` is Nightjar Labs' provider token (public, it's in every link); `ct` is up to 30 characters, use the ledger `id`. UTM tags do nothing on App Store links; ignore the ad platforms' UTM warnings.
 
 ## 3. Review the creatives
+
+Ads that share a video carry the same `creative.id` in the ledger. Review each creative **once**, give its note a `title` naming the creative, and fold in whichever platforms' retention you have. When the creative is shared, differences between those ads are the platform and audience, not the ad: say so in the verdicts.
 
 For each ad whose creative has no notes yet, or whose numbers moved enough to change the story:
 
@@ -100,6 +104,17 @@ python3 marketing/ads/build.py
 ```
 
 Then open the dashboard with the `ads-dashboard` preview server (`.claude/launch.json`, port 4610) at `/dashboard/`. The example data is at `/dashboard/?example`. Check it renders and the "do next" card says what you meant.
+
+## What it can and can't read (as of Oct 2026)
+
+| Source | How | Reliable? |
+|---|---|---|
+| TikTok | Ads Manager in Chrome | Yes. Video columns (2s/6s views) not yet read on a spending ad; check the column names the first time. |
+| Instagram boosts | instagram.com → Ad tools → View insights | Yes, tested. |
+| Reddit | Owner's CSV or screenshot | Manual. reddit.com is blocked in Chrome. Confirm the date range is lifetime. |
+| Installs | App Store Connect → Analytics → Campaigns | Only for links with `ct=` and only after 5+ installs per campaign. |
+
+If a run can't read a source, put it in `gaps` and keep that ad's last known numbers. Never let a missing source show as zero.
 
 ## Guardrails
 

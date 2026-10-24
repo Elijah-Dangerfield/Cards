@@ -260,7 +260,7 @@ function renderCreativeNotes(ads) {
   $("creative-notes").innerHTML = withNotes.map((a) => {
     const n = a.creativeNotes;
     return `<article class="card">
-      <h3>${escapeHtml(a.name)}</h3>
+      <h3>${escapeHtml(n.title || a.name)}</h3>
       ${n.strip ? `<img class="strip" src="../data/${escapeHtml(n.strip)}" alt="Frames from ${escapeHtml(a.name)}">` : ""}
       ${n.dropOff ? `<p class="sub">${escapeHtml(n.dropOff)}</p>` : ""}
       <ul>${(n.notes || []).map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul>
