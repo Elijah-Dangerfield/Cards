@@ -31,7 +31,8 @@ Nightly automation uses [`docs/agent/`](docs/agent/) for prompts and the ephemer
 ```shell
 ./gradlew :apps:compose:assembleDebug          # Android
 ./gradlew :apps:compose:compileKotlinIosSimulatorArm64  # iOS Kotlin
-xcodebuild -project apps/ios/iosApp.xcodeproj -scheme iOS -sdk iphonesimulator  # iOS full
+xcodebuild -project apps/ios/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator \
+  -configuration Debug ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build   # iOS full, incl. Swift
 ```
 
 ### Baseline Profile
@@ -226,6 +227,14 @@ class MyVmTest : CoroutineTest() {
 ```
 
 Default dispatcher is `UnconfinedTestDispatcher` — continuations run eagerly so `vm.takeAction(...)` propagates to `vm.state` in the same virtual tick. Override `testDispatcher` in a subclass when you need explicit `runCurrent` / `advanceUntilIdle` control.
+
+**Real HTTP and virtual-time assertions do not mix.** A test that drives a real Ktor call (even
+through `MockEngine`) hands off to Ktor's own threads, and the test body resumes *on one of them*,
+inside a foreign unconfined event loop. Every coroutine the fixture launches after that queues on
+that loop, where `runCurrent()` / `advanceUntilIdle()` can never reach it — the symptom is a
+collector that never starts and virtual time frozen at 0, with no error. Real HTTP is fine in tests
+that don't assert on scheduling; if you need both, build the response object synchronously instead
+of making a call. Cost a full debugging detour on ENG-68.
 
 **Use [Turbine](https://github.com/cashapp/turbine) for Flow assertions.** `:libraries:flowroutines:testing` re-exports it.
 
