@@ -24,14 +24,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
-## ENG-81 [P0] — The App Store build requires iOS 26.1, shutting out older iPhones
-
-**Problem:** The project-level Release config sets `IPHONEOS_DEPLOYMENT_TARGET = 26.1` while Debug sets 18.2 (both untouched since the initial commit). The live listing says "Requires iOS 26.1 or later", so every iPhone below 26.1 can't install Downcard, and the TikTok campaign can only target iOS 18.7+, so some paid clicks land on phones that can't install.
-
-**Acceptance:** Release matches Debug at 18.2 (or a lower floor if the KMP framework and Swift code allow it). A Release build compiles and launches on an iOS 18 simulator, and the next store release's listing shows the new minimum.
-
-**Hints:** `apps/ios/iosApp.xcodeproj/project.pbxproj`, project-level Release config. App Swift code only gates on `#available(iOS 14.0)`; also check the Kotlin/Native framework's minimum and the Fastfile.
-
 ## ENG-36 [P1] — Diagnose the starter-grant "double-miss" and surface reveal health
 
 **Problem:** A new prod user saw neither the onboarding grant number nor the Home welcome-dialog backup, yet got their 10k chips. Why the Home backup didn't fire is unconfirmed (`accountJustCreated` / `welcomeIdentity` race?).
@@ -84,23 +76,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** The deadlock is that `setup-gradle` is `cache-read-only` on `pull_request` events, so PR runs can never reseed what they need, and only a `push`-event run to `main` can. No CI ran 09-21 → 09-28, so GitHub evicted everything for inactivity. Options: raise the timeout, let `main` pushes write the macOS gradle-home cache, or split compile and assemble into separate jobs. Found independently by two agents triaging #157 and #158.
 
-## ENG-71 [P1] — `/_health` cannot say what it is running, so nothing can tell prod is stale
-
-**Problem:** Prod served 17-day-old code twice this year with every dashboard green, because A7 only
-asks whether the server is *silent* and it was answering happily. The blocking half is fixed (see
-`server-deploy-prod.yml`, 2026-10-21: the approval gate no longer holds the concurrency slot, and
-superseded runs cancel). The noticing half is not: a deploy can still sit unapproved indefinitely
-with nobody told.
-
-**Acceptance:** `GET /_health` returns the build SHA it is running, and something compares it to
-`origin/main`. That endpoint currently returns nothing, and it is the one missing piece that makes
-staleness checkable at all, by a dashboard panel, an alert, or a routine.
-
-**Hints:** The SHA is already injected at build time (`CardsBuildConfig.commitSha`, and every client
-record carries `commit_sha`). The server side is the gap. **The cross-project pulse routine this
-belongs to is a separate, larger idea — see `docs/backlog.md` → "Cross-project pulse check".** Do
-not build the routine here; ship the endpoint, which that routine will need regardless.
-
 ## ENG-49 [P1] — The RenderThread text-stall fix did NOT hold on low-end devices
 
 **Problem:** Shipped in `v0.3.0` / build 1209 on 2026-09-21. **Contradicted on 2026-10-01: CARDS-CF (4 events / 2 users) and CARDS-CG (1 event) are both ANRs on 1209 with the same `GrTextBlobRedrawCoordinator::internalRemove` RenderThread stack**, from one vivo V2135 (`device.class: low`, Android 13, 3.8GB) in multiplayer room 434U5F, hands 9 and 23. 7d abnormal exits moved to `{anr: 6, oom: 7}` from `{anr: 1}`. So the fix did not hold on low-end hardware — but 1209 does **not** carry the ENG-55/56/59 perf work, which is sitting unpublished in 0.4.0 (ENG-76), so this is not yet a verdict on the full fix set.
@@ -110,16 +85,6 @@ not build the routine here; ship the endpoint, which that routine will need rega
 **Hints:** Chronology proving 1135 predates the fix is in `docs/agent/feedback-cases/CARDS-C9.md`. Original diagnosis: `docs/plans/renderthread-text-stall.md`, case `CARDS-C1.md`. Sentry: [CARDS-C9](https://elijah-dangerfield.sentry.io/issues/7744693593/), CARDS-C1, CARDS-BZ. 72 commits sit on `main` unshipped, including R8, baseline profiles and the Sentry mapping upload.
 
 If it recurs **on a post-fix build**, the shape to look for is an animation whose value is read during composition (`val x by animateFloatAsState(...)`), which recomposes its whole subtree every frame. Three instances caused this. `AnimatedStateReadInComposition` in `:detekt-rules` now runs (ENG-54) and cleared 19 instances, but it only matches the `by animateFloatAsState(...)` shape — a clean lint is not proof that nothing recomposes per frame. Capture a trace with `scripts/compose-trace.sh`.
-
-## ENG-68 [P2] — Stop treating 429 as an error on background syncers
-
-**Problem:** `isExpectedClientError` allowlists only 401/403 (`ExpectedClientErrors.kt:30`), so a 429 from a background syncer becomes `KLog.e` and a Sentry event. Rate limiting is normal backpressure, not a failure. Worse, `UserScopedSyncCoordinator`'s `RunWhenRetry.exponential()` ladder (`RunWhen.kt:101-108`) does not skip 4xx the way the HTTP retry does (`RetryPolicy.kt:168-173`), so one exhausted bucket costs six more requests and six more Sentry events per foreground — it retries against a bucket it already knows is empty.
-
-**Acceptance:** A 429 on a background sync is a breadcrumb, not an error event, and the coordinator does not retry into a bucket it just exhausted.
-
-**Hints:** Same argument ENG-34/ENG-35 already made for offline and 403. User-facing routes already map 429 sensibly (`MatchmakingRepositoryImpl.kt:49`, `FriendRepositoryImpl.kt:124`); it is only the background syncers that do not. The bucket mis-assignment that triggered this is fixed (equipment sync moved from the 30/hr profile bucket to the 480/hr progression one), so the symptom is gone — but the handling is still wrong and the next mis-sized bucket will look identical.
-
-**Not user-affecting today:** over Loki's full 30-day retention the server returned 429 twelve times, all `deployment_environment=dev`, zero in prod. Prod served 583 equipment syncs in 14 days cleanly.
 
 ## ENG-48 [P2] — Sustained concurrent flushes for one user 500 instead of queueing
 
@@ -244,50 +209,6 @@ counts over 7 days rather than 6 hours and is deliberately sticky. Remaining kno
 `no_data_state: OK`, so a total Loki outage reads healthy on every event-based rule. A "client
 telemetry has gone quiet" watchdog would cover them all at once, and does not exist.
 
-## ENG-82 [P1] — Grafana rejects telemetry with 400 and we cannot tell why
-
-**Problem:** CARDS-CZ, five rejections in two seconds on 2026-10-23, iOS 27.0.1, `cards@0.6.0+1308`,
-one install (`f6d7a420`), ~10 records dropped across batches of 1 to 4. The ENG-80 logging added in
-0.6.0 is doing its job: a permanent 4xx now gets logged and the batch settled instead of blocking
-the queue. But it logs **only the status code**, so the reason Grafana refused is unknowable and the
-underlying defect cannot be fixed from the signal. Other records from the same session (`app.launched`,
-`shop.viewed`, `app.backgrounded`) reached Loki fine, so this is a subset of records, not a dead pipe.
-
-**Not yet known, and worth not guessing:** two candidates fit and neither is confirmed. Oversized
-attribute values (iOS `DarwinHttpRequestException` messages are multi-hundred-character NSError
-dumps, and `klogForwardingEnabled` forwards Warn+ logs with `exception_message` attached) or
-out-of-window timestamps on buffer-replayed records. A dropped-SKU correlation was checked and
-**ruled out**: CARDS-8V is a different install on a different OS and build.
-
-**Acceptance:** the log line names what Grafana objected to (status plus a truncated response body),
-and the class of record that caused it stops being rejected. Watch the rate as iOS 0.6.0 phases out:
-it is currently one of only ~5 iOS installs on 0.6.0, so the share is not small.
-
-**Hints:** `OtlpJsonLogRecordExporter.export` in `:libraries:telemetry:impl` logs the status and
-discards `response.bodyAsText()`. Cap attribute values there too while in the file; an unbounded
-user-content-derived string going to a telemetry gateway is a bad idea independent of this bug.
-Reconsider the ERROR level for a routine permanent-rejection drop, which is what put this in Sentry
-and in the owner's inbox. Case `docs/agent/feedback-cases/CARDS-CZ.md`;
-https://elijah-dangerfield.sentry.io/issues/CARDS-CZ/
-
-## ENG-83 [P1] — iOS refuses to open the problem-gambling resource link
-
-**Problem:** CARDS-CY, 2026-10-22, `cards@0.6.0+1308`, iOS 27.0.1, route `ShopProductSheetRoute`:
-`iOS refused to open https://www.ncpgambling.org/`. The responsible-gambling resource is a dead tap
-on iOS. One event so far, but it is deterministic rather than incidental: `canOpenURL` fails the
-same way every time for a scheme the app has not declared, which is a known landmine in this
-codebase's lineage. Compliance-adjacent as well as broken, since problem-gambling resources are the
-kind of thing a store reviewer checks for a poker app.
-
-**Acceptance:** tapping the resource opens the page on a real iOS device, and the failure path does
-not log at ERROR when it is the OS declining rather than a bug.
-
-**Hints:** `Router.openWebLink` and the iOS `WebLinkLauncher` in
-`libraries/navigation/impl/.../IosWebLinkLauncher.kt`. Check `LSApplicationQueriesSchemes` in the
-iOS `Info.plist` and whether `canOpenURL` is being consulted at all for an `https` URL, which does
-not need it. Case `docs/agent/feedback-cases/CARDS-CY.md`;
-https://elijah-dangerfield.sentry.io/issues/CARDS-CY/
-
 ## ENG-84 [P1] — Fatal crash on first launch in the Play billing proxy activity
 
 **Problem:** CARDS-BS, fatal and unhandled, 2026-10-22, `cards@0.6.0+1308`, Android 11, HONOR 20e
@@ -315,46 +236,6 @@ killing the process from the shell, then relaunching from recents.
 for this exact NPE, which is a known class. `BillingAvailability` already models an unavailable
 store. Case `docs/agent/feedback-cases/CARDS-BS.md`;
 https://elijah-dangerfield.sentry.io/issues/CARDS-BS/
-
-## ENG-85 [P2] — The in-app review prompt throws when no Activity is foregrounded
-
-**Problem:** CARDS-D0, 2026-10-23, `cards@0.6.0+1308`, Android 16, route `PlayMultiplayerRoute`:
-`IllegalStateException: No foreground Activity available for in-app review.` from
-`AndroidReviewLauncher.kt:39`, fired twice in a row right after two achievement celebrations. The
-prompt is requested at a moment when `ActivityProvider.currentActivity()` is null, so the launcher
-`error()`s. Contained by `Catching`, so no crash, but it logs at ERROR and the review ask is
-silently lost at exactly the moment it was best timed.
-
-**Acceptance:** no foreground Activity means the prompt is deferred or skipped quietly, not thrown
-and logged as an error.
-
-**Hints:** `AndroidReviewLauncher.requestReview` and `RealReviewPromptCoordinator.requestPrompt:82`.
-A missing Activity is an expected condition for a prompt fired off a coroutine, so it wants a
-null-return path rather than `error()`. Worth checking whether the coordinator should re-arm so the
-ask survives to the next good moment. Case `docs/agent/feedback-cases/CARDS-D0.md`;
-https://elijah-dangerfield.sentry.io/issues/CARDS-D0/
-
-## ENG-86 [P1] — Store release notes are raw changelog markdown, commit links and all
-
-**Problem:** The App Store "What's New" for 0.6.0 literally reads
-`## [0.6.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.5.0...v0.6.0) (2026-10-21)`
-followed by `* **auth:** offer the stranded account back after a session loss ([7998719](https://github.com/...))`.
-Both store lanes take `gh release view --json body` verbatim: `release.yml` → "Render release notes
-for Play" (`head -c 500`) and "Fetch release notes for TestFlight changelog" (`head -c 3000`). So
-players get release-please's internal changelog, including markdown syntax, conventional-commit
-prefixes, bare commit shas, full GitHub URLs and internal ticket ids, mid-word truncated at a byte
-count. Every release since the automation landed looks like this.
-
-**Acceptance:** the store listing shows a few plain sentences a player can read, with no markdown,
-no URLs, no shas, no `feat:`/`fix:` prefixes and no truncation mid-word. Both lanes use the same
-copy, and a release with nothing user-facing says something honest rather than dumping chores.
-
-**Hints:** `release.yml` lines ~251 (Play) and ~613 (iOS). Options, cheapest first: strip and
-reformat the body in the workflow; or keep a hand-written `docs/release-notes/<version>.md` that the
-lane prefers and falls back from; or have release-please emit a separate user-facing section. The
-house voice is in `docs/marketing-copy.md` — warm, plain, no marketing filler — and the
-`unslop-text` skill applies, since this is user-facing copy. Worth fixing before 0.6.1: the listing
-is the first thing a new player reads.
 
 ## ENG-87 [P2] — Nothing notices if client telemetry stops arriving at all
 
