@@ -123,8 +123,14 @@ differs), set `CARDS_ADMIN_API_TOKEN_PROD` in GitHub to the prod
 7. **Verify**:
    ```
    curl https://cards-server-dev.fly.dev/_health
-   # {"ok":true}
+   # {"ok":true,"commitSha":"e3f15b1bb2f6","commitBranch":"main",
+   #  "version":"0.6.0","startedAt":"2026-10-24T12:04:11Z","uptimeSeconds":812}
    ```
+   `commitSha` is how you tell a live server from a stale one — compare it to
+   `git rev-parse --short=12 origin/main`. It reads `unknown` when the image
+   was built without the `COMMIT_SHA` build arg (both deploy workflows pass
+   it; a hand-run `fly deploy` doesn't unless you add
+   `--build-arg COMMIT_SHA=$(git rev-parse HEAD)`).
 
 ## Anonymous user sweep (recommended once auth ships)
 

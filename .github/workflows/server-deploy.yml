@@ -75,10 +75,15 @@ jobs:
         # --local-only: build the image on this runner (16GB, isolated) instead
         # of Fly's shared remote builder — dev + prod deploying together on one
         # builder OOM-killed both Gradle builds repeatedly (2026-07-08).
+        # --build-arg COMMIT_SHA: the build container has no .git, so without
+        # this the image bakes COMMIT_SHA="unknown" and /_health can't say what
+        # it's running. See apps/server/Dockerfile.
         run: |
           flyctl deploy \
             --config apps/server/fly.toml \
-            --local-only
+            --local-only \
+            --build-arg COMMIT_SHA=${{ github.sha }} \
+            --build-arg COMMIT_BRANCH=${{ github.ref_name }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_DEV }}
 
@@ -90,6 +95,28 @@ jobs:
                --max-time 20 \
                https://cards-server-dev.fly.dev/_health
           echo
+
+      # The deploy "succeeding" has never meant the new code is serving — the
+      # smoke test above only proves something answers. Now that /_health
+      # reports its build, check the machine on the edge is running THIS
+      # commit. Retries because a rolling deploy can have the proxy still
+      # pointed at the old machine for a few seconds.
+      - name: Verify the deployed build is this commit
+        run: |
+          expected="${GITHUB_SHA:0:12}"
+          for attempt in 1 2 3 4 5 6; do
+            body=$(curl --fail --silent --show-error --max-time 20 \
+              https://cards-server-dev.fly.dev/_health) || body=""
+            actual=$(printf '%s' "$body" | sed -n 's/.*"commitSha":"\([^"]*\)".*/\1/p')
+            echo "attempt $attempt: serving '$actual', expected '$expected'"
+            if [ "$actual" = "$expected" ]; then
+              echo "Deployed build confirmed: $actual"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::cards-server-dev is serving '$actual', not '$expected' — the deploy did not take effect."
+          exit 1
 
       # Record this build's in-code config defaults so the admin tool can answer
       # "what did version X ship with". Runs after deploy so the V77 manifest

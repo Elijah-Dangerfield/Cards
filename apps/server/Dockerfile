@@ -57,6 +57,19 @@ COPY libraries/achievements/ libraries/achievements/
 # nothing, and it FAILS the build here: Versioning.kt probes `git` via
 # providers.exec (tolerating its absence), but the config cache records the
 # failed exec as a fatal problem — no git binary/.git dir exists in this image.
+
+# Which commit this image is built from. There is no .git here (see above), so
+# `loadVersionMetadata` would resolve COMMIT_SHA to "unknown" and the running
+# server could not say what it was — the exact blind spot that let prod serve
+# 17-day-old code with every dashboard green. Both deploy workflows pass these
+# through; `GITHUB_SHA` / `GITHUB_REF_NAME` are the names Versioning.kt already
+# reads, so nothing in build-logic needs to know about Docker. A local
+# `fly deploy` without them still builds and honestly reports "unknown".
+ARG COMMIT_SHA=""
+ARG COMMIT_BRANCH=""
+ENV GITHUB_SHA=$COMMIT_SHA
+ENV GITHUB_REF_NAME=$COMMIT_BRANCH
+
 RUN chmod +x gradlew && \
     ./gradlew :apps:server:installDist \
         --no-daemon \
