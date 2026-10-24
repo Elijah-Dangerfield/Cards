@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.review.impl
 
 import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.review.ReviewLaunchOutcome
 import com.dangerfield.cards.libraries.review.ReviewLauncher
 import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
 import com.dangerfield.cards.libraries.review.ReviewTrigger
@@ -13,6 +14,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.ExperimentalTime
 
 /**
@@ -37,6 +39,22 @@ import kotlin.time.ExperimentalTime
  * cooldown holds for 30 days" — acceptable. The bad case would be
  * recording-after-call and crashing in between, which would let us
  * spam the user on the next launch.
+ *
+ * [ReviewLaunchOutcome.NoForegroundUi] is the one case that rolls
+ * that stamp back. Everywhere else we genuinely can't tell whether
+ * the OS drew anything, so we assume it did; here the launcher never
+ * reached the platform, so there is nothing to assume. Spending a
+ * 30-day cooldown — and one of roughly three asks a year the stores
+ * allow — on a celebration that fired while the app had no window is
+ * a loss we can just decline to take (CARDS-D0). The cost of being
+ * wrong is one extra prompt in a month, against a quota the OS
+ * enforces anyway.
+ *
+ * A burst of triggers at one such moment still only tries once:
+ * [noForegroundUiBackoff] holds the in-memory door shut, because
+ * "the app has no window" won't change in the seconds between two
+ * achievement celebrations. It's deliberately not persisted — a new
+ * process means a foregrounded app, so the condition is gone.
  */
 @OptIn(ExperimentalTime::class)
 @SingleIn(AppScope::class)
@@ -49,6 +67,7 @@ class RealReviewPromptCoordinator(
 ) : ReviewPromptCoordinator {
 
     private val mutex = Mutex()
+    private var lastNoForegroundUiAt: Long = 0L
 
     override suspend fun requestPrompt(trigger: ReviewTrigger): Boolean = mutex.withLock {
         val nowMs = clock.now().toEpochMilliseconds()
@@ -73,13 +92,26 @@ class RealReviewPromptCoordinator(
         }
         if (!cooldownEligible) return@withLock false
 
+        val sinceNoForegroundUi = nowMs - lastNoForegroundUiAt
+        if (lastNoForegroundUiAt != 0L &&
+            sinceNoForegroundUi < noForegroundUiBackoff.inWholeMilliseconds
+        ) {
+            return@withLock false
+        }
+
         appCache.update {
             it.copy(
                 reviewInstallAt = installAt,
                 lastReviewPromptAt = nowMs,
             )
         }
-        launcher.requestReview()
+
+        if (launcher.requestReview() == ReviewLaunchOutcome.NoForegroundUi) {
+            lastNoForegroundUiAt = nowMs
+            appCache.update { it.copy(lastReviewPromptAt = state.lastReviewPromptAt) }
+            return@withLock false
+        }
+
         true
     }
 
@@ -94,5 +126,13 @@ class RealReviewPromptCoordinator(
          * shape.
          */
         val minPromptCooldown: Duration = 30.days
+
+        /**
+         * How long to stop re-trying the platform after it reported no
+         * window to draw in. Long enough to collapse a celebration
+         * burst, short enough that a user who comes back to the app
+         * still gets the next positive moment.
+         */
+        val noForegroundUiBackoff: Duration = 1.minutes
     }
 }

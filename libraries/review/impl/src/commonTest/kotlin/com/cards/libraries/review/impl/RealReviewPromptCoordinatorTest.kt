@@ -3,6 +3,7 @@ package com.dangerfield.cards.libraries.review.impl
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.review.ReviewLaunchOutcome
 import com.dangerfield.cards.libraries.review.ReviewLauncher
 import com.dangerfield.cards.libraries.review.ReviewTrigger
 import kotlinx.coroutines.flow.Flow
@@ -118,6 +119,72 @@ class RealReviewPromptCoordinatorTest : CoroutineTest() {
         assertEquals(1, launcher.requestCount)
     }
 
+    @Test
+    fun noForegroundUi_keepsTheAskForTheNextGoodMoment() = runUnitTest {
+        // CARDS-D0: the prompt fired from a coroutine at a celebration the
+        // user had already navigated away from. Nothing was shown, so the
+        // 30-day cooldown must not start.
+        val clock = MutableClock(at = T0)
+        val cache = FakeAppCache(
+            initial = AppData(reviewInstallAt = T0_MS - 10.days.inWholeMilliseconds),
+        )
+        val launcher = CountingLauncher(outcome = ReviewLaunchOutcome.NoForegroundUi)
+        val coordinator = RealReviewPromptCoordinator(cache, launcher, clock)
+
+        assertFalse(coordinator.requestPrompt(ReviewTrigger.AchievementUnlocked))
+        assertEquals(1, launcher.requestCount)
+        assertEquals(0L, cache.get().lastReviewPromptAt, "an unshown prompt is not a prompt")
+
+        launcher.outcome = ReviewLaunchOutcome.Requested
+        clock.advance(RealReviewPromptCoordinator.noForegroundUiBackoff + 1.days)
+
+        assertTrue(
+            coordinator.requestPrompt(ReviewTrigger.MultiplayerWin),
+            "the ask survived to the next positive moment",
+        )
+        assertEquals(clock.nowMs(), cache.get().lastReviewPromptAt)
+    }
+
+    @Test
+    fun burstOfTriggersWithNoForegroundUi_onlyReachesTheLauncherOnce() = runUnitTest {
+        // Two achievements celebrated back to back produced two attempts and
+        // two error events. The window the app doesn't have won't appear in
+        // the seconds between them.
+        val clock = MutableClock(at = T0)
+        val cache = FakeAppCache(
+            initial = AppData(reviewInstallAt = T0_MS - 10.days.inWholeMilliseconds),
+        )
+        val launcher = CountingLauncher(outcome = ReviewLaunchOutcome.NoForegroundUi)
+        val coordinator = RealReviewPromptCoordinator(cache, launcher, clock)
+
+        assertFalse(coordinator.requestPrompt(ReviewTrigger.AchievementUnlocked))
+        assertFalse(coordinator.requestPrompt(ReviewTrigger.AchievementUnlocked))
+        assertFalse(coordinator.requestPrompt(ReviewTrigger.LevelUp))
+
+        assertEquals(1, launcher.requestCount, "the burst collapsed to one attempt")
+    }
+
+    @Test
+    fun platformRefusal_stillSpendsTheAsk() = runUnitTest {
+        // Play handing back no ReviewInfo is the store's own quota decision,
+        // not a missing window — re-arming there would retry it forever.
+        val clock = MutableClock(at = T0)
+        val cache = FakeAppCache(
+            initial = AppData(reviewInstallAt = T0_MS - 10.days.inWholeMilliseconds),
+        )
+        val launcher = CountingLauncher(outcome = ReviewLaunchOutcome.Requested)
+        val coordinator = RealReviewPromptCoordinator(cache, launcher, clock)
+
+        assertTrue(coordinator.requestPrompt(ReviewTrigger.SessionEnd))
+
+        clock.advance(RealReviewPromptCoordinator.noForegroundUiBackoff + 1.days)
+        assertFalse(
+            coordinator.requestPrompt(ReviewTrigger.SessionEnd),
+            "cooldown holds — we can't tell whether the OS drew anything",
+        )
+        assertEquals(1, launcher.requestCount)
+    }
+
     companion object {
         private val T0: Instant = Instant.fromEpochMilliseconds(1_700_000_000_000)
         private const val T0_MS: Long = 1_700_000_000_000
@@ -132,10 +199,16 @@ private class MutableClock(at: Instant) : Clock {
     override fun now(): Instant = current
 }
 
-private class CountingLauncher : ReviewLauncher {
+private class CountingLauncher(
+    var outcome: ReviewLaunchOutcome = ReviewLaunchOutcome.Requested,
+) : ReviewLauncher {
     var requestCount: Int = 0
         private set
-    override suspend fun requestReview() { requestCount++ }
+
+    override suspend fun requestReview(): ReviewLaunchOutcome {
+        requestCount++
+        return outcome
+    }
 }
 
 private class FakeAppCache(initial: AppData = AppData()) : AppCache {

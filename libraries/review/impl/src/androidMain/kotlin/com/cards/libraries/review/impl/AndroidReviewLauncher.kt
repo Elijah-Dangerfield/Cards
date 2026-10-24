@@ -4,6 +4,8 @@ import android.content.Context
 import com.dangerfield.cards.libraries.cards.ActivityProvider
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.review.ReviewLaunchOutcome
 import com.dangerfield.cards.libraries.review.ReviewLauncher
 import com.google.android.play.core.review.ReviewManagerFactory
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -23,7 +25,11 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Play's docs — the OS owns the visibility decision.
  *
  * Requires the foreground Activity via the host-app-provided
- * [ActivityProvider] binding.
+ * [ActivityProvider] binding. A prompt requested from a coroutine can
+ * land after the user left the screen or backgrounded the app, so a
+ * null Activity is an ordinary outcome and reports
+ * [ReviewLaunchOutcome.NoForegroundUi] rather than failing (CARDS-D0
+ * threw here and spent the ask on a moment with nowhere to draw).
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
@@ -33,10 +39,13 @@ class AndroidReviewLauncher(
     private val activityProvider: ActivityProvider,
 ) : ReviewLauncher {
 
-    override suspend fun requestReview() {
+    override suspend fun requestReview(): ReviewLaunchOutcome {
+        val activity = activityProvider.currentActivity() ?: run {
+            KLog.withTag(LOG_TAG).i { "In-app review skipped: no foreground Activity." }
+            return ReviewLaunchOutcome.NoForegroundUi
+        }
+
         Catching {
-            val activity = activityProvider.currentActivity()
-                ?: error("No foreground Activity available for in-app review.")
             val manager = ReviewManagerFactory.create(context)
             val info = manager.requestReviewFlow().asDeferredOrNull()
                 ?: error("Play returned a null ReviewInfo.")
@@ -46,6 +55,12 @@ class AndroidReviewLauncher(
                 }
             }
         }.logOnFailure { "In-app review prompt failed (non-fatal)" }
+
+        return ReviewLaunchOutcome.Requested
+    }
+
+    private companion object {
+        const val LOG_TAG = "Review"
     }
 }
 
