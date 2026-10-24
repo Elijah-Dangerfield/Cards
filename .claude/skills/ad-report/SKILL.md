@@ -82,7 +82,10 @@ Per ad, one verdict with a one-sentence reason that cites a number:
 | `wait` | Under about $30 spent, under 1,000 impressions, or live under two days. Don't judge noise. |
 | `keep` | Cheapest cost per install so far, or under the owner's target if one is set. |
 | `iterate` | Installs are fine but the creative leaks: hook rate under ~25% or hold rate under ~30%. Re-cut, don't kill. |
-| `kill` | After $50+, cost per install over 2x the best ad, or CTR under 0.5% after 5,000 impressions. |
+| `kill` | After $50+, cost per install over 2x the best ad, or cost per tap / tap rate clearly outside the normal range in `benchmarks.json`. |
+| `blocked` | The platform rejected the ad. Quote the reason. |
+
+**Benchmarks.** `marketing/ads/benchmarks.json` holds normal ranges (low, typical, high) per platform for cost per tap, tap rate, watched-past-the-opening, install rate and cost per install, with sources. `build.py` rates every ad against them and the page draws each number on its range. Lean on those ratings in verdicts ("about twice the high end of normal"). Refresh the file when `checked` is more than about six months old, from sourced 2025+ reports, gaming-specific where possible.
 
 These thresholds are starting points for a small budget. Say so when a call is close.
 
@@ -95,15 +98,23 @@ Then write `marketing/ads/data/report.json`:
 - `creativeNotes`: `{ "<ad id>": { "strip": "creatives/<id>.jpg", "dropOff", "notes": [...] } }`
 - `experiments`: one to three `{ title, hypothesis, designPrompt }`. Each tests **one** change the data points at. The `designPrompt` is pasted straight into Claude Design, so make it complete: format (15s, 1080x1920 for TikTok/Reels), what Downcard is, the exact shot order and headlines, the real app screens and the warm yellow-to-teal gradient, the end card with "Come play." as the largest text, and the guardrails below.
 
+**Write for someone who isn't a marketer.** Everything in `report.json` shows on the page as written. Plain words ("taps", "watched past the opening", "cost per install"), real numbers, no jargon like CTR or CPM unless it's explained in the same sentence, no em dashes. The headline should tell the owner how things are going in two or three short sentences. Run the `unslop-text` principles over it.
+
+**TikTok treats poker as gambling.** The friends 15s v1 video was rejected in the US for "Prohibited Industry - Gambling". Chips, pots, "Take the pot" and "You win +600" were enough. Any video meant for TikTok must show no chip stacks, pots, winnings, "You win" screens or casino imagery; lead with friends and the table instead. Meta and Reddit ran the same video, but keep new prompts free of those cues everywhere.
+
 **Copy and prompt guardrails.** Voice is warm, simple, sincere (`docs/marketing-copy.md`). Never imply real money, cash prizes, winnings or a casino. "No real money. No house." is the honest core. Never claim anything the app doesn't do.
 
-## 5. Build and show it
+## 5. Keep the Links page current
+
+`ledger.json` holds `trackedLink` per ad (with `linkPlaced`) and a `placements` list for bios, posts and shared links (`id`, `where`, `link`, `placed`). Organic links pass `m=social` so Play doesn't count them as paid. When the owner says a link is in place, flip its flag. New ads get a `trackedLink` before they launch.
+
+## 6. Build and show it
 
 ```bash
 python3 marketing/ads/build.py
 ```
 
-Then open the dashboard with the `ads-dashboard` preview server (`.claude/launch.json`, port 4610) at `/dashboard/`. The example data is at `/dashboard/?example`. Check it renders and the "do next" card says what you meant.
+Then open the dashboard with the `ads-dashboard` preview server (`.claude/launch.json`, port 4610) at `/dashboard/` (Results) and `/dashboard/links.html` (Links). The example data is at `/dashboard/?example`. Check it renders and the "do next" card says what you meant.
 
 ## What it can and can't read (as of Oct 2026)
 
