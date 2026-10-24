@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.RunWhenRetry
 import com.dangerfield.cards.libraries.flowroutines.runWhen
+import com.dangerfield.cards.libraries.networking.isRateLimited
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -87,11 +88,29 @@ class UserScopedSyncCoordinator(
                     registry.tracked(account.userId) {
                         syncer.sync()
                             .onFailure { unsentWrites.value = true }
+                            .recoverRateLimit(syncer)
                             .logOnFailure { "${syncer::class.simpleName} sync failed for ${account.userId}" }
                     }
                 }
             }
         }
+    }
+
+    /**
+     * A `429` is the server's own answer to "not now", so retrying it is the
+     * one thing guaranteed not to help: `RunWhenRetry.exponential()` would
+     * spend six more requests on a bucket we were just told is empty, and
+     * ENG-68 counted six more error events with them. Park the cycle as
+     * success instead and let the next trigger edge — a warm foreground, a
+     * flush, connectivity returning — try again once the window has moved.
+     *
+     * The writes stay marked unsent by the caller, so nothing is dropped.
+     */
+    private fun Result<Unit>.recoverRateLimit(syncer: UserScopedSyncer): Result<Unit> {
+        val failure = exceptionOrNull() ?: return this
+        if (!failure.isRateLimited()) return this
+        logger.i { "${syncer::class.simpleName} sync deferred: rate limited" }
+        return Result.success(Unit)
     }
 
     companion object {
