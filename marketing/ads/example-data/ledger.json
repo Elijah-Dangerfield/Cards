@@ -1,0 +1,50 @@
+{
+  "_note": "Example data with made-up numbers, for building and testing the dashboard. Real data lives in ../data (gitignored).",
+  "ads": [
+    {
+      "id": "tiktok-friends15s-v1",
+      "platform": "tiktok",
+      "name": "Friends 15s v1",
+      "campaign": "Example - Friends 15s - iOS Traffic",
+      "status": "live",
+      "start": "2026-10-01",
+      "end": "2026-10-15",
+      "budget": { "type": "lifetime", "amount": 450 },
+      "creative": { "kind": "video", "file": "~/Documents/downcard-ad-1.mov", "hook": "Poker night?" },
+      "link": "https://apps.apple.com/us/app/downcard-poker-with-friends/id6788423648?ppid=example&ct=tiktok-friends15s-v1",
+      "campaignToken": "tiktok-friends15s-v1",
+      "targeting": "US, 18+, iOS",
+      "managerUrl": "https://ads.tiktok.com/"
+    },
+    {
+      "id": "reddit-friends-square-v1",
+      "platform": "reddit",
+      "name": "Deal your friends in (square)",
+      "campaign": "Example - Reddit friends",
+      "status": "live",
+      "start": "2026-10-03",
+      "end": "2026-10-17",
+      "budget": { "type": "lifetime", "amount": 150 },
+      "creative": { "kind": "image", "file": "~/Desktop/Downcard Assets/5 Ads/Reddit/reddit-friends-1080x1080.png", "hook": "Deal your friends in." },
+      "link": "https://apps.apple.com/us/app/downcard-poker-with-friends/id6788423648?ct=reddit-friends-square-v1",
+      "campaignToken": "reddit-friends-square-v1",
+      "targeting": "US, r/poker + r/boardgames",
+      "managerUrl": "https://ads.reddit.com/"
+    },
+    {
+      "id": "instagram-simplefun-reel-v1",
+      "platform": "instagram",
+      "name": "Simple, fun poker reel",
+      "campaign": "Example - IG simple fun",
+      "status": "ended",
+      "start": "2026-10-01",
+      "end": "2026-10-08",
+      "budget": { "type": "lifetime", "amount": 100 },
+      "creative": { "kind": "video", "file": "~/Documents/Downcard/Downcard Ad 15s.mp4", "hook": "Simple, fun poker." },
+      "link": "https://apps.apple.com/us/app/downcard-poker-with-friends/id6788423648?ct=ig-simplefun-reel-v1",
+      "campaignToken": "ig-simplefun-reel-v1",
+      "targeting": "US, 18+",
+      "managerUrl": "https://adsmanager.facebook.com/"
+    }
+  ]
+}

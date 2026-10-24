@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-15",
+  "source": "example",
+  "ads": {
+    "tiktok-friends15s-v1": {
+      "spend": 450,
+      "impressions": 152000,
+      "clicks": 1330,
+      "videoViews": 71000,
+      "views2s": 44100,
+      "views6s": 17800,
+      "completions": 6600,
+      "avgWatchSec": 4.1,
+      "installs": 58
+    },
+    "reddit-friends-square-v1": {
+      "spend": 140,
+      "impressions": 58000,
+      "clicks": 247,
+      "videoViews": null,
+      "views2s": null,
+      "views6s": null,
+      "completions": null,
+      "avgWatchSec": null,
+      "installs": 6
+    },
+    "instagram-simplefun-reel-v1": {
+      "spend": 100,
+      "impressions": 39000,
+      "clicks": 220,
+      "videoViews": 17000,
+      "views2s": 8800,
+      "views6s": 3100,
+      "completions": 1050,
+      "avgWatchSec": 3.1,
+      "installs": 6
+    }
+  }
+}

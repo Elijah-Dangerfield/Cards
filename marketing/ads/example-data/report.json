@@ -1,0 +1,40 @@
+{
+  "generatedAt": "2026-10-15T18:00:00Z",
+  "headline": "TikTok is doing the work: $7.76 per install against $23 on Reddit. Instagram ended and isn't worth restarting as is.",
+  "nextAction": {
+    "title": "Move Reddit's remaining budget to a second TikTok cut",
+    "why": "Reddit has cost $23.33 per install over six installs; TikTok sits at $7.76 over 58. A second TikTok variant tests whether the friends angle or this specific edit is carrying the result."
+  },
+  "verdicts": {
+    "tiktok-friends15s-v1": {
+      "verdict": "keep",
+      "why": "Cheapest install by a wide margin, and 29% of viewers make it past 2 seconds. Leave it running."
+    },
+    "reddit-friends-square-v1": {
+      "verdict": "kill",
+      "why": "Clicks cost more than TikTok's ($0.57 vs $0.34) and only 2 in 100 clickers install. The static image isn't selling the room-code flow."
+    },
+    "instagram-simplefun-reel-v1": {
+      "verdict": "iterate",
+      "why": "Hook rate of 23% is below TikTok's 29%. The opening frame is a logo, not a hand of poker. Re-cut the first second before spending again."
+    }
+  },
+  "creativeNotes": {
+    "tiktok-friends15s-v1": {
+      "strip": null,
+      "dropOff": "Holds 40% from 2s to 6s, then thins out around the \"Deal everyone in\" beat.",
+      "notes": [
+        "The question opener (\"Poker night?\") earns the 2-second hold.",
+        "The two \"Deal everyone in\" frames repeat; cutting one would land the win screen a second earlier.",
+        "The end card's \"Come play.\" is small on a phone. Make it the biggest text on screen."
+      ]
+    }
+  },
+  "experiments": [
+    {
+      "title": "Win screen first",
+      "hypothesis": "Opening on the \"You win\" moment hooks harder than the question, because the payoff is visible before anyone decides to scroll.",
+      "designPrompt": "Make a 15-second vertical (1080x1920) ad for Downcard, a free poker app for playing with friends. No real money, no house. Open on the \"You win\" screen with chips sliding in, then rewind to show how the night started: \"Start a table.\" \"Share the code.\" \"Deal everyone in.\" Use the existing warm yellow-to-teal gradient background and the real app screens. End card: \"Simple, fun poker.\" with \"Come play.\" as the largest text. Warm, simple, sincere tone. No casino imagery, no cash, no claims about winning money."
+    }
+  ]
+}

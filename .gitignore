@@ -59,3 +59,7 @@ __pycache__/
 
 # Scratch explainers written by the explain skill. Not repo content.
 explain-*.md
+
+# Ads dashboard: real spend and results stay local (repo is public).
+marketing/ads/data/
+marketing/ads/**/dashboard.json
