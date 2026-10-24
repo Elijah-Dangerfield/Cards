@@ -272,6 +272,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  release-notes-test:
+    name: Release notes script
+    # The store-facing "What's New" transform. It only runs during a release,
+    # where a regression is caught by a player reading markdown on the listing
+    # days later, so it gets checked on every PR instead. Stdlib only, seconds
+    # to run.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Test the release-notes renderer
+        run: python3 -I .github/scripts/test_release_notes.py
+
   integration-test:
     name: Integration tests
     # End-to-end multiplayer tests: a real client (+ real view models) driven

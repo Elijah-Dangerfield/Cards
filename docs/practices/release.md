@@ -65,6 +65,27 @@ The static remainder of the body lives in `pull-request-header` in
 [release-please-config.json](../../release-please-config.json) and should only ever contain
 claims that are true for every release.
 
+### Write the "What's New" before you merge
+
+Both store listings come from `docs/release-notes/<version>.md`, where the version is the one on
+the release PR. Write that file and commit it to `main` before you merge the PR, and Play and the
+App Store both show exactly what is in it. Format, limits and the house voice are in
+[`../release-notes/README.md`](../release-notes/README.md).
+
+Without the file, the lanes fall back to the GitHub release body with the markdown, commit links,
+shas, ticket ids and `feat:`/`fix:` prefixes stripped out
+([release_notes.py](../../.github/scripts/release_notes.py)). That is a safety net: it keeps the
+listing readable, but it is still commit subjects in commit voice, and a dull "What's New" is the
+first thing a new player reads. The release logs a `::warning::` naming the file it wanted.
+
+Preview either path before you ship:
+
+```shell
+python3 -I .github/scripts/release_notes.py --version 0.6.1 --body-file /dev/null
+gh release view v0.6.0 --json body -q .body \
+  | python3 -I .github/scripts/release_notes.py --version 0.6.0
+```
+
 ### What if the release PR doesn't exist?
 
 No conventional-commit changes since the last release. Merge a `fix:` or `feat:` PR and the bot will open one within a minute.

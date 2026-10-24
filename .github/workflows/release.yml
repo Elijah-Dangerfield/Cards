@@ -249,13 +249,21 @@ jobs:
           fi
 
       - name: Render release notes for Play
+        # Same script, same arguments as the iOS lane's "Render release notes
+        # for the stores" step, so both listings show identical copy. It
+        # prefers docs/release-notes/<version>.md and sanitises the GitHub
+        # release body when there isn't one. Piping the body in raw is what
+        # put `## [0.6.0](https://github.com/...)` on the App Store (ENG-86).
         run: |
           mkdir -p apps/compose/build/play-release-notes/en-US
-          {
-            echo "v${{ needs.resolve-tag.outputs.version }}"
-            echo ""
-            gh release view "${{ needs.resolve-tag.outputs.tag }}" --json body -q .body 2>/dev/null || echo "See CHANGELOG.md for details."
-          } | head -c 500 > apps/compose/build/play-release-notes/en-US/default.txt
+          gh release view "${{ needs.resolve-tag.outputs.tag }}" --json body -q .body \
+            > /tmp/release-body.md 2>/dev/null || : > /tmp/release-body.md
+          python3 .github/scripts/release_notes.py \
+            --version "${{ needs.resolve-tag.outputs.version }}" \
+            --body-file /tmp/release-body.md \
+            > apps/compose/build/play-release-notes/en-US/default.txt
+          echo "Play release notes:"
+          cat apps/compose/build/play-release-notes/en-US/default.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -610,20 +618,27 @@ jobs:
             echo "lane=release" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Fetch release notes for TestFlight changelog
+      - name: Render release notes for the stores
+        # Feeds both the TestFlight changelog and the App Store "What's New"
+        # (the Fastfile hands one string to upload_to_testflight and deliver).
+        # Same script and arguments as the Android lane's "Render release notes
+        # for Play", so the two listings can't drift apart.
         id: notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BODY=$(gh release view "${{ needs.resolve-tag.outputs.tag }}" --json body -q .body 2>/dev/null || true)
-          if [ -z "$BODY" ]; then
-            BODY="v${{ needs.resolve-tag.outputs.version }}"
-          fi
+          gh release view "${{ needs.resolve-tag.outputs.tag }}" --json body -q .body \
+            > /tmp/release-body.md 2>/dev/null || : > /tmp/release-body.md
+          python3 .github/scripts/release_notes.py \
+            --version "${{ needs.resolve-tag.outputs.version }}" \
+            --body-file /tmp/release-body.md \
+            > /tmp/release-notes.txt
+          echo "Store release notes:"
+          cat /tmp/release-notes.txt
           {
-            echo "notes<<EOF"
-            printf "%s\n" "$BODY" | head -c 3000
-            echo
-            echo "EOF"
+            echo "notes<<RELEASE_NOTES_EOF"
+            cat /tmp/release-notes.txt
+            echo "RELEASE_NOTES_EOF"
           } >> "$GITHUB_OUTPUT"
 
       # Must be exported BEFORE the pre-build link so both Gradle invocations
