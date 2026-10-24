@@ -53,7 +53,7 @@ Same-day reruns overwrite that day's file.
 
 Each ledger ad can carry a ready-made `trackedLink` (and `plannedCampaignToken`) before it goes live. When the live ad switches to it, move the token into `campaignToken`.
 
-**Every new ad's link needs a campaign token**, or its installs can't be counted. Build it as the App Store (or custom product page) URL plus `pt=120164045&ct=<ad id>&mt=8`, e.g. `https://apps.apple.com/us/app/downcard-poker-with-friends/id6788423648?ppid=<page id>&pt=120164045&ct=tiktok-friends15s-v1&mt=8`. `pt` is Nightjar Labs' provider token (public, it's in every link); `ct` is up to 30 characters, use the ledger `id`. UTM tags do nothing on App Store links; ignore the ad platforms' UTM warnings.
+**Every ad links to the smart link**, `https://downcard.app/get/?c=<ad id>&p=friends` (`p` is optional: a custom product page name from `website/src/lib/store-links.ts`). It sends iPhones to the App Store with `pt=120164045&ct=<ad id>`, Android to Google Play with the same id as `utm_campaign` in the referrer, and shows both buttons on a computer, so one link per ad covers both platforms and both stores count installs. `c` is up to 30 characters; use the ledger `id`. Read Android installs per campaign in Play Console's acquisition reports. UTM tags on App Store links do nothing; ignore the ad platforms' UTM warnings.
 
 ## 3. Review the creatives
 
@@ -112,7 +112,8 @@ Then open the dashboard with the `ads-dashboard` preview server (`.claude/launch
 | TikTok | Ads Manager in Chrome | Yes. Video columns (2s/6s views) not yet read on a spending ad; check the column names the first time. |
 | Instagram boosts | instagram.com → Ad tools → View insights | Yes, tested. |
 | Reddit | Owner's CSV or screenshot | Manual. reddit.com is blocked in Chrome. Confirm the date range is lifetime. |
-| Installs | App Store Connect → Analytics → Campaigns | Only for links with `ct=` and only after 5+ installs per campaign. |
+| Installs (iPhone) | App Store Connect → Analytics → Campaigns | Only for ads on the smart link, and only after 5+ installs per campaign. |
+| Installs (Android) | Play Console → acquisition reports by UTM campaign | Not tested yet; check the report name on the first run. |
 
 If a run can't read a source, put it in `gaps` and keep that ad's last known numbers. Never let a missing source show as zero.
 
