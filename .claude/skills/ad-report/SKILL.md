@@ -35,6 +35,10 @@ Read **lifetime** numbers (not "last 7 days") so snapshots stay cumulative. For 
 
 **Meta Ads Manager** (adsmanager.facebook.com): only for ads created there. The owner's personal Meta login has no ad history, so boosts won't show up here.
 
+**Apple Ads** (Claude in Chrome, ads.apple.com, once the owner has an account): campaigns → ad groups → keywords, lifetime. Spend, impressions, taps, installs and cost per install come straight from Apple Ads, so these ads don't use the smart link and their installs go in the snapshot from Apple's numbers. Use `platform: "apple"`.
+
+**Meta Ads Manager blocker**: the owner's Facebook account was restricted from advertising (since May 2022) for not using two-factor authentication. If Ads Manager says "You aren't allowed to advertise", that's still the cause; the owner turns on two-factor, Claude never changes security settings.
+
 **Reddit**: Claude in Chrome blocks reddit.com outright. Ask the owner to export a report (Reddit Ads → Reports → lifetime, ad level → Export CSV) into `marketing/ads/data/imports/reddit/`, then read the CSV.
 
 **Screenshots from the owner** are a fine source too. Record exactly what's visible, note the date range shown (a 7-day view is not lifetime), and put anything missing in the report's `gaps` rather than guessing.

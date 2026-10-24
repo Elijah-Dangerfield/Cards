@@ -1,7 +1,7 @@
 // Renders dashboard.json (built by ../build.py) on the Results and Links pages.
 // No dependencies, no build step.
 
-const PLATFORM_LABELS = { tiktok: "TikTok", reddit: "Reddit", instagram: "Instagram" };
+const PLATFORM_LABELS = { tiktok: "TikTok", reddit: "Reddit", instagram: "Instagram", apple: "Apple Ads", google: "Google" };
 const VERDICTS = {
   keep: { label: "Keep it", icon: '<path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' },
   iterate: { label: "Change it", icon: '<path d="M13 8a5 5 0 1 1-1.5-3.5M13 2.5V5h-2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' },
@@ -119,7 +119,7 @@ function verdictChip(v) {
 }
 
 function renderAdCards(ads) {
-  const order = { live: 0, "in review": 1, rejected: 2, draft: 3, paused: 4, ended: 5 };
+  const order = { live: 0, "in review": 1, planned: 2, rejected: 3, draft: 4, paused: 5, ended: 6 };
   const sorted = [...ads].sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
   $("ad-cards").innerHTML = sorted.map((a) => {
     const dates = a.start || a.end ? `${fmt.date(a.start)} to ${fmt.date(a.end)}` : "";

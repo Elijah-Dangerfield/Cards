@@ -17,6 +17,7 @@
   --tiktok: #3987e5;
   --reddit: #d95926;
   --instagram: #199e70;
+  --apple: #c98500;
   --other: #898781;
 
   --good: #0ca30c;
@@ -39,6 +40,7 @@
   --tiktok: #2a78d6;
   --reddit: #eb6834;
   --instagram: #1baf7a;
+  --apple: #eda100;
 }
 
 * { box-sizing: border-box; }
