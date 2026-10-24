@@ -1,7 +1,9 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.server.domain.AppConfigSource
 import com.dangerfield.cards.server.domain.AvatarPacks
+import com.dangerfield.cards.server.domain.ServerBuild
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -24,6 +26,9 @@ import kotlinx.serialization.json.putJsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 /**
  * Pins the three "small but load-bearing" routes that didn't have tests
@@ -32,7 +37,10 @@ import kotlin.test.assertTrue
  * Why these matter even though they're tiny:
  *  - `/_health` is the Fly liveness probe — a regression here knocks the
  *    app offline. Worth pinning that it's the un-versioned literal path
- *    (`/_health`, not `/v1/_health`) and stays 200/JSON.
+ *    (`/_health`, not `/v1/_health`) and stays 200/JSON. It also reports
+ *    the build it's running (ENG-71), so there are two contracts to hold:
+ *    `ok` + 200 for everything that already consumes it, and the SHA /
+ *    version / start time a staleness check reads.
  *  - `/v1/app-config` is the kill-switch + feature-flag surface. The
  *    invariants are: shape is a JSON object (never an array, never a
  *    primitive), empty object is fine, the tree is returned verbatim.
@@ -62,6 +70,79 @@ class SmallRoutesTest {
             assertEquals(HttpStatusCode.OK, resp.status)
             val body = Json.parseToJsonElement(resp.bodyAsText()).jsonObject
             assertEquals(true, body["ok"]!!.jsonPrimitive.content.toBoolean())
+        }
+    }
+
+    @Test
+    fun health_reportsTheBuildItIsRunning() = runTest {
+        // The point of the endpoint beyond liveness: prod served weeks-old
+        // code twice with green dashboards because the process couldn't say
+        // what it was. A staleness check needs the SHA, and `uptimeSeconds`
+        // answers "how long has this been up" off the same response.
+        val startedAt = Instant.parse("2026-10-24T12:00:00Z")
+        testApplication {
+            application {
+                installSerialization()
+                routing {
+                    healthRoutes(
+                        build = ServerBuild(
+                            commitSha = "abc123def456",
+                            commitBranch = "main",
+                            version = "0.6.0",
+                            startedAt = startedAt,
+                        ),
+                        clock = object : Clock {
+                            override fun now(): Instant = startedAt + 90.seconds
+                        },
+                    )
+                }
+            }
+            val resp = createClient { }.get("/_health")
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val raw = resp.bodyAsText()
+            // Both deploy workflows pull the SHA out of the raw body with sed
+            // rather than adding a jq dependency to the runner, so the
+            // unspaced `"commitSha":"…"` form is part of the contract.
+            assertTrue(
+                raw.contains("\"commitSha\":\"abc123def456\""),
+                "deploy workflows sed for this exact form, got: $raw",
+            )
+            val body = Json.parseToJsonElement(raw).jsonObject
+            assertEquals("abc123def456", body["commitSha"]!!.jsonPrimitive.content)
+            assertEquals("main", body["commitBranch"]!!.jsonPrimitive.content)
+            assertEquals("0.6.0", body["version"]!!.jsonPrimitive.content)
+            assertEquals("2026-10-24T12:00:00Z", body["startedAt"]!!.jsonPrimitive.content)
+            assertEquals(90, body["uptimeSeconds"]!!.jsonPrimitive.content.toLong())
+        }
+    }
+
+    @Test
+    fun health_reportsRealBuildMetadata_notAPlaceholder() = runTest {
+        // Guards the wiring, not the value: `ServerBuild.current` must read
+        // the generated CardsBuildConfig, so a build that knows its SHA
+        // reports it. The Docker image has no .git — the Dockerfile passes
+        // COMMIT_SHA in as a build arg — and if that ever breaks the field is
+        // still present and parseable, just "unknown", so a staleness check
+        // gets a value it can compare instead of a missing key.
+        testApplication {
+            application {
+                installSerialization()
+                routing { healthRoutes() }
+            }
+            val resp = createClient { }.get("/_health")
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = Json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            assertEquals(BuildInfo.commitSha, body["commitSha"]!!.jsonPrimitive.content)
+            assertEquals(BuildInfo.versionName, body["version"]!!.jsonPrimitive.content)
+            assertTrue(
+                body["commitSha"]!!.jsonPrimitive.content.isNotBlank(),
+                "commitSha must always be present — \"unknown\" is the floor, blank is a bug",
+            )
+            assertTrue(
+                body["uptimeSeconds"]!!.jsonPrimitive.content.toLong() >= 0,
+                "uptime must never read negative",
+            )
+            Instant.parse(body["startedAt"]!!.jsonPrimitive.content)
         }
     }
 
