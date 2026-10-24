@@ -31,7 +31,9 @@ Read **lifetime** numbers (not "last 7 days") so snapshots stay cumulative. For 
 **TikTok** (Claude in Chrome, account `managerUrl`): Campaigns → Ad tab, date range = lifetime. Destination clicks are the "Clicks (destination)" column. For video metrics add the columns (Custom columns → Video engagement: 2-second views, 6-second views, 100% video views, average play time) or use Video insights.
 - The Ads Manager drops fast typed input. Paste via `pbcopy` + cmd+v.
 
-**Instagram / Meta** (Claude in Chrome, adsmanager.facebook.com): check every ad account in the switcher and the business portfolio. The owner's ads so far were **boosted from the @nightjarlabs Instagram account**, which isn't under the Meta login Chrome reaches. For those, ask the owner for the boost's insights from the Instagram app (Ad → View insights): amount spent, dates, views, reach, 3-second plays, website visits. Meta reports 3-second plays, not 2-second views: record them as `views3s`.
+**Instagram boosts** (Claude in Chrome, logged in as @nightjarlabs): instagram.com → Insights icon in the sidebar → **Ad tools** (`instagram.com/ad_tools/`) lists every boost with views, website visits, spend and audience. Each one's **View insights** has the full set: views, reach, 3-second plays, initial plays, link clicks, website visits, cost per visit, spend, duration, audience and top locations. Meta reports 3-second plays, not 2-second views: record them as `views3s`. Use link clicks as `clicks`.
+
+**Meta Ads Manager** (adsmanager.facebook.com): only for ads created there. The owner's personal Meta login has no ad history, so boosts won't show up here.
 
 **Reddit**: Claude in Chrome blocks reddit.com outright. Ask the owner to export a report (Reddit Ads → Reports → lifetime, ad level → Export CSV) into `marketing/ads/data/imports/reddit/`, then read the CSV.
 
