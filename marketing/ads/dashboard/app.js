@@ -93,7 +93,7 @@ function renderTiles(t) {
     <div class="tile">
       <span class="label">Spent</span>
       <span class="value">${fmt.money(t.spend)}${partial ? "+" : ""}</span>
-      <span class="detail">${partial ? `plus ${t.spendUnknown.length} ad we can't see the cost of` : t.budget != null ? `of ${fmt.money(t.budget)} budgeted` : "across every platform"}</span>
+      <span class="detail">${partial ? `plus ${t.spendUnknown.length} ${t.spendUnknown.length === 1 ? "ad" : "ads"} we can't see the cost of` : t.budget != null ? `of ${fmt.money(t.budget)} budgeted` : "across every platform"}</span>
     </div>
     <div class="tile">
       <span class="label">Taps on the link</span>
@@ -119,7 +119,7 @@ function verdictChip(v) {
 }
 
 function renderAdCards(ads) {
-  const order = { live: 0, "in review": 1, planned: 2, rejected: 3, draft: 4, paused: 5, ended: 6 };
+  const order = { live: 0, scheduled: 1, "in review": 2, planned: 3, rejected: 4, draft: 5, paused: 6, ended: 7 };
   const sorted = [...ads].sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
   $("ad-cards").innerHTML = sorted.map((a) => {
     const dates = a.start || a.end ? `${fmt.date(a.start)} to ${fmt.date(a.end)}` : "";
