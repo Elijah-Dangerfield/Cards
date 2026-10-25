@@ -24,6 +24,14 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
+## ROOM-22 [P0] — Room invites are dead links for anyone who doesn't have the app
+
+**Problem:** The share text sends `cards://join/{code}` (`RoomInvite.linkForCode`). A custom scheme does nothing without the app installed (Messages won't even linkify it), so every invite to a new friend has no path to the App Store or Play. For a game built on inviting friends, this is the biggest growth leak.
+
+**Acceptance:** Invites send `https://downcard.app/join/{code}`. With the app installed it opens straight into that room (iOS universal links + Android App Links, `.well-known` files on downcard.app, associated-domains entitlement, autoVerify intent filter). Without it, the page shows the code, an "Open in Downcard" button, and store buttons tagged `c=invite&m=referral` via `website/src/lib/store-links.ts`. Existing `cards://join` deep link keeps working.
+
+**Hints:** `features/lobby/.../RoomInvite.kt`, `lobby_in_room_share_message` in `strings.xml`, `website/src/pages/get.astro` for the redirect pattern. GitHub Pages is static, so `/join/{code}` needs a 404-fallback or `?code=` route. Later: reward host and friend with chips once the friend finishes a hand.
+
 ## ENG-36 [P1] — Diagnose the starter-grant "double-miss" and surface reveal health
 
 **Problem:** A new prod user saw neither the onboarding grant number nor the Home welcome-dialog backup, yet got their 10k chips. Why the Home backup didn't fire is unconfirmed (`accountJustCreated` / `welcomeIdentity` race?).
