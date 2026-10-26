@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.7.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.6.0...v0.7.0) (2026-10-26)
+
+
+### Features
+
+* **home:** count how many people see the head-to-head card ([f130cea](https://github.com/Elijah-Dangerfield/Cards/commit/f130cea7cc61ad39e52b07529c0fe01ab4f7083d))
+* **server:** report the running build from /_health ([ef76354](https://github.com/Elijah-Dangerfield/Cards/commit/ef763542ac17578f3285654eccbb75a649812f14))
+
+
+### Bug Fixes
+
+* **billing:** close the purchase funnel so a stuck purchase is visible ([7cc7f5f](https://github.com/Elijah-Dangerfield/Cards/commit/7cc7f5f88d364b72c887c2a0c7f757aa24739d75))
+* **ci:** give the stores plain release notes, not the changelog ([e883486](https://github.com/Elijah-Dangerfield/Cards/commit/e8834863c2e776a2e1af7be15289ea974d4b5666))
+* **ios:** lower the Release deployment target from 26.1 to 18.2 ([0636ea5](https://github.com/Elijah-Dangerfield/Cards/commit/0636ea59615e82a1ea706c521269a616632553ee))
+* **navigation:** show a refused web link in an in-app browser on iOS ([e5761ce](https://github.com/Elijah-Dangerfield/Cards/commit/e5761cedbc46baae9a8ed9b0c99d9deba2c445b9))
+* **networking:** treat a 429 as back-pressure, not a failure ([b36d97e](https://github.com/Elijah-Dangerfield/Cards/commit/b36d97ed1e61bdef7d7e0521420fffb5ae71681a))
+* **review:** keep the review ask when there is no window to show it in ([ba07d7c](https://github.com/Elijah-Dangerfield/Cards/commit/ba07d7ca5256731e16e7cdcbf56854eb97c11c55))
+* **telemetry:** log what Grafana objected to, and cap attribute values ([984c82f](https://github.com/Elijah-Dangerfield/Cards/commit/984c82fced000be6ad0494e4043b9aec812887cd))
+
 ## [0.6.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.5.0...v0.6.0) (2026-10-21)
 
 
