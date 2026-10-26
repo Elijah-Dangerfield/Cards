@@ -84,15 +84,41 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** The deadlock is that `setup-gradle` is `cache-read-only` on `pull_request` events, so PR runs can never reseed what they need, and only a `push`-event run to `main` can. No CI ran 09-21 → 09-28, so GitHub evicted everything for inactivity. Options: raise the timeout, let `main` pushes write the macOS gradle-home cache, or split compile and assemble into separate jobs. Found independently by two agents triaging #157 and #158.
 
-## ENG-49 [P1] — The RenderThread text-stall fix did NOT hold on low-end devices
+## ENG-49 [P1] — The RenderThread text-stall fix does NOT hold, now confirmed on the current build
 
-**Problem:** Shipped in `v0.3.0` / build 1209 on 2026-09-21. **Contradicted on 2026-10-01: CARDS-CF (4 events / 2 users) and CARDS-CG (1 event) are both ANRs on 1209 with the same `GrTextBlobRedrawCoordinator::internalRemove` RenderThread stack**, from one vivo V2135 (`device.class: low`, Android 13, 3.8GB) in multiplayer room 434U5F, hands 9 and 23. 7d abnormal exits moved to `{anr: 6, oom: 7}` from `{anr: 1}`. So the fix did not hold on low-end hardware — but 1209 does **not** carry the ENG-55/56/59 perf work, which is sitting unpublished in 0.4.0 (ENG-76), so this is not yet a verdict on the full fix set.
+**Verdict reached 2026-10-25.** The earlier filing said 1209 "does not carry the ENG-55/56/59 perf
+work, so this is not yet a verdict on the full fix set." It is now. **CARDS-C1 regressed on
+`cards@0.6.0+1308`** (2026-10-25, Realme RMX3762, `device.class: low`, Android 13, route
+`PlayMultiplayerRoute`) with the identical stack, on the build that *does* carry all of it.
 
-**Acceptance:** Four weeks of a *published* build carrying the perf trio with no new ANR on a `TextBlobRedrawCoordinator` stack, and Play vitals flat or down. Re-read specifically on low-end devices — every confirmed instance so far is one. The clock cannot start until ENG-76 is resolved.
+**Read the threads, not the crash.** The main thread is a victim: `ViewRootImpl.enableHardwareAcceleration`
+→ `ThreadedRenderer.create` → `RenderProxy::RenderProxy` → `pthread_cond_wait`. It is waiting. The
+cause is thread 33, `RenderThread`, 79 frames deep and busy in Skia's glyph cache:
 
-**Hints:** Chronology proving 1135 predates the fix is in `docs/agent/feedback-cases/CARDS-C9.md`. Original diagnosis: `docs/plans/renderthread-text-stall.md`, case `CARDS-C1.md`. Sentry: [CARDS-C9](https://elijah-dangerfield.sentry.io/issues/7744693593/), CARDS-C1, CARDS-BZ. 72 commits sit on `main` unshipped, including R8, baseline profiles and the Sentry mapping upload.
+```
+GrTextBlob::Key::operator==
+GrTextBlobRedrawCoordinator::internalRemove
+GrTextBlobRedrawCoordinator::drawGlyphRunList
+```
 
-If it recurs **on a post-fix build**, the shape to look for is an animation whose value is read during composition (`val x by animateFloatAsState(...)`), which recomposes its whole subtree every frame. Three instances caused this. `AnimatedStateReadInComposition` in `:detekt-rules` now runs (ENG-54) and cleared 19 instances, but it only matches the `by animateFloatAsState(...)` shape — a clean lint is not proof that nothing recomposes per frame. Capture a trace with `scripts/compose-trace.sh`.
+Same signature as CARDS-CF / CARDS-CG. Any caller would have hung here, so a fix aimed at whatever
+the main thread last called would do nothing (this is the worked example in the observability-triage
+skill for exactly that reason).
+
+**Scope, measured:** 1 ANR in 7 days (`0.6.0`), against 4 OOM (2 on 0.5.0, 2 on 0.6.0). Down from
+`{anr: 6, oom: 7}` at the 2026-10-01 filing, so the perf work did help; it did not eliminate. Both
+affected devices to date are `device.class: low` on Android 13.
+
+**Acceptance:** a low-end Android 13 device plays a multiplayer hand to showdown without the
+RenderThread stalling in the glyph cache. The honest alternative, if that cannot be reached, is to
+decide deliberately what low-end Android support means and say so, rather than leaving a known stall
+unowned.
+
+**Hints:** the stall is in Skia text-blob caching, so suspect churn in what is drawn as text on the
+table: anything whose string identity changes every frame or every tick creates a new blob key.
+Chip/XP counters and timers are the usual culprits. `GrTextBlobRedrawCoordinator::internalRemove` is
+cache eviction, so the cache is being thrashed, not merely used. Sentry CARDS-C1 (current),
+CARDS-CF, CARDS-CG.
 
 ## ENG-48 [P2] — Sustained concurrent flushes for one user 500 instead of queueing
 
