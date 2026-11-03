@@ -174,6 +174,9 @@ def build(data_dir):
     installs = sum(ad["metrics"]["installs"] or 0 for ad in ads)
     clicks = sum(ad["metrics"]["clicks"] or 0 for ad in ads)
     budgets = [(ad.get("budget") or {}).get("amount") for ad in ads]
+    # Spend from ads with no install count would inflate cost per install.
+    counted = [ad for ad in ads if ad["metrics"]["installs"] is not None]
+    counted_spend = sum(ad["metrics"]["spend"] or 0 for ad in counted)
 
     return {
         "builtAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -184,7 +187,8 @@ def build(data_dir):
             "budget": round(sum(budgets), 2) if budgets and None not in budgets else None,
             "installs": installs,
             "clicks": clicks,
-            "cpi": ratio(spend, installs),
+            "cpi": ratio(counted_spend, installs),
+            "cpiFrom": [ad["name"] for ad in counted] if len(counted) < len(ads) else None,
             # Ads whose spend we couldn't read, so the totals are a floor.
             "spendUnknown": [ad["name"] for ad in ads if ad["metrics"]["spend"] is None],
             # Ads whose links carry no campaign token, so installs can't be counted.

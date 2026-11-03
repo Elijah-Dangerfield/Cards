@@ -132,6 +132,10 @@ Then open the dashboard with the `ads-dashboard` preview server (`.claude/launch
 
 If a run can't read a source, put it in `gaps` and keep that ad's last known numbers. Never let a missing source show as zero.
 
+## Signed-out sources
+
+Chrome sessions expire (Apple Ads and App Store Connect sign out often). When a source shows a sign-in page, don't skip it: ask the owner to sign in in that Chrome tab, keep pulling the other sources meanwhile, and come back to it once they say it's done. Only fall back to `gaps` if they can't sign in this run. Never type credentials yourself.
+
 ## Guardrails
 
 - **Read-only on ad accounts.** Never publish, pause, edit, change budgets or targeting in any ad manager unless the owner asks in this conversation. Editing an ad in review restarts review.

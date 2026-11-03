@@ -108,7 +108,7 @@ function renderTiles(t) {
     <div class="tile">
       <span class="label">Cost per install</span>
       <span class="value">${fmt.money(t.cpi)}</span>
-      <span class="detail">${t.cpi == null ? "shows up once installs are counted" : "across every platform"}</span>
+      <span class="detail">${t.cpi == null ? "shows up once installs are counted" : t.cpiFrom ? `${t.cpiFrom.join(", ")} only` : "across every platform"}</span>
     </div>`;
 }
 
