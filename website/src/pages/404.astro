@@ -1,0 +1,24 @@
+---
+// GitHub Pages serves this for any path it has no file for. Room invites are
+// shared as /join/<code>, which is never a real file, so forward those to the
+// invite page with the code in the query string.
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Not found · Downcard">
+  <main class="missing">
+    <h1>That page isn't here</h1>
+    <p><a href="/">Back to Downcard</a></p>
+  </main>
+</Layout>
+
+<script>
+  import { readRoomCode } from '../lib/room-invite';
+
+  const code = readRoomCode('', location.pathname);
+  if (code) location.replace(`/join/?code=${code}`);
+</script>
+
+<style>
+  .missing { min-height: 60vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px; text-align: center; }
+</style>

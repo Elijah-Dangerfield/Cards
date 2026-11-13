@@ -25,4 +25,11 @@ class RoomInviteTest {
         assertTrue(link.startsWith("${RoomInvite.DEEP_LINK_BASE_PATH}/"))
         assertEquals("ZZZ999", link.removePrefix("${RoomInvite.DEEP_LINK_BASE_PATH}/"))
     }
+
+    @Test
+    fun share_url_is_a_web_link_anyone_can_open() {
+        // ROOM-22: a cards:// link is dead for a friend without the app. The
+        // website forwards /join/<code> to its invite page.
+        assertEquals("https://downcard.app/join/ABC123", RoomInvite.shareUrlForCode("ABC123"))
+    }
 }

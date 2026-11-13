@@ -204,7 +204,7 @@ class PlayMultiplayerFeatureEntryPoint(
             val shareMessage = stringResource(
                 Res.string.lobby_in_room_share_message,
                 route.roomCode,
-                RoomInvite.linkForCode(route.roomCode),
+                RoomInvite.shareUrlForCode(route.roomCode),
             )
             PlayPokerScreen(
                 state = state,

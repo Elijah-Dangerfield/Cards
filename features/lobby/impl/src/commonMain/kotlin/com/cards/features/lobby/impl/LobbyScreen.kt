@@ -295,7 +295,7 @@ private fun InRoomContent(
     val shareMessage = stringResource(
         Res.string.lobby_in_room_share_message,
         room.code,
-        RoomInvite.linkForCode(room.code),
+        RoomInvite.shareUrlForCode(room.code),
     )
     val shareInvite = { onShareInvite(shareMessage) }
 
@@ -319,9 +319,9 @@ private fun InRoomContent(
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(Dimension.D400))
-        // Share opens the platform share sheet with a join deep link
-        // (cards://join/CODE) so a friend taps straight into this lobby;
-        // Copy stays as the bare-code fallback for paste-anywhere.
+        // Share sends a downcard.app/join link that opens this lobby in the
+        // app, or the store for a friend who doesn't have it yet. Copy stays
+        // as the bare-code fallback for paste-anywhere.
         Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D300)) {
             ButtonSecondary(
                 onClick = shareInvite,

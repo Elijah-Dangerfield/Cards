@@ -345,11 +345,12 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 **State:** two devices, both signed in, online. Device A is in a room's lobby (any visibility — private, open, or public). (Covers todo ROOM-7.)
 
 1. Device A: in the lobby, tap "Share invite". Send the message (e.g. via Messages / Notes) to Device B.
-2. Device B: open the shared message and tap the `cards://join/...` link.
+2. Device B: open the shared message and tap the `https://downcard.app/join/...` link, then tap **Open in Downcard** on the page that opens.
 
-**Expected:** The shared text reads naturally and contains the room code plus a `cards://join/CODE` link. Tapping it on Device B opens the app straight into that room's lobby (code pre-filled, auto-joins), no manual code entry. Both devices then show both members seated. The "Copy code" button still copies the bare code for paste-anywhere use.
+**Expected:** The shared text reads naturally and contains the room code plus a tappable `https://downcard.app/join/CODE` link (ROOM-22). The page shows the code, an **Open in Downcard** button and only this phone's store. Open in Downcard on Device B opens the app straight into that room's lobby (code pre-filled, auto-joins), no manual code entry. Both devices then show both members seated. The "Copy code" button still copies the bare code for paste-anywhere use.
+- **No app installed (ROOM-22):** on a phone without Downcard, the link opens the same page; the store button goes to that phone's store, and tapping the code copies it.
 
-- In-game share (ROOM-19): once a **private** game has started, the play-screen top bar shows a share icon between the back arrow area and the help (?) button. Tapping it opens the same platform share sheet with the same `cards://join/CODE` invite text, so a mid-game invite doesn't require hunting for the code. Solo bot games and matchmade public tables show no share icon (public codes aren't shareable — inviting a friend to a stranger table is the collusion setup, see docs/wiki/multiplayer.md).
+- In-game share (ROOM-19): once a **private** game has started, the play-screen top bar shows a share icon between the back arrow area and the help (?) button. Tapping it opens the same platform share sheet with the same `downcard.app/join/CODE` invite text, so a mid-game invite doesn't require hunting for the code. Solo bot games and matchmade public tables show no share icon (public codes aren't shareable — inviting a friend to a stranger table is the collusion setup, see docs/wiki/multiplayer.md).
 
 ---
 

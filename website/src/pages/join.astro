@@ -1,0 +1,135 @@
+---
+// Room invite landing: downcard.app/join/?code=AB12CD (and /join/AB12CD via 404.astro).
+// The app's own cards://join link does nothing for someone without the app, and
+// Messages will not even make it tappable, so invites point here instead. With
+// the app installed, "Open in Downcard" goes straight to the room. Without it,
+// the store button installs it and the code is there to type in afterwards.
+import '../styles/global.css';
+import { APP_STORE_URL, PLAY_STORE_URL } from '../lib/store-links';
+---
+
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="/uploads/app-icon.png" />
+    <title>Join my game on Downcard</title>
+    <meta name="description" content="You're invited to a poker game on Downcard. No real money, no house, no catch." />
+    <meta property="og:title" content="Join my game on Downcard" />
+    <meta property="og:description" content="Poker for the group chat. No real money, no house, no catch." />
+    <meta property="og:image" content="https://downcard.app/uploads/app-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <main class="join">
+      <img src="/uploads/app-icon.png" alt="" width="88" height="88" />
+      <h1>You're invited to a game</h1>
+      <p id="lede">Poker for the group chat. No real money, no house, no catch.</p>
+      <div id="room" class="room" hidden>
+        <span class="label">Room code</span>
+        <button id="code" class="code" type="button" aria-label="Copy room code"></button>
+        <span id="copied" class="copied" aria-live="polite"></span>
+      </div>
+      <a id="open" class="primary" href="#" hidden>Open in Downcard</a>
+      <p class="hint" id="install-hint" hidden>New to Downcard? Install it, then open Private room and join with this code.</p>
+      <div class="stores">
+        <a id="app-store" href={APP_STORE_URL}>App Store</a>
+        <a id="google-play" href={PLAY_STORE_URL}>Google Play</a>
+      </div>
+      <a class="home" href="/">More about Downcard</a>
+    </main>
+  </body>
+</html>
+
+<script>
+  import { appLinkFor, INVITE_CAMPAIGN, readRoomCode } from '../lib/room-invite';
+  import { appStoreUrl, platformOf, playStoreUrl } from '../lib/store-links';
+
+  const code = readRoomCode(location.search, location.pathname);
+  const platform = platformOf(navigator.userAgent, navigator.maxTouchPoints);
+  const appStore = document.getElementById('app-store') as HTMLAnchorElement;
+  const googlePlay = document.getElementById('google-play') as HTMLAnchorElement;
+  appStore.href = appStoreUrl(INVITE_CAMPAIGN);
+  googlePlay.href = playStoreUrl(INVITE_CAMPAIGN);
+  // Show only the store that can install on this phone.
+  if (platform === 'ios') googlePlay.hidden = true;
+  if (platform === 'android') appStore.hidden = true;
+
+  if (code) {
+    const codeButton = document.getElementById('code') as HTMLButtonElement;
+    codeButton.textContent = code;
+    codeButton.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(code);
+        document.getElementById('copied')!.textContent = 'Copied';
+      } catch {
+        // Clipboard access can be refused; the code is on screen to type.
+      }
+    });
+    document.getElementById('room')!.hidden = false;
+    document.getElementById('install-hint')!.hidden = false;
+    if (platform !== 'other') {
+      const open = document.getElementById('open') as HTMLAnchorElement;
+      open.href = appLinkFor(code);
+      open.hidden = false;
+    }
+  } else {
+    document.querySelector('h1')!.textContent = 'Get Downcard';
+  }
+</script>
+
+<style>
+  .join {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 32px;
+    text-align: center;
+    background: linear-gradient(160deg, #ebd277 0%, #9acf9c 52%, #5ac6b4 100%);
+    color: #1c1a18;
+    font-family: Poppins, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  .join img { border-radius: 22px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2); }
+  .join h1 { font: 800 clamp(30px, 7vw, 46px) Poppins; letter-spacing: -0.03em; margin: 8px 0 0; }
+  .join p { font: 500 18px/1.5 Poppins; color: rgba(28, 26, 24, 0.7); max-width: 380px; margin: 0; }
+  .room { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 8px; }
+  .label { font: 700 13px Poppins; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(28, 26, 24, 0.6); }
+  .code {
+    font: 800 clamp(40px, 11vw, 56px) Poppins;
+    letter-spacing: 0.12em;
+    background: none;
+    border: none;
+    color: #1c1a18;
+    cursor: pointer;
+    padding: 0;
+  }
+  .copied { font: 500 14px Poppins; min-height: 20px; color: rgba(28, 26, 24, 0.7); }
+  .primary {
+    background: #0d0c0b;
+    color: #f5f0e6;
+    padding: 16px 36px;
+    border-radius: 16px;
+    font: 700 20px Poppins;
+    text-decoration: none;
+  }
+  .hint { font-size: 15px !important; }
+  .stores { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .stores a {
+    background: rgba(13, 12, 11, 0.08);
+    border: 2px solid #0d0c0b;
+    color: #0d0c0b;
+    padding: 12px 24px;
+    border-radius: 16px;
+    font: 700 16px Poppins;
+    text-decoration: none;
+  }
+  .home { font: 500 15px Poppins; color: rgba(28, 26, 24, 0.7); margin-top: 8px; }
+</style>
