@@ -68,13 +68,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Acceptance:** The bust dialog never shows another hand's number. Clear `lastHandXpAwarded` in `HandEndAchievementsPending`, alongside `recentlyEarned`.
 
-## ENG-73 [P2] — An empty request body 500s instead of 400ing, and pages as an error
+## ENG-88 [P2] — Bound how long the server waits for a request body
 
-**Problem:** A client whose upload dies mid-request sends no body; `ContentNegotiation` throws `BadRequestException` wrapping `JsonDecodingException: Expected start of the object '{', but had 'EOF'`, and `StatusPages` logs it as **"Unhandled error"** at ERROR with a full stack, which reaches Sentry (CARDS-CB). Seen twice from one install on `/v1/me/player-stats/sync` and `/v1/me/wallet/sync`, 12s apart — the stats one after the server had waited **39.5 seconds** and then returned 500. A truncated upload is a client-side network condition, not a server fault: it deserves a 400 and a breadcrumb.
+**Problem:** A phone whose upload stalls holds a connection open until the body finally ends; one `/v1/me/player-stats/sync` waited 39.5s before EOF (CARDS-CB). Since ENG-73 the result is a 400, but the connection is still tied up the whole time.
 
-**Acceptance:** An empty or truncated body returns 400 and does not create a Sentry error event. The 39.5s wait before EOF also wants a request-body read timeout — that request occupied a connection for 40 seconds to learn nothing.
-
-**Hints:** `ErrorsKt.installStatusPages` maps this; `BadRequestException` should be in the expected-client-error set. Same family as ENG-68 (429 as backpressure, not error) — consider doing them together, since both are "an expected client condition logged as a server failure". This is also the only entry the dc-infra slow-request panel caught this week, so fixing it clears that signal for real findings.
+**Acceptance:** A request body that stops arriving is cut off after a few seconds with a 408 or 400, covered by a test.
 
 ## ENG-74 [P1] — A cold Gradle cache pushes the macOS CI job past its 45-minute timeout
 

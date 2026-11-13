@@ -6,6 +6,8 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.install
+import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.ContentTransformationException
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.httpMethod
 import io.ktor.server.request.path
@@ -45,6 +47,11 @@ fun Application.installStatusPages() {
                 ProblemResponse(ProblemResponse.Problem("bad_request", cause.message ?: "Bad request")),
             )
         }
+        // A body that is empty, cut off or not JSON: almost always a phone whose
+        // upload died mid-request (ENG-73). The client's network, not our fault,
+        // so it answers 400 and logs a warning instead of paging as a 500.
+        exception<BadRequestException> { call, cause -> call.respondUnreadableBody(cause) }
+        exception<ContentTransformationException> { call, cause -> call.respondUnreadableBody(cause) }
         exception<UnknownAuthUserException> { call, cause ->
             call.respondAccountNotFound(cause.userId.toString(), detectedBy = "pre-flight")
         }
@@ -66,6 +73,19 @@ fun Application.installStatusPages() {
             )
         }
     }
+}
+
+private suspend fun ApplicationCall.respondUnreadableBody(cause: Throwable) {
+    logger.warn(
+        "Unreadable request body on {} {}: {}",
+        request.httpMethod.value,
+        request.path(),
+        (cause.cause ?: cause).message,
+    )
+    respond(
+        HttpStatusCode.BadRequest,
+        ProblemResponse(ProblemResponse.Problem("bad_request", "The request body could not be read.")),
+    )
 }
 
 /**
