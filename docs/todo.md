@@ -241,33 +241,11 @@ counts over 7 days rather than 6 hours and is deliberately sticky. Remaining kno
 `no_data_state: OK`, so a total Loki outage reads healthy on every event-based rule. A "client
 telemetry has gone quiet" watchdog would cover them all at once, and does not exist.
 
-## ENG-84 [P1] — Fatal crash on first launch in the Play billing proxy activity
+## ENG-84 [P2] — Play's pre-launch robots crash in the billing proxy activity
 
-**Problem:** CARDS-BS, fatal and unhandled, 2026-10-22, `cards@0.6.0+1308`, Android 11, HONOR 20e
-(HRY-LX1T, `device.class: low`). `RuntimeException: Unable to start activity
-ComponentInfo{.../ProxyBillingActivity}` wrapping `NullPointerException: Attempt to invoke
-'PendingIntent.getIntentSender()' on a null object reference`. Breadcrumbs show `Minted fresh
-install_id on first launch` immediately before, so the user never got into the app.
+**Problem:** CARDS-BS (`ProxyBillingActivity` started without its `PendingIntent`, NPE). All 8 events are **Play pre-launch test devices, not players**: only two models (OnePlus8Pro, HRY-LX1T), all Android 11, no geo, no account, fresh install each time, and they land in bursts on the days a release reaches Play review (10-22 for 0.6.0, 10-26 for 0.7.0), then never again. Nothing since 10-26.
 
-**Two plausible explanations are already ruled out by the event.** It is **not** Play Protect: that
-blocks or warns at install time and cannot throw inside Google's billing activity in our process.
-It is **not** a device without Play Services: `installerStore = com.android.vending` proves the app
-was installed from the Play Store, and `os.rooted = no`, `simulator = false`. (An earlier version of
-this item guessed the Huawei-without-GMS angle. The install provenance kills it.)
-
-**What is left:** Play Billing's `ProxyBillingActivity` was started without the `PendingIntent`
-extra it dereferences. The usual mechanism is the OS restoring a task containing that activity after
-process death, recreating it with no extras. That fits a first-launch low-end device being killed
-and restored, and it would explain why nothing in our code appears in the stack.
-
-**Acceptance:** the app survives a process-death restore of a task containing the billing activity,
-and the shop degrades rather than taking the process down. Reproduce by launching a purchase flow,
-killing the process from the shell, then relaunching from recents.
-
-**Hints:** `:libraries:billing:impl`. Check the Play Billing Library version against its changelog
-for this exact NPE, which is a known class. `BillingAvailability` already models an unavailable
-store. Case `docs/agent/feedback-cases/CARDS-BS.md`;
-https://elijah-dangerfield.sentry.io/issues/CARDS-BS/
+**Acceptance:** Confirm in Play Console → Pre-launch report for the next release. If the crash shows there, survive a restored or extras-less `ProxyBillingActivity` (process-death restore is the likely real-world route) so the report stays clean; if not, resolve CARDS-BS and drop this.
 
 ## ENG-87 [P2] — Nothing notices if client telemetry stops arriving at all
 
