@@ -27,6 +27,7 @@ import kotlinx.serialization.json.putJsonObject
 import kotlin.concurrent.atomics.AtomicInt
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.incrementAndFetch
+import kotlin.time.Clock
 
 /**
  * OTLP/HTTP JSON log exporter backed by our own Ktor client. Replaces the
@@ -43,13 +44,17 @@ import kotlin.concurrent.atomics.incrementAndFetch
 internal class OtlpJsonLogRecordExporter(
     private val baseUrl: String,
     private val client: HttpClient,
+    private val nowEpochNanos: () -> Long = {
+        Clock.System.now().let { it.epochSeconds * NANOS_PER_SECOND + it.nanosecondsOfSecond }
+    },
 ) : LogRecordExporter {
 
     private val logger = KLog.withTag(GrafanaLogTree.EXPORT_TAG)
 
     private val permanentRejections = AtomicInt(0)
 
-    override suspend fun export(telemetry: List<ReadableLogRecord>): OperationResultCode {
+    override suspend fun export(batch: List<ReadableLogRecord>): OperationResultCode {
+        val telemetry = withoutRecordsLokiWillRefuse(batch)
         if (telemetry.isEmpty()) return OperationResultCode.Success
         return Catching {
             val response = client.post("$baseUrl/v1/logs") {
@@ -75,6 +80,29 @@ internal class OtlpJsonLogRecordExporter(
                 }
             }
         }.getOrElse { OperationResultCode.Failure }
+    }
+
+    /**
+     * Loki refuses anything older than its ingestion window, and one such record
+     * fails the whole batch. A player who comes back after a week away still has
+     * last week's records on disk, so without this every lapsed player's first
+     * launch cost their whole first batch and raised a Sentry error (CARDS-D3,
+     * CARDS-D7). Those records can never be delivered, so drop them here and send
+     * the rest.
+     */
+    private fun withoutRecordsLokiWillRefuse(batch: List<ReadableLogRecord>): List<ReadableLogRecord> {
+        val oldestAccepted = nowEpochNanos() - MAX_RECORD_AGE_NANOS
+        val (fresh, expired) = batch.partition { record ->
+            val time = record.timestamp ?: record.observedTimestamp ?: return@partition true
+            time >= oldestAccepted
+        }
+        if (expired.isNotEmpty()) {
+            logger.i {
+                "Dropped ${expired.size} buffered log record(s) older than Loki accepts; " +
+                    "sending the other ${fresh.size}."
+            }
+        }
+        return fresh
     }
 
     /**
@@ -192,6 +220,14 @@ internal class OtlpJsonLogRecordExporter(
         if (length <= max) this else "${take(max)}...[+${length - max} chars]"
 
     private companion object {
+        const val NANOS_PER_SECOND = 1_000_000_000L
+
+        /**
+         * Grafana Cloud's Loki rejects records more than 7 days old ("timestamp
+         * too old"). Six days leaves a day of margin for device clock skew.
+         */
+        const val MAX_RECORD_AGE_NANOS = 6L * 24 * 60 * 60 * NANOS_PER_SECOND
+
         /**
          * Enough of Loki's refusal to name the field or the timestamp it
          * objected to, short enough to put on a Sentry event.

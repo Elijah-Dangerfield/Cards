@@ -47,9 +47,9 @@ class OtlpJsonLogRecordExporterTest {
         override val eventName: String?,
         override val attributes: Map<String, Any>,
         override val resource: Resource = FakeResource(mapOf("service.name" to "cards-client")),
+        override val timestamp: Long? = RECORD_TIME_NANOS,
     ) : ReadableLogRecord {
-        override val timestamp: Long? = 1_783_793_000_000_000_000
-        override val observedTimestamp: Long? = 1_783_793_000_000_000_001
+        override val observedTimestamp: Long? = timestamp?.plus(1)
         override val severityNumber: SeverityNumber = SeverityNumber.INFO
         override val severityText: String? = "INFO"
         override val body: Any? = eventName
@@ -70,8 +70,8 @@ class OtlpJsonLogRecordExporterTest {
         KLog.clearTrees()
     }
 
-    private fun exporter(engine: MockEngine) =
-        OtlpJsonLogRecordExporter("https://otlp.example/otlp", HttpClient(engine))
+    private fun exporter(engine: MockEngine, nowEpochNanos: Long = RECORD_TIME_NANOS) =
+        OtlpJsonLogRecordExporter("https://otlp.example/otlp", HttpClient(engine)) { nowEpochNanos }
 
     @Test
     fun payload_carriesEventNameTypedAttributesAndResource() {
@@ -176,6 +176,43 @@ class OtlpJsonLogRecordExporterTest {
     }
 
     @Test
+    fun recordsPastLokisWindow_areDroppedAndTheRestStillShip() = runTest {
+        // CARDS-D3/D7: a player back after a week has last week's records on disk.
+        // Loki refuses the whole batch for one of them, so they must not go out.
+        var sentBody: String? = null
+        val engine = MockEngine { request ->
+            sentBody = (request.body as TextContent).text
+            respond("")
+        }
+        val weekAgo = RECORD_TIME_NANOS - 7L * 24 * 60 * 60 * 1_000_000_000
+
+        val result = exporter(engine).export(
+            listOf(
+                FakeRecord("app.launched", emptyMap(), timestamp = weekAgo),
+                FakeRecord("hand.completed", emptyMap()),
+            ),
+        )
+
+        assertEquals(OperationResultCode.Success, result)
+        val sent = Json.parseToJsonElement(sentBody!!).jsonObject["resourceLogs"]!!.jsonArray.single()
+            .jsonObject["scopeLogs"]!!.jsonArray.single().jsonObject["logRecords"]!!.jsonArray
+        assertEquals(listOf("hand.completed"), sent.map { it.jsonObject["eventName"]!!.jsonPrimitive.content })
+        assertTrue(logs.entries.none { it.level == LogLevel.Error }, "an expired record is not an error")
+    }
+
+    @Test
+    fun batchOfOnlyExpiredRecords_settlesWithoutTouchingTheNetwork() = runTest {
+        var requests = 0
+        val engine = MockEngine { requests++; respond("") }
+        val weekAgo = RECORD_TIME_NANOS - 7L * 24 * 60 * 60 * 1_000_000_000
+
+        val result = exporter(engine).export(listOf(FakeRecord("app.launched", emptyMap(), timestamp = weekAgo)))
+
+        assertEquals(OperationResultCode.Success, result)
+        assertEquals(0, requests)
+    }
+
+    @Test
     fun askAgainLater_keepsTheBatchBuffered() = runTest {
         listOf(HttpStatusCode.TooManyRequests, HttpStatusCode.RequestTimeout).forEach { status ->
             val engine = MockEngine { respondError(status) }
@@ -276,5 +313,6 @@ class OtlpJsonLogRecordExporterTest {
     private companion object {
         const val BODY_CAP = 512
         const val ATTRIBUTE_CAP = 512
+        const val RECORD_TIME_NANOS = 1_783_793_000_000_000_000
     }
 }
