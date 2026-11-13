@@ -347,6 +347,36 @@ class LocalBotsSessionTest : CoroutineTest() {
         assertTrue(state.seats.all { it.handParticipation == HandParticipation.InHand })
     }
 
+    // ---------- Overlapping drivers (CARDS-DB) ----------
+
+    @Test
+    fun snapTappingHuman_playsManyHandsWithoutAnIllegalBotAction() = runUnitTest {
+        // A player who acts the instant the action bar appears lands every tap
+        // inside the bot loop's post-action delay. Real (betting) bots, many hands.
+        val session = buildSession(seatsCount = 4, humanSeatIndex = 0, random = Random(7L), botActionDelayMs = 1_000L)
+        launch { session.runUntilHumansTurnOrComplete() }
+        var lastAnswered: Pair<Int, Long>? = null
+        repeat(60_000) {
+            val state = session.gameStateFlow.value
+            if (state.handNumber > 20) return@repeat
+            if (state.street == BettingRound.Complete) {
+                session.advanceToNextHand()
+            } else if (state.actingSeatIndex == 0 && lastAnswered != state.handNumber to state.lastSequence) {
+                lastAnswered = state.handNumber to state.lastSequence
+                val me = state.seatAt(0)
+                val toCall = state.currentBetThisStreet - me.contributedThisStreet
+                val intent = when {
+                    toCall == 0L -> PlayerIntent.Check(0)
+                    toCall >= me.stack -> PlayerIntent.AllIn(0)
+                    else -> PlayerIntent.Call(0)
+                }
+                launch { session.submitHumanIntent(intent) }
+            }
+            advanceTimeBy(10)
+        }
+        assertTrue(session.gameStateFlow.value.handNumber > 20, "reached hand ${session.gameStateFlow.value.handNumber}")
+    }
+
     // ---------- State flow integrity ----------
 
     @Test
@@ -372,6 +402,7 @@ class LocalBotsSessionTest : CoroutineTest() {
         random: Random = Random(42L),
         onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit = { _, _, _ -> },
         botDecider: BotDecider = RngBotDecider,
+        botActionDelayMs: Long = 0L,
     ): LocalBotsSession {
         val personalities = listOf(
             BotPersonality.Steve,
@@ -385,7 +416,7 @@ class LocalBotsSessionTest : CoroutineTest() {
             humanSeatIndex = humanSeatIndex,
             botPersonalities = personalities,
             random = random,
-            botActionDelayMs = 0L,
+            botActionDelayMs = botActionDelayMs,
             gameSpeedProvider = { com.dangerfield.cards.libraries.cards.GameSpeed.Fast },
             onHandEnded = onHandEnded,
             botDecider = botDecider,

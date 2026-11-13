@@ -165,6 +165,8 @@ class LocalBotsSession(
 
     private var gameState: GameState = startNextHand()
 
+    private var driverGeneration = 0
+
     // Rolling window of recent human decision durations. Bots subtly mirror
     // the user's tempo — captured by stamping when the human becomes acting
     // and computing the delta when their intent arrives.
@@ -274,11 +276,17 @@ class LocalBotsSession(
     }
 
     suspend fun runUntilHumansTurnOrComplete() {
+        // A human action starts a fresh driver while the previous one may still be
+        // suspended in its post-action delay. Only the newest driver may act, or two
+        // loops play the same bots and one applies a decision made against an older
+        // state (CARDS-DB: "Cannot check: must call 3500").
+        val generation = ++driverGeneration
         logger.d {
             "runUntilHumansTurnOrComplete enter: hand=$handNumber street=${gameState.street} acting=${gameState.actingSeatIndex}"
         }
         while (gameState.actingSeatIndex != null && gameState.actingSeatIndex != humanSeatIndex) {
             val acting = gameState.actingSeatIndex!!
+            val decidedOn = gameState
             val personality = personalitiesBySeat.getValue(acting)
             // Monte Carlo equity is CPU-bound (≈200 hand evaluations per call).
             // Run off the main thread so the UI stays responsive while bots think.
@@ -330,16 +338,14 @@ class LocalBotsSession(
             val pacedDelay = if (handHasAction) thinkDelay
             else thinkDelay.coerceAtLeast(BotTiming.HAND_START_GRACE_MS)
             delay(pacedDelay)
-            // Re-check after the suspension points (`withContext`, `delay`): another
-            // coroutine on Main may have advanced the state in the meantime. Without
-            // this guard the engine throws "Not seat X's turn" when we try to apply
-            // a stale decision. Returning to the loop top picks up the new acting
-            // seat and computes a fresh decision.
-            val liveActing = gameState.actingSeatIndex
-            if (liveActing != acting || decision.intent.seatIndex != acting) {
+            if (generation != driverGeneration) return
+            // The decision is only legal against the exact state it was made on. The
+            // same seat can be back on the clock facing a different price, so compare
+            // the state itself, not just whose turn it is.
+            if (gameState !== decidedOn || decision.intent.seatIndex != acting) {
                 logger.w {
                     "Bot decision for seat $acting is stale " +
-                        "(now acting=$liveActing, intent.seatIndex=${decision.intent.seatIndex}, " +
+                        "(now acting=${gameState.actingSeatIndex}, intent.seatIndex=${decision.intent.seatIndex}, " +
                         "street=${gameState.street}). Skipping apply."
                 }
                 continue
@@ -349,6 +355,7 @@ class LocalBotsSession(
             // collapses to zero when the human folded, same rationale.
             val tailDelay = if (humanFolded) 0L else (botActionDelayMs * currentSpeed.botThinkScale).toLong()
             delay(tailDelay)
+            if (generation != driverGeneration) return
             if (gameState.street == BettingRound.Complete) break
         }
 
