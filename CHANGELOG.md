@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.8.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.7.0...v0.8.0) (2026-11-13)
+
+
+### Features
+
+* **rooms:** share invites as a downcard.app link that works without the app ([dc7da85](https://github.com/Elijah-Dangerfield/Cards/commit/dc7da858c1ac15893a6454bb651742b0bcf2a6b9))
+
+
+### Bug Fixes
+
+* **bots:** stop a second bot loop from playing a stale decision ([296d307](https://github.com/Elijah-Dangerfield/Cards/commit/296d307af185261b712b38cf869794fca45a41f0))
+* **server:** answer an unreadable request body with 400, not a 500 that pages ([9fe9f59](https://github.com/Elijah-Dangerfield/Cards/commit/9fe9f590604756b65ab20085adc3f8f62b75f16a))
+* **telemetry:** drop buffered logs older than Loki accepts instead of the whole batch ([1a04c6e](https://github.com/Elijah-Dangerfield/Cards/commit/1a04c6e39349872d449db4a40a303ff7ec65fb49))
+
 ## [0.7.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.6.0...v0.7.0) (2026-10-26)
 
 
