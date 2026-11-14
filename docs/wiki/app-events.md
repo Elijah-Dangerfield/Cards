@@ -106,6 +106,28 @@ and anything already in a ledger.
 | --- | --- | --- |
 | `nav.route_viewed` | `route`, `previous` (null on first route) | Once when the route class name changes. No route arguments or user data. |
 
+## Standing tables
+
+These events carry no table codes, names or invite URLs.
+
+| Event | Attributes | Fires |
+| --- | --- | --- |
+| `standing_table.create_started` | `entry` (chooser/feature_intro) | The player chooses to set up a standing table. |
+| `standing_table.created` | `weekday` (ISO 1–7), `hour` (0–23, table-local), `max_seats`, `buy_in` | Creation succeeds. Editing does not emit it. |
+| `standing_table.create_failed` | `reason` (too_many/invalid/network) | A create request fails. |
+| `standing_table.viewed` | `is_owner`, `live` (booleans) | The detail screen first loads successfully, once per ViewModel. `live` means a sitting exists, including a lobby. |
+| `standing_table.opened` | `entry` (detail/home_card) | A Home card opens the detail screen (`home_card`), or Open table is chosen from detail (`detail`). Neither confirms a successful join. |
+| `standing_table.invite_shared` | `surface` (detail/lobby/in_game) | The share action is handed to the system; it does not confirm delivery. |
+| `standing_table.calendar_added` | `surface` (detail/lobby), `result` (added/cancelled/unavailable/opened) | The calendar action returns. `added` confirms an iOS save; `opened` means Android opened its editor, with no save confirmation. `unavailable` triggers the web `.ics` fallback. |
+| `standing_table.archived` | none | The owner's archive request succeeds. |
+
+## Feature intros
+
+| Event | Attributes | Fires |
+| --- | --- | --- |
+| `feature_intro.shown` | `feature` (standing_tables) | The Home notification manager presents the intro. |
+| `feature_intro.acted` | `feature` (standing_tables), `action` (primary/dismiss) | The player chooses the primary action or dismisses the intro, including sheet dismissal. |
+
 ## Engagement & session shape
 
 | Event | Attributes | Fires |

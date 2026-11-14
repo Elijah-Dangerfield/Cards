@@ -1150,3 +1150,12 @@ independently useful and should not wait for it.
 
 **Status:** Backlog. Raised 2026-10-24 after a triage where nearly half the noise came from
 untriaged sibling projects.
+
+
+## Check D8 metadata compatibility with Kotlin 2.4
+
+**Observed (2026-11-14):** local Android debug builds pass with the existing AGP 8.13.2 and Kotlin 2.4.0 versions, but D8 repeatedly warns that it cannot parse Kotlin metadata. One successful build produced 5,279 copies of that warning plus stack traces, making the quiet runner's full log 108 MB. The toolchain versions were unchanged by the standing-tables work.
+
+**Follow-up:** reproduce with the minified release variant and choose a compatible AGP/R8 combination through the normal dependency update process. Verify runtime navigation and serialization before treating the warning as harmless. Do not hide the warning as the fix.
+
+**Status:** Backlog. Toolchain follow-up outside the standing-tables scope; no dependency versions changed in that run.

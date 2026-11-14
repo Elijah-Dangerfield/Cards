@@ -566,6 +566,99 @@ Multiplayer is the load-bearing feature. These walk the major MP surfaces as dev
 
 ---
 
+## Standing tables
+
+Run these cases against a dev server with the standing-table migration applied, `standingTables.enabled` enabled for the test accounts, and `invite.shareBaseUrl` pointing to its reachable invite host. Check the default-off state too: Home has no standing-table section, chooser option or feature intro until enabled.
+
+### `ST-1` 🚨 📱 Create, edit and reopen a standing table
+
+**State:** signed in, online, fewer than three active owned standing tables.
+
+1. On Home, open the private-room chooser and choose the standing-table option.
+2. Enter a name, weekday, quarter-hour time, buy-in and seat count; tap "Set up table".
+3. Check "Your table is set", then return Home and reopen the table from "Your tables".
+4. Edit the name and schedule, save, then leave and return Home.
+5. Open the table, leave until it is empty, then open it again using the same code.
+
+**Expected:** The name, schedule, buy-in and seat count persist. The same six-character code survives an empty room and the next sitting uses the saved settings. The owner can edit; regulars cannot. A fourth active table is refused with the three-table limit message. Blank or overlong names cannot be submitted.
+
+---
+
+### `ST-2` 🚨 📱 Share an invite with a phone without Downcard
+
+**State:** an active standing table; a second phone without the app installed.
+
+1. Tap "Invite friends" from the detail screen, lobby and in-game menu.
+2. Send the invite to the second phone and inspect its link preview.
+3. Open the link there, try "Add to calendar", then follow the store button.
+
+**Expected:** The invite includes the name, weekly schedule, code and URL. The preview shows the table name and schedule with the server-rendered image. The web page shows the same details, offers an `.ics` download and Google Calendar link, and sends iOS to the App Store or Android to Play. It remains usable without opening the app.
+
+---
+
+### `ST-3` 🚨 📱 A friend joins and becomes a regular
+
+**State:** an active standing table, a signed-in friend who has never joined it, and enough chips for the buy-in.
+
+1. Open the invite link on the friend's phone and tap "Open in Downcard" if the web page opens.
+2. Join the lobby, then leave until everyone has left.
+3. Return Home on the friend's phone, reopen the table from "Your tables", and join again.
+4. From the detail screen, tap "Remove from my tables".
+
+**Expected:** The friend joins the correct code and becomes a regular without an RSVP. Home shows the table after joining, including live occupancy while someone is seated. Removing it hides it from that friend's list without deleting the table; joining again adds it back. Direct opening from an HTTPS link is covered separately by ROOM-23.
+
+---
+
+### `ST-4` 🚨 📱 A 0.8.0 app joins by typed code
+
+**State:** one phone running 0.8.0, signed in with enough chips; an active standing table with no live room.
+
+1. On 0.8.0, use the existing join-by-code screen and enter the standing code.
+2. Leave until the room is empty, then join by code again.
+3. Repeat with a balance below the buy-in.
+
+**Expected:** Both funded joins open the lobby under the same code using the saved settings, with no app upgrade required. The underfunded join shows the existing insufficient-balance error and does not create a sitting.
+
+---
+
+### `ST-5` 🚨 📱 Add a weekly calendar event
+
+**State:** an active standing table. Run on both platforms with a calendar app available, then repeat without an available calendar handler where possible.
+
+1. Tap "Add to calendar" from the detail screen and from the lobby banner.
+2. Inspect the native event editor, save it, and follow the invite link from the saved event.
+3. Repeat and cancel the editor. Inspect occurrences across a daylight-saving change in the table's time zone.
+
+**Expected:** The editor contains the table name, weekly repeat, duration, table time zone, code and join URL. Occurrences keep the chosen weekday and local hour across daylight-saving changes; a nonexistent spring-forward time skips that week's native occurrence. iOS reports saved or cancelled; Android only reports opening the editor, so confirm the saved event manually. With no native handler, the `.ics` fallback opens. Cancelling does not block play or claim the event was saved.
+
+---
+
+### `ST-6` 🚨 📱 Archive a table and reject later joins
+
+**State:** an owner and a regular of an active standing table; no one seated at it.
+
+1. As the owner, open the detail screen, tap "Delete table", cancel once, then confirm.
+2. Check "Your tables" for both accounts.
+3. Try the old link and typed code, including on 0.8.0.
+
+**Expected:** Cancelling keeps the table. Confirming archives it and removes it from both lists. New-app joins show "This standing table was closed by its host." The web page says "This table isn't open right now", offers no calendar export, and 0.8.0 cannot join. The retired code is never reused for another table or ordinary room.
+
+---
+
+### `FI-1` ⚠️ 📱 Introduce standing tables once, after the first hand
+
+**State:** a fresh install with the feature enabled and no seen feature intros. Use separate installs for the primary and dismiss paths.
+
+1. Finish onboarding and visit Home before playing.
+2. Finish a hand and return Home, including during that same session.
+3. Let any welcome, achievement or level-up dialogs finish, then inspect the standing-tables intro.
+4. Tap "Maybe later", revisit Home and cold boot. On the other account, tap "Set one up" instead.
+5. Repeat with the feature flag off.
+
+**Expected:** No intro appears on the fresh, zero-hand Home visit. After the first hand, an eligible player sees it after higher-priority dialogs, once per device; returning within the same session is eligible. "Maybe later" dismisses it permanently; "Set one up" opens the create screen and also marks it seen. Turning the flag off suppresses the intro and its create entry.
+
+---
+
 ## Profile & items
 
 ### `PROF-1` ℹ️ 📱 Default felt + card back show as equipped on a fresh account

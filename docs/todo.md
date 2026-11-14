@@ -32,30 +32,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 **Hints:** `onboarding.completed` then nothing in `docs/wiki/app-events.md` terms. Onboarding exit lives in `features/onboarding/impl` (`OnboardingViewModel`); practice entry is Home's Practice `PlayRow` (`features/home/impl/.../HomeScreen.kt`). Don't collide with the Home notification queue (Welcome) on that first visit.
 
-## ROOM-24 [P1] — Standing tables: a named weekly table with a code that never expires
-
-**Problem:** Friends are the only reliable way two players are online together, but a room code dies when the table empties, and there's no reminder to come back.
-
-**Acceptance:** Everything in [`docs/plans/standing-tables.md`](plans/standing-tables.md) tasks T1, T2 and T4 to T8, shipped dark behind `standingTables.enabled`.
-
-**Hints:** The plan is prescriptive: API contract, files, tests and task order are all in it. Run it with the `orchestrate` skill.
-
-## ENG-89 [P1] — Log route changes to Loki so a session's path is visible without an error
-
-**Problem:** The current route only reaches Sentry's scope tag, so a player who leaves without an error leaves no navigation trail in Grafana.
-
-**Acceptance:** One `nav.route_viewed` event (`route`, `previous`) per screen change. Spec: [`docs/plans/standing-tables.md`](plans/standing-tables.md) → T0.
-
-**Hints:** `apps/compose/src/commonMain/kotlin/com/cards/App.kt`, the `LaunchedEffect(currentRouteName)` that calls `telemetry.setCurrentRoute`.
-
-## SITE-2 [P1] — Invite links preview as "Not found · Downcard"
-
-**Problem:** GitHub Pages serves `/join/{code}` as `404.html` with a 404 status, and preview crawlers don't run the redirect script, so every shared invite previews as the 404 page.
-
-**Acceptance:** `404.astro` carries invite-friendly title, description and `og:image`; website tests run in `pages.yml`. Spec: [`docs/plans/standing-tables.md`](plans/standing-tables.md) → T3. The full fix is the server-rendered page in ROOM-24.
-
-**Hints:** `website/src/pages/404.astro`, `website/src/lib/room-invite.ts`, `.github/workflows/pages.yml`.
-
 ## ROOM-23 [P1] — Invite links should open the app directly, not via the web page
 
 **Problem:** Invites now share `https://downcard.app/join/{code}` (ROOM-22), which works for everyone but costs a player who has the app an extra tap on "Open in Downcard".
