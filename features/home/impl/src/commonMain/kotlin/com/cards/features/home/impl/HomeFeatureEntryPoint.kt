@@ -94,6 +94,7 @@ class HomeFeatureEntryPoint(
             // Non-null = the update sheet is open, carrying the version it quotes.
             var updateVersion by remember { mutableStateOf<String?>(null) }
             var featureIntro by remember { mutableStateOf<FeatureIntro?>(null) }
+            val shownFeatureIntros = remember { mutableSetOf<FeatureIntro>() }
             LaunchedEffect(homeState.standingTablesEnabled) {
                 if (!homeState.standingTablesEnabled) featureIntro = null
             }
@@ -308,6 +309,11 @@ class HomeFeatureEntryPoint(
             featureIntro?.takeIf {
                 homeState.standingTablesEnabled && !hasActiveOverlay
             }?.let { intro ->
+                LaunchedEffect(intro) {
+                    if (shownFeatureIntros.add(intro)) {
+                        KLog.logEvent("feature_intro.shown", "feature" to intro.id)
+                    }
+                }
                 FeatureIntroSheet(
                     intro = intro,
                     onPrimary = {

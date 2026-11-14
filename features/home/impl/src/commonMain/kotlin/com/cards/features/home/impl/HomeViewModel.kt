@@ -638,7 +638,6 @@ class HomeViewModel(
                 appCache.update { it.copy(featureIntrosSeen = it.featureIntrosSeen + notification.intro.id) }
                 delay(DialogIntroDelay)
                 if (standingTablesEnabled()) {
-                    homeLogger.logEvent("feature_intro.shown", "feature" to notification.intro.id)
                     sendEvent(HomeEvent.ShowFeatureIntro(notification.intro))
                 }
             }
