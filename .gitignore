@@ -4,7 +4,7 @@
 # Ignore local Claude config (settings.local.json, etc.) but track shared,
 # version-controlled skills + commands so they ship with the repo.
 .claude/*
-!.claude/skills/
+!.claude/skills
 !.claude/commands/
 # Shared hooks (PR-title check). Everything else under .claude/ stays local.
 !.claude/settings.json
@@ -63,3 +63,8 @@ explain-*.md
 # Ads dashboard: real spend and results stay local (repo is public).
 marketing/ads/data/
 marketing/ads/**/dashboard.json
+
+# Local orchestration reports and evidence.
+orchestrate-*.md
+orchestrate-*/
+handoff-*.md

@@ -505,3 +505,12 @@ This app was generated from **[KMPTemplate](https://github.com/Elijah-Dangerfiel
 | Swift↔Kotlin patterns | `docs/practices/swift-kotlin.md` |
 | Architecture decisions log (append-only) | `docs/decisions.md` |
 | Remote config + QA menu | `libraries/config/...`, `features/profile/impl/.../QaMenuScreen.kt` |
+
+## Shared agent setup
+
+`AGENTS.md` is the repository instruction source for every agent. `CLAUDE.md` points here.
+Repository skills live in `.agents/skills`; `.claude/skills` is a compatibility symlink.
+Treat tool and model names in skills as examples: use the current agent runtime equivalents.
+For attended parallel work on local `main`, assign disjoint file ownership, keep shared-file
+tasks sequential, and let the lead stage and commit reviewed changes. Do not let workers
+change branches, commit, push, deploy, or operate devices without the lead assigning it.
