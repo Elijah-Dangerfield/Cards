@@ -6,9 +6,11 @@ import Footer from '../components/Footer.astro';
 interface Props {
   title?: string;
   description?: string;
+  ogImage?: string;
 }
 
 const {
+  ogImage,
   title = 'Downcard — Fun. Simple. Poker.',
   description = 'Downcard is poker for the group chat. Spin up a table, share a code, and play. No real money, no house, no catch.',
 } = Astro.props;
@@ -25,6 +27,7 @@ const {
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    {ogImage && <meta property="og:image" content={ogImage} />}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

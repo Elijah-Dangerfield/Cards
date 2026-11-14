@@ -2,7 +2,7 @@
 // routing, so /join/<code> falls through to 404.html, which forwards here as
 // /join/?code=<code>. Both shapes are read so a link works either way.
 
-const ROOM_CODE = /^[A-Z0-9]{6}$/;
+const ROOM_CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
 
 /** The room code from ?code= or a /join/<code> path, or null if neither holds one. */
 export function readRoomCode(search: string, pathname: string): string | null {
