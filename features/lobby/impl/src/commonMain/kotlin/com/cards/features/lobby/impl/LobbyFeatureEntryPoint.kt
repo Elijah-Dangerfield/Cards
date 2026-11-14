@@ -170,6 +170,7 @@ class LobbyFeatureEntryPoint(
             ),
         ) { backStackEntry ->
             val route = backStackEntry.toRoute<LobbyRoute>()
+            val scope = rememberCoroutineScope()
             val viewModel: LobbyViewModel = viewModel {
                 viewModelFactory(
                     route.prefilledCode,
