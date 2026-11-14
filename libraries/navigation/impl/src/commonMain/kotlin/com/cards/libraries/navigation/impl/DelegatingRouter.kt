@@ -20,6 +20,9 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.flowroutines.observeWithLifecycle
 import androidx.navigation.NavBackStackEntry
+import com.dangerfield.cards.libraries.navigation.CalendarLauncher
+import com.dangerfield.cards.libraries.navigation.CalendarResult
+import com.dangerfield.cards.libraries.navigation.RecurringCalendarEvent
 import com.dangerfield.cards.libraries.navigation.AccessDeniedRoute
 import com.dangerfield.cards.libraries.navigation.AuthGateChecker
 import com.dangerfield.cards.libraries.navigation.BlockingErrorRoute
@@ -58,6 +61,7 @@ class DelegatingRouter(
     private val appScope: AppCoroutineScope,
     private val webLinkLauncher: WebLinkLauncher,
     private val shareLauncher: ShareLauncher,
+    private val calendarLauncher: CalendarLauncher,
     private val dispatchers: DispatcherProvider,
     private val authGateChecker: AuthGateChecker,
 ) : Router {
@@ -267,6 +271,13 @@ class DelegatingRouter(
             .logOnFailure("Failed to share text")
             .throwIfDebug()
     }
+    override suspend fun addToCalendar(event: RecurringCalendarEvent): CalendarResult =
+        withContext(dispatchers.main) {
+            Catching { calendarLauncher.addWeekly(event) }
+                .logOnFailure("Failed to open calendar editor")
+                .getOrDefault(CalendarResult.Unavailable)
+        }
+
     @Composable
     fun Bind(navController: NavHostController) {
         val lifecycleOwner = LocalLifecycleOwner.current

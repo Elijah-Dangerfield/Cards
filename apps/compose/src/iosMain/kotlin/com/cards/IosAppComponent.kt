@@ -4,6 +4,7 @@ import com.dangerfield.cards.libraries.billing.StoreKitCoordinator
 import com.dangerfield.cards.libraries.cards.PermissionManager
 import com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator
 import com.dangerfield.cards.libraries.identity.auth.SecureSessionStorage
+import com.dangerfield.cards.libraries.navigation.CalendarLauncher
 import com.dangerfield.cards.libraries.review.ReviewLauncher
 import com.dangerfield.cards.libraries.ui.nativeviews.NativeViewFactory
 import me.tatarka.inject.annotations.Provides
@@ -16,6 +17,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 abstract class IosAppComponent(
     private val permissionManager: PermissionManager,
     private val reviewLauncher: ReviewLauncher,
+    private val calendarLauncher: CalendarLauncher,
     // The Swift `IOSAppleSignInCoordinator` (ASAuthorizationController flow),
     // passed in from `iOSApp.swift`. Android binds its own no-op via anvil.
     private val appleSignInCoordinator: AppleSignInCoordinator,
@@ -36,6 +38,9 @@ abstract class IosAppComponent(
     fun provideReviewLauncher(): ReviewLauncher = reviewLauncher
 
     @Provides
+    fun provideCalendarLauncher(): CalendarLauncher = calendarLauncher
+
+    @Provides
     fun provideAppleSignInCoordinator(): AppleSignInCoordinator = appleSignInCoordinator
 
     @Provides
@@ -50,6 +55,7 @@ abstract class IosAppComponent(
 expect fun create(
     permissionManager: PermissionManager,
     reviewLauncher: ReviewLauncher,
+    calendarLauncher: CalendarLauncher,
     appleSignInCoordinator: AppleSignInCoordinator,
     storeKitCoordinator: StoreKitCoordinator,
     secureSessionStorage: SecureSessionStorage,

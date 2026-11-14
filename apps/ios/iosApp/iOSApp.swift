@@ -7,6 +7,7 @@ struct iOSApp: App {
     
     let permissionManager = IOSPermissionManager()
     let reviewLauncher = IOSReviewLauncher()
+    let calendarLauncher = IOSCalendarLauncher()
     let appleSignInCoordinator = IOSAppleSignInCoordinator()
     let storeKitCoordinator = IOSStoreKitCoordinator()
     let secureSessionStorage = IOSSecureSessionStorage()
@@ -17,6 +18,7 @@ struct iOSApp: App {
         self.iOSAppComponent = create(
             permissionManager: permissionManager,
             reviewLauncher: reviewLauncher,
+            calendarLauncher: calendarLauncher,
             appleSignInCoordinator: appleSignInCoordinator,
             storeKitCoordinator: storeKitCoordinator,
             secureSessionStorage: secureSessionStorage,

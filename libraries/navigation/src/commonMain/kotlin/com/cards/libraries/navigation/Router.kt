@@ -86,6 +86,8 @@ interface Router {
      */
     fun shareText(text: String)
 
+    suspend fun addToCalendar(event: RecurringCalendarEvent): CalendarResult = CalendarResult.Unavailable
+
     /**
      * Run a sequence of navigation operations atomically against the
      * underlying controller. The whole block runs inside a single
