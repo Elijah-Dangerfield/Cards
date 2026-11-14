@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/Elijah-Dangerfield/Cards/compare/v0.8.0...v0.8.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **ci:** archive iOS with the distribution cert instead of minting a dev cert ([e0e7c49](https://github.com/Elijah-Dangerfield/Cards/commit/e0e7c497f30d912132c953b38aa04839e1409acc))
+
 ## [0.8.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.7.0...v0.8.0) (2026-11-13)
 
 
