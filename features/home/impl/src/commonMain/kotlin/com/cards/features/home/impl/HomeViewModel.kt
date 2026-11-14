@@ -57,6 +57,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
+import com.dangerfield.cards.libraries.core.logOnFailure
+import com.dangerfield.cards.libraries.rooms.StandingTable
+import com.dangerfield.cards.libraries.rooms.StandingTableRepository
+import com.dangerfield.cards.libraries.rooms.StandingTablesEnabled
 import me.tatarka.inject.annotations.Inject
 
 @Inject
@@ -79,8 +83,10 @@ class HomeViewModel(
     private val appScope: AppCoroutineScope,
     socialEnabledConfig: SocialEnabled,
     rivalriesEnabledConfig: RivalriesEnabled,
+    private val standingTableRepository: StandingTableRepository,
+    private val standingTablesEnabled: StandingTablesEnabled,
 ) : SEAViewModel<HomeState, HomeEvent, HomeAction>(
-    initialStateArg = HomeState(socialEnabled = socialEnabledConfig())
+    initialStateArg = HomeState(socialEnabled = socialEnabledConfig(), standingTablesEnabled = standingTablesEnabled())
 ) {
 
     private val homeLogger = KLog.withTag("HomeViewModel")
@@ -101,6 +107,7 @@ class HomeViewModel(
     // updates the "last seen" baseline (see the chips collector), and whether a
     // pending blocking notification is allowed to present. Mutated only from the
     // action loop. See [HomeAction.ScreenResumed] / [HomeAction.ScreenPaused].
+    private var latestStandingTables: List<StandingTable> = emptyList()
     private var homeResumed = false
 
     /**
@@ -147,6 +154,9 @@ class HomeViewModel(
     private var highestCelebrationPresented = 0
 
     init {
+        viewModelScope.launch {
+            standingTableRepository.mine.collect { takeAction(HomeAction.StandingTablesChanged(it)) }
+        }
         viewModelScope.launch {
             roomRepository.observeActiveRooms().collect { rooms ->
                 takeAction(HomeAction.ActiveRoomsChanged(rooms))
@@ -352,6 +362,12 @@ class HomeViewModel(
 
     override suspend fun handleAction(action: HomeAction) {
         when (action) {
+            is HomeAction.StandingTablesChanged -> {
+                latestStandingTables = action.tables
+                action.updateState {
+                    it.copy(standingTables = if (standingTablesEnabled()) action.tables.map(::StandingTableCardModel) else emptyList())
+                }
+            }
             is HomeAction.Refresh -> roomRepository.getActiveRooms()
             is HomeAction.ActiveRoomsChanged -> action.applyActiveRooms(action.rooms)
             is HomeAction.Forfeit -> forfeit(action.code)
@@ -364,6 +380,14 @@ class HomeViewModel(
             }
             is HomeAction.ScreenResumed -> {
                 homeResumed = true
+                val tablesEnabled = standingTablesEnabled()
+                action.updateState {
+                    it.copy(standingTablesEnabled = tablesEnabled,
+                        standingTables = if (tablesEnabled) latestStandingTables.map(::StandingTableCardModel) else emptyList())
+                }
+                if (tablesEnabled) viewModelScope.launch {
+                    standingTableRepository.refreshMine().logOnFailure { "Home standing tables refresh failed" }
+                }
                 logRivalryImpression(state.topRivalry)
                 takeAction(HomeAction.ReconcileChipReveal)
                 // Home just settled — flush any blocking notification that was
@@ -768,7 +792,11 @@ private fun HomeNotification.Welcome.toPayload(): WelcomePayload = WelcomePayloa
     isFounding = isFounding,
 )
 
+data class StandingTableCardModel(val table: StandingTable)
+
 data class HomeState(
+    val standingTablesEnabled: Boolean = false,
+    val standingTables: List<StandingTableCardModel> = emptyList(),
     val userName: String? = null,
     val avatarEmoji: String? = null,
     val avatarBackgroundColorHex: String? = null,
@@ -913,6 +941,7 @@ sealed interface HomeEvent {
 }
 
 sealed interface HomeAction {
+    data class StandingTablesChanged(val tables: List<StandingTable>) : HomeAction
     data object Refresh : HomeAction
     data class ActiveRoomsChanged(val rooms: List<Room>) : HomeAction
     data class Forfeit(val code: String) : HomeAction

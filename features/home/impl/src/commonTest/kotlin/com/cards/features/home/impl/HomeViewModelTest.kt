@@ -48,6 +48,11 @@ import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.rooms.RoomStatus
+import com.dangerfield.cards.libraries.rooms.StandingTablesEnabled
+import com.dangerfield.cards.libraries.rooms.StandingTable
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalTime
+import kotlinx.datetime.TimeZone
 import com.dangerfield.cards.libraries.social.FriendProfile
 import com.dangerfield.cards.libraries.social.FriendRepository
 import com.dangerfield.cards.libraries.social.RecentOpponentProfile
@@ -1233,6 +1238,50 @@ class HomeViewModelTest : CoroutineTest() {
 
     // ---------- scaffolding ----------
 
+    @Test
+    fun standingTablesAppearAndRefreshOnResumeWhenEnabled() = runUnitTest {
+        val table = StandingTable("K7M2QX", "Thursday Night Poker", "owner", "Alex", true, 5000, 6,
+            DayOfWeek.THURSDAY, LocalTime(20, 0), TimeZone.UTC, 120, Instant.fromEpochMilliseconds(0), 1)
+        val repo = FakeStandingTableRepository(listOf(table))
+        val vm = buildVm(standingTables = repo, standingTablesEnabled = true)
+        assertEquals(listOf(StandingTableCardModel(table)), vm.state.standingTables)
+        vm.takeAction(HomeAction.ScreenResumed)
+        assertEquals(1, repo.refreshCount)
+    }
+
+    @Test
+    fun standingTablesStayHiddenAndDoNotRefreshWithFlagOff() = runUnitTest {
+        val repo = FakeStandingTableRepository()
+        val vm = buildVm(standingTables = repo, standingTablesEnabled = false)
+        vm.takeAction(HomeAction.ScreenResumed)
+        assertEquals(emptyList(), vm.state.standingTables)
+        assertEquals(0, repo.refreshCount)
+        assertFalse(vm.state.standingTablesEnabled)
+    }
+
+    @Test
+    fun resumeReevaluatesStandingTableFlagInBothDirections() = runUnitTest {
+        var enabled = false
+        val flag = StandingTablesEnabled(object : AppConfigMap() {
+            override val map: Map<String, *> get() = mapOf("standingTables" to mapOf("enabled" to enabled))
+        })
+        val table = StandingTable("K7M2QX", "Thursday Night Poker", "owner", "Alex", true, 5000, 6,
+            DayOfWeek.THURSDAY, LocalTime(20, 0), TimeZone.UTC, 120, Instant.fromEpochMilliseconds(0), 1)
+        val repo = FakeStandingTableRepository(listOf(table))
+        val vm = buildVm(standingTables = repo, standingTablesFlag = flag)
+        assertEquals(emptyList(), vm.state.standingTables)
+        enabled = true
+        vm.takeAction(HomeAction.ScreenResumed)
+        assertEquals(listOf(StandingTableCardModel(table)), vm.state.standingTables)
+        assertTrue(vm.state.standingTablesEnabled)
+        assertEquals(1, repo.refreshCount)
+        enabled = false
+        vm.takeAction(HomeAction.ScreenResumed)
+        assertEquals(emptyList(), vm.state.standingTables)
+        assertFalse(vm.state.standingTablesEnabled)
+        assertEquals(1, repo.refreshCount)
+    }
+
     private fun buildVm(
         progression: FakeProgressionRepository = FakeProgressionRepository(),
         achievements: FakeAchievementRepository = FakeAchievementRepository(),
@@ -1262,6 +1311,9 @@ class HomeViewModelTest : CoroutineTest() {
         rivalriesEnabled: Boolean = true,
         rivalries: FakeRivalryRepository = FakeRivalryRepository(),
         appUpdateSource: AppUpdateSource = updateSource { null },
+        standingTables: FakeStandingTableRepository = FakeStandingTableRepository(),
+        standingTablesEnabled: Boolean = false,
+        standingTablesFlag: StandingTablesEnabled = StandingTablesEnabled.forTest(standingTablesEnabled),
     ): HomeViewModel = HomeViewModel(
         progressionRepository = progression,
         achievementRepository = achievements,
@@ -1281,6 +1333,8 @@ class HomeViewModelTest : CoroutineTest() {
         appUpdateSource = appUpdateSource,
         socialEnabledConfig = SocialEnabled.forTest(socialEnabled),
         rivalriesEnabledConfig = RivalriesEnabled.forTest(rivalriesEnabled),
+        standingTableRepository = standingTables,
+        standingTablesEnabled = standingTablesFlag,
     )
 
     private fun updateSource(latest: suspend () -> AppVersion?): AppUpdateSource = object : AppUpdateSource {

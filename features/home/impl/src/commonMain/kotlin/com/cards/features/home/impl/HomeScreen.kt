@@ -5,6 +5,18 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import cards.libraries.resources.generated.resources.standing_table_home_title
+import cards.libraries.resources.generated.resources.standing_table_home_live
+import cards.libraries.resources.generated.resources.standing_table_home_now
+import com.dangerfield.cards.libraries.rooms.StandingTable
+import com.dangerfield.cards.libraries.ui.components.room.StandingTableCard
+import com.dangerfield.cards.libraries.ui.components.room.standingScheduleLabel
+import com.dangerfield.cards.libraries.ui.components.room.standingTableNextLabel
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalTime
+import kotlinx.datetime.TimeZone
+import kotlin.time.Instant
+import kotlin.time.Duration.Companion.minutes
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -66,6 +78,7 @@ fun HomeScreen(
     onTapAchievements: () -> Unit,
     onAddRecentOpponent: (opponentId: String) -> Unit,
     onSeeAllRecentOpponents: () -> Unit,
+    onStandingTable: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState(),
 ) {
@@ -92,6 +105,8 @@ fun HomeScreen(
         chipsRevealKey = state.chipsRevealKey,
         chipsReconciling = state.chipsReconciling,
         activeRooms = state.activeRooms,
+        standingTables = state.standingTables,
+        onStandingTable = onStandingTable,
         topRivalry = state.topRivalry,
         onRematchRivalry = { rivalry -> viewModel.takeAction(HomeAction.RematchRivalry(rivalry)) },
         showTutorialBanner = !state.tutorialBannerDismissed,
@@ -131,6 +146,9 @@ private fun HomeScreenContent(
     avatarEmoji: String? = "🦊",
     avatarBackgroundColorHex: String? = "#E48A58",
     activeRooms: List<ActiveRoomSummary>,
+    standingTables: List<StandingTableCardModel> = emptyList(),
+    onStandingTable: (String) -> Unit = {},
+    standingTablesNow: Instant = Clock.System.now(),
     // The head-to-head card. Null is the common case for a solo player and for a
     // first multiplayer night; it renders nothing then rather than an empty slot.
     topRivalry: Rivalry? = null,
@@ -231,6 +249,14 @@ private fun HomeScreenContent(
             }
 
             VerticalSpacerD800()
+            if (standingTables.isNotEmpty()) {
+                SectionHeader(title = stringResource(Res.string.standing_table_home_title))
+                VerticalSpacerD500()
+                standingTables.forEach { card ->
+                    HomeStandingTableCard(card, standingTablesNow, onStandingTable)
+                    VerticalSpacerD500()
+                }
+            }
             SectionHeader(title = stringResource(Res.string.home_section_play))
             VerticalSpacerD600()
             // Rooms-forward home: Public rooms is the flat hero (pick a buy-in,
@@ -583,3 +609,49 @@ private fun previewRecentAchievements(): List<RecentAchievement> {
             )
         }
 }
+
+@Composable
+private fun HomeStandingTableCard(card: StandingTableCardModel, now: Instant, onTap: (String) -> Unit) {
+    val table = card.table
+    val live = table.live
+    val status = when {
+        live != null -> stringResource(Res.string.standing_table_home_live, live.seatedHumans)
+        now >= table.nextStartsAt && now < table.nextStartsAt + table.durationMinutes.minutes -> stringResource(Res.string.standing_table_home_now)
+        else -> standingTableNextLabel(table.nextStartsAt, table.timeZone, now)
+    }
+    StandingTableCard(table.name, standingScheduleLabel(table.weekday, table.localTime), status, { onTap(table.code) }, isLive = table.live != null)
+}
+
+private fun previewHomeStandingTables(count: Int) = List(count) { index -> StandingTableCardModel(StandingTable(
+    code = listOf("K7M2QX", "Q2M4RX", "X4R6TW")[index],
+    name = listOf("Thursday Night Poker", "Friday Friends", "Sunday Cards")[index],
+    ownerUserId = "owner", ownerDisplayName = "Alex", isOwner = index == 0, buyIn = 5000, maxSeats = 6,
+    weekday = listOf(DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SUNDAY)[index],
+    localTime = LocalTime(20, 0), timeZone = TimeZone.of("America/New_York"), durationMinutes = 120,
+    nextStartsAt = Instant.parse(listOf("2026-11-20T01:00:00Z", "2026-11-21T01:00:00Z", "2026-11-23T01:00:00Z")[index]), regularCount = 5,
+)) }
+
+@Composable
+private fun HomeWithStandingTablesPreview(count: Int) {
+    PreviewContent {
+        HomeScreenContent(
+            levelProgress = levelProgressFor(1000), chips = 25000, activeRooms = emptyList(),
+            standingTables = previewHomeStandingTables(count), standingTablesNow = Instant.parse("2026-11-19T20:00:00Z"),
+            onPlayBots = {}, onPublicRooms = {}, onPrivateRoom = {}, onTournament = {}, onTapLevel = {},
+            onTapCash = {}, onRejoinRoom = {}, onForfeitRoom = {}, onTapFriends = {}, onTapAchievements = {},
+            onAddRecentOpponent = {}, onSeeAllRecentOpponents = {}, socialEnabled = false,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun HomeScreenPreview_OneStandingTable() { HomeWithStandingTablesPreview(1) }
+
+@Preview
+@Composable
+private fun HomeScreenPreview_TwoStandingTables() { HomeWithStandingTablesPreview(2) }
+
+@Preview
+@Composable
+private fun HomeScreenPreview_ThreeStandingTables() { HomeWithStandingTablesPreview(3) }

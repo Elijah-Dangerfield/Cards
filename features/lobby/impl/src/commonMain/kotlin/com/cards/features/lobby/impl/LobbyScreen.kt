@@ -1,5 +1,16 @@
 package com.dangerfield.cards.features.lobby.impl
 
+import com.dangerfield.cards.libraries.rooms.StandingTableSummary
+import com.dangerfield.cards.libraries.ui.components.room.RoomCode
+import com.dangerfield.cards.libraries.ui.components.room.standingTimeLabel
+import com.dangerfield.cards.libraries.ui.components.room.weekdayNameResource
+import com.dangerfield.cards.libraries.ui.components.button.ButtonGhost
+import cards.libraries.resources.generated.resources.standing_table_lobby_banner
+import cards.libraries.resources.generated.resources.standing_table_detail_calendar
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalTime
+import kotlinx.datetime.TimeZone
+import kotlin.time.Instant
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -124,6 +135,8 @@ fun LobbyScreen(
     onBack: () -> Unit,
     onShareInvite: (String) -> Unit = {},
     inviteShareBaseUrl: String = "https://downcard.app/join",
+    standingTablesEnabled: Boolean = false,
+    onStandingCalendar: (String) -> Unit = {},
 ) {
     // One leave path for every affordance: top-bar back, OS back, and the
     // in-room Leave button all route through requestBack, which confirms then
@@ -141,7 +154,7 @@ fun LobbyScreen(
         containerColor = AppTheme.colors.background.color,
         topBar = {
             TopBar(
-                title = stringResource(
+                title = visibleStandingTable(state.room, standingTablesEnabled)?.name ?: stringResource(
                     if (state.isInRoom) Res.string.lobby_topbar_title_in_room
                     else Res.string.lobby_topbar_title_idle,
                 ),
@@ -178,6 +191,8 @@ fun LobbyScreen(
                     onLeave = requestBack,
                     onShareInvite = onShareInvite,
                     inviteShareBaseUrl = inviteShareBaseUrl,
+                    standingTablesEnabled = standingTablesEnabled,
+                    onStandingCalendar = onStandingCalendar,
                 )
             } else {
                 // We only ever enter the lobby via Create (autoCreate) or Join
@@ -288,6 +303,8 @@ private fun InRoomContent(
     onLeave: () -> Unit,
     onShareInvite: (String) -> Unit,
     inviteShareBaseUrl: String,
+    standingTablesEnabled: Boolean,
+    onStandingCalendar: (String) -> Unit,
 ) {
     val room = state.room ?: return
     val clipboard = LocalClipboardManager.current
@@ -316,12 +333,10 @@ private fun InRoomContent(
             allCaps = true,
         )
         Spacer(modifier = Modifier.height(Dimension.D200))
-        Text(
-            text = room.code,
-            typography = AppTheme.typography.Display.D1000.Italic,
-            color = AppTheme.colors.accentPrimary,
-            textAlign = TextAlign.Center,
-        )
+        RoomCode(room.code, onCopy = copyCode)
+        visibleStandingTable(room, standingTablesEnabled)?.let { table ->
+            StandingTableLobbyBanner(table, onCalendar = { onStandingCalendar(room.code) })
+        }
         Spacer(modifier = Modifier.height(Dimension.D400))
         // Share sends a downcard.app/join link that opens this lobby in the
         // app, or the store for a friend who doesn't have it yet. Copy stays
@@ -807,3 +822,39 @@ private fun LobbyError.message(): String = when (this) {
     LobbyError.ConnectRejected -> stringResource(Res.string.lobby_error_connect_rejected)
     LobbyError.ConnectionLost -> stringResource(Res.string.lobby_error_connection_lost)
 }
+
+internal fun visibleStandingTable(room: Room?, enabled: Boolean): StandingTableSummary? =
+    room?.standingTable.takeIf { enabled }
+
+@Composable
+private fun StandingTableLobbyBanner(table: StandingTableSummary, onCalendar: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(Radii.Card.shape).background(AppTheme.colors.surface.color).padding(Dimension.D400), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(stringResource(Res.string.standing_table_lobby_banner, stringResource(weekdayNameResource(table.weekday)), standingTimeLabel(table.localTime)), typography = AppTheme.typography.Label.L300, color = AppTheme.colors.contentSecondary)
+        ButtonGhost(onClick = onCalendar, size = ButtonSize.Small) { Text(stringResource(Res.string.standing_table_detail_calendar)) }
+    }
+}
+
+@Preview
+@Composable
+private fun LobbyScreenPreview_StandingTable() {
+    PreviewContent { LobbyScreen(
+        state = LobbyState(room = previewStandingLobbyRoom(), currentUserId = "owner"),
+        onAction = {}, onBack = {}, standingTablesEnabled = true,
+    ) }
+}
+
+@Preview
+@Composable
+private fun LobbyScreenPreview_StandingTableFlagOff() {
+    PreviewContent { LobbyScreen(
+        state = LobbyState(room = previewStandingLobbyRoom(), currentUserId = "owner"),
+        onAction = {}, onBack = {}, standingTablesEnabled = false,
+    ) }
+}
+
+private fun previewStandingLobbyRoom() = Room(
+    code = "K7M2QX", hostUserId = "owner", createdAtEpochMs = 0, maxSeats = 6,
+    status = RoomStatus.Lobby, buyIn = 5000, smallBlind = 25, bigBlind = 50,
+    members = listOf(RoomMember("owner", "Alex", 0, 0, true)),
+    standingTable = StandingTableSummary("Thursday Night Poker", DayOfWeek.THURSDAY, LocalTime(20, 0), TimeZone.of("America/New_York"), Instant.parse("2026-11-20T01:00:00Z")),
+)

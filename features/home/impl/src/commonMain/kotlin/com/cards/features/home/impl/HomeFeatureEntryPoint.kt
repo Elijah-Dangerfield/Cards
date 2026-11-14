@@ -28,6 +28,8 @@ import com.dangerfield.cards.features.home.LevelUpRoute
 import com.dangerfield.cards.features.home.PlayStyleUnlockedRoute
 import com.dangerfield.cards.features.home.WelcomeDialogRoute
 import com.dangerfield.cards.features.profile.FeedbackRoute
+import com.dangerfield.cards.features.lobby.StandingTableRoute
+import com.dangerfield.cards.features.lobby.StandingTableCreateRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.lobby.PrivateCreateRoute
 import com.dangerfield.cards.features.lobby.PrivateJoinRoute
@@ -40,6 +42,7 @@ import com.dangerfield.cards.features.room.TutorialRoute
 import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.formatThousands
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.ObserveWithLifecycle
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
@@ -72,6 +75,7 @@ class HomeFeatureEntryPoint(
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<HomeRoute> {
             val viewModel: HomeViewModel = viewModel { homeViewModelFactory() }
+            val homeState by viewModel.stateFlow.collectAsStateWithLifecycle()
             val scrollState = rememberScrollState()
             val scope = rememberCoroutineScope()
             router.OnTabReselected(HomeRoute()) {
@@ -182,6 +186,10 @@ class HomeFeatureEntryPoint(
             val recentlyPlayedBody = stringResource(Res.string.home_coming_soon_recently_played_body)
 
             HomeScreen(
+                onStandingTable = { code ->
+                    KLog.logEvent("standing_table.opened", "entry" to "home_card")
+                    router.navigate(StandingTableRoute(code))
+                },
                 viewModel = viewModel,
                 onPlayBots = { botSetupOpen = true },
                 // Public rooms → the Find flow (visual shells for now; real
@@ -253,6 +261,11 @@ class HomeFeatureEntryPoint(
                         router.navigate(PrivateJoinRoute())
                     },
                     onDismiss = { showPrivateSheet = false },
+                    onStandingTable = if (homeState.standingTablesEnabled) ({
+                        showPrivateSheet = false
+                        KLog.logEvent("standing_table.create_started", "entry" to "chooser")
+                        router.navigate(StandingTableCreateRoute())
+                    }) else null,
                 )
             }
 
@@ -297,7 +310,6 @@ class HomeFeatureEntryPoint(
             // notification arbiter, so it survives the table→home trip and presents
             // on the next settled Home; dismissing drains the queue. Reuses the same
             // DS celebration the bot table shows at hand-end.
-            val homeState by viewModel.stateFlow.collectAsStateWithLifecycle()
             if (homeState.achievementCelebration.isNotEmpty()) {
                 AchievementCelebrationSheet(
                     earned = homeState.achievementCelebration,

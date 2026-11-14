@@ -14,6 +14,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(projects.libraries.navigation)
+            implementation(projects.libraries.resources)
         }
     }
 }

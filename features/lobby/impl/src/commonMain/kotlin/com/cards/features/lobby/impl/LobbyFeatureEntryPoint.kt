@@ -1,5 +1,14 @@
 package com.dangerfield.cards.features.lobby.impl
 
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.dangerfield.cards.features.lobby.RoomInvite
+import com.dangerfield.cards.libraries.ui.components.room.weekdayNameResource
+import com.dangerfield.cards.libraries.ui.components.room.formatStandingTime
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
+import cards.libraries.resources.generated.resources.ui_schedule_am
+import cards.libraries.resources.generated.resources.ui_schedule_pm
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -13,7 +22,6 @@ import cards.libraries.resources.generated.resources.lobby_snackbar_host_promote
 import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.lobby.PrivateCreateRoute
 import com.dangerfield.cards.features.lobby.PrivateJoinRoute
-import com.dangerfield.cards.features.lobby.RoomInvite
 import com.dangerfield.cards.features.room.PlayMultiplayerRoute
 import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
@@ -42,6 +50,8 @@ import me.tatarka.inject.annotations.Inject
 import org.jetbrains.compose.resources.getString
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
+import com.dangerfield.cards.libraries.rooms.StandingTableRepository
+import com.dangerfield.cards.libraries.rooms.StandingTablesEnabled
 import com.dangerfield.cards.libraries.rooms.InviteShareBaseUrl
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
@@ -57,9 +67,15 @@ class LobbyFeatureEntryPoint(
     private val equipmentRepository: EquipmentRepository,
     private val profileRepository: ProfileRepository,
     private val inviteShareBaseUrl: InviteShareBaseUrl,
+    private val standingTablesEnabled: StandingTablesEnabled,
+    private val standingTables: StandingTableRepository,
+    private val standingCreateFactory: (editCode: String?) -> StandingTableCreateViewModel,
+    private val standingDetailFactory: (code: String, justCreated: Boolean) -> StandingTableViewModel,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
+        standingTableScreens(router, { standingTablesEnabled() }, { inviteShareBaseUrl() },
+            standingCreateFactory, standingDetailFactory, chipsRepository, ::ownedTableCosmetics)
         // Private create/join front-ends (SPEC §6–7). Thin screens that
         // funnel into the seated lobby below via autoCreate / prefilledCode.
         // They pop themselves on the way in so the lobby sits directly on
@@ -209,8 +225,20 @@ class LobbyFeatureEntryPoint(
                 state = state,
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
-                onShareInvite = { message -> router.shareText(message) },
+                onShareInvite = { message ->
+                    val table = state.room?.standingTable.takeIf { standingTablesEnabled() }
+                    if (table == null) router.shareText(message) else scope.launch {
+                        val weekday = getString(weekdayNameResource(table.weekday))
+                        val time = formatStandingTime(table.localTime, getString(Res.string.ui_schedule_am), getString(Res.string.ui_schedule_pm))
+                        router.shareText(RoomInvite.standingShareText(table.name, weekday, time, state.room!!.code, inviteShareBaseUrl()))
+                        KLog.logEvent("standing_table.invite_shared", "surface" to "lobby")
+                    }
+                },
                 inviteShareBaseUrl = inviteShareBaseUrl(),
+                standingTablesEnabled = standingTablesEnabled(),
+                onStandingCalendar = { code ->
+                    scope.launch { standingTables.get(code).getOrNull()?.let { addStandingTableCalendar(router, it, inviteShareBaseUrl(), "lobby") } }
+                },
             )
         }
     }
@@ -270,7 +298,7 @@ class LobbyFeatureEntryPoint(
 }
 
 /** The host's owned + locked felt / card-back options + equipped selection for the picker. */
-private data class OwnedTableCosmetics(
+internal data class OwnedTableCosmetics(
     val felts: List<CosmeticChoice> = emptyList(),
     val cardBacks: List<CosmeticChoice> = emptyList(),
     val equippedFeltProductId: String? = null,

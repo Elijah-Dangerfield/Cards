@@ -5,12 +5,15 @@ import com.dangerfield.cards.libraries.rooms.CreateStandingTableOutcome
 import com.dangerfield.cards.libraries.rooms.StandingTable
 import com.dangerfield.cards.libraries.rooms.StandingTableDraft
 import com.dangerfield.cards.libraries.rooms.StandingTableRepository
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 
 internal class FakeStandingTableRepository(
     initialTables: List<StandingTable> = emptyList(),
 ) : StandingTableRepository {
     override val mine = MutableStateFlow(initialTables)
+    var createCalls = 0
+    var createGate: CompletableDeferred<Unit>? = null
     var createOutcome: CreateStandingTableOutcome = CreateStandingTableOutcome.NetworkError
     var getOutcome: Catching<StandingTable>? = null
     var updateOutcome: Catching<StandingTable>? = null
@@ -28,7 +31,9 @@ internal class FakeStandingTableRepository(
     }
 
     override suspend fun create(draft: StandingTableDraft): CreateStandingTableOutcome {
+        createCalls++
         lastDraft = draft
+        createGate?.await()
         return createOutcome
     }
 

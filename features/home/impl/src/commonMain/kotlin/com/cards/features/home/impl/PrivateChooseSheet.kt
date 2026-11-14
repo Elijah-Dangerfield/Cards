@@ -24,6 +24,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.private_choose_standing_title
+import cards.libraries.resources.generated.resources.private_choose_standing_subtitle
+import com.dangerfield.cards.libraries.ui.components.room.StandingTableCard
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.private_choose_create_subtitle
 import cards.libraries.resources.generated.resources.private_choose_create_title
@@ -56,6 +59,7 @@ internal fun PrivateChooseSheet(
     onCreate: () -> Unit,
     onJoin: () -> Unit,
     onDismiss: () -> Unit,
+    onStandingTable: (() -> Unit)? = null,
 ) {
     BottomSheet(
         title = stringResource(Res.string.private_choose_title),
@@ -123,6 +127,14 @@ internal fun PrivateChooseSheet(
                 val chevronColor = AppTheme.colors.content.color
                 Canvas(modifier = Modifier.size(16.dp)) { drawSheetChevron(chevronColor) }
             }
+            if (onStandingTable != null) {
+                Spacer(Modifier.height(Dimension.D500))
+                StandingTableCard(
+                    name = stringResource(Res.string.private_choose_standing_title),
+                    schedule = stringResource(Res.string.private_choose_standing_subtitle),
+                    status = "🗓️", onClick = onStandingTable,
+                )
+            }
         }
     }
 }
@@ -176,4 +188,10 @@ private fun PrivateChooseSheetPreview() {
     PreviewContent {
         PrivateChooseSheet(onCreate = {}, onJoin = {}, onDismiss = {})
     }
+}
+
+@Preview
+@Composable
+private fun PrivateChooseSheetPreview_StandingTableEnabled() {
+    PreviewContent { PrivateChooseSheet({}, {}, {}, onStandingTable = {}) }
 }

@@ -1,5 +1,16 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.libraries.rooms.RoomRepository
+import com.dangerfield.cards.libraries.rooms.StandingTablesEnabled
+import com.dangerfield.cards.libraries.ui.components.room.weekdayNameResource
+import com.dangerfield.cards.libraries.ui.components.room.formatStandingTime
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import cards.libraries.resources.generated.resources.ui_schedule_am
+import cards.libraries.resources.generated.resources.ui_schedule_pm
 import com.dangerfield.cards.features.room.impl.session.PokerSessionFactory
 import com.dangerfield.cards.features.room.impl.session.RemotePokerSessionFactory
 import com.dangerfield.cards.features.room.impl.ui.PlayPokerScreen
@@ -84,6 +95,8 @@ class PlayMultiplayerFeatureEntryPoint(
     private val playPokerVmFactory: (sessionFactory: PokerSessionFactory) -> PlayPokerViewModel,
     private val authRepository: AuthRepository,
     private val inviteShareBaseUrl: InviteShareBaseUrl,
+    private val standingTablesEnabled: StandingTablesEnabled,
+    private val roomRepository: RoomRepository,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -203,6 +216,13 @@ class PlayMultiplayerFeatureEntryPoint(
                     }
                 }
             }
+            val shareScope = rememberCoroutineScope()
+            val standingSummary = if (standingTablesEnabled()) {
+                val summary by remember(route.roomCode) {
+                    roomRepository.observeActiveRooms().map { rooms -> rooms.firstOrNull { it.code == route.roomCode }?.standingTable }
+                }.collectAsStateWithLifecycle(initialValue = null)
+                summary
+            } else null
             val shareMessage = stringResource(
                 Res.string.lobby_in_room_share_message,
                 route.roomCode,
@@ -270,7 +290,15 @@ class PlayMultiplayerFeatureEntryPoint(
                 // friend into a stranger table is the collusion/soft-play setup
                 // the real-stakes guards exist for.
                 onShareRoom = if (route.kind == RoomKind.Private) {
-                    { router.shareText(shareMessage) }
+                    {
+                        val summary = standingSummary
+                        if (summary == null) router.shareText(shareMessage) else shareScope.launch {
+                            val weekday = getString(weekdayNameResource(summary.weekday))
+                            val time = formatStandingTime(summary.localTime, getString(Res.string.ui_schedule_am), getString(Res.string.ui_schedule_pm))
+                            router.shareText(RoomInvite.standingShareText(summary.name, weekday, time, route.roomCode, inviteShareBaseUrl()))
+                            KLog.logEvent("standing_table.invite_shared", "surface" to "in_game")
+                        }
+                    }
                 } else {
                     null
                 },
