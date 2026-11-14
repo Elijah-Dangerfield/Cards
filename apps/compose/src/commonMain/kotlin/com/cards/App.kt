@@ -42,6 +42,7 @@ import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Platform
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.navigation.AnimationType
 import com.dangerfield.cards.libraries.navigation.baseRouteTypeMap
@@ -418,7 +419,12 @@ private fun AppNavigation(
     // scope when the route actually changes, not on every recomposition.
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRouteName = currentBackStackEntry?.destination?.routeClassNameOrNull()
+    var previousRouteName by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(currentRouteName) {
+        nextRouteEvent(previousRouteName, currentRouteName)?.let { (name, previous) ->
+            KLog.withTag("Navigation").logEvent("nav.route_viewed", "route" to name, "previous" to previous)
+            previousRouteName = name
+        }
         currentRouteName?.let {
             telemetry.setCurrentRoute(it)
             // Same route name to the same instant, so a jank report and a crash

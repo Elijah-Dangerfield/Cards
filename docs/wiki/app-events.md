@@ -100,6 +100,12 @@ per-flow-emission — and add the event here in the same change. Client events a
 intent/funnel/abandonment questions; the backend DB stays source-of-truth for money, achievements,
 and anything already in a ledger.
 
+## Navigation
+
+| Event | Attributes | Fires |
+| --- | --- | --- |
+| `nav.route_viewed` | `route`, `previous` (null on first route) | Once when the route class name changes. No route arguments or user data. |
+
 ## Engagement & session shape
 
 | Event | Attributes | Fires |
