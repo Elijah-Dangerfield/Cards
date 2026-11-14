@@ -24,13 +24,45 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ---
 
+## AUTH-35 [P0] — Deal new players into their first hand instead of leaving them on Home
+
+**Problem:** About a fifth to a third of new accounts never play a hand. Loki shows them finishing onboarding, getting the 10,000-chip grant, landing on Home, and never starting a game or search; some reopen the app for a few seconds and leave again (2026-11-14: 6 of 8 recent non-players with logs).
+
+**Acceptance:** After onboarding completes, a first-time player goes straight into a practice hand against bots (or one obvious "Deal me in" action), not a menu. Measure: share of new accounts with ≥1 hand within their first session, before and after.
+
+**Hints:** `onboarding.completed` then nothing in `docs/wiki/app-events.md` terms. Onboarding exit lives in `features/onboarding/impl` (`OnboardingViewModel`); practice entry is Home's Practice `PlayRow` (`features/home/impl/.../HomeScreen.kt`). Don't collide with the Home notification queue (Welcome) on that first visit.
+
+## ROOM-24 [P1] — Standing tables: a named weekly table with a code that never expires
+
+**Problem:** Friends are the only reliable way two players are online together, but a room code dies when the table empties, and there's no reminder to come back.
+
+**Acceptance:** Everything in [`docs/plans/standing-tables.md`](plans/standing-tables.md) tasks T1, T2 and T4 to T8, shipped dark behind `standingTables.enabled`.
+
+**Hints:** The plan is prescriptive: API contract, files, tests and task order are all in it. Run it with the `orchestrate` skill.
+
+## ENG-89 [P1] — Log route changes to Loki so a session's path is visible without an error
+
+**Problem:** The current route only reaches Sentry's scope tag, so a player who leaves without an error leaves no navigation trail in Grafana.
+
+**Acceptance:** One `nav.route_viewed` event (`route`, `previous`) per screen change. Spec: [`docs/plans/standing-tables.md`](plans/standing-tables.md) → T0.
+
+**Hints:** `apps/compose/src/commonMain/kotlin/com/cards/App.kt`, the `LaunchedEffect(currentRouteName)` that calls `telemetry.setCurrentRoute`.
+
+## SITE-2 [P1] — Invite links preview as "Not found · Downcard"
+
+**Problem:** GitHub Pages serves `/join/{code}` as `404.html` with a 404 status, and preview crawlers don't run the redirect script, so every shared invite previews as the 404 page.
+
+**Acceptance:** `404.astro` carries invite-friendly title, description and `og:image`; website tests run in `pages.yml`. Spec: [`docs/plans/standing-tables.md`](plans/standing-tables.md) → T3. The full fix is the server-rendered page in ROOM-24.
+
+**Hints:** `website/src/pages/404.astro`, `website/src/lib/room-invite.ts`, `.github/workflows/pages.yml`.
+
 ## ROOM-23 [P1] — Invite links should open the app directly, not via the web page
 
 **Problem:** Invites now share `https://downcard.app/join/{code}` (ROOM-22), which works for everyone but costs a player who has the app an extra tap on "Open in Downcard".
 
 **Acceptance:** With the app installed, the link opens the lobby directly. iOS: Associated Domains capability on the App ID + `applinks:downcard.app` entitlement + `website/public/.well-known/apple-app-site-association`. Android: `autoVerify` https intent filter for `downcard.app/join` + `assetlinks.json` with the **Play App Signing** SHA-256 (Play Console, App integrity). Route `/join/{code}` to the same handler as `cards://join/{code}`.
 
-**Hints:** The page is `website/src/pages/join.astro`; `404.astro` forwards `/join/{code}` there. Needs fastlane match profiles regenerated after the capability change. Later: reward host and friend with chips once the friend finishes a hand.
+**Hints:** The page is `website/src/pages/join.astro`; `404.astro` forwards `/join/{code}` there. Needs fastlane match profiles regenerated after the capability change. Once ROOM-24 ships, do this on `join.downcard.app` (served by the Ktor server) instead of the static site. Later: reward host and friend with chips once the friend finishes a hand.
 
 ## ENG-36 [P1] — Diagnose the starter-grant "double-miss" and surface reveal health
 
