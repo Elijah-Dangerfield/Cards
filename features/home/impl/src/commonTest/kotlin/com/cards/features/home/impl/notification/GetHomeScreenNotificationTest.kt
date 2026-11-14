@@ -9,6 +9,34 @@ import kotlin.test.assertTrue
 class GetHomeScreenNotificationTest {
 
     @Test
+    fun featureIntroShowsOnlyAfterAHandWithFlagEnabledAndNotSeen() {
+        val eligible = base().copy(standingTablesEnabled = true, handsPlayed = 1)
+        assertEquals(HomeNotification.Blocking.FeatureIntro(FeatureIntro.StandingTables), GetHomeScreenNotification(eligible))
+        assertNull(GetHomeScreenNotification(eligible.copy(standingTablesEnabled = false)))
+        assertNull(GetHomeScreenNotification(eligible.copy(handsPlayed = 0)))
+        assertNull(GetHomeScreenNotification(eligible.copy(featureIntrosSeen = setOf("standing_tables"))))
+    }
+
+    @Test
+    fun featureIntroYieldsToWelcomeLevelUpAchievementsAndOutOfChips() {
+        val eligible = base().copy(standingTablesEnabled = true, handsPlayed = 1)
+        assertTrue(GetHomeScreenNotification(eligible.copy(
+            accountJustCreated = true, didSeeInitialGrantInOnboarding = false,
+            welcomeIdentity = identity(), starterGrant = 10000, chipBalance = 10000,
+        )) is HomeNotification.Welcome)
+        assertTrue(GetHomeScreenNotification(eligible.copy(currentLevel = 4, lastCelebratedLevel = 3)) is HomeNotification.LevelUp)
+        assertTrue(GetHomeScreenNotification(eligible.copy(pendingAchievementIds = listOf("HANDS_10"))) is HomeNotification.AchievementsEarned)
+        assertTrue(GetHomeScreenNotification(eligible.copy(chipBalance = 10, outOfChipsSeen = false)) is HomeNotification.OutOfChips)
+    }
+
+    @Test
+    fun featureIntroWinsOverUpdateAvailable() {
+        val snapshot = base().copy(standingTablesEnabled = true, handsPlayed = 1,
+            installedVersion = "0.2.0", latestStoreVersion = "0.3.0")
+        assertEquals(HomeNotification.Blocking.FeatureIntro(FeatureIntro.StandingTables), GetHomeScreenNotification(snapshot))
+    }
+
+    @Test
     fun `unset level watermark seeds and does not celebrate`() {
         val snapshot = base().copy(currentLevel = 7, lastCelebratedLevel = 0)
 

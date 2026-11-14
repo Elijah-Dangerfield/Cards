@@ -23,6 +23,7 @@ import cards.libraries.resources.generated.resources.ui_level_up_reward_cosmetic
 import cards.libraries.resources.generated.resources.ui_level_up_reward_xp_boost
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
+import com.dangerfield.cards.features.home.impl.notification.FeatureIntro
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.home.LevelUpRoute
 import com.dangerfield.cards.features.home.PlayStyleUnlockedRoute
@@ -92,6 +93,10 @@ class HomeFeatureEntryPoint(
             var outOfChipsBuyIn by remember { mutableStateOf<Long?>(null) }
             // Non-null = the update sheet is open, carrying the version it quotes.
             var updateVersion by remember { mutableStateOf<String?>(null) }
+            var featureIntro by remember { mutableStateOf<FeatureIntro?>(null) }
+            LaunchedEffect(homeState.standingTablesEnabled) {
+                if (!homeState.standingTablesEnabled) featureIntro = null
+            }
             ObserveWithLifecycle(viewModel.eventFlow) { event ->
                 when (event) {
                     is HomeEvent.OpenWelcomeDialog -> {
@@ -115,6 +120,9 @@ class HomeFeatureEntryPoint(
                     }
                     is HomeEvent.OpenUpdateAvailable -> {
                         updateVersion = event.latestVersion
+                    }
+                    is HomeEvent.ShowFeatureIntro -> {
+                        featureIntro = event.intro
                     }
                     // The confirmed Forfeit's leave failed — the banner stays (the
                     // observed rooms flow is untouched), so tell the user their
@@ -294,7 +302,32 @@ class HomeFeatureEntryPoint(
                 )
             }
 
-            updateVersion?.let { version ->
+            val hasActiveOverlay = botSetupOpen || showPrivateSheet || comingSoon != null ||
+                outOfChipsBuyIn != null || homeState.achievementCelebration.isNotEmpty() ||
+                homeState.levelUpCelebration != null
+            featureIntro?.takeIf {
+                homeState.standingTablesEnabled && !hasActiveOverlay
+            }?.let { intro ->
+                FeatureIntroSheet(
+                    intro = intro,
+                    onPrimary = {
+                        featureIntro = null
+                        KLog.logEvent("feature_intro.acted", "feature" to intro.id, "action" to "primary")
+                        when (intro) {
+                            FeatureIntro.StandingTables -> {
+                                KLog.logEvent("standing_table.create_started", "entry" to "feature_intro")
+                                router.navigate(StandingTableCreateRoute())
+                            }
+                        }
+                    },
+                    onDismiss = {
+                        featureIntro = null
+                        KLog.logEvent("feature_intro.acted", "feature" to intro.id, "action" to "dismiss")
+                    },
+                )
+            }
+
+            updateVersion?.takeIf { featureIntro == null && !hasActiveOverlay }?.let { version ->
                 UpdateAvailableSheet(
                     latestVersion = version,
                     onUpdate = {

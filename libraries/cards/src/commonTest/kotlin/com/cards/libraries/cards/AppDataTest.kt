@@ -41,6 +41,12 @@ class AppDataTest {
     )
 
     @Test
+    fun featureIntroductionsStaySeenWhenAccountChanges() {
+        val data = AppData(featureIntrosSeen = setOf("standing_tables"))
+        assertEquals(setOf("standing_tables"), data.resetAccountScoped().featureIntrosSeen)
+    }
+
+    @Test
     fun resetAccountScoped_clearsShopSeenProductIds() {
         assertEquals(emptySet(), fullyPopulated.resetAccountScoped().shopSeenProductIds)
     }

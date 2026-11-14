@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.home.impl
 
 import app.cash.turbine.test
+import com.dangerfield.cards.features.home.impl.notification.FeatureIntro
 import com.dangerfield.cards.libraries.cards.AppUpdateSource
 import com.dangerfield.cards.libraries.cards.AppVersion
 import com.dangerfield.cards.libraries.cards.AchievementHandContext
@@ -1280,6 +1281,38 @@ class HomeViewModelTest : CoroutineTest() {
         assertEquals(emptyList(), vm.state.standingTables)
         assertFalse(vm.state.standingTablesEnabled)
         assertEquals(1, repo.refreshCount)
+    }
+
+    @Test
+    fun featureIntroWritesSeenBeforeSendingAndDoesNotRepeat() = runUnitTest {
+        val cache = FakeAppCache()
+        val progression = FakeProgressionRepository(Progression.Empty.copy(handsPlayed = 1))
+        val vm = buildVm(appCache = cache, progression = progression, standingTablesEnabled = true)
+        vm.eventFlow.test {
+            vm.takeAction(HomeAction.ScreenResumed)
+            assertEquals(setOf("standing_tables"), cache.get().featureIntrosSeen)
+            assertEquals(HomeEvent.ShowFeatureIntro(FeatureIntro.StandingTables), awaitItem())
+            assertEquals(setOf("standing_tables"), cache.get().featureIntrosSeen)
+            vm.takeAction(HomeAction.ScreenPaused)
+            vm.takeAction(HomeAction.ScreenResumed)
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun featureIntroDoesNotEmitIfFlagTurnsOffDuringDelay() = runUnitTest {
+        var enabled = true
+        val flag = StandingTablesEnabled(object : AppConfigMap() {
+            override val map: Map<String, *> get() = mapOf("standingTables" to mapOf("enabled" to enabled))
+        })
+        val progression = FakeProgressionRepository(Progression.Empty.copy(handsPlayed = 1))
+        val vm = buildVm(progression = progression, standingTablesFlag = flag)
+        vm.eventFlow.test {
+            vm.takeAction(HomeAction.ScreenResumed)
+            enabled = false
+            advanceUntilIdle()
+            expectNoEvents()
+        }
     }
 
     private fun buildVm(

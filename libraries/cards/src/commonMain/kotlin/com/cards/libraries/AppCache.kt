@@ -52,6 +52,7 @@ data class OnboardingAttempt(
 
 @Serializable
 data class AppData(
+    val featureIntrosSeen: Set<String> = emptySet(),
     // Onboarding
     val hasUserOnboarded: Boolean = false,
 

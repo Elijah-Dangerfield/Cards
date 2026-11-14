@@ -1572,4 +1572,10 @@
     <string name="standing_table_field_time">time</string>
     <string name="standing_table_field_zone">time zone</string>
     <string name="standing_table_field_duration">duration</string>
+    <string name="feature_intro_tag_new">New</string>
+    <string name="feature_intro_standing_title">Standing tables</string>
+    <string name="feature_intro_standing_body">Name your table, pick a night, and invite your friends. The code works every week, and the game goes straight into everyone's calendar.</string>
+    <string name="feature_intro_standing_sample_name">Thursday Night Poker</string>
+    <string name="feature_intro_standing_primary">Set one up</string>
+    <string name="feature_intro_standing_dismiss">Maybe later</string>
 </resources>

@@ -23,6 +23,7 @@ import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.features.home.impl.notification.GetHomeScreenNotification
 import com.dangerfield.cards.features.home.impl.notification.HomeNotification
+import com.dangerfield.cards.features.home.impl.notification.FeatureIntro
 import com.dangerfield.cards.features.home.impl.notification.HomeNotificationSnapshot
 import com.dangerfield.cards.features.home.impl.notification.outOfChipsResetNeeded
 import com.dangerfield.cards.features.home.impl.notification.seedsNeeded
@@ -135,6 +136,7 @@ class HomeViewModel(
     // episode closes and the next shortfall may legitimately present again.
     private var outOfChipsPresentedThisEpisode = false
     private var updatePromptPresented = false
+    private val featureIntrosPresented = mutableSetOf<FeatureIntro>()
 
     /**
      * Latest version the store will give this user, or null until (and unless)
@@ -357,6 +359,9 @@ class HomeViewModel(
                 installedVersion = BuildInfo.versionName,
                 latestStoreVersion = storeVersion,
                 lastPromptedUpdateVersion = appData.lastPromptedUpdateVersion,
+                featureIntrosSeen = appData.featureIntrosSeen,
+                standingTablesEnabled = standingTablesEnabled(),
+                handsPlayed = progression.handsPlayed,
             )
         }
 
@@ -381,6 +386,7 @@ class HomeViewModel(
             is HomeAction.ScreenResumed -> {
                 homeResumed = true
                 val tablesEnabled = standingTablesEnabled()
+                latestNotificationSnapshot = latestNotificationSnapshot?.copy(standingTablesEnabled = tablesEnabled)
                 action.updateState {
                     it.copy(standingTablesEnabled = tablesEnabled,
                         standingTables = if (tablesEnabled) latestStandingTables.map(::StandingTableCardModel) else emptyList())
@@ -626,6 +632,15 @@ class HomeViewModel(
                 appCache.update { it.copy(playStyleUnlockSeen = true) }
                 delay(DialogIntroDelay)
                 sendEvent(HomeEvent.OpenPlayStyleUnlocked)
+            }
+            is HomeNotification.Blocking.FeatureIntro -> {
+                if (!standingTablesEnabled() || !featureIntrosPresented.add(notification.intro)) return
+                appCache.update { it.copy(featureIntrosSeen = it.featureIntrosSeen + notification.intro.id) }
+                delay(DialogIntroDelay)
+                if (standingTablesEnabled()) {
+                    homeLogger.logEvent("feature_intro.shown", "feature" to notification.intro.id)
+                    sendEvent(HomeEvent.ShowFeatureIntro(notification.intro))
+                }
             }
             is HomeNotification.UpdateAvailable -> {
                 if (updatePromptPresented) return
@@ -917,6 +932,7 @@ data class ActiveRoomSummary(
 )
 
 sealed interface HomeEvent {
+    data class ShowFeatureIntro(val intro: FeatureIntro) : HomeEvent
     data class OpenWelcomeDialog(val payload: WelcomePayload) : HomeEvent
 
     /** The user just crossed the play-style sample threshold — announce it once. */

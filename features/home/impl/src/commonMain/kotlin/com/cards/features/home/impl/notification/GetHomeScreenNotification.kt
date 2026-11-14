@@ -96,6 +96,9 @@ data class HomeNotificationSnapshot(
      * release still earns one ask on the next.
      */
     val lastPromptedUpdateVersion: String = "",
+    val featureIntrosSeen: Set<String> = emptySet(),
+    val standingTablesEnabled: Boolean = false,
+    val handsPlayed: Long = 0,
 ) {
 
     /** The resolved welcome-dialog identity, present only when all its preconditions align. */
@@ -140,7 +143,7 @@ fun HomeNotificationSnapshot.seedsNeeded(): HomeNotificationSeeds {
  * Priority: [HomeNotification.Welcome] (once per account) →
  * [HomeNotification.AchievementsEarned] → [HomeNotification.LevelUp] →
  * [HomeNotification.PlayStyleUnlocked] → [HomeNotification.OutOfChips] →
- * [HomeNotification.UpdateAvailable]. An unset
+ * [HomeNotification.Blocking.FeatureIntro] → [HomeNotification.UpdateAvailable]. An unset
  * level watermark yields no level-up (it seeds instead — see [seedsNeeded]).
  * Out-of-chips is deliberately last: a level-up may grant chips that resolve the
  * shortfall before we point at the shop.
@@ -156,6 +159,7 @@ fun GetHomeScreenNotification(snapshot: HomeNotificationSnapshot): HomeNotificat
         ?: snapshot.levelUp()
         ?: snapshot.playStyleUnlocked()
         ?: snapshot.outOfChips()
+        ?: snapshot.featureIntro()
         ?: snapshot.updateAvailable()
 
 /**
@@ -275,4 +279,10 @@ private fun HomeNotificationSnapshot.updateAvailable(): HomeNotification.UpdateA
     val lastPrompted = AppVersion.parseOrNull(lastPromptedUpdateVersion)
     if (!latest.isWorthPromptingFrom(installed, lastPrompted)) return null
     return HomeNotification.UpdateAvailable(latestVersion = latest.toString())
+}
+
+private fun HomeNotificationSnapshot.featureIntro(): HomeNotification.Blocking.FeatureIntro? {
+    val intro = FeatureIntro.StandingTables
+    if (!standingTablesEnabled || handsPlayed < 1 || intro.id in featureIntrosSeen) return null
+    return HomeNotification.Blocking.FeatureIntro(intro)
 }

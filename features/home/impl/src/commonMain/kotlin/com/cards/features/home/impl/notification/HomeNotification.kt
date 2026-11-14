@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.home.impl.notification
 
 import com.dangerfield.cards.libraries.cards.LevelReward
+import com.dangerfield.cards.features.home.impl.notification.FeatureIntro as IntroFeature
 
 /**
  * The single "when the user lands on Home, show X" moment the arbiter picks per
@@ -19,7 +20,9 @@ import com.dangerfield.cards.libraries.cards.LevelReward
 sealed interface HomeNotification {
 
     /** Full-screen, mutually exclusive, queued one at a time. */
-    sealed interface Blocking : HomeNotification
+    sealed interface Blocking : HomeNotification {
+        data class FeatureIntro(val intro: IntroFeature) : Blocking
+    }
 
     /** Non-modal; coexists with a [Blocking] notification. */
     sealed interface Ambient : HomeNotification
