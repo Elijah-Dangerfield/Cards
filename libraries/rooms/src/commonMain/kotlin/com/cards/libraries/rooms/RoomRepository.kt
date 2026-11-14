@@ -108,6 +108,7 @@ sealed interface JoinRoomOutcome {
     /** Joined (new seat) OR was already a member (`alreadyJoined = true`). */
     data class Success(val room: Room, val alreadyJoined: Boolean) : JoinRoomOutcome
     data object NotFound : JoinRoomOutcome
+    data object StandingTableClosed : JoinRoomOutcome
     data object Full : JoinRoomOutcome
     data object NotJoinable : JoinRoomOutcome
 

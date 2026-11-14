@@ -33,6 +33,7 @@ data class RoomDto(
     /** Host-chosen table cosmetics (SHOP-3); null = no host override for that slot. */
     val feltProductId: String? = null,
     val cardBackProductId: String? = null,
+    val standingTable: StandingTableSummaryDto? = null,
 )
 
 @Serializable
@@ -197,6 +198,7 @@ internal fun RoomDto.toDomain(): Room = Room(
     visibility = visibility.toDomain(),
     feltProductId = feltProductId,
     cardBackProductId = cardBackProductId,
+    standingTable = standingTable?.toDomain(),
 )
 
 internal fun MatchmakingCandidateDto.toDomain(): MatchmakingCandidate = MatchmakingCandidate(

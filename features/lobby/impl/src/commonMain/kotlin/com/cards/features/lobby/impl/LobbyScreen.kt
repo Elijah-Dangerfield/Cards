@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.lobby_error_standing_table_closed
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.lobby_connection_connected
 import cards.libraries.resources.generated.resources.lobby_connection_connecting
@@ -122,6 +123,7 @@ fun LobbyScreen(
     onAction: (LobbyAction) -> Unit,
     onBack: () -> Unit,
     onShareInvite: (String) -> Unit = {},
+    inviteShareBaseUrl: String = "https://downcard.app/join",
 ) {
     // One leave path for every affordance: top-bar back, OS back, and the
     // in-room Leave button all route through requestBack, which confirms then
@@ -175,6 +177,7 @@ fun LobbyScreen(
                     onAction = onAction,
                     onLeave = requestBack,
                     onShareInvite = onShareInvite,
+                    inviteShareBaseUrl = inviteShareBaseUrl,
                 )
             } else {
                 // We only ever enter the lobby via Create (autoCreate) or Join
@@ -284,6 +287,7 @@ private fun InRoomContent(
     onAction: (LobbyAction) -> Unit,
     onLeave: () -> Unit,
     onShareInvite: (String) -> Unit,
+    inviteShareBaseUrl: String,
 ) {
     val room = state.room ?: return
     val clipboard = LocalClipboardManager.current
@@ -295,7 +299,7 @@ private fun InRoomContent(
     val shareMessage = stringResource(
         Res.string.lobby_in_room_share_message,
         room.code,
-        RoomInvite.shareUrlForCode(room.code),
+        RoomInvite.shareUrlForCode(room.code, inviteShareBaseUrl),
     )
     val shareInvite = { onShareInvite(shareMessage) }
 
@@ -791,6 +795,7 @@ private fun LobbyError.message(): String = when (this) {
     LobbyError.CreateNotSignedIn -> stringResource(Res.string.lobby_error_create_not_signed_in)
     LobbyError.CreateNetworkError -> stringResource(Res.string.lobby_error_create_network)
     LobbyError.CreateUnknownError -> stringResource(Res.string.lobby_error_create_unknown)
+    LobbyError.StandingTableClosed -> stringResource(Res.string.lobby_error_standing_table_closed)
     LobbyError.JoinRoomFull -> stringResource(Res.string.lobby_error_join_full)
     is LobbyError.JoinOverBalance -> message
     LobbyError.JoinRoomNotAcceptingPlayers -> stringResource(Res.string.lobby_error_join_not_accepting)

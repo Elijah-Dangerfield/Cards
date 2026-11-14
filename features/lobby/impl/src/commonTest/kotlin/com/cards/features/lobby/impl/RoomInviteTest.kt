@@ -30,6 +30,10 @@ class RoomInviteTest {
     fun share_url_is_a_web_link_anyone_can_open() {
         // ROOM-22: a cards:// link is dead for a friend without the app. The
         // website forwards /join/<code> to its invite page.
-        assertEquals("https://downcard.app/join/ABC123", RoomInvite.shareUrlForCode("ABC123"))
+        assertEquals("https://downcard.app/join/ABC123", RoomInvite.shareUrlForCode("ABC123", "https://downcard.app/join"))
+    }
+    @Test
+    fun share_url_uses_remote_base_without_duplicate_slashes() {
+        assertEquals("https://join.downcard.app/K7M2QX", RoomInvite.shareUrlForCode("K7M2QX", "https://join.downcard.app/"))
     }
 }

@@ -11,9 +11,8 @@ package com.dangerfield.cards.features.lobby
  */
 object RoomInvite {
     const val DEEP_LINK_BASE_PATH: String = "cards://join"
-    const val SHARE_BASE_URL: String = "https://downcard.app/join"
 
     fun linkForCode(code: String): String = "$DEEP_LINK_BASE_PATH/$code"
 
-    fun shareUrlForCode(code: String): String = "$SHARE_BASE_URL/$code"
+    fun shareUrlForCode(code: String, baseUrl: String): String = "${baseUrl.trimEnd('/')}/$code"
 }

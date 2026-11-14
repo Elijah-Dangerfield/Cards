@@ -1,4 +1,6 @@
 [
+  { "path": "standingTables.enabled", "type": "boolean", "default": false, "description": "Standing tables master switch" },
+  { "path": "invite.shareBaseUrl", "type": "string", "default": "https://downcard.app/join", "description": "Base URL for shared room invites" },
   { "path": "social.enabled", "type": "boolean", "default": false, "description": "Social features master switch" },
   { "path": "identity.googleSignInEnabled", "type": "boolean", "default": true, "description": "Show Google sign-in" },
   { "path": "identity.appleSignInEnabled", "type": "boolean", "default": true, "description": "Show Apple sign-in" },

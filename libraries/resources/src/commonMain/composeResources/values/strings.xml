@@ -1504,4 +1504,5 @@
     <string name="purchases_unavailable_title">Couldn't load your purchases</string>
     <string name="purchases_unavailable_message">Check your connection and give it another go.</string>
     <string name="purchases_unavailable_retry">Try again</string>
+    <string name="lobby_error_standing_table_closed">This standing table was closed by its host.</string>
 </resources>

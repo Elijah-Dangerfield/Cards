@@ -18,6 +18,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.lobby_error_standing_table_closed
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.lobby_error_join_blank_code
 import cards.libraries.resources.generated.resources.lobby_error_join_full
@@ -121,6 +122,7 @@ fun PrivateJoinScreen(
 private fun PrivateJoinError.message(): String = when (this) {
     PrivateJoinError.BlankCode -> stringResource(Res.string.lobby_error_join_blank_code)
     is PrivateJoinError.RoomNotFound -> stringResource(Res.string.lobby_error_join_not_found, code)
+    PrivateJoinError.StandingTableClosed -> stringResource(Res.string.lobby_error_standing_table_closed)
     PrivateJoinError.RoomFull -> stringResource(Res.string.lobby_error_join_full)
     PrivateJoinError.RoomNotAcceptingPlayers -> stringResource(Res.string.lobby_error_join_not_accepting)
     is PrivateJoinError.OverBalance -> message

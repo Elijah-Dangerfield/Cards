@@ -40,6 +40,7 @@ data class Room(
      */
     val feltProductId: String? = null,
     val cardBackProductId: String? = null,
+    val standingTable: StandingTableSummary? = null,
 ) {
     val seatCount: Int get() = members.size
     val isFull: Boolean get() = seatCount >= maxSeats
@@ -96,6 +97,7 @@ fun Room.mergeStakesFrom(previous: Room?): Room =
             // member-list frame.
             feltProductId = feltProductId ?: previous.feltProductId,
             cardBackProductId = cardBackProductId ?: previous.cardBackProductId,
+            standingTable = standingTable ?: previous.standingTable,
         )
     } else {
         this

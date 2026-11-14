@@ -18,6 +18,8 @@ import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
 import com.dangerfield.cards.libraries.identity.OnboardingStarterGrant
 import com.dangerfield.cards.libraries.identity.OnboardingSuggestedName
 import com.dangerfield.cards.libraries.identity.WelcomeFoundingMemberUntil
+import com.dangerfield.cards.libraries.rooms.InviteShareBaseUrl
+import com.dangerfield.cards.libraries.rooms.StandingTablesEnabled
 import com.dangerfield.cards.libraries.social.SocialEnabled
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -49,6 +51,8 @@ class ConfigManifestDriftTest {
     /** The scalar values the registry is supposed to mirror, one per registry row. */
     private val codeValues: List<ConfiguredValue<*>> = listOf(
         SocialEnabled(stubConfig),
+        StandingTablesEnabled(stubConfig),
+        InviteShareBaseUrl(stubConfig),
         GoogleSignInEnabled(stubConfig),
         AppleSignInEnabled(stubConfig),
         MinSupportedVersionCode(stubConfig),

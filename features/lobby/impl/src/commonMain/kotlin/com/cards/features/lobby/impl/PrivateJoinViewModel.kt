@@ -61,6 +61,9 @@ class PrivateJoinViewModel(
                     JoinRoomOutcome.NotFound -> updateState {
                         it.copy(joining = false, error = PrivateJoinError.RoomNotFound(code))
                     }
+                    JoinRoomOutcome.StandingTableClosed -> updateState {
+                        it.copy(joining = false, error = PrivateJoinError.StandingTableClosed)
+                    }
                     JoinRoomOutcome.Full -> updateState {
                         it.copy(joining = false, error = PrivateJoinError.RoomFull)
                     }
@@ -111,6 +114,7 @@ sealed interface PrivateJoinError {
     data object BlankCode : PrivateJoinError
     data class RoomNotFound(val code: String) : PrivateJoinError
     data object RoomFull : PrivateJoinError
+    data object StandingTableClosed : PrivateJoinError
     data object RoomNotAcceptingPlayers : PrivateJoinError
     data class OverBalance(val message: String) : PrivateJoinError
     data object NotSignedIn : PrivateJoinError

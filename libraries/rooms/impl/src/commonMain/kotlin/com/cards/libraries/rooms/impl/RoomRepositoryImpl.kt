@@ -135,6 +135,7 @@ class RoomRepositoryImpl(
     private fun JoinRoomOutcome.eventReason(): String = when (this) {
         is JoinRoomOutcome.Success -> "none"
         JoinRoomOutcome.NotFound -> "not_found"
+        JoinRoomOutcome.StandingTableClosed -> "standing_table_closed"
         JoinRoomOutcome.Full -> "full"
         JoinRoomOutcome.NotJoinable -> "not_joinable"
         is JoinRoomOutcome.OverBalance -> "over_balance"
@@ -153,7 +154,11 @@ class RoomRepositoryImpl(
         if (e.isAccountProblem) JoinRoomOutcome.NotSignedIn(e) else JoinRoomOutcome.NetworkError(e)
     } catch (e: ClientRequestException) {
         when (e.response.status) {
-            HttpStatusCode.NotFound -> JoinRoomOutcome.NotFound
+            HttpStatusCode.NotFound -> if (e.apiErrorCode() == "standing_table_closed") {
+                JoinRoomOutcome.StandingTableClosed
+            } else {
+                JoinRoomOutcome.NotFound
+            }
             HttpStatusCode.BadRequest ->
                 if (e.apiErrorCode() == "insufficient_balance") {
                     JoinRoomOutcome.OverBalance(e.apiErrorMessage() ?: "Not enough chips for that buy-in")

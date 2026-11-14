@@ -450,6 +450,7 @@ class PublicSearchingViewModel(
                 // joins between the poll and the migrate — re-find so the search
                 // keeps going rather than dead-ending.
                 is JoinRoomOutcome.Full,
+                is JoinRoomOutcome.StandingTableClosed,
                 is JoinRoomOutcome.NotFound,
                 is JoinRoomOutcome.NotJoinable,
                     -> beginSearch()

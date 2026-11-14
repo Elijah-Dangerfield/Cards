@@ -33,6 +33,7 @@ import com.dangerfield.cards.libraries.billing.IapPurchaseOutcome
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.rooms.InviteShareBaseUrl
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
@@ -82,6 +83,7 @@ class PlayMultiplayerFeatureEntryPoint(
     private val remoteFactoryFactory: (roomCode: String, localUserId: String, isPublicTable: Boolean) -> RemotePokerSessionFactory,
     private val playPokerVmFactory: (sessionFactory: PokerSessionFactory) -> PlayPokerViewModel,
     private val authRepository: AuthRepository,
+    private val inviteShareBaseUrl: InviteShareBaseUrl,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -204,7 +206,7 @@ class PlayMultiplayerFeatureEntryPoint(
             val shareMessage = stringResource(
                 Res.string.lobby_in_room_share_message,
                 route.roomCode,
-                RoomInvite.shareUrlForCode(route.roomCode),
+                RoomInvite.shareUrlForCode(route.roomCode, inviteShareBaseUrl()),
             )
             PlayPokerScreen(
                 state = state,

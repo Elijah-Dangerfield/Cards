@@ -42,6 +42,7 @@ import me.tatarka.inject.annotations.Inject
 import org.jetbrains.compose.resources.getString
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
+import com.dangerfield.cards.libraries.rooms.InviteShareBaseUrl
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 @SingleIn(AppScope::class)
@@ -55,6 +56,7 @@ class LobbyFeatureEntryPoint(
     private val productsRepository: ProductsRepository,
     private val equipmentRepository: EquipmentRepository,
     private val profileRepository: ProfileRepository,
+    private val inviteShareBaseUrl: InviteShareBaseUrl,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -208,6 +210,7 @@ class LobbyFeatureEntryPoint(
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
                 onShareInvite = { message -> router.shareText(message) },
+                inviteShareBaseUrl = inviteShareBaseUrl(),
             )
         }
     }

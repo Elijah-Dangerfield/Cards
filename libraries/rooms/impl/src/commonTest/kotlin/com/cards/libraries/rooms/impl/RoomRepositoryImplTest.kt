@@ -46,6 +46,14 @@ import kotlin.test.assertTrue
 class RoomRepositoryImplTest : CoroutineTest() {
 
     @Test
+    fun joinRoom_archivedStandingCode_returnsClosedOutcome() = runUnitTest {
+        val repo = newRepo(MockEngine {
+            respondJson(HttpStatusCode.NotFound, """{"error":{"code":"standing_table_closed","message":"closed"}}""")
+        })
+        assertEquals(JoinRoomOutcome.StandingTableClosed, repo.joinRoom("K7M2QX"))
+    }
+
+    @Test
     fun createRoom_200_returnsSuccess_withRoom() = runTest {
         val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, ROOM_RESPONSE_JSON) })
         val outcome = repo.createRoom(maxSeats = 4)

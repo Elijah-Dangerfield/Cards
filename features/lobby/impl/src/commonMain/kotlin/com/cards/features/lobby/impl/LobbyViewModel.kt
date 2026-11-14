@@ -186,6 +186,9 @@ class LobbyViewModel(
                         updateState { it.copy(joining = false) }
                         sendEvent(LobbyEvent.JoinCodeRejected(code))
                     }
+                    JoinRoomOutcome.StandingTableClosed -> updateState {
+                        it.copy(joining = false, error = LobbyError.StandingTableClosed)
+                    }
                     JoinRoomOutcome.Full -> updateState {
                         it.copy(joining = false, error = LobbyError.JoinRoomFull)
                     }
@@ -621,6 +624,7 @@ sealed interface LobbyError {
     data object CreateNetworkError : LobbyError
     data object CreateUnknownError : LobbyError
     data object JoinRoomFull : LobbyError
+    data object StandingTableClosed : LobbyError
     data class JoinOverBalance(val message: String) : LobbyError
     data object JoinRoomNotAcceptingPlayers : LobbyError
     data object JoinNotSignedIn : LobbyError
