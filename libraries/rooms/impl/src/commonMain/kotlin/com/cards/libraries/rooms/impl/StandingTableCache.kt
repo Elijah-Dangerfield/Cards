@@ -17,17 +17,27 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class StandingTableCache : UserScopedClearer {
     private val mutex = Mutex()
     private var generation = 0L
+    private var requestId = 0L
     private val tables = MutableStateFlow<List<StandingTable>>(emptyList())
     val mine = tables.asStateFlow()
 
     suspend fun generation(): Long = mutex.withLock { generation }
 
-    suspend fun replaceIfCurrent(expectedGeneration: Long, value: List<StandingTable>) = mutex.withLock {
-        if (expectedGeneration == generation) tables.value = value
+    data class RefreshVersion(val account: Long, val request: Long)
+
+    suspend fun beginRefresh(): RefreshVersion = mutex.withLock {
+        RefreshVersion(generation, ++requestId)
+    }
+
+    suspend fun replaceIfCurrent(version: RefreshVersion, value: List<StandingTable>) = mutex.withLock {
+        if (version.account == generation && version.request == requestId) tables.value = value
     }
 
     suspend fun removeIfCurrent(expectedGeneration: Long, code: String) = mutex.withLock {
-        if (expectedGeneration == generation) tables.value = tables.value.filterNot { it.code == code }
+        if (expectedGeneration == generation) {
+            requestId++
+            tables.value = tables.value.filterNot { it.code == code }
+        }
     }
 
     override suspend fun clear(previousUserId: String) = mutex.withLock {

@@ -25,7 +25,7 @@ class StandingTableRepositoryImpl(
     override val mine = cache.mine
 
     override suspend fun refreshMine(): Catching<Unit> = Catching {
-        val generation = cache.generation()
+        val generation = cache.beginRefresh()
         val tables = api.mine().body<StandingTablesResponseDto>().tables.map { it.toDomain() }
         cache.replaceIfCurrent(generation, tables)
     }

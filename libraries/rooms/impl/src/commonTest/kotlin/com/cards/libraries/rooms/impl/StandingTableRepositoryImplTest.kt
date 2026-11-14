@@ -17,6 +17,8 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalTime
@@ -98,6 +100,31 @@ class StandingTableRepositoryImplTest : CoroutineTest() {
         assertTrue(repo.refreshMine().isFailure)
         assertEquals("K7M2QX", repo.mine.first().single().code)
         assertTrue(repo.archive("K7M2QX").isFailure)
+    }
+
+    @Test
+    fun olderRefreshCannotResurrectArchivedTable() = runUnitTest {
+        val olderRequestStarted = CompletableDeferred<Unit>()
+        val releaseOlderResponse = CompletableDeferred<Unit>()
+        var getCount = 0
+        val engine = MockEngine { request ->
+            if (request.method == HttpMethod.Delete) {
+                respond("", HttpStatusCode.NoContent)
+            } else if (++getCount == 1) {
+                olderRequestStarted.complete(Unit)
+                releaseOlderResponse.await()
+                respondJson("""{"schemaVersion":1,"tables":[$TABLE]}""")
+            } else {
+                respondJson("""{"schemaVersion":1,"tables":[]}""")
+            }
+        }
+        val repo = newRepo(engine)
+        val olderRefresh = async { repo.refreshMine() }
+        olderRequestStarted.await()
+        assertTrue(repo.archive("K7M2QX").isSuccess)
+        releaseOlderResponse.complete(Unit)
+        assertTrue(olderRefresh.await().isSuccess)
+        assertEquals(emptyList(), repo.mine.first())
     }
 
     @Test

@@ -13,14 +13,14 @@ class StandingTableCacheTest : CoroutineTest() {
     @Test
     fun accountChangeClearsNamesAndDiscardsLateRefresh() = runUnitTest {
         val cache = StandingTableCache()
-        val previousGeneration = cache.generation()
+        val previousGeneration = cache.beginRefresh()
         cache.replaceIfCurrent(previousGeneration, listOf(table("Private table")))
         assertEquals(1, cache.mine.value.size)
         cache.clear("old-user")
         assertEquals(emptyList(), cache.mine.value)
         cache.replaceIfCurrent(previousGeneration, listOf(table("Old account response")))
         assertEquals(emptyList(), cache.mine.value)
-        cache.replaceIfCurrent(cache.generation(), listOf(table("New account table")))
+        cache.replaceIfCurrent(cache.beginRefresh(), listOf(table("New account table")))
         assertEquals("New account table", cache.mine.value.single().name)
     }
 
