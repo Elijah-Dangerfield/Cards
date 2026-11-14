@@ -27,6 +27,7 @@ import kotlin.time.Duration.Companion.minutes
  * `/_health` is excluded globally so the Fly health-check probe doesn't
  * eat the bucket.
  */
+const val SHARE_PAGE_LIMIT = "share-page"
 const val DELETE_ACCOUNT_LIMIT = "delete-account"
 const val PROFILE_WRITE_LIMIT = "profile-write"
 const val WALLET_WRITE_LIMIT = "wallet-write"
@@ -48,6 +49,11 @@ fun Application.installRateLimits(adminConfig: AdminConfig) {
             requestWeight { call, _ ->
                 if (call.request.path().startsWith("/_health")) 0 else 1
             }
+        }
+
+        register(RateLimitName(SHARE_PAGE_LIMIT)) {
+            rateLimiter(limit = 60, refillPeriod = 1.minutes)
+            requestKey { call -> call.clientIp() }
         }
 
         register(RateLimitName(DELETE_ACCOUNT_LIMIT)) {

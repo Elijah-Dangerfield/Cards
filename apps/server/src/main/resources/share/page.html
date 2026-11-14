@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{title}}</title>
+<meta name="description" content="{{description}}">
+<meta property="og:title" content="{{title}}">
+<meta property="og:description" content="{{description}}">
+<meta property="og:image" content="{{imageUrl}}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="{{shareUrl}}">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+@font-face{font-family:Roboto;src:url('/j/assets/body.ttf') format('truetype');font-weight:500}
+*{box-sizing:border-box}body{margin:0;color:#1c1a18;font-family:Roboto,system-ui,sans-serif}
+main{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:32px;text-align:center;background:linear-gradient(160deg,#ebd277 0%,#9acf9c 52%,#5ac6b4 100%)}
+[hidden]{display:none!important}img{border-radius:22px}h1{font-size:clamp(30px,7vw,46px);letter-spacing:-.03em;margin:8px 0 0;max-width:680px;overflow-wrap:anywhere}p{font-size:18px;line-height:1.5;max-width:420px;margin:0;color:rgba(28,26,24,.75)}
+.room{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:8px}.label{font-size:13px;letter-spacing:.12em;text-transform:uppercase}.code{font:inherit;font-size:clamp(40px,11vw,56px);letter-spacing:.12em;background:none;border:0;cursor:pointer;color:inherit;padding:0}.copied{min-height:20px;font-size:14px}
+a{color:inherit}.primary{background:#0d0c0b;color:#f5f0e6;padding:16px 36px;border-radius:16px;font-size:20px;text-decoration:none}.calendar{display:flex;align-items:center;flex-direction:column;gap:12px}.stores{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}.stores a{border:2px solid #0d0c0b;padding:12px 24px;border-radius:16px;text-decoration:none}.hint,.home{font-size:15px}.home{margin-top:8px}
+</style>
+</head>
+<body><main>
+<img src="/j/assets/app-icon.png" alt="Downcard" width="96" height="96">
+<h1>{{heading}}</h1>
+{{owner}}
+<p>{{description}}</p>
+<div class="room"><span class="label">Room code</span><button id="code" class="code" type="button" aria-label="Copy room code">{{code}}</button><span id="copied" class="copied" aria-live="polite"></span></div>
+<a id="open" class="primary" href="cards://join/{{code}}" hidden>Open in Downcard</a>
+{{calendar}}
+<p class="hint">New to Downcard? Install it, then open Private room and join with this code.</p>
+<div class="stores"><a id="app-store" href="https://apps.apple.com/us/app/downcard-poker-with-friends/id6788423648?pt=120164045&amp;ct=invite&amp;mt=8">App Store</a><a id="google-play" href="https://play.google.com/store/apps/details?id=com.dangerfield.cards&amp;referrer=utm_source%3Dinvite%26utm_medium%3Dreferral%26utm_campaign%3Dinvite">Google Play</a></div>
+<a class="home" href="https://downcard.app">More about Downcard</a>
+</main>
+<script>
+const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
+const android=/Android/.test(navigator.userAgent);
+if(ios)document.getElementById('google-play').hidden=true;
+if(android)document.getElementById('app-store').hidden=true;
+if(ios||android)document.getElementById('open').hidden=false;
+const calendar=document.getElementById('calendar');
+if(ios&&calendar){calendar.href=calendar.dataset.ics;document.getElementById('download').hidden=true;}
+document.getElementById('code').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(document.getElementById('code').textContent);document.getElementById('copied').textContent='Copied';}catch{document.getElementById('copied').textContent='Use the code shown above';}});
+</script>
+</body></html>

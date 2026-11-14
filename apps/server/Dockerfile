@@ -88,6 +88,8 @@ RUN chmod +x gradlew && \
 # them via Fly's `[env]` block in fly.toml.
 # --------------------------------------------------------------------------
 FROM eclipse-temurin:17-jre
+# Headless java2d still needs fontconfig/freetype to rasterize the bundled invite fonts.
+RUN apt-get update && apt-get install -y --no-install-recommends fontconfig && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /workspace/apps/server/build/install/server/ /app/
 

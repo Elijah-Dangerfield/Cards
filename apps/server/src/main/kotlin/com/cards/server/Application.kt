@@ -45,6 +45,7 @@ import com.dangerfield.cards.server.routes.progressionRoutes
 import com.dangerfield.cards.server.routes.recentOpponentsRoutes
 import com.dangerfield.cards.server.routes.rivalryRoutes
 import com.dangerfield.cards.server.routes.matchmakingRoutes
+import com.dangerfield.cards.server.routes.sharePageRoutes
 import com.dangerfield.cards.server.routes.standingTableRoutes
 import com.dangerfield.cards.server.routes.roomRoutes
 import com.dangerfield.cards.server.routes.roomSocketRoutes
@@ -233,6 +234,7 @@ fun Application.installApp(
         recentOpponentsRoutes(component.recentOpponentsRepository)
         rivalryRoutes(component.recentOpponentsRepository)
         profilesRoutes(component.profileRepository)
+        sharePageRoutes(component.standingTableRepository, component.roomService, component.profileRepository, component.clock)
         standingTableRoutes(component.standingTableRepository, component.roomCodeAllocator,
             component.roomService, component.profileRepository, component.clock)
         roomRoutes(

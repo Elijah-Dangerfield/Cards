@@ -7,6 +7,7 @@ plugins {
 
 application {
     mainClass.set("com.dangerfield.cards.server.MainKt")
+    applicationDefaultJvmArgs = listOf("-Djava.awt.headless=true")
 }
 
 tasks.named<JavaExec>("run") {
