@@ -58,6 +58,7 @@ data class Room(
      */
     val feltProductId: String? = null,
     val cardBackProductId: String? = null,
+    val standingTable: StandingTable? = null,
 ) {
     /** Full engine settings derived from [buyIn] + [maxSeats]. */
     val settings: RoomSettings get() = RoomSettings.forBuyIn(buyIn, maxSeats)
@@ -204,6 +205,16 @@ interface RoomService {
         feltProductId: String? = null,
         cardBackProductId: String? = null,
     ): CreateResult
+
+    suspend fun createWithCode(
+        code: String, hostUserId: UserId, hostName: String, settings: RoomSettings,
+        visibility: RoomVisibility = RoomVisibility.Private,
+        feltProductId: String? = null, cardBackProductId: String? = null,
+        hostAvatarEmoji: String = "", hostAvatarBackgroundColor: String? = null,
+    ): Room = error("Standing tables not configured")
+
+    suspend fun findLoaded(code: String): Room? = find(code)
+    suspend fun refreshStandingTable(code: String) = Unit
 
     /**
      * Idempotent join. If the user is already a member, returns

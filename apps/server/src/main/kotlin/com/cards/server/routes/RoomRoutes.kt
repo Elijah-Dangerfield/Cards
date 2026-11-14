@@ -9,6 +9,9 @@ import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.LeaveResult
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.RemoveBotResult
+import com.dangerfield.cards.server.domain.StandingTableRepository
+import com.dangerfield.cards.server.domain.NoOpStandingTableRepository
+import kotlin.time.Clock
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomVisibility
 import com.dangerfield.cards.server.domain.TableSessionService
@@ -69,6 +72,8 @@ fun Route.roomRoutes(
     wallets: WalletRepository,
     gameSessions: GameSessionRegistry,
     tableSessions: TableSessionService,
+    standingTables: StandingTableRepository = NoOpStandingTableRepository,
+    clock: Clock = Clock.System,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         route("/v1/rooms") {
@@ -128,7 +133,7 @@ fun Route.roomRoutes(
                 )) {
                     is CreateResult.Success -> call.respond(
                         HttpStatusCode.OK,
-                        CreateRoomResponse(room = outcome.room.toDto()),
+                        CreateRoomResponse(room = outcome.room.toDto(clock.now())),
                     )
                     is CreateResult.TooManyRooms -> call.respond(
                         HttpStatusCode.Conflict,
@@ -148,7 +153,7 @@ fun Route.roomRoutes(
                         HttpStatusCode.NotFound,
                         problemEnvelope("room_not_found", "No room with code $code."),
                     )
-                call.respond(HttpStatusCode.OK, GetRoomResponse(room = room.toDto()))
+                call.respond(HttpStatusCode.OK, GetRoomResponse(room = room.toDto(clock.now())))
             }
 
             post("/{code}/join") {
@@ -161,7 +166,20 @@ fun Route.roomRoutes(
                 // they couldn't sit at and was silently demoted to spectator by
                 // escrow. Re-joins by an existing member skip the check — they
                 // already sat down. An unknown code falls through to join()'s 404.
-                val existing = rooms.find(code)
+                val standing = standingTables.find(code)
+                if (standing?.archivedAt != null) return@post call.respond(
+                    HttpStatusCode.NotFound, problemEnvelope("standing_table_closed", "This standing table was closed by its host."))
+                var existing = rooms.find(code)
+                if (existing == null && standing != null) {
+                    val balance = wallets.findOrCreate(userId).balance
+                    if (standing.buyIn > balance) return@post call.respond(HttpStatusCode.BadRequest,
+                        problemEnvelope("insufficient_balance", "That table's buy-in of ${standing.buyIn} is more than your balance of $balance chips."))
+                    val profile = profiles.findOrCreate(userId)
+                    existing = rooms.createWithCode(code, userId, profile.displayName,
+                        RoomSettings.forBuyIn(standing.buyIn, standing.maxSeats),
+                        feltProductId = standing.feltProductId, cardBackProductId = standing.cardBackProductId,
+                        hostAvatarEmoji = profile.avatarEmoji, hostAvatarBackgroundColor = profile.avatarBackgroundColor)
+                }
                 if (existing != null && existing.memberFor(userId) == null) {
                     val balance = wallets.findOrCreate(userId).balance
                     if (existing.buyIn > balance) {
@@ -185,14 +203,14 @@ fun Route.roomRoutes(
                         avatarBackgroundColor = profile.avatarBackgroundColor,
                     )
                 ) {
-                    is JoinResult.Success -> call.respond(
-                        HttpStatusCode.OK,
-                        JoinRoomResponse(room = outcome.room.toDto(), alreadyJoined = false),
-                    )
-                    is JoinResult.AlreadyJoined -> call.respond(
-                        HttpStatusCode.OK,
-                        JoinRoomResponse(room = outcome.room.toDto(), alreadyJoined = true),
-                    )
+                    is JoinResult.Success -> {
+                        if (standing != null) standingTables.upsertRegular(code, userId, clock.now())
+                        call.respond(HttpStatusCode.OK, JoinRoomResponse(room = outcome.room.toDto(clock.now()), alreadyJoined = false))
+                    }
+                    is JoinResult.AlreadyJoined -> {
+                        if (standing != null) standingTables.upsertRegular(code, userId, clock.now())
+                        call.respond(HttpStatusCode.OK, JoinRoomResponse(room = outcome.room.toDto(clock.now()), alreadyJoined = true))
+                    }
                     JoinResult.RoomNotFound -> call.respond(
                         HttpStatusCode.NotFound,
                         problemEnvelope("room_not_found", "No room with code $code."),
@@ -271,7 +289,7 @@ fun Route.roomRoutes(
                 ) {
                     is AddBotResult.Success -> call.respond(
                         HttpStatusCode.OK,
-                        AddBotResponse(room = outcome.room.toDto()),
+                        AddBotResponse(room = outcome.room.toDto(clock.now())),
                     )
                     AddBotResult.RoomNotFound -> call.respond(
                         HttpStatusCode.NotFound,
@@ -349,8 +367,8 @@ private fun parseUserIdOrNull(raw: String): UserId? =
         null
     }
 
-private const val MIN_SEATS = 2
-private const val MAX_SEATS = 9
+private const val MIN_SEATS = RoomSettings.MIN_SEATS
+private const val MAX_SEATS = RoomSettings.MAX_SEATS
 private const val MAX_PRODUCT_ID_LENGTH = 64
 
 private fun problemEnvelope(code: String, message: String): Map<String, Map<String, String>> =

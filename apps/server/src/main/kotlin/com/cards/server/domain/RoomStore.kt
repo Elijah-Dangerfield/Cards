@@ -22,6 +22,8 @@ interface RoomStore {
     suspend fun delete(code: String)
 
     /** Hydrate a single room, or null if no durable row exists for [code]. */
+    suspend fun codeTaken(code: String): Boolean = load(code) != null
+
     suspend fun load(code: String): Room?
 
     /**

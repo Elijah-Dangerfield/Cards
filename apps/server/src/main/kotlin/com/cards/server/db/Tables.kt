@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.db
 
 import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.javatime.time
 import org.jetbrains.exposed.sql.javatime.timestamp
 
 /**
@@ -601,3 +602,29 @@ object AppConfigManifestTable : Table("app_config_manifest") {
     override val primaryKey = PrimaryKey(versionCode, path)
 }
 
+
+object StandingTablesTable : Table("standing_tables") {
+    val code = text("code")
+    val ownerUserId = uuid("owner_user_id")
+    val name = text("name")
+    val buyIn = long("buy_in")
+    val maxSeats = integer("max_seats")
+    val weekday = short("weekday")
+    val localTime = time("local_time")
+    val timeZone = text("time_zone")
+    val durationMinutes = integer("duration_minutes")
+    val feltProductId = text("felt_product_id").nullable()
+    val cardBackProductId = text("card_back_product_id").nullable()
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    val archivedAt = timestamp("archived_at").nullable()
+    override val primaryKey = PrimaryKey(code)
+}
+
+object StandingTableRegularsTable : Table("standing_table_regulars") {
+    val code = text("code")
+    val userId = uuid("user_id")
+    val firstJoinedAt = timestamp("first_joined_at")
+    val lastJoinedAt = timestamp("last_joined_at")
+    override val primaryKey = PrimaryKey(code, userId)
+}

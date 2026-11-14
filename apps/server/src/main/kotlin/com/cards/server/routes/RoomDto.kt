@@ -5,6 +5,8 @@ import com.dangerfield.cards.server.domain.Room
 import com.dangerfield.cards.server.domain.RoomMember
 import com.dangerfield.cards.server.domain.RoomStatus
 import kotlinx.serialization.Serializable
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.time.ExperimentalTime
 
 
@@ -45,6 +47,7 @@ data class RoomDto(
      */
     val feltProductId: String? = null,
     val cardBackProductId: String? = null,
+    val standingTable: StandingTableSummaryDto? = null,
 )
 
 @Serializable
@@ -232,7 +235,7 @@ data class SubsidyBudgetResponse(
 )
 
 @OptIn(ExperimentalTime::class)
-internal fun Room.toDto(): RoomDto = RoomDto(
+internal fun Room.toDto(now: Instant = Clock.System.now()): RoomDto = RoomDto(
     code = code,
     hostUserId = hostUserId.value.toString(),
     createdAtEpochMs = createdAt.toEpochMilliseconds(),
@@ -245,6 +248,7 @@ internal fun Room.toDto(): RoomDto = RoomDto(
     visibility = visibility.toDto(),
     feltProductId = feltProductId,
     cardBackProductId = cardBackProductId,
+    standingTable = standingTable?.summaryDto(now),
 )
 
 @OptIn(ExperimentalTime::class)

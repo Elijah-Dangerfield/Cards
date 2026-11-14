@@ -49,6 +49,10 @@ class PostgresRoomStore(
     private val database: Database,
 ) : RoomStore {
 
+    override suspend fun codeTaken(code: String): Boolean = database.transaction {
+        RoomsTable.selectAll().where { RoomsTable.code eq code }.any()
+    }
+
     override suspend fun save(room: Room) {
         database.transaction {
             val rowsUpdated = RoomsTable.update({ RoomsTable.code eq room.code }) {

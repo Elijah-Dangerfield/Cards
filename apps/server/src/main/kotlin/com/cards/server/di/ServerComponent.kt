@@ -25,6 +25,8 @@ import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.ReceiptValidator
 import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.RecentOpponentsRepository
+import com.dangerfield.cards.server.domain.StandingTableRepository
+import com.dangerfield.cards.server.domain.RoomCodeAllocator
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.TableSessionRecoverySweep
@@ -92,6 +94,9 @@ abstract class ServerComponent(
     abstract val recentOpponentsRepository: RecentOpponentsRepository
     abstract val playerReportRepository: PlayerReportRepository
     abstract val userMessageRepository: UserMessageRepository
+    abstract val standingTableRepository: StandingTableRepository
+    abstract val clock: Clock
+    abstract val roomCodeAllocator: RoomCodeAllocator
     abstract val roomService: RoomService
     abstract val gameSessionRegistry: GameSessionRegistry
     abstract val tableSessionService: TableSessionService

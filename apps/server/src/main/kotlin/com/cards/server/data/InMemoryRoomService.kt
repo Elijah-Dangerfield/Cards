@@ -15,6 +15,10 @@ import com.dangerfield.cards.server.domain.MatchmakingResult
 import com.dangerfield.cards.server.domain.RemoveBotResult
 import com.dangerfield.cards.server.domain.NoOpRoomStore
 import com.dangerfield.cards.server.domain.Room
+import com.dangerfield.cards.server.domain.RoomCodeAllocator
+import com.dangerfield.cards.server.domain.StandingTableRepository
+import com.dangerfield.cards.server.domain.NoOpStandingTableRepository
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.domain.RoomClosedListener
 import com.dangerfield.cards.server.domain.RoomMember
 import com.dangerfield.cards.server.domain.RoomService
@@ -81,6 +85,8 @@ class InMemoryRoomService(
     // escrow die with it. Defaulted to no-op for tests that don't care; DI binds
     // the real teardown coordinator.
     private val roomClosedListener: RoomClosedListener = RoomClosedListener.NoOp,
+    private val standingTables: StandingTableRepository = NoOpStandingTableRepository,
+    private val codeAllocator: RoomCodeAllocator = DefaultRoomCodeAllocator(random, store, standingTables),
 ) : RoomService {
 
     private val log = org.slf4j.LoggerFactory.getLogger("RoomService")
@@ -136,35 +142,62 @@ class InMemoryRoomService(
             return@withLock CreateResult.TooManyRooms(activeCount = activeHosted)
         }
         val now = clock.now()
-        val code = generateUniqueCode()
-        val host = RoomMember(
-            userId = hostUserId,
-            displayName = hostName,
-            seatIndex = 0,
-            joinedAt = now,
-            isConnected = false,
-            // Stamped at join so the sweep treats "never-connected" the
-            // same as "disconnected": the seat-grace clock starts now.
-            // Cleared by markConnected(true) when the socket opens.
-            disconnectedAt = now,
-            avatarEmoji = sanitizeMemberAvatar(hostAvatarEmoji),
-            avatarBackgroundColor = hostAvatarBackgroundColor,
-        )
-        val room = Room(
-            code = code,
-            hostUserId = hostUserId,
-            createdAt = now,
-            maxSeats = maxSeats,
-            status = RoomStatus.Lobby,
-            members = listOf(host),
-            buyIn = buyIn,
-            visibility = visibility,
-            feltProductId = feltProductId,
-            cardBackProductId = cardBackProductId,
-        )
-        rooms[code] = RoomState(room = room)
-        persist(room)
-        CreateResult.Success(room)
+        codeAllocator.withCode(rooms.keys.toSet()) { code ->
+            val host = RoomMember(
+                userId = hostUserId,
+                displayName = hostName,
+                seatIndex = 0,
+                joinedAt = now,
+                isConnected = false,
+                // Stamped at join so the sweep treats "never-connected" the
+                // same as "disconnected": the seat-grace clock starts now.
+                // Cleared by markConnected(true) when the socket opens.
+                disconnectedAt = now,
+                avatarEmoji = sanitizeMemberAvatar(hostAvatarEmoji),
+                avatarBackgroundColor = hostAvatarBackgroundColor,
+            )
+            val room = Room(
+                code = code,
+                hostUserId = hostUserId,
+                createdAt = now,
+                maxSeats = maxSeats,
+                status = RoomStatus.Lobby,
+                members = listOf(host),
+                buyIn = buyIn,
+                visibility = visibility,
+                feltProductId = feltProductId,
+                cardBackProductId = cardBackProductId,
+            )
+            rooms[code] = RoomState(room = room)
+            persist(room)
+            CreateResult.Success(room)
+        }
+    }
+
+    override suspend fun createWithCode(
+        code: String, hostUserId: UserId, hostName: String, settings: RoomSettings,
+        visibility: RoomVisibility, feltProductId: String?, cardBackProductId: String?,
+        hostAvatarEmoji: String, hostAvatarBackgroundColor: String?,
+    ): Room = mutex.withLock {
+        (rooms[code] ?: hydrateLocked(code))?.let { return@withLock it.room }
+        val now = clock.now()
+        val host = RoomMember(hostUserId, hostName, 0, now, false, now,
+            sanitizeMemberAvatar(hostAvatarEmoji), hostAvatarBackgroundColor)
+        val room = Room(code, hostUserId, now, settings.maxSeats, RoomStatus.Lobby, listOf(host),
+            settings.startingStack, visibility, feltProductId, cardBackProductId, standingTables.find(code))
+        store.save(room)
+        rooms[code] = RoomState(room)
+        room
+    }
+
+    override suspend fun findLoaded(code: String): Room? = mutex.withLock { rooms[code]?.room }
+
+    override suspend fun refreshStandingTable(code: String) {
+        mutex.withLock {
+            rooms[code]?.let { state ->
+                state.update(state.room.copy(standingTable = standingTables.find(code)))
+            }
+        }
     }
 
     override suspend fun join(
@@ -271,31 +304,32 @@ class InMemoryRoomService(
         // of the stuck-in-Lobby fix. The route already fenced callers who can't
         // afford the smallest table in range, so this floor is always ≥ minBuyIn.
         val affordableMax = minOf(maxBuyIn, EntryBar.maxAffordableBuyIn(callerBalance))
-        val code = generateUniqueCode()
-        val founder = RoomMember(
-            userId = userId,
-            displayName = name,
-            seatIndex = 0,
-            joinedAt = now,
-            isConnected = false,
-            disconnectedAt = now,
-            avatarEmoji = sanitizeMemberAvatar(avatarEmoji),
-            avatarBackgroundColor = avatarBackgroundColor,
-        )
-        val room = Room(
-            code = code,
-            hostUserId = SYSTEM_HOST_USER_ID,
-            createdAt = now,
-            maxSeats = RoomService.MAX_SEATS,
-            status = RoomStatus.Lobby,
-            members = listOf(founder),
-            buyIn = BuyInTier.within(minBuyIn, affordableMax),
-            visibility = RoomVisibility.Public,
-        )
-        rooms[code] = RoomState(room = room)
-        persist(room)
-        log.info("Matchmaking opened public room $code at buy-in ${room.buyIn} for $userId")
-        MatchmakingResult.Created(room)
+        codeAllocator.withCode(rooms.keys.toSet()) { code ->
+            val founder = RoomMember(
+                userId = userId,
+                displayName = name,
+                seatIndex = 0,
+                joinedAt = now,
+                isConnected = false,
+                disconnectedAt = now,
+                avatarEmoji = sanitizeMemberAvatar(avatarEmoji),
+                avatarBackgroundColor = avatarBackgroundColor,
+            )
+            val room = Room(
+                code = code,
+                hostUserId = SYSTEM_HOST_USER_ID,
+                createdAt = now,
+                maxSeats = RoomService.MAX_SEATS,
+                status = RoomStatus.Lobby,
+                members = listOf(founder),
+                buyIn = BuyInTier.within(minBuyIn, affordableMax),
+                visibility = RoomVisibility.Public,
+            )
+            rooms[code] = RoomState(room = room)
+            persist(room)
+            log.info("Matchmaking opened public room $code at buy-in ${room.buyIn} for $userId")
+            MatchmakingResult.Created(room)
+        }
     }
 
     override suspend fun findPublicCandidates(
@@ -840,7 +874,7 @@ class InMemoryRoomService(
         val loaded = Catching { store.load(code) }
             .onFailure { log.warn("Room $code hydrate failed", it) }
             .getOrNull() ?: return null
-        val state = RoomState(room = loaded)
+        val state = RoomState(room = loaded.copy(standingTable = standingTables.find(code)))
         rooms[code] = state
         log.info("Room $code hydrated from durable store after a cache miss")
         return state
@@ -856,18 +890,6 @@ class InMemoryRoomService(
      */
     private fun nextHumanHost(survivors: List<RoomMember>): UserId =
         survivors.filter { !it.isBot }.minWith(compareBy({ it.joinedAt }, { it.seatIndex })).userId
-
-    private fun generateUniqueCode(): String {
-        repeat(MAX_CODE_RETRIES) {
-            val code = randomCode()
-            if (code !in rooms) return code
-        }
-        error("Couldn't generate a unique room code after $MAX_CODE_RETRIES attempts")
-    }
-
-    private fun randomCode(): String = buildString(CODE_LENGTH) {
-        repeat(CODE_LENGTH) { append(CODE_ALPHABET[random.nextInt(CODE_ALPHABET.length)]) }
-    }
 
     /**
      * The robot emoji is reserved as the bot avatar — opponents read it as

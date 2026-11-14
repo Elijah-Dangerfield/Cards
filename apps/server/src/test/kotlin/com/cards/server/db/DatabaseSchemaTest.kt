@@ -26,6 +26,8 @@ class DatabaseSchemaTest : DatabaseTest() {
             // 1:1 with what Postgres actually has. `products` is seeded by
             // V5 so we just assert the read succeeds — non-empty proves the
             // seed ran AND the Exposed projection lines up with the schema.
+            assertEquals(0, StandingTablesTable.selectAll().count())
+            assertEquals(0, StandingTableRegularsTable.selectAll().count())
             assertEquals(0, ProfilesTable.selectAll().count())
             assertTrue(
                 ProductsTable.selectAll().count() > 0L,

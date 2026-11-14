@@ -60,6 +60,20 @@ class InMemoryRoomServiceTest {
     private val carol = UserId(UUID.fromString("44444444-4444-4444-4444-444444444444"))
 
     @Test
+    fun concurrentFirstOpenUsesOneHostAndPreservesFirstSettings() = runTest {
+        val service = newService()
+        val results = listOf(host, alice).map { user ->
+            async {
+                service.createWithCode("K7M2QX", user, "Host", com.dangerfield.cards.libraries.gameplay.RoomSettings.forBuyIn(5000, 4))
+            }
+        }.awaitAll()
+        assertEquals(results.first(), results.last())
+        assertEquals(1, results.first().members.size)
+        val unchanged = service.createWithCode("K7M2QX", bob, "Bob", com.dangerfield.cards.libraries.gameplay.RoomSettings.forBuyIn(10000, 6))
+        assertEquals(results.first(), unchanged)
+    }
+
+    @Test
     fun create_returnsRoomInLobby_withHostInSeat0() = runTest {
         val service = newService()
         val room = service.createOrFail(host, hostName = "Host", maxSeats = 4)

@@ -19,9 +19,13 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.websocket.WebSockets as ClientWebSockets
 import io.ktor.client.request.header
+import io.ktor.client.request.delete
+import io.ktor.client.request.get
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
@@ -33,6 +37,8 @@ import org.jetbrains.exposed.sql.deleteAll
 import org.junit.After
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.assertNull
 import kotlin.test.assertNotNull
 
 /**
@@ -58,6 +64,56 @@ class FullStackRoomTest : DatabaseTest() {
     @After
     fun cleanTables() {
         database.blockingTransaction { RoomSessionsTable.deleteAll() }
+    }
+
+    @Test
+    fun standingTableMaterializesThroughLegacyJoinAndSurvivesTeardown() = runTest {
+        val owner = seedAuthUser(); val friend = seedAuthUser(); val later = seedAuthUser()
+        val component = ServerComponent::class.create(database, TEST_SUPABASE, TEST_BILLING)
+        testApplication {
+            application {
+                installApp(component, JwtVerification.Static(RoomSocketTestAuth.verifier),
+                    AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6), AccessControlConfig(appealUrl = null))
+            }
+            val client = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+            val expensive = client.post("/v1/standing-tables") {
+                header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(owner)}")
+                contentType(ContentType.Application.Json)
+                setBody(com.dangerfield.cards.server.routes.CreateStandingTableRequest("High stakes", 1_000_000_000, 4, 4, "20:00", "America/New_York"))
+            }.body<com.dangerfield.cards.server.routes.StandingTableDto>()
+            val refused = client.post("/v1/rooms/${expensive.code}/join") { header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(friend)}") }
+            assertEquals(HttpStatusCode.BadRequest, refused.status)
+            assertNull(component.roomService.find(expensive.code))
+            assertEquals(0, component.standingTableRepository.regularCount(expensive.code))
+            val created = client.post("/v1/standing-tables") {
+                header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(owner)}")
+                contentType(ContentType.Application.Json)
+                setBody(com.dangerfield.cards.server.routes.CreateStandingTableRequest("Thursday Poker", 5000, 4, 4, "20:00", "America/New_York"))
+            }
+            assertEquals(HttpStatusCode.Created, created.status)
+            val table = created.body<com.dangerfield.cards.server.routes.StandingTableDto>()
+            assertNull(component.roomService.find(table.code))
+            val joined = client.post("/v1/rooms/${table.code}/join") { header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(friend)}") }
+            assertEquals(HttpStatusCode.OK, joined.status)
+            val room = joined.body<com.dangerfield.cards.server.routes.JoinRoomResponse>()
+            assertTrue(room.alreadyJoined)
+            assertEquals(5000, room.room.buyIn)
+            assertEquals(4, room.room.maxSeats)
+            assertEquals(friend.value.toString(), room.room.hostUserId)
+            assertEquals("Thursday Poker", room.room.standingTable?.name)
+            assertEquals(1, component.standingTableRepository.regularCount(table.code))
+            client.delete("/v1/rooms/${table.code}/me") { header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(friend)}") }
+            assertNull(component.roomService.find(table.code))
+            assertTrue(component.standingTableRepository.exists(table.code))
+            val reopened = client.post("/v1/rooms/${table.code}/join") { header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(later)}") }
+            assertEquals(HttpStatusCode.OK, reopened.status)
+            assertEquals(later.value.toString(), reopened.body<com.dangerfield.cards.server.routes.JoinRoomResponse>().room.hostUserId)
+            // Closing also refuses new joins while the current sitting is still in memory.
+            client.delete("/v1/standing-tables/${table.code}") { header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(owner)}") }
+            val closed = client.post("/v1/rooms/${table.code}/join") { header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(friend)}") }
+            assertEquals(HttpStatusCode.NotFound, closed.status)
+            assertTrue(closed.body<kotlinx.serialization.json.JsonObject>().toString().contains("standing_table_closed"))
+        }
     }
 
     @Test
