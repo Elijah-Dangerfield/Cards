@@ -1,7 +1,10 @@
 package com.dangerfield.cards.server.domain
 
+import kotlinx.datetime.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class StandingTableRulesTest {
@@ -19,6 +22,18 @@ class StandingTableRulesTest {
     @Test fun validatesQuarterHoursAndExactFormat() {
         for (time in listOf("8:00", "20:01", "24:00", "20:00:00")) assertEquals("localTime", invalid(time = time))
         for (time in listOf("00:00", "20:15", "20:30", "23:45")) assertNull(invalid(time = time))
+    }
+    @Test fun rejectsParsedFixedOffsetAliasesOutsideIanaRegistry() {
+        for (zone in listOf("GMT+05:00", "UT+05:00")) {
+            assertNotNull(TimeZone.of(zone))
+            assertFalse(zone in TimeZone.availableZoneIds)
+            assertEquals("timeZone", invalid(zone = zone))
+        }
+    }
+    @Test fun acceptsNamedUtcAliasesAndIanaFixedOffsetZones() {
+        for (zone in listOf("UTC", "GMT", "Etc/GMT+5")) {
+            assertNull(invalid(zone = zone))
+        }
     }
     @Test fun validatesZoneAndDuration() {
         for (zone in listOf("+05:00", "-04:00", "UTC+05:00", "Neverland")) assertEquals("timeZone", invalid(zone = zone))
