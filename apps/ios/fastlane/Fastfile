@@ -123,8 +123,14 @@ def build_and_upload(distribute_external:, submit_to_app_store:)
   # 2026-07-08/09): cloud signing insists on a cloud-managed distribution
   # certificate — it won't use the imported .p12 — and creating one trips the
   # team cert cap / key permissions. sigh only needs the App Manager API key
-  # and reuses the existing cert. The ARCHIVE stays on automatic signing,
-  # which has worked on every run.
+  # and reuses the existing cert.
+  #
+  # The ARCHIVE signs manually with the same cert and profile. It used to be
+  # automatic, and automatic signing archives with an "Apple Development"
+  # identity: a fresh CI runner has none, so Xcode minted a new development
+  # certificate through the API on every release until the team hit Apple's
+  # cap and the 0.8.0 archive failed ("Your account has reached the maximum
+  # number of certificates", 2026-11-13).
   get_provisioning_profile(
     api_key: api_key,
     app_identifier: APP_IDENTIFIER,
@@ -159,6 +165,20 @@ def build_and_upload(distribute_external:, submit_to_app_store:)
   # .o/.swiftmodule) survives between runs and the cached DerivedData actually
   # gets reused. Kotlin/Native link is the long pole — avoiding a full rebuild
   # of ComposeApp.xcframework saves several minutes per release.
+  # Scoped to the app target's Release config: passing these as xcargs would
+  # apply them to the Swift package targets too, which reject a profile. The
+  # project file is restored in the ensure block.
+  update_code_signing_settings(
+    path: XCODEPROJ,
+    targets: [SCHEME],
+    build_configurations: [CONFIGURATION],
+    use_automatic_signing: false,
+    team_id: team_id,
+    code_sign_identity: "Apple Distribution",
+    profile_name: app_store_profile_name,
+  )
+  signing_settings_changed = true
+
   build_app(
     project: XCODEPROJ,
     scheme: SCHEME,
@@ -169,12 +189,9 @@ def build_and_upload(distribute_external:, submit_to_app_store:)
     clean: false,
     silent: false,
     xcargs: [
-      "-allowProvisioningUpdates",
       "-authenticationKeyPath", asc_key_path,
       "-authenticationKeyID", key_id,
       "-authenticationKeyIssuerID", issuer_id,
-      "DEVELOPMENT_TEAM=#{team_id}",
-      "CODE_SIGN_STYLE=Automatic",
       "CURRENT_PROJECT_VERSION=#{build_number}",
     ].join(" "),
     # NOTE: gym forwards xcargs to the -exportArchive invocation too (adding
@@ -246,6 +263,9 @@ def build_and_upload(distribute_external:, submit_to_app_store:)
 
   upload_sentry_release(marketing_version, build_number)
 ensure
+  if defined?(signing_settings_changed) && signing_settings_changed
+    sh("git", "checkout", "--", File.expand_path("../#{XCODEPROJ}/project.pbxproj", __dir__))
+  end
   File.delete(asc_key_path) if defined?(asc_key_path) && asc_key_path && File.exist?(asc_key_path)
   if defined?(metadata_path) && metadata_path && File.directory?(metadata_path)
     FileUtils.rm_rf(metadata_path)
