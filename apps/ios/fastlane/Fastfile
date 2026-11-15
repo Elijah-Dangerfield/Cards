@@ -1,6 +1,7 @@
 require "base64"
 require "fileutils"
 require "securerandom"
+require "shellwords"
 require "tmpdir"
 
 default_platform(:ios)
@@ -261,7 +262,7 @@ def build_and_upload(distribute_external:, submit_to_app_store:)
     )
   end
 
-  upload_sentry_release(marketing_version, build_number)
+  upload_sentry_release(marketing_version, ENV["BUILD_NUMBER_OVERRIDE"] || meta_build_number)
 ensure
   if defined?(signing_settings_changed) && signing_settings_changed
     sh("git", "checkout", "--", File.expand_path("../#{XCODEPROJ}/project.pbxproj", __dir__))
@@ -325,11 +326,14 @@ def upload_sentry_release(marketing_version, build_number)
   # SentryRuntimeConfig.forApp: "cards@<version>+<build>") or events won't
   # attach to the release created here.
   release = "cards@#{marketing_version}+#{build_number}"
-  dsym_dir = File.join(OUTPUT_DIR)
-  sh("npx @sentry/cli releases new #{release} --org #{org} --project #{project}")
-  sh("npx @sentry/cli releases set-commits #{release} --auto --org #{org} --project #{project} || true")
-  sh("npx @sentry/cli debug-files upload --org #{org} --project #{project} #{dsym_dir}")
-  sh("npx @sentry/cli releases finalize #{release} --org #{org} --project #{project}")
+  output_dir = File.expand_path(OUTPUT_DIR, File.dirname(__dir__))
+  dsyms = Dir.glob(File.join(output_dir, "*.dSYM{,.zip}")).sort
+  raise "No dSYM archive or bundle found in #{output_dir}" if dsyms.empty?
+
+  sh("npx", "@sentry/cli", "releases", "new", release, "--org", org, "--project", project)
+  sh(Shellwords.join(["npx", "@sentry/cli", "releases", "set-commits", release, "--auto", "--org", org, "--project", project]) + " || true")
+  sh("npx", "@sentry/cli", "debug-files", "upload", "--org", org, "--project", project, *dsyms)
+  sh("npx", "@sentry/cli", "releases", "finalize", release, "--org", org, "--project", project)
 rescue => e
   UI.important("Sentry release upload failed: #{e.message} (non-fatal)")
 end

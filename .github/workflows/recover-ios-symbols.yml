@@ -1,0 +1,103 @@
+name: Recover iOS release symbols
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Commit used by the original release run
+        required: true
+        type: string
+      release_run_id:
+        description: Original release run containing the ios-ipa artifact
+        required: true
+        type: string
+      app_version:
+        description: Marketing version in that IPA
+        required: true
+        type: string
+      store_build:
+        description: Timestamp CFBundleVersion in that IPA
+        required: true
+        type: string
+      metadata_build:
+        description: SDK build number used for its Sentry release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  recover:
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+      APP_VERSION: ${{ inputs.app_version }}
+      STORE_BUILD: ${{ inputs.store_build }}
+      METADATA_BUILD: ${{ inputs.metadata_build }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check recovery and upload guards
+        run: |
+          python3 -I .github/scripts/test_verify_ios_symbols.py
+          ruby .github/scripts/test_fastfile_sentry.rb
+      - name: Validate the source release
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          for key, pattern in [('SOURCE_SHA', r'[0-9a-f]{40}'), ('RELEASE_RUN_ID', r'[0-9]+'),
+                               ('APP_VERSION', r'[0-9]+\.[0-9]+\.[0-9]+'), ('STORE_BUILD', r'[0-9]+'),
+                               ('METADATA_BUILD', r'[0-9]+')]:
+              if not re.fullmatch(pattern, os.environ[key]):
+                  raise SystemExit('Invalid ' + key)
+          run = json.loads(subprocess.check_output(['gh', 'api', 'repos/' + os.environ['GH_REPO'] +
+                                                    '/actions/runs/' + os.environ['RELEASE_RUN_ID']]))
+          if run['head_sha'] != os.environ['SOURCE_SHA'] or run['path'] != '.github/workflows/release.yml':
+              raise SystemExit('Source run does not match the requested release commit/workflow')
+          PY
+      - name: Restore the exact release DerivedData
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: deriveddata-macOS-xcode26-${{ inputs.source_sha }}
+          fail-on-cache-miss: true
+      - name: Verify symbols against the uploaded IPA
+        run: |
+          gh run download "$RELEASE_RUN_ID" --name ios-ipa --dir "$RUNNER_TEMP/ios-ipa"
+          python3 - <<'PY'
+          import os, pathlib, subprocess
+          ipas = list((pathlib.Path(os.environ['RUNNER_TEMP']) / 'ios-ipa').glob('*.ipa'))
+          if len(ipas) != 1:
+              raise SystemExit('Expected exactly one released IPA')
+          subprocess.run(['python3', '.github/scripts/verify_ios_symbols.py', '--ipa', str(ipas[0]),
+                          '--symbols-root', str(pathlib.Path.home() / 'Library/Developer/Xcode/DerivedData'),
+                          '--output', os.environ['RUNNER_TEMP'] + '/verified-symbols',
+                          '--version', os.environ['APP_VERSION'], '--store-build', os.environ['STORE_BUILD']], check=True)
+          PY
+      - name: Upload only UUID-matched symbols
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: |
+          test -n "$SENTRY_AUTH_TOKEN"
+          test -n "$SENTRY_ORG"
+          test "$SENTRY_PROJECT" = cards
+          npx --yes @sentry/cli debug-files upload "$RUNNER_TEMP/verified-symbols"
+          RELEASE="cards@$APP_VERSION+$METADATA_BUILD"
+          npx --yes @sentry/cli releases new "$RELEASE"
+          npx --yes @sentry/cli releases set-commits "$RELEASE" --commit "$GH_REPO@$SOURCE_SHA"
+          npx --yes @sentry/cli releases finalize "$RELEASE"
+      - name: Preserve verified symbols and UUID evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-ios-symbols
+          path: ${{ runner.temp }}/verified-symbols
+          if-no-files-found: ignore
+          retention-days: 30
