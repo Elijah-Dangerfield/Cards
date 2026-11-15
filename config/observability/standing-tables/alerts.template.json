@@ -3,13 +3,13 @@
   "groups": [
     {
       "orgId": 1,
-      "name": "Standing tables health",
-      "folder": "Downcard - Engineering",
+      "name": "standing-tables-__ENV__",
+      "folder": "Downcard \u2014 Engineering",
       "interval": "1m",
       "rules": [
         {
-          "uid": "st-client-errors",
-          "title": "Standing table client operations failing",
+          "uid": "st-client-errors-__ENV__",
+          "title": "Standing table client operations failing (__ENV__)",
           "condition": "C",
           "data": [
             {
@@ -83,8 +83,8 @@
           }
         },
         {
-          "uid": "st-create-errors",
-          "title": "Standing table creation failing",
+          "uid": "st-create-errors-__ENV__",
+          "title": "Standing table creation failing (__ENV__)",
           "condition": "C",
           "data": [
             {
@@ -158,8 +158,8 @@
           }
         },
         {
-          "uid": "st-share-errors",
-          "title": "Standing invite server errors",
+          "uid": "st-share-errors-__ENV__",
+          "title": "Standing invite server errors (__ENV__)",
           "condition": "C",
           "data": [
             {
@@ -233,8 +233,8 @@
           }
         },
         {
-          "uid": "st-join-errors",
-          "title": "Standing table join server errors",
+          "uid": "st-join-errors-__ENV__",
+          "title": "Standing table join server errors (__ENV__)",
           "condition": "C",
           "data": [
             {
@@ -308,8 +308,8 @@
           }
         },
         {
-          "uid": "st-materialize-errors",
-          "title": "Standing sitting creation failing",
+          "uid": "st-materialize-errors-__ENV__",
+          "title": "Standing sitting creation failing (__ENV__)",
           "condition": "C",
           "data": [
             {

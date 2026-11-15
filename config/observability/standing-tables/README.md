@@ -12,7 +12,9 @@ python3 config/observability/standing-tables/render.py
 
 Find the Loki and Prometheus datasource UIDs in [Grafana data sources](https://cards.grafana.net/connections/datasources), opening each datasource's settings. For the server selector, use [Explore](https://cards.grafana.net/explore) to inspect the labels on one of the metrics below, and supply matchers that isolate the chosen environment, without braces. Do this verification only when live access is authorized. `Telemetry.kt` exports `service.name` and `deployment.environment` as OTLP resource attributes; live `target_info` and `http_server_request_duration_seconds_count` reads confirmed `job="cards-server"` and `deployment_environment="dev"|"prod"`. Render with both matchers for the selected environment. Do not use an unscoped selector across dev and prod.
 
-The generated `dashboard.json` is Grafana dashboard import JSON. `alerts.json` is Grafana Alerting file-provisioning JSON (`apiVersion: 1`), with all rules paused, org ID 1 and a `Downcard - Engineering` folder. Verify the destination org and folder before provisioning. `queries.json` provides every panel's source and expression for review. No script in this bundle uploads files or changes alert state.
+The generated `dashboard.json` is Grafana dashboard import JSON. `alerts.json` is Grafana Alerting file-provisioning JSON (`apiVersion: 1`), with all rules paused, org ID 1 and the existing Engineering folder (`downcard-engineering`). Alert UIDs, titles and groups include the selected environment, so dev and prod imports remain distinct. Verify the destination org and folder before provisioning. `queries.json` provides every panel's source and expression for review. No script in this bundle uploads files or changes alert state.
+
+`dashboard.json` is fixed to the selected environment and always uses UID `dc-standing-tables`. Importing it replaces the live version 3 dashboard and its environment switcher. Export the live dashboard first; do not import both environment renders as separate dashboards under that same UID.
 
 ## What the queries count
 

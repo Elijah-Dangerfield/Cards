@@ -20,13 +20,21 @@ def render(value, bindings):
     return value
 
 
-def validate(bundle):
+def validate(bundle, env):
     dashboard, alerts, queries = bundle
     if len({panel['id'] for panel in dashboard['panels']}) != len(queries):
         raise ValueError('Dashboard panel IDs must be unique and cover every query')
     if dashboard['uid'] != 'dc-standing-tables':
         raise ValueError('Unexpected dashboard UID')
-    for rule in alerts['groups'][0]['rules']:
+    group = alerts['groups'][0]
+    rules = group['rules']
+    if group['name'] != f'standing-tables-{env}':
+        raise ValueError('Alert group must match the selected environment')
+    if len(rules) != 5 or len({rule['uid'] for rule in rules}) != 5:
+        raise ValueError('Exactly five unique alert UIDs are required')
+    if any(not rule['uid'].endswith(f'-{env}') or rule['labels']['environment'] != env for rule in rules):
+        raise ValueError('Alert UIDs and labels must match the selected environment')
+    for rule in rules:
         if not rule['isPaused'] or rule['noDataState'] != 'OK' or rule['execErrState'] != 'Error':
             raise ValueError('Rules must remain paused, ignore quiet traffic and preserve execution errors')
         expr = rule['data'][0]['model']['expr']
@@ -60,7 +68,7 @@ def main():
                 '__ENV__': env, '__SERVER_SELECTOR__': scope}
     names = ('dashboard', 'alerts', 'queries')
     bundle = [render(json.loads((ROOT / f'{name}.template.json').read_text()), bindings) for name in names]
-    validate(bundle)
+    validate(bundle, env)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for name, artifact in zip(names, bundle):
         destination = args.output_dir / f'{name}.json'
